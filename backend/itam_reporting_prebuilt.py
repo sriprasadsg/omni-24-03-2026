@@ -1,11 +1,11 @@
 """ITAM pre-built report registry (Phase 72, D-08/D-09).
 
-Five of the six D-08 reports live here so far: warranty_expiring (72-01,
-the tracer) and asset_value/checkout_activity/overdue_audits (72-02 Task
-1). Task 2 adds the remaining two (license_utilization,
-low_stock_consumables). Every report is a new PREBUILT_REPORTS entry plus a
-new `builder` callable — this module's public shape
-(list_prebuilt_reports/run_prebuilt_report) never changes to add one.
+All six D-08 reports live here: warranty_expiring (72-01, the tracer),
+asset_value/checkout_activity/overdue_audits (72-02 Task 1), and
+license_utilization/low_stock_consumables (72-02 Task 2). Every report is a
+new PREBUILT_REPORTS entry plus a new `builder` callable — this module's
+public shape (list_prebuilt_reports/run_prebuilt_report) never changes to
+add one.
 
 Deliberately imports no FastAPI symbol, matching itam_reporting_service.py's
 own no-FastAPI-import convention — this module is unit-testable without a
@@ -27,8 +27,14 @@ from itam_lifecycle_endpoints import (
     _overdue_query,
     _overdue_row,
 )
+from itam_license_endpoints import _enrich_license_seats_and_expiry
 
 _EM_DASH = "—"
+
+# D-19 fallback: a consumable with no admin-set reorderThreshold is flagged
+# by low_stock_consumables when its availableQuantity is at or below this
+# fixed heuristic — so the report works day one with no data migration.
+DEFAULT_LOW_STOCK_QUANTITY = 5
 
 # Declared display headers — used both as the emitted row key order and, per
 # build_report_rows's own fallback rule, as the header list a zero-row run
@@ -267,6 +273,105 @@ async def _build_overdue_audits_rows(db, tenant_id: Optional[str]) -> List[Dict[
     return rows
 
 
+_LICENSE_UTILIZATION_COLUMNS = [
+    "License", "Manufacturer", "Seats Total", "Seats Assigned", "Seats Available",
+    "Utilization %", "Expiry Date", "Status",
+]
+
+
+async def _build_license_utilization_rows(db, tenant_id: Optional[str]) -> List[Dict[str, Any]]:
+    """Reads db.licenses tenant-scoped; for each licence obtains the
+    assigned-seat count with db.license_assignments.count_documents and
+    calls itam_license_endpoints._enrich_license_seats_and_expiry — the same
+    function GET /api/itam/licenses uses, so this report and the Licences
+    tab can never disagree (must_haves truth). A zero seatCount reports
+    zero percent utilisation rather than raising a division error. Sorted
+    descending by utilisation percentage.
+    """
+    licenses = await db.licenses.find({}, {"_id": 0}).to_list(length=None)
+    now = datetime.now(timezone.utc)
+
+    rows: List[Dict[str, Any]] = []
+    for lic in licenses:
+        seats_assigned = await db.license_assignments.count_documents({"licenseId": lic["id"]})
+        enriched = _enrich_license_seats_and_expiry(dict(lic), seats_assigned, now)
+        seat_count = enriched.get("seatCount") or 0
+        utilization_pct = round((seats_assigned / seat_count) * 100, 1) if seat_count else 0.0
+
+        if enriched.get("isExpired"):
+            license_status = "Expired"
+        elif enriched.get("expiryDate"):
+            license_status = "Active"
+        else:
+            license_status = "No Expiry"
+
+        rows.append({
+            "_sortKey": utilization_pct,
+            "License": _dash(enriched.get("name")),
+            "Manufacturer": _dash(enriched.get("manufacturerId")),
+            "Seats Total": seat_count,
+            "Seats Assigned": seats_assigned,
+            "Seats Available": enriched.get("seatsAvailable"),
+            "Utilization %": utilization_pct,
+            "Expiry Date": _dash(enriched.get("expiryDate")),
+            "Status": license_status,
+        })
+
+    rows.sort(key=lambda r: r["_sortKey"], reverse=True)
+    for row in rows:
+        row.pop("_sortKey", None)
+    return rows
+
+
+_LOW_STOCK_CONSUMABLES_COLUMNS = [
+    "Consumable", "Unit Type", "Available", "Initial", "Reorder Threshold", "Basis",
+]
+
+
+async def _build_low_stock_consumables_rows(db, tenant_id: Optional[str]) -> List[Dict[str, Any]]:
+    """Reads db.itam_consumables tenant-scoped. Flags a consumable whose
+    availableQuantity is at or below its own reorderThreshold when that
+    field is set (D-19's chosen value), otherwise at or below the module
+    fallback DEFAULT_LOW_STOCK_QUANTITY (D-19's derived heuristic) — so the
+    report works with no data migration. Per RESEARCH.md Pitfall 3,
+    consumable ids are raw ObjectId hex strings with no prefix, unlike
+    every sibling entity — `name` is the identifying display column, never
+    id, and no join-by-id to assets is attempted. Sorted ascending by
+    availableQuantity.
+    """
+    consumables = await db.itam_consumables.find({}, {"_id": 0}).to_list(length=None)
+
+    rows: List[Dict[str, Any]] = []
+    for con in consumables:
+        available = con.get("availableQuantity")
+        if available is None:
+            continue
+        threshold = con.get("reorderThreshold")
+        if threshold is not None:
+            if available > threshold:
+                continue
+            basis = "Configured threshold"
+        else:
+            if available > DEFAULT_LOW_STOCK_QUANTITY:
+                continue
+            basis = f"Default ({DEFAULT_LOW_STOCK_QUANTITY})"
+
+        rows.append({
+            "_sortKey": available,
+            "Consumable": _dash(con.get("name")),
+            "Unit Type": _dash(con.get("unitType")),
+            "Available": available,
+            "Initial": _dash(con.get("initialQuantity")),
+            "Reorder Threshold": _dash(threshold),
+            "Basis": basis,
+        })
+
+    rows.sort(key=lambda r: r["_sortKey"])
+    for row in rows:
+        row.pop("_sortKey", None)
+    return rows
+
+
 # Keyed by report key. Each value carries key/title/description/columns
 # (declared display headers)/defaultSort (human-readable order description)
 # and `builder` (the async row-building callable) — list_prebuilt_reports
@@ -306,6 +411,25 @@ PREBUILT_REPORTS: Dict[str, Dict[str, Any]] = {
         "columns": _OVERDUE_AUDITS_COLUMNS,
         "defaultSort": "Ascending by days overdue",
         "builder": _build_overdue_audits_rows,
+    },
+    "license_utilization": {
+        "key": "license_utilization",
+        "title": "License Seat Utilization",
+        "description": "Seat assignment and utilisation percentage per software license.",
+        "columns": _LICENSE_UTILIZATION_COLUMNS,
+        "defaultSort": "Descending by utilization percentage",
+        "builder": _build_license_utilization_rows,
+    },
+    "low_stock_consumables": {
+        "key": "low_stock_consumables",
+        "title": "Low-Stock Consumables",
+        "description": (
+            f"Consumables at or below their reorder threshold, or the default "
+            f"fallback of {DEFAULT_LOW_STOCK_QUANTITY} when no threshold is set."
+        ),
+        "columns": _LOW_STOCK_CONSUMABLES_COLUMNS,
+        "defaultSort": "Ascending by available quantity",
+        "builder": _build_low_stock_consumables_rows,
     },
 }
 

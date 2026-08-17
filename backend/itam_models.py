@@ -392,6 +392,11 @@ class ConsumableCreate(CatalogEntityCreate):
     """Request contract for creating a new consumable."""
     initialQuantity: int = Field(ge=0)
     unitType: str = Field(min_length=1, max_length=50) # e.g., "unit", "pack", "meter"
+    # D-19 (Phase 72, low_stock_consumables report): optional admin-set
+    # reorder point. Nullable by design — no data migration/backfill is
+    # required for pre-existing consumables, which fall back to the
+    # report's own fixed DEFAULT_LOW_STOCK_QUANTITY heuristic instead.
+    reorderThreshold: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -400,6 +405,7 @@ class ConsumableUpdate(CatalogEntityUpdate):
     """Request contract for updating an existing consumable."""
     initialQuantity: Optional[int] = Field(None, ge=0) # Can't update directly, managed by checkout/checkin
     unitType: Optional[str] = Field(None, min_length=1, max_length=50)
+    reorderThreshold: Optional[int] = Field(None, ge=0)
 
     model_config = ConfigDict(extra="forbid")
 

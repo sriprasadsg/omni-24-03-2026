@@ -21,11 +21,14 @@ from tests.itam_reporting_test_support import (  # noqa: F401 — fixtures re-ex
     patch_reporting_get_database,
     reporting_app,
     report_asset,
+    report_consumable,
+    report_license,
 )
 
 from authentication_service import get_current_user as real_get_current_user
 from itam_finance_service import REASON_NO_DEPRECIATION_POLICY, compute_book_value
 from itam_lifecycle_endpoints import _overdue_query
+from itam_models import ConsumableCreate
 from itam_reporting_prebuilt import PREBUILT_REPORTS
 
 
@@ -52,6 +55,13 @@ _CHECKOUT_ACTIVITY_COLUMNS = [
 _OVERDUE_AUDITS_COLUMNS = [
     "Asset Tag", "Name", "Lifecycle Status", "Last Audited", "Age Basis", "Days Overdue", "Never Audited",
 ]
+_LICENSE_UTILIZATION_COLUMNS = [
+    "License", "Manufacturer", "Seats Total", "Seats Assigned", "Seats Available",
+    "Utilization %", "Expiry Date", "Status",
+]
+_LOW_STOCK_CONSUMABLES_COLUMNS = [
+    "Consumable", "Unit Type", "Available", "Initial", "Reorder Threshold", "Basis",
+]
 
 
 def _client(app, tenant_id="tenant-a", role="admin", username="admin@example.com"):
@@ -72,10 +82,12 @@ def _iso(days_offset: float) -> str:
 
 
 class TestRegistry:
-    def test_all_reports_registered_so_far(self):
-        assert {"warranty_expiring", "asset_value", "checkout_activity", "overdue_audits"} <= set(
-            PREBUILT_REPORTS
-        )
+    def test_all_six_reports_registered(self):
+        assert set(PREBUILT_REPORTS) == {
+            "warranty_expiring", "asset_value", "checkout_activity",
+            "overdue_audits", "license_utilization", "low_stock_consumables",
+        }
+        assert len(PREBUILT_REPORTS) == 6
 
 
 class TestAssetValueReport:
@@ -281,3 +293,126 @@ class TestOverdueAuditsReport:
         body = r.json()
         assert body["rows"] == []
         assert body["columns"] == _OVERDUE_AUDITS_COLUMNS
+
+
+class TestLicenseUtilizationReport:
+    """POST /api/itam/reports/prebuilt/license_utilization/run"""
+
+    @pytest.mark.asyncio
+    async def test_returns_rows_sorted_desc_by_utilization(self, mock_db, reporting_app):
+        low_util = report_license(id="lic-low", name="Low Util Suite", seatCount=10)
+        high_util = report_license(id="lic-high", name="High Util Suite", seatCount=10)
+        mock_db.licenses.find.return_value.to_list.return_value = [low_util, high_util]
+        # Iteration order matches the seeded list above: low_util first (2
+        # assigned -> 20%), then high_util (9 assigned -> 90%).
+        mock_db.license_assignments.count_documents = AsyncMock(side_effect=[2, 9])
+
+        r = await _run(reporting_app, "license_utilization")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["columns"] == _LICENSE_UTILIZATION_COLUMNS
+        assert [row["License"] for row in body["rows"]] == ["High Util Suite", "Low Util Suite"]
+        assert body["rows"][0]["Seats Assigned"] == 9
+        assert body["rows"][0]["Seats Available"] == 1
+        assert body["rows"][0]["Utilization %"] == 90.0
+
+    @pytest.mark.asyncio
+    async def test_zero_seat_count_reports_zero_percent_not_division_error(self, mock_db, reporting_app):
+        lic = report_license(id="lic-zero", name="Zero Seats", seatCount=0)
+        mock_db.licenses.find.return_value.to_list.return_value = [lic]
+        mock_db.license_assignments.count_documents = AsyncMock(return_value=0)
+
+        r = await _run(reporting_app, "license_utilization")
+
+        assert r.status_code == 200, r.text
+        row = r.json()["rows"][0]
+        assert row["Utilization %"] == 0
+
+    @pytest.mark.asyncio
+    async def test_zero_rows_returns_declared_columns(self, mock_db, reporting_app):
+        mock_db.licenses.find.return_value.to_list.return_value = []
+
+        r = await _run(reporting_app, "license_utilization")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rows"] == []
+        assert body["columns"] == _LICENSE_UTILIZATION_COLUMNS
+
+
+class TestLowStockConsumablesReport:
+    """POST /api/itam/reports/prebuilt/low_stock_consumables/run"""
+
+    @pytest.mark.asyncio
+    async def test_flags_at_or_below_configured_threshold(self, mock_db, reporting_app):
+        below_threshold = report_consumable(
+            id="con-1", name="Low Stock Widget", availableQuantity=6, reorderThreshold=10,
+        )
+        above_threshold = report_consumable(
+            id="con-2", name="Plenty Widget", availableQuantity=50, reorderThreshold=10,
+        )
+        mock_db.itam_consumables.find.return_value.to_list.return_value = [below_threshold, above_threshold]
+
+        r = await _run(reporting_app, "low_stock_consumables")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["columns"] == _LOW_STOCK_CONSUMABLES_COLUMNS
+        assert [row["Consumable"] for row in body["rows"]] == ["Low Stock Widget"]
+        assert body["rows"][0]["Basis"] == "Configured threshold"
+
+    @pytest.mark.asyncio
+    async def test_no_threshold_uses_default_fallback_of_five(self, mock_db, reporting_app):
+        flagged = report_consumable(
+            id="con-1", name="No Threshold Low", availableQuantity=5, reorderThreshold=None,
+        )
+        not_flagged = report_consumable(
+            id="con-2", name="No Threshold High", availableQuantity=6, reorderThreshold=None,
+        )
+        mock_db.itam_consumables.find.return_value.to_list.return_value = [flagged, not_flagged]
+
+        r = await _run(reporting_app, "low_stock_consumables")
+
+        assert r.status_code == 200, r.text
+        rows = r.json()["rows"]
+        assert [row["Consumable"] for row in rows] == ["No Threshold Low"]
+        assert rows[0]["Basis"] == "Default (5)"
+
+    @pytest.mark.asyncio
+    async def test_above_threshold_and_fallback_is_absent(self, mock_db, reporting_app):
+        comfortable = report_consumable(
+            id="con-1", name="Comfortable Stock", availableQuantity=6, reorderThreshold=None,
+        )
+        mock_db.itam_consumables.find.return_value.to_list.return_value = [comfortable]
+
+        r = await _run(reporting_app, "low_stock_consumables")
+
+        assert r.status_code == 200, r.text
+        assert r.json()["rows"] == []
+
+    @pytest.mark.asyncio
+    async def test_zero_rows_returns_declared_columns(self, mock_db, reporting_app):
+        mock_db.itam_consumables.find.return_value.to_list.return_value = []
+
+        r = await _run(reporting_app, "low_stock_consumables")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rows"] == []
+        assert body["columns"] == _LOW_STOCK_CONSUMABLES_COLUMNS
+
+
+class TestReorderThresholdField:
+    """D-19: ConsumableCreate.reorderThreshold is optional and validates
+    both absent and present."""
+
+    def test_consumable_create_validates_with_field_absent(self):
+        payload = ConsumableCreate(name="Cable", initialQuantity=20, unitType="unit")
+        assert payload.reorderThreshold is None
+
+    def test_consumable_create_validates_with_field_set(self):
+        payload = ConsumableCreate(
+            name="Cable", initialQuantity=20, unitType="unit", reorderThreshold=10,
+        )
+        assert payload.reorderThreshold == 10
