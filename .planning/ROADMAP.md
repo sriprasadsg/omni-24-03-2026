@@ -852,7 +852,7 @@ Plans:
 - [x] 64-01-PLAN.md — Backend: `rotate_key.yaml` playbook wired into `remediation_playbook_service.py`'s `select_playbook()` routing.
 - [x] 64-02-PLAN.md — Rust weak-key detection (`ssh_key_checks.rs` + scanner integration, `agent-install/omni-agent-rs/`)
 - [x] 64-03-PLAN.md — Rust rotation mechanics (`ssh_key_rotation.rs`, byte-for-byte backup/restore, grounded re-verify, `agent-install/omni-agent-rs/`)
-- [ ] 64-04-PLAN.md — Dispatch-arm wiring exposing rotate_key to the backend instruction system (not yet planned)
+- [ ] 64-04-PLAN.md — Dispatch-arm wiring: rotate_key + rotate_key_rollback instruction arms, plus fixing the rollback playbook's unresolvable backup_path reference
 
 ### Phase 65: FIM process attribution via fanotify
 
