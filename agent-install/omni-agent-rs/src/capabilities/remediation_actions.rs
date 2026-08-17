@@ -11,6 +11,7 @@
 //! only param validation + branching — it never actually kills a process,
 //! touches the host firewall, or starts/stops a real service.
 
+use crate::capabilities::ssh_key_rotation;
 use std::net::IpAddr;
 use std::path::Path;
 
@@ -293,8 +294,23 @@ fn validate_service_name(service_name: &str) -> Result<(), RemediationError> {
     Ok(())
 }
 
-// rotate_key is deferred to backlog (999.2) — under-specified + dangerous +
-// hard to make reversible; not implemented here.
+/// Thin wrapper dispatching to `ssh_key_rotation::rotate_in_place` — the
+/// synchronous rotation logic does small, bounded file I/O, so no
+/// `spawn_blocking` is used, matching `restore_file`'s pattern. No
+/// additional validation here — `rotate_in_place`/`validate_target`
+/// already refuse every invalid case.
+pub async fn rotate_key(
+    authorized_keys_path: &str,
+    fingerprint: &str,
+) -> Result<ssh_key_rotation::RotationOutcome, RemediationError> {
+    ssh_key_rotation::rotate_in_place(authorized_keys_path, fingerprint)
+}
+
+/// Thin wrapper dispatching to `ssh_key_rotation::rollback_rotation` — the
+/// rollback counterpart of `rotate_key`.
+pub async fn rotate_key_rollback(authorized_keys_path: &str) -> Result<(), RemediationError> {
+    ssh_key_rotation::rollback_rotation(authorized_keys_path)
+}
 
 #[cfg(test)]
 mod tests {

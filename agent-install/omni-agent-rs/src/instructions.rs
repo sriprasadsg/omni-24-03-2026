@@ -51,7 +51,57 @@ async fn execute_instruction(
     cfg: &Config,
     client: &reqwest::Client,
 ) {
-    let result: Value = match action {
+    let result: Value = match compute_instruction_result(action, raw_action, item, cfg, client).await {
+        Some(v) => v,
+        // Preserves the pre-refactor early-exit behavior for malformed
+        // "start remote session" strings: no result to report, skip the
+        // POST entirely rather than reporting a synthetic status.
+        None => return,
+    };
+
+    let report_url = format!(
+        "{}/api/agents/{}/instructions/result",
+        cfg.api_base_url.trim_end_matches('/'),
+        hostname_str()
+    );
+    // Backend (agent_tasks_endpoints.report_instruction_result) keys the
+    // instruction-status update on task_id and reads status at the top level.
+    let status = result
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+    let _ = client
+        .post(&report_url)
+        .bearer_auth(&cfg.agent_token)
+        .json(&serde_json::json!({
+            "task_id": task_id,
+            "action": action,
+            "type": action,
+            "status": status,
+            "result": result,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        }))
+        .send()
+        .await;
+}
+
+/// Pure dispatch: matches `action` against every supported instruction and
+/// returns the resulting status JSON, with no network side effect of its
+/// own beyond what a given arm needs (e.g. `network_scan` posting discovery
+/// results). Split out from `execute_instruction` so the dispatch arms
+/// themselves — not just their underlying capability functions — are
+/// directly testable without a live instructions-result endpoint. Returns
+/// `None` only for the legacy malformed "start remote session" string case,
+/// preserving that arm's pre-refactor silent-skip behavior.
+pub async fn compute_instruction_result(
+    action: &str,
+    raw_action: &str,
+    item: &Value,
+    cfg: &Config,
+    client: &reqwest::Client,
+) -> Option<Value> {
+    Some(match action {
         "enable_rdp" => {
             match crate::capabilities::remote_access::set_rdp(true) {
                 Ok(()) => serde_json::json!({"status": "success", "message": "RDP enabled"}),
@@ -241,7 +291,7 @@ async fn execute_instruction(
                 if words.len() >= 5 {
                     (words[words.len() - 2].to_string(), words[words.len() - 1].to_string())
                 } else {
-                    return;
+                    return None;
                 }
             };
             // A "start_remote_session" instruction carries the session kind in
@@ -274,7 +324,7 @@ async fn execute_instruction(
                 if words.len() >= 5 {
                     (words[words.len() - 2].to_string(), words[words.len() - 1].to_string())
                 } else {
-                    return;
+                    return None;
                 }
             };
             crate::capabilities::remote_access::start_desktop_stream(session_id, url);
@@ -469,6 +519,21 @@ async fn execute_instruction(
                 Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
             }
         }
+        "rotate_key" => {
+            let fingerprint = item.get("parameters").and_then(|p| p.get("fingerprint")).and_then(|v| v.as_str()).unwrap_or("");
+            let authorized_keys_path = item.get("parameters").and_then(|p| p.get("authorized_keys_path")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::capabilities::remediation_actions::rotate_key(authorized_keys_path, fingerprint).await {
+                Ok(outcome) => serde_json::json!({"status": "success", "new_fingerprint": outcome.new_fingerprint, "new_comment": outcome.new_comment}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
+        "rotate_key_rollback" => {
+            let authorized_keys_path = item.get("parameters").and_then(|p| p.get("authorized_keys_path")).and_then(|v| v.as_str()).unwrap_or("");
+            match crate::capabilities::remediation_actions::rotate_key_rollback(authorized_keys_path).await {
+                Ok(()) => serde_json::json!({"status": "success", "message": "Key rotation rollback complete"}),
+                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
+            }
+        }
         _ => {
             // Report instead of silently returning: an unhandled instruction must
             // surface as an error in the dashboard, not sit "sent" forever looking
@@ -479,33 +544,7 @@ async fn execute_instruction(
                 "error": format!("Agent does not support instruction '{}'", raw_action)
             })
         }
-    };
-
-    let report_url = format!(
-        "{}/api/agents/{}/instructions/result",
-        cfg.api_base_url.trim_end_matches('/'),
-        hostname_str()
-    );
-    // Backend (agent_tasks_endpoints.report_instruction_result) keys the
-    // instruction-status update on task_id and reads status at the top level.
-    let status = result
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-    let _ = client
-        .post(&report_url)
-        .bearer_auth(&cfg.agent_token)
-        .json(&serde_json::json!({
-            "task_id": task_id,
-            "action": action,
-            "type": action,
-            "status": status,
-            "result": result,
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-        }))
-        .send()
-        .await;
+    })
 }
 
 /// Download a file from `url` and run it as a silent installer.

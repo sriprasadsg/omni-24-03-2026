@@ -77,3 +77,10 @@ async def test_rotate_key_wiring():
     rollback_params = playbook["rollback"][0]["params"]
     rendered_rollback = _render_step_params(rollback_params, finding)
     assert rendered_rollback["authorized_keys_path"] == "/home/user/.ssh/authorized_keys"
+
+    # Task 6 (plan 64-04): rollback step dispatches to the arm that actually
+    # exists — action: rotate_key_rollback with only authorized_keys_path,
+    # never the old restore_file/backup_path shape that could never resolve.
+    rollback_step = playbook["rollback"][0]
+    assert rollback_step["action"] == "rotate_key_rollback"
+    assert set(rollback_step["params"].keys()) == {"authorized_keys_path"}

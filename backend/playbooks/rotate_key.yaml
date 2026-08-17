@@ -9,7 +9,6 @@ steps:
       authorized_keys_path: "{{finding.details.affected_path}}"
     destructive: true
 rollback:
-  - action: restore_file
+  - action: rotate_key_rollback
     params:
-      path: "{{finding.details.affected_path}}"
-      backup_path: "{{finding.details.rotate_key_backup_path}}"
+      authorized_keys_path: "{{finding.details.affected_path}}"
