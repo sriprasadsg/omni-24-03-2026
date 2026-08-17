@@ -191,6 +191,75 @@ pub fn rollback_rotation(authorized_keys_path: &str) -> Result<(), RemediationEr
     Ok(())
 }
 
+/// Line-injection guard, not cosmetics: an authorized_keys record is
+/// newline-delimited, so an unsanitized comment carrying a newline would
+/// append an attacker-chosen second key entry. Keeps only ASCII letters,
+/// digits, dot, underscore, at-sign and hyphen; truncates to
+/// [`MAX_COMMENT_LEN`]; substitutes a fixed fallback token when the
+/// filtered result is empty.
+pub fn sanitize_comment(raw: &str) -> String {
+    unimplemented!()
+}
+
+/// The D-09 boundary: this type is the entire surface the host reports
+/// about a rotation, persisted verbatim by the backend. No field may ever
+/// carry key material, a key body, or a filesystem path. Deliberately no
+/// `Serialize` derive — the dispatch arm (plan 64-04) constructs its JSON
+/// field by field, so there is no derive that could silently widen this
+/// payload when a field is added later.
+#[derive(Debug, Clone)]
+pub struct RotationOutcome {
+    pub new_fingerprint: String,
+    pub new_comment: String,
+}
+
+/// Generates a fresh Ed25519 private key (OpenSSH's own default since
+/// 9.5, per RESEARCH.md's State of the Art) seeded from the OS CSPRNG —
+/// never a fixed or time-derived seed — and sets the sanitized comment.
+fn generate_replacement(comment: &str) -> Result<ssh_key::PrivateKey, RemediationError> {
+    unimplemented!()
+}
+
+/// The only place in the crate where private key bytes exist in memory.
+/// Refuses when a prior rotation's key is still pending out-of-band
+/// delivery (D-08) rather than overwriting an in-flight credential.
+/// Returns the new key's public authorized_keys-format line; nothing else
+/// leaves this function.
+fn write_new_keypair(authorized_keys_path: &str, key: &ssh_key::PrivateKey) -> Result<String, RemediationError> {
+    unimplemented!()
+}
+
+/// Rebuilds `original` with the line at `line_index` replaced by
+/// `replacement_line`, preserving every other line and the presence/
+/// absence of a trailing newline exactly.
+fn rebuild_file(original: &str, line_index: usize, replacement_line: &str) -> String {
+    unimplemented!()
+}
+
+fn read_bounded(path: &str) -> Result<String, RemediationError> {
+    unimplemented!()
+}
+
+/// D-07 grounded re-verify, factored out so a test can drive the failure
+/// branch directly: re-parses `reread_text` (freshly re-read from disk,
+/// never the in-memory pre-write string) and requires both that no entry's
+/// fingerprint equals `old_fingerprint` and that the entry whose
+/// fingerprint equals `new_fingerprint` has a `weak_reason` of `None`,
+/// per `ssh_key_checks::weak_reason_for` — this module never re-implements
+/// that judgment.
+fn verify_rotation_grounded(reread_text: &str, old_fingerprint: &str, new_fingerprint: &str) -> Result<(), String> {
+    unimplemented!()
+}
+
+/// Composes the full destructive rotation: target selection (D-04/D-05),
+/// snapshot (D-06), keypair generation, atomic replacement preserving the
+/// matched line's options prefix, and the grounded post-write re-verify
+/// (D-07) — rolling back and refusing rather than ever reporting success
+/// on an unverified file.
+pub fn rotate_in_place(authorized_keys_path: &str, fingerprint: &str) -> Result<RotationOutcome, RemediationError> {
+    unimplemented!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -418,5 +487,233 @@ mod tests {
         let result = rollback_rotation(path.to_str().unwrap());
         assert!(matches!(result, Err(RemediationError::FileNotFound(_))));
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    }
+
+    // ── sanitize_comment ────────────────────────────────────────────────
+
+    #[test]
+    fn rotate_key_sanitize_comment_strips_and_bounds() {
+        let raw = "bad comment; rm -rf /\nwith spaces\tand a tab $(evil) ".repeat(3);
+        let sanitized = sanitize_comment(&raw);
+        assert!(sanitized
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '@' | '-')));
+        assert!(sanitized.len() <= MAX_COMMENT_LEN);
+        assert!(!sanitized.is_empty());
+
+        let empty = sanitize_comment("");
+        assert!(!empty.is_empty());
+    }
+
+    // ── rotate_in_place ──────────────────────────────────────────────────
+
+    fn write_fixture(dir: &Path, lines: &[String]) -> PathBuf {
+        let path = dir.join("authorized_keys");
+        let content = lines.join("\n") + "\n";
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_three_entry_success() {
+        let dir = tempdir().unwrap();
+        let l1 = sample_key_line("one");
+        let l2 = sample_key_line("two");
+        let l3 = sample_key_line("three");
+        let path = write_fixture(dir.path(), &[l1, l2.clone(), l3]);
+        let fp2 = fingerprint_of(&l2);
+
+        let outcome = rotate_in_place(path.to_str().unwrap(), &fp2).expect("rotation should succeed");
+
+        let after = std::fs::read_to_string(&path).unwrap();
+        let entries = ssh_key_checks::parse_authorized_keys(&after);
+        assert_eq!(entries.len(), 3);
+        assert!(entries.iter().all(|e| e.fingerprint != fp2));
+        assert!(entries.iter().any(|e| e.fingerprint == outcome.new_fingerprint));
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_untouched_lines_byte_identical_and_ordered() {
+        let dir = tempdir().unwrap();
+        let l1 = sample_key_line("one");
+        let l2 = sample_key_line("two");
+        let l3 = sample_key_line("three");
+        let path = write_fixture(dir.path(), &[l1.clone(), l2.clone(), l3.clone()]);
+        let fp2 = fingerprint_of(&l2);
+
+        rotate_in_place(path.to_str().unwrap(), &fp2).expect("rotation should succeed");
+
+        let after = std::fs::read_to_string(&path).unwrap();
+        let after_lines: Vec<&str> = after.split('\n').collect();
+        assert_eq!(after_lines[0], l1);
+        assert_eq!(after_lines[2], l3);
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_preserves_options_prefix() {
+        let dir = tempdir().unwrap();
+        let l1 = sample_key_line("one");
+        let bare = sample_key_line("two");
+        let l2 = format!("command=\"/usr/bin/true\",no-pty {bare}");
+        let l3 = sample_key_line("three");
+        let path = write_fixture(dir.path(), &[l1, l2, l3]);
+        let fp2 = fingerprint_of(&bare);
+
+        rotate_in_place(path.to_str().unwrap(), &fp2).expect("rotation should succeed");
+
+        let after = std::fs::read_to_string(&path).unwrap();
+        let after_lines: Vec<&str> = after.split('\n').collect();
+        assert!(after_lines[1].starts_with("command=\"/usr/bin/true\",no-pty "));
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_outcome_never_leaks_private_key() {
+        let dir = tempdir().unwrap();
+        let l1 = sample_key_line("one");
+        let l2 = sample_key_line("two");
+        let l3 = sample_key_line("three");
+        let path = write_fixture(dir.path(), &[l1, l2.clone(), l3]);
+        let fp2 = fingerprint_of(&l2);
+
+        let outcome = rotate_in_place(path.to_str().unwrap(), &fp2).expect("rotation should succeed");
+        let debug_repr = format!("{outcome:?}");
+        assert!(!debug_repr.contains("-----BEGIN"));
+
+        let rk_path = rotated_key_path_for(path.to_str().unwrap()).unwrap();
+        let private_key_contents = std::fs::read_to_string(&rk_path).unwrap();
+        assert!(!debug_repr.contains(&private_key_contents));
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_writes_private_key_owner_only_and_pub_sibling() {
+        let dir = tempdir().unwrap();
+        let l1 = sample_key_line("one");
+        let l2 = sample_key_line("two");
+        let l3 = sample_key_line("three");
+        let path = write_fixture(dir.path(), &[l1, l2.clone(), l3]);
+        let fp2 = fingerprint_of(&l2);
+
+        rotate_in_place(path.to_str().unwrap(), &fp2).expect("rotation should succeed");
+
+        let rk_path = rotated_key_path_for(path.to_str().unwrap()).unwrap();
+        assert!(rk_path.exists());
+        assert!(rk_path.with_extension("pub").exists());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&rk_path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_refuses_when_pending_rotated_key_exists() {
+        let dir = tempdir().unwrap();
+        let l1 = sample_key_line("one");
+        let l2 = sample_key_line("two");
+        let l3 = sample_key_line("three");
+        let path = write_fixture(dir.path(), &[l1, l2.clone(), l3]);
+        let fp2 = fingerprint_of(&l2);
+
+        let rk_path = rotated_key_path_for(path.to_str().unwrap()).unwrap();
+        std::fs::write(&rk_path, "a private key pending out-of-band delivery").unwrap();
+
+        let before = std::fs::read_to_string(&path).unwrap();
+        let result = rotate_in_place(path.to_str().unwrap(), &fp2);
+        assert!(result.is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_sole_entry_refuses_lockout_untouched() {
+        let dir = tempdir().unwrap();
+        let l1 = sample_key_line("only");
+        let path = write_fixture(dir.path(), &[l1.clone()]);
+        let fp1 = fingerprint_of(&l1);
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let result = rotate_in_place(path.to_str().unwrap(), &fp1);
+        assert!(matches!(result, Err(RemediationError::LockoutRefused(_))));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+
+        let backup_path = backup_path_for(path.to_str().unwrap());
+        assert!(!Path::new(&backup_path).exists());
+        let rk_path = rotated_key_path_for(path.to_str().unwrap()).unwrap();
+        assert!(!rk_path.exists());
+    }
+
+    // ── D-07 grounded re-verify ─────────────────────────────────────────
+
+    #[test]
+    fn rotate_key_verify_rotation_grounded_fails_when_old_fingerprint_still_present() {
+        let l1 = sample_key_line("one");
+        let l2 = sample_key_line("two");
+        let text = format!("{l1}\n{l2}\n");
+        let fp1 = fingerprint_of(&l1);
+        let fp2 = fingerprint_of(&l2);
+
+        // A "rotation" that didn't actually remove the old fingerprint.
+        let result = verify_rotation_grounded(&text, &fp1, &fp2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rotate_key_verify_rotation_grounded_fails_when_new_entry_is_weak() {
+        // DSA is unconditionally weak per ssh_key_checks::weak_reason_for,
+        // regardless of bit length — deterministic without depending on
+        // ssh-key's default RSA key-size choice.
+        let weak = ssh_key::PrivateKey::random(&mut rand::rngs::OsRng, ssh_key::Algorithm::Dsa)
+            .expect("dsa keygen for test fixture");
+        let weak_line = weak.public_key().to_openssh().expect("encode weak key");
+        let text = format!("{weak_line}\n");
+        let new_fp = fingerprint_of(&weak_line);
+
+        let result = verify_rotation_grounded(&text, "SHA256:old-not-present-anywhere", &new_fp);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_duplicate_fingerprint_fails_reverify_and_rolls_back() {
+        let dir = tempdir().unwrap();
+        let dup = sample_key_line("duplicate");
+        let other = sample_key_line("other");
+        // The same underlying key appears twice (line 0 and line 2) plus
+        // one distinct entry — 3 total parseable entries, so D-05 doesn't
+        // fire, but rotating only the first occurrence leaves the second
+        // with the stale fingerprint, so the real grounded re-verify
+        // genuinely fails without any test-only mocking.
+        let path = write_fixture(dir.path(), &[dup.clone(), other, dup.clone()]);
+        let fp = fingerprint_of(&dup);
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let result = rotate_in_place(path.to_str().unwrap(), &fp);
+        assert!(result.is_err());
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            before,
+            "file must be restored byte-for-byte after a failed re-verify"
+        );
+    }
+
+    #[test]
+    fn rotate_key_rotate_in_place_uses_real_csprng_not_fixed_seed() {
+        let dir1 = tempdir().unwrap();
+        let l1a = sample_key_line("one");
+        let l1b = sample_key_line("two");
+        let l1c = sample_key_line("three");
+        let path1 = write_fixture(dir1.path(), &[l1a, l1b.clone(), l1c]);
+        let fp1b = fingerprint_of(&l1b);
+        let outcome1 = rotate_in_place(path1.to_str().unwrap(), &fp1b).expect("rotation 1 should succeed");
+
+        let dir2 = tempdir().unwrap();
+        let l2a = sample_key_line("one");
+        let l2b = sample_key_line("two");
+        let l2c = sample_key_line("three");
+        let path2 = write_fixture(dir2.path(), &[l2a, l2b.clone(), l2c]);
+        let fp2b = fingerprint_of(&l2b);
+        let outcome2 = rotate_in_place(path2.to_str().unwrap(), &fp2b).expect("rotation 2 should succeed");
+
+        assert_ne!(outcome1.new_fingerprint, outcome2.new_fingerprint);
     }
 }
