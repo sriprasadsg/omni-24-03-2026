@@ -7,7 +7,7 @@ Task 2 (route-level tests) is appended below by that task.
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -212,11 +212,30 @@ class TestWarrantyExpirationsKpi:
 
 
 class TestOverdueKpi:
+    @staticmethod
+    def _overdue_find_side_effect(audit_ids, checkin_ids, batch_assets):
+        """`_compute_overdue_kpi` issues two `db.assets.find(...).to_list()`
+        calls distinguishable by filter shape: the audit-overdue query is the
+        `_overdue_query` `$or` population, the checkin-overdue query filters
+        on `expectedReturnDate`. The one batched top-level `find({}, ...)` in
+        `compute_itam_kpis` (empty filter) falls through to `batch_assets`."""
+        def _side_effect(query, *args, **kwargs):
+            if "expectedReturnDate" in query:
+                docs = [{"id": i} for i in checkin_ids]
+            elif "$or" in query:
+                docs = [{"id": i} for i in audit_ids]
+            else:
+                docs = batch_assets
+            return MagicMock(to_list=AsyncMock(return_value=docs))
+        return _side_effect
+
     @pytest.mark.asyncio
     async def test_audit_and_checkin_counts_separate_and_summed(self, mock_db):
         _seed_defaults(mock_db)
-        mock_db.assets.find.return_value.to_list.return_value = [report_asset(id="a1")]
-        mock_db.assets.count_documents = AsyncMock(side_effect=[2, 3])
+        mock_db.assets.find = MagicMock(side_effect=self._overdue_find_side_effect(
+            audit_ids=["au1", "au2"], checkin_ids=["c1", "c2", "c3"],
+            batch_assets=[report_asset(id="a1")],
+        ))
 
         wrapped = MockTenantIsolatedDatabase(mock_db, "tenant-a")
         result = await compute_itam_kpis(wrapped, "tenant-a")
@@ -227,6 +246,24 @@ class TestOverdueKpi:
         assert overdue["overdueCheckinCount"] == 3
         assert overdue["totalCount"] == 5
         assert overdue["drilldownReportKey"] == "overdue_audits"
+
+    @pytest.mark.asyncio
+    async def test_asset_overdue_on_both_axes_is_not_double_counted(self, mock_db):
+        """WR-02 regression test: an asset overdue on both the audit and
+        checkin axes must be counted once in totalCount, not twice."""
+        _seed_defaults(mock_db)
+        mock_db.assets.find = MagicMock(side_effect=self._overdue_find_side_effect(
+            audit_ids=["shared", "au2"], checkin_ids=["shared", "c2"],
+            batch_assets=[report_asset(id="a1")],
+        ))
+
+        wrapped = MockTenantIsolatedDatabase(mock_db, "tenant-a")
+        result = await compute_itam_kpis(wrapped, "tenant-a")
+
+        overdue = result["overdue"]
+        assert overdue["overdueAuditCount"] == 2
+        assert overdue["overdueCheckinCount"] == 2
+        assert overdue["totalCount"] == 3  # "shared" counted once, not twice
 
 
 class TestNoDataAndDrilldownKeys:

@@ -259,22 +259,20 @@ async def _compute_overdue_kpi(db, assets: List[Dict[str, Any]], now: datetime) 
         }
 
     cutoff = _audit_cutoff_iso()
-    audit_ids = {
-        d["id"]
-        async for d in db.assets.find(_overdue_query(cutoff), {"_id": 0, "id": 1})
-    }
+    audit_docs = await db.assets.find(
+        _overdue_query(cutoff), {"_id": 0, "id": 1}
+    ).to_list(length=None)
+    audit_ids = {d["id"] for d in audit_docs}
 
     now_iso = now.isoformat(timespec="milliseconds")
-    checkin_ids = {
-        d["id"]
-        async for d in db.assets.find(
-            {
-                "lifecycleStatus": LifecycleStatus.DEPLOYED.value,
-                "expectedReturnDate": {"$lt": now_iso},
-            },
-            {"_id": 0, "id": 1},
-        )
-    }
+    checkin_docs = await db.assets.find(
+        {
+            "lifecycleStatus": LifecycleStatus.DEPLOYED.value,
+            "expectedReturnDate": {"$lt": now_iso},
+        },
+        {"_id": 0, "id": 1},
+    ).to_list(length=None)
+    checkin_ids = {d["id"] for d in checkin_docs}
 
     return {
         "hasData": True,
