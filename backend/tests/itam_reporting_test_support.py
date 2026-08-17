@@ -86,6 +86,11 @@ def mock_db():
         "assets", "licenses", "itam_consumables", "components",
         "assignment_history", "license_assignments", "asset_models",
         "system_settings", "itam_report_exports",
+        # itam_reports: Phase 72 Plan 03 (ITAM-REP-01) saved custom report
+        # definitions — added here so this shared fixture continues to seed
+        # every collection the reporting stack touches, per this file's own
+        # module docstring.
+        "itam_reports",
     ):
         setattr(db, name, _make_col())
     return db

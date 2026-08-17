@@ -7,16 +7,19 @@ query + Python-side joins (including cross-tenant isolation on colliding
 join keys). Task 2 extends this file with the saved custom-report routes
 (save/list/preview/run/delete/export) added to itam_reporting_endpoints.py.
 """
+import csv
 import os
 import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from httpx import AsyncClient, ASGITransport
 from pydantic import ValidationError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from tests.conftest import make_token_data
 from tests.itam_reporting_test_support import (  # noqa: F401 — fixtures re-exported for pytest
     MockTenantIsolatedDatabase,
     mock_db,
@@ -27,7 +30,10 @@ from tests.itam_reporting_test_support import (  # noqa: F401 — fixtures re-ex
     reporting_app,
 )
 
+import itam_asset_endpoints
+from authentication_service import get_current_user as real_get_current_user
 from itam_finance_service import compute_book_value, compute_warranty_status
+from itam_reporting_service import _REPORTS_DIR
 from itam_reporting_filters import (
     FIELD_CATALOG,
     CustomReportDefinition,
@@ -72,6 +78,22 @@ def _iso(days_offset: float) -> str:
 async def _run(mock_db, definition, tenant_id="tenant-a"):
     db = MockTenantIsolatedDatabase(mock_db, tenant_id)
     return await run_custom_report(db, definition, tenant_id)
+
+
+def _client(app, tenant_id="tenant-a", role="admin", username="admin@example.com"):
+    current_user = make_token_data(tenant_id=tenant_id, role=role, username=username)
+    app.dependency_overrides[real_get_current_user] = lambda: current_user
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
+
+
+def _no_join_data(mock_db):
+    """Seeds every joined collection with an empty result — the shared
+    zero-join baseline most route tests below start from."""
+    mock_db.license_assignments.find.return_value.to_list.return_value = []
+    mock_db.components.find.return_value.to_list.return_value = []
+    mock_db.itam_consumables.find.return_value.to_list.return_value = []
+    mock_db.asset_models.find.return_value.to_list.return_value = []
+    mock_db.system_settings.find_one = AsyncMock(return_value=None)
 
 
 # ── Field catalogue (T-72-07) ──────────────────────────────────────────────
@@ -452,3 +474,244 @@ class TestTenantIsolation:
         assert "IT-B1" not in serialized
         assert result["rows"][0]["Asset Tag"] == "IT-A1"
         assert result["rows"][0]["License"] == "Tenant A Suite"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Task 2 — Saved custom report routes (save/list/preview/run/delete/export)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestFieldsRoute:
+    """GET /api/itam/reports/fields"""
+
+    @pytest.mark.asyncio
+    async def test_returns_the_field_catalog(self, mock_db, reporting_app):
+        async with _client(reporting_app) as ac:
+            r = await ac.get("/api/itam/reports/fields")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert len(body) == len(FIELD_CATALOG)
+        assert all("source" not in f for f in body)
+
+
+class TestSaveCustomReport:
+    """POST /api/itam/reports/custom"""
+
+    @pytest.mark.asyncio
+    async def test_save_stores_definition_and_returns_generated_id_and_tenant(self, mock_db, reporting_app):
+        payload = {"name": "My Report", "columns": ["asset.assetTag"], "filters": []}
+        async with _client(reporting_app, tenant_id="tenant-a") as ac:
+            r = await ac.post("/api/itam/reports/custom", json=payload)
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["id"].startswith("rpt-")
+        assert body["tenantId"] == "tenant-a"
+        assert body["name"] == "My Report"
+        assert "_id" not in body
+
+    @pytest.mark.asyncio
+    async def test_two_saves_with_identical_name_both_succeed_with_distinct_ids(self, mock_db, reporting_app):
+        saved = []
+
+        async def _insert(doc, *a, **kw):
+            saved.append(dict(doc))
+            return MagicMock()
+
+        mock_db.itam_reports.insert_one = AsyncMock(side_effect=_insert)
+        mock_db.itam_reports.find.return_value.to_list.return_value = saved
+
+        payload = {"name": "Duplicate Name", "columns": ["asset.assetTag"], "filters": []}
+        async with _client(reporting_app) as ac:
+            r1 = await ac.post("/api/itam/reports/custom", json=payload)
+            r2 = await ac.post("/api/itam/reports/custom", json=payload)
+        assert r1.status_code == 201 and r2.status_code == 201
+        id1, id2 = r1.json()["id"], r2.json()["id"]
+        assert id1 != id2
+
+        async with _client(reporting_app) as ac:
+            r_list = await ac.get("/api/itam/reports/custom")
+        listed_ids = {d["id"] for d in r_list.json()}
+        assert {id1, id2} <= listed_ids
+        assert sum(1 for d in r_list.json() if d["name"] == "Duplicate Name") == 2
+
+
+class TestListCustomReports:
+    """GET /api/itam/reports/custom"""
+
+    @pytest.mark.asyncio
+    async def test_list_returns_reports_saved_by_other_users_in_same_tenant(self, mock_db, reporting_app):
+        docs = [{
+            "id": "rpt-1", "tenantId": "tenant-a", "name": "Other User Report",
+            "columns": ["asset.assetTag"], "filters": [], "createdAt": _iso(0),
+            "createdBy": "someone-else@example.com",
+        }]
+        mock_db.itam_reports.find.return_value.to_list.return_value = docs
+        async with _client(reporting_app, tenant_id="tenant-a", username="me@example.com") as ac:
+            r = await ac.get("/api/itam/reports/custom")
+        assert r.status_code == 200, r.text
+        assert any(d["name"] == "Other User Report" for d in r.json())
+
+    @pytest.mark.asyncio
+    async def test_list_does_not_return_another_tenants_reports(self, mock_db, reporting_app):
+        docs_a = [{"id": "rpt-a", "tenantId": "tenant-a", "name": "A Report", "columns": [], "filters": [], "createdAt": _iso(0)}]
+        docs_b = [{"id": "rpt-b", "tenantId": "tenant-b", "name": "B SECRET Report", "columns": [], "filters": [], "createdAt": _iso(0)}]
+        mock_db.itam_reports.find = _by_tenant(docs_a, docs_b)
+
+        async with _client(reporting_app, tenant_id="tenant-a") as ac:
+            r = await ac.get("/api/itam/reports/custom")
+        names = {d["name"] for d in r.json()}
+        assert "B SECRET Report" not in names
+        assert "A Report" in names
+
+
+class TestPreviewCustomReport:
+    """POST /api/itam/reports/custom/preview"""
+
+    @pytest.mark.asyncio
+    async def test_preview_runs_unsaved_definition_and_returns_paginated_rows(self, mock_db, reporting_app):
+        asset = report_asset(id="a1", assetTag="IT-0001")
+        mock_db.assets.find.return_value.to_list.return_value = [asset]
+        _no_join_data(mock_db)
+
+        payload = {"name": "Preview", "columns": ["asset.assetTag"], "filters": []}
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/custom/preview", json=payload)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 1
+        assert body["rows"][0]["Asset Tag"] == "IT-0001"
+        assert body["page"] == 1
+
+
+class TestGetCustomReport:
+    """GET /api/itam/reports/custom/{report_id}"""
+
+    @pytest.mark.asyncio
+    async def test_get_existing_returns_definition(self, mock_db, reporting_app):
+        doc = {"id": "rpt-1", "tenantId": "tenant-a", "name": "Doc", "columns": ["asset.assetTag"], "filters": []}
+        mock_db.itam_reports.find_one = AsyncMock(return_value=doc)
+        async with _client(reporting_app) as ac:
+            r = await ac.get("/api/itam/reports/custom/rpt-1")
+        assert r.status_code == 200, r.text
+        assert r.json()["id"] == "rpt-1"
+
+    @pytest.mark.asyncio
+    async def test_get_missing_returns_404(self, mock_db, reporting_app):
+        mock_db.itam_reports.find_one = AsyncMock(return_value=None)
+        async with _client(reporting_app) as ac:
+            r = await ac.get("/api/itam/reports/custom/rpt-missing")
+        assert r.status_code == 404
+
+
+class TestDeleteCustomReport:
+    """DELETE /api/itam/reports/custom/{report_id}"""
+
+    @pytest.mark.asyncio
+    async def test_delete_existing_returns_204(self, mock_db, reporting_app):
+        mock_db.itam_reports.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
+        async with _client(reporting_app) as ac:
+            r = await ac.delete("/api/itam/reports/custom/rpt-1")
+        assert r.status_code == 204
+
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_returns_404(self, mock_db, reporting_app):
+        mock_db.itam_reports.delete_one = AsyncMock(return_value=MagicMock(deleted_count=0))
+        async with _client(reporting_app) as ac:
+            r = await ac.delete("/api/itam/reports/custom/rpt-missing")
+        assert r.status_code == 404
+
+
+class TestRunSavedCustomReport:
+    """POST /api/itam/reports/custom/{report_id}/run"""
+
+    @pytest.mark.asyncio
+    async def test_run_returns_same_rows_twice_for_unchanged_data(self, mock_db, reporting_app):
+        saved_doc = {"id": "rpt-1", "tenantId": "tenant-a", "name": "Saved", "columns": ["asset.assetTag"], "filters": []}
+        mock_db.itam_reports.find_one = AsyncMock(return_value=saved_doc)
+        asset = report_asset(id="a1", assetTag="IT-0001")
+        mock_db.assets.find.return_value.to_list.return_value = [asset]
+        _no_join_data(mock_db)
+
+        async with _client(reporting_app) as ac:
+            r1 = await ac.post("/api/itam/reports/custom/rpt-1/run")
+            r2 = await ac.post("/api/itam/reports/custom/rpt-1/run")
+        assert r1.status_code == 200 and r2.status_code == 200
+        assert r1.json()["rows"] == r2.json()["rows"]
+
+    @pytest.mark.asyncio
+    async def test_run_after_delete_returns_404(self, mock_db, reporting_app):
+        # delete_one lookup path is independent — this asserts the run
+        # route's own 404 answer when the definition is absent, which is
+        # exactly what happens the moment after a real delete succeeds.
+        mock_db.itam_reports.find_one = AsyncMock(return_value=None)
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/custom/rpt-deleted/run")
+        assert r.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_then_run_returns_404(self, mock_db, reporting_app):
+        mock_db.itam_reports.delete_one = AsyncMock(return_value=MagicMock(deleted_count=1))
+        mock_db.itam_reports.find_one = AsyncMock(return_value=None)
+        async with _client(reporting_app) as ac:
+            r_delete = await ac.delete("/api/itam/reports/custom/rpt-1")
+            r_run = await ac.post("/api/itam/reports/custom/rpt-1/run")
+        assert r_delete.status_code == 204
+        assert r_run.status_code == 404
+
+
+class TestExportCustomReport:
+    """POST /api/itam/reports/custom/{report_id}/export"""
+
+    @pytest.mark.asyncio
+    async def test_export_writes_full_match_set_not_just_preview_page(self, mock_db, reporting_app):
+        saved_doc = {"id": "rpt-1", "tenantId": "tenant-a", "name": "Export Me", "columns": ["asset.assetTag"], "filters": []}
+        mock_db.itam_reports.find_one = AsyncMock(return_value=saved_doc)
+        # 60 rows > the default 50-row preview page.
+        assets = [report_asset(id=f"a{i}", assetTag=f"IT-{i:04d}") for i in range(60)]
+        mock_db.assets.find.return_value.to_list.return_value = assets
+        _no_join_data(mock_db)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/custom/rpt-1/export?format=csv")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 60
+
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        with open(file_path, newline="", encoding="utf-8") as f:
+            reader = list(csv.reader(f))
+        assert len(reader) - 1 == 60  # header + all 60 matches, not a 50-row page
+
+    @pytest.mark.asyncio
+    async def test_export_unregistered_format_returns_400(self, mock_db, reporting_app):
+        saved_doc = {"id": "rpt-1", "tenantId": "tenant-a", "name": "X", "columns": ["asset.assetTag"], "filters": []}
+        mock_db.itam_reports.find_one = AsyncMock(return_value=saved_doc)
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/custom/rpt-1/export?format=pdf")
+        assert r.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_export_missing_report_returns_404(self, mock_db, reporting_app):
+        mock_db.itam_reports.find_one = AsyncMock(return_value=None)
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/custom/rpt-missing/export?format=csv")
+        assert r.status_code == 404
+
+
+class TestPermission:
+    """T-72-05: every custom-report route carries Depends(_require_itam_admin).
+    Named so `-k permission` selects this class."""
+
+    @pytest.mark.asyncio
+    async def test_every_custom_route_returns_403_without_permission(self, mock_db, reporting_app, monkeypatch):
+        monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
+        payload = {"name": "X", "columns": ["asset.assetTag"], "filters": []}
+
+        async with _client(reporting_app) as ac:
+            assert (await ac.get("/api/itam/reports/fields")).status_code == 403
+            assert (await ac.post("/api/itam/reports/custom", json=payload)).status_code == 403
+            assert (await ac.get("/api/itam/reports/custom")).status_code == 403
+            assert (await ac.post("/api/itam/reports/custom/preview", json=payload)).status_code == 403
+            assert (await ac.get("/api/itam/reports/custom/rpt-1")).status_code == 403
+            assert (await ac.delete("/api/itam/reports/custom/rpt-1")).status_code == 403
+            assert (await ac.post("/api/itam/reports/custom/rpt-1/run")).status_code == 403
+            assert (await ac.post("/api/itam/reports/custom/rpt-1/export")).status_code == 403
