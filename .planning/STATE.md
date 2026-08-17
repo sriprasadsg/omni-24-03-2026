@@ -549,6 +549,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - v4.0 milestone added 2026-08-04: 6 new phases (56-61) scaffolded from research run the same day against the milestone's 4 target clusters (lifecycle/check-in-out, procurement/finance, catalog/org, licenses/consumables) plus a Snipe-IT/GLPI/Freshservice feature-convergence pass. Phase 56 (Catalog & Foundation) is the hard prerequisite for every later phase; Phase 61 (Frontend ITAM Console) is threaded last, mirroring the Phase 47/48 admin-gated nav pattern. All 17 v1 requirements (ITAM-CAT/LIFE/FIN/LIC/UI) mapped 1:1 to a phase, no orphans.
 - Phase 63 added: Close gap: ITAM-LIC-02/03 RBAC + ITAM-CAT-05 label UI
 
+### Pending Todos
+
+- Fix stale capability-count assertions in integration.rs (testing, minor) — `.planning/todos/pending/2026-08-17-fix-stale-capability-count-assertions-in-integration-rs.md`
+
 ## Current Position
 
 Phase: 72 (Reporting & Dashboards) — EXECUTING
