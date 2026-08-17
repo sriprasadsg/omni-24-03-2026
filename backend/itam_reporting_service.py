@@ -145,14 +145,16 @@ async def _generate_csv(report: Dict[str, Any], reports_dir: str, tenant_id: Opt
 # Format-name -> renderer-callable registry. Export routes validate the
 # requested format against RENDERERS at call time, never a hardcoded
 # literal tuple — registering a renderer here is what activates a format.
-# itam_reporting_pdf only imports compliance_reporting_data (never this
-# module), so importing it here at module scope carries no circular-import
-# risk.
+# itam_reporting_pdf/itam_reporting_excel only import compliance_reporting_
+# data/compliance_reporting_excel (never this module), so importing them
+# here at module scope carries no circular-import risk.
 from itam_reporting_pdf import _generate_pdf
+from itam_reporting_excel import _generate_excel
 
 RENDERERS: Dict[str, Callable] = {
     "csv": _generate_csv,
     "pdf": _generate_pdf,
+    "xlsx": _generate_excel,
 }
 
 

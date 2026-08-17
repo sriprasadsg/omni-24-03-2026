@@ -22,6 +22,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
+import openpyxl
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient, ASGITransport
@@ -355,3 +356,150 @@ class TestPdfFormulaInjectionDefused:
         assert "=SUM(A1:A10)" in calls
         file_path = os.path.join(str(tmp_path), result["filename"])
         assert os.path.isfile(file_path)
+
+
+# ── Plan 05: Excel renderer (Task 2) ────────────────────────────────────────
+
+class TestWarrantyExpiringExcelExport:
+    """POST /api/itam/reports/prebuilt/warranty_expiring/export?format=xlsx"""
+
+    @pytest.mark.asyncio
+    async def test_xlsx_export_header_and_full_match_set(self, mock_db, reporting_app):
+        assets = [
+            report_asset(id=f"asset-{i}", assetTag=f"IT-{i:04d}", purchaseDate=_offset_iso(15), warrantyMonths=0)
+            for i in range(60)
+        ]
+        mock_db.assets.find.return_value.to_list.return_value = assets
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=xlsx")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 60
+        assert body["filename"].endswith(".xlsx")
+
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.active
+        header = [c.value for c in ws[1]]
+        assert header == _WARRANTY_COLUMNS
+        assert ws.max_row - 1 == 60  # header + all 60 matches, not a paged subset
+
+    @pytest.mark.asyncio
+    async def test_zero_row_xlsx_export_has_header_only(self, mock_db, reporting_app):
+        mock_db.assets.find.return_value.to_list.return_value = []
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=xlsx")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 0
+
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.active
+        assert ws.max_row == 1
+        assert [c.value for c in ws[1]] == _WARRANTY_COLUMNS
+
+    @pytest.mark.asyncio
+    async def test_status_cell_receives_fill_for_expiring(self, mock_db, reporting_app):
+        assets = [
+            report_asset(id="asset-1", assetTag="IT-0001", purchaseDate=_offset_iso(15), warrantyMonths=0),
+        ]
+        mock_db.assets.find.return_value.to_list.return_value = assets
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/prebuilt/warranty_expiring/export?format=xlsx")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.active
+        status_col = _WARRANTY_COLUMNS.index("Status") + 1
+        # itam_finance_service.WARRANTY_STATUS_EXPIRING is lowercase
+        # ("expiring") — the color-table lookup must match it
+        # case-insensitively rather than only the Title-case literal.
+        assert ws.cell(2, status_col).value == "expiring"
+        fill_rgb = ws.cell(2, status_col).fill.fgColor.rgb or ""
+        assert "FFEB9C" in fill_rgb
+
+
+class TestXlsxCustomReportExport:
+    """POST /api/itam/reports/custom/{report_id}/export?format=xlsx"""
+
+    @pytest.mark.asyncio
+    async def test_custom_report_exports_to_xlsx_through_same_route(self, mock_db, reporting_app):
+        saved_doc = {
+            "id": "rpt-xlsx-1", "tenantId": "tenant-a", "name": "Excel Custom Report",
+            "columns": ["asset.assetTag", "asset.name"], "filters": [],
+        }
+        mock_db.itam_reports.find_one = AsyncMock(return_value=saved_doc)
+        assets = [report_asset(id=f"a{i}", assetTag=f"IT-{i:04d}") for i in range(5)]
+        mock_db.assets.find.return_value.to_list.return_value = assets
+        _no_join_data(mock_db)
+
+        async with _client(reporting_app) as ac:
+            r = await ac.post("/api/itam/reports/custom/rpt-xlsx-1/export?format=xlsx")
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["rowCount"] == 5
+        file_path = os.path.join(_REPORTS_DIR, body["filename"])
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.active
+        assert ws.max_row - 1 == 5
+
+
+class TestXlsxFormulaInjectionDefused:
+    """T-72-06: every cell passes through _sanitize_cell before it reaches
+    the workbook — asserted by reading the actual written cell value."""
+
+    @pytest.mark.asyncio
+    async def test_formula_trigger_cell_is_written_defused(self, tmp_path):
+        import itam_reporting_excel
+
+        report = {
+            "key": "warranty_expiring",
+            "title": "Warranty Expiring",
+            "columns": ["Asset Tag", "Name", "Status"],
+            "rows": [{"Asset Tag": "IT-0001", "Name": "=SUM(A1:A10)", "Status": "Expiring"}],
+            "rowCount": 1,
+            "truncated": False,
+        }
+        result = await itam_reporting_excel._generate_excel(report, str(tmp_path), "tenant-a")
+
+        file_path = os.path.join(str(tmp_path), result["filename"])
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.active
+        name_col = ["Asset Tag", "Name", "Status"].index("Name") + 1
+        assert ws.cell(2, name_col).value == "'=SUM(A1:A10)"
+
+
+class TestExportFormatsAgree:
+    """D-11/D-12/D-14: the same report exported in all three formats reports
+    an identical rowCount, since all three read the same shared row set
+    through build_report_rows."""
+
+    @pytest.mark.asyncio
+    async def test_csv_pdf_xlsx_report_identical_row_count(self, mock_db, reporting_app):
+        assets = [
+            report_asset(id=f"asset-{i}", assetTag=f"IT-{i:04d}", purchaseDate=_offset_iso(15), warrantyMonths=0)
+            for i in range(7)
+        ]
+        mock_db.assets.find.return_value.to_list.return_value = assets
+        mock_db.system_settings.find_one = AsyncMock(return_value=None)
+
+        row_counts = {}
+        for fmt in ("csv", "pdf", "xlsx"):
+            async with _client(reporting_app) as ac:
+                r = await ac.post(f"/api/itam/reports/prebuilt/warranty_expiring/export?format={fmt}")
+            assert r.status_code == 200, r.text
+            row_counts[fmt] = r.json()["rowCount"]
+
+        assert row_counts["csv"] == row_counts["pdf"] == row_counts["xlsx"] == 7
