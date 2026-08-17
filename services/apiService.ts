@@ -5627,14 +5627,15 @@ export const runItamPrebuiltReport = async (reportKey: string, page = 1, pageSiz
 };
 
 export const generateItamReport = async (kind: string, reportKey: string, format: string): Promise<ItamReportExportResult> => {
-    if (kind !== 'prebuilt') {
+    if (kind !== 'prebuilt' && kind !== 'custom') {
         throw new Error(`Unsupported report kind: ${kind}`);
     }
+    const segment = kind === 'prebuilt' ? 'prebuilt' : 'custom';
     const res = await authFetch(
-        `${API_BASE}/itam/reports/prebuilt/${encodeURIComponent(reportKey)}/export?format=${encodeURIComponent(format)}`,
+        `${API_BASE}/itam/reports/${segment}/${encodeURIComponent(reportKey)}/export?format=${encodeURIComponent(format)}`,
         { method: 'POST' },
     );
-    if (!res.ok) return itamThrow(res, "Couldn't export report.");
+    if (!res.ok) return itamThrow(res, "Couldn't export report. Try again, or contact an administrator if the problem continues.");
     return res.json();
 };
 
@@ -5651,6 +5652,90 @@ export const downloadItamReport = async (filename: string): Promise<void> => {
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+};
+
+// Phase 72 Plan 06: Custom report builder client functions (ITAM-REP-01).
+// Clone fetchItamPrebuiltReports's authFetch + itamThrow shape.
+export interface ItamReportField {
+    key: string;
+    label: string;
+    entity: string;
+    type: 'text' | 'date' | 'number' | 'enum';
+}
+
+export interface ItamReportFilterCondition {
+    field: string;
+    operator: 'equals' | 'contains' | 'before' | 'after' | 'between' | 'gt' | 'lt';
+    value?: unknown;
+    value2?: unknown;
+}
+
+export interface ItamCustomReportDefinition {
+    name: string;
+    columns: string[];
+    filters: ItamReportFilterCondition[];
+}
+
+export interface ItamSavedCustomReport extends ItamCustomReportDefinition {
+    id: string;
+    tenantId?: string | null;
+    createdAt: string;
+    createdBy: string;
+}
+
+export const fetchItamReportFields = async (): Promise<ItamReportField[]> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/fields`);
+    if (!res.ok) return itamThrow(res, 'Failed to load report fields');
+    return res.json();
+};
+
+export const saveItamCustomReport = async (definition: ItamCustomReportDefinition): Promise<ItamSavedCustomReport> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(definition),
+    });
+    if (!res.ok) return itamThrow(res, "Couldn't save report. Give it a name and try again.");
+    return res.json();
+};
+
+export const listItamCustomReports = async (): Promise<ItamSavedCustomReport[]> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/custom`);
+    if (!res.ok) return itamThrow(res, 'Failed to load saved reports');
+    return res.json();
+};
+
+export const deleteItamCustomReport = async (reportId: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/itam/reports/custom/${encodeURIComponent(reportId)}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) return itamThrow(res, "Couldn't delete report.");
+};
+
+export const previewItamCustomReport = async (
+    definition: ItamCustomReportDefinition,
+    page = 1,
+    pageSize = 50,
+): Promise<ItamReportRunResult> => {
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/custom/preview?page=${page}&page_size=${pageSize}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(definition),
+        },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't run report. Try adjusting your filters or contact an administrator.");
+    return res.json();
+};
+
+export const runItamCustomReport = async (reportId: string, page = 1, pageSize = 50): Promise<ItamReportRunResult> => {
+    const res = await authFetch(
+        `${API_BASE}/itam/reports/custom/${encodeURIComponent(reportId)}/run?page=${page}&page_size=${pageSize}`,
+        { method: 'POST' },
+    );
+    if (!res.ok) return itamThrow(res, "Couldn't run report. Try adjusting your filters or contact an administrator.");
+    return res.json();
 };
 
 // Phase 72 Plan 04: ITAM dashboard KPIs (ITAM-REP-04). Clones
