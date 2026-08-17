@@ -9,6 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const getItamSettings = vi.fn();
+const runItamPrebuiltReport = vi.fn();
+const fetchItamKpis = vi.fn();
 
 vi.mock('../../services/apiService', () => ({
   fetchAssets: vi.fn().mockResolvedValue([]),
@@ -46,10 +48,8 @@ vi.mock('../../services/apiService', () => ({
   verifyAuditIntegrity: vi.fn().mockResolvedValue({ valid: true, total_records: 0 }),
   exportItamAssetsCsv: vi.fn(),
   fetchItamPrebuiltReports: vi.fn().mockResolvedValue([]),
-  runItamPrebuiltReport: vi.fn().mockResolvedValue({
-    key: 'warranty_expiring', title: 'Warranty Expiring', columns: [], rows: [],
-    rowCount: 0, page: 1, pageSize: 50, totalPages: 1, truncated: false,
-  }),
+  runItamPrebuiltReport: (...args: unknown[]) => runItamPrebuiltReport(...args),
+  fetchItamKpis: (...args: unknown[]) => fetchItamKpis(...args),
   generateItamReport: vi.fn(),
   downloadItamReport: vi.fn(),
   fetchItamReportFields: vi.fn().mockResolvedValue([]),
@@ -72,6 +72,20 @@ describe('ITAMConsole', () => {
   beforeEach(() => {
     getItamSettings.mockReset();
     getItamSettings.mockResolvedValue({ branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' }, locale: 'en' });
+    runItamPrebuiltReport.mockReset();
+    runItamPrebuiltReport.mockResolvedValue({
+      key: 'warranty_expiring', title: 'Warranty Expiring', columns: [], rows: [],
+      rowCount: 0, page: 1, pageSize: 50, totalPages: 1, truncated: false,
+    });
+    // Phase 72 Plan 07: hasData=false on every KPI so ItamKpiPanel's tiles
+    // render their empty states without chart geometry under jsdom.
+    fetchItamKpis.mockReset();
+    fetchItamKpis.mockResolvedValue({
+      assetValue: { hasData: false, drilldownReportKey: 'asset_value' },
+      licenseUtilization: { hasData: false, drilldownReportKey: 'license_utilization' },
+      warrantyExpirations: { hasData: false, drilldownReportKey: 'warranty_expiring' },
+      overdue: { hasData: false, drilldownReportKey: 'overdue_audits' },
+    });
   });
 
   it('renders all 11 tabs and defaults to Catalog', async () => {
@@ -93,6 +107,47 @@ describe('ITAMConsole', () => {
     render(<ITAMConsole />);
     fireEvent.click(screen.getByText('Reports'));
     await waitFor(() => expect(screen.getByText('Pre-built Reports')).toBeInTheDocument());
+  });
+
+  it('renders the KPI grid above the pre-built report sections on the Reports tab (Phase 72 Plan 07)', async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Reports'));
+
+    await waitFor(() => expect(screen.getByText('Total Asset Value')).toBeInTheDocument());
+    expect(screen.getByText('License Seat Utilization')).toBeInTheDocument();
+    expect(screen.getByText('Warranty Expirations')).toBeInTheDocument();
+    expect(screen.getByText('Overdue Audits & Check-ins')).toBeInTheDocument();
+    expect(screen.getByText('Pre-built Reports')).toBeInTheDocument();
+
+    // KPI grid must appear first in document order (UI-SPEC visual-hierarchy note).
+    const kpiHeading = screen.getByText('Total Asset Value');
+    const prebuiltHeading = screen.getByText('Pre-built Reports');
+    // eslint-disable-next-line no-bitwise
+    expect(kpiHeading.compareDocumentPosition(prebuiltHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('clicking a KPI tile sets reportFocus, driving ReportsPanel to auto-run that report through its focusReportKey seam', async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(screen.getByText('Total Asset Value')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Total Asset Value/i }));
+
+    await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledWith('asset_value', 1, 50));
+  });
+
+  it("clearing the drilled-into focus via ReportsPanel's onFocusHandled prevents a later tab switch from re-triggering the same run", async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(screen.getByText('Total Asset Value')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Total Asset Value/i }));
+    await waitFor(() => expect(runItamPrebuiltReport).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByText('Catalog'));
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(screen.getByText('Total Asset Value')).toBeInTheDocument());
+    expect(runItamPrebuiltReport).toHaveBeenCalledTimes(1);
   });
 
   it('switches to the Settings tab and shows the branding form', async () => {

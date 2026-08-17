@@ -9,6 +9,7 @@ import { LicensesPanel } from './LicensesPanel';
 import { CompliancePanel } from './CompliancePanel';
 import { SoftwareInventoryPanel } from './SoftwareInventoryPanel';
 import { ReportsPanel } from './ReportsPanel';
+import { ItamKpiPanel } from './ItamKpiPanel';
 import { ActivityLogPanel } from './ActivityLogPanel';
 import { BulkImportExportPanel } from './BulkImportExportPanel';
 import { SettingsPanel } from './SettingsPanel';
@@ -124,7 +125,15 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, setti
         {tab === 'licenses' && <LicensesPanel />}
         {tab === 'compliance' && <CompliancePanel assets={assets} />}
         {tab === 'software' && <SoftwareInventoryPanel />}
-        {tab === 'reports' && <ReportsPanel focusReportKey={reportFocus} onFocusHandled={() => setReportFocus(null)} />}
+        {tab === 'reports' && (
+          <>
+            {/* KPI grid is the primary anchor (UI-SPEC visual-hierarchy note) —
+                mounted above the report sections, D-18 drill-down wired
+                through the console's existing reportFocus seam. */}
+            <ItamKpiPanel onDrillDown={(reportKey) => setReportFocus(reportKey)} />
+            <ReportsPanel focusReportKey={reportFocus} onFocusHandled={() => setReportFocus(null)} />
+          </>
+        )}
         {tab === 'activity' && <ActivityLogPanel />}
         {tab === 'data' && <BulkImportExportPanel />}
         {tab === 'settings' && <SettingsPanel onSaved={onSettingsSaved} />}
