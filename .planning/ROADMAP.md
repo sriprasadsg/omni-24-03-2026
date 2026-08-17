@@ -955,7 +955,7 @@ Plans:
 **Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 67 on 2026-08-13 — renumbered 67→72.] Provide custom report building, pre-built reports, export functionality, and a KPI dashboard.
 **Requirements**: ITAM-REP-01, ITAM-REP-02, ITAM-REP-03, ITAM-REP-04
 **Depends on:** Phase 71
-**Plans:** 3/7 plans executed
+**Plans:** 4/7 plans executed
 **Success Criteria:**
 
   1. User can build and save custom reports.
@@ -974,7 +974,7 @@ Plans:
 
 - [x] 72-02-PLAN.md — The remaining five pre-built reports plus the consumable reorderThreshold field (wave 2)
 - [x] 72-03-PLAN.md — Custom report builder backend: field catalogue, closed-vocabulary filter translator, saved-report routes (wave 2)
-- [ ] 72-04-PLAN.md — The four ITAM KPIs and the /api/itam/kpis route (wave 2)
+- [x] 72-04-PLAN.md — The four ITAM KPIs and the /api/itam/kpis route (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
