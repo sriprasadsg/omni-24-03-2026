@@ -199,6 +199,8 @@ def _filters_to_mongo_query(conditions: List[FilterCondition]) -> Dict[str, Any]
             lo, hi = cond.value, cond.value2
             if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) and lo > hi:
                 lo, hi = hi, lo
+            elif isinstance(lo, str) and isinstance(hi, str) and lo > hi:
+                lo, hi = hi, lo
             clauses.append({mongo_field: {"$gte": lo, "$lte": hi}})
         else:  # pragma: no cover — unreachable, Literal already restricts operator
             raise ValueError(f"Unsupported operator: {op!r}")
