@@ -35,47 +35,160 @@ pub struct TargetedEntry {
 /// This filename can never be read by sshd, which only consults the exact
 /// configured `AuthorizedKeysFile` names.
 pub fn backup_path_for(authorized_keys_path: &str) -> String {
-    unimplemented!()
+    format!("{authorized_keys_path}{BACKUP_SUFFIX}")
 }
 
 /// Derives the deterministic path for the newly generated private key,
 /// alongside `authorized_keys` in the same directory.
 pub fn rotated_key_path_for(authorized_keys_path: &str) -> Result<PathBuf, RemediationError> {
-    unimplemented!()
+    let parent = Path::new(authorized_keys_path).parent().ok_or_else(|| {
+        RemediationError::InvalidPath(format!(
+            "'{authorized_keys_path}' has no parent directory."
+        ))
+    })?;
+    Ok(parent.join(ROTATED_KEY_FILENAME))
 }
 
 /// The single guard between an untrusted instruction parameter and a
 /// privileged file write.
 pub fn validate_target(authorized_keys_path: &str) -> Result<(), RemediationError> {
-    unimplemented!()
+    if authorized_keys_path.is_empty() {
+        return Err(RemediationError::InvalidPath(
+            "authorized_keys path cannot be empty.".to_string(),
+        ));
+    }
+    if !ssh_key_checks::is_authorized_keys_path(authorized_keys_path) {
+        return Err(RemediationError::InvalidPath(format!(
+            "'{authorized_keys_path}' is not a valid authorized_keys path."
+        )));
+    }
+    if !Path::new(authorized_keys_path).is_file() {
+        return Err(RemediationError::FileNotFound(authorized_keys_path.to_string()));
+    }
+    Ok(())
 }
 
 /// Selects the single `authorized_keys` entry whose fingerprint is exactly
 /// equal to `fingerprint`. Refuses (D-05) before ever attempting a match
-/// when fewer than two parseable entries exist.
+/// when fewer than two parseable entries exist — the lockout check runs
+/// first so a single-entry file refuses identically whether or not the
+/// fingerprint matches.
 pub fn select_target(text: &str, fingerprint: &str) -> Result<TargetedEntry, RemediationError> {
-    unimplemented!()
+    if fingerprint.is_empty() {
+        return Err(RemediationError::InvalidTarget(
+            "Fingerprint cannot be empty.".to_string(),
+        ));
+    }
+    let entries = ssh_key_checks::parse_authorized_keys(text);
+    let total_entries = entries.len();
+    if total_entries < 2 {
+        return Err(RemediationError::LockoutRefused(format!(
+            "Only {total_entries} parseable authorized_keys entr{} found; rotating the sole access path is refused.",
+            if total_entries == 1 { "y" } else { "ies" }
+        )));
+    }
+    match entries.into_iter().find(|e| e.fingerprint == fingerprint) {
+        Some(e) => Ok(TargetedEntry {
+            line_index: e.line_index,
+            options_prefix: e.options_prefix,
+            comment: e.comment,
+            total_entries,
+        }),
+        None => Err(RemediationError::KeyNotFound(format!(
+            "No authorized_keys entry matches fingerprint '{fingerprint}'."
+        ))),
+    }
 }
 
 /// Writes `contents` to a same-directory temp file, copies the target's
 /// existing permissions onto it, then renames it over `path`. Any failure
-/// removes the temp file before returning.
+/// removes the temp file before returning `OperationFailed`. When the
+/// target has no pre-existing metadata the mode defaults to owner
+/// read/write only.
 pub fn write_atomic(path: &Path, contents: &str) -> Result<(), RemediationError> {
-    unimplemented!()
+    let parent = path.parent().ok_or_else(|| {
+        RemediationError::InvalidPath("write_atomic target has no parent directory.".to_string())
+    })?;
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| RemediationError::InvalidPath("write_atomic target has no file name.".to_string()))?;
+
+    #[cfg(unix)]
+    let existing_mode: Option<u32> = {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(path).ok().map(|m| m.permissions().mode())
+    };
+
+    let tmp_path = parent.join(format!("{file_name}.omni-tmp-{}", std::process::id()));
+
+    let result: Result<(), RemediationError> = (|| {
+        std::fs::write(&tmp_path, contents)
+            .map_err(|e| RemediationError::OperationFailed(format!("write temp file failed: {e}")))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = existing_mode.unwrap_or(0o600);
+            let mut perms = std::fs::metadata(&tmp_path)
+                .map_err(|e| RemediationError::OperationFailed(format!("temp file stat failed: {e}")))?
+                .permissions();
+            perms.set_mode(mode);
+            std::fs::set_permissions(&tmp_path, perms)
+                .map_err(|e| RemediationError::OperationFailed(format!("temp file chmod failed: {e}")))?;
+        }
+        std::fs::rename(&tmp_path, path)
+            .map_err(|e| RemediationError::OperationFailed(format!("rename into place failed: {e}")))?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp_path);
+    }
+    result
 }
 
 /// Copies the whole `authorized_keys` file to its deterministic backup
 /// path, owner-only permissions. Overwrites any existing snapshot on
 /// purpose — the snapshot always means "state immediately before this
-/// rotation".
+/// rotation", which is exactly what a step rollback must restore.
 pub fn snapshot_backup(authorized_keys_path: &str) -> Result<String, RemediationError> {
-    unimplemented!()
+    let backup_path = backup_path_for(authorized_keys_path);
+    std::fs::copy(authorized_keys_path, &backup_path)
+        .map_err(|e| RemediationError::OperationFailed(format!("snapshot copy failed: {e}")))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&backup_path)
+            .map_err(|e| RemediationError::OperationFailed(format!("snapshot stat failed: {e}")))?
+            .permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(&backup_path, perms)
+            .map_err(|e| RemediationError::OperationFailed(format!("snapshot chmod failed: {e}")))?;
+    }
+    Ok(backup_path)
 }
 
 /// Restores the snapshot over the live file byte-for-byte, then
-/// best-effort removes the snapshot and any pending rotated-key files.
+/// best-effort removes the snapshot and any pending rotated-key files (the
+/// private key and its `.pub` sibling) so a subsequent rotation is
+/// unblocked. Removal failures are ignored — the restore is the contract,
+/// the cleanup is hygiene.
 pub fn rollback_rotation(authorized_keys_path: &str) -> Result<(), RemediationError> {
-    unimplemented!()
+    validate_target(authorized_keys_path)?;
+    let backup_path = backup_path_for(authorized_keys_path);
+    if !Path::new(&backup_path).is_file() {
+        return Err(RemediationError::FileNotFound(backup_path));
+    }
+    let snapshot_contents = std::fs::read_to_string(&backup_path)
+        .map_err(|e| RemediationError::OperationFailed(format!("snapshot read failed: {e}")))?;
+    write_atomic(Path::new(authorized_keys_path), &snapshot_contents)?;
+
+    let _ = std::fs::remove_file(&backup_path);
+    if let Ok(rk_path) = rotated_key_path_for(authorized_keys_path) {
+        let _ = std::fs::remove_file(&rk_path);
+        let _ = std::fs::remove_file(rk_path.with_extension("pub"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
