@@ -61,7 +61,7 @@
 | ITAM-DAT-02 | Phase 70 | Complete |
 | ITAM-DAT-03 | Phase 70 | Complete |
 | ITAM-REP-01 | Phase 72 | Pending |
-| ITAM-REP-02 | Phase 72 | Pending |
+| ITAM-REP-02 | Phase 72 | Complete |
 | ITAM-REP-03 | Phase 72 | Pending |
 | ITAM-REP-04 | Phase 72 | Pending |
 | ITAM-PRO-01 | Phase 71 | Complete |
