@@ -36,9 +36,11 @@ status: all_fixed
 
 ### WR-02: Overdue KPI's `totalCount` double-counts an asset that is overdue on both axes
 
-**Files modified:** `backend/itam_reporting_kpis.py`
-**Commit:** 6758a9d9
-**Applied fix:** `_compute_overdue_kpi` now fetches the matching asset `id` sets for the audit-overdue and checkin-overdue queries separately (via `find` with `{"_id": 0, "id": 1}` projections) and reports `overdueAuditCount`/`overdueCheckinCount` as `len()` of each set (numerically unchanged from before) while `totalCount` is now `len(audit_ids | checkin_ids)` — the count of distinct overdue assets rather than a sum that double-counts assets overdue on both axes. Requires human verification per the logic-bug limitation — recommend confirming with a seeded asset that is both audit-overdue and checkin-overdue.
+**Files modified:** `backend/itam_reporting_kpis.py`, `backend/tests/test_itam_reporting_kpis.py`
+**Commits:** 6758a9d9 (initial fix), 14ed1ed8 (correction)
+**Applied fix:** `_compute_overdue_kpi` now fetches the matching asset `id` sets for the audit-overdue and checkin-overdue queries separately and reports `overdueAuditCount`/`overdueCheckinCount` as `len()` of each set (numerically unchanged from before) while `totalCount` is now `len(audit_ids | checkin_ids)` — the count of distinct overdue assets rather than a sum that double-counts assets overdue on both axes.
+
+**Post-fix verification caught a regression:** the initial commit (6758a9d9) used `async for d in db.assets.find(...)` to iterate the two id-set queries. This codebase's test doubles (`_FakeCursor`, the tenant-isolation mocks in `itam_reporting_test_support.py`) only implement `.to_list()`, matching every other `db.assets.find` call in this file — `async for` isn't supported and broke 2 of 15 tests (`TypeError: 'async for' requires an object with __aiter__ method`). Corrected in 14ed1ed8 to use `.find(...).to_list(length=None)`, the established pattern already used three other places in the same file. Also rewrote `test_audit_and_checkin_counts_separate_and_summed` (which had encoded the pre-fix sum-not-union behavior as its expected result) and added `test_asset_overdue_on_both_axes_is_not_double_counted` as an explicit regression test for the fixed bug. Full backend suite (2301 passed) and frontend suite (124 passed) reconfirmed green after the correction — no longer just "requires human verification," now automated-test-covered.
 
 ### WR-03: `ReportBuilderForm`'s "between" inputs don't validate bound ordering, feeding WR-01 directly
 
