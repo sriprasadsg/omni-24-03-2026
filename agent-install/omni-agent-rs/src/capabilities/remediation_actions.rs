@@ -46,6 +46,10 @@ pub enum RemediationError {
     InvalidPort(String),
     #[error("Failed to parse path: {0}")]
     InvalidPath(String),
+    #[error("Refusing to rotate: {0}")]
+    LockoutRefused(String),
+    #[error("Key not found: {0}")]
+    KeyNotFound(String),
 }
 
 /// Runs a privileged OS command (firewall rule, service control) and maps

@@ -21,6 +21,7 @@ pub mod ueba;
 pub mod vulnerability_scan;
 pub mod remediation_actions;
 pub mod ssh_key_checks;
+pub mod ssh_key_rotation;
 #[cfg(target_os = "linux")]
 pub mod fanotify_watcher;
 
