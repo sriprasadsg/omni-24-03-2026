@@ -1,6 +1,7 @@
 /**
- * Phase 61 (plan 61-01) smoke tests for the ITAM console shell:
- *  1. All 6 tabs render, defaulting to Catalog.
+ * Phase 61 (plan 61-01) smoke tests for the ITAM console shell, extended by
+ * Phase 72 (plan 72-01) for the Reports tab:
+ *  1. All 11 tabs render, defaulting to Catalog.
  *  2. Tab switching mounts the corresponding panel.
  *  3. Each panel renders without crashing given empty/loading API responses.
  */
@@ -44,6 +45,13 @@ vi.mock('../../services/apiService', () => ({
   fetchItamAuditLogs: vi.fn().mockResolvedValue([]),
   verifyAuditIntegrity: vi.fn().mockResolvedValue({ valid: true, total_records: 0 }),
   exportItamAssetsCsv: vi.fn(),
+  fetchItamPrebuiltReports: vi.fn().mockResolvedValue([]),
+  runItamPrebuiltReport: vi.fn().mockResolvedValue({
+    key: 'warranty_expiring', title: 'Warranty Expiring', columns: [], rows: [],
+    rowCount: 0, page: 1, pageSize: 50, totalPages: 1, truncated: false,
+  }),
+  generateItamReport: vi.fn(),
+  downloadItamReport: vi.fn(),
   getItamSettings: (...args: unknown[]) => getItamSettings(...args),
   saveItamSettings: vi.fn(),
   authFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => [] }),
@@ -60,7 +68,7 @@ describe('ITAMConsole', () => {
     getItamSettings.mockResolvedValue({ branding: { companyName: '', logoUrl: '', primaryColor: '#0891b2' }, locale: 'en' });
   });
 
-  it('renders all 9 tabs and defaults to Catalog', async () => {
+  it('renders all 11 tabs and defaults to Catalog', async () => {
     render(<ITAMConsole />);
     expect(screen.getByText('Catalog')).toBeInTheDocument();
     expect(screen.getByText('Check-Out/In')).toBeInTheDocument();
@@ -68,10 +76,17 @@ describe('ITAMConsole', () => {
     expect(screen.getByText('Licenses & Consumables')).toBeInTheDocument();
     expect(screen.getByText('Compliance')).toBeInTheDocument();
     expect(screen.getByText('Software Inventory')).toBeInTheDocument();
+    expect(screen.getByText('Reports')).toBeInTheDocument();
     expect(screen.getByText('Activity')).toBeInTheDocument();
     expect(screen.getByText('Import / Export')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Manufacturers')).toBeInTheDocument());
+  });
+
+  it('switches to the Reports tab and mounts ReportsPanel', async () => {
+    render(<ITAMConsole />);
+    fireEvent.click(screen.getByText('Reports'));
+    await waitFor(() => expect(screen.getByText('Pre-built Reports')).toBeInTheDocument());
   });
 
   it('switches to the Settings tab and shows the branding form', async () => {
