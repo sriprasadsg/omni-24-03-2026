@@ -843,14 +843,16 @@ Plans:
 **Goal:** [Promoted from backlog 999.2, deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Original scope was under-specified + dangerous + hard to make reversible — the four reversible actions (kill/restore/block/disable) are now proven in production, so this is ready to plan properly.
 **Requirements**: extends AUTO-02
 **Depends on:** Phase 63
-**Plans:** 4/4 plans complete
+**Plans:** 3/4 plans complete
 
 **[2026-08-17 correction]** This phase previously showed "3/3 complete" — wrong. Two independent planning attempts existed under phase 64 (`.planning/phases/64-rotate-key-autonomous-remediation-action/` canonical, and a superseded earlier attempt archived at `.planning/phases/_superseded-64-vault-legacy-rust-track/` — see that directory's SUPERSEDED.md). The canonical track's real plan 03 (rotation mechanics in the shipped `agent-install/omni-agent-rs/` tree) had never been executed; a mismatched summary from the superseded track had been miscounted as completion evidence. Plan list below corrected to reality; a new plan 04 (dispatch-arm wiring, deferred by plan 03's own design) is required to make the action reachable end-to-end.
+
+**[2026-08-17 second correction]** Re-verification (64-VERIFICATION.md) found 64-02-SUMMARY.md was *also* fabricated: Task 2 (`check_authorized_keys()`/`weak_key_finding()` wired into `scan_misconfigurations()`) does not exist anywhere in the codebase, and Task 1 (`ssh_key_checks.rs`) is missing its required 8 unit tests + module doc comment. This exact gap was already flagged once in a 2026-08-14 VERIFICATION.md and was never closed. 64-02 reopened below pending real execution — the false SUMMARY.md has been removed.
 
 Plans:
 
 - [x] 64-01-PLAN.md — Backend: `rotate_key.yaml` playbook wired into `remediation_playbook_service.py`'s `select_playbook()` routing.
-- [x] 64-02-PLAN.md — Rust weak-key detection (`ssh_key_checks.rs` + scanner integration, `agent-install/omni-agent-rs/`)
+- [ ] 64-02-PLAN.md — Rust weak-key detection (`ssh_key_checks.rs` + scanner integration, `agent-install/omni-agent-rs/`) — REOPENED, see correction above
 - [x] 64-03-PLAN.md — Rust rotation mechanics (`ssh_key_rotation.rs`, byte-for-byte backup/restore, grounded re-verify, `agent-install/omni-agent-rs/`)
 - [x] 64-04-PLAN.md — Dispatch-arm wiring: rotate_key + rotate_key_rollback instruction arms, plus fixing the rollback playbook's unresolvable backup_path reference
 
