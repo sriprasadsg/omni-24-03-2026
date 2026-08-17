@@ -6,7 +6,7 @@ current_phase: 72
 current_phase_name: Reporting & Dashboards
 status: verifying
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-17T12:37:32.224Z"
+last_updated: "2026-08-17T14:33:09.201Z"
 last_activity: 2026-08-17
 last_activity_desc: Phase 72 execution resumed (wave continue)
 progress:
@@ -381,6 +381,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: PDF/Excel renderers use a case-insensitive ITAM status-color lookup, since warranty status is lowercase while license status is Title-case in real report data (72-05)
 - [Phase ?]: Custom-report export requires saving first — handleSaveCustom auto-runs the newly-saved report so the on-screen preview becomes exportable in one interaction (72-06)
 - [Phase ?]: 72-07: ItamKpiPanel's icon-chip accent stays the console's default cyan (no accent prop in the plan's locked signature); recharts Legend's default alphabetical itemSorter overridden with itemSorter={() => 0} so status-breakdown segments visibly preserve payload order, not just in the underlying data array.
+- [Phase ?]: Phase 64-03: Ed25519 chosen for rotate_key's generated replacement (OpenSSH default since 9.5); no ssh-key Cargo.toml feature changes needed (rand 0.8's OsRng already satisfies CryptoRngCore); D-07 rollback path proven end-to-end via a genuine duplicate-fingerprint fixture rather than a test-only mock; test module split into a sibling file (ssh_key_rotation_tests.rs) to keep the 500-line cap without trimming coverage.
 
 ## Performance Metrics
 
@@ -495,6 +496,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 72 P05 | 18min | 2 tasks | 5 files |
 | Phase 72 P06 | 35min | 2 tasks | 5 files |
 | Phase 72 P07 | 20min | 2 tasks | 4 files |
+| Phase 64 P03 | 55min | 2 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
