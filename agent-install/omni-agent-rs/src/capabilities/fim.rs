@@ -11,15 +11,20 @@ use super::Capability;
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+#[cfg(target_os = "linux")]
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+#[cfg(target_os = "linux")]
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::{Duration, UNIX_EPOCH};
 use sysinfo::System;
+#[cfg(target_os = "linux")]
 use crate::capabilities::fanotify_watcher::{FanotifyEventData, start_fanotify_watcher};
 #[cfg(target_os = "linux")]
 use crate::capabilities::process_mapper::resolve_process_tree;
+#[cfg(target_os = "linux")]
 use tokio::sync::mpsc;
 
 pub struct FimCapability;
@@ -69,6 +74,7 @@ pub struct ProcessInfo {
 }
 
 /// Maps fanotify event mask to our ChangeType.
+#[cfg(target_os = "linux")]
 fn map_fanotify_mask_to_change_type(mask: u32) -> ChangeType {
     use naughtyfy::flags::{FAN_CREATE, FAN_DELETE, FAN_MODIFY, FAN_ATTRIB, FAN_MOVE, FAN_CLOSE_WRITE};
     let mask = mask as u64;
@@ -192,6 +198,7 @@ fn enqueue_event(event: &FimEvent) -> Result<(), rusqlite::Error> {
 }
 
 /// Builds a FimEvent from FanotifyEventData and enqueues it.
+#[cfg(target_os = "linux")]
 fn handle_fanotify_event(event_data: FanotifyEventData, last_hashes: &Arc<Mutex<HashMap<String, String>>>) {
     let mut status = FIM_STATUS.lock().unwrap();
 
@@ -222,10 +229,7 @@ fn handle_fanotify_event(event_data: FanotifyEventData, last_hashes: &Arc<Mutex<
         change_type,
         hash_before,
         hash_after,
-        #[cfg(target_os = "linux")]
         process: resolve_process_tree(event_data.pid as i32),
-        #[cfg(not(target_os = "linux"))]
-        process: process_info(event_data.pid as u32),
         user: current_user(),
         ts: chrono::Utc::now().to_rfc3339(),
         source: "fim",
@@ -244,6 +248,7 @@ fn handle_fanotify_event(event_data: FanotifyEventData, last_hashes: &Arc<Mutex<
 /// Public API: starts the fanotify watcher over the given paths.
 /// Returns a shutdown handle that can be used to stop the watcher.
 /// The watcher runs in a background thread; failures are logged and the function returns an error (no panic).
+#[cfg(target_os = "linux")]
 pub fn start_watcher(
     paths: Vec<String>,
     mut stop_rx: tokio::sync::watch::Receiver<bool>,
@@ -306,6 +311,16 @@ pub fn start_watcher(
     });
 
     Ok(())
+}
+
+/// fanotify has no macOS/Windows equivalent; FIM watching is unavailable on
+/// this platform (Phase 65 shipped Linux-only).
+#[cfg(not(target_os = "linux"))]
+pub fn start_watcher(
+    _paths: Vec<String>,
+    _stop_rx: tokio::sync::watch::Receiver<bool>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    Err("FIM watcher (fanotify) is unsupported on this platform.".into())
 }
 
 /// Periodic background task that drains unposted FIM events to the backend.
@@ -420,6 +435,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn fanotify_mask_mapping() {
         use naughtyfy::flags::{FAN_CREATE, FAN_DELETE, FAN_MODIFY, FAN_ATTRIB, FAN_MOVE, FAN_CLOSE_WRITE};
         assert!(matches!(map_fanotify_mask_to_change_type(FAN_CREATE as u32), ChangeType::Create));

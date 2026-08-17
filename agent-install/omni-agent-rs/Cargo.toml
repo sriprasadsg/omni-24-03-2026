@@ -46,7 +46,6 @@ once_cell = "1.19"
 # Phase 64 (rotate_key): SSH authorized_keys parse/generate/fingerprint (pure Rust, no C deps).
 ssh-key = { version = "0.6.7", default-features = false, features = ["alloc", "std", "rand_core", "ed25519", "rsa", "dsa"] }
 libc = "0.2"
-naughtyfy = "0.2.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
@@ -55,6 +54,12 @@ winapi = { version = "0.3", features = [
     "minwindef", "winnt", "handleapi", "errhandlingapi", "processthreadsapi",
     "securitybaseapi", "userenv", "winbase", "wtsapi32",
 ] }
+
+# Phase 65 (FIM fanotify): fanotify is a Linux kernel API with no macOS/Windows
+# equivalent, so this stays out of the unconditional [dependencies] graph
+# (cfg(unix) would still try to build it for macOS, which also lacks fanotify).
+[target.'cfg(target_os = "linux")'.dependencies]
+naughtyfy = "0.2.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
