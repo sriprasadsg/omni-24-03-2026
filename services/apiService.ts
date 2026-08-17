@@ -5653,6 +5653,67 @@ export const downloadItamReport = async (filename: string): Promise<void> => {
     document.body.removeChild(a);
 };
 
+// Phase 72 Plan 04: ITAM dashboard KPIs (ITAM-REP-04). Clones
+// fetchItamPrebuiltReports's authFetch + itamThrow shape.
+export interface ItamKpiStatusBreakdownEntry {
+    status: string;
+    label: string;
+    count: number;
+}
+
+export interface ItamAssetValueKpi {
+    hasData: boolean;
+    totalBookValueCents: number | null;
+    assetCount: number;
+    withoutPolicyCount: number | null;
+    statusBreakdown: ItamKpiStatusBreakdownEntry[];
+    drilldownReportKey: string;
+}
+
+export interface ItamLicenseUtilizationKpi {
+    hasData: boolean;
+    seatsTotal: number | null;
+    seatsAssigned: number | null;
+    seatsAvailable: number | null;
+    utilizationPercent: number | null;
+    drilldownReportKey: string;
+}
+
+export interface ItamWarrantyTimelineEntry {
+    month: string;
+    count: number;
+}
+
+export interface ItamWarrantyExpirationsKpi {
+    hasData: boolean;
+    alertWindowDays: number;
+    expiringSoonCount: number | null;
+    expiredCount: number | null;
+    timeline: ItamWarrantyTimelineEntry[];
+    drilldownReportKey: string;
+}
+
+export interface ItamOverdueKpi {
+    hasData: boolean;
+    overdueAuditCount: number | null;
+    overdueCheckinCount: number | null;
+    totalCount: number | null;
+    drilldownReportKey: string;
+}
+
+export interface ItamKpis {
+    assetValue: ItamAssetValueKpi;
+    licenseUtilization: ItamLicenseUtilizationKpi;
+    warrantyExpirations: ItamWarrantyExpirationsKpi;
+    overdue: ItamOverdueKpi;
+}
+
+export const fetchItamKpis = async (): Promise<ItamKpis> => {
+    const res = await authFetch(`${API_BASE}/itam/kpis`);
+    if (!res.ok) return itamThrow(res, 'Failed to load KPIs');
+    return res.json();
+};
+
 // Phase 71-03: Asset Request & Approval Workflow (ITAM-PRO-04/05)
 export const fetchAssetRequests = async (statusFilter?: ItamAssetRequestStatus): Promise<ItamAssetRequest[]> => {
     const qs = statusFilter ? `?status_filter=${statusFilter}` : '';

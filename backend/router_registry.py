@@ -93,6 +93,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "itam_procurement_endpoints", "router") # ITAM Phase 71 Procurement Router
     _load(app, "itam_asset_request_endpoints", "router") # ITAM Phase 71-03 Asset Request Router
     _load(app, "itam_reporting_endpoints", "router")    # ITAM Phase 72 Reporting Router
+    _load(app, "itam_kpi_endpoints",       "router")    # ITAM Phase 72 KPI Router
     _load(app, "asset_endpoints",          "router")
 
     _load(app, "user_endpoints",           "router")
