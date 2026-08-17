@@ -259,19 +259,28 @@ async def _compute_overdue_kpi(db, assets: List[Dict[str, Any]], now: datetime) 
         }
 
     cutoff = _audit_cutoff_iso()
-    overdue_audit_count = await db.assets.count_documents(_overdue_query(cutoff))
+    audit_ids = {
+        d["id"]
+        async for d in db.assets.find(_overdue_query(cutoff), {"_id": 0, "id": 1})
+    }
 
     now_iso = now.isoformat(timespec="milliseconds")
-    overdue_checkin_count = await db.assets.count_documents({
-        "lifecycleStatus": LifecycleStatus.DEPLOYED.value,
-        "expectedReturnDate": {"$lt": now_iso},
-    })
+    checkin_ids = {
+        d["id"]
+        async for d in db.assets.find(
+            {
+                "lifecycleStatus": LifecycleStatus.DEPLOYED.value,
+                "expectedReturnDate": {"$lt": now_iso},
+            },
+            {"_id": 0, "id": 1},
+        )
+    }
 
     return {
         "hasData": True,
-        "overdueAuditCount": overdue_audit_count,
-        "overdueCheckinCount": overdue_checkin_count,
-        "totalCount": overdue_audit_count + overdue_checkin_count,
+        "overdueAuditCount": len(audit_ids),
+        "overdueCheckinCount": len(checkin_ids),
+        "totalCount": len(audit_ids | checkin_ids),
         "drilldownReportKey": "overdue_audits",
     }
 
