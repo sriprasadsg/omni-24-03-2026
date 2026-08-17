@@ -140,7 +140,9 @@ async def download_report(
     persisted itam_report_exports document rejected with 403."""
     _safe_dir = Path(_REPORTS_DIR).resolve()
     _resolved = (_safe_dir / filename).resolve()
-    if not str(_resolved).startswith(str(_safe_dir)):
+    try:
+        _resolved.relative_to(_safe_dir)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid filename")
     file_path = str(_resolved)
     if not os.path.isfile(file_path):
