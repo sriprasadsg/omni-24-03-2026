@@ -21,7 +21,6 @@ PLAYBOOKS_DIR = os.path.join(os.path.dirname(__file__), "playbooks")
 
 # Fixed action allowlist: action name -> agent instruction command. Every
 # playbook step/rollback action MUST resolve here or validate() rejects it.
-# rotate_key is intentionally absent (deferred to backlog 999.2).
 ACTION_MAP: Dict[str, str] = {
     "patch_package": "upgrade_software",
     "kill_process": "kill_process",
