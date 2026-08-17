@@ -955,7 +955,7 @@ Plans:
 **Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 67 on 2026-08-13 — renumbered 67→72.] Provide custom report building, pre-built reports, export functionality, and a KPI dashboard.
 **Requirements**: ITAM-REP-01, ITAM-REP-02, ITAM-REP-03, ITAM-REP-04
 **Depends on:** Phase 71
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 **Success Criteria:**
 
   1. User can build and save custom reports.
@@ -978,7 +978,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 72-05-PLAN.md — PDF and Excel renderers registered into the shared export registry (wave 3)
+- [x] 72-05-PLAN.md — PDF and Excel renderers registered into the shared export registry (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
