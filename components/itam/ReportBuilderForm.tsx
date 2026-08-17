@@ -107,11 +107,21 @@ export function ReportBuilderForm({ onPreview, onSave, busy }: ReportBuilderForm
 
   function handleAddFilter() {
     if (!canAddFilter || !draftFieldMeta || !draftOperator) return;
+    let value = coerceValue(draftFieldMeta.type, draftValue);
+    let value2 = draftOperator === 'between' ? coerceValue(draftFieldMeta.type, draftValue2) : undefined;
+    if (
+      draftOperator === 'between' &&
+      value2 !== undefined &&
+      typeof value === typeof value2 &&
+      (value as string | number) > (value2 as string | number)
+    ) {
+      [value, value2] = [value2, value];
+    }
     const condition: ItamReportFilterCondition = {
       field: draftField,
       operator: draftOperator,
-      value: coerceValue(draftFieldMeta.type, draftValue),
-      value2: draftOperator === 'between' ? coerceValue(draftFieldMeta.type, draftValue2) : undefined,
+      value,
+      value2,
     };
     setFilters((prev) => [...prev, condition]);
     setDraftValue('');
