@@ -34,8 +34,15 @@ from typing import Any, Dict, List, Optional
 
 from compliance_remediation_sla_service import _ADMIN_ROLES
 from notification_service import get_notification_service, send_notification
+from itam_webhook_events import EVENT_ASSET_WARRANTY_EXPIRING
+from tenant_context import set_tenant_id, reset_tenant_id
+from webhook_service import WebhookService
 
 logger = logging.getLogger(__name__)
+
+# Module-level singleton — mirrors itam_lifecycle_endpoints.py's own
+# WebhookService() instance shape (never one-per-call).
+_webhook_service = WebhookService()
 
 REASON_NO_PURCHASE_RECORD = "no_purchase_record"
 REASON_NO_DEPRECIATION_POLICY = "no_depreciation_policy_assigned"
@@ -391,7 +398,39 @@ async def run_warranty_alert_pass(db) -> int:
                     "Warranty rule-routed alert failed for asset %s: %s", asset.get("id"), exc
                 )
 
-            # Isolated like the two delivery attempts above: a malformed
+            # Path three, webhook: bracketed with set_tenant_id/reset_tenant_id
+            # around the tenant_id already extracted from this asset at the
+            # top of the loop. This bracket is not optional decoration —
+            # WebhookService.trigger_webhook looks its subscriptions up
+            # through the tenant-isolation wrapper, which reads the tenant
+            # from ambient contextvars; a background sweep has no request
+            # and therefore no ambient tenant, so an unbracketed call here
+            # would have the wrapper substitute a filter that matches
+            # nothing and the webhook would silently never fire — no error,
+            # no log, nothing a caller could see (RESEARCH Pitfall 3).
+            # Awaited here, inside the bracket, rather than scheduled: this
+            # is a background loop with no HTTP response to protect, and
+            # awaiting keeps the dispatch inside the window where the
+            # tenant context is guaranteed correct.
+            token = set_tenant_id(tenant_id)
+            try:
+                await _webhook_service.trigger_webhook(
+                    EVENT_ASSET_WARRANTY_EXPIRING,
+                    {
+                        "assetId": asset["id"],
+                        "assetTag": asset.get("assetTag"),
+                        "warrantyStatus": status_result["warrantyStatus"],
+                        "warrantyExpiresAt": status_result["warrantyExpiresAt"],
+                    },
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Warranty webhook alert failed for asset %s: %s", asset.get("id"), exc
+                )
+            finally:
+                reset_tenant_id(token)
+
+            # Isolated like the three delivery attempts above: a malformed
             # document (e.g. missing id) must not raise past this point and
             # abort the async-for loop for the whole pass — every
             # not-yet-processed asset in this cycle would otherwise be

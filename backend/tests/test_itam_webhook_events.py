@@ -468,3 +468,138 @@ class TestAssetRequestWebhookDispatch:
         gate.set()
         for _ in range(5):
             await asyncio.sleep(0)
+
+
+# ─── Task 1 (Plan 73-03): asset.warranty_expiring background-sweep dispatch ─
+
+import itam_finance_service as finance_service_module
+from itam_webhook_events import EVENT_ASSET_WARRANTY_EXPIRING
+from tenant_context import get_tenant_id
+from tests.itam_finance_sweep_test_support import _RawSweepDb, _asset, _user
+
+
+def _expiring_asset(**overrides):
+    """Purchased 2026-01-01, 8-month warranty -> expires 2026-09-01. Against
+    a mocked "now" of 2026-08-15 that is 17 days out: inside the default
+    30-day alert window and not yet past expiry, so this is genuinely the
+    EXPIRING branch, not EXPIRED."""
+    return _asset(purchaseDate="2026-01-01T00:00:00Z", warrantyMonths=8, **overrides)
+
+
+def _mock_now_2026_08_15():
+    return patch("itam_finance_service.datetime", **{
+        "now.return_value": datetime(2026, 8, 15, tzinfo=timezone.utc),
+        "fromisoformat.side_effect": datetime.fromisoformat,
+    })
+
+
+class TestWarrantyExpiringWebhookDispatch:
+    @pytest.mark.asyncio
+    async def test_warranty_expiring_dispatches_event_once_for_expiring_asset(self):
+        db = _RawSweepDb(assets=[_expiring_asset()], users=[_user()])
+        recorder = AsyncMock()
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await finance_service_module.run_warranty_alert_pass(db)
+
+        assert count == 1
+        recorder.assert_awaited_once()
+        args, _kwargs = recorder.call_args
+        assert args[0] == EVENT_ASSET_WARRANTY_EXPIRING
+
+    @pytest.mark.asyncio
+    async def test_warranty_expiring_dispatch_uses_asset_tenant_as_ambient_context(self):
+        """The load-bearing regression: this fails if the tenant bracketing
+        around the webhook dispatch is ever removed, since get_tenant_id()
+        would then read None instead of the swept asset's own tenant id."""
+        captured_tenant_ids = []
+
+        async def _recording_trigger(event_type, payload):
+            captured_tenant_ids.append(get_tenant_id())
+
+        db = _RawSweepDb(
+            assets=[_expiring_asset(tenantId="tenant-xyz")],
+            users=[_user(tenantId="tenant-xyz")],
+        )
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", side_effect=_recording_trigger):
+            await finance_service_module.run_warranty_alert_pass(db)
+
+        assert captured_tenant_ids == ["tenant-xyz"]
+
+    @pytest.mark.asyncio
+    async def test_warranty_expiring_tenant_context_restored_after_dispatch_raises(self):
+        assert get_tenant_id() is None  # sanity: no ambient tenant before the sweep runs
+
+        async def _raising_trigger(event_type, payload):
+            raise RuntimeError("subscriber unreachable")
+
+        db = _RawSweepDb(assets=[_expiring_asset()], users=[_user()])
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", side_effect=_raising_trigger):
+            await finance_service_module.run_warranty_alert_pass(db)
+
+        assert get_tenant_id() is None
+
+    @pytest.mark.asyncio
+    async def test_warranty_expiring_marker_and_existing_paths_still_occur_when_webhook_raises(self):
+        async def _raising_trigger(event_type, payload):
+            raise RuntimeError("subscriber unreachable")
+
+        db = _RawSweepDb(assets=[_expiring_asset()], users=[_user()])
+        with patch.object(finance_service_module, "get_notification_service") as mock_get_ns, \
+             patch.object(finance_service_module, "send_notification") as mock_send, \
+             _mock_now_2026_08_15():
+            mock_ns = MagicMock()
+            mock_ns.send_alert = AsyncMock()
+            mock_get_ns.return_value = mock_ns
+            mock_send.return_value = {"matched_rules": 0, "sent": 0}
+            with patch("webhook_service.WebhookService.trigger_webhook", side_effect=_raising_trigger):
+                count = await finance_service_module.run_warranty_alert_pass(db)
+
+        assert count == 1
+        assert mock_ns.send_alert.await_count >= 1
+        mock_send.assert_awaited()
+        assert db._docs["assets"]["asset-1"].get("warrantyAlertSentAt") is not None
+
+    @pytest.mark.asyncio
+    async def test_warranty_expiring_active_asset_dispatches_nothing(self):
+        db = _RawSweepDb(
+            assets=[_asset(purchaseDate="2026-01-01T00:00:00Z", warrantyMonths=36)],
+            users=[_user()],
+        )
+        recorder = AsyncMock()
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await finance_service_module.run_warranty_alert_pass(db)
+
+        assert count == 0
+        recorder.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_warranty_expiring_already_marked_asset_dispatches_nothing(self):
+        db = _RawSweepDb(
+            assets=[_expiring_asset(warrantyAlertSentAt="2026-08-01T00:00:00+00:00")],
+            users=[_user()],
+        )
+        recorder = AsyncMock()
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await finance_service_module.run_warranty_alert_pass(db)
+
+        assert count == 0
+        recorder.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_warranty_expiring_payload_shape(self):
+        db = _RawSweepDb(assets=[_expiring_asset(assetTag="TAG-42")], users=[_user()])
+        recorder = AsyncMock()
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            await finance_service_module.run_warranty_alert_pass(db)
+
+        args, _kwargs = recorder.call_args
+        payload = args[1]
+        assert set(payload.keys()) == {"assetId", "assetTag", "warrantyStatus", "warrantyExpiresAt"}
+        assert payload["assetId"] == "asset-1"
+        assert payload["assetTag"] == "TAG-42"
