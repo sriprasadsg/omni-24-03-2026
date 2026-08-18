@@ -648,6 +648,14 @@ async def run_startup_services() -> None:
         logger.warning("[ITAM] Warranty alert scheduler failed to start: %s", _e)
 
     try:
+        from itam_event_sweeps import start_itam_event_sweep_scheduler
+        from database import mongodb as _mdb
+        asyncio.create_task(start_itam_event_sweep_scheduler(_mdb.db))
+        logger.info("[ITAM] Event sweep scheduler started (audit-overdue + stuck-approval)")
+    except Exception as _e:
+        logger.warning("[ITAM] Event sweep scheduler failed to start: %s", _e)
+
+    try:
         from syslog_receiver import start_syslog_server
         _syslog_port = int(os.getenv("SYSLOG_UDP_PORT", "5140"))
         asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port))

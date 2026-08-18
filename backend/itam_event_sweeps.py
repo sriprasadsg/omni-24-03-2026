@@ -42,6 +42,7 @@ claim IS the concurrency guard against two overlapping passes double-firing
 the same licence, so it must happen before the dispatch, not after. Plan
 73-05 should choose this claim-then-act ordering for its own new sweeps.
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -396,3 +397,33 @@ async def run_stuck_approval_ticket_pass(db) -> int:
     except Exception as exc:
         logger.error("Stuck-approval ticket pass failed: %s", exc)
     return count
+
+
+async def start_itam_event_sweep_scheduler(db) -> None:
+    """Daily scheduler loop for both Plan 73-05 sweeps (ITAM_EVENT_SWEEP_INTERVAL_SECONDS).
+
+    `db` is a raw, unwrapped handle supplied by the caller (app_startup.py's
+    `_mdb.db`) — this function must never resolve one itself, mirroring
+    every other scheduler in this module and itam_finance_service.py's own
+    anti-pattern comment.
+
+    Both `run_audit_overdue_alert_pass` and `run_stuck_approval_ticket_pass`
+    are already individually non-re-raising (each wraps its own loop in one
+    outer try/except), so this loop needs no additional guard around either
+    call — but both `await`s are reached unconditionally on every iteration,
+    so one pass returning early can never skip the other.
+
+    A defect this project has shipped before (Phase 59: a warranty sweep
+    fully implemented but never registered in app_startup.py, so the
+    feature was installed and would never have started in production) is
+    exactly what this function's registration in app_startup.py — proven by
+    a test that drives the real startup path, not a source-only check — is
+    built to prevent.
+    """
+    logger.info(
+        "ITAM event sweep scheduler started (interval=%ds)", ITAM_EVENT_SWEEP_INTERVAL_SECONDS
+    )
+    while True:
+        await run_audit_overdue_alert_pass(db)
+        await run_stuck_approval_ticket_pass(db)
+        await asyncio.sleep(ITAM_EVENT_SWEEP_INTERVAL_SECONDS)

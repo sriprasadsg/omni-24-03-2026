@@ -1035,3 +1035,87 @@ class TestAuditOverdueWebhookAndTicketDispatch:
 
         assert set(dispatched_ids) == report_selected_ids
         assert report_selected_ids == {"asset-overdue-a"}
+
+
+# ===========================================================================
+# TestItamEventSweepSchedulerRegistration — Plan 73-05 Task 3
+# ===========================================================================
+import app_startup as app_startup_module
+from itam_event_sweeps import (
+    ITAM_EVENT_SWEEP_INTERVAL_SECONDS,
+    start_itam_event_sweep_scheduler,
+)
+
+
+class TestItamEventSweepSchedulerRegistration:
+    """`-k scheduler_registration`: proves start_itam_event_sweep_scheduler
+    is actually wired into application startup, not merely defined — the
+    exact Phase 59 defect class (a sweep implemented but never registered,
+    so it would never start in production) this task exists to prevent.
+    Source-only assertions are explicitly rejected as insufficient (T-73-30)."""
+
+    def test_scheduler_registration_source_registers_start_function(self):
+        import inspect
+
+        src = inspect.getsource(app_startup_module)
+        idx = src.find("start_itam_event_sweep_scheduler")
+        assert idx != -1, "app_startup does not register start_itam_event_sweep_scheduler yet"
+        snippet = src[max(0, idx - 200): idx + 400]
+        assert "_mdb.db" in snippet
+        assert "get_database()" not in snippet
+
+    @pytest.mark.asyncio
+    async def test_scheduler_registration_real_startup_path_schedules_coroutine(self):
+        """Drives the real run_startup_services() startup path with
+        asyncio.create_task patched, and asserts this scheduler's coroutine
+        was actually scheduled — not merely that its name appears in the
+        source. Every scheduled coroutine is closed immediately after being
+        recorded so none of the real background loops ever run.
+
+        The handful of directly-awaited (not create_task-wrapped) calls
+        earlier and later in run_startup_services — self-healing migration/
+        seed functions, the stream processor, knowledge-base/YARA seeding —
+        are stubbed to AsyncMocks so this test stays hermetic (no live
+        MongoDB dependency) while still exercising the REAL registration
+        block for this scheduler via a real import and a real call."""
+        scheduled_names = []
+
+        def _capture_create_task(coro, *args, **kwargs):
+            code = getattr(coro, "cr_code", None)
+            scheduled_names.append(code.co_name if code else str(coro))
+            coro.close()
+            return MagicMock()
+
+        mock_db = MagicMock()
+        mock_db._db = MagicMock()
+        mock_db._db.system_settings.find_one = AsyncMock(return_value={"type": "llm"})
+
+        with patch.object(app_startup_module, "get_database", return_value=mock_db), \
+             patch.object(app_startup_module.asyncio, "create_task", side_effect=_capture_create_task), \
+             patch("database_migrations.migrate_compliance_tenant_ids", AsyncMock()), \
+             patch("database_migrations.migrate_instructions_tenant_ids", AsyncMock()), \
+             patch("database_migrations.migrate_tenant_registration_keys", AsyncMock()), \
+             patch("database_migrations.seed_compliance_frameworks", AsyncMock()), \
+             patch("response_endpoints.initialize_response_module", AsyncMock()), \
+             patch("response_orchestrator.seed_builtin_policies", AsyncMock()), \
+             patch("xdr_playbook_seeds.seed_xdr_playbooks", AsyncMock()), \
+             patch("streaming_service.processor.start", AsyncMock()), \
+             patch("knowledge_endpoints.seed_knowledge_base", AsyncMock(return_value=0)), \
+             patch.object(app_startup_module, "_seed_yara_rules", AsyncMock()):
+            await app_startup_module.run_startup_services()
+
+        assert "start_itam_event_sweep_scheduler" in scheduled_names
+
+    def test_scheduler_registration_interval_is_daily(self):
+        assert ITAM_EVENT_SWEEP_INTERVAL_SECONDS == 24 * 60 * 60
+
+    def test_scheduler_registration_interval_differs_from_warranty_hourly_job(self):
+        # The warranty/licence job (73-03) rides an hourly-scale cadence;
+        # this module's own docstring records the daily-vs-hourly distinction
+        # is deliberate (RESEARCH Open Question 2).
+        assert ITAM_EVENT_SWEEP_INTERVAL_SECONDS >= 24 * 60 * 60
+
+    def test_scheduler_registration_start_function_is_coroutine(self):
+        import inspect
+
+        assert inspect.iscoroutinefunction(start_itam_event_sweep_scheduler)
