@@ -26,7 +26,13 @@ _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
+
 import ticketing_bridge
+import itam_asset_endpoints
+import itam_ticketing_endpoints
+from auth_types import TokenData
 from itam_webhook_events import EVENT_ASSET_AUDIT_OVERDUE
 
 
@@ -447,6 +453,229 @@ def test_itam_ticket_create_asset_request_create_and_update_reject_ticket_fields
     assert "ticket_provider" not in AssetRequestCreate.model_fields
     assert "ticket_ref" not in AssetRequestUpdate.model_fields
     assert "ticket_provider" not in AssetRequestUpdate.model_fields
+
+
+# ---------------------------------------------------------------------------
+# manual_create (Task 3) — POST /api/itam/tickets
+# ---------------------------------------------------------------------------
+_ADMIN_TOKEN = TokenData(username="admin@tenant-a", role="admin", tenant_id="tenant-a")
+
+
+def _entity_db(**collections):
+    """collections: e.g. assets={...doc...} or assets=None."""
+    db = MagicMock()
+    for name, doc in collections.items():
+        col = MagicMock()
+        col.find_one = AsyncMock(return_value=doc)
+        col.update_one = AsyncMock()
+        setattr(db, name, col)
+    return db
+
+
+def _ticket_endpoint_app(admin_ok=True):
+    app = FastAPI()
+    app.include_router(itam_ticketing_endpoints.router)
+    if admin_ok:
+        app.dependency_overrides[itam_asset_endpoints._require_itam_admin] = lambda: _ADMIN_TOKEN
+    else:
+        async def _refuse():
+            raise HTTPException(status_code=403, detail="User does not have permission to manage ITAM assets.")
+
+        app.dependency_overrides[itam_asset_endpoints._require_itam_admin] = _refuse
+    return app
+
+
+def test_manual_create_valid_asset_returns_ticket_fields():
+    db = _entity_db(assets=_sample_asset())
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db), patch.object(
+        itam_ticketing_endpoints,
+        "create_ticket_for_itam_event",
+        AsyncMock(
+            return_value={
+                "ticket_provider": "jira",
+                "ticket_ref": "ITAM-1",
+                "ticket_url": "https://x/ITAM-1",
+            }
+        ),
+    ):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-1", "provider": "jira"},
+            )
+
+    assert r.status_code == 200
+    assert r.json() == {
+        "ticket_provider": "jira",
+        "ticket_ref": "ITAM-1",
+        "ticket_url": "https://x/ITAM-1",
+    }
+
+
+def test_manual_create_entity_not_found_returns_404():
+    db = _entity_db(assets=None)
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-missing", "provider": "jira"},
+            )
+
+    assert r.status_code == 404
+
+
+def test_manual_create_already_ticketed_returns_409_not_a_second_ticket():
+    db = _entity_db(assets=_sample_asset(ticket_ref="ITAM-EXISTING"))
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db), patch.object(
+        itam_ticketing_endpoints, "create_ticket_for_itam_event", AsyncMock()
+    ) as mock_bridge:
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-1", "provider": "jira"},
+            )
+
+    assert r.status_code == 409
+    mock_bridge.assert_not_called()
+
+
+def test_manual_create_invalid_provider_rejected_before_handler():
+    db = _entity_db(assets=_sample_asset())
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-1", "provider": "trello"},
+            )
+
+    assert r.status_code == 422
+
+
+def test_manual_create_refused_without_itam_admin_permission():
+    db = _entity_db(assets=_sample_asset())
+    app = _ticket_endpoint_app(admin_ok=False)
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-1", "provider": "jira"},
+            )
+
+    assert r.status_code == 403
+
+
+def test_manual_create_response_body_key_set_is_exactly_three_ticket_keys():
+    db = _entity_db(assets=_sample_asset())
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db), patch.object(
+        itam_ticketing_endpoints,
+        "create_ticket_for_itam_event",
+        AsyncMock(
+            return_value={
+                "ticket_provider": "jira",
+                "ticket_ref": "ITAM-1",
+                "ticket_url": "https://x/ITAM-1",
+            }
+        ),
+    ):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-1", "provider": "jira"},
+            )
+
+    assert set(r.json().keys()) == {"ticket_provider", "ticket_ref", "ticket_url"}
+
+
+def test_manual_create_asset_request_entity_kind_uses_snake_case_tenant_field():
+    db = _entity_db(asset_requests=_sample_asset_request())
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db), patch.object(
+        itam_ticketing_endpoints,
+        "create_ticket_for_itam_event",
+        AsyncMock(
+            return_value={
+                "ticket_provider": "servicenow",
+                "ticket_ref": "INC01",
+                "ticket_url": "https://x/INC01",
+            }
+        ),
+    ):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset_request", "entityId": "ar-1", "provider": "servicenow"},
+            )
+
+    assert r.status_code == 200
+    args, kwargs = db.asset_requests.find_one.call_args
+    filter_used = args[0]
+    assert filter_used["tenant_id"] == "tenant-a"
+    assert "tenantId" not in filter_used
+
+
+def test_manual_create_bridge_failure_returns_502():
+    db = _entity_db(assets=_sample_asset())
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db), patch.object(
+        itam_ticketing_endpoints, "create_ticket_for_itam_event", AsyncMock(return_value=None)
+    ):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-1", "provider": "jira"},
+            )
+
+    assert r.status_code == 502
+
+
+def test_manual_create_route_reachable_in_assembled_app_not_a_404():
+    """Drives a real request through TestClient (not a route-table
+    inspection) to prove the route resolves in the real app — an
+    unregistered router 404s every route it declares (router_registry.py's
+    own documented failure class)."""
+    db = _entity_db(assets=_sample_asset())
+    app = _ticket_endpoint_app()
+    with patch.object(itam_ticketing_endpoints, "get_database", return_value=db), patch.object(
+        itam_ticketing_endpoints,
+        "create_ticket_for_itam_event",
+        AsyncMock(
+            return_value={"ticket_provider": "jira", "ticket_ref": "ITAM-1", "ticket_url": "u"}
+        ),
+    ):
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/itam/tickets",
+                json={"entityKind": "asset", "entityId": "asset-1", "provider": "jira"},
+            )
+
+    assert r.status_code != 404
+
+
+def test_manual_create_registered_in_real_app():
+    """Regression guard for the documented 'route module never registered'
+    defect class — imports the real assembled app and drives a request
+    through it end to end. Uses the `_fastapi_app` escape hatch (app.py
+    reassigns the module-level `app` name to a socketio.ASGIApp wrapper
+    with no usable route table, per test_threat_intel_correlate_native_route.py's
+    documented precedent) and instantiates TestClient WITHOUT the `with`
+    context manager so the real lifespan (live Mongo connect) never runs —
+    hermetic. Auth will 401/403 without real credentials, but that proves
+    the route exists — a 404 here would mean it isn't wired into
+    router_registry.py at all."""
+    import app as real_app_module
+
+    client = TestClient(real_app_module._fastapi_app)
+    r = client.post(
+        "/api/itam/tickets",
+        json={"entityKind": "asset", "entityId": "asset-1", "provider": "jira"},
+    )
+
+    assert r.status_code != 404
 
 
 if __name__ == "__main__":
