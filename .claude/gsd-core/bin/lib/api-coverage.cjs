@@ -564,7 +564,6 @@ function parseCoverageMatrix(text) {
     }
     // (2) markdown table — collect table rows whose decision column parses.
     const lines = src.split('\n');
-    let sawHeader = false;
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed.startsWith('|'))
@@ -578,9 +577,11 @@ function parseCoverageMatrix(text) {
         if (cleaned.every((c) => /^:?-{3,}:?$/.test(c)))
             continue;
         const decisionCell = (cleaned[1] || '').toUpperCase();
-        // header detection
-        if (!sawHeader && cleaned[0].toLowerCase() === 'capability') {
-            sawHeader = true;
+        // header detection — a file may contain multiple tables (one per API
+        // surface), each with its own header row, so this must not be a
+        // one-shot flag: every row whose first cell is "capability" is a
+        // header, not data.
+        if (cleaned[0].toLowerCase() === 'capability') {
             out.format = 'table';
             continue;
         }
