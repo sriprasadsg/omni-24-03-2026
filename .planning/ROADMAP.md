@@ -1004,7 +1004,7 @@ Plans:
 **Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 68 on 2026-08-13 — renumbered 68→73.] Extend ITAM capabilities via REST API and external system integrations.
 **Requirements**: ITAM-API-01, ITAM-API-02, ITAM-API-03
 **Depends on:** Phase 72
-**Plans:** TBD
+**Plans:** 6 plans
 **Success Criteria:**
 
   1. User can use REST API to perform ITAM operations.
@@ -1015,4 +1015,15 @@ Plans:
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 73 to break down)
+- [ ] 73-01-PLAN.md — tracer: API-key auth on the ITAM routers with scope narrowing, plus the first webhook call site (wave 1)
+- [ ] 73-02-PLAN.md — request-scoped webhook events: check-in, consumable low stock, request approved/denied (wave 2)
+- [ ] 73-04-PLAN.md — ITAM ticketing-bridge adapter, ticket-creation orchestrator, and the manual create-ticket endpoint (wave 2)
+- [ ] 73-03-PLAN.md — background webhook sweeps: warranty expiring and licence expiring, tenant-bracketed (wave 3)
+- [ ] 73-06-PLAN.md — frontend: webhook event picker entries and the Create Ticket row action on both ITAM tables (wave 3)
+- [ ] 73-05-PLAN.md — audit-overdue sweep and both automatic ticket triggers, registered at startup (wave 4)
+
+**Cross-cutting constraints:**
+
+- The four non-ITAM routers that share the `_require_itam_admin` guard by import (LDAP, SAML/SSO, user management, API-key management) stay session-auth-only — an API key must never reach them.
+- Every webhook dispatched from a background sweep is individually tenant-bracketed; an unbracketed dispatch fails silently and delivers to nobody.
+- No condition may create more than one ticket for the same asset or request.
