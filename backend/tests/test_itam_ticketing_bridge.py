@@ -678,6 +678,231 @@ def test_manual_create_registered_in_real_app():
     assert r.status_code != 404
 
 
+# ===========================================================================
+# automatic_trigger (Plan 73-05 Task 2, plus a Task 1 re-verification) —
+# both of D-10's automatic ticket triggers routing through
+# create_ticket_for_itam_event.
+# ===========================================================================
+from datetime import datetime, timedelta, timezone
+
+import itam_event_sweeps
+from itam_event_sweeps import (
+    HIGH_VALUE_REQUEST_COST,
+    HIGH_VALUE_REQUEST_QUANTITY,
+    STUCK_APPROVAL_MARKER_FIELD,
+    STUCK_APPROVAL_WINDOW_DAYS,
+    _is_high_value_request,
+    run_stuck_approval_ticket_pass,
+)
+
+
+def _run2(coro):
+    return asyncio.run(coro)
+
+
+def _old_enough(**overrides):
+    dt = datetime.now(timezone.utc) - timedelta(days=STUCK_APPROVAL_WINDOW_DAYS + 1)
+    doc = {
+        "id": "ar-old-1",
+        "tenant_id": "tenant-a",
+        "item_description": "Server rack",
+        "quantity": 1,
+        "requester_id": "user-1",
+        "status": "pending",
+        "request_date": dt,
+    }
+    doc.update(overrides)
+    return doc
+
+
+def _young(**overrides):
+    dt = datetime.now(timezone.utc)
+    doc = _old_enough(id="ar-young-1", **overrides)
+    doc["request_date"] = dt
+    return doc
+
+
+def _matches_ar_filter(doc, filter_spec):
+    for key, cond in filter_spec.items():
+        if isinstance(cond, dict):
+            if "$exists" in cond:
+                exists = key in doc and doc.get(key) is not None
+                if cond["$exists"] != exists:
+                    return False
+            if "$lt" in cond:
+                val = doc.get(key)
+                if val is None or not (val < cond["$lt"]):
+                    return False
+        else:
+            if doc.get(key) != cond:
+                return False
+    return True
+
+
+class _AsyncRequestCursor:
+    def __init__(self, docs):
+        self._iter = iter(list(docs))
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration:
+            raise StopAsyncIteration
+
+
+class _AssetRequestsCollection:
+    def __init__(self, db):
+        self._db = db
+
+    def find(self, filter_spec, projection=None):
+        self._db.captured_find_filters.append(filter_spec)
+        matched = [d for d in self._db._docs.values() if _matches_ar_filter(d, filter_spec)]
+        return _AsyncRequestCursor(matched)
+
+    async def find_one_and_update(self, filter_spec, update):
+        self._db.captured_claim_filters.append(filter_spec)
+        doc = self._db._docs.get(filter_spec.get("id"))
+        if doc is None or not _matches_ar_filter(doc, filter_spec):
+            return None
+        for k, v in update.get("$set", {}).items():
+            doc[k] = v
+        return dict(doc)
+
+    async def update_one(self, filter_spec, update):
+        doc = self._db._docs.get(filter_spec.get("id"))
+        if doc is None:
+            return None
+        for k, v in update.get("$set", {}).items():
+            doc[k] = v
+        return doc
+
+
+class _RawStuckApprovalSweepDb:
+    def __init__(self, requests=None):
+        self._docs = {d["id"]: dict(d) for d in (requests or [])}
+        self.captured_find_filters = []
+        self.captured_claim_filters = []
+        self.asset_requests = _AssetRequestsCollection(self)
+
+
+class TestAutomaticTicketTriggers:
+    """Plan 73-05 Task 2 (`-k automatic_trigger`): the stuck-high-value-approval
+    sweep, plus re-verification that both of D-10's automatic triggers
+    (audit-overdue from Task 1, stuck-approval from this task) route through
+    ticketing_bridge.create_ticket_for_itam_event."""
+
+    def test_automatic_trigger_high_cost_classified_high_value(self):
+        assert _is_high_value_request({"estimated_cost": HIGH_VALUE_REQUEST_COST, "quantity": 1}) is True
+        assert _is_high_value_request({"estimated_cost": HIGH_VALUE_REQUEST_COST - 1, "quantity": 1}) is False
+
+    def test_automatic_trigger_high_quantity_no_cost_classified_high_value(self):
+        assert _is_high_value_request({"quantity": HIGH_VALUE_REQUEST_QUANTITY}) is True
+
+    def test_automatic_trigger_low_quantity_no_cost_not_high_value(self):
+        assert _is_high_value_request({"quantity": HIGH_VALUE_REQUEST_QUANTITY - 1}) is False
+
+    def test_automatic_trigger_stuck_approval_high_cost_ticketed_once(self):
+        db = _RawStuckApprovalSweepDb(
+            requests=[_old_enough(estimated_cost=HIGH_VALUE_REQUEST_COST, quantity=1)]
+        )
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = _run2(run_stuck_approval_ticket_pass(db))
+        assert count == 1
+        assert mock_ticket.call_count == 1
+        args = mock_ticket.call_args.args
+        assert args[1] == "asset_request"
+        assert args[3] == "tenant-a"
+
+    def test_automatic_trigger_stuck_approval_high_quantity_no_cost_ticketed(self):
+        db = _RawStuckApprovalSweepDb(
+            requests=[_old_enough(quantity=HIGH_VALUE_REQUEST_QUANTITY)]
+        )
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = _run2(run_stuck_approval_ticket_pass(db))
+        assert count == 1
+        assert mock_ticket.call_count == 1
+
+    def test_automatic_trigger_neither_high_cost_nor_quantity_not_selected(self):
+        db = _RawStuckApprovalSweepDb(requests=[_old_enough(quantity=1)])
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = _run2(run_stuck_approval_ticket_pass(db))
+        assert count == 0
+        mock_ticket.assert_not_called()
+
+    def test_automatic_trigger_younger_than_window_not_selected(self):
+        db = _RawStuckApprovalSweepDb(
+            requests=[_young(quantity=HIGH_VALUE_REQUEST_QUANTITY)]
+        )
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = _run2(run_stuck_approval_ticket_pass(db))
+        assert count == 0
+        mock_ticket.assert_not_called()
+
+    def test_automatic_trigger_approved_status_not_selected(self):
+        db = _RawStuckApprovalSweepDb(
+            requests=[_old_enough(quantity=HIGH_VALUE_REQUEST_QUANTITY, status="approved")]
+        )
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = _run2(run_stuck_approval_ticket_pass(db))
+        assert count == 0
+        mock_ticket.assert_not_called()
+
+    def test_automatic_trigger_already_marked_not_selected(self):
+        req = _old_enough(quantity=HIGH_VALUE_REQUEST_QUANTITY)
+        req[STUCK_APPROVAL_MARKER_FIELD] = "2026-08-01T00:00:00+00:00"
+        db = _RawStuckApprovalSweepDb(requests=[req])
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = _run2(run_stuck_approval_ticket_pass(db))
+        assert count == 0
+        mock_ticket.assert_not_called()
+
+    def test_automatic_trigger_second_pass_unchanged_fixture_one_ticket_total(self):
+        db = _RawStuckApprovalSweepDb(
+            requests=[_old_enough(quantity=HIGH_VALUE_REQUEST_QUANTITY)]
+        )
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            first = _run2(run_stuck_approval_ticket_pass(db))
+            second = _run2(run_stuck_approval_ticket_pass(db))
+        assert first == 1
+        assert second == 0
+        assert mock_ticket.call_count == 1
+
+    def test_automatic_trigger_claim_filter_uses_snake_case_tenant_field(self):
+        db = _RawStuckApprovalSweepDb(
+            requests=[_old_enough(quantity=HIGH_VALUE_REQUEST_QUANTITY)]
+        )
+        with patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()):
+            _run2(run_stuck_approval_ticket_pass(db))
+        assert len(db.captured_claim_filters) == 1
+        claim_filter = db.captured_claim_filters[0]
+        assert "tenant_id" in claim_filter
+        assert "tenantId" not in claim_filter
+
+    def test_automatic_trigger_audit_overdue_and_stuck_approval_both_reach_bridge(self):
+        """Both automatic triggers (Task 1's audit-overdue, Task 2's
+        stuck-approval) route through the same create_ticket_for_itam_event
+        orchestrator with no per-trigger special-casing — proven here by
+        driving the real orchestrator (config/connector mocked, not the
+        orchestrator itself) for the stuck-approval path."""
+        db = _RawStuckApprovalSweepDb(
+            requests=[_old_enough(quantity=HIGH_VALUE_REQUEST_QUANTITY)]
+        )
+
+        with patch(
+            "ticketing_bridge.get_ticketing_config",
+            AsyncMock(return_value={"provider": "jira"}),
+        ), patch(
+            "ticketing_bridge.create_jira_ticket",
+            AsyncMock(return_value={"success": True, "ticket_key": "ITAM-9", "url": "http://x"}),
+        ) as mock_jira:
+            count = _run2(run_stuck_approval_ticket_pass(db))
+        assert count == 1
+        assert mock_jira.call_count == 1
+
+
 if __name__ == "__main__":
     import pytest
 

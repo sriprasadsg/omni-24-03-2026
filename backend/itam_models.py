@@ -572,6 +572,12 @@ class AssetRequestBase(BaseModel):
     item_description: str = Field(min_length=3, max_length=500)
     quantity: int = Field(ge=1)
     reason: str = Field(min_length=3, max_length=1000)
+    # Phase 73 Plan 05 (D-10, ITAM-API-03): additive, optional, defaults to
+    # None — every pre-existing request document lacks this field, and
+    # RESEARCH.md Assumption A2 is false (no cost field existed before this
+    # plan), so its absence must be treated as ordinary, not exceptional.
+    # Never required; flows through Create/response unchanged.
+    estimated_cost: Optional[float] = Field(None, ge=0)
 
 class AssetRequestCreate(AssetRequestBase):
     pass
@@ -580,6 +586,9 @@ class AssetRequestUpdate(BaseModel):
     item_description: Optional[str] = Field(None, min_length=3, max_length=500)
     quantity: Optional[int] = Field(None, ge=1)
     reason: Optional[str] = Field(None, min_length=3, max_length=1000)
+    # Matches item_description/quantity/reason's existing optional-update
+    # shape above (Phase 73 Plan 05).
+    estimated_cost: Optional[float] = Field(None, ge=0)
     status: Optional[AssetRequestStatus] = None # Only updatable by approver methods
     approver_id: Optional[str] = None
     approval_date: Optional[datetime] = None
