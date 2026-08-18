@@ -1,30 +1,45 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-16T12:23:51.779Z",
-  "phase": "72",
-  "phase_name": "Reporting & Dashboards",
-  "phase_dir": ".planning/phases/72-reporting-dashboards",
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
+  "timestamp": "2026-08-18T18:35:38.602Z",
+  "phase": "73",
+  "phase_name": "api-integrations",
+  "phase_dir": ".planning/phases/73-api-integrations",
+  "plan": 6,
+  "task": 7,
+  "total_tasks": 7,
   "status": "paused",
-  "completed_tasks": [],
+  "completed_tasks": [
+    {"id": 1, "name": "UI-SPEC researched + checker-approved (1 revision: spacing fix)", "status": "done", "commit": "fa2ab72a6"},
+    {"id": 2, "name": "Research refresh (--research): 11->15 file auth-gate correction, no plan invalidated", "status": "done", "commit": "b7ac3bf98"},
+    {"id": 3, "name": "Pattern map (73-PATTERNS.md)", "status": "done", "commit": "e6738ebdc"},
+    {"id": 4, "name": "Planned: 6 plans / 4 waves, plan-checker VERIFICATION PASSED", "status": "done", "commit": "e09e5e16c"},
+    {"id": 5, "name": "Executed all 6 plans (73-01..73-06), incl. 73-06 human-verify checkpoint approved by user live in browser", "status": "done", "commit": "27da5e501"},
+    {"id": 6, "name": "Code review: 0 critical, 3 warnings (all pre-existing, not introduced by phase 73)", "status": "done", "commit": "d11df7cc0"},
+    {"id": 7, "name": "Regression gate (full backend suite 2404 passed/12 pre-existing-unrelated-failed) + frontend tsc clean; goal verification: 24/26 must-haves, status human_needed; 73-UAT.md created (3 items)", "status": "done", "commit": "8956d4b2c"}
+  ],
   "remaining_tasks": [
-    {"id": 1, "name": "Load phase-72 CONTEXT.md decision (none exists yet — decide continue-without-context vs discuss-phase first)", "status": "not_started"},
-    {"id": 2, "name": "Spawn gsd-phase-researcher for Phase 72 (research report builder / pre-built reports / PDF-CSV-Excel export / KPI dashboard patterns)", "status": "not_started"},
-    {"id": 3, "name": "Spawn gsd-planner to produce PLAN.md file(s)", "status": "not_started"},
-    {"id": 4, "name": "Spawn gsd-plan-checker, run revision loop (max 3 iterations)", "status": "not_started"},
-    {"id": 5, "name": "Requirements coverage gate + commit plans", "status": "not_started"}
+    {"id": 8, "name": "Fix or bypass the api-coverage.verify-pre gate false-positive blocking /gsd-verify-work 73", "status": "not_started"},
+    {"id": 9, "name": "Run /gsd-verify-work 73 to walk through 73-UAT.md's 3 items and auto-transition phase to complete", "status": "not_started"},
+    {"id": 10, "name": "User's separate request: verify/complete all 'Shipped' milestones (v1.0-v4.0) via gsd-audit-uat tooling per their earlier AskUserQuestion answer", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "/gsd-plan-phase's own required_reading (workflow spec ~1667 lines + revision-loop.md + gate-prompts.md + agent-contracts.md + gates.md + ui-brand.md) consumes ~70-77% of context budget just to bootstrap the orchestrator, before any subagent spawns. Two consecutive sessions hit context-critical before reaching step 5 (Handle Research) purely from required_reading load.", "type": "technical", "workaround": "None found yet. Next session: consider skipping full workflow-spec read and instead following the condensed step summary in this handoff (steps 1-14 already distilled below) to avoid re-paying the ~1667-line read cost. Verify against the real workflow file only if behavior seems wrong."}
+    {"description": "check api-coverage.verify-pre on .planning/phases/73-api-integrations reports COVERAGE.md has 3 rows with decision \"DECISION\" not in {INTEGRATE, OPT-OUT} and block:true (blocking:true, onError:halt gate at verify:pre). Manually read COVERAGE.md end-to-end: every one of its ~60 data rows across all 4 tables (Jira REST API, ServiceNow Table API, ITAM webhook event set, ITAM REST auth surface) already has a real INTEGRATE or OPT-OUT value plus a reason -- no literal 'DECISION' placeholder text exists anywhere in the file. All 4 tables' header+separator rows are byte-identical ('| Capability | Decision | Reason |' / '|------------|----------|--------|', confirmed via cat -A, no trailing whitespace/CRLF variance). This strongly suggests the checker's row-extraction logic in .claude/gsd-core/bin/lib/api-coverage.cjs (functions/lines around 508 VALID_DECISIONS, ~593 and ~621 'not in {INTEGRATE, OPT-OUT}') is misparsing 3 of the 4 markdown table header rows as data rows (the header cell literally reads 'Decision', which uppercases to the exact 'DECISION' string in the error) -- but WHY 3 out of 4 and not 0 or 4 was not resolved before pausing (context ran out mid-investigation).", "type": "technical", "workaround": "Not found yet. Do not just delete/reword COVERAGE.md's real content -- it is correct. The bug is almost certainly in the checker's table parser, not the data file."}
   ],
   "async_jobs": [],
-  "human_actions_pending": [],
-  "decisions": [
-    {"decision": "Defer Phase 72 planning to a dedicated session rather than starting it opportunistically mid-conversation", "rationale": "User agreed twice: once before starting (context was already 68%+ used from prior phase-71 UAT work), once again after a literal fresh-session invocation still hit context-critical from the workflow's own required_reading footprint before any real planning work began", "phase": "72"}
+  "human_actions_pending": [
+    {"action": "Answer 73-UAT.md test 1 (concurrent-tenant API-key isolation) live via /gsd-verify-work 73 once the gate bug above is resolved", "context": "Genuinely unverified -- code is present/correctly wired but no test exercises real concurrent two-tenant isolation.", "blocking": false},
+    {"action": "Re-confirm 73-UAT.md tests 2 and 3 (dropdown-near-table-edge, long-ticket-reference layout) via /gsd-verify-work 73", "context": "Both were ALREADY visually confirmed live in browser during the 73-06 execution checkpoint (user replied 'approved' to the exact same two checks). Should be a fast rubber-stamp, not new testing.", "blocking": false},
+    {"action": "After Phase 73 closes: run gsd-audit-uat (and/or gsd-audit-milestone) per the user's explicit AskUserQuestion choice ('Run existing audit tooling') to verify the ~19-item recurring UAT/verification backlog across all pre-v3.2 'Shipped' milestones (v1.0-v4.0) is either genuinely resolved or explicitly accepted-as-permanent-limitation (e.g. physical-Windows-device tests, real-browser passkey ceremony).", "context": "User explicitly asked to 'verify all the Shipped status and make them complete with what all modifications it requires' -- answered via AskUserQuestion to use existing audit tooling rather than a full manual re-verification, and to finish Phase 73 first.", "blocking": false}
   ],
-  "uncommitted_files": [],
-  "next_action": "Start a new session, run /gsd-plan-phase 72. If context runs low again purely from required_reading, skip re-reading the full workflow file and follow the condensed step list in .planning/phases/72-reporting-dashboards/.continue-here.md instead — it already has the init JSON fields and step sequence extracted.",
-  "context_notes": "No design decisions made yet for phase 72 — this is a cold start, not a resume of in-progress design work. The only 'progress' so far is: phase directory created, INIT JSON confirmed (phase_req_ids: ITAM-REP-01..04, no CONTEXT.md/RESEARCH.md/PLAN.md exist, mode=yolo so gates should run non-interactively where the workflow allows). Nothing about the actual reporting/dashboard feature has been researched or decided."
+  "decisions": [
+    {"decision": "Kept the researcher's real correction (11->15 auth-gate files) when re-running /gsd-plan-phase 73 --research after plans already existed; did not force a full replan since the correction only fixed stale RESEARCH.md prose, the plans (73-01 Task 2) had already independently found and implemented the correct 15-file/4-exclusion scope.", "rationale": "No-silent-drop + no-wasted-work: replanning would have discarded 6 already-checker-verified plans over a documentation-only gap.", "phase": "73"},
+    {"decision": "Used sequential (non-worktree) executor dispatch for all 6 plans.", "rationale": "workflow.use_worktrees=false in this project's config.json -- not a session choice, a fixed project setting.", "phase": "73"},
+    {"decision": "For the 73-06 human-verify checkpoint, did the browser verification myself first (backend :5000 + frontend https://localhost/ already running) but still required the user's explicit 'approved' rather than self-approving, per the checkpoint's blocking-human-gate design.", "rationale": "GSD checkpoints exist specifically to keep a human in the loop for visual/interaction judgment calls; doing the legwork myself is a courtesy, not a substitute for the actual gate.", "phase": "73"}
+  ],
+  "uncommitted_files": [
+    ".claude-flow/* (unrelated daemon/metrics state, pre-existing, not part of any GSD phase)",
+    "App.tsx, backend/ai_endpoints.py, backend/ai_providers.py, backend/ai_service.py, components/LlmSettings.tsx, services/apiService.ts, types.ts, backend/router_registry.py, backend/rbac_service.py, backend/app_middleware.py, backend/create_test_user.py, backend/requirements.txt, c.txt, plus new files (backend/customer_vector_db*, backend/federated_learning*, backend/webgpu_inference*, components/EnhancedVectorDashboard.tsx, components/FederatedLearningDashboard.tsx, components/WebGPUDashboard.tsx) -- an EARLIER, SEPARATE ad-hoc AI-infrastructure feature build (Customer Vector DB / Federated Learning / WebGPU Inference) from much earlier this session, fully fixed and verified working (backend imports clean, routes reachable, tsc clean, full frontend build clean, full backend suite green) but deliberately left UNCOMMITTED per the user's original request scope -- NOT part of Phase 73, do not touch unless the user asks."
+  ],
+  "next_action": "Read .claude/gsd-core/bin/lib/api-coverage.cjs's markdown-table row parser (search for VALID_DECISIONS around line 508, and the two 'not in {INTEGRATE, OPT-OUT}' error sites around lines 593 and 621) to find why 3 of COVERAGE.md's 4 identical header/separator row pairs are being read as data rows. Fix the parser bug (or find/apply a documented override flag for the gate), then re-run `check api-coverage.verify-pre .planning/phases/73-api-integrations --raw` to confirm block:false, then run /gsd-verify-work 73.",
+  "context_notes": "This was a long single session: continued an earlier ad-hoc AI-feature-build task, then did a full milestone/phase status listing on request, then ran /gsd-plan-phase 73 -> hit UI safety gate -> /gsd-ui-phase 73 (1 revision) -> /gsd-plan-phase 73 completed -> user asked --research again mid-session (a force-refresh AFTER plans already existed, unusual but handled per workflow's own step-6 existing-plans path) -> /gsd-execute-phase 73 across multiple resumptions (paused at wave boundaries per context-budget warnings, each resume correctly re-discovered state via init.execute-phase's summaries[]/incomplete_plans[] rather than trusting memory) -> code review -> regression gate -> goal verification (human_needed) -> UAT.md created -> user ran /gsd-verify-work 73 -> hit the api-coverage.verify-pre gate bug documented above -> paused. The user's big-picture ask ('verify all Shipped milestones as complete') is still fully pending, deliberately sequenced AFTER Phase 73 per their own explicit choice."
 }
