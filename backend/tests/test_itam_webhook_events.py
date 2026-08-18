@@ -476,21 +476,7 @@ import itam_finance_service as finance_service_module
 from itam_webhook_events import EVENT_ASSET_WARRANTY_EXPIRING
 from tenant_context import get_tenant_id
 from tests.itam_finance_sweep_test_support import _RawSweepDb, _asset, _user
-
-
-def _expiring_asset(**overrides):
-    """Purchased 2026-01-01, 8-month warranty -> expires 2026-09-01. Against
-    a mocked "now" of 2026-08-15 that is 17 days out: inside the default
-    30-day alert window and not yet past expiry, so this is genuinely the
-    EXPIRING branch, not EXPIRED."""
-    return _asset(purchaseDate="2026-01-01T00:00:00Z", warrantyMonths=8, **overrides)
-
-
-def _mock_now_2026_08_15():
-    return patch("itam_finance_service.datetime", **{
-        "now.return_value": datetime(2026, 8, 15, tzinfo=timezone.utc),
-        "fromisoformat.side_effect": datetime.fromisoformat,
-    })
+from tests.itam_webhook_events_test_support import _expiring_asset, _mock_now_2026_08_15
 
 
 class TestWarrantyExpiringWebhookDispatch:
@@ -614,77 +600,11 @@ from itam_event_sweeps import (
     run_license_expiry_alert_pass,
 )
 from tests.itam_finance_sweep_test_support import _AsyncCursor
-
-
-def _license(**overrides):
-    doc = {
-        "id": "lic-1",
-        "tenantId": "tenant-a",
-        "name": "Photoshop",
-        "expiryDate": "2026-08-20T00:00:00+00:00",  # 5 days from mocked now, in-window
-    }
-    doc.update(overrides)
-    return doc
-
-
-def _license_matches(doc, filter_spec):
-    for k, v in filter_spec.items():
-        if isinstance(v, dict):
-            if "$exists" in v:
-                exists = k in doc and doc.get(k) is not None
-                if v["$exists"] != exists:
-                    return False
-            if "$ne" in v:
-                if doc.get(k) == v["$ne"]:
-                    return False
-        else:
-            if doc.get(k) != v:
-                return False
-    return True
-
-
-class _LicensesCollection:
-    def __init__(self, db):
-        self._db = db
-
-    def find(self, filter_spec, projection=None):
-        self._db.captured_find_filters.append(filter_spec)
-        matched = [d for d in self._db._docs.values() if _license_matches(d, filter_spec)]
-        return _AsyncCursor(matched)
-
-    async def find_one_and_update(self, filter_spec, update):
-        self._db.captured_claim_filters.append(filter_spec)
-        doc_id = filter_spec.get("id")
-        tenant_id = filter_spec.get("tenantId")
-        doc = self._db._docs.get(doc_id)
-        if doc is None or doc.get("tenantId") != tenant_id:
-            return None
-        for k, v in filter_spec.items():
-            if isinstance(v, dict) and v.get("$exists") is False and k in doc:
-                return None  # already claimed by another pass
-        for k, v in update.get("$set", {}).items():
-            doc[k] = v
-        return dict(doc)
-
-
-class _RawLicenseSweepDb:
-    """Minimal stateful raw-db stub for the licence expiry sweep, mirroring
-    itam_finance_sweep_test_support._RawSweepDb's shape for assets: an
-    in-memory licenses collection supporting find() with $exists/$ne
-    filtering and an atomic find_one_and_update() claim."""
-
-    def __init__(self, licenses=None):
-        self._docs = {d["id"]: dict(d) for d in (licenses or [])}
-        self.captured_find_filters = []
-        self.captured_claim_filters = []
-        self.licenses = _LicensesCollection(self)
-
-
-def _mock_license_now_2026_08_15():
-    return patch("itam_event_sweeps.datetime", **{
-        "now.return_value": datetime(2026, 8, 15, tzinfo=timezone.utc),
-        "fromisoformat.side_effect": datetime.fromisoformat,
-    })
+from tests.itam_webhook_events_test_support import (
+    _license,
+    _RawLicenseSweepDb,
+    _mock_license_now_2026_08_15,
+)
 
 
 class TestLicenseExpiringWebhookDispatch:
@@ -836,3 +756,115 @@ class TestLicenseExpiringWebhookDispatch:
         assert set(payload.keys()) == {"licenseId", "name", "expiryDate", "daysUntilExpiry", "isExpired"}
         assert payload["licenseId"] == "lic-1"
         assert payload["name"] == "Photoshop"
+
+
+# ─── Task 3 (Plan 73-03): mixed-tenant background dispatch regression ─────
+# Fills in 73-VALIDATION.md's `tenant_context_background` row — the
+# highest-severity regression in this plan, covering both sweeps together.
+
+from tests.itam_webhook_events_test_support import FAIL_CLOSED_TENANT_SENTINEL
+
+
+class TestMixedTenantBackgroundDispatch:
+    """At least 2 distinct tenants, at least 4 alertable documents total
+    (2 assets across 2 tenants for the warranty sweep, 2 licences across the
+    same 2 tenants for the licence sweep) — tenant ids chosen so a mix-up is
+    unambiguous rather than coincidentally equal."""
+
+    @pytest.mark.asyncio
+    async def test_tenant_context_background_warranty_sweep_dispatches_under_correct_tenant(self):
+        assets = [
+            _expiring_asset(id="asset-t1-a", tenantId="tenant-one", assetTag="T1-A"),
+            _expiring_asset(id="asset-t1-b", tenantId="tenant-one", assetTag="T1-B"),
+            _expiring_asset(id="asset-t2-a", tenantId="tenant-two", assetTag="T2-A"),
+            _expiring_asset(id="asset-t2-b", tenantId="tenant-two", assetTag="T2-B"),
+        ]
+        db = _RawSweepDb(
+            assets=assets,
+            users=[_user(tenantId="tenant-one"), _user(tenantId="tenant-two")],
+        )
+
+        calls = []
+
+        async def _recorder(event_type, payload):
+            calls.append((event_type, payload, get_tenant_id()))
+
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", side_effect=_recorder):
+            count = await finance_service_module.run_warranty_alert_pass(db)
+
+        assert count == len(assets)
+        assert len(calls) == len(assets)
+        tenant_by_asset_id = {a["id"]: a["tenantId"] for a in assets}
+        for event_type, payload, ambient_tenant in calls:
+            assert event_type == EVENT_ASSET_WARRANTY_EXPIRING
+            assert ambient_tenant, "ambient tenant id must never be empty/None"
+            assert ambient_tenant != FAIL_CLOSED_TENANT_SENTINEL
+            assert ambient_tenant == tenant_by_asset_id[payload["assetId"]]
+            # No other tenant's asset tag leaks into this payload.
+            other_tenant_tags = {
+                a["assetTag"] for a in assets if a["tenantId"] != ambient_tenant
+            }
+            assert payload["assetTag"] not in other_tenant_tags
+
+    @pytest.mark.asyncio
+    async def test_tenant_context_background_license_sweep_dispatches_under_correct_tenant(self):
+        licenses = [
+            _license(id="lic-t1-a", tenantId="tenant-one", name="T1-License-A"),
+            _license(id="lic-t1-b", tenantId="tenant-one", name="T1-License-B"),
+            _license(id="lic-t2-a", tenantId="tenant-two", name="T2-License-A"),
+            _license(id="lic-t2-b", tenantId="tenant-two", name="T2-License-B"),
+        ]
+        db = _RawLicenseSweepDb(licenses=licenses)
+
+        calls = []
+
+        async def _recorder(event_type, payload):
+            calls.append((event_type, payload, get_tenant_id()))
+
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", side_effect=_recorder):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == len(licenses)
+        assert len(calls) == len(licenses)
+        tenant_by_license_id = {l["id"]: l["tenantId"] for l in licenses}
+        for event_type, payload, ambient_tenant in calls:
+            assert event_type == EVENT_LICENSE_EXPIRING_SOON
+            assert ambient_tenant, "ambient tenant id must never be empty/None"
+            assert ambient_tenant != FAIL_CLOSED_TENANT_SENTINEL
+            assert ambient_tenant == tenant_by_license_id[payload["licenseId"]]
+            # No other tenant's licence name leaks into this payload.
+            other_tenant_names = {
+                l["name"] for l in licenses if l["tenantId"] != ambient_tenant
+            }
+            assert payload["name"] not in other_tenant_names
+
+    @pytest.mark.asyncio
+    async def test_tenant_context_background_context_empty_after_each_pass_returns(self):
+        """A sweep must not leak ambient tenant context into whatever runs
+        next on the same task, for either sweep."""
+        assert get_tenant_id() is None
+
+        warranty_assets = [
+            _expiring_asset(id="asset-t1-a", tenantId="tenant-one"),
+            _expiring_asset(id="asset-t2-a", tenantId="tenant-two"),
+        ]
+        warranty_db = _RawSweepDb(
+            assets=warranty_assets,
+            users=[_user(tenantId="tenant-one"), _user(tenantId="tenant-two")],
+        )
+        with _mock_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", AsyncMock()):
+            await finance_service_module.run_warranty_alert_pass(warranty_db)
+        assert get_tenant_id() is None
+
+        licenses = [
+            _license(id="lic-t1-a", tenantId="tenant-one"),
+            _license(id="lic-t2-a", tenantId="tenant-two"),
+        ]
+        license_db = _RawLicenseSweepDb(licenses=licenses)
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", AsyncMock()):
+            await run_license_expiry_alert_pass(license_db)
+        assert get_tenant_id() is None
