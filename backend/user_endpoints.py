@@ -8,7 +8,12 @@ from database import get_database
 from authentication_service import get_current_user
 from auth_utils import hash_password as get_password_hash, validate_password_complexity
 from rbac_utils import is_super_admin
-from itam_asset_endpoints import _require_itam_admin
+# Deliberately excluded from the D-02 API-key swap (Phase 73): user-management
+# CRUD is a materially different risk from reading/writing ITAM assets — this
+# surface stays session-auth-only. Discovered during planning (imports the
+# same shared guard symbol; not one of RESEARCH.md's original two
+# exclusions) alongside sso_endpoints.py.
+from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from rbac_service import rbac_service
 from auth_types import TokenData
 from tenant_context import get_tenant_id

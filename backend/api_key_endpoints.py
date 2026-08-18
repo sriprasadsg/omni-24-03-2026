@@ -16,7 +16,10 @@ from pydantic import BaseModel, Field
 
 from auth_types import TokenData
 from authentication_service import get_current_user
-from itam_asset_endpoints import _require_itam_admin
+# Deliberately excluded from the D-02 API-key swap (Phase 73): letting an
+# API key manage API keys is a privilege-escalation surface — this stays
+# session-auth-only.
+from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from api_key_auth import AVAILABLE_SCOPES, api_key_service
 from database import mongodb
 

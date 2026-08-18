@@ -19,7 +19,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from httpx import AsyncClient, ASGITransport
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -27,12 +27,36 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from tests.conftest import make_test_app, make_token_data, _make_col
 
 from auth_types import TokenData
+from authentication_service import get_current_user
 from api_key_auth import get_current_user_or_api_key
 from itam_webhook_events import EVENT_ASSET_CHECKED_OUT
 import itam_lifecycle_endpoints
 import itam_asset_endpoints
+import itam_catalog_endpoints
+import ldap_endpoints
+import api_key_endpoints
+import sso_endpoints
+import user_endpoints
 
 FAKE_API_KEY = "test-omni-pat-fixture-key"
+
+
+class _EmptyAsyncCursor:
+    """Minimal async-iterable cursor stand-in for `async for x in db.col.find(...)`."""
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        raise StopAsyncIteration
+
+
+def _chainable_cursor(items):
+    cursor = MagicMock()
+    cursor.skip.return_value = cursor
+    cursor.limit.return_value = cursor
+    cursor.to_list = AsyncMock(return_value=items)
+    return cursor
 
 
 # ─── Shared tenant-scoped mock DB (mirrors itam_lifecycle_test_support.py) ───
@@ -183,3 +207,165 @@ class TestTracerApiKeyCheckoutFiresWebhook:
                 headers={"X-API-Key": "not-the-right-key"},
             )
         assert r.status_code == 401
+
+
+# ─── Task 2: the four excluded surfaces refuse API-key auth, admins keep working ──
+
+@pytest.fixture
+def patch_rbac_utils_db(monkeypatch):
+    """verify_permission (rbac_utils) calls the real database.get_database()
+    directly rather than through the router's own db handle — patch it here
+    so the DB-role lookup misses and falls through to DEFAULT_PERMISSIONS
+    (role "admin" already grants manage:assets there), letting Task 2's
+    excluded-surface / catalog-narrowing tests exercise the real
+    verify_permission + _scopes_allow enforcement chain end to end."""
+    stub_db = MagicMock()
+    stub_db.roles = _make_col(find_one=AsyncMock(return_value=None))
+    monkeypatch.setattr("rbac_utils.get_database", lambda: stub_db)
+    return stub_db
+
+
+def _session_admin_token(tenant_id="tenant-a"):
+    return make_token_data(tenant_id=tenant_id, role="admin", username="admin@example.com")
+
+
+def _api_key_only_app(router):
+    """App mounting one router with ONLY get_current_user_or_api_key overridden
+    (to an api_key-sourced TokenData) — get_current_user itself is left
+    entirely un-overridden, so a route still gated by plain get_current_user
+    hits the real oauth2 dependency and 401s with no Authorization header,
+    proving an API key alone cannot reach it."""
+    app = FastAPI()
+    app.include_router(router)
+    api_key_token = TokenData(
+        username="svc-key@tenant-a", role="admin", tenant_id="tenant-a",
+        scopes=["manage:assets", "manage:itam", "admin:itam"], auth_source="api_key",
+    )
+    app.dependency_overrides[get_current_user_or_api_key] = lambda: api_key_token
+    return app
+
+
+def _session_app(router, current_user=None):
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_current_user] = lambda: current_user or _session_admin_token()
+    return app
+
+
+class TestExcludedSurfacesRefuseApiKey:
+    """A request carrying only an API key never reaches the four non-ITAM
+    surfaces the user explicitly excluded from D-02; a session-authenticated
+    admin still works on each one unchanged."""
+
+    @pytest.mark.asyncio
+    async def test_excluded_surfaces_ldap_config(self, monkeypatch, patch_rbac_utils_db):
+        db = MagicMock()
+        db.ldap_configs = _make_col(find_one=AsyncMock(return_value=None))
+
+        api_key_app = _api_key_only_app(ldap_endpoints.router)
+        transport = ASGITransport(app=api_key_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/admin/ldap/config")
+        assert r.status_code in (401, 403)
+
+        monkeypatch.setattr(ldap_endpoints, "get_database", lambda: db)
+        session_app = _session_app(ldap_endpoints.router)
+        transport = ASGITransport(app=session_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/admin/ldap/config")
+        assert r.status_code not in (401, 403)
+
+    @pytest.mark.asyncio
+    async def test_excluded_surfaces_api_key_admin_list(self, monkeypatch, patch_rbac_utils_db):
+        api_key_app = _api_key_only_app(api_key_endpoints.admin_router)
+        transport = ASGITransport(app=api_key_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/admin/api-keys")
+        assert r.status_code in (401, 403)
+
+        mock_mongodb = MagicMock()
+        mock_mongodb.db.users.find = MagicMock(return_value=_EmptyAsyncCursor())
+        monkeypatch.setattr(api_key_endpoints, "mongodb", mock_mongodb)
+        session_app = _session_app(api_key_endpoints.admin_router)
+        transport = ASGITransport(app=session_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/admin/api-keys")
+        assert r.status_code not in (401, 403)
+
+    @pytest.mark.asyncio
+    async def test_excluded_surfaces_sso_saml_config(self, monkeypatch, patch_rbac_utils_db):
+        db = MagicMock()
+        db.saml_configs = _make_col(find_one=AsyncMock(return_value=None))
+
+        api_key_app = _api_key_only_app(sso_endpoints.saml_router)
+        transport = ASGITransport(app=api_key_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/admin/sso/saml/config")
+        assert r.status_code in (401, 403)
+
+        monkeypatch.setattr(sso_endpoints, "get_database", lambda: db)
+        session_app = _session_app(sso_endpoints.saml_router)
+        transport = ASGITransport(app=session_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/admin/sso/saml/config")
+        assert r.status_code not in (401, 403)
+
+    @pytest.mark.asyncio
+    async def test_excluded_surfaces_user_management_list(self, monkeypatch, patch_rbac_utils_db):
+        db = MagicMock()
+        db.users = _make_col(
+            count_documents=AsyncMock(return_value=0),
+            find=MagicMock(return_value=_chainable_cursor([])),
+        )
+
+        api_key_app = _api_key_only_app(user_endpoints.router)
+        transport = ASGITransport(app=api_key_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/users")
+        assert r.status_code in (401, 403)
+
+        monkeypatch.setattr(user_endpoints, "get_database", lambda: db)
+        monkeypatch.setattr(user_endpoints, "get_tenant_id", lambda: "tenant-a")
+        session_app = _session_app(user_endpoints.router)
+        transport = ASGITransport(app=session_app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.get("/api/users")
+        assert r.status_code not in (401, 403)
+
+
+# ─── Task 2: catalog router's independent duplicate guard is scope-narrowed ──
+
+class TestCatalogScopeNarrowing:
+    @pytest.mark.asyncio
+    async def test_catalog_scope_narrowing_read_only_key_refused_manage_key_allowed(self, monkeypatch, patch_rbac_utils_db):
+        db = MagicMock()
+        db.manufacturers = _make_col(insert_one=AsyncMock(return_value=MagicMock(inserted_id="mock-id")))
+        # create_catalog_entity resolves the collection via db[collection_name]
+        # subscript access, not attribute access.
+        db.__getitem__ = MagicMock(side_effect=lambda name: getattr(db, name))
+        monkeypatch.setattr(itam_catalog_endpoints, "get_database", lambda: db)
+        monkeypatch.setattr(itam_catalog_endpoints, "log_itam_action", AsyncMock())
+
+        app = FastAPI()
+        app.include_router(itam_catalog_endpoints.router)
+
+        read_only_token = TokenData(
+            username="svc-key@tenant-a", role="admin", tenant_id="tenant-a",
+            scopes=["read:assets"], auth_source="api_key",
+        )
+        app.dependency_overrides[get_current_user_or_api_key] = lambda: read_only_token
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Acme Corp"})
+        assert r.status_code == 403
+        assert "scope" in r.json()["detail"].lower()
+
+        manage_token = TokenData(
+            username="svc-key@tenant-a", role="admin", tenant_id="tenant-a",
+            scopes=["manage:assets"], auth_source="api_key",
+        )
+        app.dependency_overrides[get_current_user_or_api_key] = lambda: manage_token
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+            r = await ac.post("/api/itam/catalog/manufacturers", json={"name": "Acme Corp"})
+        assert r.status_code == 201, r.text

@@ -21,6 +21,8 @@ from itam_models import (
     SupplierUpdate,
 )
 from rbac_utils import verify_permission
+from rbac_service import rbac_service as _rbac_service
+from api_key_auth import get_current_user_or_api_key
 from itam_audit_service import log_itam_action, catalog_resource_type
 
 logger = logging.getLogger(__name__)
@@ -66,14 +68,29 @@ def _validation_error_to_http(exc: ValidationError) -> HTTPException:
     return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors())
 
 
-async def _require_itam_admin(current_user: TokenData = Depends(get_current_user)):
+async def _require_itam_admin(current_user: TokenData = Depends(get_current_user_or_api_key)):
     """
-    Dependency to ensure the current user has 'manage:assets' permission.
+    Dependency to ensure the caller has 'manage:assets' permission — session
+    or API-key authenticated (D-01/D-02, ITAM-API-01).
+
+    NOTE: this is an INDEPENDENT DUPLICATE of itam_asset_endpoints._require_itam_admin
+    (same permission string, different 403 detail text — it is not an import).
+    Both definitions must move together on any future change to the D-01/D-02
+    auth swap; a grep-only migration would miss this one entirely (T-73-04).
+
+    Enforcement order mirrors the canonical guard: role check first
+    (verify_permission), then scope narrowing (_rbac_service._scopes_allow) —
+    closes RESEARCH.md Pitfall 1 for this router too.
     """
     if not await verify_permission(current_user, "manage:assets"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to manage ITAM catalog entities"
+        )
+    if not _rbac_service._scopes_allow(current_user, "manage:assets"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key scope does not permit: manage:assets"
         )
     return current_user
 

@@ -16,7 +16,10 @@ from rate_limiter import limiter
 import httpx
 
 from auth_types import TokenData
-from itam_asset_endpoints import _require_itam_admin
+# Deliberately excluded from the D-02 API-key swap (Phase 73): SAML/SSO
+# configuration is a materially different risk from reading/writing ITAM
+# assets — this surface stays session-auth-only.
+from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from rbac_utils import is_super_admin
 from tenant_context import get_tenant_id
 
