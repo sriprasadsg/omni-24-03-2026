@@ -1004,7 +1004,7 @@ Plans:
 **Goal:** [Moved from `.planning/milestones/v4.1-ROADMAP.md` Phase 68 on 2026-08-13 — renumbered 68→73.] Extend ITAM capabilities via REST API and external system integrations.
 **Requirements**: ITAM-API-01, ITAM-API-02, ITAM-API-03
 **Depends on:** Phase 72
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 **Success Criteria:**
 
   1. User can use REST API to perform ITAM operations.
@@ -1015,7 +1015,7 @@ Plans:
 
 Plans:
 
-- [ ] 73-01-PLAN.md — tracer: API-key auth on the ITAM routers with scope narrowing, plus the first webhook call site (wave 1)
+- [x] 73-01-PLAN.md — tracer: API-key auth on the ITAM routers with scope narrowing, plus the first webhook call site (wave 1)
 - [ ] 73-02-PLAN.md — request-scoped webhook events: check-in, consumable low stock, request approved/denied (wave 2)
 - [ ] 73-04-PLAN.md — ITAM ticketing-bridge adapter, ticket-creation orchestrator, and the manual create-ticket endpoint (wave 2)
 - [ ] 73-03-PLAN.md — background webhook sweeps: warranty expiring and licence expiring, tenant-bracketed (wave 3)

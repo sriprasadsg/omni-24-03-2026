@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Evidence Quality & Compliance Scoring
-current_phase: 72
-current_phase_name: Reporting & Dashboards
+current_phase: 73
+current_phase_name: api-integrations
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-18T08:30:50.708Z"
-last_activity: 2026-08-17
-last_activity_desc: Phase 72 execution resumed (wave continue)
+last_updated: "2026-08-18T12:34:27.078Z"
+last_activity: 2026-08-18
+last_activity_desc: Phase 73 execution started
 progress:
   total_phases: 4
   completed_phases: 4
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 72 — Reporting & Dashboards
+**Current focus:** Phase 73 — api-integrations
 
 ## Current Phase
 
@@ -383,6 +383,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: 72-07: ItamKpiPanel's icon-chip accent stays the console's default cyan (no accent prop in the plan's locked signature); recharts Legend's default alphabetical itemSorter overridden with itemSorter={() => 0} so status-breakdown segments visibly preserve payload order, not just in the underlying data array.
 - [Phase ?]: Phase 64-03: Ed25519 chosen for rotate_key's generated replacement (OpenSSH default since 9.5); no ssh-key Cargo.toml feature changes needed (rand 0.8's OsRng already satisfies CryptoRngCore); D-07 rollback path proven end-to-end via a genuine duplicate-fingerprint fixture rather than a test-only mock; test module split into a sibling file (ssh_key_rotation_tests.rs) to keep the 500-line cap without trimming coverage.
 - [Phase ?]: Phase 64-04: rotate_key/rotate_key_rollback dispatch arms wired into instructions.rs's real match statement (mirroring kill_process/restore_file); extracted compute_instruction_result (Option<Value>) out of execute_instruction so the arms are directly testable without a mock HTTP server, preserving the one legacy early-return case exactly; fixed the shipped rotate_key.yaml rollback step's unresolvable rotate_key_backup_path reference (confirmed broken via the pre-existing test_rotate_key_wiring.py's own failing Task 5 assertion) to dispatch rotate_key_rollback/authorized_keys_path instead.
+- [Phase ?]: sso_endpoints.py and user_endpoints.py also import the shared _require_itam_admin guard beyond RESEARCH.md's original ldap/api-key exclusion pair — excluded on identical reasoning (73-01)
+- [Phase ?]: Existing ITAM test overrides of get_current_user needed a parallel get_current_user_or_api_key override once _require_itam_admin's dependency graph changed (73-01) — fixed additively across 22 test files
 
 ## Performance Metrics
 
@@ -499,6 +501,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 72 P07 | 20min | 2 tasks | 4 files |
 | Phase 64 P03 | 55min | 2 tasks | 4 files |
 | Phase 64 P04 | 40min | 1 task | 5 files |
+| Phase 73 P01 | 35min | 3 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -507,8 +510,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Phase 73 UI-SPEC approved
-- **Resume file:** .planning/phases/73-api-integrations/73-UI-SPEC.md
+- **Stopped at:** Completed 73-01-PLAN.md (ITAM-API-01 auth spine + webhook dispatch foundation)
+- **Resume file:** None
 
 ## Configuration
 
@@ -533,7 +536,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-18T07:54:08.115Z
+**Last session:** 2026-08-18T12:34:27.048Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -555,10 +558,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 72 (Reporting & Dashboards) — EXECUTING
-Plan: 7 of 7
+Phase: 73 (api-integrations) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-17 — Phase 72 execution resumed (wave continue)
+Last activity: 2026-08-18 — Phase 73 execution started
 
 ## Deferred Items
 
