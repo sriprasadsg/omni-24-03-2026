@@ -19,6 +19,7 @@ from collections import namedtuple
 from typing import Any, Dict, Optional
 
 from itam_webhook_events import EVENT_ASSET_AUDIT_OVERDUE
+from tenant_context import reset_tenant_id, set_tenant_id
 from ticketing_service import (
     get_ticketing_config,
     create_jira_ticket,
@@ -193,6 +194,70 @@ async def create_ticket_for_remediation_task(
     if result.get("success") and ref:
         await db.compliance_remediation_tasks.update_one(
             {"id": task["id"], "tenantId": tenant_id},
+            {"$set": {"ticket_provider": provider, "ticket_ref": ref, "ticket_url": url}},
+        )
+        return {"ticket_provider": provider, "ticket_ref": ref, "ticket_url": url}
+    return None  # non-fatal — caller handles toast/log
+
+
+async def create_ticket_for_itam_event(
+    db, entity_kind: str, entity: dict, tenant_id: str, event_type: str,
+    provider_override: Optional[str] = None,
+) -> Optional[dict]:
+    """Entity-aware ITAM ticket-creation orchestrator (D-09, D-10, D-11) —
+    a close clone of `create_ticket_for_remediation_task`, generalised to
+    any ITAM asset or asset request instead of a remediation task.
+
+    Dedup contract: an entity that already carries a truthy `ticket_ref`
+    never gets a second ticket — this guard fires before any outbound call,
+    mirroring the remediation bridge's identical rule, and is what makes
+    both plan 73-05's periodic sweeps and a repeated manual button press
+    safe to call unconditionally.
+
+    Tenant-context bracketing around the `get_ticketing_config` lookup is
+    mandatory, not optional: `ticketing_configs` is not on `database.py`'s
+    tenant-isolation exemption list, and this function may be called from a
+    background sweep with no ambient tenant context at all (plan 73-05).
+    Without explicitly setting the tenant here, the lookup resolves against
+    the wrapper's fail-closed dummy filter and silently returns nothing —
+    meaning every automatic trigger would silently never create a ticket,
+    with no error anywhere.
+
+    Never re-raises: like its remediation sibling, this function is
+    non-fatal and returns None on any failure so a sweep or a button press
+    cannot cascade.
+    """
+    if entity.get("ticket_ref"):
+        return None  # dedup guard — an entity with a ticket never gets a second one
+
+    token = set_tenant_id(tenant_id)
+    try:
+        config = await get_ticketing_config(tenant_id)
+    finally:
+        reset_tenant_id(token)
+
+    if not config:
+        return None  # no-op when ticketing is not configured for the tenant
+
+    provider = provider_override or config.get("provider")
+    alert = await _itam_event_to_alert_shape(db, event_type, entity_kind, entity)
+
+    if provider == "jira":
+        result = await create_jira_ticket(alert, config)
+        ref, url = result.get("ticket_key"), result.get("url")
+    elif provider == "servicenow":
+        result = await create_servicenow_incident(alert, config)
+        ref, url = result.get("ticket_number"), result.get("url")
+    else:
+        return None
+
+    if result.get("success") and ref:
+        info = ITAM_ENTITY_COLLECTIONS.get(entity_kind)
+        if info is None:
+            return None  # unknown entity kind — never written back
+        collection = getattr(db, info.collection)
+        await collection.update_one(
+            {info.id_field: entity.get(info.id_field), info.tenant_field: tenant_id},
             {"$set": {"ticket_provider": provider, "ticket_ref": ref, "ticket_url": url}},
         )
         return {"ticket_provider": provider, "ticket_ref": ref, "ticket_url": url}

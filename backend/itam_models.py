@@ -593,6 +593,16 @@ class AssetRequest(AssetRequestBase):
     approval_date: Optional[datetime] = None
     approver_id: Optional[str] = None
 
+    # Phase 73 Plan 04 (D-09/D-10, ITAM-API-03): written by ticketing_bridge
+    # only, never client-writable — deliberately absent from
+    # AssetRequestCreate/AssetRequestUpdate below. Declared here because the
+    # model's extra="ignore" config would otherwise silently strip these
+    # fields off every API response, and plan 73-06's ticket-reference
+    # display reads them off the AssetRequest response shape.
+    ticket_provider: Optional[str] = None
+    ticket_ref: Optional[str] = None
+    ticket_url: Optional[str] = None
+
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     @field_validator("id", mode="before")
