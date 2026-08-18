@@ -6,7 +6,7 @@ current_phase: 73
 current_phase_name: api-integrations
 status: executing
 stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-18T12:52:49.218Z"
+last_updated: "2026-08-18T13:13:36.244Z"
 last_activity: 2026-08-18
 last_activity_desc: Phase 73 execution started
 progress:
@@ -387,6 +387,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: Existing ITAM test overrides of get_current_user needed a parallel get_current_user_or_api_key override once _require_itam_admin's dependency graph changed (73-01) — fixed additively across 22 test files
 - [Phase ?]: 73-02: DEFAULT_LOW_STOCK_QUANTITY imported inside _is_low_stock's function body (deferred, not module top-level) to avoid a circular import with itam_reporting_prebuilt.py — confirmed via a real import app run
 - [Phase ?]: 73-02: asset-request webhook payloads built from the raw find_one_and_update result dict, not the extra="ignore"-configured AssetRequest model, so a future field (73-04's ticket_ref) is never silently dropped
+- [Phase ?]: 73-04: type derivation for ITAM ticket alert shape is mechanical (itam_ + event_type, dots->underscores), not a per-event lookup table, so plan 73-05's undefined stuck-approval event type needs zero adapter changes
+- [Phase ?]: 73-04: ITAM_ENTITY_COLLECTIONS uses a namedtuple keyed by entity kind (asset/asset_request) to encode the tenantId (camelCase) vs tenant_id (snake_case) divergence between the two collections
 
 ## Performance Metrics
 
@@ -505,6 +507,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 64 P04 | 40min | 1 task | 5 files |
 | Phase 73 P01 | 35min | 3 tasks | 9 files |
 | Phase 73 P02 | 20min | 3 tasks | 4 files |
+| Phase 73 P04 | 45min | 3 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -513,7 +516,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** Completed 73-02-PLAN.md
+- **Stopped at:** Completed 73-04-PLAN.md (ITAM-to-ticketing bridge, D-09/D-10 manual/D-11, ITAM-API-03)
 - **Resume file:** None
 
 ## Configuration
@@ -539,7 +542,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-18T12:52:49.186Z
+**Last session:** 2026-08-18T13:13:36.212Z
 **Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
 **Resume file:** None
 
@@ -562,7 +565,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 73 (api-integrations) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-08-18 — Phase 73 execution started
 
