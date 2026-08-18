@@ -603,3 +603,236 @@ class TestWarrantyExpiringWebhookDispatch:
         assert set(payload.keys()) == {"assetId", "assetTag", "warrantyStatus", "warrantyExpiresAt"}
         assert payload["assetId"] == "asset-1"
         assert payload["assetTag"] == "TAG-42"
+
+
+# ─── Task 2 (Plan 73-03): license.expiring_soon sweep on the same scheduler ─
+
+from itam_webhook_events import EVENT_LICENSE_EXPIRING_SOON
+from itam_event_sweeps import (
+    LICENSE_EXPIRY_ALERT_WINDOW_DAYS,
+    LICENSE_EXPIRY_MARKER_FIELD,
+    run_license_expiry_alert_pass,
+)
+from tests.itam_finance_sweep_test_support import _AsyncCursor
+
+
+def _license(**overrides):
+    doc = {
+        "id": "lic-1",
+        "tenantId": "tenant-a",
+        "name": "Photoshop",
+        "expiryDate": "2026-08-20T00:00:00+00:00",  # 5 days from mocked now, in-window
+    }
+    doc.update(overrides)
+    return doc
+
+
+def _license_matches(doc, filter_spec):
+    for k, v in filter_spec.items():
+        if isinstance(v, dict):
+            if "$exists" in v:
+                exists = k in doc and doc.get(k) is not None
+                if v["$exists"] != exists:
+                    return False
+            if "$ne" in v:
+                if doc.get(k) == v["$ne"]:
+                    return False
+        else:
+            if doc.get(k) != v:
+                return False
+    return True
+
+
+class _LicensesCollection:
+    def __init__(self, db):
+        self._db = db
+
+    def find(self, filter_spec, projection=None):
+        self._db.captured_find_filters.append(filter_spec)
+        matched = [d for d in self._db._docs.values() if _license_matches(d, filter_spec)]
+        return _AsyncCursor(matched)
+
+    async def find_one_and_update(self, filter_spec, update):
+        self._db.captured_claim_filters.append(filter_spec)
+        doc_id = filter_spec.get("id")
+        tenant_id = filter_spec.get("tenantId")
+        doc = self._db._docs.get(doc_id)
+        if doc is None or doc.get("tenantId") != tenant_id:
+            return None
+        for k, v in filter_spec.items():
+            if isinstance(v, dict) and v.get("$exists") is False and k in doc:
+                return None  # already claimed by another pass
+        for k, v in update.get("$set", {}).items():
+            doc[k] = v
+        return dict(doc)
+
+
+class _RawLicenseSweepDb:
+    """Minimal stateful raw-db stub for the licence expiry sweep, mirroring
+    itam_finance_sweep_test_support._RawSweepDb's shape for assets: an
+    in-memory licenses collection supporting find() with $exists/$ne
+    filtering and an atomic find_one_and_update() claim."""
+
+    def __init__(self, licenses=None):
+        self._docs = {d["id"]: dict(d) for d in (licenses or [])}
+        self.captured_find_filters = []
+        self.captured_claim_filters = []
+        self.licenses = _LicensesCollection(self)
+
+
+def _mock_license_now_2026_08_15():
+    return patch("itam_event_sweeps.datetime", **{
+        "now.return_value": datetime(2026, 8, 15, tzinfo=timezone.utc),
+        "fromisoformat.side_effect": datetime.fromisoformat,
+    })
+
+
+class TestLicenseExpiringWebhookDispatch:
+    @pytest.mark.asyncio
+    async def test_license_expiring_dispatches_for_license_in_window(self):
+        db = _RawLicenseSweepDb(licenses=[_license()])
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == 1
+        recorder.assert_awaited_once()
+        args, _kwargs = recorder.call_args
+        assert args[0] == EVENT_LICENSE_EXPIRING_SOON
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_no_expiry_date_dispatches_nothing(self):
+        doc = _license()
+        del doc["expiryDate"]
+        db = _RawLicenseSweepDb(licenses=[doc])
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == 0
+        recorder.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_beyond_window_dispatches_nothing(self):
+        db = _RawLicenseSweepDb(licenses=[_license(expiryDate="2026-12-01T00:00:00+00:00")])
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == 0
+        recorder.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_already_expired_dispatches_once(self):
+        db = _RawLicenseSweepDb(licenses=[_license(expiryDate="2026-08-01T00:00:00+00:00")])
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == 1
+        args, _kwargs = recorder.call_args
+        assert args[1]["isExpired"] is True
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_two_sequential_passes_dispatch_exactly_once_total(self):
+        db = _RawLicenseSweepDb(licenses=[_license()])
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            first = await run_license_expiry_alert_pass(db)
+            second = await run_license_expiry_alert_pass(db)
+
+        assert first == 1
+        assert second == 0
+        recorder.assert_awaited_once()
+        assert db._docs["lic-1"].get(LICENSE_EXPIRY_MARKER_FIELD) is not None
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_concurrent_claim_returns_nothing_dispatches_zero(self):
+        db = MagicMock()
+        db.licenses.find = MagicMock(return_value=_AsyncCursor([_license()]))
+        db.licenses.find_one_and_update = AsyncMock(return_value=None)
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == 0
+        recorder.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_ambient_tenant_matches_license_tenant_and_restored(self):
+        captured_tenant_ids = []
+
+        async def _recording_trigger(event_type, payload):
+            captured_tenant_ids.append(get_tenant_id())
+
+        db = _RawLicenseSweepDb(licenses=[_license(tenantId="tenant-xyz")])
+        assert get_tenant_id() is None
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", side_effect=_recording_trigger):
+            await run_license_expiry_alert_pass(db)
+
+        assert captured_tenant_ids == ["tenant-xyz"]
+        assert get_tenant_id() is None
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_no_tenant_id_skipped_entirely_never_written(self):
+        doc = _license()
+        del doc["tenantId"]
+        db = _RawLicenseSweepDb(licenses=[doc])
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == 0
+        recorder.assert_not_awaited()
+        assert not db.captured_claim_filters
+        assert LICENSE_EXPIRY_MARKER_FIELD not in db._docs["lic-1"]
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_one_dispatch_failure_does_not_abort_pass(self):
+        async def _raise_once(event_type, payload):
+            if payload["licenseId"] == "lic-1":
+                raise RuntimeError("subscriber unreachable")
+
+        db = _RawLicenseSweepDb(licenses=[_license(id="lic-1"), _license(id="lic-2")])
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", side_effect=_raise_once):
+            count = await run_license_expiry_alert_pass(db)
+
+        assert count == 2
+        assert db._docs["lic-1"].get(LICENSE_EXPIRY_MARKER_FIELD) is not None
+        assert db._docs["lic-2"].get(LICENSE_EXPIRY_MARKER_FIELD) is not None
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_claim_filter_includes_marker_absent_condition(self):
+        db = _RawLicenseSweepDb(licenses=[_license()])
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", AsyncMock()):
+            await run_license_expiry_alert_pass(db)
+
+        assert len(db.captured_claim_filters) == 1
+        claim_filter = db.captured_claim_filters[0]
+        assert claim_filter.get(LICENSE_EXPIRY_MARKER_FIELD) == {"$exists": False}
+        assert claim_filter.get("id") == "lic-1"
+        assert claim_filter.get("tenantId") == "tenant-a"
+
+    @pytest.mark.asyncio
+    async def test_license_expiring_payload_shape(self):
+        db = _RawLicenseSweepDb(licenses=[_license()])
+        recorder = AsyncMock()
+        with _mock_license_now_2026_08_15(), \
+             patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            await run_license_expiry_alert_pass(db)
+
+        args, _kwargs = recorder.call_args
+        payload = args[1]
+        assert set(payload.keys()) == {"licenseId", "name", "expiryDate", "daysUntilExpiry", "isExpired"}
+        assert payload["licenseId"] == "lic-1"
+        assert payload["name"] == "Photoshop"

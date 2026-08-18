@@ -451,13 +451,20 @@ async def run_warranty_alert_pass(db) -> int:
 
 
 async def start_warranty_alert_scheduler(db) -> None:
-    """Loop forever running the warranty alert pass. Must receive db as a
-    passed-in raw parameter — see module docstring; the caller (application
-    startup) is responsible for supplying the unwrapped handle rather than
-    any request-scoped wrapper."""
+    """Loop forever running the warranty alert pass and, since Plan 73-03,
+    the licence expiry alert pass — both driven by this same scheduler loop
+    (D-08: the licence sweep rides the existing scheduler, no new job
+    registered in application startup). Must receive db as a passed-in raw
+    parameter — see module docstring; the caller (application startup) is
+    responsible for supplying the unwrapped handle rather than any
+    request-scoped wrapper."""
+    from itam_event_sweeps import run_license_expiry_alert_pass  # deferred import,
+    # keeps this module's import graph unchanged at application startup
+
     logger.info(
         "Warranty alert scheduler started (interval=%ss)", _WARRANTY_SWEEP_INTERVAL_SECONDS
     )
     while True:
         await run_warranty_alert_pass(db)
+        await run_license_expiry_alert_pass(db)
         await asyncio.sleep(_WARRANTY_SWEEP_INTERVAL_SECONDS)
