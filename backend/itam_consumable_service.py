@@ -3,6 +3,7 @@
 Handles quantity-aware checkout and inventory management for consumables.
 """
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -11,6 +12,12 @@ from pymongo import ReturnDocument
 from database import get_database
 from errors import APIError, NotFoundError
 from itam_models import Consumable, ConsumableCreate, ConsumableUpdate, ConsumableCheckoutRequest, ConsumableCheckoutRecord
+from itam_webhook_events import EVENT_CONSUMABLE_LOW_STOCK
+from webhook_service import WebhookService
+
+# Module-level singleton — mirrors itam_lifecycle_endpoints.py's own
+# WebhookService() instance shape (never one-per-call).
+_webhook_service = WebhookService()
 
 
 class ConsumableNotFoundError(NotFoundError):
@@ -20,6 +27,26 @@ class ConsumableNotFoundError(NotFoundError):
 
 async def get_consumable_service() -> "ConsumableService":
     return ConsumableService()
+
+
+def _is_low_stock(available: Optional[int], threshold: Optional[int]) -> bool:
+    """The exact rule itam_reporting_prebuilt.py's low_stock_consumables
+    report applies: when a `reorderThreshold` is configured (including an
+    explicit 0), low means `available` is at or below it; when none is
+    configured, low means `available` is at or below the shared default.
+    Never redefines the default number itself — imports it, so the event
+    and the report can never drift apart.
+
+    Import is deliberately deferred to call time, not module top level:
+    itam_reporting_prebuilt imports from several itam_*_endpoints modules,
+    and a top-level import here risks a circular import at app startup
+    (confirmed clean via a real `import app` run, not by reasoning alone).
+    """
+    if available is None:
+        return False
+    from itam_reporting_prebuilt import DEFAULT_LOW_STOCK_QUANTITY
+    effective_threshold = threshold if threshold is not None else DEFAULT_LOW_STOCK_QUANTITY
+    return available <= effective_threshold
 
 
 class ConsumableService:
@@ -120,6 +147,28 @@ class ConsumableService:
                 raise APIError(status_code=400, detail="Insufficient quantity available for checkout")
             else:
                 raise APIError(status_code=404, detail="Consumable not found")
+
+        # D-05/D-06: fire-and-forget webhook dispatch, evaluated against the
+        # post-decrement document find_one_and_update just returned — never
+        # awaited inline (RESEARCH Pitfall 8). This runs inside a request
+        # handler where ambient tenant context is already established (no
+        # set_tenant_id bracketing here; that applies only to the
+        # background sweeps in plans 73-03/73-05).
+        available = consumable.get("availableQuantity")
+        threshold = consumable.get("reorderThreshold")
+        if _is_low_stock(available, threshold):
+            if threshold is not None:
+                effective_threshold = threshold
+            else:
+                from itam_reporting_prebuilt import DEFAULT_LOW_STOCK_QUANTITY
+                effective_threshold = DEFAULT_LOW_STOCK_QUANTITY
+            webhook_payload = {
+                "consumableId": str(consumable["_id"]),
+                "name": consumable.get("name"),
+                "availableQuantity": available,
+                "reorderThreshold": effective_threshold,
+            }
+            asyncio.create_task(_webhook_service.trigger_webhook(EVENT_CONSUMABLE_LOW_STOCK, webhook_payload))
 
         return Consumable(**consumable)
 

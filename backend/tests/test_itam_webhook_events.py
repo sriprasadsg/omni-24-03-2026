@@ -31,7 +31,12 @@ from tests.itam_api_integrations_test_support import (
 )
 from api_key_auth import get_current_user_or_api_key
 
-from itam_webhook_events import EVENT_ASSET_CHECKED_IN
+from itam_webhook_events import EVENT_ASSET_CHECKED_IN, EVENT_CONSUMABLE_LOW_STOCK
+from itam_reporting_prebuilt import DEFAULT_LOW_STOCK_QUANTITY
+from errors import APIError
+from itam_models import ConsumableCheckoutRequest
+import itam_consumable_service as consumable_service_module
+from itam_consumable_service import ConsumableService, _is_low_stock
 
 
 def _authorized(app):
@@ -163,3 +168,131 @@ class TestLifecycleCheckinWebhook:
             # event loop doesn't warn about a pending task at teardown.
             for _ in range(5):
                 await asyncio.sleep(0)
+
+
+# ─── Task 2: consumable.low_stock dispatch ─────────────────────────────────
+
+@pytest.fixture
+def consumable_service(monkeypatch):
+    """ConsumableService with a fully mocked itam_consumables collection —
+    ConsumableService.__init__ resolves its db via module-level
+    get_database(), so that's what gets patched here."""
+    monkeypatch.setattr(consumable_service_module, "get_database", lambda: MagicMock())
+    svc = ConsumableService()
+    svc.db = MagicMock()
+    svc.db.itam_consumables = MagicMock()
+    return svc
+
+
+class TestIsLowStockHelper:
+    """Pure-function coverage of the exact threshold rule
+    itam_reporting_prebuilt.py's low_stock_consumables report applies."""
+
+    def test_low_stock_above_configured_threshold_not_low(self):
+        assert _is_low_stock(10, 5) is False
+
+    def test_low_stock_equal_to_configured_threshold_is_low(self):
+        assert _is_low_stock(5, 5) is True
+
+    def test_low_stock_below_configured_threshold_is_low(self):
+        assert _is_low_stock(3, 5) is True
+
+    def test_low_stock_zero_configured_threshold_honoured(self):
+        # An explicitly configured 0 must be honoured, not treated as unset.
+        assert _is_low_stock(0, 0) is True
+        assert _is_low_stock(1, 0) is False
+
+    def test_low_stock_no_threshold_uses_shared_default(self):
+        assert _is_low_stock(DEFAULT_LOW_STOCK_QUANTITY, None) is True
+        assert _is_low_stock(DEFAULT_LOW_STOCK_QUANTITY + 1, None) is False
+
+
+class TestConsumableCheckoutLowStockDispatch:
+    @pytest.mark.asyncio
+    async def test_low_stock_checkout_crossing_configured_threshold_dispatches_event(self, consumable_service):
+        consumable_service.db.itam_consumables.find_one_and_update = AsyncMock(return_value={
+            "_id": "con-1", "name": "Toner Cartridge", "availableQuantity": 2, "reorderThreshold": 5,
+            "tenantId": "tenant-a", "unitType": "unit", "initialQuantity": 10, "checkoutRecords": [],
+        })
+        req = ConsumableCheckoutRequest(quantity=1, assignedTo="user-1", assignedToType="user")
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            await consumable_service.checkout_consumable("con-1", req, current_user=None)
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        recorder.assert_awaited_once()
+        args, _kwargs = recorder.call_args
+        assert args[0] == EVENT_CONSUMABLE_LOW_STOCK
+        payload = args[1]
+        assert payload["consumableId"] == "con-1"
+        assert payload["name"] == "Toner Cartridge"
+        assert payload["availableQuantity"] == 2
+        assert payload["reorderThreshold"] == 5
+
+    @pytest.mark.asyncio
+    async def test_low_stock_checkout_not_crossing_threshold_dispatches_nothing(self, consumable_service):
+        consumable_service.db.itam_consumables.find_one_and_update = AsyncMock(return_value={
+            "_id": "con-1", "name": "Toner Cartridge", "availableQuantity": 8, "reorderThreshold": 5,
+            "tenantId": "tenant-a", "unitType": "unit", "initialQuantity": 10, "checkoutRecords": [],
+        })
+        req = ConsumableCheckoutRequest(quantity=1, assignedTo="user-1", assignedToType="user")
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            await consumable_service.checkout_consumable("con-1", req, current_user=None)
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        recorder.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_low_stock_checkout_no_configured_threshold_uses_default_and_dispatches(self, consumable_service):
+        consumable_service.db.itam_consumables.find_one_and_update = AsyncMock(return_value={
+            "_id": "con-1", "name": "Toner Cartridge", "availableQuantity": DEFAULT_LOW_STOCK_QUANTITY,
+            "tenantId": "tenant-a", "unitType": "unit", "initialQuantity": 10, "checkoutRecords": [],
+        })
+        req = ConsumableCheckoutRequest(quantity=1, assignedTo="user-1", assignedToType="user")
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            await consumable_service.checkout_consumable("con-1", req, current_user=None)
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        recorder.assert_awaited_once()
+        args, _kwargs = recorder.call_args
+        assert args[1]["reorderThreshold"] == DEFAULT_LOW_STOCK_QUANTITY
+
+    @pytest.mark.asyncio
+    async def test_low_stock_checkout_insufficient_quantity_dispatches_nothing(self, consumable_service):
+        consumable_service.db.itam_consumables.find_one_and_update = AsyncMock(return_value=None)
+        consumable_service.db.itam_consumables.find_one = AsyncMock(
+            return_value={"_id": "con-1", "availableQuantity": 1}
+        )
+        req = ConsumableCheckoutRequest(quantity=5, assignedTo="user-1", assignedToType="user")
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            with pytest.raises(APIError):
+                await consumable_service.checkout_consumable("con-1", req, current_user=None)
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        recorder.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_low_stock_checkout_consumable_not_found_dispatches_nothing(self, consumable_service):
+        consumable_service.db.itam_consumables.find_one_and_update = AsyncMock(return_value=None)
+        consumable_service.db.itam_consumables.find_one = AsyncMock(return_value=None)
+        req = ConsumableCheckoutRequest(quantity=1, assignedTo="user-1", assignedToType="user")
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            with pytest.raises(APIError):
+                await consumable_service.checkout_consumable("con-1", req, current_user=None)
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        recorder.assert_not_awaited()
