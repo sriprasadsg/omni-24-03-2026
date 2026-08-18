@@ -24,7 +24,7 @@ from itam_models import AuditMarkRequest, CheckinRequest, CheckoutRequest, Lifec
 from itam_lifecycle_service import (
     list_history, write_history, _apply_known_delta, _revert_on_history_failure,
 )
-from itam_webhook_events import EVENT_ASSET_CHECKED_OUT
+from itam_webhook_events import EVENT_ASSET_CHECKED_OUT, EVENT_ASSET_CHECKED_IN
 from webhook_service import WebhookService
 
 # Module-level singleton — mirrors notification_manager.py's own
@@ -339,6 +339,29 @@ async def checkin_asset(
     # Synchronous helper — never awaited (cache_service.invalidate_cache is a
     # plain `def` returning None).
     invalidate_cache("assets:*")
+
+    # D-05/D-06: fire-and-forget webhook dispatch — mirrors checkout_asset's
+    # call site key-for-key (no bespoke per-event schema). Never awaited
+    # inline (RESEARCH Pitfall 8); asyncio.create_task snapshots the ambient
+    # tenant contextvars at creation time, so no explicit bracketing is
+    # needed here.
+    webhook_payload: Dict[str, Any] = {
+        "assetId": asset_id,
+        "before": {
+            "lifecycleStatus": pre_image.get("lifecycleStatus"),
+            "assignedToType": pre_image.get("assignedToType"),
+            "assignedToId": pre_image.get("assignedToId"),
+        },
+        "after": {
+            "lifecycleStatus": updated.get("lifecycleStatus"),
+            "assignedToType": updated.get("assignedToType"),
+            "assignedToId": updated.get("assignedToId"),
+            "checkedInAt": updated.get("checkedInAt"),
+            "checkedInBy": updated.get("checkedInBy"),
+        },
+        "asset": updated,
+    }
+    asyncio.create_task(_webhook_service.trigger_webhook(EVENT_ASSET_CHECKED_IN, webhook_payload))
 
     await log_itam_action(
         current_user,
