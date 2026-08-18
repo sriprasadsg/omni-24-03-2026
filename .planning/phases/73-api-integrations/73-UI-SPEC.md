@@ -37,18 +37,18 @@ No shadcn, no new icon library, no new color system — this contract is 100% re
 
 ## Spacing Scale
 
-Declared values (must be multiples of 4) — all sourced from `LifecyclePanel.tsx`/`RequestsPanel.tsx`, the exact files this phase edits; no new values introduced:
+Declared values (must be multiples of 4) — all sourced from `LifecyclePanel.tsx`/`RequestsPanel.tsx`, the exact files this phase edits; no new values introduced off the 4-point grid:
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| xs | 4px | Icon-to-text gap inside the ticket-reference display (`gap-1`, matches `ClockIcon`/timestamp pairing convention elsewhere in the console) |
-| sm | 8px | Dropdown menu item padding (`px-3 py-2` rounds to this scale contribution), badge horizontal padding (`px-2`) |
+| xs | 4px | Icon-to-text gap inside the ticket-reference display (`gap-1`, matches `ClockIcon`/timestamp pairing convention elsewhere in the console); vertical padding on the **new** ticket-provider badge (`py-1`, see below) |
+| sm | 8px | Dropdown menu item padding (`px-3 py-2` rounds to this scale contribution); badge horizontal padding (`px-2`); gap between the **new** "Create Ticket" text link and its adjacent sibling row action (`ml-2`, see below) |
 | md | 16px | Inherited unchanged — table cell/card padding (`p-4`), not touched by this phase |
 | lg | 24px | Inherited unchanged — page container padding (`p-6`), not touched by this phase |
 
-Exceptions (pre-existing, carried forward unchanged — not introduced by this phase):
-- `mr-3`/`ml-3` (12px) — the existing gap between row-action text links (`Check In`/`Check Out`, `Mark Audited`, `Label`). The new "Create Ticket" action must use the identical `ml-3` spacing to sit correctly in the same trailing-action sequence — do not switch to a 4px-multiple value, since that would create uneven gaps against the three adjacent pre-existing actions in the same cell.
-- `py-0.5` (2px) — the existing badge/status-pill vertical padding (`STATUS_COLORS`/`STATUS_STYLES` pattern, `px-2 py-0.5`). The new ticket-provider badge reuses this exact pre-existing exception verbatim (already accepted in `72-UI-SPEC.md`'s badge system) rather than inventing a new badge padding scale.
+Legacy values (pre-existing, unchanged, untouched by this phase — **not** used by this phase's new elements):
+- `mr-3`/`ml-3` (12px) — the existing gap between the three pre-existing row-action text links (`Check In`/`Check Out`, `Mark Audited`, `Label`). This phase does not carry this value forward: the **new** "Create Ticket" link uses `ml-2` (8px), staying on the 4-point grid, for its gap from the adjacent legacy action. This makes the gap before "Create Ticket" marginally tighter than the gaps between the three legacy actions — an accepted, deliberate trade-off, since this is new markup this phase authors, not an edit to alignment-critical legacy code.
+- `py-0.5` (2px) — the existing badge/status-pill vertical padding (`STATUS_COLORS`/`STATUS_STYLES` pattern, `px-2 py-0.5`), unchanged and untouched by this phase. The **new** ticket-provider badge does not reuse this value: it uses `py-1` (4px) instead, staying on the 4-point grid (color/border/opacity formula is still cloned verbatim from `STATUS_COLORS` — only the vertical padding differs). This makes the new badge marginally taller than the pre-existing status pills in the same row — an accepted, deliberate trade-off for the same reason.
 
 ---
 
@@ -87,7 +87,7 @@ No new dominant/secondary background is introduced — this phase adds row-level
 | Jira | `text-blue-400 bg-blue-900/20 border-blue-800` |
 | ServiceNow | `text-violet-400 bg-violet-900/20 border-violet-800` |
 
-Both follow the exact `/20`-opacity-background + `-800`-border badge formula already established by `STATUS_COLORS`/`STATUS_STYLES` (`72-UI-SPEC.md`'s declared badge system) — blue and violet are chosen specifically because neither collides with the green (`deployable`/`approved`)/amber (`deployed`/`pending`)/red (`broken`/`rejected`)/gray (`archived` etc.) status colors already present in the same row, and violet does not collide with the reserved cyan accent.
+Both follow the exact `/20`-opacity-background + `-800`-border color formula already established by `STATUS_COLORS`/`STATUS_STYLES` (`72-UI-SPEC.md`'s declared badge system) — blue and violet are chosen specifically because neither collides with the green (`deployable`/`approved`)/amber (`deployed`/`pending`)/red (`broken`/`rejected`)/gray (`archived` etc.) status colors already present in the same row, and violet does not collide with the reserved cyan accent. Padding is the one attribute **not** cloned verbatim: per the Spacing Scale section, this badge uses `px-2 py-1` (4-point-grid vertical padding) rather than the legacy `px-2 py-0.5`.
 
 Accent reserved for: the pre-existing "Add Asset" and "New Request" primary buttons only — unchanged, not expanded by this phase.
 
@@ -114,6 +114,8 @@ Accent reserved for: the pre-existing "Add Asset" and "New Request" primary butt
 Manually resolved against this phase's 3 touched surfaces (E1 asset-row ticket action, E2 request-row ticket action, E3 webhook event-picker array). Given the narrow, almost entirely backend scope, the probe was applied selectively to only the state categories that are actually reachable for each element — categories with no reachable variant (e.g. "long-text" on a fixed 8-entry array) are marked not applicable rather than run through the full matrix.
 
 Applicable state considerations resolved: 15 covered, 2 backstop, 7 not applicable, 0 unresolved.
+
+**Visual hierarchy among the three new elements:** the ticket-provider badge/link (E1/E2, populated state) is the primary visual anchor once a ticket exists — it carries color (blue/violet) and sits where the eye already lands to check row status. The plain-text "Create Ticket" action (E1/E2, empty state) is intentionally low-emphasis (`text-gray-400`, no accent color) so it does not compete with the colored status pill already present in every row. The webhook event-picker additions (E3) introduce no new visual weight at all — they extend an existing `font-mono` checkbox list with zero styling changes.
 
 | Category | Element(s) | Status | Resolution / Reason |
 |----------|------------|--------|---------------------|
