@@ -7,6 +7,7 @@ asset_endpoints.py's single-segment `GET /{asset_id}` under any registration ord
 This module reuses `_require_itam_admin` from itam_asset_endpoints.py rather than
 redefining the manage:assets RBAC gate.
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
@@ -23,6 +24,14 @@ from itam_models import AuditMarkRequest, CheckinRequest, CheckoutRequest, Lifec
 from itam_lifecycle_service import (
     list_history, write_history, _apply_known_delta, _revert_on_history_failure,
 )
+from itam_webhook_events import EVENT_ASSET_CHECKED_OUT
+from webhook_service import WebhookService
+
+# Module-level singleton — mirrors notification_manager.py's own
+# WebhookService() instance shape. Task 1 wires only the checkout event
+# (EVENT_ASSET_CHECKED_OUT); later plans in this phase add further call
+# sites against the same instance.
+_webhook_service = WebhookService()
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +203,31 @@ async def checkout_asset(
     # Synchronous helper — never awaited (cache_service.invalidate_cache is a
     # plain `def` returning None).
     invalidate_cache("assets:*")
+
+    # D-05/D-06: fire-and-forget webhook dispatch — never awaited inline.
+    # RESEARCH Pitfall 8: trigger_webhook iterates subscriptions sequentially
+    # at a 10-second timeout each, so an inline await would stall the
+    # checkout response. asyncio.create_task snapshots the ambient
+    # contextvars (tenant context) at creation time; no explicit
+    # tenant-context bracketing is needed here since this runs inside the
+    # request handler where the dependency chain already established it.
+    webhook_payload: Dict[str, Any] = {
+        "assetId": asset_id,
+        "before": {
+            "lifecycleStatus": pre_image.get("lifecycleStatus"),
+            "assignedToType": pre_image.get("assignedToType"),
+            "assignedToId": pre_image.get("assignedToId"),
+        },
+        "after": {
+            "lifecycleStatus": updated.get("lifecycleStatus"),
+            "assignedToType": updated.get("assignedToType"),
+            "assignedToId": updated.get("assignedToId"),
+            "checkedOutAt": updated.get("checkedOutAt"),
+            "checkedOutBy": updated.get("checkedOutBy"),
+        },
+        "asset": updated,
+    }
+    asyncio.create_task(_webhook_service.trigger_webhook(EVENT_ASSET_CHECKED_OUT, webhook_payload))
 
     await log_itam_action(
         current_user,

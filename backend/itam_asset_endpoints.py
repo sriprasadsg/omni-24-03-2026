@@ -14,6 +14,8 @@ from itam_models import ManualAssetCreate, ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCL
 from itam_catalog_service import collect_field_defs, validate_custom_field_values
 from cache_service import invalidate_cache
 from rbac_utils import verify_permission
+from rbac_service import rbac_service as _rbac_service
+from api_key_auth import get_current_user_or_api_key
 from itam_audit_service import log_itam_action
 
 logger = logging.getLogger(__name__)
@@ -33,9 +35,50 @@ router = APIRouter(prefix="/api/assets", tags=["ITAM Assets"])
 # The manual-creation path must never write the `status` key — that field belongs
 # exclusively to the agent-liveness meaning the heartbeat owns.
 
-async def _require_itam_admin(current_user: TokenData = Depends(get_current_user)):
+async def _require_itam_admin(current_user: TokenData = Depends(get_current_user_or_api_key)):
     """
-    Dependency to ensure the current user has 'manage:assets' permission.
+    Dependency to ensure the caller has 'manage:assets' permission — session
+    (JWT) or API-key authenticated (D-01/D-02, ITAM-API-01).
+
+    Enforcement order is mandatory and mirrors rbac_service.RBACService.has_permission:
+      1. Role check (verify_permission) — the outer bound, identical for every
+         auth source. A caller whose role lacks 'manage:assets' is refused
+         regardless of what an API key's scopes claim.
+      2. Scope-narrowing check (_rbac_service._scopes_allow) — only once the
+         role check passes. A session/JWT caller has scopes=None and is never
+         narrowed; an API-key caller is refused unless its own scopes list
+         contains 'manage:assets' or the '*' wildcard, even when its owning
+         user's role would otherwise grant it. This closes RESEARCH.md
+         Pitfall 1: without this second check, a narrowly-scoped key would be
+         security theater the instant API-key auth reaches this route.
+    """
+    if not await verify_permission(current_user, "manage:assets"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to manage ITAM assets."
+        )
+    if not _rbac_service._scopes_allow(current_user, "manage:assets"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key scope does not permit: manage:assets"
+        )
+    return current_user
+
+
+async def _require_itam_admin_session_only(current_user: TokenData = Depends(get_current_user)):
+    """
+    Session-only sibling of _require_itam_admin (role check only, no API-key
+    path, no scope narrowing) — deliberately excluded from the D-02 API-key
+    swap.
+
+    This guard exists exclusively for the four non-ITAM surfaces the user
+    explicitly excluded from API-key access: LDAP directory sync (and its
+    group-role rewriting), SAML/SSO configuration, user-management CRUD, and
+    API-key self-management. Each is a materially different risk from
+    reading or writing ITAM assets — letting an API key manage API keys is a
+    privilege-escalation surface in particular. Adding a new importer of this
+    symbol to a fifth file is a deliberate act, not a drive-by convenience
+    import: confirm the new surface belongs in the exclusion set first.
     """
     if not await verify_permission(current_user, "manage:assets"):
         raise HTTPException(

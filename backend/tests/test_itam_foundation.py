@@ -16,6 +16,7 @@ from itam_models import ASSET_SOURCE_MANUAL, DEFAULT_LIFECYCLE_STATUS, ASSET_SOU
 # Patch authentication_service.get_current_user globally for all tests using make_test_app
 # This ensures that FastAPI's Depends(get_current_user) resolves to our test user.
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 
 
 # Simplified MockTenantIsolatedDatabase and Collection.
@@ -152,6 +153,7 @@ class TestCatalogManufacturer:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -185,6 +187,7 @@ class TestCatalogManufacturer:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -209,6 +212,7 @@ class TestCatalogManufacturer:
         """Unrecognized kind returns 404."""
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -229,6 +233,7 @@ class TestCatalogManufacturer:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -247,6 +252,7 @@ class TestCatalogManufacturer:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -265,6 +271,7 @@ class TestCatalogManufacturer:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -312,6 +319,7 @@ class TestManualAssetCreate:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -354,6 +362,7 @@ class TestManualAssetCreate:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -384,6 +393,7 @@ class TestManualAssetCreate:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -408,6 +418,7 @@ class TestManualAssetCreate:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -436,6 +447,7 @@ class TestManualAssetCreate:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -453,6 +465,7 @@ class TestManualAssetCreate:
         """Body containing tenantId, id, assetSource, or status is rejected with 422."""
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -484,6 +497,7 @@ class TestManualAssetCreate:
 
         current_user = make_token_data(role="user", tenant_id="tenant-a")
         patch_get_database_globally("tenant-a") # Set tenant for this test
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)

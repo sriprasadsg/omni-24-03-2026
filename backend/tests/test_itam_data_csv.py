@@ -22,6 +22,7 @@ from httpx import AsyncClient, ASGITransport
 
 from tests.conftest import make_test_app, make_token_data, _make_col
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 from itam_data_service import (
     sanitize_csv_cell,
     ASSET_EXPORT_COLUMNS,
@@ -232,6 +233,7 @@ class TestExportAssetsRoute:
         ])
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -264,6 +266,7 @@ class TestExportAssetsRoute:
             "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z",
         })
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -277,6 +280,7 @@ class TestExportAssetsRoute:
     async def test_export_rejects_unsupported_entity(self, mock_db, itam_app, patch_get_database_globally):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -289,6 +293,7 @@ class TestExportAssetsRoute:
     async def test_export_with_no_assets_still_writes_a_header_row(self, mock_db, itam_app, patch_get_database_globally):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -381,6 +386,7 @@ class TestImportAssetsRoute:
             ]}],
         })
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         csv_text = "name,modelId,customFields.os\nLaptop A,model-1,Windows\n"
@@ -404,6 +410,7 @@ class TestImportAssetsRoute:
     ):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         csv_text = "name,modelId\nBad Row,model-does-not-exist\nGood Row,\n"
@@ -431,6 +438,7 @@ class TestImportAssetsRoute:
             ]}],
         })
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         csv_text = "name,modelId,customFields.os\nLaptop A,model-1,Linux\n"
@@ -451,6 +459,7 @@ class TestImportAssetsRoute:
     ):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         csv_text = "name,notAModelField\nLaptop A,surprise\n"
@@ -470,6 +479,7 @@ class TestImportAssetsRoute:
     ):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         csv_text = "name\nLaptop A\n"
@@ -492,6 +502,7 @@ class TestImportAssetsRoute:
     ):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         oversized = "name\n" + ("A" * (MAX_IMPORT_BYTES + 1))
@@ -506,6 +517,7 @@ class TestImportAssetsRoute:
     async def test_row_count_over_cap_refused_with_400(self, mock_db, itam_app, patch_get_database_globally):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         rows = "\n".join(f"Laptop {i}" for i in range(MAX_IMPORT_ROWS + 1))
@@ -526,6 +538,7 @@ class TestImportAssetsRoute:
             "id": "asset-existing", "tenantId": "tenant-a", "assetTag": "IT-0001", "name": "Existing",
         })
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         csv_text = "name,assetTag\nDupe Row,IT-0001\nGood Row,\n"
@@ -543,6 +556,7 @@ class TestImportAssetsRoute:
     async def test_non_csv_filename_rejected_with_400(self, mock_db, itam_app, patch_get_database_globally):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -557,6 +571,7 @@ class TestImportAssetsRoute:
     ):
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         # Every row references a missing model, so every row is skipped —

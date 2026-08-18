@@ -28,6 +28,7 @@ from tests.itam_label_test_support import (  # noqa: F401 — fixtures re-export
 from tests.test_itam_labels_sheet import extract_pdf_text
 
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 from itam_models import MAX_LABEL_SHEET_ASSETS
 
 
@@ -64,6 +65,7 @@ class TestSheetRoute:
         _wire_find(mock_db, stored)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -93,6 +95,7 @@ class TestSheetRoute:
         _wire_find(mock_db, stored)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -111,6 +114,7 @@ class TestSheetRequestGuards:
     @pytest.mark.asyncio
     async def test_sheet_request_guards_empty_list_returns_400(self, mock_db, label_app):
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -122,6 +126,7 @@ class TestSheetRequestGuards:
     @pytest.mark.asyncio
     async def test_sheet_request_guards_over_cap_returns_400_not_trimmed(self, mock_db, label_app):
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         over_cap_ids = [f"asset-{i}" for i in range(MAX_LABEL_SHEET_ASSETS + 1)]
@@ -141,6 +146,7 @@ class TestSheetRequestGuards:
         _wire_find(mock_db, stored)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -165,6 +171,7 @@ class TestSheetRequestGuards:
         _wire_find(mock_db, stored)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -186,6 +193,7 @@ class TestSheetRbac:
         monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
 
         current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -209,6 +217,7 @@ class TestSheetTenantIsolation:
         patch_label_get_database("tenant-b")
 
         current_user = make_token_data(tenant_id="tenant-b", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)

@@ -50,6 +50,7 @@ AVAILABLE_SCOPES: Dict[str, str] = {
     "view:itam": "View ITAM console data",
     "manage:itam": "Manage ITAM console data",
     "admin:itam": "Full ITAM administrative access",
+    "manage:assets": "Create, update and manage ITAM assets (checkout/checkin, lifecycle, license/consumable/component/finance operations)",
 }
 
 

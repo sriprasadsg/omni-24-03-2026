@@ -24,6 +24,7 @@ from tests.itam_label_test_support import (  # noqa: F401 — fixtures re-export
 )
 
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 from itam_label_service import LabelEncodingError, generate_barcode_png
 
 # Candidate chosen at test-authoring time by attempting generate_barcode_png
@@ -78,6 +79,7 @@ class TestBarcodeInvalidTag:
         mock_db.assets.find_one = AsyncMock(return_value=asset_without_tag)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -93,6 +95,7 @@ class TestBarcodeInvalidTag:
         mock_db.assets.find_one = AsyncMock(return_value=tagged_asset(assetTag=_UNENCODABLE_TAG))
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -114,6 +117,7 @@ class TestBarcodeRouteEndToEnd:
         mock_db.assets.find_one = AsyncMock(return_value=tagged_asset())
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -136,6 +140,7 @@ class TestBarcodeRbac:
         mock_db.assets.find_one = AsyncMock(return_value=tagged_asset())
 
         current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -159,6 +164,7 @@ class TestBarcodeTenantIsolation:
         patch_label_get_database("tenant-b")
 
         current_user = make_token_data(tenant_id="tenant-b", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)
@@ -177,6 +183,7 @@ class TestBarcodeTenantIsolation:
         patch_label_get_database("tenant-b")
 
         current_user = make_token_data(tenant_id="tenant-b", role="admin", username="admin@example.com")
+        label_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         label_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=label_app)

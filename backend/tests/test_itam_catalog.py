@@ -19,6 +19,7 @@ from httpx import AsyncClient, ASGITransport
 
 from tests.conftest import make_test_app, make_token_data, _make_col
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 
 
 class MockTenantIsolatedCollection:
@@ -174,6 +175,7 @@ def _wire_crud_store(col):
 def _authed_client_kwargs(itam_app, patch_get_database_globally, tenant_id="tenant-a", role="admin"):
     current_user = make_token_data(tenant_id=tenant_id, role=role)
     patch_get_database_globally(tenant_id)
+    itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
     itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
 

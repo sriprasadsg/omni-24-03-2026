@@ -23,6 +23,7 @@ from tests.itam_lifecycle_test_support import (  # noqa: F401 — fixtures re-ex
 )
 
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 
 
 class TestCheckoutToUser:
@@ -36,6 +37,7 @@ class TestCheckoutToUser:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -60,6 +62,7 @@ class TestCheckoutToUser:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -86,6 +89,7 @@ class TestCheckoutToUser:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -106,6 +110,7 @@ class TestCheckoutToUser:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -129,6 +134,7 @@ class TestCheckoutToUser:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -155,6 +161,7 @@ class TestCheckoutToUser:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -170,6 +177,7 @@ class TestCheckoutToUser:
     async def test_checkout_rejects_unknown_field(self, mock_db, lifecycle_app, patch_get_database_globally):
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -197,6 +205,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -219,6 +228,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -240,6 +250,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -261,6 +272,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -277,6 +289,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -294,6 +307,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -319,6 +333,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -364,6 +379,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -384,6 +400,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)
@@ -401,6 +418,7 @@ class TestCheckinAsset:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        lifecycle_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         lifecycle_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=lifecycle_app)

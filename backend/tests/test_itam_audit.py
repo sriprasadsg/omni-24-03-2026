@@ -19,6 +19,7 @@ from httpx import AsyncClient, ASGITransport
 
 from tests.conftest import make_test_app, make_token_data, _make_col
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 
 
 class _FakeCursor:
@@ -235,6 +236,7 @@ class TestAssetCreateAuditBackfill:
     async def test_create_manual_asset_logs_one_audit_entry(self, mock_db, itam_app, patch_get_database_globally):
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="alice@tenant.com")
         patch_get_database_globally("tenant-a")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -264,6 +266,7 @@ class TestAssetCreateAuditBackfill:
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -294,6 +297,7 @@ class TestAuditLogsFilterRoute:
             },
         ])
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -316,6 +320,7 @@ class TestAuditLogsFilterRoute:
             for i in range(1, 6)
         ])
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -331,6 +336,7 @@ class TestAuditLogsFilterRoute:
         a resource filter can never leak another tenant's entries."""
         patch_get_database_globally("tenant-a")
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -359,6 +365,7 @@ class TestBackfillOneRoutePerFile:
         monkeypatch.setattr(itam_catalog_endpoints, "log_itam_action", logged)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -382,6 +389,7 @@ class TestBackfillOneRoutePerFile:
         })
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -406,6 +414,7 @@ class TestBackfillOneRoutePerFile:
         })
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -427,6 +436,7 @@ class TestBackfillOneRoutePerFile:
         monkeypatch.setattr(itam_license_endpoints, "log_itam_action", logged)
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -459,6 +469,7 @@ class TestBackfillOneRoutePerFile:
         itam_app.dependency_overrides[itam_consumable_endpoints.get_consumable_service] = lambda: _FakeConsumableService()
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -489,6 +500,7 @@ class TestBackfillOneRoutePerFile:
         itam_app.dependency_overrides[itam_component_endpoints.get_component_service] = lambda: _FakeComponentService()
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)
@@ -519,6 +531,7 @@ class TestBackfillOneRoutePerFile:
         monkeypatch.setattr(itam_audit_service, "get_audit_service", lambda: _RaisingAuditService())
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        itam_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         itam_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=itam_app)

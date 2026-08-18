@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tests.conftest import make_test_app, make_token_data
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 from backend.itam_consumable_endpoints import router
 from backend.itam_consumable_service import ConsumableNotFoundError, ConsumableService
 
@@ -154,6 +155,7 @@ class TestConsumableManagement:
     @pytest.mark.asyncio
     async def test_create_consumable(self, mock_db, consumable_app):
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)
@@ -176,6 +178,7 @@ class TestConsumableManagement:
     @pytest.mark.asyncio
     async def test_list_consumables(self, mock_db, consumable_app):
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)
@@ -201,6 +204,7 @@ class TestConsumableCheckoutQuantity:
             "availableQuantity": 88, "tenantId": "tenant-a", "checkoutRecords": [],
         })
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)
@@ -225,6 +229,7 @@ class TestConsumableCheckoutQuantity:
             "availableQuantity": 5, "tenantId": "tenant-a", "checkoutRecords": [],
         })
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)
@@ -240,6 +245,7 @@ class TestConsumableCheckoutQuantity:
         mock_db.itam_consumables.find_one_and_update = AsyncMock(return_value=None)
         mock_db.itam_consumables.find_one = AsyncMock(return_value=None)
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)
@@ -256,6 +262,7 @@ class TestConsumableCheckoutQuantity:
             "availableQuantity": 100, "tenantId": "tenant-a", "checkoutRecords": [],
         })
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)
@@ -270,6 +277,7 @@ class TestConsumableCheckoutQuantity:
     @pytest.mark.asyncio
     async def test_checkin_rejects_non_positive_quantity(self, mock_db, consumable_app):
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)
@@ -288,6 +296,7 @@ class TestConsumableRbac:
         import itam_asset_endpoints
         monkeypatch.setattr(itam_asset_endpoints, "verify_permission", AsyncMock(return_value=False))
         current_user = make_token_data(tenant_id="tenant-a", role="user", username="user@example.com")
+        consumable_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         consumable_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=consumable_app)

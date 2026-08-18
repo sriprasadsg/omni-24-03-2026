@@ -29,6 +29,7 @@ from tests.itam_finance_test_support import (  # noqa: F401 — fixtures re-expo
 )
 
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 from itam_finance_service import (
     REASON_NO_DEPRECIATION_POLICY,
     REASON_NO_PURCHASE_RECORD,
@@ -123,6 +124,7 @@ class TestBookValueNoPolicy:
 
     async def _get(self, finance_app):
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        finance_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         finance_app.dependency_overrides[real_get_current_user] = lambda: current_user
         async with AsyncClient(transport=ASGITransport(app=finance_app), base_url="http://testserver") as ac:
             return await ac.get("/api/assets/asset-1/book-value")
@@ -199,6 +201,7 @@ class TestBookValueNeverPersists:
         mock_db.asset_models.find_one = AsyncMock(return_value=depreciating_model())
 
         current_user = make_token_data(tenant_id="tenant-a", role="admin", username="admin@example.com")
+        finance_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         finance_app.dependency_overrides[real_get_current_user] = lambda: current_user
         async with AsyncClient(transport=ASGITransport(app=finance_app), base_url="http://testserver") as ac:
             r = await ac.get("/api/assets/asset-1/book-value")

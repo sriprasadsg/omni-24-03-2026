@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tests.conftest import make_test_app, make_token_data
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 from itam_license_endpoints import router # Import the router to build the app
 
 
@@ -138,6 +139,7 @@ class TestLicenseManagement:
     async def test_create_license(self, mock_db, license_app, patch_get_database_globally):
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -166,6 +168,7 @@ class TestLicenseManagement:
         ]
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -187,6 +190,7 @@ class TestLicenseManagement:
         mock_db.license_assignments.count_documents = AsyncMock(side_effect=[4, 3])
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -207,6 +211,7 @@ class TestLicenseManagement:
         mock_db.licenses.find_one.return_value = {"id": "lic-1", "name": "Windows 10", "seatCount": 10, "tenantId": "tenant-a"}
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -225,6 +230,7 @@ class TestLicenseManagement:
         mock_db.licenses.find_one_and_update.return_value = updated_doc
         current_user = make_token_data(tenant_id="tenant-a", role="admin")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -256,6 +262,7 @@ class TestLicenseAssignment:
 
         current_user = make_token_data(tenant_id="tenant-a", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -282,6 +289,7 @@ class TestLicenseAssignment:
 
         current_user = make_token_data(tenant_id="tenant-a", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -302,6 +310,7 @@ class TestLicenseAssignment:
 
         current_user = make_token_data(tenant_id="tenant-a", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -331,6 +340,7 @@ class TestLicenseAssignment:
 
         current_user = make_token_data(tenant_id="tenant-a", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)
@@ -353,6 +363,7 @@ class TestLicenseAssignment:
         ]
         current_user = make_token_data(tenant_id="tenant-a", username="admin@example.com")
         patch_get_database_globally("tenant-a")
+        license_app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
         license_app.dependency_overrides[real_get_current_user] = lambda: current_user
 
         transport = ASGITransport(app=license_app)

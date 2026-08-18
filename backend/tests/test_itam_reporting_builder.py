@@ -32,6 +32,7 @@ from tests.itam_reporting_test_support import (  # noqa: F401 — fixtures re-ex
 
 import itam_asset_endpoints
 from authentication_service import get_current_user as real_get_current_user
+from api_key_auth import get_current_user_or_api_key  # Phase 73 (D-01/D-02): routes gated by _require_itam_admin now resolve through this dependency, not get_current_user
 from itam_finance_service import compute_book_value, compute_warranty_status
 from itam_reporting_service import _REPORTS_DIR
 from itam_reporting_filters import (
@@ -82,6 +83,7 @@ async def _run(mock_db, definition, tenant_id="tenant-a"):
 
 def _client(app, tenant_id="tenant-a", role="admin", username="admin@example.com"):
     current_user = make_token_data(tenant_id=tenant_id, role=role, username=username)
+    app.dependency_overrides[get_current_user_or_api_key] = lambda: current_user
     app.dependency_overrides[real_get_current_user] = lambda: current_user
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver")
 
