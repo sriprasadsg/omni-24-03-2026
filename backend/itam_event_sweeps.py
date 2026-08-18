@@ -43,7 +43,7 @@ the same licence, so it must happen before the dispatch, not after. Plan
 73-05 should choose this claim-then-act ordering for its own new sweeps.
 """
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from itam_webhook_events import EVENT_ASSET_AUDIT_OVERDUE, EVENT_LICENSE_EXPIRING_SOON
 from tenant_context import set_tenant_id, reset_tenant_id
@@ -304,4 +304,95 @@ async def run_audit_overdue_alert_pass(db) -> int:
             count += 1
     except Exception as exc:
         logger.error("Audit-overdue alert pass failed: %s", exc)
+    return count
+
+
+def _is_high_value_request(request: dict) -> bool:
+    """True when `estimated_cost` is present and at or above
+    HIGH_VALUE_REQUEST_COST, or when `quantity` is at or above
+    HIGH_VALUE_REQUEST_QUANTITY.
+
+    The quantity arm exists because RESEARCH.md Assumption A2 is false: no
+    asset-request document in any existing tenant carries `estimated_cost`
+    (it did not exist as a field before this plan), so a cost-only rule
+    would never fire against real data. This is a deliberate, recorded
+    substitution for that false assumption (this plan's Flagged Assumptions
+    item 1), not an invented requirement — quantity is a real, always-present
+    field on every request document, cost is not.
+    """
+    cost = request.get("estimated_cost")
+    if cost is not None and cost >= HIGH_VALUE_REQUEST_COST:
+        return True
+    quantity = request.get("quantity") or 0
+    return quantity >= HIGH_VALUE_REQUEST_QUANTITY
+
+
+async def run_stuck_approval_ticket_pass(db) -> int:
+    """One background sweep over pending asset requests stuck beyond the
+    escalation window (ITAM-API-03 D-10's second automatic trigger),
+    structurally cloned from run_audit_overdue_alert_pass. D-05 defines no
+    webhook event for a stuck approval, so this sweep creates a ticket only
+    — it never dispatches through _dispatch_tenant_scoped_event.
+
+    The `asset_requests` collection genuinely differs from `assets`: tenant
+    id lives under the snake_case `tenant_id` key (itam_asset_request_service.py),
+    not camelCase `tenantId` — every filter and claim in this function uses
+    that snake_case key, matching ticketing_bridge.ITAM_ENTITY_COLLECTIONS'
+    own asset_request entry.
+
+    Claim precedes ticket creation (find_one_and_update's own filter carries
+    the marker-absent condition) — this sweep's claim IS its concurrency
+    guard, same ordering as run_audit_overdue_alert_pass and for the same
+    reason (this module's docstring).
+
+    Returns the count of requests claimed (and ticketed) this pass.
+    """
+    count = 0
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=STUCK_APPROVAL_WINDOW_DAYS)
+        query = {
+            "status": "pending",
+            "request_date": {"$lt": cutoff},
+            STUCK_APPROVAL_MARKER_FIELD: {"$exists": False},
+        }
+        cursor = db.asset_requests.find(query)
+        async for request_doc in cursor:
+            tenant_id = request_doc.get("tenant_id")
+            if not tenant_id:
+                continue  # a document with no tenant cannot be safely attributed to anyone
+
+            request_id = request_doc.get("id")
+            if not request_id:
+                continue
+
+            if not _is_high_value_request(request_doc):
+                continue
+
+            now = datetime.now(timezone.utc)
+            try:
+                claimed = await db.asset_requests.find_one_and_update(
+                    {
+                        "id": request_id,
+                        "tenant_id": tenant_id,
+                        STUCK_APPROVAL_MARKER_FIELD: {"$exists": False},
+                    },
+                    {"$set": {STUCK_APPROVAL_MARKER_FIELD: now.isoformat()}},
+                )
+            except Exception as exc:
+                logger.warning("Stuck-approval claim failed for request %s: %s", request_id, exc)
+                continue
+
+            if not claimed:
+                continue  # already claimed by another (overlapping) pass
+
+            try:
+                await create_ticket_for_itam_event(
+                    db, "asset_request", claimed, tenant_id, STUCK_APPROVAL_TICKET_EVENT_TYPE,
+                )
+            except Exception as exc:
+                logger.warning("Stuck-approval ticket creation failed for request %s: %s", request_id, exc)
+
+            count += 1
+    except Exception as exc:
+        logger.error("Stuck-approval ticket pass failed: %s", exc)
     return count
