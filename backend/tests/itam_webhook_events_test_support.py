@@ -108,3 +108,98 @@ def _mock_license_now_2026_08_15():
         "now.return_value": datetime(2026, 8, 15, tzinfo=timezone.utc),
         "fromisoformat.side_effect": datetime.fromisoformat,
     })
+
+
+# ===========================================================================
+# Plan 73-05 — audit-overdue sweep fixtures (Task 1)
+# ===========================================================================
+
+def _overdue_asset(**overrides):
+    """`lastAuditedAt` fixed far in the past (2020) so it is overdue against
+    AUDIT_INTERVAL_DAYS=365 regardless of when the test actually runs —
+    deliberately not time-mocked, since itam_lifecycle_endpoints._audit_cutoff_iso
+    reads the real clock and this module's sweep must agree with it."""
+    base = {
+        "id": "asset-overdue-1",
+        "lifecycleStatus": "deployed",
+        "lastAuditedAt": "2020-01-01T00:00:00+00:00",
+        "hostname": "web-overdue-1",
+    }
+    base.update(overrides)
+    return _asset(**base)
+
+
+def _recent_asset(**overrides):
+    """`lastAuditedAt` set to "now" at fixture-construction time, so it is
+    never overdue no matter when the test runs."""
+    base = {
+        "id": "asset-recent-1",
+        "lifecycleStatus": "deployed",
+        "lastAuditedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        "hostname": "web-recent-1",
+    }
+    base.update(overrides)
+    return _asset(**base)
+
+
+def _matches_mongo_filter(doc, filter_spec):
+    """Minimal Mongo-filter matcher covering exactly the operators
+    itam_lifecycle_endpoints._overdue_query and this sweep's marker-absent
+    addition use: top-level AND, $or (list of sub-filters, each matched via
+    this same function), $ne, $exists, $lt (string/lexicographic compare,
+    matching how every timestamp in this codebase is compared)."""
+    for key, cond in filter_spec.items():
+        if key == "$or":
+            if not any(_matches_mongo_filter(doc, sub) for sub in cond):
+                return False
+            continue
+        if isinstance(cond, dict):
+            if "$ne" in cond and doc.get(key) == cond["$ne"]:
+                return False
+            if "$exists" in cond:
+                exists = key in doc and doc.get(key) is not None
+                if cond["$exists"] != exists:
+                    return False
+            if "$lt" in cond:
+                val = doc.get(key)
+                if val is None or not (val < cond["$lt"]):
+                    return False
+        else:
+            if doc.get(key) != cond:
+                return False
+    return True
+
+
+class _AuditOverdueAssetsCollection:
+    def __init__(self, db):
+        self._db = db
+
+    def find(self, filter_spec, projection=None):
+        self._db.captured_find_filters.append(filter_spec)
+        matched = [d for d in self._db._docs.values() if _matches_mongo_filter(d, filter_spec)]
+        return _AsyncCursor(matched)
+
+    async def find_one_and_update(self, filter_spec, update):
+        self._db.captured_claim_filters.append(filter_spec)
+        doc_id = filter_spec.get("id")
+        doc = self._db._docs.get(doc_id)
+        if doc is None:
+            return None
+        if not _matches_mongo_filter(doc, filter_spec):
+            return None  # already claimed by another (overlapping) pass
+        for k, v in update.get("$set", {}).items():
+            doc[k] = v
+        return dict(doc)
+
+
+class _RawAuditOverdueSweepDb:
+    """Minimal stateful raw-db stub for the audit-overdue sweep, mirroring
+    _RawLicenseSweepDb's shape: an in-memory assets collection supporting
+    find() with the $or/$ne/$exists/$lt filtering _overdue_query actually
+    produces, and an atomic find_one_and_update() claim."""
+
+    def __init__(self, assets=None):
+        self._docs = {d["id"]: dict(d) for d in (assets or [])}
+        self.captured_find_filters = []
+        self.captured_claim_filters = []
+        self.assets = _AuditOverdueAssetsCollection(self)

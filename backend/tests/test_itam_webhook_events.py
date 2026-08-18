@@ -868,3 +868,170 @@ class TestMixedTenantBackgroundDispatch:
              patch("webhook_service.WebhookService.trigger_webhook", AsyncMock()):
             await run_license_expiry_alert_pass(license_db)
         assert get_tenant_id() is None
+
+
+# ===========================================================================
+# TestAuditOverdueWebhookAndTicketDispatch — Plan 73-05 Task 1
+# ===========================================================================
+from itam_webhook_events import EVENT_ASSET_AUDIT_OVERDUE
+from itam_event_sweeps import (
+    AUDIT_OVERDUE_MARKER_FIELD,
+    run_audit_overdue_alert_pass,
+)
+from itam_lifecycle_endpoints import _audit_cutoff_iso, _overdue_query, _overdue_row
+from tests.itam_webhook_events_test_support import (
+    _overdue_asset,
+    _recent_asset,
+    _RawAuditOverdueSweepDb,
+    _matches_mongo_filter,
+)
+
+
+class TestAuditOverdueWebhookAndTicketDispatch:
+    """Plan 73-05 Task 1 (`-k audit_overdue`): asset.audit_overdue webhook +
+    automatic ticket, from one background sweep, using the overdue-audit
+    report route's own query/row helpers rather than a re-expressed
+    definition (RESEARCH Pitfall 6)."""
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_asset_produces_event_and_ticket_once(self):
+        asset = _overdue_asset(tenantId="tenant-a")
+        db = _RawAuditOverdueSweepDb(assets=[asset])
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock(return_value=None)) as mock_ticket:
+            count = await run_audit_overdue_alert_pass(db)
+        assert count == 1
+        assert mock_dispatch.call_count == 1
+        assert mock_ticket.call_count == 1
+        dispatch_args = mock_dispatch.call_args
+        assert dispatch_args.args[0] == "tenant-a"
+        assert dispatch_args.args[1] == EVENT_ASSET_AUDIT_OVERDUE
+        payload = dispatch_args.args[2]
+        assert payload["assetId"] == asset["id"]
+        assert payload["assetTag"] == asset["assetTag"]
+        assert payload["hostname"] == asset["hostname"]
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_recent_asset_produces_nothing(self):
+        db = _RawAuditOverdueSweepDb(assets=[_recent_asset(tenantId="tenant-a")])
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = await run_audit_overdue_alert_pass(db)
+        assert count == 0
+        mock_dispatch.assert_not_called()
+        mock_ticket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_disposed_asset_produces_nothing(self):
+        db = _RawAuditOverdueSweepDb(
+            assets=[_overdue_asset(tenantId="tenant-a", lifecycleStatus="disposed")]
+        )
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = await run_audit_overdue_alert_pass(db)
+        assert count == 0
+        mock_dispatch.assert_not_called()
+        mock_ticket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_already_marked_produces_nothing(self):
+        asset = _overdue_asset(tenantId="tenant-a")
+        asset[AUDIT_OVERDUE_MARKER_FIELD] = "2026-08-01T00:00:00+00:00"
+        db = _RawAuditOverdueSweepDb(assets=[asset])
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = await run_audit_overdue_alert_pass(db)
+        assert count == 0
+        mock_dispatch.assert_not_called()
+        mock_ticket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_second_pass_same_fixture_produces_nothing_additional(self):
+        db = _RawAuditOverdueSweepDb(assets=[_overdue_asset(tenantId="tenant-a")])
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            first = await run_audit_overdue_alert_pass(db)
+            second = await run_audit_overdue_alert_pass(db)
+        assert first == 1
+        assert second == 0
+        assert mock_dispatch.call_count == 1
+        assert mock_ticket.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_concurrent_claim_loss_skips_document(self):
+        """When the claim update returns nothing (another pass won), the
+        document is skipped without dispatching or ticketing."""
+        db = _RawAuditOverdueSweepDb(assets=[_overdue_asset(tenantId="tenant-a")])
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket, \
+             patch.object(db.assets, "find_one_and_update", AsyncMock(return_value=None)):
+            count = await run_audit_overdue_alert_pass(db)
+        assert count == 0
+        mock_dispatch.assert_not_called()
+        mock_ticket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_tenant_id_matches_at_dispatch_and_ticket(self):
+        assets = [
+            _overdue_asset(id="asset-t1", tenantId="tenant-one"),
+            _overdue_asset(id="asset-t2", tenantId="tenant-two"),
+        ]
+        db = _RawAuditOverdueSweepDb(assets=assets)
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            await run_audit_overdue_alert_pass(db)
+        dispatched_tenants = {c.args[0] for c in mock_dispatch.call_args_list}
+        ticketed_tenants = {c.args[3] for c in mock_ticket.call_args_list}
+        assert dispatched_tenants == {"tenant-one", "tenant-two"}
+        assert ticketed_tenants == {"tenant-one", "tenant-two"}
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_no_tenant_id_skipped(self):
+        asset = _overdue_asset()
+        asset.pop("tenantId", None)
+        db = _RawAuditOverdueSweepDb(assets=[asset])
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()) as mock_ticket:
+            count = await run_audit_overdue_alert_pass(db)
+        assert count == 0
+        mock_dispatch.assert_not_called()
+        mock_ticket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_ticket_failure_does_not_abort_pass_or_prevent_webhook(self):
+        db = _RawAuditOverdueSweepDb(assets=[_overdue_asset(tenantId="tenant-a")])
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", AsyncMock()) as mock_dispatch, \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock(side_effect=Exception("boom"))):
+            count = await run_audit_overdue_alert_pass(db)
+        assert count == 1
+        assert mock_dispatch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_audit_overdue_sweep_selection_matches_report_route_selection(self):
+        """The sweep's selected asset id set must equal the overdue-audit
+        report's own selected asset id set for the same fixture — both must
+        use the identical `_overdue_query`, never a re-expressed condition."""
+        assets = [
+            _overdue_asset(id="asset-overdue-a", tenantId="tenant-a"),
+            _overdue_asset(id="asset-overdue-b", tenantId="tenant-a", lifecycleStatus="disposed"),
+            _recent_asset(id="asset-recent-a", tenantId="tenant-a"),
+        ]
+        db = _RawAuditOverdueSweepDb(assets=assets)
+
+        cutoff = _audit_cutoff_iso()
+        report_query = _overdue_query(cutoff)
+        report_selected_ids = {
+            d["id"] for d in assets if _matches_mongo_filter(d, report_query)
+        }
+
+        dispatched_ids = []
+
+        async def _capture_dispatch(tenant_id, event_type, payload):
+            dispatched_ids.append(payload["assetId"])
+
+        with patch("itam_event_sweeps._dispatch_tenant_scoped_event", side_effect=_capture_dispatch), \
+             patch("itam_event_sweeps.create_ticket_for_itam_event", AsyncMock()):
+            await run_audit_overdue_alert_pass(db)
+
+        assert set(dispatched_ids) == report_selected_ids
+        assert report_selected_ids == {"asset-overdue-a"}
