@@ -4604,6 +4604,19 @@ export const createTicketForRemediationTask = async (
     return res.json();
 };
 
+export const createItamTicket = async (
+    entityKind: 'asset' | 'asset_request',
+    entityId: string,
+    provider: 'jira' | 'servicenow',
+): Promise<{ ticket_provider: string; ticket_ref: string; ticket_url?: string }> => {
+    const res = await authFetch(`${API_BASE}/itam/tickets`, {
+        method: 'POST',
+        body: JSON.stringify({ entityKind, entityId, provider }),
+    });
+    if (!res.ok) throw new Error(`Failed to create ticket: HTTP ${res.status}`);
+    return res.json();
+};
+
 export const getTicketingConfig = async (): Promise<{ jira_url?: string; snow_instance?: string }> => {
     try {
         const res = await authFetch(`${API_BASE}/ticketing/config`);

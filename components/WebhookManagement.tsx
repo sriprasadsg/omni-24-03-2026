@@ -19,7 +19,15 @@ export const WebhookManagement: React.FC = () => {
         'security.alert',
         'compliance.violation',
         'patch.deployed',
-        'asset.discovered'
+        'asset.discovered',
+        'asset.checked_out',
+        'asset.checked_in',
+        'asset.warranty_expiring',
+        'license.expiring_soon',
+        'asset.request_approved',
+        'asset.request_denied',
+        'consumable.low_stock',
+        'asset.audit_overdue'
     ];
 
     useEffect(() => {

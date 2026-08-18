@@ -798,6 +798,13 @@ export interface Asset {
   assignedToId?: string;
   components?: string[];
   notes?: string;
+
+  // Phase 73 — additive, response-only ticket fields written by the
+  // ITAM-to-ticketing bridge (manual "Create Ticket" action or the
+  // asset.audit_overdue background sweep). Never client-writable.
+  ticket_ref?: string;
+  ticket_provider?: ItamTicketProvider;
+  ticket_url?: string;
 }
 
 export type ItamLifecycleStatus = 'deployable' | 'deployed' | 'archived' | 'retired' | 'disposed' | 'broken';
@@ -900,6 +907,13 @@ export interface ItamAssetRequest {
   request_date: string;
   approval_date?: string | null;
   approver_id?: string | null;
+
+  // Phase 73 — additive, response-only ticket fields written by the
+  // ITAM-to-ticketing bridge (manual "Create Ticket" action or the
+  // stuck-pending-approval background sweep). Never client-writable.
+  ticket_ref?: string;
+  ticket_provider?: ItamTicketProvider;
+  ticket_url?: string;
 }
 
 export interface ItamAssignmentHistoryEntry {
@@ -1410,7 +1424,20 @@ export type WebhookEvent =
   | 'security.alert'
   | 'compliance.violation'
   | 'patch.deployed'
-  | 'asset.discovered';
+  | 'asset.discovered'
+  | 'asset.checked_out'
+  | 'asset.checked_in'
+  | 'asset.warranty_expiring'
+  | 'license.expiring_soon'
+  | 'asset.request_approved'
+  | 'asset.request_denied'
+  | 'consumable.low_stock'
+  | 'asset.audit_overdue';
+
+// Phase 73 — the two ticketing providers ITAM manual/automatic ticket
+// creation may target (D-09/D-10/D-11). A strict two-member union, never
+// free text — mirrors the backend's Literal["jira", "servicenow"].
+export type ItamTicketProvider = 'jira' | 'servicenow';
 
 export interface Webhook {
   id: string;
