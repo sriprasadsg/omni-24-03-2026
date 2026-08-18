@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-18T18:35:38.602Z",
+  "timestamp": "2026-08-18T18:40:13.031Z",
   "phase": "73",
   "phase_name": "api-integrations",
   "phase_dir": ".planning/phases/73-api-integrations",
@@ -15,7 +15,7 @@
     {"id": 4, "name": "Planned: 6 plans / 4 waves, plan-checker VERIFICATION PASSED", "status": "done", "commit": "e09e5e16c"},
     {"id": 5, "name": "Executed all 6 plans (73-01..73-06), incl. 73-06 human-verify checkpoint approved by user live in browser", "status": "done", "commit": "27da5e501"},
     {"id": 6, "name": "Code review: 0 critical, 3 warnings (all pre-existing, not introduced by phase 73)", "status": "done", "commit": "d11df7cc0"},
-    {"id": 7, "name": "Regression gate (full backend suite 2404 passed/12 pre-existing-unrelated-failed) + frontend tsc clean; goal verification: 24/26 must-haves, status human_needed; 73-UAT.md created (3 items)", "status": "done", "commit": "8956d4b2c"}
+    {"id": 7, "name": "Regression gate (full backend suite 2404 passed/12 pre-existing-unrelated-failed) + frontend tsc clean; goal verification: 24/26 must-haves, status human_needed; 73-UAT.md created (3 items); 73-VERIFICATION.md committed (was missed first time, fixed on resume)", "status": "done", "commit": "757b398c0"}
   ],
   "remaining_tasks": [
     {"id": 8, "name": "Fix or bypass the api-coverage.verify-pre gate false-positive blocking /gsd-verify-work 73", "status": "not_started"},
