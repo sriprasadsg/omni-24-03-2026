@@ -46,7 +46,7 @@
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| ITAM-API-01 | Full REST API coverage for ITAM (via API-key auth on existing routers) | Enumerated the exact 13-file gate surface (Std Stack §Auth Gate Enumeration), found the scope-narrowing gap that must be closed for API-key access to be meaningfully scoped (Pitfall 1), confirmed `TokenData` return-shape compatibility (Pitfall 2) |
+| ITAM-API-01 | Full REST API coverage for ITAM (via API-key auth on existing routers) | Enumerated the exact 15-file gate surface (Std Stack §Auth Gate Enumeration — corrected 2026-08-18 refresh, see Refresh Notes), found the scope-narrowing gap that must be closed for API-key access to be meaningfully scoped (Pitfall 1), confirmed `TokenData` return-shape compatibility (Pitfall 2) |
 | ITAM-API-02 | Webhook system for ITAM events | Confirmed `trigger_webhook()` signature/payload shape, found the exact 8 mutation/job insertion points, found the background-job tenant-context pitfall for the 2 non-mutation-triggered events (Pitfall 3), found `asset.audit_overdue` has no existing periodic mechanism at all (Pitfall 6) |
 | ITAM-API-03 | Jira/ServiceNow integration for ITAM events | Confirmed `ticketing_bridge.py`'s adapter shape and correct source module (`ticketing_service.py`, not `integration_service_ticketing.py` — Pitfall 7), confirmed Phase 44's SLA/escalation pattern file:function, confirmed `asset.audit_overdue`'s automatic-ticket trigger has the same missing-scheduler gap as its webhook counterpart |
 
@@ -108,7 +108,7 @@ async def _require_itam_admin(current_user: TokenData = Depends(get_current_user
     return current_user
 ```
 
-**Imported (not re-implemented) by 10 other endpoint files:**
+**Imported (not re-implemented) by 13 other endpoint files** `[VERIFIED: codebase, re-confirmed 2026-08-18 refresh via grep -rln "_require_itam_admin" backend/*.py]`:
 
 | File | Import site | `_require_itam_admin` usages |
 |------|-------------|-------------------------------|
@@ -123,8 +123,12 @@ async def _require_itam_admin(current_user: TokenData = Depends(get_current_user
 | `itam_label_endpoints.py` | same | 3 |
 | `api_key_endpoints.py` | same | 2 (`admin_list_api_keys`, one more admin route) |
 | `ldap_endpoints.py` | same | 6 (LDAP config/sync/group-mapping routes) |
+| `sso_endpoints.py` | same | 6 (SAML config/metadata/test/attribute-mapping routes) |
+| `user_endpoints.py` | same | 4 (list/create/update/delete user routes) |
 
 **`itam_asset_endpoints.py` itself:** 2 usages (create_manual_asset, purchase update — via `itam_asset_endpoints.py` router).
+
+**Correction from the original 2026-08-18 research pass:** the original enumeration above listed only 11 files (missing `sso_endpoints.py` and `user_endpoints.py` entirely) and stated "13 total usages" where it should have said 15 total files. This was not caught by research — it was caught during planning (`73-01-PLAN.md` Task 2, discovered while reading each importer's `Depends()` chain rather than trusting the grep this research ran). Both files import the identical `_require_itam_admin` symbol and are gated on the identical `"manage:assets"` permission string as every other importer, so both are subject to the same D-01 propagation risk this section exists to catch. This refresh pass re-ran the grep directly against current `backend/*.py` and confirms 15 files total contain `_require_itam_admin` (13 importers + 2 own definitions), matching what the plans already built against — see "RESOLVED" note below and Refresh Notes at the end of this document.
 
 ### `[VERIFIED: codebase]` A SECOND, independent duplicate definition exists
 
@@ -141,11 +145,15 @@ Used 6 times in `itam_catalog_endpoints.py` (suppliers/models CRUD, custom-field
 
 ### D-02's named list vs. the actual gate surface — a scope decision the planner must make explicit
 
-D-02 names 7 categories: "asset, lifecycle, license, consumable, component, finance, reports." That maps cleanly to 7 files. But **6 more files use the identical `_require_itam_admin` gate and are not named**: `itam_catalog_endpoints.py`, `itam_kpi_endpoints.py`, `itam_data_endpoints.py`, `itam_label_endpoints.py`, `ldap_endpoints.py`, `api_key_endpoints.py`.
+D-02 names 7 categories: "asset, lifecycle, license, consumable, component, finance, reports." That maps cleanly to 7 files. But **8 more files use the identical `_require_itam_admin` gate and are not named**: `itam_catalog_endpoints.py`, `itam_kpi_endpoints.py`, `itam_data_endpoints.py`, `itam_label_endpoints.py`, `ldap_endpoints.py`, `api_key_endpoints.py`, `sso_endpoints.py`, `user_endpoints.py` — the latter two only surfaced during planning, not in the original research pass (see correction note above).
 
-**RESOLVED (user confirmed 2026-08-18):** swap **11 files** that use `_require_itam_admin` — D-02's originally-named 7 (asset/lifecycle/license/consumable/component/finance/reports) plus the 4 unnamed-but-unambiguous ones (`itam_catalog_endpoints.py`, `itam_kpi_endpoints.py`, `itam_data_endpoints.py`, `itam_label_endpoints.py`, patching both the imported and the catalog duplicate definition). **`ldap_endpoints.py` and `api_key_endpoints.py` are explicitly EXCLUDED** — they stay on `Depends(get_current_user)` only:
+**RESOLVED (user confirmed 2026-08-18; scope corrected during planning the same day — `73-01-PLAN.md` Task 2):** swap **11 files** that use `_require_itam_admin` — D-02's originally-named 7 (asset/lifecycle/license/consumable/component/finance/reports) plus the 4 unnamed-but-unambiguous ones (`itam_catalog_endpoints.py`, `itam_kpi_endpoints.py`, `itam_data_endpoints.py`, `itam_label_endpoints.py`, patching both the imported and the catalog duplicate definition). **Four files are explicitly EXCLUDED** — they stay on session-auth only (the plan formalizes this by repointing them at a new sibling dependency, `_require_itam_admin_session_only`, rather than merely leaving their import alone, since leaving the import alone is exactly what silently propagated API-key access to them in the first place):
 - `ldap_endpoints.py` gates LDAP directory sync config — not really "ITAM data," and letting an API key trigger an LDAP sync or rewrite group-role mappings is a materially different risk than letting it read/write assets.
 - `api_key_endpoints.py`'s `admin_list_api_keys`/admin route gates *API key management itself* — swapping this means an API key could be used to list or create other API keys (self-service key proliferation / privilege-escalation surface).
+- `sso_endpoints.py` gates SAML/SSO configuration (save/read config, metadata endpoint, connection test, attribute-mapping CRUD) — the same "materially different risk than assets" reasoning applies; letting an API key rewrite a tenant's SSO configuration is a distinct, higher-severity risk than an ITAM data operation.
+- `user_endpoints.py` gates user-management CRUD (list/create/update/delete users) — letting an API key create or delete user accounts is a distinct privilege-escalation surface, not an ITAM data operation.
+
+**Total gate surface is therefore 15 files, not 13**: 11 swapped to dual auth + 4 excluded (session-auth-only). This is a numeric correction to the original research pass, not a decision change — the swap/exclude boundary logic (ITAM data operations vs. everything-else-that-happens-to-import-the-same-symbol) is unchanged; it now correctly covers all 15 files instead of 13.
 
 ### `_require_asset_requester` / `_require_asset_approver` / `_require_asset_viewer` — separate gate, NOT part of D-02
 
@@ -465,3 +473,15 @@ Not applicable — no new external dependency, service, or CLI tool. All work is
 
 **Research date:** 2026-08-18
 **Valid until:** No expiry concern — this is pure internal-codebase research with no external API/library version dependency. Re-verify only if the underlying files (`api_key_auth.py`, `webhook_service.py`, `ticketing_bridge.py`, `rbac_service.py`) change before this phase is planned/executed.
+
+## Refresh Notes (re-research pass, 2026-08-18)
+
+**Trigger:** User explicitly re-ran `/gsd-plan-phase 73 --research` after all 6 PLAN.md files were already written, plan-checker-verified, and committed against the original research pass.
+
+**Reconfirmed unchanged (re-verified directly against current code, not re-derived):** every finding under Pitfalls 2-9, the `trigger_webhook()` signature/payload shape, the 8 webhook mutation/job insertion points, the `ticketing_bridge.py` adapter shape and correct source module, `TenantIsolatedCollection`/`tenant_context.py`'s contextvar mechanism, all 4 existing background-scheduler registration lines in `app_startup.py`, and the `AssetRequestBase` cost-field absence. Nothing in this set changed since the original pass — no plan needs to touch any of it differently than already written.
+
+**What changed:** one correction, not a new finding — the original research's auth-gate enumeration (Std Stack §Auth Gate Enumeration, Pitfall 1) undercounted the `_require_itam_admin` importer surface at 11 files / 2 exclusions. A direct `grep -rln "_require_itam_admin" backend/*.py` re-run this session confirms **15 files total** (13 importers + 2 own definitions) / **4 exclusions** (`ldap_endpoints.py`, `api_key_endpoints.py`, plus the two the original pass missed entirely: `sso_endpoints.py`, `user_endpoints.py`).
+
+**Is any existing PLAN.md now stale or contradicted? No.** This gap was independently caught during planning — `73-01-PLAN.md` Task 2 already discovered and closed it (its own text: *"The exclusion set is 4 files, not 2 ... `sso_endpoints.py` (8 usages) and `user_endpoints.py` (4 usages) also import the same `_require_itam_admin` symbol"*) and already implements the `_require_itam_admin_session_only` sibling-dependency fix across all 4 excluded files. The plans were already correct; only this RESEARCH.md document was behind. This refresh brings the research document's enumeration in line with what was already built, so a future reader of RESEARCH.md alone (without also reading 73-01-PLAN.md's deviation note) sees the accurate 15-file/4-exclusion picture.
+
+**Net effect:** no replanning required. All 6 PLAN.md files, ROADMAP.md's wave annotations, and 73-VALIDATION.md's sign-off remain valid as committed.
