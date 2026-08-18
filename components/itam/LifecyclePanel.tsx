@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Modal from '../ui/Modal';
-import { Asset, ItamCatalogEntity, ItamLifecycleStatus, Tenant } from '../../types';
-import { fetchAssets, createManualAsset, checkoutAsset, checkinAsset, markAssetAudited, fetchCatalogEntities, fetchAssetQrLabel, fetchAssetBarcodeLabel, fetchAssetLabelSheet } from '../../services/apiService';
+import { Asset, ItamCatalogEntity, ItamLifecycleStatus, ItamTicketProvider, Tenant } from '../../types';
+import { fetchAssets, createManualAsset, checkoutAsset, checkinAsset, markAssetAudited, fetchCatalogEntities, fetchAssetQrLabel, fetchAssetBarcodeLabel, fetchAssetLabelSheet, getTicketingConfig, createItamTicket } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
+import { ExternalLinkIcon } from '../icons';
 
 const STATUS_COLORS: Record<string, string> = {
   deployable: 'text-green-500 bg-green-900/20 border-green-800',
@@ -38,6 +39,15 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
   const [labelMenuAssetId, setLabelMenuAssetId] = useState<string | null>(null);
   const labelMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // Phase 73 — manual "Create Ticket" row action (D-10). Provider
+  // availability is derived once on load from getTicketingConfig; the
+  // response itself is never rendered, only these two booleans.
+  const [hasJira, setHasJira] = useState(false);
+  const [hasServiceNow, setHasServiceNow] = useState(false);
+  const [ticketMenuAssetId, setTicketMenuAssetId] = useState<string | null>(null);
+  const ticketMenuRef = useRef<HTMLDivElement | null>(null);
+  const [ticketActioningId, setTicketActioningId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -57,6 +67,18 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
     } finally {
       setLoading(false);
     }
+    // Provider availability is fetched independently of the critical asset
+    // load above — getTicketingConfig already swallows its own errors and
+    // returns {}, but this extra guard keeps a missing/failing ticketing
+    // config from ever affecting the asset table itself.
+    try {
+      const tc = await getTicketingConfig();
+      setHasJira(!!tc?.jira_url);
+      setHasServiceNow(!!tc?.snow_instance);
+    } catch {
+      setHasJira(false);
+      setHasServiceNow(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -71,6 +93,17 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [labelMenuAssetId]);
+
+  useEffect(() => {
+    if (ticketMenuAssetId === null) return;
+    function handleOutsideClick(e: MouseEvent) {
+      if (ticketMenuRef.current && !ticketMenuRef.current.contains(e.target as Node)) {
+        setTicketMenuAssetId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [ticketMenuAssetId]);
 
   async function handleAddAsset() {
     if (!newAsset.name.trim()) return;
@@ -154,6 +187,20 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
     }
   }
 
+  async function handleCreateTicket(assetId: string, provider: ItamTicketProvider) {
+    setTicketMenuAssetId(null);
+    setTicketActioningId(assetId);
+    try {
+      await createItamTicket('asset', assetId, provider);
+      showToast('Ticket created.', 'success');
+      load();
+    } catch (e: any) {
+      showToast('Failed to create ticket — please try again.', 'error');
+    } finally {
+      setTicketActioningId(null);
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -228,6 +275,43 @@ export function LifecyclePanel({ tenants = [], isSuperAdminView = false }: Lifec
                             </div>
                           )}
                         </div>
+                        {a.ticket_ref ? (
+                          <span className="inline-flex items-center gap-1 ml-2">
+                            <span className={`text-xs px-2 py-1 rounded border ${a.ticket_provider === 'jira' ? 'text-blue-400 bg-blue-900/20 border-blue-800' : 'text-violet-400 bg-violet-900/20 border-violet-800'}`}>
+                              {a.ticket_provider === 'jira' ? 'Jira' : 'ServiceNow'}
+                            </span>
+                            <span className="text-xs text-gray-300">{a.ticket_ref}</span>
+                            {a.ticket_url && (
+                              <a href={a.ticket_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-gray-400 hover:text-gray-200">
+                                <ExternalLinkIcon size={12} />
+                              </a>
+                            )}
+                          </span>
+                        ) : (hasJira || hasServiceNow) && (
+                          <div ref={ticketMenuAssetId === a.id ? ticketMenuRef : undefined} className="relative inline-block ml-2">
+                            <button
+                              onClick={() => {
+                                if (hasJira && hasServiceNow) {
+                                  setTicketMenuAssetId(ticketMenuAssetId === a.id ? null : a.id);
+                                } else {
+                                  handleCreateTicket(a.id, hasJira ? 'jira' : 'servicenow');
+                                }
+                              }}
+                              disabled={ticketActioningId === a.id}
+                              aria-haspopup={hasJira && hasServiceNow ? 'true' : undefined}
+                              aria-expanded={hasJira && hasServiceNow ? ticketMenuAssetId === a.id : undefined}
+                              className="text-gray-400 hover:text-gray-200 text-xs font-medium disabled:opacity-50"
+                            >
+                              {ticketActioningId === a.id ? 'Creating…' : 'Create Ticket'}
+                            </button>
+                            {hasJira && hasServiceNow && ticketMenuAssetId === a.id && (
+                              <div className="absolute right-0 mt-1 w-32 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10">
+                                <button onClick={() => handleCreateTicket(a.id, 'jira')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">Jira</button>
+                                <button onClick={() => handleCreateTicket(a.id, 'servicenow')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">ServiceNow</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

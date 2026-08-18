@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Modal from '../ui/Modal';
-import { ItamAssetRequest } from '../../types';
-import { fetchAssetRequests, createAssetRequest, approveAssetRequest, rejectAssetRequest } from '../../services/apiService';
+import { ItamAssetRequest, ItamTicketProvider } from '../../types';
+import { fetchAssetRequests, createAssetRequest, approveAssetRequest, rejectAssetRequest, getTicketingConfig, createItamTicket } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
+import { ExternalLinkIcon } from '../icons';
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'text-amber-400 bg-amber-900/20 border-amber-800',
@@ -18,6 +19,14 @@ export function RequestsPanel() {
   const [form, setForm] = useState({ item_description: '', quantity: '1', reason: '' });
   const [actioningId, setActioningId] = useState<string | null>(null);
 
+  // Phase 73 — manual "Create Ticket" row action (D-10). Provider
+  // availability is derived once on load from getTicketingConfig; the
+  // response itself is never rendered, only these two booleans.
+  const [hasJira, setHasJira] = useState(false);
+  const [hasServiceNow, setHasServiceNow] = useState(false);
+  const [ticketMenuRequestId, setTicketMenuRequestId] = useState<string | null>(null);
+  const ticketMenuRef = useRef<HTMLDivElement | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -28,9 +37,32 @@ export function RequestsPanel() {
     } finally {
       setLoading(false);
     }
+    // Provider availability is fetched independently of the critical
+    // request load above — getTicketingConfig already swallows its own
+    // errors and returns {}, but this extra guard keeps a missing/failing
+    // ticketing config from ever affecting the request table itself.
+    try {
+      const tc = await getTicketingConfig();
+      setHasJira(!!tc?.jira_url);
+      setHasServiceNow(!!tc?.snow_instance);
+    } catch {
+      setHasJira(false);
+      setHasServiceNow(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (ticketMenuRequestId === null) return;
+    function handleOutsideClick(e: MouseEvent) {
+      if (ticketMenuRef.current && !ticketMenuRef.current.contains(e.target as Node)) {
+        setTicketMenuRequestId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [ticketMenuRequestId]);
 
   async function handleCreate() {
     if (!form.item_description.trim() || !form.reason.trim()) return;
@@ -70,6 +102,20 @@ export function RequestsPanel() {
       load();
     } catch (e: any) {
       showToast(e?.message || 'Failed to reject request.', 'error');
+    } finally {
+      setActioningId(null);
+    }
+  }
+
+  async function handleCreateTicket(id: string, provider: ItamTicketProvider) {
+    setTicketMenuRequestId(null);
+    setActioningId(id);
+    try {
+      await createItamTicket('asset_request', id, provider);
+      showToast('Ticket created.', 'success');
+      load();
+    } catch (e: any) {
+      showToast('Failed to create ticket — please try again.', 'error');
     } finally {
       setActioningId(null);
     }
@@ -134,6 +180,43 @@ export function RequestsPanel() {
                           Reject
                         </button>
                       </>
+                    )}
+                    {r.ticket_ref ? (
+                      <span className="inline-flex items-center gap-1 ml-2">
+                        <span className={`text-xs px-2 py-1 rounded border ${r.ticket_provider === 'jira' ? 'text-blue-400 bg-blue-900/20 border-blue-800' : 'text-violet-400 bg-violet-900/20 border-violet-800'}`}>
+                          {r.ticket_provider === 'jira' ? 'Jira' : 'ServiceNow'}
+                        </span>
+                        <span className="text-xs text-gray-300">{r.ticket_ref}</span>
+                        {r.ticket_url && (
+                          <a href={r.ticket_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center text-gray-400 hover:text-gray-200">
+                            <ExternalLinkIcon size={12} />
+                          </a>
+                        )}
+                      </span>
+                    ) : (hasJira || hasServiceNow) && (
+                      <div ref={ticketMenuRequestId === r.id ? ticketMenuRef : undefined} className="relative inline-block ml-2">
+                        <button
+                          onClick={() => {
+                            if (hasJira && hasServiceNow) {
+                              setTicketMenuRequestId(ticketMenuRequestId === r.id ? null : r.id);
+                            } else {
+                              handleCreateTicket(r.id, hasJira ? 'jira' : 'servicenow');
+                            }
+                          }}
+                          disabled={actioningId === r.id}
+                          aria-haspopup={hasJira && hasServiceNow ? 'true' : undefined}
+                          aria-expanded={hasJira && hasServiceNow ? ticketMenuRequestId === r.id : undefined}
+                          className="text-gray-400 hover:text-gray-200 text-xs font-medium disabled:opacity-50"
+                        >
+                          {actioningId === r.id ? 'Creating…' : 'Create Ticket'}
+                        </button>
+                        {hasJira && hasServiceNow && ticketMenuRequestId === r.id && (
+                          <div className="absolute right-0 mt-1 w-32 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10">
+                            <button onClick={() => handleCreateTicket(r.id, 'jira')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">Jira</button>
+                            <button onClick={() => handleCreateTicket(r.id, 'servicenow')} className="block w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700">ServiceNow</button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
