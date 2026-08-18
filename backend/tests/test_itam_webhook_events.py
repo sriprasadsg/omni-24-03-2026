@@ -16,6 +16,7 @@ re-deriving them.
 import asyncio
 import sys
 import os
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -31,12 +32,19 @@ from tests.itam_api_integrations_test_support import (
 )
 from api_key_auth import get_current_user_or_api_key
 
-from itam_webhook_events import EVENT_ASSET_CHECKED_IN, EVENT_CONSUMABLE_LOW_STOCK
+from itam_webhook_events import (
+    EVENT_ASSET_CHECKED_IN,
+    EVENT_CONSUMABLE_LOW_STOCK,
+    EVENT_ASSET_REQUEST_APPROVED,
+    EVENT_ASSET_REQUEST_DENIED,
+)
 from itam_reporting_prebuilt import DEFAULT_LOW_STOCK_QUANTITY
 from errors import APIError
-from itam_models import ConsumableCheckoutRequest
+from itam_models import ConsumableCheckoutRequest, AssetRequestStatus
 import itam_consumable_service as consumable_service_module
 from itam_consumable_service import ConsumableService, _is_low_stock
+from itam_asset_request_service import ItamAssetRequestService
+from database import TenantIsolatedDatabase
 
 
 def _authorized(app):
@@ -296,3 +304,167 @@ class TestConsumableCheckoutLowStockDispatch:
                 await asyncio.sleep(0)
 
         recorder.assert_not_awaited()
+
+
+# ─── Task 3: asset.request_approved / asset.request_denied dispatch ───────
+
+MOCK_TENANT_ID = "tenant-a"
+MOCK_REQUEST_ID = "ar-12345678"
+MOCK_APPROVER_ID = "approver@example.com"
+
+
+def _asset_request_doc(**overrides):
+    doc = {
+        "_id": MOCK_REQUEST_ID,
+        "id": MOCK_REQUEST_ID,
+        "tenant_id": MOCK_TENANT_ID,
+        "requester_id": "requester@example.com",
+        "item_description": "New Monitor",
+        "quantity": 1,
+        "reason": "Replacement for broken unit",
+        "status": AssetRequestStatus.PENDING,
+        "request_date": datetime.now(timezone.utc),
+        "approval_date": None,
+        "approver_id": None,
+    }
+    doc.update(overrides)
+    return doc
+
+
+@pytest.fixture
+def asset_request_service():
+    db_instance = AsyncMock(spec=TenantIsolatedDatabase)
+    mock_collection = MagicMock()
+    mock_collection.insert_one = AsyncMock()
+    mock_collection.find_one = AsyncMock()
+    mock_collection.find_one_and_update = AsyncMock()
+    mock_collection.find = MagicMock()
+    db_instance.asset_requests = mock_collection
+
+    with patch("itam_asset_request_service.ApprovalService") as MockApproval, \
+         patch("itam_asset_request_service.ItamNotificationService") as MockNotify:
+        MockApproval.return_value = AsyncMock()
+        MockNotify.return_value = AsyncMock()
+        yield ItamAssetRequestService(db_instance)
+
+
+class TestAssetRequestWebhookDispatch:
+    @pytest.mark.asyncio
+    async def test_asset_request_approve_dispatches_approved_event(self, asset_request_service):
+        asset_request_service.db.asset_requests.find_one.return_value = _asset_request_doc(
+            status=AssetRequestStatus.PENDING
+        )
+        asset_request_service.db.asset_requests.find_one_and_update.return_value = _asset_request_doc(
+            status=AssetRequestStatus.APPROVED, approver_id=MOCK_APPROVER_ID,
+            approval_date=datetime.now(timezone.utc),
+        )
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            approved = await asset_request_service.approve_asset_request(
+                MOCK_TENANT_ID, MOCK_REQUEST_ID, MOCK_APPROVER_ID
+            )
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        assert approved is not None
+        recorder.assert_awaited_once()
+        args, _kwargs = recorder.call_args
+        assert args[0] == EVENT_ASSET_REQUEST_APPROVED
+        payload = args[1]
+        assert payload["requestId"] == MOCK_REQUEST_ID
+        assert payload["status"] == AssetRequestStatus.APPROVED
+        assert payload["approver_id"] == MOCK_APPROVER_ID
+        asset_request_service.notification_service.send_asset_request_notification.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_asset_request_reject_dispatches_denied_event(self, asset_request_service):
+        asset_request_service.db.asset_requests.find_one.return_value = _asset_request_doc(
+            status=AssetRequestStatus.PENDING
+        )
+        asset_request_service.db.asset_requests.find_one_and_update.return_value = _asset_request_doc(
+            status=AssetRequestStatus.REJECTED, approver_id=MOCK_APPROVER_ID,
+            approval_date=datetime.now(timezone.utc),
+        )
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            rejected = await asset_request_service.reject_asset_request(
+                MOCK_TENANT_ID, MOCK_REQUEST_ID, MOCK_APPROVER_ID
+            )
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        assert rejected is not None
+        recorder.assert_awaited_once()
+        args, _kwargs = recorder.call_args
+        # Deliberate asymmetry: internal status is "rejected", the fixed
+        # outward event name is "asset.request_denied" (D-05).
+        assert args[0] == EVENT_ASSET_REQUEST_DENIED
+        payload = args[1]
+        assert payload["requestId"] == MOCK_REQUEST_ID
+        assert payload["status"] == AssetRequestStatus.REJECTED
+        asset_request_service.notification_service.send_asset_request_notification.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_asset_request_approve_non_pending_dispatches_nothing(self, asset_request_service):
+        asset_request_service.db.asset_requests.find_one.return_value = _asset_request_doc(
+            status=AssetRequestStatus.APPROVED
+        )
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            approved = await asset_request_service.approve_asset_request(
+                MOCK_TENANT_ID, MOCK_REQUEST_ID, MOCK_APPROVER_ID
+            )
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        assert approved is None
+        recorder.assert_not_awaited()
+        asset_request_service.db.asset_requests.find_one_and_update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_asset_request_reject_non_pending_dispatches_nothing(self, asset_request_service):
+        asset_request_service.db.asset_requests.find_one.return_value = _asset_request_doc(
+            status=AssetRequestStatus.REJECTED
+        )
+
+        recorder = AsyncMock()
+        with patch("webhook_service.WebhookService.trigger_webhook", recorder):
+            rejected = await asset_request_service.reject_asset_request(
+                MOCK_TENANT_ID, MOCK_REQUEST_ID, MOCK_APPROVER_ID
+            )
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        assert rejected is None
+        recorder.assert_not_awaited()
+        asset_request_service.db.asset_requests.find_one_and_update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_asset_request_approve_dispatch_never_blocks_return(self, asset_request_service):
+        """A stalled dispatch coroutine (gated forever until after the
+        assertion) never prevents approve_asset_request from returning —
+        proving asyncio.create_task, not an inline await, is used."""
+        asset_request_service.db.asset_requests.find_one.return_value = _asset_request_doc(
+            status=AssetRequestStatus.PENDING
+        )
+        asset_request_service.db.asset_requests.find_one_and_update.return_value = _asset_request_doc(
+            status=AssetRequestStatus.APPROVED, approver_id=MOCK_APPROVER_ID,
+        )
+
+        gate = asyncio.Event()
+
+        async def _slow_trigger(event_type, payload):
+            await gate.wait()
+
+        with patch("webhook_service.WebhookService.trigger_webhook", side_effect=_slow_trigger):
+            approved = await asyncio.wait_for(
+                asset_request_service.approve_asset_request(MOCK_TENANT_ID, MOCK_REQUEST_ID, MOCK_APPROVER_ID),
+                timeout=2,
+            )
+        assert approved is not None
+        gate.set()
+        for _ in range(5):
+            await asyncio.sleep(0)

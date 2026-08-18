@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -7,8 +8,39 @@ from database import TenantIsolatedDatabase
 from itam_models import AssetRequest, AssetRequestCreate, AssetRequestUpdate, AssetRequestStatus
 from approval_service import ApprovalService
 from itam_notification_service import ItamNotificationService
+from itam_webhook_events import EVENT_ASSET_REQUEST_APPROVED, EVENT_ASSET_REQUEST_DENIED
+from webhook_service import WebhookService
 
 logger = logging.getLogger(__name__)
+
+# Module-level singleton — mirrors itam_lifecycle_endpoints.py's own
+# WebhookService() instance shape (never one-per-call).
+_webhook_service = WebhookService()
+
+
+def _isoformat(value):
+    """Serialize a datetime to ISO-8601 so the payload stays JSON-encodable
+    by the dispatcher; passes non-datetime values (including None) through
+    unchanged."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
+def _request_webhook_payload(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Built from the raw find_one_and_update result, not the validated
+    AssetRequest model — that model's extra="ignore" config would silently
+    strip fields (e.g. plan 73-04's ticket fields) a subscriber may want."""
+    return {
+        "requestId": result.get("id"),
+        "item_description": result.get("item_description"),
+        "quantity": result.get("quantity"),
+        "status": result.get("status"),
+        "requester_id": result.get("requester_id"),
+        "approver_id": result.get("approver_id"),
+        "approval_date": _isoformat(result.get("approval_date")),
+        "request_date": _isoformat(result.get("request_date")),
+    }
 
 class ItamAssetRequestService:
     def __init__(self, db: TenantIsolatedDatabase):
@@ -126,6 +158,14 @@ class ItamAssetRequestService:
                 requester_id=approved_request.requester_id,
                 recipients=[approved_request.requester_id, approver_id] # Notify requester and approver
             )
+            # D-05/D-06: fire-and-forget webhook dispatch — never awaited
+            # inline (RESEARCH Pitfall 8). Placed after the notification
+            # call so it cannot alter control flow or the return value; a
+            # dispatch failure inside the scheduled task can never affect
+            # either.
+            asyncio.create_task(_webhook_service.trigger_webhook(
+                EVENT_ASSET_REQUEST_APPROVED, _request_webhook_payload(result)
+            ))
             return approved_request
         return None
 
@@ -160,5 +200,13 @@ class ItamAssetRequestService:
                 requester_id=rejected_request.requester_id,
                 recipients=[rejected_request.requester_id, approver_id] # Notify requester and approver
             )
+            # D-05/D-06: fire-and-forget webhook dispatch — never awaited
+            # inline. Deliberate asymmetry: the internal status value is
+            # "rejected" but the outward event name is asset.request_denied
+            # (fixed by D-05 and the frontend picker) — not "corrected" to
+            # match the enum.
+            asyncio.create_task(_webhook_service.trigger_webhook(
+                EVENT_ASSET_REQUEST_DENIED, _request_webhook_payload(result)
+            ))
             return rejected_request
         return None
