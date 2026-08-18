@@ -15,8 +15,10 @@ the request-scoped database accessor here would silently fail closed.
 """
 import asyncio
 import logging
+from collections import namedtuple
 from typing import Any, Dict, Optional
 
+from itam_webhook_events import EVENT_ASSET_AUDIT_OVERDUE
 from ticketing_service import (
     get_ticketing_config,
     create_jira_ticket,
@@ -24,6 +26,36 @@ from ticketing_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ─── ITAM entity → collection mapping (Phase 73 Plan 04, D-09/D-10) ────────
+
+# (collection name, id field name, tenant field name). The tenant-field
+# divergence encoded here is real and verified: `assets` docs use the
+# camelCase `tenantId`, `asset_requests` docs use the snake_case
+# `tenant_id` — a single shared filter shape would silently write to
+# nothing for one of the two collections.
+_EntityCollectionInfo = namedtuple(
+    "_EntityCollectionInfo", ["collection", "id_field", "tenant_field"]
+)
+
+ITAM_ENTITY_COLLECTIONS = {
+    "asset": _EntityCollectionInfo("assets", "id", "tenantId"),
+    "asset_request": _EntityCollectionInfo("asset_requests", "id", "tenant_id"),
+}
+
+# Event type used when an operator requests a ticket manually (D-10), with
+# no originating webhook event to derive `type`/`alert_id` from.
+ITAM_TICKET_EVENT_MANUAL = "manual"
+
+# Severity → connector-accepted word, keyed by ITAM event type. ITAM
+# entities carry no severity field of their own — never read one off the
+# entity, always resolve it here, defaulting to "medium".
+_ITAM_EVENT_SEVERITY = {
+    EVENT_ASSET_AUDIT_OVERDUE: "medium",
+}
+
+_ITAM_UNKNOWN_ASSET_PLACEHOLDER = "Unknown Asset"
 
 
 # ─── Adapter ───────────────────────────────────────────────────────────────
@@ -52,6 +84,82 @@ async def _task_to_alert_shape(db, task: dict) -> dict:
             f"{task.get('description', '')}"
         ),
         "timestamp": task.get("created_at", ""),
+    }
+
+
+async def _itam_event_to_alert_shape(db, event_type: str, entity_kind: str, entity: dict) -> dict:
+    """ITAM sibling of `_task_to_alert_shape` — adapts an ITAM asset or asset
+    request into the identical alert shape both `create_jira_ticket` and
+    `create_servicenow_incident` consume unchanged (D-09).
+
+    May be called from a background sweep with no ambient tenant context
+    (plan 73-05's automatic triggers), so every database read this function
+    performs must be scoped by the caller-supplied tenant value, never by
+    ambient request context. This first cut performs no database reads at
+    all — everything is derived from the entity dict already passed in.
+    """
+    entity_id = entity.get("id", "")
+
+    if event_type == ITAM_TICKET_EVENT_MANUAL:
+        alert_type = "itam_manual_ticket"
+    else:
+        alert_type = f"itam_{event_type.replace('.', '_')}"
+
+    alert_id = f"itam-{event_type.replace('.', '-')}-{entity_id}"
+    severity = _ITAM_EVENT_SEVERITY.get(event_type, "medium")
+
+    if entity_kind == "asset":
+        hostname = _ITAM_UNKNOWN_ASSET_PLACEHOLDER
+        try:
+            hostname = entity.get("hostname") or entity.get("assetTag") or _ITAM_UNKNOWN_ASSET_PLACEHOLDER
+        except Exception:
+            pass  # best-effort; hostname stays the placeholder, never raises
+
+        if event_type == EVENT_ASSET_AUDIT_OVERDUE:
+            reason = "An asset is overdue for its physical audit."
+        elif event_type == ITAM_TICKET_EVENT_MANUAL:
+            reason = "An operator requested a ticket manually for this asset."
+        else:
+            reason = "An ITAM condition on this asset requires attention."
+        description = (
+            f"{reason}\n\n"
+            f"Asset Tag: {entity.get('assetTag', 'N/A')}\n"
+            f"Hostname: {hostname}"
+        )
+        timestamp = entity.get("updatedAt") or entity.get("createdAt") or ""
+    else:
+        # entity kind "asset_request" — never attempt an asset lookup here.
+        item_description = entity.get("item_description") or ""
+        hostname = item_description or _ITAM_UNKNOWN_ASSET_PLACEHOLDER
+
+        if event_type == ITAM_TICKET_EVENT_MANUAL:
+            reason = "An operator requested a ticket manually for this asset request."
+        else:
+            reason = "An asset request has been pending approval beyond the escalation window."
+        description = (
+            f"{reason}\n\n"
+            f"Item: {item_description}\n"
+            f"Quantity: {entity.get('quantity', 'N/A')}\n"
+            f"Requester: {entity.get('requester_id', 'N/A')}"
+        )
+        timestamp = entity.get("request_date") or ""
+
+    if hasattr(timestamp, "isoformat"):
+        timestamp = timestamp.isoformat()
+    elif timestamp:
+        timestamp = str(timestamp)
+    else:
+        timestamp = ""
+
+    return {
+        "alert_id": alert_id,
+        "type": alert_type,
+        "severity": severity,
+        "hostname": hostname,
+        "process": {},
+        "mitre_technique": "N/A",
+        "description": description,
+        "timestamp": timestamp,
     }
 
 
