@@ -166,6 +166,7 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
         allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
         for _ip in _detect_local_ips():
             if _ip not in ("127.0.0.1",):
+                allowed_origins.append(f"https://{_ip}")  # default-port TLS (nginx/reverse-proxy)
                 for _port in ("3000", "4173", "5173"):
                     allowed_origins.append(f"http://{_ip}:{_port}")
                     allowed_origins.append(f"https://{_ip}:{_port}")

@@ -93,10 +93,16 @@ export const AgentOverviewTab: React.FC<Props> = ({
     useEffect(() => {
         const fetchMetrics = async () => {
             try {
-                const res = await authFetch(`/api/agents/${agent.id}/metrics?limit=60`);
+                const res = await authFetch(`/api/agents/${agent.id}/metrics/history?hours=1`);
                 if (res.ok) {
                     const data = await res.json();
-                    const snaps: MetricSnapshot[] = data.snapshots || [];
+                    const raw: Array<Record<string, any>> = data.metrics || [];
+                    const snaps: MetricSnapshot[] = raw.slice(-60).map(m => ({
+                        cpu: m.cpu_percent,
+                        memory: m.memory_percent,
+                        disk: m.disk_percent,
+                        timestamp: m.timestamp,
+                    }));
                     setLiveMetrics(snaps);
                     if (snaps.length > 0) setLatestMetrics(snaps[snaps.length - 1]);
                 }

@@ -29,6 +29,29 @@ def _check_auth(tenant_id: str, role: str, user_tenant: Optional[str]) -> None:
         raise HTTPException(status_code=403, detail="Unauthorized to download agent for this tenant")
 
 
+async def _check_agent_limit(tenant_id: str) -> None:
+    """Block issuing a new agent install package once the tenant is at its seat limit —
+    matches the check already enforced at registration (agent_registry_endpoints.py) and
+    heartbeat (agent_heartbeat_endpoints.py), applied earlier so users aren't handed an
+    installer that will just fail to register."""
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
+    if not tenant:
+        return
+    agent_limit = tenant.get("maxAgents", 5)
+    current_agent_count = await mongodb.db.agents.count_documents({"tenantId": tenant_id})
+    if current_agent_count >= agent_limit:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "agent_limit_reached",
+                "message": f"Agent limit reached ({agent_limit}). Please upgrade your plan for more capacity.",
+                "current": current_agent_count,
+                "limit": agent_limit,
+                "subscriptionTier": tenant.get("subscriptionTier", "Free"),
+            },
+        )
+
+
 async def _cleanup_expired_tokens() -> None:
     try:
         await mongodb.db.agent_download_tokens.delete_many(
@@ -94,6 +117,7 @@ async def create_download_token(tenant_id: str, current_user=Depends(get_current
     role = getattr(current_user, "role", "")
     ut = getattr(current_user, "tenant_id", None)
     _check_auth(tenant_id, role, ut)
+    await _check_agent_limit(tenant_id)
     await _cleanup_expired_tokens()
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=60)
@@ -125,6 +149,7 @@ async def download_agent(
         role = getattr(current_user, "role", "")
         ut = getattr(current_user, "tenant_id", None)
     _check_auth(tenant_id, role, ut)
+    await _check_agent_limit(tenant_id)
 
     resolved_url = await _resolve_url(request, api_url)
     tenant_name, reg_key = await _get_tenant(tenant_id)
@@ -256,6 +281,7 @@ async def download_msi_installer(
         role = getattr(current_user, "role", "")
         ut = getattr(current_user, "tenant_id", None)
     _check_auth(tenant_id, role, ut)
+    await _check_agent_limit(tenant_id)
 
     # Check if a pre-built MSI exists
     base_dir = Path(__file__).parent.parent

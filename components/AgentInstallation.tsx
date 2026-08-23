@@ -5,6 +5,7 @@ import { CopyIcon, CheckIcon, LinuxIcon, WindowsIcon, DockerIcon, KubernetesIcon
 import { useUser } from '../contexts/UserContext';
 import { Tenant } from '../types';
 import { WindowsInstallTab } from './WindowsInstallTab';
+import { UpgradeModal } from './UpgradeModal';
 
 /** Dynamically resolve the backend base URL from the browser's current location.
  *  - On Ubuntu/production (nginx at port 80/443): returns '' so fetch uses relative /api/... paths via nginx proxy.
@@ -123,12 +124,24 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     const [isDownloadingZip,  setIsDownloadingZip]  = React.useState(false);
     const [isDownloadingRust, setIsDownloadingRust] = React.useState(false);
     const [isDownloadingMsi,  setIsDownloadingMsi]  = React.useState(false);
+    const [agentLimitInfo, setAgentLimitInfo] = React.useState<{ count: number; limit: number; tier?: string } | null>(null);
 
     const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
 
     const _getDownloadToken = async (): Promise<string | null> => {
         const tokenRes = await authFetch(`/api/agent/download-token/${effectiveTenantId}`, { method: 'POST' });
-        if (!tokenRes.ok) { showToast('Failed to initiate download. Please try again.', 'error'); return null; }
+        if (!tokenRes.ok) {
+            if (tokenRes.status === 403) {
+                const body = await tokenRes.json().catch(() => null);
+                const detail = body?.detail;
+                if (detail?.error === 'agent_limit_reached') {
+                    setAgentLimitInfo({ count: detail.current, limit: detail.limit, tier: detail.subscriptionTier });
+                    return null;
+                }
+            }
+            showToast('Failed to initiate download. Please try again.', 'error');
+            return null;
+        }
         const { token } = await tokenRes.json();
         return token;
     };
@@ -405,6 +418,13 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                     )}
                 </div>
             )}
+            <UpgradeModal
+                isOpen={!!agentLimitInfo}
+                onClose={() => setAgentLimitInfo(null)}
+                agentCount={agentLimitInfo?.count ?? 0}
+                agentLimit={agentLimitInfo?.limit ?? 0}
+                subscriptionTier={agentLimitInfo?.tier}
+            />
         </div>
     );
 };
