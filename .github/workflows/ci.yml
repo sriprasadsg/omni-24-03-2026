@@ -95,6 +95,9 @@ jobs:
       - name: Lint (ESLint)
         run: npx eslint . --max-warnings 0
 
+      - name: Unit tests
+        run: npm run test:coverage
+
       - name: Build
         run: npm run build
         env:
@@ -125,12 +128,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            agent-rust/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('agent-rust/Cargo.lock') }}
+            agent-install/omni-agent-rs/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('agent-install/omni-agent-rs/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Build agent (Windows)
-        run: cd agent-rust && cargo build --release --target x86_64-pc-windows-gnu
+        run: cd agent-install/omni-agent-rs && cargo build --release --target x86_64-pc-windows-gnu
 
   # ── Docker build ───────────────────────────────────────────────────────────
   docker:
