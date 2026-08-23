@@ -35,7 +35,7 @@ def _restore_auth_module():
     """
     import authentication_service as _auth
     _ATTRS = (
-        "get_current_user", "verify_token", "verify_token_async",
+        "get_current_user", "get_optional_user", "verify_token", "verify_token_async",
         "create_access_token", "create_refresh_token",
     )
     saved = {k: getattr(_auth, k) for k in _ATTRS if hasattr(_auth, k)}

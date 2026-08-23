@@ -163,8 +163,11 @@ def test_golden_path_evidence_to_remediation():
         if len(args) >= 2 and isinstance(args[1], dict):
             if "$set" in args[1] and args[1]["$set"].get("agent_type") == "rust":
                 agent_type_found = True
-            if "$push" in args[1] and args[1]["$push"].get("evidence", {}).get("systemGenerated"):
-                evidence_pushed = True
+            if "$push" in args[1]:
+                # evidence is pushed as {"$each": [...]} (compliance_evidence_processor.py:413)
+                each = args[1]["$push"].get("evidence", {}).get("$each", [])
+                if any(e.get("systemGenerated") for e in each):
+                    evidence_pushed = True
     assert agent_type_found, "agent_type='rust' not in $set"
     assert evidence_pushed, "no systemGenerated=True evidence pushed"
 

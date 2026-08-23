@@ -118,10 +118,15 @@ class TestRunCallsAnthropicWithToolChoiceAny:
             f"Expected 2 calls to messages.create, got {mock_create.call_count}"
         )
 
-        # First call had tool_choice={"type": "any"}
+        # First call had tool_choice={"type": "any"} (plus disable_parallel_tool_use,
+        # added since — agentic_service.py:308 — to keep Turn 1 to a single tool call).
         first_call_kwargs = mock_create.call_args_list[0].kwargs
-        assert first_call_kwargs.get("tool_choice") == {"type": "any"}, (
-            f"Expected tool_choice={{'type': 'any'}}, got {first_call_kwargs.get('tool_choice')}"
+        tool_choice = first_call_kwargs.get("tool_choice", {})
+        assert tool_choice.get("type") == "any", (
+            f"Expected tool_choice.type='any', got {tool_choice}"
+        )
+        assert tool_choice.get("disable_parallel_tool_use") is True, (
+            f"Expected disable_parallel_tool_use=True, got {tool_choice}"
         )
 
         # Result has correct tool_name

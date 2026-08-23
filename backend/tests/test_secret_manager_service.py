@@ -11,10 +11,15 @@ if _BACKEND_DIR not in sys.path:
 from secret_manager_service import SecretManagerService
 import hvac.exceptions
 
-# Mock VAULT_ADDR and VAULT_TOKEN for testing purposes
+# secret_manager_service imports VAULT_ADDR/VAULT_TOKEN by value at module
+# load time (`from backend.config import VAULT_ADDR, VAULT_TOKEN`), so
+# patching os.environ after that import has no effect on
+# SecretManagerService.token — patch the module-level names it actually
+# reads from instead.
 @pytest.fixture(autouse=True)
 def mock_vault_env_vars():
-    with patch.dict(os.environ, {'VAULT_ADDR': 'http://mock-vault:8200', 'VAULT_TOKEN': 'mock_token'}):
+    with patch('secret_manager_service.VAULT_ADDR', 'http://mock-vault:8200'), \
+         patch('secret_manager_service.VAULT_TOKEN', 'mock_token'):
         yield
 
 @pytest.fixture
@@ -43,7 +48,7 @@ async def test_vault_client_connect_failure_no_token(mock_hvac_client):
     Test connection failure when no token is provided and not authenticated.
     """
     # Temporarily remove VAULT_TOKEN for this test
-    with patch.dict(os.environ, {'VAULT_TOKEN': ''}):
+    with patch('secret_manager_service.VAULT_TOKEN', ''):
         service = SecretManagerService()
         mock_hvac_client.is_authenticated.return_value = False
         with pytest.raises(hvac.exceptions.VaultError, match="Vault token not provided and client not authenticated."):
@@ -99,8 +104,11 @@ async def test_vault_client_read_secret_connection_error(mock_hvac_client):
     Test 3: Handles connection errors gracefully during secret read.
     """
     service = SecretManagerService()
-    mock_hvac_client.is_authenticated.return_value = False # Force a re-auth attempt
-    mock_hvac_client.is_authenticated.side_effect = [False, False] # Simulate auth failure
+    # Always unauthenticated, however many times connect()/read_secret() call
+    # it. A fixed-length side_effect list here previously raced against the
+    # real call count and StopIteration'd once VAULT_TOKEN mocking actually
+    # worked (see mock_vault_env_vars).
+    mock_hvac_client.is_authenticated.return_value = False
 
     with pytest.raises(hvac.exceptions.VaultError, match="Failed to authenticate with Vault using provided token."):
         service.read_secret('secret/data/myapp/config')
@@ -119,11 +127,14 @@ async def test_vault_client_read_secret_vault_error(mock_hvac_client):
 @pytest.mark.asyncio
 async def test_vault_client_read_secret_invalid_path(mock_hvac_client):
     """
-    Test handling of invalid Vault path format.
+    Test handling of invalid Vault path format. read_secret only validates
+    that the path contains a '/' (mount_point/path) — 'myapp/config' is
+    actually well-formed under that rule, so use a path with no separator
+    at all to trigger the real ValueError.
     """
     service = SecretManagerService()
-    with pytest.raises(ValueError, match="Invalid Vault path format: myapp/config. Expected 'mount_point/path'."):
-        service.read_secret('myapp/config')
+    with pytest.raises(ValueError, match="Invalid Vault path format: myapp_config_no_slash. Expected 'mount_point/path'."):
+        service.read_secret('myapp_config_no_slash')
 
 @pytest.mark.asyncio
 async def test_vault_client_write_secret_success(mock_hvac_client):
