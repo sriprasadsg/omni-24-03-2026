@@ -1,20 +1,33 @@
-//! Native security scan engine (Phase 50, NSCAN-01/02).
+//! Native security scan engine (Phase 50 NSCAN-01/02; Phase 66 YARA engine).
 //!
 //! Offline file scanning + URL/IP/hash reputation, all against the locally
 //! cached signed feed (feed_bundle) — no network at scan time.
 //!
-//! ENGINE NOTE (review/50-03 fallback): the full yara-x YARA engine was
-//! rejected for the agent because it pulls wasmtime + cranelift (a JIT engine)
-//! — unacceptable bloat/cross-compile risk for a lean cross-platform agent.
-//! Instead, file scanning uses (1) the SHA256 hash-signature DB and (2)
-//! aho-corasick literal byte-pattern matching over the string literals carried
-//! in the feed's `yara_rules.source`. Full YARA-rule support is deferred to a
-//! backlog item. This stays pure-Rust, air-gapped, and cross-compiles cleanly.
+//! ENGINE NOTE (Phase 66, supersedes review/50-03): file scanning now compiles
+//! and evaluates the feed's `yara_rules.source` as real YARA rules via yara-x,
+//! rather than the aho-corasick literal-substring matching Phase 50 shipped as
+//! a stopgap. This is a deliberate reversal of Phase 50's rejection of yara-x
+//! — that decision was made to avoid the wasmtime+cranelift (JIT) dependency
+//! yara-x pulls in, which grows the shipped agent binary and adds cross-compile
+//! risk on some targets. Accepting that cost was a conscious call (not made by
+//! this file) in exchange for real YARA semantics: wildcards, hex patterns,
+//! regex, and boolean rule conditions, none of which literal matching could
+//! ever express. Re-verify cross-compilation on any target this hasn't been
+//! built for yet before shipping.
+//!
+//! Compiling YARA rules is far more expensive than building an aho-corasick
+//! automaton was, so the compiled `Rules` are cached process-wide and only
+//! rebuilt when the feed's rule content actually changes (see
+//! `compiled_rules`) — scan_file is called per on-demand scan instruction
+//! (src/instructions.rs), not in a hot per-file loop, but a directory-sized
+//! batch of scans must not recompile the whole rule set on every file.
 
 use crate::capabilities::feed_bundle;
-use aho_corasick::AhoCorasick;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, OnceLock};
+use yara_x::{Compiler, Rules, Scanner};
 
 /// Bound the fully-read scan size; larger files are hashed only.
 const MAX_SCAN_BYTES: u64 = 64 * 1024 * 1024;
@@ -91,12 +104,13 @@ fn hash_file(path: &str) -> std::io::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-/// Build patterns from the feed's yara_rules string literals and scan `bytes`.
-/// Returns (verdict, confidence, rule_name) on the first match.
+/// Compiles the feed's `yara_rules` as real YARA rules (cached — see
+/// `compiled_rules`), scans `bytes`, and returns the highest-severity match.
+/// Ties keep whichever rule matched first.
 fn match_patterns(bytes: &[u8]) -> Option<(String, f32, String)> {
     let con = feed_bundle::open_cache()?;
     let mut stmt = con.prepare("SELECT name, severity, source FROM yara_rules").ok()?;
-    let rows = stmt
+    let rows: Vec<(String, String, String)> = stmt
         .query_map([], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -104,27 +118,66 @@ fn match_patterns(bytes: &[u8]) -> Option<(String, f32, String)> {
                 r.get::<_, String>(2)?,
             ))
         })
-        .ok()?;
-
-    let mut patterns: Vec<Vec<u8>> = Vec::new();
-    let mut meta: Vec<(String, f32)> = Vec::new(); // (rule_name, confidence) aligned with each literal
-    let mut verdicts: Vec<String> = Vec::new();
-    for row in rows.flatten() {
-        let (name, severity, source) = row;
-        let (verdict, conf) = severity_to_verdict(&severity);
-        for lit in extract_string_literals(&source) {
-            patterns.push(lit.into_bytes());
-            meta.push((name.clone(), conf));
-            verdicts.push(verdict.clone());
-        }
-    }
-    if patterns.is_empty() {
+        .ok()?
+        .flatten()
+        .collect();
+    if rows.is_empty() {
         return None;
     }
-    let ac = AhoCorasick::new(&patterns).ok()?;
-    let m = ac.find(bytes)?;
-    let idx = m.pattern().as_usize();
-    Some((verdicts[idx].clone(), meta[idx].1, meta[idx].0.clone()))
+
+    let rules = compiled_rules(&rows)?;
+    let mut scanner = Scanner::new(&rules);
+    let results = scanner.scan(bytes).ok()?;
+
+    let mut best: Option<(String, f32, String)> = None;
+    for matched in results.matching_rules() {
+        let name = matched.identifier();
+        let Some((_, severity, _)) = rows.iter().find(|(n, _, _)| n == name) else {
+            continue; // compiled but no longer present in the feed row set — ignore
+        };
+        let (verdict, conf) = severity_to_verdict(severity);
+        let is_better = match &best {
+            None => true,
+            Some((_, best_conf, _)) => conf > *best_conf,
+        };
+        if is_better {
+            best = Some((verdict, conf, name.to_string()));
+        }
+    }
+    best
+}
+
+/// Returns the compiled rule set for the given feed rows, rebuilding only
+/// when the rule content has actually changed since the last scan. Rules
+/// that fail to compile (malformed feed content) are logged and skipped
+/// rather than aborting the whole engine.
+fn compiled_rules(rows: &[(String, String, String)]) -> Option<Arc<Rules>> {
+    static CACHE: OnceLock<Mutex<Option<(u64, Arc<Rules>)>>> = OnceLock::new();
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for (name, _, source) in rows {
+        name.hash(&mut hasher);
+        source.hash(&mut hasher);
+    }
+    let key = hasher.finish();
+
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+    let mut guard = cache.lock().ok()?;
+    if let Some((cached_key, cached_rules)) = guard.as_ref() {
+        if *cached_key == key {
+            return Some(Arc::clone(cached_rules));
+        }
+    }
+
+    let mut compiler = Compiler::new();
+    for (name, _, source) in rows {
+        if let Err(e) = compiler.add_source(source.as_str()) {
+            log::warn!("YARA rule '{name}' failed to compile, skipping: {e}");
+        }
+    }
+    let rules = Arc::new(compiler.build());
+    *guard = Some((key, Arc::clone(&rules)));
+    Some(rules)
 }
 
 fn severity_to_verdict(severity: &str) -> (String, f32) {
@@ -134,43 +187,9 @@ fn severity_to_verdict(severity: &str) -> (String, f32) {
     }
 }
 
-/// Extract double-quoted string literals from a YARA rule source.
-fn extract_string_literals(source: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let bytes = source.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'"' {
-            let start = i + 1;
-            let mut j = start;
-            while j < bytes.len() && bytes[j] != b'"' {
-                j += 1;
-            }
-            if j <= bytes.len() && j > start {
-                if let Ok(s) = std::str::from_utf8(&bytes[start..j]) {
-                    if !s.is_empty() {
-                        out.push(s.to_string());
-                    }
-                }
-            }
-            i = j + 1;
-        } else {
-            i += 1;
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn extract_literals() {
-        let src = r#"rule R { strings: $a = "EICAR-STANDARD-ANTIVIRUS-TEST-FILE" condition: $a }"#;
-        let lits = extract_string_literals(src);
-        assert_eq!(lits, vec!["EICAR-STANDARD-ANTIVIRUS-TEST-FILE".to_string()]);
-    }
 
     #[test]
     fn severity_mapping() {
@@ -178,12 +197,75 @@ mod tests {
         assert_eq!(severity_to_verdict("low").0, "Suspicious");
     }
 
+    /// Real YARA rule syntax literal matching could never express: a hex
+    /// byte pattern with a wildcard nibble, condition on the pattern being
+    /// present. This is the actual gap Phase 66 exists to close.
     #[test]
-    fn aho_corasick_matches_literal() {
-        let pats = vec![b"BADSTRING".to_vec()];
-        let ac = AhoCorasick::new(&pats).unwrap();
-        assert!(ac.find(b"xx BADSTRING yy").is_some());
-        assert!(ac.find(b"clean content").is_none());
+    fn compiles_and_matches_hex_wildcard_pattern() {
+        let src = r#"
+            rule HexWildcard {
+                strings:
+                    $a = { 4D 5A ?? 00 03 00 00 00 }
+                condition:
+                    $a
+            }
+        "#;
+        let mut compiler = Compiler::new();
+        compiler.add_source(src).expect("valid YARA source must compile");
+        let rules = compiler.build();
+        let mut scanner = Scanner::new(&rules);
+
+        let matching = [0x4D, 0x5A, 0xAB, 0x00, 0x03, 0x00, 0x00, 0x00];
+        let results = scanner.scan(&matching).unwrap();
+        assert_eq!(results.matching_rules().count(), 1);
+
+        let mut scanner = Scanner::new(&rules);
+        let non_matching = [0x00, 0x01, 0x02];
+        let results = scanner.scan(&non_matching).unwrap();
+        assert_eq!(results.matching_rules().count(), 0);
+    }
+
+    /// Real YARA boolean condition logic (`$a and $b`) — also inexpressible
+    /// with plain substring matching.
+    #[test]
+    fn compiles_and_matches_boolean_condition() {
+        let src = r#"
+            rule NeedsBoth {
+                strings:
+                    $a = "MALICIOUS_MARKER_A"
+                    $b = "MALICIOUS_MARKER_B"
+                condition:
+                    $a and $b
+            }
+        "#;
+        let mut compiler = Compiler::new();
+        compiler.add_source(src).unwrap();
+        let rules = compiler.build();
+
+        let mut scanner = Scanner::new(&rules);
+        let both = b"...MALICIOUS_MARKER_A...MALICIOUS_MARKER_B...";
+        assert_eq!(scanner.scan(both).unwrap().matching_rules().count(), 1);
+
+        let mut scanner = Scanner::new(&rules);
+        let only_one = b"...MALICIOUS_MARKER_A...";
+        assert_eq!(scanner.scan(only_one).unwrap().matching_rules().count(), 0);
+    }
+
+    #[test]
+    fn match_patterns_skips_malformed_rule_without_aborting_others() {
+        let rows = vec![
+            ("Broken".to_string(), "high".to_string(), "this is not valid YARA".to_string()),
+            (
+                "Good".to_string(),
+                "critical".to_string(),
+                r#"rule Good { strings: $a = "FINDME" condition: $a }"#.to_string(),
+            ),
+        ];
+        let rules = compiled_rules(&rows).expect("build must succeed by skipping the bad rule");
+        let mut scanner = Scanner::new(&rules);
+        let results = scanner.scan(b"...FINDME...").unwrap();
+        let names: Vec<&str> = results.matching_rules().map(|r| r.identifier()).collect();
+        assert_eq!(names, vec!["Good"]);
     }
 
     #[test]

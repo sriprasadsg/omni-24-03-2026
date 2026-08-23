@@ -41,8 +41,13 @@ regex = "1"
 notify = "8"
 tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 futures-util = { version = "0.3", features = ["sink"] }
-aho-corasick = "1.1.4"
 once_cell = "1.19"
+# Phase 66 (NSCAN YARA engine): real YARA rule compilation/evaluation for
+# native file scanning. Pulls in wasmtime+cranelift (JIT) — a deliberate,
+# accepted reversal of Phase 50's decision to avoid that dependency; see the
+# ENGINE NOTE in capabilities/security_scan.rs. Re-verify cross-compile
+# targets before shipping.
+yara-x = "1.19.0"
 # Phase 64 (rotate_key): SSH authorized_keys parse/generate/fingerprint (pure Rust, no C deps).
 ssh-key = { version = "0.6.7", default-features = false, features = ["alloc", "std", "rand_core", "ed25519", "rsa", "dsa"] }
 libc = "0.2"
