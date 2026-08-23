@@ -1,6 +1,6 @@
 // frontend/routes/itamRoutes.tsx
 import React from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 import PurchaseOrderList from '../components/itam/procurement/PurchaseOrderList';
 import PurchaseOrderDetail from '../components/itam/procurement/PurchaseOrderDetail';
 

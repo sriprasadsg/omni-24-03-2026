@@ -9,7 +9,6 @@ if (!import.meta.env.DEV) {
   console.log = () => {};
 }
 import { ThemeProvider } from './contexts/ThemeProvider';
-import { ROUTE_MAP } from './src/router/routes';
 import { Header } from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './components/LoginPage';
@@ -32,7 +31,6 @@ import TaskList from './components/TaskList';
 import TaskForm from './components/TaskForm';
 
 // ── Lazy-loaded dashboard components ──────────────────────────────────────────
-// Moved to src/router/routes.tsx
 const ABTestingDashboard = lazy(() => import('./components/ABTestingDashboard').then(m => ({ default: m.ABTestingDashboard })));
 const AccessReviewDashboard = lazy(() => import('./components/AccessReviewDashboard').then(m => ({ default: m.default })));
 const AdvancedBiDashboard = lazy(() => import('./components/AdvancedBiDashboard').then(m => ({ default: m.AdvancedBiDashboard })));
@@ -93,6 +91,9 @@ const IncidentWarRoomDashboard = lazy(() => import('./components/IncidentWarRoom
 const InsiderThreatDashboard = lazy(() => import('./components/InsiderThreatDashboard').then(m => ({ default: m.default })));
 const InvoiceList = lazy(() => import('./components/InvoiceList').then(m => ({ default: m.default })));
 const ITAMConsole = lazy(() => import('./components/itam/ITAMConsole').then(m => ({ default: m.default })));
+const EnhancedVectorDashboard = lazy(() => import('./components/EnhancedVectorDashboard').then(m => ({ default: m.default })));
+const FederatedLearningDashboard = lazy(() => import('./components/FederatedLearningDashboard').then(m => ({ default: m.default })));
+const WebGPUDashboard = lazy(() => import('./components/WebGPUDashboard').then(m => ({ default: m.default })));
 const JITAccessDashboard = lazy(() => import('./components/JITAccessDashboard').then(m => ({ default: m.default })));
 const K8sSecurityDashboard = lazy(() => import('./components/K8sSecurityDashboard').then(m => ({ default: m.default })));
 const KnowledgeBaseDashboard = lazy(() => import('./components/KnowledgeBaseDashboard').then(m => ({ default: m.default })));
@@ -218,6 +219,9 @@ const SecurityCopilotDashboard = lazy(() => import('./components/SecurityCopilot
 const TicketingIntegration = lazy(() => import('./components/TicketingIntegration').then(m => ({ default: m.TicketingIntegration || m.default || Object.values(m)[0] })));
 const TicketWebhooksDashboard = lazy(() => import('./components/TicketWebhooksDashboard').then(m => ({ default: m.TicketWebhooksDashboard || m.default || Object.values(m)[0] })));
 const YaraRuleEditor = lazy(() => import('./components/YaraRuleEditor').then(m => ({ default: m.YaraRuleEditor || m.default || Object.values(m)[0] })));
+const BundleManagementDashboard = lazy(() => import('./components/BundleManagementDashboard').then(m => ({ default: m.default || m.BundleManagementDashboard || Object.values(m)[0] })));
+const SwarmDashboard = lazy(() => import('./components/SwarmDashboard').then(m => ({ default: m.default || m.SwarmDashboard || Object.values(m)[0] })));
+const SystemHealthDashboard = lazy(() => import('./components/SystemHealthDashboard').then(m => ({ default: m.SystemHealthDashboard || m.default || Object.values(m)[0] })));
 
 
 
@@ -434,6 +438,9 @@ const viewPermissionMap: Record<AppView, Permission> = {
   stagedDeployments: 'view:software_deployment',
   nativeSecurity: 'manage:active_response',
   itam: 'view:itam',
+  customerVectorDB: 'view:vector_db',
+  federatedLearning: 'view:federated_learning',
+  webgpuInference: 'view:webgpu_inference',
 };
 
 
@@ -1918,6 +1925,9 @@ const App: React.FC = () => {
       case 'fleetGeoMap': return <ErrorBoundary name="FleetGeoMap"><FleetGeoMap /></ErrorBoundary>;
       case 'nativeSecurity': return <ErrorBoundary name="NativeSecurityConsole"><NativeSecurityConsole /></ErrorBoundary>;
       case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' || currentUser.role === 'super_admin'} /></ErrorBoundary>;
+      case 'customerVectorDB': return <ErrorBoundary name="EnhancedVectorDashboard"><Suspense fallback={<SkeletonDashboard />}><EnhancedVectorDashboard /></Suspense></ErrorBoundary>;
+      case 'federatedLearning': return <ErrorBoundary name="FederatedLearningDashboard"><Suspense fallback={<SkeletonDashboard />}><FederatedLearningDashboard /></Suspense></ErrorBoundary>;
+      case 'webgpuInference': return <ErrorBoundary name="WebGPUDashboard"><Suspense fallback={<SkeletonDashboard />}><WebGPUDashboard /></Suspense></ErrorBoundary>;
       case 'privacyLegal': return <ErrorBoundary name="PrivacyLegalDashboard"><PrivacyLegalDashboard /></ErrorBoundary>;
       case 'scheduledReports': return <ErrorBoundary name="ScheduledReportsDashboard"><ScheduledReportsDashboard /></ErrorBoundary>;
       case 'secretsManagement': return <ErrorBoundary name="SecretsManagementDashboard"><SecretsManagementDashboard /></ErrorBoundary>;
