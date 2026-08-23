@@ -76,9 +76,13 @@ fn test_config_registered_means_token_nonempty() {
 // ─── capability manager tests ─────────────────────────────────────────────
 
 #[test]
-fn test_capability_manager_has_15_capabilities() {
+fn test_capability_manager_has_20_capabilities() {
     let mgr = CapabilityManager::new();
-    assert_eq!(mgr.ids().len(), 15, "expected 15 capabilities");
+    // 18 real collectors (CapabilityManager::new's self.caps) plus 2
+    // instruction-only, heartbeat-advertised-but-not-collected ids
+    // (chat_window, ticket_reporter) that mgr.ids() appends — see
+    // CapabilityManager::ids in src/capabilities/mod.rs.
+    assert_eq!(mgr.ids().len(), 20, "expected 20 capability ids (18 collectors + chat_window + ticket_reporter)");
 }
 
 #[test]
@@ -86,23 +90,25 @@ fn test_capability_ids_match_expected_set() {
     let mgr = CapabilityManager::new();
     let ids = mgr.ids();
     let expected = [
-        "metrics_collection", "log_collection", "fim",
+        "metrics_collection", "process_monitor", "persistence_detection",
+        "pii_scanner", "log_collection", "fim",
         "vulnerability_scanning", "compliance_enforcement",
         "runtime_security", "predictive_health", "ueba",
         "sbom_analysis", "ebpf_tracing", "system_patching",
         "software_management", "remote_access", "network_discovery",
-        "agent_update",
+        "agent_update", "chat_window", "ticket_reporter",
     ];
     for id in &expected {
         assert!(ids.contains(id), "missing capability: {}", id);
     }
+    assert_eq!(ids.len(), expected.len(), "capability set drifted — update this test's expected list");
 }
 
 #[test]
 fn test_collect_all_no_panics() {
     let mgr = CapabilityManager::new();
     let results = mgr.collect_all(&System::new_all());
-    assert_eq!(results.len(), 15);
+    assert_eq!(results.len(), 18, "collect_all iterates the 18 registered collectors (not chat_window/ticket_reporter)");
     for (id, val) in &results {
         assert!(val.is_object(), "capability '{}' returned non-object: {}", id, val);
     }
@@ -113,7 +119,7 @@ fn test_capability_statuses_structure() {
     let mgr = CapabilityManager::new();
     let results = mgr.collect_all(&System::new_all());
     let statuses = mgr.statuses(&results);
-    assert_eq!(statuses.len(), 15);
+    assert_eq!(statuses.len(), 18, "statuses iterates the 18 registered collectors (not chat_window/ticket_reporter)");
     for s in &statuses {
         assert!(s.get("id").is_some());
         assert!(s.get("name").is_some());
@@ -201,15 +207,21 @@ fn test_predictive_health_schema() {
     use omni_agent::capabilities::predictive_health::PredictiveHealthCapability;
     use omni_agent::capabilities::Capability;
     let v = PredictiveHealthCapability::new().collect(&System::new_all());
+    // `predictions` was redesigned from an object of *_exhaustion_hours keys
+    // to a 24-element hourly forecast array (predictive_health.rs:91-105).
     for key in &["cpu_trend", "memory_trend", "disk_trend",
                  "current_cpu_percent", "current_memory_percent", "current_disk_percent",
+                 "current_score", "warnings", "history_points", "timestamp",
                  "predictions"] {
         assert!(v.get(key).is_some(), "missing field: {}", key);
     }
-    let preds = &v["predictions"];
-    assert!(preds.get("cpu_exhaustion_hours").is_some());
-    assert!(preds.get("memory_exhaustion_hours").is_some());
-    assert!(preds.get("disk_exhaustion_hours").is_some());
+    let preds = v["predictions"].as_array().expect("predictions should be an array");
+    assert_eq!(preds.len(), 24, "predictions should be a 24-hour forecast");
+    for hour in preds {
+        for key in &["timestamp", "cpu_prediction", "memory_prediction", "health_score"] {
+            assert!(hour.get(key).is_some(), "prediction entry missing {}", key);
+        }
+    }
 }
 
 #[test]
@@ -217,11 +229,13 @@ fn test_fim_collect_schema() {
     use omni_agent::capabilities::fim::FimCapability;
     use omni_agent::capabilities::Capability;
     let v = FimCapability.collect(&System::new_all());
-    assert!(v.get("monitored_files").is_some(), "missing monitored_files");
-    assert!(v.get("changed_files").is_some(),   "missing changed_files");
-    assert!(v.get("files").is_some(),           "missing files array");
-    assert!(v.get("timestamp").is_some(),       "missing timestamp");
-    assert!(v["files"].is_array(),              "files should be an array");
+    // fim.rs's collect() was rewritten to report watcher status instead of
+    // poll-hashing (fim.rs:425-428) — see get_status().
+    assert!(v.get("watching").is_some(),      "missing watching");
+    assert!(v.get("watched_paths").is_some(), "missing watched_paths");
+    assert!(v.get("paths").is_some(),         "missing paths array");
+    assert!(v.get("queued").is_some(),        "missing queued");
+    assert!(v["paths"].is_array(),            "paths should be an array");
 }
 
 // ─── heartbeat payload tests ──────────────────────────────────────────────
@@ -251,8 +265,11 @@ fn test_heartbeat_payload_top_level_fields() {
     assert!(payload.get("hostname").is_some());
     assert_eq!(payload["tenantId"], "tenant_test");
     assert_eq!(payload["status"], "Online");
-    assert_eq!(payload["platform"], "Windows");
-    assert_eq!(payload["version"], "2.0.0");
+    // platform/version are derived (heartbeat.rs:352-353) — assert the same
+    // derivation rather than a value locked to whatever OS/version happened
+    // to be current when this test was written.
+    assert_eq!(payload["platform"], if cfg!(windows) { "Windows" } else { "Linux" });
+    assert_eq!(payload["version"], env!("CARGO_PKG_VERSION"));
     assert!(payload.get("ipAddress").is_some());
     assert!(payload.get("meta").is_some());
 }
@@ -262,7 +279,10 @@ fn test_heartbeat_payload_capabilities_present() {
     let payload = make_payload();
     let meta = &payload["meta"];
     let caps = meta["capabilities"].as_array().expect("capabilities should be array");
-    assert_eq!(caps.len(), 15, "heartbeat must include all 15 capability IDs");
+    // heartbeat.rs:242/338 sources this from CapabilityManager::ids(), which
+    // is 18 collectors + chat_window + ticket_reporter — see
+    // test_capability_manager_has_20_capabilities.
+    assert_eq!(caps.len(), 20, "heartbeat must include all 20 capability IDs");
     assert!(meta.get("capabilities_status").is_some());
 }
 
