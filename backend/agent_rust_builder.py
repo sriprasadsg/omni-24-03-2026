@@ -103,27 +103,56 @@ interval_seconds: 30
 $agentExe = "$D\\omni-agent.exe"
 $svcName   = "OmniAgentRust"
 
-# Remove any previous installation cleanly
+# Remove any previous installation cleanly, then WAIT for Windows to actually
+# release the service name before creating the new one. A flat sleep isn't
+# reliable headroom for SCM's async pending-delete teardown — sc.exe create
+# fails with 1072 ("marked for deletion") if it runs while the old service is
+# still draining, which is exactly what silently left hosts with no
+# OmniAgentRust service at all after a reinstall (this poll-loop replaces
+# that flat sleep; the retry loop below on sc.exe create is defense in depth
+# for the same race).
 $existing = Get-Service -Name $svcName -ErrorAction SilentlyContinue
 if ($existing) {{
     Write-Host "Stopping existing $svcName service..."
     Stop-Service -Name $svcName -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
     & sc.exe delete $svcName | Out-Null
-    Start-Sleep -Seconds 2
+
+    $cleared = $false
+    for ($i = 0; $i -lt 15; $i++) {{
+        Start-Sleep -Seconds 1
+        if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue)) {{ $cleared = $true; break }}
+    }}
+    if (-not $cleared) {{
+        Write-Error "Timed out waiting for Windows to release the '$svcName' service after delete (still pending after 15s) — a previous instance may still be shutting down. Re-run this installer, or reboot and retry."
+    }}
 }}
 
 # Register omni-agent.exe as a Windows Service via sc.exe
 # The binary handles StartServiceCtrlDispatcher internally — no wrapper needed
 Write-Host "Creating Windows Service: $svcName"
-$createOut = & sc.exe create $svcName `
-    binPath= "`"$agentExe`"" `
-    start=   auto `
-    obj=     LocalSystem `
-    DisplayName= "Enterprise OmniAgent (Rust)" 2>&1
-if ($LASTEXITCODE -ne 0) {{
-    # 1072 = marked for deletion (previous delete still pending — close services.msc / reboot)
-    Write-Error "sc.exe create failed (exit $LASTEXITCODE): $createOut"
+$created = $false
+$createOut = $null
+$attempt = 0
+for ($attempt = 1; $attempt -le 3 -and -not $created; $attempt++) {{
+    $createOut = & sc.exe create $svcName `
+        binPath= "`"$agentExe`"" `
+        start=   auto `
+        obj=     LocalSystem `
+        DisplayName= "Enterprise OmniAgent (Rust)" 2>&1
+    if ($LASTEXITCODE -eq 0) {{
+        $created = $true
+    }} elseif ($LASTEXITCODE -eq 1072 -and $attempt -lt 3) {{
+        # Still marked for deletion despite the wait above — give SCM a bit more time.
+        Write-Host "sc.exe create returned 1072 (service still pending deletion) — retrying in 3s (attempt $attempt/3)..."
+        Start-Sleep -Seconds 3
+    }}
+}}
+if (-not $created) {{
+    # $ErrorActionPreference = 'Stop' (top of script) turns this into a terminating
+    # error, so this script — and the nsExec::ExecToLog call that runs it — exits
+    # non-zero. The NSIS installer now checks that exit code and aborts instead of
+    # reporting success with no service actually created.
+    Write-Error "sc.exe create failed after $attempt attempt(s) (exit $LASTEXITCODE): $createOut"
 }}
 
 & sc.exe description $svcName "Lightweight AI security agent - Rust edition v{version}" | Out-Null
@@ -189,6 +218,7 @@ def _build_nsi_rust(tenant_name: str, pkg_dir: Path, outfile: str, version: str)
     )
     return f"""; OmniAgent Rust Installer — auto-generated
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 Name "OmniAgent Rust {version} — {esc(tenant_name)}"
 OutFile "{outfile}"
 InstallDir "$PROGRAMFILES64\\OmniAgentRust"
@@ -216,7 +246,17 @@ Section "OmniAgent (Rust)"
   SetOutPath "$INSTDIR"
   SetOverwrite on
 {files}
+  ; setup_svc.ps1's exit code is checked, not discarded — it's what previously let a
+  ; failed service-creation (e.g. the old service still pending deletion, error 1072)
+  ; report install success anyway and leave the host with no OmniAgentRust service at
+  ; all. Abort instead of writing success registry keys / showing the finish page.
   nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\\setup_svc.ps1"'
+  Pop $0
+  ${{If}} $0 != 0
+    DetailPrint "setup_svc.ps1 failed (exit code $0) — the Windows service was not created."
+    MessageBox MB_OK|MB_ICONSTOP "OmniAgent service setup failed (exit code $0).$\\r$\\nSee $INSTDIR\\logs\\install.log for details, then re-run this installer.$\\r$\\nInstallation will now abort so you are not left without the agent running."
+    Abort
+  ${{EndIf}}
   WriteRegStr   HKLM "${{UNINST}}" "DisplayName"     "OmniAgent (Rust Edition)"
   WriteRegStr   HKLM "${{UNINST}}" "DisplayVersion"  "{version}"
   WriteRegStr   HKLM "${{UNINST}}" "Publisher"       "Enterprise OmniAgent AI Platform"
