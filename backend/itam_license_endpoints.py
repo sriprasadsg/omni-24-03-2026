@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
 from itam_models import LicenseCreate, LicenseUpdate, LicenseSeatAssignmentRequest
 from itam_license_service import (
@@ -87,7 +87,7 @@ async def create_license(
 @router.get("", response_model=List[Dict[str, Any]])
 async def list_licenses(
     limit: int = Query(200, ge=1, le=500),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Lists all software licenses."""
     db = get_database()
@@ -102,7 +102,7 @@ async def list_licenses(
 @router.get("/{license_id}", response_model=Dict[str, Any])
 async def get_license(
     license_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Retrieves a specific license by ID."""
     db = get_database()
@@ -174,7 +174,7 @@ async def assign_license(
 @router.get("/{license_id}/assignments", response_model=List[Dict[str, Any]])
 async def list_assignments(
     license_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Lists current assignments for a license."""
     db = get_database()

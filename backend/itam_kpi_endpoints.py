@@ -6,9 +6,9 @@ itam_reporting_endpoints.py's `/api/itam/reports` (not a sub-path of it), so
 no path declared in this file can ever shadow or be shadowed by a report
 route regardless of registration order.
 
-Reuses `_require_itam_admin` from itam_asset_endpoints.py — imported, never
-redefined, the same manage:assets RBAC gate every other itam_*_endpoints.py
-router uses (D-07).
+Reuses `_require_itam_viewer` from itam_asset_endpoints.py — imported, never
+redefined; this is a read-only route so it accepts view:itam (not just
+manage:assets), unlike the write-gated itam_*_endpoints.py routers (D-07).
 """
 import logging
 from typing import Any, Dict
@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from auth_types import TokenData
 from database import get_database
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_viewer
 from itam_reporting_kpis import compute_itam_kpis
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/itam/kpis", tags=["ITAM KPIs"])
 
 
 @router.get("", response_model=Dict[str, Any])
-async def get_itam_kpis(current_user: TokenData = Depends(_require_itam_admin)):
+async def get_itam_kpis(current_user: TokenData = Depends(_require_itam_viewer)):
     """Returns the four D-16 KPI payloads for the caller's tenant.
 
     403 when the caller has no tenant id — mirrors

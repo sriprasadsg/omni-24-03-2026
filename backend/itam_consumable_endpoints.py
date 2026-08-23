@@ -6,7 +6,7 @@ from typing import List
 from errors import APIError
 from dependencies import PyObjectId
 from auth_types import TokenData
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
 from itam_models import Consumable, ConsumableCreate, ConsumableUpdate, ConsumableCheckoutRequest
 from itam_consumable_service import ConsumableService, get_consumable_service
@@ -47,7 +47,7 @@ async def list_consumables_endpoint(
     skip: int = 0,
     limit: int = 100,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     return await consumable_service.get_consumables(skip=skip, limit=limit, current_user=current_user)
 
@@ -61,7 +61,7 @@ async def list_consumables_endpoint(
 async def get_consumable_endpoint(
     consumable_id: str,
     consumable_service: ConsumableService = Depends(get_consumable_service),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     consumable = await consumable_service.get_consumable(consumable_id, current_user=current_user)
     if not consumable:

@@ -27,7 +27,7 @@ from pymongo.errors import DuplicateKeyError
 from auth_types import TokenData
 from cache_service import invalidate_cache
 from database import get_database
-from itam_asset_endpoints import _require_itam_admin, build_asset_document, next_asset_tag
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer, build_asset_document, next_asset_tag
 from itam_audit_service import log_itam_action
 from itam_catalog_service import collect_field_defs, validate_custom_field_values
 from itam_data_service import (
@@ -57,7 +57,7 @@ _READ_CHUNK_SIZE = 65536  # 64 KiB
 async def export_assets(
     entity: str = Query("assets"),
     modelId: Optional[str] = Query(None),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Export the tenant's asset inventory to CSV.
 

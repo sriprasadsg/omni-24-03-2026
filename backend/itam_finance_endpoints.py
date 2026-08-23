@@ -24,7 +24,7 @@ from pymongo import ReturnDocument
 
 from auth_types import TokenData
 from database import get_database
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
 from itam_models import AssetPurchaseUpdate
 from itam_finance_service import (
@@ -115,7 +115,7 @@ async def update_asset_purchase(
 @router.get("/{asset_id}/book-value", status_code=status.HTTP_200_OK, response_model=Dict[str, Any])
 async def get_asset_book_value(
     asset_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Computes an asset's current straight-line book value at read time
     (ITAM-FIN-03). Never writes anything — the book value is computed per
@@ -176,7 +176,7 @@ async def get_asset_book_value(
 @router.get("/{asset_id}/warranty", status_code=status.HTTP_200_OK, response_model=Dict[str, Any])
 async def get_asset_warranty(
     asset_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Reports an asset's warranty expiry, status, remaining days, and the
     tenant's configured alert window (ITAM-FIN-02). Read-only — performs no

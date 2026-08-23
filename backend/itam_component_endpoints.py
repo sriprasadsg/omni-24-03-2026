@@ -6,7 +6,7 @@ from typing import List
 from errors import APIError
 from dependencies import PyObjectId
 from auth_types import TokenData
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
 from itam_models import Component, ComponentCreate, ComponentUpdate
 from itam_component_service import ComponentService, get_component_service
@@ -31,7 +31,7 @@ asset_components_router = APIRouter(prefix="/api/assets", tags=["ITAM Components
 async def list_asset_components_endpoint(
     asset_id: str,
     component_service: ComponentService = Depends(get_component_service),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     return await component_service.list_components_for_asset(asset_id, current_user=current_user)
 
@@ -69,7 +69,7 @@ async def list_components_endpoint(
     skip: int = 0,
     limit: int = 100,
     component_service: ComponentService = Depends(get_component_service),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     return await component_service.get_components(skip=skip, limit=limit, current_user=current_user)
 

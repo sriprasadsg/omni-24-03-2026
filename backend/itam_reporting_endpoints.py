@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse
 
 from auth_types import TokenData
 from database import get_database
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_reporting_filters import CustomReportDefinition, list_report_fields
 from itam_reporting_prebuilt import list_prebuilt_reports
 from itam_reporting_service import (
@@ -46,7 +46,7 @@ _SUPER_ADMIN_ROLES = {"Super Admin", "super_admin", "superadmin", "platform-admi
 
 
 @router.get("")
-async def list_reports(current_user: TokenData = Depends(_require_itam_admin)):
+async def list_reports(current_user: TokenData = Depends(_require_itam_viewer)):
     """The pre-built section's card list — fixed, code-defined metadata,
     never a database read (D-09)."""
     return list_prebuilt_reports()
@@ -132,7 +132,7 @@ async def export_prebuilt_report(
 @router.get("/download/{filename}")
 async def download_report(
     filename: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Cloned verbatim from compliance_report_endpoints.download_report
     (T-72-03/T-72-04): path-traversal-safe resolution rejected with 400
@@ -202,7 +202,7 @@ def _paginate(report: Dict[str, Any], page: int, page_size: int) -> Dict[str, An
 
 
 @router.get("/fields")
-async def get_report_fields(current_user: TokenData = Depends(_require_itam_admin)):
+async def get_report_fields(current_user: TokenData = Depends(_require_itam_viewer)):
     """The closed field allowlist the builder's picker renders and the
     filter translator validates against — the picker can never offer a
     field the backend would refuse (T-72-07)."""
@@ -236,7 +236,7 @@ async def create_custom_report(
 
 
 @router.get("/custom")
-async def list_custom_reports(current_user: TokenData = Depends(_require_itam_admin)):
+async def list_custom_reports(current_user: TokenData = Depends(_require_itam_viewer)):
     """Lists the tenant's saved definitions, newest first — visible to and
     re-runnable by any user in the tenant with builder access, not only
     their creator (D-04)."""
@@ -267,7 +267,7 @@ async def preview_custom_report(
 @router.get("/custom/{report_id}")
 async def get_custom_report(
     report_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     db = get_database()
     doc = await db.itam_reports.find_one({"id": report_id}, {"_id": 0})

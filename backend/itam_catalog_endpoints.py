@@ -94,6 +94,34 @@ async def _require_itam_admin(current_user: TokenData = Depends(get_current_user
         )
     return current_user
 
+
+async def _require_itam_viewer(current_user: TokenData = Depends(get_current_user_or_api_key)):
+    """
+    Dependency for read-only ITAM catalog access — accepts either 'view:itam'
+    or 'manage:assets' (every manage:assets holder can also read).
+
+    NOTE: this is an INDEPENDENT DUPLICATE of itam_asset_endpoints._require_itam_viewer
+    (same two permission strings, different 403 detail text — it is not an
+    import), matching this file's existing _require_itam_admin duplication
+    convention (T-73-04). Both viewer definitions must move together on any
+    future change, same as the two admin definitions already do.
+    """
+    has_view = await verify_permission(current_user, "view:itam")
+    has_manage = await verify_permission(current_user, "manage:assets")
+    if not (has_view or has_manage):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to view ITAM catalog entities"
+        )
+    if not (_rbac_service._scopes_allow(current_user, "view:itam")
+            or _rbac_service._scopes_allow(current_user, "manage:assets")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key scope does not permit: view:itam"
+        )
+    return current_user
+
+
 def _resolve_kind(kind: str) -> str:
     """
     Resolves the URL 'kind' segment to its corresponding MongoDB collection name.
@@ -194,7 +222,7 @@ async def create_catalog_entity(
 async def list_catalog_entities(
     kind: str,
     limit: int = Query(200, ge=1, le=500),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """
     Retrieves a list of ITAM catalog entities.
@@ -209,7 +237,7 @@ async def list_catalog_entities(
 @router.get("/models/{model_id}/fields", status_code=status.HTTP_200_OK, response_model=Dict[str, Any])
 async def get_asset_model_fields(
     model_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """
     Returns an asset Model's custom-field definitions flattened for display, plus a
@@ -257,7 +285,7 @@ async def get_asset_model_fields(
 async def get_catalog_entity_by_id(
     kind: str,
     entity_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """
     Retrieves a specific ITAM catalog entity by its ID.

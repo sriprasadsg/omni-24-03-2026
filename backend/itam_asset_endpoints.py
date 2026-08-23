@@ -65,6 +65,34 @@ async def _require_itam_admin(current_user: TokenData = Depends(get_current_user
     return current_user
 
 
+async def _require_itam_viewer(current_user: TokenData = Depends(get_current_user_or_api_key)):
+    """
+    Dependency for read-only ITAM access — accepts either 'view:itam' or
+    'manage:assets' (every manage:assets holder can also read).
+
+    Closes the gap where itam_user/itam_viewer roles carry 'view:itam' (which
+    is what gates the ITAM nav item) but not 'manage:assets' — before this,
+    every ITAM GET/list route hard-required 'manage:assets', so those two
+    roles could see the ITAM console in navigation and then get 403'd on
+    nearly everything inside it. Mutating routes are unaffected — they still
+    require _require_itam_admin ('manage:assets').
+    """
+    has_view = await verify_permission(current_user, "view:itam")
+    has_manage = await verify_permission(current_user, "manage:assets")
+    if not (has_view or has_manage):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have permission to view ITAM assets."
+        )
+    if not (_rbac_service._scopes_allow(current_user, "view:itam")
+            or _rbac_service._scopes_allow(current_user, "manage:assets")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key scope does not permit: view:itam"
+        )
+    return current_user
+
+
 async def _require_itam_admin_session_only(current_user: TokenData = Depends(get_current_user)):
     """
     Session-only sibling of _require_itam_admin (role check only, no API-key

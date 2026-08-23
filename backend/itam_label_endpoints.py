@@ -23,7 +23,7 @@ from fastapi.responses import StreamingResponse
 
 from auth_types import TokenData
 from database import get_database
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_label_service import LabelEncodingError, generate_barcode_png, generate_label_sheet_pdf, generate_qr_png
 from itam_models import MAX_LABEL_SHEET_ASSETS, LabelSheetRequest
 
@@ -90,7 +90,7 @@ async def _resolve_tag_for_label(current_user: TokenData, asset_id: str) -> str:
 @router.get("/{asset_id}/label/qr")
 async def get_asset_qr_label(
     asset_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Return a PNG QR code encoding one asset's bare assetTag (D-02)."""
     asset_tag = await _resolve_tag_for_label(current_user, asset_id)
@@ -114,7 +114,7 @@ async def get_asset_qr_label(
 @router.get("/{asset_id}/label/barcode")
 async def get_asset_barcode_label(
     asset_id: str,
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Return a PNG Code128 barcode encoding one asset's bare assetTag (D-02)."""
     asset_tag = await _resolve_tag_for_label(current_user, asset_id)

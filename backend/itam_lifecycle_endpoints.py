@@ -18,7 +18,7 @@ from pymongo import ReturnDocument
 from auth_types import TokenData
 from database import get_database
 from cache_service import invalidate_cache
-from itam_asset_endpoints import _require_itam_admin
+from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
 from itam_models import AuditMarkRequest, CheckinRequest, CheckoutRequest, LifecycleStatus
 from itam_lifecycle_service import (
@@ -380,7 +380,7 @@ async def checkin_asset(
 async def list_assignment_history(
     asset_id: str,
     limit: int = Query(100, ge=1, le=500),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Read one asset's full assignment-history trail, newest first (ITAM-LIFE-04).
 
@@ -566,7 +566,7 @@ def _overdue_row(doc: Dict[str, Any], cutoff: str, now: datetime) -> Dict[str, A
 @router.get("/reports/overdue-audit", response_model=Dict[str, Any])
 async def overdue_audit_report(
     limit: int = Query(200, ge=1, le=1000),
-    current_user: TokenData = Depends(_require_itam_admin),
+    current_user: TokenData = Depends(_require_itam_viewer),
 ):
     """Report every asset overdue for physical audit (ITAM-LIFE-05), computed at
     request time against the fixed `AUDIT_INTERVAL_DAYS` interval — deliberately
