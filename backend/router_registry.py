@@ -204,6 +204,9 @@ def register_all_routers(app: FastAPI) -> None:
 
     # ── AI & Data Science ─────────────────────────────────────────────────────
     _load(app, "ai_endpoints",             "router")
+    _load(app, "federated_learning_endpoints", "router")
+    _load(app, "webgpu_inference_endpoints",   "router")
+    _load(app, "customer_vector_db_endpoints", "router")
     _load(app, "ai_assistant_endpoints",   "router")
     _load(app, "ai_supervisor_endpoints",  "router")
     _load(app, "framework_mappings_endpoints", "router")
@@ -316,7 +319,6 @@ def register_all_routers(app: FastAPI) -> None:
     # ── Optional / Feature Routers (non-fatal if missing) ────────────────────
     _OPTIONAL: list[tuple[str, dict]] = [
         ("ab_testing_endpoints",            {}),
-        ("agent_remote_control",            {}),
         ("approval_endpoints",              {}),
         ("binary_analysis_endpoints",       {}),
         ("capability_endpoints",            {}),

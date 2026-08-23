@@ -4,7 +4,7 @@ import { ServerIcon, ZapIcon, CheckIcon, AlertTriangleIcon, CogIcon, PlusCircleI
 import { Agent, AgenticStep, LogEntry, Asset, AgentUpgradeJob, Filter, Tenant } from '../types';
 import { AgentLogsModal } from './AgentLogsModal';
 import { AgentInstallation } from './AgentInstallation';
-import { generateAgenticPlan, runAgentDiagnostics, restartAgent, deleteAgent, quarantineAgent, setAgentSoftwareExclusion, fetchAgents } from '../services/apiService';
+import { generateAgenticPlan, runAgentDiagnostics, deleteAgent, quarantineAgent, setAgentSoftwareExclusion, fetchAgents } from '../services/apiService';
 import { AutonomousOpsLog } from './AutonomousOpsLog';
 import { useUser } from '@/contexts/UserContext';
 import { AgentDetailModal } from './AgentDetailModal';
@@ -12,7 +12,6 @@ import { RemediationLogsModal } from './RemediationLogsModal';
 import { RemediationConfirmationModal } from './RemediationConfirmationModal';
 import { AgentUpgradeManager } from './AgentUpgradeManager';
 import { ManageAgentCapabilitiesModal } from './ManageAgentCapabilitiesModal';
-import AgentRemoteControl from './AgentRemoteControl';
 import { UpgradeModal } from './UpgradeModal';
 import { fetchKpiSummary } from '../services/apiService';
 import { showToast } from '../utils/toast';
@@ -68,7 +67,6 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
   const [viewingRemediationLogsForAgent, setViewingRemediationLogsForAgent] = useState<Agent | null>(null);
   const [agentsToConfirmRemediation, setAgentsToConfirmRemediation] = useState<Agent[]>([]);
   const [managingCapabilitiesFor, setManagingCapabilitiesFor] = useState<Agent | null>(null);
-  const [remoteControlAgent, setRemoteControlAgent] = useState<Agent | null>(null);
 
   const upgradeManagerRef = useRef<HTMLDivElement>(null);
 
@@ -255,19 +253,6 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
       startRemediation(agentsToConfirmRemediation[0]);
     }
     setAgentsToConfirmRemediation([]);
-    setSelectedAgentIds(new Set());
-  };
-
-  const handleBulkRestart = async () => {
-    if (!window.confirm(`Are you sure you want to restart ${selectedAgentIds.size} selected agent(s)?`)) return;
-    const ids = Array.from(selectedAgentIds);
-    const results = await Promise.allSettled(ids.map(id => restartAgent(id)));
-    const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success));
-    if (failed.length > 0) {
-      showToast(`Restart issued for ${ids.length - failed.length} agent(s). ${failed.length} failed (agent may not be connected).`, 'error');
-    } else {
-      showToast(`Restart command issued for ${ids.length} agent(s).`, 'success');
-    }
     setSelectedAgentIds(new Set());
   };
 
@@ -532,13 +517,11 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
           onViewDetails={setViewingAgentDetails}
           onAuthorizeRemediation={handleAuthorizeRemediation}
           onViewRemediationLogs={setViewingRemediationLogsForAgent}
-          onBulkRestart={handleBulkRestart}
           onBulkDiagnostics={handleBulkDiagnostics}
           onBulkRemediate={handleBulkRemediate}
           onBulkDelete={onDeleteAgent ? handleBulkDelete : undefined}
           onUpdateAgent={onUpdateAgent}
           onRegisterAgent={onRegisterAgent}
-          onRemoteControl={setRemoteControlAgent}
           onDeleteAgent={onDeleteAgent}
           onQuarantineAgent={canRemediate ? async (agent: Agent) => {
             const reason = window.prompt(`Quarantine reason for ${agent.hostname || agent.id}:`);
@@ -623,13 +606,6 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
         agent={managingCapabilitiesFor}
         onSave={handleSaveCapabilities}
       />
-      {remoteControlAgent && (
-        <AgentRemoteControl
-          agent={remoteControlAgent}
-          onClose={() => setRemoteControlAgent(null)}
-        />
-      )}
-
       {/* Free Tier Upgrade Modal */}
       <UpgradeModal
         isOpen={showUpgradeModal}

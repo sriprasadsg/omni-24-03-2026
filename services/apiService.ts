@@ -14,6 +14,17 @@ import {
     ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
     ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
     AuditLogEntry, ItamImportResult, ItamSettings, ItamAssetRequest, ItamAssetRequestStatus,
+    CustomerVectorCollection,
+    VectorAccessPolicy,
+    VectorPipelineSource,
+    VectorPipelineRun,
+    VectorIndexStats,
+    FLParticipant,
+    FLTrainingRound,
+    FLModelVersion,
+    WebGPUModelSpec,
+    WebGPUInferenceMetrics,
+    WebGPUMetric,
 } from '../types';
 
 export type {
@@ -400,6 +411,146 @@ const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, 
 };
 
 // ... Fetchers ...
+
+// --- Customer Vector DB API ---
+
+export const listVectorCollections = async (tenantId: string): Promise<CustomerVectorCollection[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/vector/collections/${tenantId}`);
+        if (!res.ok) throw new Error("Failed to fetch collections");
+        return await res.json();
+    } catch { return []; }
+};
+
+export const createVectorCollection = async (request: any) => {
+    const res = await authFetch(`${API_BASE}/vector/collections/create`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw new Error("Failed to create collection");
+    return await res.json();
+};
+
+export const getVectorIndexStats = async (collectionName: string): Promise<VectorIndexStats> => {
+    const res = await authFetch(`${API_BASE}/vector/index/${collectionName}/stats`);
+    if (!res.ok) throw new Error("Failed to fetch index stats");
+    return await res.json();
+};
+
+export const getVectorAccessPolicy = async (tenantId: string, collectionName: string): Promise<VectorAccessPolicy> => {
+    const res = await authFetch(`${API_BASE}/vector/access/policy?tenant_id=${tenantId}&collection_name=${collectionName}`);
+    if (!res.ok) throw new Error("Failed to fetch access policy");
+    return await res.json();
+};
+
+export const listVectorPipelineSources = async (tenantId: string): Promise<VectorPipelineSource[]> => {
+    const res = await authFetch(`${API_BASE}/vector/pipeline/sources?tenant_id=${tenantId}`);
+    if (!res.ok) throw new Error("Failed to fetch pipeline sources");
+    return await res.json();
+};
+
+export const addVectorPipelineSource = async (request: any) => {
+    const res = await authFetch(`${API_BASE}/vector/pipeline/sources`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+    });
+    if (!res.ok) throw new Error("Failed to add data source");
+    return await res.json();
+};
+
+export const listVectorPipelineRuns = async (): Promise<VectorPipelineRun[]> => {
+    const res = await authFetch(`${API_BASE}/vector/pipeline/runs`);
+    if (!res.ok) throw new Error("Failed to fetch pipeline runs");
+    return await res.json();
+};
+
+export const runVectorPipeline = async (sourceId: string) => {
+    const res = await authFetch(`${API_BASE}/vector/pipeline/${sourceId}/run`, { method: 'POST' });
+    if (!res.ok) throw new Error("Failed to run pipeline");
+    return await res.json();
+};
+
+export const startVectorPipelineScheduler = async () => {
+    const res = await authFetch(`${API_BASE}/vector/pipeline/scheduler/start`, { method: 'POST' });
+    if (!res.ok) throw new Error("Failed to start scheduler");
+    return await res.json();
+};
+
+export const stopVectorPipelineScheduler = async () => {
+    const res = await authFetch(`${API_BASE}/vector/pipeline/scheduler/stop`, { method: 'POST' });
+    if (!res.ok) throw new Error("Failed to stop scheduler");
+    return await res.json();
+};
+
+// --- Federated Learning API ---
+
+export const fetchFLRounds = async (limit: number = 10): Promise<FLTrainingRound[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/federated/rounds?limit=${limit}`);
+        if (!res.ok) throw new Error("Failed to fetch FL rounds");
+        return await res.json();
+    } catch { return []; }
+};
+
+export const fetchFLParticipants = async (tenantId: string = ''): Promise<FLParticipant[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/federated/participants?tenant_id=${tenantId}`);
+        if (!res.ok) throw new Error("Failed to fetch FL participants");
+        return await res.json();
+    } catch { return []; }
+};
+
+export const fetchFLModels = async (limit: number = 20): Promise<FLModelVersion[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/federated/models?limit=${limit}`);
+        if (!res.ok) throw new Error("Failed to fetch FL models");
+        return await res.json();
+    } catch { return []; }
+};
+
+export const startFLRound = async (participantIds: string[], globalModelVersion: string) => {
+    const res = await authFetch(`${API_BASE}/federated/rounds/start`, {
+        method: 'POST',
+        body: JSON.stringify({ participant_ids: participantIds, global_model_version: globalModelVersion }),
+    });
+    if (!res.ok) throw new Error("Failed to start FL round");
+    return await res.json();
+};
+
+// --- WebGPU Inference API ---
+
+export const fetchWebGPUModels = async (): Promise<WebGPUModelSpec[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/webgpu/models`);
+        if (!res.ok) throw new Error("Failed to fetch WebGPU models");
+        return await res.json();
+    } catch { return []; }
+};
+
+export const fetchWebGPUInferenceMetrics = async (modelId: string = ''): Promise<WebGPUInferenceMetrics[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/webgpu/metrics/inference/history?model_id=${modelId}`);
+        if (!res.ok) throw new Error("Failed to fetch WebGPU inference metrics");
+        return await res.json();
+    } catch { return []; }
+};
+
+export const fetchWebGPUGPUMetrics = async (limit: number = 60): Promise<WebGPUMetric[]> => {
+    try {
+        const res = await authFetch(`${API_BASE}/webgpu/metrics/gpu?limit=${limit}`);
+        if (!res.ok) throw new Error("Failed to fetch GPU metrics");
+        return await res.json();
+    } catch { return []; }
+};
+
+export const compileWebGPUModel = async (onnxPath: string, name?: string) => {
+    const res = await authFetch(`${API_BASE}/webgpu/models/compile`, {
+        method: 'POST',
+        body: JSON.stringify({ onnx_path: onnxPath, name }),
+    });
+    if (!res.ok) throw new Error("Failed to compile WebGPU model");
+    return await res.json();
+};
 
 // --- Authentication ---
 export const login = async (username: string, password: string): Promise<any> => {
@@ -2352,19 +2503,6 @@ export const runAgentDiagnostics = async (agentId: string): Promise<Agent> => {
     }
     // Agent not in local cache yet — return a minimal object with the health data
     return { id: agentId, health: data.health, status: data.status } as unknown as Agent;
-};
-
-export const restartAgent = async (agentId: string): Promise<{ success: boolean; command_id?: string; error?: string }> => {
-    try {
-        const res = await authFetch(`${API_BASE}/agents/remote/${agentId}/restart`, { method: 'POST' });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            return { success: false, error: err.detail || `HTTP ${res.status}` };
-        }
-        return await res.json();
-    } catch (e) {
-        return { success: false, error: e instanceof Error ? e.message : 'Network error' };
-    }
 };
 
 export const scheduleAgentUpgrade = async (agentIds: string[], targetVersion: string) => {

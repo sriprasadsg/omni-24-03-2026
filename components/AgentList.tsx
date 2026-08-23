@@ -24,13 +24,11 @@ interface AgentListProps {
     onViewDetails: (agent: Agent) => void;
     onAuthorizeRemediation: (agent: Agent) => void;
     onViewRemediationLogs: (agent: Agent) => void;
-    onBulkRestart: () => void;
     onBulkDiagnostics: () => void;
     onBulkRemediate: () => void;
     onBulkDelete?: () => void;
     onUpdateAgent: (agent: Agent) => void;
     onRegisterAgent: () => void;
-    onRemoteControl: (agent: Agent) => void;
     filters: Filter[];
     onDeleteAgent?: (agent: Agent) => void;
     onQuarantineAgent?: (agent: Agent) => void;
@@ -111,14 +109,13 @@ const AgentCard: React.FC<{
     onViewDetails: (agent: Agent) => void;
     onAuthorizeRemediation: (agent: Agent) => void;
     onViewRemediationLogs: (agent: Agent) => void;
-    onRemoteControl: (agent: Agent) => void;
     canRemediate: boolean;
     canViewLogs: boolean;
     onDeleteAgent?: (agent: Agent) => void;
     onQuarantineAgent?: (agent: Agent) => void;
     onToggleSoftwareExclusion?: (agent: Agent) => void;
     onRequestDelete: (agent: Agent) => void;
-}> = ({ agent, asset, isSelected, isUpgrading, onToggleSelection, onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs, onRemoteControl, canRemediate, canViewLogs, onDeleteAgent, onQuarantineAgent, onToggleSoftwareExclusion, onRequestDelete }) => {
+}> = ({ agent, asset, isSelected, isUpgrading, onToggleSelection, onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs, canRemediate, canViewLogs, onDeleteAgent, onQuarantineAgent, onToggleSoftwareExclusion, onRequestDelete }) => {
     const { timeZone } = useTimeZone();
 
     const handleDeleteClick = (e: React.MouseEvent) => {
@@ -258,7 +255,6 @@ const AgentCard: React.FC<{
                             )}
                             {canRemediate && (
                                 <>
-                                    <button disabled={isUpgrading || agent.status === 'Offline'} onClick={(e) => { e.stopPropagation(); onRemoteControl(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:text-gray-400 dark:hover:text-purple-400 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Remote Control Terminal"><TerminalSquareIcon size={16} /></button>
                                     <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRestartAgent(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Restart Agent"><RefreshCwIcon size={16} /></button>
                                     <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRunDiagnostics(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-green-600 hover:bg-green-50 dark:text-gray-400 dark:hover:text-green-400 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Run Diagnostics"><TerminalSquareIcon size={16} /></button>
                                     {onQuarantineAgent && agent.status !== 'Quarantined' && (
@@ -297,7 +293,7 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
     const {
         agents, assets, selectedAgentIds, upgradingAgentIds, onToggleSelection, onSelectAll,
         onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs,
-        onBulkRestart, onBulkDiagnostics, onBulkRemediate, onBulkDelete, onRegisterAgent, onRemoteControl, filters
+        onBulkDiagnostics, onBulkRemediate, onBulkDelete, onRegisterAgent, filters
     } = props;
 
     const { timeZone } = useTimeZone();
@@ -407,7 +403,6 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                     <p className="text-sm font-semibold text-primary-800 dark:text-primary-200">{selectedAgentIds.size} agent(s) selected.</p>
                     <div className="flex items-center space-x-3">
                         <button onClick={onBulkRemediate} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-primary-600 rounded-lg hover:bg-primary-700 shadow-md shadow-primary-500/20 transition-all">Remediate</button>
-                        <button onClick={onBulkRestart} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 shadow-sm dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">Restart</button>
                         <button onClick={onBulkDiagnostics} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 shadow-sm dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">Diagnostics</button>
                         {onBulkDelete && <button onClick={onBulkDelete} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-700 bg-red-50 border border-red-300 rounded-lg hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/50 transition-all">Delete</button>}
                     </div>
@@ -444,7 +439,6 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                                     onViewDetails={onViewDetails}
                                     onAuthorizeRemediation={onAuthorizeRemediation}
                                     onViewRemediationLogs={onViewRemediationLogs}
-                                    onRemoteControl={onRemoteControl}
                                     canRemediate={canRemediate}
                                     canViewLogs={canViewLogs}
                                     onDeleteAgent={props.onDeleteAgent}
