@@ -1,0 +1,7 @@
+# Fat LTO (Cargo.toml profile.release: lto = true) makes the mingw-w64 GNU ld
+# cross-linker die partway through the final link step in this environment —
+# reproducible, not a resource limit (RSS stayed ~2GB, plenty of free memory).
+# Thin LTO still gets most of the size/perf win without exercising the fragile
+# path; native/Linux builds are unaffected and keep full LTO.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "lto=thin"]
