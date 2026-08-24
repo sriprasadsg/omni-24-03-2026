@@ -72,5 +72,17 @@ tempfile = "3"
 
 [profile.release]
 opt-level = 3
-lto = true
+# Fat LTO (lto = true) makes the final crate's link step die in this build
+# environment — reproducible on both the Windows cross-target (mingw-w64 GNU
+# ld) and a native x86_64-unknown-linux-gnu host build, silently, with no OOM
+# trace in dmesg/journalctl. Thin LTO reliably succeeds on both and still
+# gets most of the size/perf win. Set here (not via rustflags) because
+# rustflags-based `-C lto` conflicts with Cargo's own `-C embed-bitcode=no`
+# on build-script/proc-macro compilation units whenever host == target (i.e.
+# any native, non-cross-compiled build) — Cargo's profile-level `lto` field
+# is understood specially and never misapplied to those units, so it's
+# correct for every target uniformly instead of needing a per-target
+# rustflags override (see agent-install/omni-agent-rs/.cargo/config.toml
+# history for the rustflags approach this replaced).
+lto = "thin"
 strip = true
