@@ -189,6 +189,20 @@ class TestMongoFragmentBuilder:
         query = _filters_to_mongo_query([cond])
         assert query["purchaseCostCents"] == {"$gte": 100, "$lte": 200}
 
+    def test_between_date_produces_inclusive_bounds(self):
+        cond = FilterCondition(field="asset.purchaseDate", operator="between", value="2026-01-01", value2="2026-02-01")
+        query = _filters_to_mongo_query([cond])
+        assert query["purchaseDate"] == {"$gte": "2026-01-01", "$lte": "2026-02-01"}
+
+    def test_between_date_swaps_reversed_bounds(self):
+        """72-REVIEW-FIX.md WR-01 regression: a date `between` with value later
+        than value2 previously emitted {"$gte": later, "$lte": earlier}, which
+        matches no document — the numeric path already swapped reversed
+        bounds, the date (string) path didn't."""
+        cond = FilterCondition(field="asset.purchaseDate", operator="between", value="2026-02-01", value2="2026-01-01")
+        query = _filters_to_mongo_query([cond])
+        assert query["purchaseDate"] == {"$gte": "2026-01-01", "$lte": "2026-02-01"}
+
     def test_zero_conditions_returns_empty_query(self):
         assert _filters_to_mongo_query([]) == {}
 
