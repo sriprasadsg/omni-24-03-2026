@@ -281,6 +281,177 @@ fn detect_serial_number() -> String {
     fallback_serial()
 }
 
+// ── Device type / chassis classification ────────────────────────────────────
+// Resolved once and cached — same rationale as serial_number above. Mirrors
+// the Python agent's PlatformUtils.detect_device_type() core detection paths
+// (chassis code + VM check); the deepest last-resort fallbacks there (battery
+// presence, hostname substring guessing) are skipped as low-value.
+
+static DEVICE_TYPE: OnceLock<Value> = OnceLock::new();
+
+fn device_type_info() -> Value {
+    DEVICE_TYPE.get_or_init(detect_device_type).clone()
+}
+
+const CHASSIS_LABELS: &[(u32, &str)] = &[
+    (1, "Other"), (2, "Unknown"), (3, "Desktop"), (4, "Low Profile Desktop"),
+    (5, "Pizza Box"), (6, "Mini Tower"), (7, "Tower"), (8, "Portable"),
+    (9, "Laptop"), (10, "Notebook"), (11, "Hand Held"), (12, "Docking Station"),
+    (13, "All In One"), (14, "Sub Notebook"), (15, "Space-saving"),
+    (16, "Lunch Box"), (17, "Main Server Chassis"), (18, "Expansion Chassis"),
+    (19, "Sub Chassis"), (20, "Bus Expansion Chassis"), (21, "Peripheral Chassis"),
+    (22, "RAID Chassis"), (23, "Rack Mount Chassis"), (24, "Sealed-Case PC"),
+    (25, "Multi-system Chassis"), (26, "CompactPCI"), (27, "AdvancedTCA"),
+    (28, "Blade"), (29, "Blade Enclosure"), (30, "Tablet"),
+    (31, "Convertible"), (32, "Detachable"), (33, "IoT Gateway"),
+    (34, "Embedded PC"), (35, "Mini PC"), (36, "Stick PC"),
+];
+const LAPTOP_CODES: &[u32] = &[8, 9, 10, 11, 14, 30, 31, 32];
+const SERVER_CODES: &[u32] = &[17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29];
+const DESKTOP_CODES: &[u32] = &[3, 4, 5, 6, 7, 12, 13, 15, 16, 24, 34, 35, 36];
+const VM_STRINGS: &[&str] = &[
+    "virtualbox", "vmware", "virtual machine", "kvm", "qemu",
+    "hyper-v", "xen", "parallels", "bochs", "innotek",
+];
+
+fn chassis_label(code: u32) -> &'static str {
+    CHASSIS_LABELS.iter().find(|(c, _)| *c == code).map(|(_, l)| *l).unwrap_or("Unknown")
+}
+
+fn is_vm_by_strings(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    VM_STRINGS.iter().any(|s| lower.contains(s))
+}
+
+fn unknown_device() -> Value {
+    json!({ "device_type": "unknown", "chassis_label": "Unknown", "is_virtual": false })
+}
+
+fn vm_device() -> Value {
+    json!({ "device_type": "virtual_machine", "chassis_label": "Virtual Machine", "is_virtual": true })
+}
+
+#[cfg(windows)]
+fn detect_device_type() -> Value {
+    fn ps(cmd: &str) -> String {
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", cmd])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default()
+    }
+
+    let model = ps("(Get-CimInstance Win32_ComputerSystem).Model");
+    if is_vm_by_strings(&model) {
+        return vm_device();
+    }
+
+    let chassis_code: Option<u32> = ps("(Get-CimInstance Win32_SystemEnclosure).ChassisTypes")
+        .trim_matches(|c| c == '{' || c == '}')
+        .split(',')
+        .next()
+        .and_then(|s| s.trim().parse().ok());
+
+    if let Some(code) = chassis_code {
+        let label = chassis_label(code);
+        if LAPTOP_CODES.contains(&code) {
+            return json!({ "device_type": "laptop", "chassis_label": label, "is_virtual": false });
+        }
+        if SERVER_CODES.contains(&code) {
+            return json!({ "device_type": "server", "chassis_label": label, "is_virtual": false });
+        }
+    }
+
+    let pc_type: Option<u32> = ps("(Get-CimInstance Win32_ComputerSystem).PCSystemType").parse().ok();
+    let device_type = match pc_type {
+        Some(1) | Some(6) => "desktop",
+        Some(2) => "laptop",
+        Some(3) => "workstation",
+        Some(4) | Some(5) | Some(7) => "server",
+        _ => "unknown",
+    };
+    if device_type != "unknown" {
+        return json!({
+            "device_type": device_type,
+            "chassis_label": chassis_code.map(chassis_label).unwrap_or("Unknown"),
+            "is_virtual": false,
+        });
+    }
+
+    unknown_device()
+}
+
+#[cfg(target_os = "linux")]
+fn detect_device_type() -> Value {
+    let sys_vendor = std::fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or_default();
+    let product_name = std::fs::read_to_string("/sys/class/dmi/id/product_name").unwrap_or_default();
+    let is_virtual = std::process::Command::new("systemd-detect-virt")
+        .arg("--quiet")
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+        || is_vm_by_strings(&format!("{sys_vendor} {product_name}"));
+
+    if is_virtual {
+        return vm_device();
+    }
+
+    let chassis_code: Option<u32> = std::fs::read_to_string("/sys/class/dmi/id/chassis_type")
+        .ok()
+        .and_then(|s| s.trim().parse().ok());
+
+    if let Some(code) = chassis_code {
+        let label = chassis_label(code);
+        if LAPTOP_CODES.contains(&code) {
+            return json!({ "device_type": "laptop", "chassis_label": label, "is_virtual": false });
+        }
+        if SERVER_CODES.contains(&code) {
+            return json!({ "device_type": "server", "chassis_label": label, "is_virtual": false });
+        }
+        if DESKTOP_CODES.contains(&code) {
+            let cpu_count = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+            let device_type = if cpu_count >= 8 { "workstation" } else { "desktop" };
+            return json!({ "device_type": device_type, "chassis_label": label, "is_virtual": false });
+        }
+    }
+
+    unknown_device()
+}
+
+#[cfg(target_os = "macos")]
+fn detect_device_type() -> Value {
+    let model_line = std::process::Command::new("system_profiler")
+        .arg("SPHardwareDataType")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_lowercase())
+        .and_then(|text| {
+            text.lines()
+                .find(|l| l.contains("model name") || l.contains("model identifier"))
+                .map(|l| l.to_string())
+        })
+        .unwrap_or_default();
+
+    if model_line.contains("macbook") {
+        json!({ "device_type": "laptop", "chassis_label": "MacBook", "is_virtual": false })
+    } else if model_line.contains("xserve") {
+        json!({ "device_type": "server", "chassis_label": "Xserve", "is_virtual": false })
+    } else if model_line.contains("mac pro") {
+        json!({ "device_type": "workstation", "chassis_label": "Mac Pro", "is_virtual": false })
+    } else if model_line.contains("imac") || model_line.contains("mac mini") {
+        json!({ "device_type": "desktop", "chassis_label": "Mac Desktop", "is_virtual": false })
+    } else if is_vm_by_strings(&model_line) {
+        vm_device()
+    } else {
+        unknown_device()
+    }
+}
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+fn detect_device_type() -> Value {
+    unknown_device()
+}
+
 pub fn collect_metrics(sys: &System) -> Value {
     let cpus = sys.cpus();
     let avg_cpu = if cpus.is_empty() {
@@ -386,6 +557,10 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
     // Flat keys expected by the backend heartbeat handler
     meta["os_version"]        = json!(os_version);
     meta["serial_number"]     = json!(serial_number());
+    let device_info = device_type_info();
+    meta["device_type"]    = device_info["device_type"].clone();
+    meta["chassis_label"]  = device_info["chassis_label"].clone();
+    meta["is_virtual"]     = device_info["is_virtual"].clone();
     meta["cpu_model"]         = json!(cpu_model);
     meta["mac_address"]       = json!(primary_mac);
     meta["mac_addresses"]     = json!(mac_list);
