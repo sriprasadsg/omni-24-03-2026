@@ -201,7 +201,10 @@ export type AppView =
   | 'fleetObservability'
   | 'fleetGeoMap'
   | 'nativeSecurity'
-  | 'itam'; // Added for IT Asset Management Console
+  | 'itam'
+  | 'customerVectorDB'
+  | 'federatedLearning'
+  | 'webgpuInference';
 
 
 
@@ -315,6 +318,7 @@ export type Permission =
   | 'view:fim' | 'manage:fim'
   | 'view:active_response' | 'manage:active_response'
   | 'view:itam' | 'manage:itam'
+  | 'view:vector_db' | 'view:federated_learning' | 'view:webgpu_inference'
   | 'admin:*';
 
 
@@ -916,6 +920,28 @@ export interface ItamAssetRequest {
   ticket_url?: string;
 }
 
+// Phase 71-01/71-05 gap closure (ITAM-PRO-01). Mirrors itam_models.PurchaseOrder
+// verbatim, snake_case to match the wire response — id is the alias-unwrapped
+// "_id" field (backend/itam_procurement_endpoints.py's response_model_by_alias=False).
+export interface ItamPurchaseOrderItem {
+  name: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface ItamPurchaseOrder {
+  id: string;
+  tenantId: string;
+  order_number: string;
+  supplier_name: string;
+  order_date: string;
+  total_cost: number;
+  items: ItamPurchaseOrderItem[];
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ItamAssignmentHistoryEntry {
   action: string;
   targetType?: string;
@@ -1171,7 +1197,7 @@ export interface AiTool {
 }
 
 export interface LlmSettings {
-  provider: 'Gemini' | 'Local' | 'Omni-LLM-Scratch' | 'Anthropic Claude';
+  provider: 'Gemini' | 'Local' | 'Omni-LLM-Scratch' | 'Anthropic Claude' | 'OpenAI-Compatible';
   apiKey: string;
   model: string;
   host?: string;
@@ -2057,4 +2083,166 @@ export interface RemediationPlaybook {
   tenantId?: string;
   createdAt?: string;
   createdBy?: string;
+}
+
+// Federated Learning Types
+export type FLParticipantStatus = 'registered' | 'training' | 'idle' | 'offline';
+export type FLRoundStatus = 'pending' | 'training' | 'aggregating' | 'complete';
+export type FLModelStatus = 'active' | 'deprecated' | 'archived';
+
+export interface FLParticipant {
+  participant_id: string;
+  tenant_id: string;
+  name: string;
+  status: FLParticipantStatus;
+  model_version: string;
+  sample_count: number;
+  local_loss: number;
+  joined_at: number;
+  last_seen: number;
+}
+
+export interface FLTrainingRound {
+  round_id: string;
+  participant_ids: string[];
+  global_model_version: string;
+  started_at: number;
+  status: FLRoundStatus;
+  updates: Record<string, any>;
+}
+
+export interface FLModelVersion {
+  version: string;
+  name: string;
+  base_version: string;
+  round_id: string;
+  participants: string[];
+  total_samples: number;
+  metrics: Record<string, number>;
+  status: FLModelStatus;
+  created_at: number;
+  metadata: Record<string, any>;
+}
+
+// WebGPU/ONNX Inference Types
+export type WebGPUModelStatus = 'loaded' | 'unloaded' | 'error';
+
+export interface WebGPUModelSpec {
+  model_id: string;
+  name: string;
+  onnx_path: string;
+  wgsl_shaders: Record<string, string>;
+  input_shapes: Record<string, number[]>;
+  output_shapes: Record<string, number[]>;
+  buffer_sizes: Record<string, number>;
+  created_at: number;
+  ops_count: number;
+  status?: WebGPUModelStatus;
+}
+
+export interface WebGPUInferenceMetrics {
+  model_id: string;
+  latency_ms: number;
+  input_size_bytes: number;
+  output_size_bytes: number;
+  timestamp: number;
+  success: boolean;
+  error: string;
+}
+
+export interface WebGPUMetric {
+  timestamp: number;
+  memory_used_mb: number;
+  memory_total_mb: number;
+  compute_utilization: number;
+  temperature_c: number;
+  power_w: number;
+}
+
+// Customer Vector DB Types
+export type VectorCollectionStatus = 'active' | 'quarantined';
+export type VectorOperation = 'create' | 'read' | 'update' | 'delete' | 'search' | 'export';
+export type VectorDataClassification = 'public' | 'internal' | 'confidential' | 'pii' | 'restricted';
+export type VectorRole = 'admin' | 'analyst' | 'viewer';
+export type VectorSourceType = 'database' | 'api' | 'file' | 'stream';
+export type VectorPipelineStatus = 'pending' | 'running' | 'completed' | 'failed' | 'paused';
+
+
+export interface CustomerVectorCollection {
+  tenant_id: string;
+  collection_name: string;
+  dimensions: number;
+  encryption_key: string;
+  vector_count: number;
+  created_at: number;
+  status?: VectorCollectionStatus;
+}
+
+export interface CustomerVectorSearchResult {
+  id: string;
+  content: string;
+  metadata: Record<string, any>;
+  distance: number;
+  tenant_id: string;
+}
+
+export interface VectorAccessPolicy {
+  collection_name: string;
+  tenant_id: string;
+  role_permissions: Record<VectorRole, Set<VectorOperation>>;
+  classification: VectorDataClassification;
+  pii_fields: string[];
+  quarantine_enabled: boolean;
+}
+
+export interface VectorAccessLogEntry {
+  timestamp: number;
+  user_id: string;
+  tenant_id: string;
+  collection_name: string;
+  operation: VectorOperation;
+  classification: VectorDataClassification;
+  allowed: boolean;
+  reason: string;
+  metadata: Record<string, any>;
+}
+
+export interface VectorPipelineSource {
+  source_id: string;
+  name: string;
+  source_type: VectorSourceType;
+  config: Record<string, any>;
+  tenant_id: string;
+  collection_name: string;
+  enabled: boolean;
+  last_sync?: number;
+  sync_interval_seconds: number;
+}
+
+export interface VectorPipelineRun {
+  run_id: string;
+  source_id: string;
+  status: VectorPipelineStatus;
+  started_at: number;
+  completed_at?: number;
+  records_processed: number;
+  records_added: number;
+  records_updated: number;
+  records_failed: number;
+  error: string;
+}
+
+export interface VectorIndexStats {
+  collection_name: string;
+  vector_count: number;
+  dimensions: number;
+  hnsw_config: {
+    m: number;
+    ef_construction: number;
+    ef_search: number;
+    max_elements: number;
+  };
+  avg_query_latency: number;
+  approx_recall: number;
+  last_tuned: number;
 }

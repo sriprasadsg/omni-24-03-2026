@@ -14,6 +14,7 @@ import {
     ItamCatalogKind, ItamCatalogEntity, ItamLicense, ItamLicenseAssignment, ItamConsumable, ItamComponent,
     ItamAssignmentHistoryEntry, ItamBookValue, ItamWarrantyStatus, ItamModelFields, ItamFieldsetDef,
     AuditLogEntry, ItamImportResult, ItamSettings, ItamAssetRequest, ItamAssetRequestStatus,
+    ItamPurchaseOrder,
     CustomerVectorCollection,
     VectorAccessPolicy,
     VectorPipelineSource,
@@ -5976,6 +5977,41 @@ export const rejectAssetRequest = async (id: string): Promise<ItamAssetRequest> 
     const res = await authFetch(`${API_BASE}/v1/itam/asset-requests/${id}/reject`, { method: 'PATCH' });
     if (!res.ok) return itamThrow(res, 'Failed to reject asset request');
     return res.json();
+};
+
+// Gap closure (ITAM-PRO-01) — itam_procurement_endpoints.py, mounted at
+// /api/v1/itam/purchase-orders (not /api/itam/ like most other ITAM routes).
+export const fetchPurchaseOrders = async (): Promise<ItamPurchaseOrder[]> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/purchase-orders`);
+    if (!res.ok) return itamThrow(res, 'Failed to load purchase orders');
+    return res.json();
+};
+
+export const createPurchaseOrder = async (data: {
+    order_number: string; supplier_name: string; order_date: string; total_cost: number;
+    items: { name: string; quantity: number; unit_price: number }[]; notes?: string;
+}): Promise<ItamPurchaseOrder> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/purchase-orders`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to create purchase order');
+    return res.json();
+};
+
+export const updatePurchaseOrder = async (id: string, data: Partial<{
+    order_number: string; supplier_name: string; order_date: string; total_cost: number;
+    items: { name: string; quantity: number; unit_price: number }[]; notes: string;
+}>): Promise<ItamPurchaseOrder> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/purchase-orders/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    if (!res.ok) return itamThrow(res, 'Failed to update purchase order');
+    return res.json();
+};
+
+export const deletePurchaseOrder = async (id: string): Promise<void> => {
+    const res = await authFetch(`${API_BASE}/v1/itam/purchase-orders/${id}`, { method: 'DELETE' });
+    if (!res.ok) return itamThrow(res, 'Failed to delete purchase order');
 };
 
 // Note: this route is /api/audit-logs, not under /api/itam/ — it is the
