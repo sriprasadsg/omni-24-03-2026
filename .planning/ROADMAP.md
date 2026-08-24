@@ -722,7 +722,7 @@ Plans:
 
 **Goal:** Finish the Rust agent 2.1.0 dependency modernization and the outstanding 401 auth-session bug, then close real (verified, not assumed) gaps in remediation operations — bridging remediation tasks to existing ticketing connectors, SLA/escalation on overdue tasks, comment threads on controls, and CSPM checks for the 3 cloud providers that are currently dropdown-only stubs. Per the 2026-07-20 research summary: the Rust agent work is a fully independent toolchain track that can run in parallel with everything else; the four remediation-ops features are sequenced by risk — CSPM checks and comment threads first (structurally isolated, new-pattern risk validated cheaply), then the ticketing bridge before SLA/escalation, since both mutate the same `compliance_remediation_tasks` document.
 
-**Status:** Roadmap defined 2026-07-20. Not started — continues phase numbering from Phase 39.
+**Status:** Complete — shipped 2026-07-29 (see the archived summary below). Roadmap defined 2026-07-20, continuing phase numbering from Phase 39.
 
 **Phases:**
 
@@ -824,8 +824,6 @@ Plans:
 
 - [x] 62-01-PLAN.md
 
-- [ ] TBD (run /gsd-plan-phase 62 to break down)
-
 ### Phase 63: Close gap: ITAM-LIC-02/03 RBAC + ITAM-CAT-05 label UI
 
 **Goal:** Both v4.0 milestone-audit BLOCKERs are closed — the consumables and components routers enforce the same `manage:assets` admin gate as every sibling ITAM router (non-admins receive 403 on all 12 routes across 3 router objects), and Phase 58's three offline label routes become reachable from the product through a Label action on each asset row in the ITAM Lifecycle table.
@@ -878,10 +876,6 @@ Plans:
 
 - [x] 66-01-PLAN.md — Integrate `yara` crate and verify Windows cross-compilation
 - [x] 66-02-PLAN.md — Implement YARA engine module and integrate into `security_scan`
-
-Plans:
-
-- [x] TBD (run /gsd-plan-phase 66 to break down)
 
 ### Phase 69: User Management
 

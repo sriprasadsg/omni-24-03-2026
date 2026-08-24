@@ -4,16 +4,16 @@ milestone: v1.1
 milestone_name: — Evidence Quality & Compliance Scoring
 current_phase: 73
 current_phase_name: api-integrations
-status: verifying
-stopped_at: "Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged)."
-last_updated: "2026-08-18T18:33:31.905Z"
-last_activity: 2026-08-18
-last_activity_desc: Phase 73 execution started
+status: complete
+stopped_at: "Phase 73 (API & Integrations) verified complete 2026-08-19 by gsd-verifier — ITAM-API-01/02/03 all SATISFIED. All 6 plans executed (73-01..06): API-key auth + scope narrowing on ITAM routers, webhook system (8 event types across request-scoped call sites + 3 tenant-bracketed background sweeps), Jira/ServiceNow ticketing bridge (manual + 2 automatic triggers, dedup-guarded), frontend webhook picker + Create Ticket row actions. 122 phase-specific backend tests pass. 73-REVIEW.md found 3 warnings/2 info, all in pre-existing adjacent code (not phase 73's own diff) — logged as follow-up debt, not blockers. 3 items remain flagged for human/manual verification only (not gaps): concurrent-tenant API-key isolation under real concurrent load (contextvar scoping, code correct but unit-proven only), ticket-provider dropdown at narrow viewport, long ticket-reference row layout. This was the last phase in ROADMAP.md (v4.1 ITAM-Backlog milestone, phases 69-73) — all requirements now Complete per REQUIREMENTS.md except ITAM-PRO-04/05 rows, which are stale (71-03-SUMMARY.md confirms both were implemented, UAT'd end-to-end in a live browser, and committed — the traceability table just was never updated after 71-03 landed; phase 71 also has no 71-VERIFICATION.md on file, unlike every other closed phase). Milestone-completion decision (archive v4.1, run gsd-complete-milestone) deferred to explicit user direction — not run yet."
+last_updated: "2026-08-24T00:00:00.000Z"
+last_activity: 2026-08-24
+last_activity_desc: Phase 73 STATE.md reconciled against 73-VERIFICATION.md (was stale at 'verifying'/phase-39 text since 2026-08-18)
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -24,7 +24,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-04)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 73 — api-integrations
+**Current focus:** Phase 73 — api-integrations (complete, verified 2026-08-19; last phase in ROADMAP.md)
 
 ## Current Phase
 
@@ -148,6 +148,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 59 | Procurement & Finance (Warranty & Depreciation) | Complete (v4.0) — verified 2026-08-06, all 3 requirements (ITAM-FIN-01/02/03) delivered. See 59-VERIFICATION.md |
 | 60 | Licenses & Consumables | Complete (v4.0) — verified 2026-08-09, all 3 requirements (ITAM-LIC-01/02/03) delivered; see 60-VERIFICATION.md |
 | 61 | Frontend ITAM Console | Complete (v4.0) — verified 2026-08-09, ITAM-UI-01 delivered; see 61-VERIFICATION.md |
+| 66 | Full YARA-rule engine for native scan (v3.4-era gap closure, standalone) | Cleanup complete 2026-08-24 (retroactively verified) — real yara-x engine ships in the canonical `agent-install/omni-agent-rs/` tree (`capabilities/security_scan.rs`), 97/97 lib tests pass, Windows cross-compile linked and confirmed. Originally executed into the wrong tree (same collision class as Phase 64) and left two false "complete" records behind — both found and fixed this session (fake `.planning/` completion record inside the shipped crate deleted; void UAT rewritten against the real engine). 2 items remain behavior-unverified pending a live agent (not fabricated as closed). See 66-VERIFICATION.md. |
+| 73 | API & Integrations | Complete (v4.1 ITAM-Backlog) — 6/6 plans executed, verified 2026-08-19; ITAM-API-01/02/03 delivered. See 73-VERIFICATION.md. (Rows 62-65, 67-72 not backfilled into this table — pre-existing gap, out of this fix's scope.) |
 
 ## Decisions
 
@@ -656,8 +658,12 @@ Items acknowledged and deferred at v4.0 milestone close on 2026-08-10 (19 total,
 | verification | Phase 32 (32-02-VERIFICATION.md) | gaps_found — contradicted by 32-VERIFICATION.md's later "4/4 verified 2026-07-14", not reconciled (pre-v4.0, v3.0) |
 | verification | Phase 48 (48-VERIFICATION.md) | human_needed (pre-v4.0, v3.3) |
 
-Known verification overrides: 19 (see above)
+**Session 2026-08-24 — All-clear: `gsd_run query audit-uat --raw` now returns `total_items: 0` project-wide.** Ran the live audit tool (the authoritative source the three snapshots above were built from) fresh rather than trusting the accumulated log: it found exactly **one** outstanding item across all 73+ phases — `06-VERIFICATION.md`'s `human_needed` toast-on-failed-PATCH item (the same one carried in all three snapshots above since v3.2-close). Closed it: added `src/__tests__/AssetComplianceList.test.tsx` (3 tests, reproduces the real `FrameworkDetail.tsx`/`CompliancePanel.tsx` `onUpdateStatus` catch-and-toast wrapper verbatim, asserts the error toast fires on a rejected update and both buttons re-enable for retry either way), full frontend suite re-verified green (450/450), `06-VERIFICATION.md` updated to `status: resolved`. Re-ran the audit tool after the fix: `total_items: 0`. This means every other row in the three snapshot tables above (UAT phases 02/15/27/28/29/30/32/33/34/35/39/40/48/49/50, verification phases 32-02/48) is **no longer detected as outstanding by the tool that generates this log** — most were already flagged as parser false-positives (missing `status:` frontmatter, body already says Pass) by the v4.0-close note above, and the rest have evidently been closed or superseded by intervening sessions between 2026-08-10 and now without a dedicated reconciliation pass. Not individually re-verified line-by-line here (would mean re-opening and re-confirming ~20 phases spanning v1.1 through v3.3, none of which the live tool flags) — the tool's `total_items: 0` is taken as authoritative per its own designed purpose (cross-phase outstanding-item detection). If a specific one of those old rows needs a human re-check, `/gsd-audit-uat` will surface it in the next run.
+Known verification overrides: 19 (see above) — **superseded 2026-08-24; live tool now reports 0, see session note immediately above.**
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Phase 73 was the last phase in ROADMAP.md — v4.1 (ITAM-Backlog) milestone requirements are now all Complete except REQUIREMENTS.md's ITAM-PRO-04/05 rows, which are stale (implemented + UAT'd in Phase 71, per 71-03-SUMMARY.md; row never updated) — fix those two rows, then decide whether to run /gsd-complete-milestone to archive v4.1.
+- 3 human-verification items outstanding from 73-VERIFICATION.md (none are gaps, all pre-flagged as backstop/hard-to-test): concurrent-tenant API-key isolation under real load, ticket-provider dropdown at narrow viewport, long ticket-reference row layout.
+- Phase 71 has no 71-VERIFICATION.md on file (every other closed phase does) — worth a retroactive goal-verify pass before archiving the milestone.
+- After the above: start the next milestone with /gsd-new-milestone.
