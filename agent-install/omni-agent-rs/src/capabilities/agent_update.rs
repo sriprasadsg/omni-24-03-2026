@@ -26,24 +26,32 @@ struct UpdateInfo {
     filename: Option<String>,
 }
 
-fn fetch_update_info(cfg: &crate::config::Config) -> Option<UpdateInfo> {
+fn fetch_update_info(cfg: &crate::config::Config) -> Result<UpdateInfo, String> {
     let url = format!(
         "{}/api/agent-updates/latest?platform=windows",
         cfg.api_base_url.trim_end_matches('/')
     );
+    // Must match the main app client (lib.rs): this platform serves its own
+    // self-signed cert by default, and without accept_invalid_certs every
+    // request here fails the TLS handshake and gets reported as the generic
+    // "could not reach" — indistinguishable from the server actually being
+    // down.
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
+        .danger_accept_invalid_certs(cfg.accept_invalid_certs)
         .build()
-        .ok()?;
+        .map_err(|e| format!("Could not build HTTP client: {e}"))?;
     let resp: serde_json::Value = client
         .get(&url)
         .bearer_auth(&cfg.agent_token)
         .send()
-        .ok()?
+        .map_err(|e| format!("Could not reach update server at {url}: {e}"))?
         .json()
-        .ok()?;
-    Some(UpdateInfo {
-        version: resp.get("version")?.as_str()?.to_string(),
+        .map_err(|e| format!("Update server returned an unparseable response: {e}"))?;
+    Ok(UpdateInfo {
+        version: resp.get("version").and_then(|v| v.as_str())
+            .ok_or("Update server response missing 'version'")?
+            .to_string(),
         url: resp.get("url").and_then(|v| v.as_str()).map(|s| s.to_string()),
         filename: resp.get("filename").and_then(|v| v.as_str()).map(|s| s.to_string()),
     })
@@ -53,7 +61,7 @@ fn fetch_update_info(cfg: &crate::config::Config) -> Option<UpdateInfo> {
 /// Creates a bat script that stops the service, replaces the binary, and restarts.
 /// Designed to be called via `tokio::task::spawn_blocking` from an async instruction handler.
 pub fn apply_update(cfg: &crate::config::Config) -> Result<String, String> {
-    let info = fetch_update_info(cfg).ok_or("Could not reach update server")?;
+    let info = fetch_update_info(cfg)?;
 
     if info.version == CURRENT_VERSION {
         return Ok(format!("Agent is already up to date ({})", CURRENT_VERSION));
@@ -66,6 +74,7 @@ pub fn apply_update(cfg: &crate::config::Config) -> Result<String, String> {
     // Download new binary
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(300))
+        .danger_accept_invalid_certs(cfg.accept_invalid_certs)
         .build()
         .map_err(|e| e.to_string())?;
 
