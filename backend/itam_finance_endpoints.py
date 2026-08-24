@@ -87,6 +87,20 @@ async def update_asset_purchase(
                 detail=f"supplierId '{update_data['supplierId']}' not found.",
             )
 
+    if "purchase_order_id" in update_data:
+        # T-71-04 (71-01-PLAN.md, declared mitigate but never implemented):
+        # without this check any tenant could link an asset to an arbitrary
+        # or another tenant's purchase_order_id string, since it was
+        # previously accepted and persisted with no existence/ownership
+        # check at all. db is the tenant-isolated handle, so this can only
+        # ever resolve a PO belonging to the caller's own tenant.
+        po = await db.purchase_orders.find_one({"id": update_data["purchase_order_id"]})
+        if not po:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"purchase_order_id '{update_data['purchase_order_id']}' not found.",
+            )
+
     update_data["updatedAt"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
     mutation: Dict[str, Any] = {"$set": update_data}

@@ -116,6 +116,26 @@ class TestPurchasePatchValidation:
         assert r.status_code == 200, r.text
 
     @pytest.mark.asyncio
+    async def test_purchase_patch_unresolvable_purchase_order_id_returns_400(self, mock_db, finance_app):
+        """T-71-04 (71-01-PLAN.md) — declared mitigate but was never
+        implemented: any purchase_order_id string was previously accepted
+        and persisted with no existence/ownership check at all."""
+        mock_db.purchase_orders.find_one = AsyncMock(return_value=None)
+        async with self._client(finance_app) as ac:
+            r = await ac.patch("/api/assets/asset-1/purchase", json={"purchase_order_id": "po-missing"})
+        assert r.status_code == 400, r.text
+        assert "purchase_order_id" in r.text
+        assert mock_db.assets.find_one_and_update.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_purchase_patch_resolving_purchase_order_id_returns_200(self, mock_db, finance_app):
+        mock_db.purchase_orders.find_one = AsyncMock(return_value={"id": "po-1", "tenantId": "tenant-a"})
+        mock_db.assets.find_one_and_update = AsyncMock(return_value=finance_asset(purchase_order_id="po-1"))
+        async with self._client(finance_app) as ac:
+            r = await ac.patch("/api/assets/asset-1/purchase", json={"purchase_order_id": "po-1"})
+        assert r.status_code == 200, r.text
+
+    @pytest.mark.asyncio
     async def test_purchase_patch_empty_body_returns_400(self, mock_db, finance_app):
         async with self._client(finance_app) as ac:
             r = await ac.patch("/api/assets/asset-1/purchase", json={})

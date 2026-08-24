@@ -78,7 +78,7 @@ class MockTenantIsolatedDatabase:
 def mock_db():
     """Mock database carrying the collections the finance router touches."""
     db = MagicMock()
-    for name in ("assets", "suppliers", "asset_models", "counters", "system_settings"):
+    for name in ("assets", "suppliers", "asset_models", "counters", "system_settings", "purchase_orders"):
         setattr(db, name, _make_col())
     return db
 
