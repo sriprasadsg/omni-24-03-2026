@@ -18,11 +18,38 @@ from fastapi.responses import Response
 logger = logging.getLogger(__name__)
 
 
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def _accept_invalid_certs(api_url: str) -> bool:
+    """Whether a generated agent config.yaml should set accept_invalid_certs.
+
+    This server generates its own self-signed cert by default (see
+    start-all-services.sh, which checks for the same certs/server.{key,crt}
+    pair and prints "accept the one-time browser warning, or trust
+    certs/server.crt"). A human clicking through that browser warning has no
+    headless equivalent for the agent's own TLS client — reqwest rejects the
+    handshake, every registration POST fails, and the agent (by design) never
+    persists a partial/failed registration, so it stays stuck retrying
+    forever with agent_id/agent_token permanently null. Only default this on
+    when we can see this exact self-signed pair present locally and the
+    target URL is https — never for an arbitrary customer-supplied https://
+    URL, which may be a real CA-signed endpoint the agent should keep
+    verifying normally.
+    """
+    return (
+        api_url.strip().lower().startswith("https://")
+        and os.path.exists(os.path.join(_PROJECT_ROOT, "certs", "server.crt"))
+        and os.path.exists(os.path.join(_PROJECT_ROOT, "certs", "server.key"))
+    )
+
+
 def _config_yaml(api_url: str, registration_key: str, api_key: str = "", is_legacy: bool = False) -> dict:
     return {
         "agent_id": None, "agent_token": None, "api_base_url": api_url,
         "interval_seconds": 30, "max_cpu_percent": 20,
         "agentic_mode_enabled": False, "registration_key": registration_key,
+        "accept_invalid_certs": _accept_invalid_certs(api_url),
     }
 
 

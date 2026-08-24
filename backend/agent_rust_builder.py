@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, HTTPException
 from fastapi.responses import Response
 
-from agent_installer_builders import cleanup_temp_dir, _config_yaml
+from agent_installer_builders import cleanup_temp_dir, _config_yaml, _accept_invalid_certs
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,7 @@ registration_key: {reg_key}
 agent_id: null
 agent_token: null
 interval_seconds: 30
+accept_invalid_certs: {str(_accept_invalid_certs(api_url)).lower()}
 "@)
 
 $agentExe = "$D\\omni-agent.exe"
