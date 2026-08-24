@@ -125,6 +125,43 @@ def test_send_alert_explicit_empty_channels_means_no_dispatch():
     assert "email" in result_default["channels"], "Omitted channels should still default to email"
 
 
+def test_create_asset_request_notification_rule():
+    """Phase 71 (Asset Request & Approval Workflow) regression: itam_notification_service.py
+    sends every create/approve/reject via event_type "itam.asset_request_status", but the
+    type was missing from both RuleCreate's Literal (endpoint-level 422) and
+    notification_service.VALID_EVENTS (service-level ValueError) — no tenant could ever
+    bind a rule to it, so Slack/email delivery silently matched zero rules while the
+    in-app db.notifications path (a separate code path) kept working, masking the bug."""
+    db = _make_db(); user = _make_user()
+    client = _build_client("notification_endpoints", db, user)
+    resp = client.post("/api/notifications/rules", json={"event_type": "itam.asset_request_status", "channel_ids": ["chan-abc"]})
+    assert resp.status_code == 200, f"Got {resp.status_code}: {resp.text}"
+
+
+def test_asset_request_notification_matches_and_dispatches():
+    """Full round trip: a rule bound to itam.asset_request_status actually matches
+    when send_notification is called with that event_type, and reaches a channel."""
+    import asyncio
+    from notification_service import send_notification
+
+    rule = {"id": "rule-1", "tenantId": "tenant-a", "event_type": "itam.asset_request_status",
+             "channel_ids": ["chan-1"], "severity_filter": []}
+    channel = {"id": "chan-1", "tenantId": "tenant-a", "type": "email", "config": {"email": "ops@acme.com"}}
+
+    db = MagicMock()
+    db._db = MagicMock()
+    db._db.notification_rules = MagicMock()
+    db._db.notification_rules.find = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[rule])))
+    db._db.notification_channels = MagicMock()
+    db._db.notification_channels.find = MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[channel])))
+
+    result = asyncio.run(send_notification(db, "tenant-a", "itam.asset_request_status", {
+        "message": "Your asset request has been approved.", "severity": "success",
+    }))
+    assert result["matched_rules"] == 1, f"Expected the rule to match, got: {result}"
+    assert result["results"] == [{"channel_id": "chan-1", "status": "sent"}]
+
+
 def test_tenant_isolation_channels():
     seeded = [
         {"id": "chan-a", "tenantId": "tenant-a", "type": "slack", "name": "A's channel", "config": {}},

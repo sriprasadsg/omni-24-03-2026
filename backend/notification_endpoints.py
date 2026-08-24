@@ -27,6 +27,7 @@ class RuleCreate(BaseModel):
     event_type: Literal[
         "finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring",
         "itam.warranty_expiring",
+        "itam.asset_request_status",
     ]
     channel_ids: List[str] = []
     severity_filter: List[str] = []

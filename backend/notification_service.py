@@ -475,6 +475,10 @@ VALID_EVENTS = {
     # Dotted form deliberately namespaces the ITAM domain's events away from the
     # flat GRC vocabulary above — not a typo among the five undotted legacy names.
     "itam.warranty_expiring",
+    # Added by Phase 71 (Asset Request & Approval Workflow) — itam_notification_service.py
+    # sends this on every create/approve/reject, but no rule could ever bind to it
+    # since it was missing here and from RuleCreate's Literal below.
+    "itam.asset_request_status",
 }
 VALID_CHANNEL_TYPES = {"slack", "email", "webhook"}
 
