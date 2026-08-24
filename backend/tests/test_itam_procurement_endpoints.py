@@ -71,6 +71,7 @@ def test_create_purchase_order_endpoint(patch_dependencies):
         response = client.post("/api/v1/itam/purchase-orders", json=po_create_payload)
         assert response.status_code == 201
         assert response.json()["order_number"] == MOCK_ORDER_NUMBER
+        assert response.json()["id"] == MOCK_PO_ID, "wire key must be 'id', not Mongo's raw '_id' alias"
 
 def test_get_purchase_order_endpoint(patch_dependencies):
     patch_dependencies.get_purchase_order.return_value = PurchaseOrder.model_validate(MOCK_PO_DOC)
@@ -79,7 +80,8 @@ def test_get_purchase_order_endpoint(patch_dependencies):
         response = client.get(f"/api/v1/itam/purchase-orders/{MOCK_PO_ID}")
         assert response.status_code == 200
         data = response.json()
-        assert data.get("id") == MOCK_PO_ID or data.get("_id") == MOCK_PO_ID
+        assert data.get("id") == MOCK_PO_ID, f"wire key must be 'id', not '_id' — got keys {list(data.keys())}"
+        assert "_id" not in data
 
 def test_get_purchase_order_endpoint_not_found(patch_dependencies):
     patch_dependencies.get_purchase_order.return_value = None
@@ -98,7 +100,9 @@ def test_list_purchase_orders_endpoint(patch_dependencies):
     with TestClient(_fastapi_app) as client:
         response = client.get("/api/v1/itam/purchase-orders?skip=0&limit=10")
         assert response.status_code == 200
-        assert len(response.json()) == 2
+        items = response.json()
+        assert len(items) == 2
+        assert all("id" in item and "_id" not in item for item in items)
 
 def test_update_purchase_order_endpoint(patch_dependencies):
     updated_po_doc = {**MOCK_PO_DOC, "notes": "Updated notes from endpoint."}
@@ -107,7 +111,9 @@ def test_update_purchase_order_endpoint(patch_dependencies):
     with TestClient(_fastapi_app) as client:
         response = client.put(f"/api/v1/itam/purchase-orders/{MOCK_PO_ID}", json={"notes": "Updated notes from endpoint."})
         assert response.status_code == 200
-        assert response.json()["notes"] == "Updated notes from endpoint."
+        data = response.json()
+        assert data["notes"] == "Updated notes from endpoint."
+        assert data["id"] == MOCK_PO_ID and "_id" not in data
 
 def test_update_purchase_order_endpoint_not_found(patch_dependencies):
     patch_dependencies.update_purchase_order.return_value = None

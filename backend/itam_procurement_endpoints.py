@@ -24,7 +24,7 @@ async def _require_procurement_admin(current_user: TokenData = Depends(get_curre
         )
     return current_user
 
-@router.post("", response_model=PurchaseOrder, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PurchaseOrder, response_model_by_alias=False, status_code=status.HTTP_201_CREATED)
 async def create_purchase_order_endpoint(
     po_data: PurchaseOrderCreate,
     current_user: TokenData = Depends(_require_procurement_admin)
@@ -42,7 +42,7 @@ async def create_purchase_order_endpoint(
         logger.error(f"Failed to create purchase order: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create purchase order.")
 
-@router.get("/{po_id}", response_model=PurchaseOrder)
+@router.get("/{po_id}", response_model=PurchaseOrder, response_model_by_alias=False)
 async def get_purchase_order_endpoint(
     po_id: str,
     current_user: TokenData = Depends(_require_procurement_admin)
@@ -58,7 +58,7 @@ async def get_purchase_order_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Purchase Order not found.")
     return po
 
-@router.get("", response_model=List[PurchaseOrder])
+@router.get("", response_model=List[PurchaseOrder], response_model_by_alias=False)
 async def list_purchase_orders_endpoint(
     skip: int = 0,
     limit: int = 100,
@@ -73,7 +73,7 @@ async def list_purchase_orders_endpoint(
     pos = await service.list_purchase_orders(tenant_id, skip, limit)
     return pos
 
-@router.put("/{po_id}", response_model=PurchaseOrder)
+@router.put("/{po_id}", response_model=PurchaseOrder, response_model_by_alias=False)
 async def update_purchase_order_endpoint(
     po_id: str,
     po_data: PurchaseOrderUpdate,
