@@ -27,7 +27,19 @@ export default defineConfig(({ mode }) => {
       watch: {
         // Exclude Rust build artifacts — Windows locks .exe files during compilation
         // and chokidar throws EBUSY trying to watch them.
-        ignored: ['**/agent-install/omni-agent-rs/target/**'],
+        // Exclude the three Python virtualenvs living in this repo (venv/, .venv/,
+        // backend/venv/) and other non-source trees — each venv's site-packages
+        // alone is tens of thousands of files, easily exhausting even a raised
+        // fs.inotify.max_user_watches and crashing the whole Vite process with
+        // ENOSPC. None of this needs HMR watching.
+        ignored: [
+          '**/agent-install/omni-agent-rs/target/**',
+          '**/venv/**',
+          '**/.venv/**',
+          '**/.claude/**',
+          '**/dist/**',
+          '**/dist-new/**',
+        ],
       },
       hmr: {
         overlay: true,
