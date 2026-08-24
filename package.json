@@ -19,6 +19,7 @@
     "test:backend": "pytest backend/tests/"
   },
   "dependencies": {
+    "@claude-flow/aidefence": "^3.0.3",
     "@simplewebauthn/browser": "^13.3.0",
     "axios": "^1.13.2",
     "buffer": "^6.0.3",
