@@ -212,6 +212,75 @@ fn logged_in_user() -> Option<String> {
     None
 }
 
+// ── Hardware serial number ──────────────────────────────────────────────────
+// Resolved once and cached: the underlying platform call (a `powershell`
+// spawn on Windows) is too slow to repeat every heartbeat, and the value
+// never changes for the life of the process.
+
+static SERIAL_NUMBER: OnceLock<String> = OnceLock::new();
+
+fn serial_number() -> String {
+    SERIAL_NUMBER.get_or_init(detect_serial_number).clone()
+}
+
+fn fallback_serial() -> String {
+    format!("SN-{}", hostname_str().chars().take(12).collect::<String>())
+}
+
+#[cfg(windows)]
+fn detect_serial_number() -> String {
+    // wmic.exe was removed starting Windows 11 24H2; Get-CimInstance talks to
+    // the same underlying WMI/CIM subsystem and is still present everywhere.
+    let out = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "(Get-CimInstance -ClassName Win32_BIOS).SerialNumber",
+        ])
+        .output();
+    if let Ok(out) = out {
+        let serial = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !serial.is_empty() && serial != "To Be Filled By O.E.M." {
+            return serial;
+        }
+    }
+    fallback_serial()
+}
+
+#[cfg(target_os = "linux")]
+fn detect_serial_number() -> String {
+    std::fs::read_to_string("/sys/class/dmi/id/product_serial")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(fallback_serial)
+}
+
+#[cfg(target_os = "macos")]
+fn detect_serial_number() -> String {
+    let out = std::process::Command::new("system_profiler")
+        .arg("SPHardwareDataType")
+        .output();
+    if let Ok(out) = out {
+        let text = String::from_utf8_lossy(&out.stdout);
+        for line in text.lines() {
+            if let Some((_, val)) = line.split_once("Serial Number") {
+                let val = val.trim_start_matches(':').trim();
+                if !val.is_empty() {
+                    return val.to_string();
+                }
+            }
+        }
+    }
+    fallback_serial()
+}
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+fn detect_serial_number() -> String {
+    fallback_serial()
+}
+
 pub fn collect_metrics(sys: &System) -> Value {
     let cpus = sys.cpus();
     let avg_cpu = if cpus.is_empty() {
@@ -316,6 +385,7 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
 
     // Flat keys expected by the backend heartbeat handler
     meta["os_version"]        = json!(os_version);
+    meta["serial_number"]     = json!(serial_number());
     meta["cpu_model"]         = json!(cpu_model);
     meta["mac_address"]       = json!(primary_mac);
     meta["mac_addresses"]     = json!(mac_list);
