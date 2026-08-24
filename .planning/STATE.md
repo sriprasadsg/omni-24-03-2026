@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: — Evidence Quality & Compliance Scoring
-current_phase: 73
-current_phase_name: api-integrations
-status: complete
-stopped_at: "Phase 73 (API & Integrations) verified complete 2026-08-19 by gsd-verifier — ITAM-API-01/02/03 all SATISFIED. All 6 plans executed (73-01..06): API-key auth + scope narrowing on ITAM routers, webhook system (8 event types across request-scoped call sites + 3 tenant-bracketed background sweeps), Jira/ServiceNow ticketing bridge (manual + 2 automatic triggers, dedup-guarded), frontend webhook picker + Create Ticket row actions. 122 phase-specific backend tests pass. 73-REVIEW.md found 3 warnings/2 info, all in pre-existing adjacent code (not phase 73's own diff) — logged as follow-up debt, not blockers. 3 items remain flagged for human/manual verification only (not gaps): concurrent-tenant API-key isolation under real concurrent load (contextvar scoping, code correct but unit-proven only), ticket-provider dropdown at narrow viewport, long ticket-reference row layout. This was the last phase in ROADMAP.md (v4.1 ITAM-Backlog milestone, phases 69-73) — all requirements now Complete per REQUIREMENTS.md except ITAM-PRO-04/05 rows, which are stale (71-03-SUMMARY.md confirms both were implemented, UAT'd end-to-end in a live browser, and committed — the traceability table just was never updated after 71-03 landed; phase 71 also has no 71-VERIFICATION.md on file, unlike every other closed phase). Milestone-completion decision (archive v4.1, run gsd-complete-milestone) deferred to explicit user direction — not run yet."
-last_updated: "2026-08-24T00:00:00.000Z"
-last_activity: 2026-08-24
-last_activity_desc: Phase 73 STATE.md reconciled against 73-VERIFICATION.md (was stale at 'verifying'/phase-39 text since 2026-08-18)
+milestone_name: Evidence Quality & Compliance Scoring
+current_phase: 64
+status: completed
+stopped_at: Phase 64 complete — all phases complete
+last_updated: "2026-08-24T23:28:16.802Z"
+last_activity: 2026-08-25
+last_activity_desc: Phase 64 complete
+state_head: 5346606c38da269a8de85608dccbf234dd572c16
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 9
+  completed_plans: 9
+  percent: 75
 ---
 
 # Project State
@@ -526,7 +526,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Last Session
 
 - **Timestamp:** 2026-08-03T14:30:10.000Z
-- **Stopped at:** context exhaustion at 76% (2026-08-18)
+- **Stopped at:** context exhaustion at 77% (2026-08-24)
 - **Resume file:** None
 
 ## Configuration
@@ -552,8 +552,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-18T18:33:31.881Z
-**Stopped at:** Phase 39 plan 39-09 (create_agent narrative generation — NarrativeOutput + word-budget validation + framework-fidelity flagging + fail-closed fallback + shim; AISPEC-39-S4/S4b/S6/S7, RESEARCH-Pat3) executed and committed 2026-07-18 (commits 995f295/a8015d7/db00e30) — backend/ai_orchestration/agents/narrative.py (generate_executive/generate_framework build a per-tenant create_agent with no tools, requesting NarrativeOutput via ToolStrategy; word budget (executive 150, framework 200) always recomputed from the actual returned text via NarrativeOutput.from_raw, never trusted from the model's self-reported word_count/limit fields; fail-closed fallback on validation failure, BLOCKED:/Error: output, guardrail block, unresolved framework-fidelity token, or any agent exception) and compliance_narrative_service.py (thin shim preserving generate_executive_summary/generate_framework_narrative's exact 4-arg signatures + str return + enrich_report_data + _render_narratives; two new optional trailing tenant_id/db kwargs let enrich_report_data pass both explicitly per RESEARCH Pitfall B). 17 hermetic unit tests green (test_narrative_agent.py, 12 -k agent / 5 -k shim). Rule-1 fix: retargeted test_compliance_narrative_service.py's 5 pre-existing tests off the now-removed compliance_narrative_service.ai_service attribute onto the new agent boundary — all 8 tests still pass. Full backend suite: 1104 passed / 23 skipped / 2 failed (both pre-existing, unrelated — test_e2e_integration.py golden path, test_rust_heartbeat_parity.py). **All four AI-surface migrations (auditor/chat/questionnaire/narrative) now complete.** Next — 39-11/39-12 (eval dimensions, code-based and LLM-judged).
+**Last session:** 2026-08-24T10:43:27.870Z
+**Stopped at:** Phase 64 complete — all phases complete
 **Resume file:** None
 
 ## Accumulated Context
@@ -574,10 +574,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 73 (api-integrations) — EXECUTING
-Plan: 6 of 6
-Status: Phase complete — ready for verification
-Last activity: 2026-08-18 — Phase 73 execution started
+Phase: 64
+Plan: Not started
+Status: All phases complete
+Last activity: 2026-08-25 — Phase 64 complete
 
 ## Deferred Items
 
