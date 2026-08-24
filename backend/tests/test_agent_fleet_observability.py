@@ -110,7 +110,7 @@ class TestFleetObservabilityEndpoint:
         import agent_fleet_observability_endpoints as m
 
         agents = [
-            {"id": "a1", "hostname": "h1", "status": "Online", "version": "2.1.5", "tenantId": "tenant-a"},  # current
+            {"id": "a1", "hostname": "h1", "status": "Online", "version": "2.1.6", "tenantId": "tenant-a"},  # current
             {"id": "a2", "hostname": "h2", "status": "Online", "version": "2.0.0", "tenantId": "tenant-a"},  # drifted
             {"id": "a3", "hostname": "h3", "status": "Online", "version": "2.2.0", "tenantId": "tenant-a"},  # newer, not drift
         ]
@@ -123,7 +123,7 @@ class TestFleetObservabilityEndpoint:
         body = res.json()
         assert [a["id"] for a in body["version_drift"]] == ["a2"]
         assert body["drift_count"] == 1
-        assert body["latest_version"] == "2.1.5"
+        assert body["latest_version"] == "2.1.6"
 
     @patch("agent_fleet_observability_endpoints.get_database")
     def test_malformed_or_missing_version_excluded_without_crash(self, mock_get_db):
