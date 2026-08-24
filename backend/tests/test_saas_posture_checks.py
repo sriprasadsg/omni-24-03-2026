@@ -25,12 +25,12 @@ def _user(role="security_analyst", tenant_id="tenant-a"):
     return TokenData(username="test@example.com", role=role, tenant_id=tenant_id, mfa_verified=True)
 
 
-def _make_client(db):
+def _make_client(db, user=None):
     """Depends(get_db) holds the original function object — override it on the
     app; patching database.get_db after import has no effect on the route."""
     app = FastAPI()
     app.include_router(ep.router)
-    app.dependency_overrides[get_current_user] = lambda: _user()
+    app.dependency_overrides[get_current_user] = lambda: (user or _user())
     app.dependency_overrides[get_db] = lambda: db
     return TestClient(app)
 
@@ -115,6 +115,27 @@ def test_endpoint_list_results_success():
     # results query is tenant-scoped
     query = db.saas_check_results.find.call_args.args[0]
     assert query["tenantId"] == tenant_id
+
+def test_endpoint_list_results_super_admin_scoped_to_connection_tenant():
+    # WR-03: a super_admin listing results for another tenant's connection
+    # must see what was run against it (stored under the connection's own
+    # tenant_id per run_posture_checks) — not query under the admin's own
+    # (here, absent) tenant, which would silently return nothing.
+    connection_id = "conn-1"
+    connection = {"id": connection_id, "tenant_id": "tenant-b", "provider": "github"}
+    mock_results = [{"id": "scr-1", "checkName": "Mock Check", "result": "PASS"}]
+
+    db = MagicMock()
+    db.saas_connections.find_one = AsyncMock(return_value=connection)
+    db.saas_check_results.find.return_value.to_list = AsyncMock(return_value=mock_results)
+    admin = TokenData(username="admin@example.com", role="super_admin", tenant_id=None, mfa_verified=True)
+    client = _make_client(db, user=admin)
+    response = client.get(f"/api/saas/posture-checks/{connection_id}/results")
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    query = db.saas_check_results.find.call_args.args[0]
+    assert query["tenantId"] == "tenant-b"
 
 def test_endpoint_list_results_cross_tenant_denied():
     connection_id = "conn-1"

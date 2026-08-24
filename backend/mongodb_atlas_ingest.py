@@ -26,12 +26,10 @@ def _atlas_get_sync(url: str, public_key: str, private_key: str) -> dict:
     return resp.json()
 
 
-def _parse_atlas_finding(finding: Dict[str, Any], account_id: str, tenant_id: str) -> Dict[str, Any]:
-    # Simplified parsing logic for cluster configuration findings
-    cluster_name = finding.get("name", "Unknown Cluster")
-    # Determine severity based on configuration (example: if IP Access List has 0.0.0.0/0)
-    severity = "High" # Default for security configuration findings
-
+def _make_atlas_finding(
+    cluster_name: str, check_id: str, title: str, description: str, severity: str,
+    remediation: str, account_id: str, tenant_id: str, raw: Dict[str, Any],
+) -> Dict[str, Any]:
     return {
         "id": str(uuid.uuid4()),
         "tenantId": tenant_id,
@@ -39,14 +37,51 @@ def _parse_atlas_finding(finding: Dict[str, Any], account_id: str, tenant_id: st
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "provider": "mongodb_atlas",
         "service": "cluster",
-        "checkId": f"ATLAS-{cluster_name.upper().replace(' ', '-')}",
-        "title": f"Atlas Cluster Setting: {cluster_name}",
-        "description": f"Atlas cluster '{cluster_name}' configuration finding.",
+        "checkId": f"ATLAS-{cluster_name.upper().replace(' ', '-')}-{check_id}",
+        "title": title,
+        "description": description,
         "severity": severity,
-        "status": "FAIL", # Assume failing for the POC finding
-        "remediation": "Review cluster security configuration settings.",
-        "raw_message": finding,
+        "status": "FAIL",
+        "remediation": remediation,
+        "raw_message": raw,
     }
+
+
+def _evaluate_atlas_cluster(cluster: Dict[str, Any], account_id: str, tenant_id: str) -> List[Dict[str, Any]]:
+    """
+    Evaluate one Atlas cluster's real configuration and return only the
+    findings for actual misconfigurations (WR-01: this used to hardcode
+    every cluster as High/FAIL regardless of its config). A field is only
+    checked when the Admin API actually returned it — a missing field is
+    treated as "unknown" (not flagged), not assumed insecure, since some
+    cluster tiers (e.g. serverless) don't return every field.
+    """
+    cluster_name = cluster.get("name", "Unknown Cluster")
+    findings: List[Dict[str, Any]] = []
+
+    if cluster.get("encryptionAtRestProvider") == "NONE":
+        findings.append(_make_atlas_finding(
+            cluster_name, "ENCRYPTION", f"Atlas Cluster Encryption at Rest Disabled: {cluster_name}",
+            f"Atlas cluster '{cluster_name}' has encryption at rest disabled (encryptionAtRestProvider=NONE).",
+            "High", "Enable encryption at rest for this cluster.", account_id, tenant_id, cluster,
+        ))
+
+    if cluster.get("backupEnabled") is False:
+        findings.append(_make_atlas_finding(
+            cluster_name, "BACKUP", f"Atlas Cluster Backups Disabled: {cluster_name}",
+            f"Atlas cluster '{cluster_name}' has continuous backups disabled (backupEnabled=false).",
+            "Medium", "Enable backups for this cluster.", account_id, tenant_id, cluster,
+        ))
+
+    if cluster.get("terminationProtectionEnabled") is False:
+        findings.append(_make_atlas_finding(
+            cluster_name, "TERMPROTECT", f"Atlas Cluster Termination Protection Disabled: {cluster_name}",
+            f"Atlas cluster '{cluster_name}' has termination protection disabled (terminationProtectionEnabled=false).",
+            "Medium", "Enable termination protection to prevent accidental or malicious cluster deletion.",
+            account_id, tenant_id, cluster,
+        ))
+
+    return findings
 
 
 async def poll_mongodb_atlas_findings(config: Dict[str, Any], account_id: str, tenant_id: str) -> int:
@@ -68,7 +103,7 @@ async def poll_mongodb_atlas_findings(config: Dict[str, Any], account_id: str, t
 
         findings: List[Dict[str, Any]] = []
         for cluster in data.get("results", []):
-            findings.append(_parse_atlas_finding(cluster, account_id, tenant_id))
+            findings.extend(_evaluate_atlas_cluster(cluster, account_id, tenant_id))
 
         if not findings:
             logger.info("[Atlas] No findings for tenant %s", tenant_id)

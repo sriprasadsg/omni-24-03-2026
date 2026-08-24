@@ -24,11 +24,13 @@ except ImportError:
     logger.warning("[M365] msal or httpx not installed — M365 Secure Score ingest disabled")
 
 
-def _severity_map(score: int) -> str:
-    # Example thresholds, adjust as per M365 Secure Score control impact
-    if score < 40:
+def _severity_map(pct: float) -> str:
+    # WR-02: thresholds are on the percentage of max_score achieved, not the
+    # raw current_score — a control's currentScore is an absolute value on a
+    # per-control maxScore (e.g. 5/10), not itself a 0-100 scale.
+    if pct < 40:
         return "Critical"
-    if score < 70:
+    if pct < 70:
         return "High"
     return "Medium"
 
@@ -43,7 +45,8 @@ def _parse_m365_secure_score_control(control: Dict[str, Any], account_id: str, t
     # For simplicity, we'll map based on currentScore against maxScore.
     # A control is considered 'failing' if its current score is not max.
     is_failing = current_score < max_score
-    severity = _severity_map(current_score) # map based on current score
+    pct = (100 * current_score / max_score) if max_score else 0
+    severity = _severity_map(pct)
 
     return {
         "id": str(uuid.uuid4()),

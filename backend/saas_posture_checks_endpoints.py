@@ -46,7 +46,11 @@ async def list_posture_results(
         if connection.get("tenant_id") != user_tenant:
             raise HTTPException(status_code=403, detail="Access denied")
 
+    # WR-03: results are stored under the connection's own tenant (see
+    # saas_posture_checks_service.run_posture_checks), not the caller's —
+    # a super_admin/platform_admin running checks against another tenant's
+    # connection would otherwise never see the results it just wrote.
     results = await db.saas_check_results.find(
-        {"tenantId": user_tenant, "connectionId": connection_id}, {"_id": 0}
+        {"tenantId": connection.get("tenant_id"), "connectionId": connection_id}, {"_id": 0}
     ).to_list(length=100)
     return {"items": results, "count": len(results)}

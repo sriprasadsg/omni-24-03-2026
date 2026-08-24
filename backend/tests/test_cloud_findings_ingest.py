@@ -74,6 +74,16 @@ async def test_m365_poll_success():
         assert count == 1
 
 
+def test_m365_severity_uses_percentage_not_raw_score():
+    # WR-02 regression: currentScore=5 on maxScore=10 is 50% (High band,
+    # 40-70%), but the old code compared the raw 5 directly against the
+    # 40/70 thresholds and mislabeled it Critical (5 < 40).
+    from m365_ingest import _parse_m365_secure_score_control
+    control = {"id": "c1", "controlName": "Test Control", "currentScore": 5, "maxScore": 10}
+    finding = _parse_m365_secure_score_control(control, "acc1", "ten1")
+    assert finding["severity"] == "High"
+
+
 async def test_m365_poll_missing_config():
     assert await poll_m365_secure_scores({}, "acc1", "ten1") == 0
 
@@ -90,10 +100,43 @@ async def test_m365_poll_raise_returns_0():
 
 
 async def test_atlas_poll_success():
+    # WR-01: findings now reflect real cluster config, not a blanket
+    # High/FAIL per cluster. This cluster has all three checked settings
+    # misconfigured, so it produces 3 distinct findings.
+    config = {"atlas_public_key": "pk", "atlas_private_key": "prk", "atlas_project_id": "pid"}
+    insecure_cluster = {
+        "name": "c1",
+        "encryptionAtRestProvider": "NONE",
+        "backupEnabled": False,
+        "terminationProtectionEnabled": False,
+    }
+    with patch("mongodb_atlas_ingest._atlas_get_sync", return_value={"results": [insecure_cluster]}):
+        count = await poll_mongodb_atlas_findings(config, "acc1", "ten1")
+        assert count == 3
+
+
+async def test_atlas_poll_compliant_cluster_no_findings():
+    # WR-01 regression: a properly configured cluster must produce zero
+    # findings, not the old hardcoded High/FAIL.
+    config = {"atlas_public_key": "pk", "atlas_private_key": "prk", "atlas_project_id": "pid"}
+    compliant_cluster = {
+        "name": "c1",
+        "encryptionAtRestProvider": "AWS",
+        "backupEnabled": True,
+        "terminationProtectionEnabled": True,
+    }
+    with patch("mongodb_atlas_ingest._atlas_get_sync", return_value={"results": [compliant_cluster]}):
+        count = await poll_mongodb_atlas_findings(config, "acc1", "ten1")
+        assert count == 0
+
+
+async def test_atlas_poll_missing_fields_not_assumed_insecure():
+    # A cluster tier that doesn't return a field (e.g. serverless) must not
+    # be treated as insecure just because the key is absent.
     config = {"atlas_public_key": "pk", "atlas_private_key": "prk", "atlas_project_id": "pid"}
     with patch("mongodb_atlas_ingest._atlas_get_sync", return_value={"results": [{"name": "c1"}]}):
         count = await poll_mongodb_atlas_findings(config, "acc1", "ten1")
-        assert count == 1
+        assert count == 0
 
 
 async def test_atlas_poll_missing_config():
