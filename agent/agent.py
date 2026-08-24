@@ -365,7 +365,21 @@ class AgentCapabilityManager:
         # Initialize all capability instances
         for cap_id, cap_class in CAPABILITY_REGISTRY.items():
             try:
-                instance = cap_class()
+                # Pass real cfg, not an empty default — real_fim, threat_intel,
+                # predictive_health, remediation, ticket_reporter, and log_shipper
+                # all read self.config expecting api_base_url/agent_id/agent_token/
+                # tunable thresholds; passing nothing here silently gave every one
+                # of them an empty dict, so they fell back to hardcoded
+                # localhost:5000 + agent_id "unknown" + no auth token —
+                # log_shipper's every POST 404'd/misrouted as a direct result.
+                # A handful of capability classes still override __init__ with a
+                # zero-arg or non-config signature (e.g. AutonomousResponseCapability,
+                # PIIScannerCapability) — TypeError falls back to the old zero-arg
+                # call so those keep working exactly as before.
+                try:
+                    instance = cap_class(self.cfg)
+                except TypeError:
+                    instance = cap_class()
                 self.capability_instances[cap_id] = instance
                 logger.info(f"Initialized capability: {cap_id}")
                 if hasattr(instance, "start_watching"):
@@ -1144,6 +1158,10 @@ class AgentCapabilityManager:
         for cap_id in self.enabled_capabilities:
             capability = self.capability_instances.get(cap_id)
             if capability:
+                if not hasattr(capability, "should_run"):
+                    # On-demand action executors (e.g. autonomous_response) aren't
+                    # polled on an interval — they're invoked directly by name.
+                    continue
                 try:
                     interval = self.collection_intervals.get(cap_id, 60)
                     if capability.should_run(interval):
@@ -1383,6 +1401,16 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
         else:
             if buffer_mgr:
                 buffer_mgr.add_message(payload)
+            if resp.status_code == 403:
+                try:
+                    auth_error = resp.json().get("error", "")
+                except Exception:
+                    auth_error = ""
+                if auth_error in ("Invalid Agent Token", "Agent token has been revoked", "Invalid Tenant Key"):
+                    logger.warning(f"Agent token rejected ({auth_error}) — re-registering")
+                    cfg["agent_token"] = None
+                    save_config(cfg)
+                    register_agent(cfg)
             return False
 
     except Exception as e:

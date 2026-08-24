@@ -15,6 +15,7 @@ from agent_auth import verify_agent_key
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 
 _MAX_TELEMETRY_EVENTS = 1000  # hard cap per batch; agent batches up to 512
+_MAX_RAW_LOG_LINES = 1000  # log_shipper.py sends up to 50 lines per tick + any buffered backlog
 
 
 @router.post("/{agent_id}/telemetry")
@@ -115,6 +116,51 @@ async def ingest_telemetry(
 
     return {"ok": True, "stored": len(docs), "detections": len(detections),
             "alerts": alert_count, "batch_id": batch_id}
+
+
+@router.post("/{agent_id}/logs/raw")
+async def ingest_raw_logs(
+    agent_id: str,
+    payload: Dict[str, Any] = Body(...),
+    db=Depends(get_database),
+    _auth=Depends(verify_agent_key),
+):
+    """Ingest a batch of raw OS logs (syslog / Windows Event Log lines) from
+    the legacy Python agent's log_shipper capability.
+
+    Body: {agent_id, logs: [{source, raw_message, collected_at}, ...]}. This
+    route did not exist before — log_shipper.py has always POSTed here, and
+    every attempt 404'd, silently buffering every log line to local disk
+    forever instead of shipping it. Stored into the same db.logs collection
+    log_endpoints.py's GET /api/logs already reads, so shipped lines appear
+    in the existing Logs UI with no new frontend surface needed.
+    """
+    tenant_id = _auth.get("id") or _auth.get("tenant_id") or ""
+    received_at = datetime.now(timezone.utc)
+
+    raw_logs = payload.get("logs")
+    logs: List[Dict[str, Any]] = raw_logs[:_MAX_RAW_LOG_LINES] if isinstance(raw_logs, list) else []
+
+    docs: List[Dict[str, Any]] = []
+    for entry in logs:
+        if not isinstance(entry, dict):
+            continue
+        docs.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": entry.get("collected_at") or received_at.isoformat(),
+            "severity": "INFO",
+            "service": entry.get("source", "log_shipper"),
+            "hostname": agent_id,
+            "agentId": agent_id,
+            "message": entry.get("raw_message", ""),
+            "tenantId": tenant_id,
+            "metadata": {},
+        })
+
+    if docs:
+        await db.logs.insert_many(docs)
+
+    return {"ok": True, "stored": len(docs)}
 
 
 @router.get("/{agent_id}/telemetry")

@@ -5,7 +5,6 @@ Collects raw OS logs (Syslog and Windows Event Logs) and forwards them to the ba
 from .base import BaseCapability
 import platform
 import os
-import time
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
@@ -13,9 +12,8 @@ class LogShipperCapability(BaseCapability):
     def __init__(self, config=None):
         super().__init__(config)
         self.os_type = platform.system().lower()
-        self.last_run = time.time()
         # Keep track of where we left off (simplified for demo)
-        self.pointer = 0 
+        self.pointer = 0
 
     @property
     def capability_id(self) -> str:
@@ -217,11 +215,14 @@ class LogShipperCapability(BaseCapability):
         """Low-level POST to backend; returns True on success."""
         import requests as _req
         backend_url = self.config.get("api_base_url", "http://localhost:5000")
-        api_key = self.config.get("api_key", "")
+        # "agent_token" is the field config.yaml actually persists after registration
+        # (see agent.py's save_config/register_agent) — "api_key" was never a real
+        # config key, so this always sent an unauthenticated request.
+        agent_token = self.config.get("agent_token", "")
         agent_id = self.config.get("agent_id", "unknown")
         headers = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        if agent_token:
+            headers["Authorization"] = f"Bearer {agent_token}"
         resp = _req.post(
             f"{backend_url.rstrip('/')}/api/agents/{agent_id}/logs/raw",
             json={"logs": logs, "agent_id": agent_id},
