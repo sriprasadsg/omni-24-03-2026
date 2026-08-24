@@ -43,7 +43,11 @@ def _user(role="security_analyst", tenant_id="t1"):
 class TestIngestModules:
 
     @pytest.mark.asyncio
-    async def test_oci_poll_success(self):
+    async def test_oci_poll_not_implemented_no_fabricated_events(self):
+        # 32-REVIEW.md CR-01: this SIEM-domain poll used to fabricate fake
+        # "Test Problem" events regardless of credentials. It now fails safe
+        # (0 events, nothing written) until a real implementation lands —
+        # poll_oci_cspm_findings (CSPM domain) is the real, tested integration.
         from oci_ingest import poll_oci_cloud_guard_problems
         db = _db(security_events=_col())
         with patch("oci_ingest.get_database", return_value=db), \
@@ -52,8 +56,8 @@ class TestIngestModules:
                 {"oci_tenancy_ocid": "t", "oci_user_ocid": "u", "oci_private_key": "k", "oci_fingerprint": "f", "oci_region": "r"},
                 "t1"
             )
-        assert count == 2
-        assert db.security_events.insert_many.called
+        assert count == 0
+        assert not db.security_events.insert_many.called
 
     @pytest.mark.asyncio
     async def test_oci_poll_missing_fields(self):
@@ -62,7 +66,8 @@ class TestIngestModules:
         assert count == 0
 
     @pytest.mark.asyncio
-    async def test_alibaba_poll_success(self):
+    async def test_alibaba_poll_not_implemented_no_fabricated_events(self):
+        # 32-REVIEW.md CR-01: see test_oci_poll_not_implemented_no_fabricated_events.
         from alibaba_ingest import poll_alibaba_sas_alerts
         db = _db(security_events=_col())
         with patch("alibaba_ingest.get_database", return_value=db), \
@@ -71,11 +76,12 @@ class TestIngestModules:
                 {"access_key_id": "k", "access_key_secret": "s", "region_id": "r"},
                 "t1"
             )
-        assert count == 3
-        assert db.security_events.insert_many.called
+        assert count == 0
+        assert not db.security_events.insert_many.called
 
     @pytest.mark.asyncio
-    async def test_cloudflare_poll_success(self):
+    async def test_cloudflare_poll_not_implemented_no_fabricated_events(self):
+        # 32-REVIEW.md CR-01: see test_oci_poll_not_implemented_no_fabricated_events.
         from cloudflare_ingest import poll_cloudflare_zero_trust_events
         db = _db(security_events=_col())
         with patch("cloudflare_ingest.get_database", return_value=db), \
@@ -84,8 +90,8 @@ class TestIngestModules:
                 {"cf_account_id": "a", "cf_api_token": "t"},
                 "t1"
             )
-        assert count == 1
-        assert db.security_events.insert_many.called
+        assert count == 0
+        assert not db.security_events.insert_many.called
 
 def _app(router, user):
     app = FastAPI()

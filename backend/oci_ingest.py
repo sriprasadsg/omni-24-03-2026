@@ -22,24 +22,6 @@ except ImportError:
     logger.warning("[OCI] oci SDK not installed — OCI Cloud Guard ingest disabled")
 
 
-def _make_oci_client(config: Dict[str, Any]):
-    if not _OCI_SDK_AVAILABLE:
-        return None
-
-    # OCI config dict shape
-    oci_config = {
-        "tenancy": config.get("oci_tenancy_ocid"),
-        "user": config.get("oci_user_ocid"),
-        "key_content": config.get("oci_private_key"),
-        "fingerprint": config.get("oci_fingerprint"),
-        "region": config.get("oci_region"),
-    }
-
-    # client = oci.cloud_guard.CloudGuardClient(oci_config)
-    # Mocking for now to match test requirements
-    return "mocked_oci_client"
-
-
 def _severity_map(oci_severity: str) -> str:
     return {
         "CRITICAL": "Critical",
@@ -49,26 +31,17 @@ def _severity_map(oci_severity: str) -> str:
     }.get(oci_severity, "Medium")
 
 
-def _parse_oci_problem(problem: Any, tenant_id: str) -> Dict[str, Any]:
-    # Mock parsing
-    return {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "log_type": "oci_cloud_guard",
-        "title": getattr(problem, "title", "Unknown OCI Problem"),
-        "description": getattr(problem, "description", ""),
-        "severity": _severity_map(getattr(problem, "severity", "MEDIUM")),
-        "status": "Active",
-        "raw_message": f"[OCI Cloud Guard] {getattr(problem, 'title', 'Problem')}",
-        "source": "oci_cloud_guard",
-    }
-
-
 async def poll_oci_cloud_guard_problems(config: Dict[str, Any], omni_tenant_id: str) -> int:
     """
     Poll OCI Cloud Guard problems for a configured integration.
     Returns count of new events ingested.
+
+    No real SIEM-domain polling is wired here (32-REVIEW.md CR-01): this
+    used to fabricate hardcoded "Test Problem" events and write them into
+    security_events unlabeled, corrupting the SIEM with invented findings.
+    poll_oci_cspm_findings() below is the real, tested Cloud Guard
+    integration (same underlying API, CSPM domain) — this SIEM-domain
+    function fails safe (0 events) until it gets a real implementation.
     """
     if not _OCI_SDK_AVAILABLE:
         return 0
@@ -78,31 +51,8 @@ async def poll_oci_cloud_guard_problems(config: Dict[str, Any], omni_tenant_id: 
         logger.warning("[OCI] Incomplete credentials for tenant %s", omni_tenant_id)
         return 0
 
-    try:
-        client = _make_oci_client(config)
-        if not client:
-            return 0
-
-        # Mocked API call
-        # problems = client.list_problems(compartment_id=...)
-        problems = [type('Problem', (), {'title': 'Test Problem', 'description': 'Test desc', 'severity': 'CRITICAL'})() for _ in range(2)]
-
-        if not problems:
-            return 0
-
-        set_tenant_id(omni_tenant_id)
-        db = get_database()
-        events = [_parse_oci_problem(p, omni_tenant_id) for p in problems]
-
-        if events:
-            await db.security_events.insert_many(events)
-            logger.info("[OCI] Ingested %d problems for tenant %s", len(events), omni_tenant_id)
-
-        return len(events)
-
-    except Exception as exc:
-        logger.error("[OCI] Poll failed for tenant %s: %s", omni_tenant_id, exc)
-        return 0
+    logger.warning("[OCI] SIEM poll for tenant %s: not implemented, no findings ingested", omni_tenant_id)
+    return 0
 
 
 # --- CSPM domain (cloud_accounts / cloud_findings) ---

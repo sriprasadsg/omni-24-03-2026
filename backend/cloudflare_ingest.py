@@ -41,26 +41,17 @@ def _severity_map(cf_severity: str) -> str:
     }.get(cf_severity, "Medium")
 
 
-def _parse_cloudflare_event(event: Any, tenant_id: str) -> Dict[str, Any]:
-    # Mock parsing
-    return {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "log_type": "cloudflare_zero_trust",
-        "title": getattr(event, "title", "Unknown Cloudflare Event"),
-        "description": getattr(event, "description", ""),
-        "severity": _severity_map(getattr(event, "severity", "MEDIUM")),
-        "status": "Active",
-        "raw_message": f"[Cloudflare] {getattr(event, 'title', 'Event')}",
-        "source": "cloudflare_zero_trust",
-    }
-
-
 async def poll_cloudflare_zero_trust_events(config: Dict[str, Any], omni_tenant_id: str) -> int:
     """
     Poll Cloudflare Zero Trust events for a configured integration.
     Returns count of new events ingested.
+
+    No real SIEM-domain polling is wired here (32-REVIEW.md CR-01): this
+    used to fabricate a hardcoded "Test Event" and write it into
+    security_events unlabeled, corrupting the SIEM with an invented finding
+    on every call. poll_cloudflare_cspm_findings() below is the real, tested
+    zone-security integration (CSPM domain) — this SIEM-domain function
+    fails safe (0 events) until it gets a real implementation.
     """
     if not _CLOUDFLARE_SDK_AVAILABLE:
         return 0
@@ -70,30 +61,8 @@ async def poll_cloudflare_zero_trust_events(config: Dict[str, Any], omni_tenant_
         logger.warning("[Cloudflare] Incomplete credentials for tenant %s", omni_tenant_id)
         return 0
 
-    try:
-        client = _make_cloudflare_client(config)
-        if not client:
-            return 0
-
-        # Mocked API call
-        events_list = [type('Event', (), {'title': 'Test Event', 'description': 'Test desc', 'severity': 'MEDIUM'})() for _ in range(1)]
-
-        if not events_list:
-            return 0
-
-        set_tenant_id(omni_tenant_id)
-        db = get_database()
-        events = [_parse_cloudflare_event(e, omni_tenant_id) for e in events_list]
-
-        if events:
-            await db.security_events.insert_many(events)
-            logger.info("[Cloudflare] Ingested %d events for tenant %s", len(events), omni_tenant_id)
-
-        return len(events)
-
-    except Exception as exc:
-        logger.error("[Cloudflare] Poll failed for tenant %s: %s", omni_tenant_id, exc)
-        return 0
+    logger.warning("[Cloudflare] SIEM poll for tenant %s: not implemented, no findings ingested", omni_tenant_id)
+    return 0
 
 
 # --- CSPM domain (cloud_accounts / cloud_findings) ---
