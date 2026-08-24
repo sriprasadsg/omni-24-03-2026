@@ -797,6 +797,7 @@ export interface Asset {
   purchaseCostCents?: number;
   purchaseDate?: string;
   poNumber?: string;
+  purchase_order_id?: string;
   warrantyMonths?: number;
   assignedToType?: 'user' | 'location';
   assignedToId?: string;

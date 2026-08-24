@@ -25,6 +25,7 @@ vi.mock('../../services/apiService', () => ({
   fetchAssetBookValue: vi.fn().mockResolvedValue({ assetId: 'a1', bookValueCents: null, reason: 'no_purchase_record' }),
   fetchAssetWarranty: vi.fn().mockResolvedValue({ assetId: 'a1', alertWindowDays: 30, warrantyStatus: 'none', warrantyExpiresAt: null, daysToExpiry: null }),
   updateAssetPurchase: vi.fn(),
+  fetchPurchaseOrders: vi.fn().mockResolvedValue([]),
   fetchLicenses: vi.fn().mockResolvedValue([]),
   createLicense: vi.fn(),
   assignLicenseSeat: vi.fn(),

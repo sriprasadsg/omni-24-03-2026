@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Asset, ItamBookValue, ItamWarrantyStatus, Tenant } from '../../types';
-import { fetchAssets, updateAssetPurchase, fetchAssetBookValue, fetchAssetWarranty } from '../../services/apiService';
+import { Asset, ItamBookValue, ItamPurchaseOrder, ItamWarrantyStatus, Tenant } from '../../types';
+import { fetchAssets, updateAssetPurchase, fetchAssetBookValue, fetchAssetWarranty, fetchPurchaseOrders } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 
 const WARRANTY_COLOR: Record<string, string> = {
@@ -18,6 +18,7 @@ interface FinancePanelProps {
 export function FinancePanel({ tenants = [], isSuperAdminView = false }: FinancePanelProps) {
   const tenantName = (tenantId?: string) => tenants.find((t) => t.id === tenantId)?.name || tenantId || '—';
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<ItamPurchaseOrder[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,12 +30,19 @@ export function FinancePanel({ tenants = [], isSuperAdminView = false }: Finance
     (async () => {
       setLoading(true);
       try {
-        setAssets((await fetchAssets()) || []);
+        const [assetList, poList] = await Promise.all([fetchAssets(), fetchPurchaseOrders()]);
+        setAssets(assetList || []);
+        setPurchaseOrders(poList || []);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  const selectedAsset = assets.find((a) => a.id === selectedId);
+  const linkedPurchaseOrder = selectedAsset?.purchase_order_id
+    ? purchaseOrders.find((po) => po.id === selectedAsset.purchase_order_id)
+    : undefined;
 
   const loadFinance = useCallback(async (assetId: string) => {
     const [bv, w] = await Promise.all([fetchAssetBookValue(assetId), fetchAssetWarranty(assetId)]);
@@ -107,6 +115,14 @@ export function FinancePanel({ tenants = [], isSuperAdminView = false }: Finance
               <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" type="number" placeholder="Purchase Cost ($)" value={form.purchaseCostCents} onChange={(e) => setForm({ ...form, purchaseCostCents: e.target.value })} aria-label="Purchase Cost" />
               <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" type="date" value={form.purchaseDate ? form.purchaseDate.slice(0, 10) : ''} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })} aria-label="Purchase Date" />
               <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="PO Number" value={form.poNumber} onChange={(e) => setForm({ ...form, poNumber: e.target.value })} aria-label="PO Number" />
+              <div data-testid="linked-purchase-order" className="text-xs">
+                <span className="text-gray-400">Linked Purchase Order: </span>
+                {selectedAsset?.purchase_order_id ? (
+                  <span className="text-cyan-400 font-medium">{linkedPurchaseOrder?.order_number || selectedAsset.purchase_order_id}</span>
+                ) : (
+                  <span className="text-gray-500 italic">None</span>
+                )}
+              </div>
               <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" type="number" placeholder="Warranty (months)" value={form.warrantyMonths} onChange={(e) => setForm({ ...form, warrantyMonths: e.target.value })} aria-label="Warranty Months" />
               <button
                 onClick={handleSave}
