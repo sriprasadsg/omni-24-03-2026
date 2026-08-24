@@ -431,13 +431,29 @@ async def seed_database():
         logger.error("Database seeding error: %s", e)
 
 
+def _resolve_cargo_binary() -> str | None:
+    """Prefer rustup's own cargo over whatever `cargo` resolves to on PATH —
+    matches agent_rust_builder.py's _CARGO_BIN precedent. This matters
+    specifically under sudo: sudoers' secure_path strips ~/.cargo/bin, so
+    shutil.which("cargo") alone falls back to an ancient distro package
+    (e.g. Debian's cargo 1.75) that can't even parse a Cargo.lock written by
+    a modern cargo (lock file version 4 requires a newer toolchain), failing
+    every background pre-build with a confusing lock-file error."""
+    from pathlib import Path as _Path
+    import shutil as _shutil
+
+    rustup_cargo = _Path.home() / ".cargo" / "bin" / "cargo"
+    if rustup_cargo.exists():
+        return str(rustup_cargo)
+    return _shutil.which("cargo")
+
+
 async def _prebuild_windows_agent() -> None:
     """
     Build the Rust Windows agent binary in the background at server startup.
     Idempotent — skips if the binary already exists or cargo is not available.
     """
     from pathlib import Path as _Path
-    import shutil as _shutil
 
     base_dir = _Path(__file__).parent.parent
     exe_path = base_dir / "agent-install" / "omni-agent-rs" / "target" / "release" / "omni-agent.exe"
@@ -446,7 +462,7 @@ async def _prebuild_windows_agent() -> None:
         return
 
     src_dir = base_dir / "agent-install" / "omni-agent-rs"
-    cargo = _shutil.which("cargo")
+    cargo = _resolve_cargo_binary()
     if not src_dir.is_dir() or not cargo:
         logger.debug("[WindowsAgent] cargo not found; skipping pre-build")
         return
@@ -593,12 +609,11 @@ async def run_startup_services() -> None:
     asyncio.create_task(_approval_timeout_loop())
 
     from app_background_tasks import (
-        monitor_agent_status, refresh_mitre_heatmap_loop,
+        monitor_agent_status,
         compliance_evidence_sweep_loop, snapshot_compliance_scores_loop,
         agent_uptime_rollup_loop,
     )
     asyncio.create_task(_safe_bg_task(monitor_agent_status(), "agent_status_monitor"))
-    asyncio.create_task(_safe_bg_task(refresh_mitre_heatmap_loop(), "mitre_heatmap_refresh"))
     asyncio.create_task(_safe_bg_task(compliance_evidence_sweep_loop(), "compliance_evidence_sweep"))
     asyncio.create_task(_safe_bg_task(snapshot_compliance_scores_loop(), "compliance_score_snapshot"))
     asyncio.create_task(_safe_bg_task(agent_uptime_rollup_loop(), "agent_uptime_rollup"))
