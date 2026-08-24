@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon, UploadCloudIcon, BellIcon, ComponentIcon, GavelIcon, GlobeIcon, HardDriveIcon } from './icons';
+import { BotIcon, DashboardIcon, ShieldCheckIcon, ServerIcon, DatabaseIcon, ShieldAlertIcon, ShieldZapIcon, BarChart3Icon, SettingsIcon, BuildingIcon, ArrowLeftIcon, CloudShieldIcon, DollarSignIcon, ClipboardListIcon, FileTextIcon, UsersIcon, WorkflowIcon, GitPullRequestDraftIcon, BookKeyIcon, LightbulbIcon, GitMergeIcon, DnaIcon, NetworkIcon, PuzzleIcon, GaugeIcon, BombIcon, SunIcon, ShieldLockIcon, Share2Icon, ActivityIcon, BoxIcon, FileCodeIcon, SearchIcon, CrownIcon, ZapIcon, SparklesIcon, UploadCloudIcon, BellIcon, ComponentIcon, GavelIcon, GlobeIcon, HardDriveIcon, CpuIcon } from './icons';
 import { CreditCard, TrendingUp, FileText, Globe, Lock, UserIcon, ChevronDown, ShieldIcon, TargetIcon, AlertOctagonIcon, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon, UserCheck, ClipboardCheck, Cookie, RadioTower, BarChart2, Radar } from 'lucide-react';
 import { AppView, Permission } from '../types';
 import { useUser } from '../contexts/UserContext';
@@ -397,6 +397,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'changeManagement', label: 'Change Management', icon: <WorkflowIcon size={20} />, permission: 'manage:settings' },
                 { view: 'aiAssistantChat', label: 'AI Assistant', icon: <BotIcon size={20} />, permission: 'view:dashboard' },
                 /* Support Chat merged into 'chat' tab hub */
+                { view: 'customerVectorDB', label: 'Customer Vector DB', icon: <DatabaseIcon size={20} />, permission: 'view:vector_db' },
+                { view: 'federatedLearning', label: 'Federated Learning', icon: <DnaIcon size={20} />, permission: 'view:federated_learning' },
+                { view: 'webgpuInference', label: 'WebGPU Inference', icon: <CpuIcon size={20} />, permission: 'view:webgpu_inference' },
             ]
         },
         {
