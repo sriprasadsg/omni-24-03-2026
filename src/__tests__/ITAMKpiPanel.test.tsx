@@ -34,7 +34,6 @@ class StubResizeObserver {
 }
 
 beforeAll(() => {
-  // @ts-expect-error jsdom has no ResizeObserver implementation
   global.ResizeObserver = StubResizeObserver;
   Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
     configurable: true,
