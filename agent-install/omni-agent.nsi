@@ -204,6 +204,14 @@ SectionEnd
 
 ; ── Uninstall section ─────────────────────────────────────────
 Section "Uninstall"
+    ; The tray icon is NOT part of the service — it's a per-user logon
+    ; scheduled task (see tray.rs) running wscript/powershell independently
+    ; of session 0. Stopping/deleting the service below never touches it, so
+    ; without this the tray icon and its OmniAgentTray logon task both
+    ; survive uninstall indefinitely. Matched by command line (not process
+    ; name) since wscript.exe/powershell.exe are too generic to kill blindly.
+    nsExec::ExecToLog `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Unregister-ScheduledTask -TaskName OmniAgentTray -Confirm:$$false -ErrorAction SilentlyContinue; Get-CimInstance Win32_Process | Where-Object { $$_.CommandLine -like '*tray_launch.vbs*' -or $$_.CommandLine -like '*tray_icon.ps1*' -or $$_.CommandLine -like '*chat_ui.ps1*' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
+
     ExecWait 'sc stop ${SVC_NAME}'
     Sleep 3000
     ExecWait 'sc delete ${SVC_NAME}'
@@ -222,6 +230,14 @@ Section "Uninstall"
     Delete "$INSTDIR\buffer.db"
     Delete "$INSTDIR\Uninstall.exe"
     RMDir  "$INSTDIR"
+
+    ; Tray/chat scripts + tray-config.json are materialized to ProgramData
+    ; (chat_ui::data_dir()), not $INSTDIR — never cleaned up above. Resolved
+    ; via the %ProgramData% env var (same as tray.rs/chat_ui.rs and
+    ; win-install.ps1) rather than SetShellVarContext + $APPDATA, so it can't
+    ; disturb the $SMPROGRAMS context the Start Menu cleanup below relies on.
+    ExpandEnvStrings $0 "%ProgramData%"
+    RMDir /r "$0\OmniAgent"
 
     Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.*"
     RMDir  "$SMPROGRAMS\${PRODUCT_NAME}"

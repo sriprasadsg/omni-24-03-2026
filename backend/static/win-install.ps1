@@ -110,6 +110,19 @@ if ($Uninstall) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $TrayTaskName -Confirm:$false -ErrorAction SilentlyContinue
     Write-Ok "Scheduled tasks removed."
+
+    # Unregistering the task only stops FUTURE logons from relaunching the
+    # tray — it does nothing to an already-running icon, since the tray is a
+    # separate per-user process, not a service child. Matched by command
+    # line (not process name) since wscript.exe/powershell.exe are too
+    # generic to kill blindly.
+    Write-Step "Stopping running tray/chat processes..."
+    Get-CimInstance Win32_Process | Where-Object {
+        $_.CommandLine -like '*tray_launch.vbs*' -or
+        $_.CommandLine -like '*tray_icon.ps1*' -or
+        $_.CommandLine -like '*chat_ui.ps1*'
+    } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Write-Ok "Tray/chat processes stopped."
     Remove-Item -Path "$env:ProgramData\OmniAgent" -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path $InstallDir) {
         Write-Step "Removing $InstallDir ..."
