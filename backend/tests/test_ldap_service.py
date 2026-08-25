@@ -288,6 +288,26 @@ class TestLDAPUserSyncer:
         assert doc["role"] == "itam_viewer"  # default_role applied on create
         db.users.insert_one.assert_awaited_once()
 
+    def test_sync_user_cross_tenant_email_collision_raises_clean_error(self):
+        """DB-F06/DB-F09 (2026-08-25 audit): users.email has a global unique
+        index, but sync_user's existing-user lookup is tenant-scoped, so a
+        genuinely new user for this tenant can still collide with a
+        different tenant's user of the same email. Must surface as a clean
+        LDAPSyncError, not a raw pymongo DuplicateKeyError."""
+        from pymongo.errors import DuplicateKeyError
+
+        db = MagicMock()
+        db.users.find_one = AsyncMock(return_value=None)  # no existing user for *this* tenant
+        db.users.insert_one = AsyncMock(side_effect=DuplicateKeyError("E11000 duplicate key error email_1"))
+        with patch("ldap_service.get_database", return_value=db):
+            syncer = LDAPUserSyncer(_config())
+            mapped = {"ldap_dn": "cn=jdoe", "ldap_user_id": "jdoe",
+                      "email": "jdoe@example.com", "full_name": "Jane Doe", "groups": []}
+            with pytest.raises(LDAPSyncError) as exc_info:
+                _run(syncer.sync_user(mapped, tenant_id="t1"))
+        assert "E11000" not in str(exc_info.value)
+        assert "already registered" in str(exc_info.value)
+
     def test_sync_user_update_preserves_existing_role_when_no_mapping(self):
         """Re-syncing a user with no resolved group mapping must NOT reset
         an admin-assigned elevated role back to the default (regression

@@ -40,6 +40,7 @@ from ldap3.core.exceptions import (
     LDAPSocketReceiveError,
 )
 from ldap3.utils.conv import escape_filter_chars
+from pymongo.errors import DuplicateKeyError
 
 from database import get_database
 
@@ -449,7 +450,21 @@ class LDAPUserSyncer:
         else:
             doc["role"] = role or default_role
             doc["createdAt"] = now
-            result = await db.users.insert_one(doc)
+            # DB-F09 (2026-08-25 audit): users.email has a *global* unique
+            # index (database.py), but this lookup is tenant-scoped, so a
+            # brand-new user for this tenant can still collide with an
+            # existing user of the same email under a different tenant. Left
+            # unhandled, this surfaced as a raw pymongo DuplicateKeyError —
+            # an unhandled 500 on interactive LDAP login, and a cross-tenant
+            # email-existence leak via the raw error text in sync_all's
+            # per-user error list.
+            try:
+                result = await db.users.insert_one(doc)
+            except DuplicateKeyError:
+                raise LDAPSyncError(
+                    f"Could not provision LDAP user '{mapped['email']}' for this tenant: "
+                    "this email is already registered. Contact your administrator."
+                )
             doc["_id"] = result.inserted_id
         return doc
 

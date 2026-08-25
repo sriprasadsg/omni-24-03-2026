@@ -7,6 +7,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+from pymongo.errors import DuplicateKeyError
+
 from database import get_database
 
 logger = logging.getLogger(__name__)
@@ -76,7 +78,19 @@ class SAMLUserProvisioner:
         else:
             doc["role"] = role or default_role
             doc["createdAt"] = now
-            result = await db.users.insert_one(doc)
+            # DB-F09 (2026-08-25 audit): users.email has a *global* unique
+            # index (database.py), but this lookup is tenant-scoped, so a
+            # brand-new user for this tenant can still collide with an
+            # existing user of the same email under a different tenant.
+            # Left unhandled, this surfaced as a raw pymongo
+            # DuplicateKeyError propagating out of a live SAML login.
+            try:
+                result = await db.users.insert_one(doc)
+            except DuplicateKeyError:
+                raise SAMLMappingError(
+                    f"Could not provision SAML user '{mapped['email']}' for this tenant: "
+                    "this email is already registered. Contact your administrator."
+                )
             doc["_id"] = result.inserted_id
         return doc
 

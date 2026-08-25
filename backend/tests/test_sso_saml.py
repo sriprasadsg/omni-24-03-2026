@@ -306,6 +306,27 @@ class TestSAMLUserProvisioner:
         assert doc["source"] == "saml"
         assert doc["role"] == "itam_viewer"
 
+    def test_provision_user_cross_tenant_email_collision_raises_clean_error(self):
+        """DB-F06/DB-F09 (2026-08-25 audit): users.email has a global unique
+        index, but provision_user's existing-user lookup is tenant-scoped,
+        so a genuinely new user for this tenant can still collide with a
+        different tenant's user of the same email. Must surface as a clean
+        SAMLMappingError, not a raw pymongo DuplicateKeyError."""
+        from pymongo.errors import DuplicateKeyError
+
+        db = MagicMock()
+        db.users.find_one = AsyncMock(return_value=None)  # no existing user for *this* tenant
+        db.users.insert_one = AsyncMock(side_effect=DuplicateKeyError("E11000 duplicate key error email_1"))
+
+        with patch("saml_mapping.get_database", return_value=db):
+            with pytest.raises(SAMLMappingError) as exc_info:
+                _run(SAMLUserProvisioner(_config()).provision_user(
+                    {"email": "new@example.com", "full_name": "New User", "nameid": "new@example.com", "groups": []},
+                    tenant_id="t1",
+                ))
+        assert "E11000" not in str(exc_info.value)
+        assert "already registered" in str(exc_info.value)
+
     def test_provision_user_update_preserves_existing_role_when_no_mapping(self):
         db = MagicMock()
         db.users.find_one = AsyncMock(return_value={"_id": "existing-id", "role": "itam_admin"})
@@ -421,6 +442,42 @@ class TestAuthenticateSamlFlowAuth:
              }):
             with pytest.raises(SAMLProvisionError):
                 _run(authenticate_saml(_request_data(saml_response="b64"), tenant_id=None))
+
+    def test_authenticate_saml_converts_cross_tenant_collision_to_provision_error(self):
+        """DB-F09 (2026-08-25 audit): a tenant-scoped SAML login for a
+        brand-new user whose email already exists under a *different*
+        tenant must surface as a clean SAMLProvisionError, not an unhandled
+        pymongo DuplicateKeyError."""
+        from pymongo.errors import DuplicateKeyError
+
+        fake_auth = self._patch_success_auth()
+        raw_db = MagicMock()
+        raw_db.saml_login_states.create_index = AsyncMock()
+        raw_db.saml_processed_assertions.create_index = AsyncMock()
+        raw_db.saml_login_states.find_one_and_delete = AsyncMock(return_value=None)
+        raw_db.saml_processed_assertions.insert_one = AsyncMock()
+
+        db = MagicMock()
+        db._db = raw_db
+        db.saml_configs.find_one = AsyncMock(return_value=None)
+        db.users.find_one = AsyncMock(return_value=None)  # no user for this tenant
+        db.users.insert_one = AsyncMock(side_effect=DuplicateKeyError("E11000 duplicate key error email_1"))
+        db.saml_group_mappings.find.return_value = MagicMock(
+            sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=[])))
+        )
+
+        with patch("saml_service.OneLogin_Saml2_Auth", return_value=fake_auth), \
+             patch("saml_service.get_database", return_value=db), \
+             patch("saml_mapping.get_database", return_value=db), \
+             patch.dict(os.environ, {
+                 "SAML_ENTITY_ID": "https://sp.example.com/metadata",
+                 "SAML_ACS_URL": "https://sp.example.com/acs",
+                 "SAML_IDP_ENTITY_ID": "https://idp.example.com/metadata",
+                 "SAML_IDP_SSO_URL": "https://idp.example.com/sso",
+             }):
+            with pytest.raises(SAMLProvisionError) as exc_info:
+                _run(authenticate_saml(_request_data(saml_response="b64"), tenant_id="t1"))
+        assert "E11000" not in str(exc_info.value)
 
 
 class TestIsSamlSourcedUser:

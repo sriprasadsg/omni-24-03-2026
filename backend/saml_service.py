@@ -378,7 +378,7 @@ async def authenticate_saml(request_data: dict, tenant_id: Optional[str] = None)
     equivalent for SAML in this plan's scope; pre-provision the user via
     POST /api/users, or extend this later with a SAML_DEFAULT_TENANT_ID).
     """
-    from saml_mapping import SAMLGroupMapper, SAMLUserProvisioner
+    from saml_mapping import SAMLGroupMapper, SAMLUserProvisioner, SAMLMappingError
 
     config = await get_saml_config(tenant_id)
     authenticator = SAMLAuthenticator(config)
@@ -401,7 +401,10 @@ async def authenticate_saml(request_data: dict, tenant_id: Optional[str] = None)
 
     group_mapper = SAMLGroupMapper()
     role = await group_mapper.resolve_role(mapped.get("groups") or [], target_tenant_id)
-    user_doc = await provisioner.provision_user(mapped, target_tenant_id, role=role)
+    try:
+        user_doc = await provisioner.provision_user(mapped, target_tenant_id, role=role)
+    except SAMLMappingError as exc:
+        raise SAMLProvisionError(str(exc))
 
     from authentication_service import create_access_token, create_refresh_token
     token_payload = {
