@@ -202,6 +202,68 @@ exactly what happened.
   disabled for some reason not yet found.
 - Once fixed, re-run the live test from Step 3.
 
+## CORRECTION (2026-08-25, sixth check-in) — the "confirmed bug" above was wrong
+
+Read `deployment_result_endpoints.py:40-56`'s actual function body (the
+prior check-in only looked at the route decorator + param name, not the
+body — a real mistake, flagging it plainly rather than leaving it standing).
+It already does exactly the right thing:
+
+```python
+@router.get("/api/agents/{agent_id}/instructions")
+async def get_agent_instructions(agent_id: str, caller: dict = Depends(_get_caller)):
+    agent = await db.agents.find_one(
+        {"$or": [{"id": agent_id}, {"hostname": agent_id}]}, {"id": 1},
+    )
+    actual_id = agent["id"] if agent else agent_id
+    instructions = await db.agent_instructions.find(
+        {"agent_id": actual_id, "status": "pending"}
+    ).to_list(length=100)
+```
+
+It deliberately resolves **either** `id` **or** `hostname` (comment in the
+source: "agent may pass its hostname"). The test instruction was created
+with `agent_id: "agent-310ee2eca93f47d2ae60efdd16ac70c4"` — the real,
+correct id for the registered agent — and the Rust client sends its
+`hostname` (`security-test-vm`) in the URL. If the agent's `db.agents`
+document has `hostname: "security-test-vm"` stored correctly (should be
+true, that's what registration wrote), this `$or` lookup should resolve to
+the right `actual_id` and the query should have found the pending
+instruction. **It's not the hostname/agent_id mismatch — that part of the
+system is fine.**
+
+**Retracted:** the "no agent can ever receive an instruction" claim and the
+"real production bug" framing from the two check-ins above. Also retracted:
+`agent_instruction_endpoints.py`/`agent_tasks_endpoints.py` being dead code
+is still true (confirmed via `router_registry.py`), but that fact alone
+doesn't establish a bug given `deployment_result_endpoints.py` already
+covers the case correctly.
+
+**Real root cause still unknown.** Candidates for next session, none
+confirmed:
+1. `_get_caller` auth dependency rejecting the request silently (need to
+   check what it validates and whether `bearer_auth(&cfg.agent_token)`
+   satisfies it — the token is a real JWT from registration, should be
+   fine, but not verified).
+2. The `db.agents` document's actual stored `hostname` field not matching
+   what the Rust client sends (case sensitivity? trailing whitespace?
+   verify by reading the actual stored document, not assuming).
+3. The request never actually reaching the server in the test window (90s
+   was 2 heartbeat cycles at 30s interval — but heartbeat and
+   instruction-poll might not be the same cycle/timing; check `lib.rs`'s
+   `agent_loop` to see if `instructions::poll()` runs on every loop
+   iteration or a separate, slower cadence).
+4. An exception in the handler being swallowed somewhere before reaching
+   the query (add temporary server-side logging, or just watch
+   `uvicorn`'s own request log for a hit on this path at all during the
+   next live test — first check: did the request even arrive?).
+
+**Recommended next step:** before touching any code, re-run the live test
+with the backend's request log visible (uvicorn already logs at
+`--log-level info`) and watch for a `GET /api/agents/security-test-vm/instructions`
+line — that alone answers candidate 3 and narrows the rest fast. Don't
+guess further without that observation.
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
