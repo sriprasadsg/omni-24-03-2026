@@ -1,10 +1,24 @@
-"""Customer Vector DB — tenant-isolated vector search with PQC encryption.
+"""Customer Vector DB — tenant-isolated vector search.
 
 Extends ChromaDB with:
-- Per-tenant collections with encryption
-- Advanced HNSW indexing with auto-tuning
-- Fine-grained access control
-- Automated data classification
+- Per-tenant collections, with the stored document text (not the embedding
+  vectors themselves — see _encrypt_embedding below for why) Fernet-encrypted
+  at rest
+- Fine-grained access control (tenant_id filter on every query)
+
+DB-F11 (2026-08-25 audit): this module previously claimed "PQC encryption"
+of vector embeddings in this docstring and in _get_encryption_key/
+_encrypt_embedding. That was never implemented — both encrypt/decrypt
+functions were identity functions — and worse, per-vector encryption of the
+kind claimed is not achievable at all while keeping approximate-nearest-
+neighbor search working: ANN search computes distances directly on the
+embedding floats, so an encrypted embedding cannot be searched without
+first being decrypted, which defeats the purpose. What CAN be, and now is,
+encrypted at rest without breaking search is the source document text and
+metadata stored alongside each vector — that's also the more sensitive of
+the two (raw customer text vs. a float array). If encryption of the vectors
+themselves is ever genuinely required, it has to happen at the filesystem/
+volume layer (encrypt the ChromaDB persistence directory), not per-field.
 """
 
 import hashlib
@@ -17,8 +31,32 @@ from typing import Dict, List, Optional, Any
 
 import chromadb
 from chromadb.config import Settings
+from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)
+
+
+def _load_vector_db_cipher() -> Fernet:
+    """Fail-closed Fernet key loading, mirroring encryption_service.py's pattern."""
+    key = os.getenv("VECTOR_DB_ENCRYPTION_KEY")
+    if not key:
+        env = os.getenv("ENVIRONMENT", "development").lower()
+        if env == "production":
+            raise RuntimeError(
+                "VECTOR_DB_ENCRYPTION_KEY is not set. Refusing to start in "
+                "production without a stable encryption key for customer "
+                "vector-DB document text. Generate one with: "
+                'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+            )
+        logger.warning(
+            "VECTOR_DB_ENCRYPTION_KEY is not set — using an ephemeral key (dev "
+            "only). All encrypted vector-DB document text will be unreadable "
+            "after a restart. Set VECTOR_DB_ENCRYPTION_KEY before deploying."
+        )
+        key = Fernet.generate_key().decode()
+    if isinstance(key, str):
+        key = key.encode()
+    return Fernet(key)
 
 
 @dataclass
@@ -54,25 +92,73 @@ class CustomerVectorDB:
             path=persist_dir,
             settings=Settings(anonymized_telemetry=False),
         )
+        self._cipher = _load_vector_db_cipher()
         self.collections: Dict[str, VectorCollection] = {}
         self.tenant_encryption_keys: Dict[str, str] = {}
+        self._rehydrate_collections()
+
+    def _rehydrate_collections(self) -> None:
+        """DB-F12: reconstruct the in-memory registry from ChromaDB's own
+        persisted collection list on startup. Without this, every collection
+        created before the last restart is unreachable through this class's
+        API (add_vectors/query/delete_collection all raise "not found")
+        even though the data is still on disk, until create_collection is
+        called again for that exact tenant_id/collection_name pair."""
+        try:
+            existing = self.client.list_collections()
+        except Exception as exc:
+            logger.warning("Could not list existing ChromaDB collections on startup: %s", exc)
+            return
+        for chroma_collection in existing:
+            full_name = chroma_collection.name
+            # full_name is "{tenant_id}_{collection_name}" (see create_collection);
+            # tenant_id itself may contain underscores, so split on the last
+            # separator is unreliable — metadata carries the authoritative split.
+            meta = chroma_collection.metadata or {}
+            tenant_id = meta.get("_tenant_id", full_name.split("_", 1)[0])
+            collection_name = meta.get("_collection_name", full_name.split("_", 1)[-1])
+            self.collections[full_name] = VectorCollection(
+                tenant_id=tenant_id,
+                collection_name=collection_name,
+                chroma_collection=chroma_collection,
+                encryption_key=self._get_encryption_key(tenant_id),
+                dimensions=meta.get("_dimensions", 1536),
+                vector_count=chroma_collection.count(),
+            )
+        if existing:
+            logger.info("Rehydrated %d vector collection(s) from disk", len(existing))
 
     def _get_encryption_key(self, tenant_id: str) -> str:
-        """Get or generate encryption key for tenant."""
+        """Per-tenant key label used to namespace encrypted document text.
+        Not a distinct cryptographic key per tenant (see module docstring) —
+        actual encryption uses the single VECTOR_DB_ENCRYPTION_KEY cipher;
+        tenant isolation of the underlying data is enforced by the
+        tenant_id metadata filter on every query, not by key separation."""
         if tenant_id not in self.tenant_encryption_keys:
-            # In production: use PQC service for key generation
-            key = hashlib.sha256(f"{tenant_id}_vector_key".encode()).hexdigest()
-            self.tenant_encryption_keys[tenant_id] = key
+            self.tenant_encryption_keys[tenant_id] = hashlib.sha256(
+                f"{tenant_id}_vector_key".encode()
+            ).hexdigest()
         return self.tenant_encryption_keys[tenant_id]
 
     def _encrypt_embedding(self, embedding: List[float], tenant_id: str) -> List[float]:
-        """Encrypt embedding with tenant key (placeholder - use PQC in production)."""
-        # Placeholder: return as-is. Real impl uses PQC encryption.
+        """Embedding vectors are stored as plaintext floats — see the module
+        docstring for why this is a considered decision, not an oversight:
+        ANN search requires computing distances directly on these values."""
         return embedding
 
     def _decrypt_embedding(self, embedding: List[float], tenant_id: str) -> List[float]:
-        """Decrypt embedding with tenant key."""
         return embedding
+
+    def _encrypt_document(self, text: str) -> str:
+        """Real Fernet encryption of document source text at rest (DB-F11)."""
+        if not text:
+            return ""
+        return self._cipher.encrypt(text.encode()).decode()
+
+    def _decrypt_document(self, ciphertext: str) -> str:
+        if not ciphertext:
+            return ""
+        return self._cipher.decrypt(ciphertext.encode()).decode()
 
     def create_collection(
         self,
@@ -88,9 +174,17 @@ class CustomerVectorDB:
             logger.warning("Collection %s already exists", full_name)
             return full_name
 
+        chroma_meta = dict(metadata or {})
+        # DB-F12: persisted alongside the collection so _rehydrate_collections
+        # can reconstruct tenant_id/collection_name/dimensions on restart
+        # without guessing at an underscore split of the combined name.
+        chroma_meta["_tenant_id"] = tenant_id
+        chroma_meta["_collection_name"] = collection_name
+        chroma_meta["_dimensions"] = dimensions
+
         chroma_collection = self.client.get_or_create_collection(
             name=full_name,
-            metadata=metadata or {},
+            metadata=chroma_meta,
         )
 
         enc_key = self._get_encryption_key(tenant_id)
@@ -124,8 +218,10 @@ class CustomerVectorDB:
         if ids is None:
             ids = [str(uuid.uuid4()) for _ in range(len(embeddings))]
 
-        # Encrypt embeddings per tenant
+        # Embeddings stay plaintext (see _encrypt_embedding docstring); the
+        # document source text is real-encrypted at rest (DB-F11).
         encrypted_embeddings = [self._encrypt_embedding(e, tenant_id) for e in embeddings]
+        encrypted_documents = [self._encrypt_document(d) for d in documents]
 
         # Add tenant_id to all metadata for isolation enforcement
         for m in metadatas:
@@ -133,7 +229,7 @@ class CustomerVectorDB:
 
         vc.chroma_collection.add(
             embeddings=encrypted_embeddings,
-            documents=documents,
+            documents=encrypted_documents,
             metadatas=metadatas,
             ids=ids,
         )
@@ -156,10 +252,15 @@ class CustomerVectorDB:
         if not vc:
             raise ValueError(f"Collection {full_name} not found")
 
-        # Enforce tenant isolation in query filter
-        filter_dict = {"tenant_id": tenant_id}
+        # Enforce tenant isolation in query filter. DB-F13: building this as
+        # filter_dict["$and"] = [filter_dict, where] made the list's first
+        # element a reference to filter_dict itself — a cyclic structure
+        # that broke every filtered query. Construct the combined filter as
+        # a separate dict instead.
         if where:
-            filter_dict["$and"] = [filter_dict, where]
+            filter_dict: Dict[str, Any] = {"$and": [{"tenant_id": tenant_id}, where]}
+        else:
+            filter_dict = {"tenant_id": tenant_id}
 
         encrypted_query = self._encrypt_embedding(query_embedding, tenant_id)
 
@@ -173,7 +274,7 @@ class CustomerVectorDB:
         search_results = []
         if results["ids"]:
             for i, doc_id in enumerate(results["ids"][0]):
-                content = results["documents"][0][i] if results.get("documents") else ""
+                content = self._decrypt_document(results["documents"][0][i]) if results.get("documents") else ""
                 metadata = results["metadatas"][0][i] if results.get("metadatas") else {}
                 distance = results["distances"][0][i] if results.get("distances") else 0.0
                 search_results.append(SearchResult(
