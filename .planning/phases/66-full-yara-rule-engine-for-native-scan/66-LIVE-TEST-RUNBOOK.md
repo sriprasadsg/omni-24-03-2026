@@ -264,6 +264,41 @@ with the backend's request log visible (uvicorn already logs at
 line — that alone answers candidate 3 and narrows the rest fast. Don't
 guess further without that observation.
 
+## Progress (2026-08-25, seventh check-in — one more data point, still inconclusive)
+
+Couldn't tail the backend's live log directly — its stdout/stderr go to a
+pts terminal (`/proc/{pid}/fd/1` → `/dev/pts/6`), not a regular file, so
+grepping it non-invasively wasn't straightforward in the time available.
+Used the DB record itself as the observable signal instead (equivalent
+value: did `status` flip from `pending` to `delivered`).
+
+Reset the test instruction to `status: "pending"`, ran the agent fresh
+(`timeout 40 ./omni-agent`, exit 124 — clean SIGTERM this time, not the
+SIGKILL seen earlier). Result:
+- One heartbeat fired (`Heartbeat -> 200`, ~10s in, after a 5s CPU-throttle
+  delay). Only one cycle completed in the 40s window.
+- **`instructions::poll()` produced zero log output** — no line
+  confirming it ran, no error, nothing at INFO level. Can't distinguish
+  "ran and found nothing to deliver" from "didn't run this cycle at all."
+- Instruction is still `status: "pending"` after the run.
+
+**This doesn't confirm or rule out any of the 4 candidates from the
+correction above.** It does add one new fact: `poll()` appears to log
+nothing on either success-empty or the paths it takes before reaching a
+response — worth checking if it has any `log::info!`/`log::debug!` calls
+at all, or if it's genuinely silent by design (in which case, the request
+log — not the agent's own stdout — is still the right thing to check next,
+via a less time-pressured method than this session had budget for: e.g.
+redirect uvicorn's own log to a file by restarting it with output
+redirection, or use `strace`/an eBPF trace, or add a temporary log line to
+the handler and restart the backend).
+
+**Stopping the live-test line of investigation here for this session** —
+context ran out before a conclusive answer. Next session: get a real view
+into either the backend's request log or the agent's `poll()` internals
+before running the agent again; running it blind a fourth time without
+better observability isn't likely to add new information.
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
