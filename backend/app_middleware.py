@@ -143,17 +143,27 @@ def _detect_local_ips() -> set:
 
 
 def register_middleware(app: FastAPI, rate_limiter) -> None:
-    """Attach all middleware to the FastAPI application."""
+    """Attach all middleware to the FastAPI application.
+
+    ARCH-007 (2026-08-25 audit): Starlette's add_middleware() prepends, so
+    the LAST middleware added is the OUTERMOST — the first to see an
+    incoming request and the last to touch the outgoing response (see the
+    RequestIDMiddleware comment below, which already relied on this).
+    SlowAPIMiddleware/MaxBodySizeMiddleware used to be added *first*
+    (innermost), meaning a flood of requests — or oversized bodies — paid
+    for TenantMiddleware's JWT decode, UsageTrackingMiddleware, CORS, and
+    APMMiddleware's DB insert on every single request *before* ever
+    reaching the check that would reject them. Registering them late
+    (just inside RequestIDMiddleware) means oversized/rate-limited requests
+    are rejected before any of that other work runs.
+    """
     from rate_limiter import limiter  # noqa: F401 (re-exported via parameter)
 
-    # Rate limiting
     app.state.limiter = rate_limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
-    app.add_middleware(RateLimitHeaderMiddleware)
+
     app.add_middleware(APMMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(MaxBodySizeMiddleware)
 
     # CORS — explicit allowlist only; no wildcard subnet regex.
     # The previous regex allowed *any* device on the local LAN to make credentialed
@@ -194,5 +204,12 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
     from usage_middleware import UsageTrackingMiddleware
     app.add_middleware(TenantMiddleware)
     app.add_middleware(UsageTrackingMiddleware)
+
+    # Rate limiting / body-size rejection — added late (outer) so they run
+    # before the more expensive middleware above; see the docstring note.
+    app.add_middleware(MaxBodySizeMiddleware)
+    app.add_middleware(SlowAPIMiddleware)
+    app.add_middleware(RateLimitHeaderMiddleware)
+
     # RequestIDMiddleware added last so it is outermost — every request gets an ID first
     app.add_middleware(RequestIDMiddleware)
