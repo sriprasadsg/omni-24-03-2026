@@ -400,6 +400,54 @@ was tagged with.
 3. Only then re-run the live test — this time with a real, evidence-backed
    reason to expect it to work, not another blind attempt.
 
+## FIXED (2026-08-25, eleventh check-in) — commit b74c5b689
+
+Read `agent_registry_endpoints.py`'s register handler in full first, as
+planned. **Registration itself is not buggy** — it already scopes
+`{"hostname": hostname, "tenantId": tenant["id"]}` and reuses the existing
+`id` when found. The two docs found live were two legitimate, separate
+registrations under two different tenants (this session's `platform-admin`
+vs. an older `tenant_9f5d80ac64d0` from before this session) that happen to
+share a hostname — not duplication, correct multi-tenant behavior.
+
+The actual bug was squarely in `get_agent_instructions`'s hostname/id
+resolution query — **no tenant filter at all**:
+```python
+agent = await db.agents.find_one({"$or": [{"id": agent_id}, {"hostname": agent_id}]}, {"id": 1})
+```
+Fixed by scoping it with `caller["tenant_id"]` (from the agent's own
+verified JWT, not client-suppliable):
+```python
+caller_tenant_id = caller.get("tenant_id")
+agent = await db.agents.find_one(
+    {"$or": [{"id": agent_id}, {"hostname": agent_id}], "tenantId": caller_tenant_id}, {"id": 1},
+)
+```
+This is a real fix for a real bug class, not specific to this test
+environment: any hostname collision across tenants (not rare — think
+`localhost`, generic VM names, demo environments) could previously resolve
+an agent's instruction poll to a different tenant's agent document,
+silently breaking delivery (what happened here) or, in principle, a worse
+cross-tenant resolution depending on what else keys off that resolved id.
+
+**New test:** `backend/tests/test_agent_instruction_poll_tenant_scoping.py`,
+2/2 pass — proves same-hostname-different-tenant resolves to the caller's
+own tenant's doc, and documents the pre-fix ambiguous-resolution failure
+mode directly.
+
+**Not verified this session (budget ran out immediately after the fix):**
+- Full backend test suite (only the new test file was run, not the full
+  ~2400-test suite this project normally gates on before considering a fix
+  complete). **Run it before considering this fully done.**
+- The actual live-agent `scan_file` test was never re-run after the fix —
+  the original goal of this whole runbook is still technically open. The
+  fix is logically sound and unit-tested, but "does the real agent now
+  actually receive and execute the instruction end-to-end" was not
+  re-confirmed live.
+- Whether anything else in the codebase relies on the old, unscoped
+  behavior of `get_agent_instructions` (unlikely given it's a narrow
+  single-purpose poll endpoint, but not explicitly checked).
+
 ## CONFIRMED ROOT CAUSE (2026-08-25, tenth check-in)
 
 ```js
