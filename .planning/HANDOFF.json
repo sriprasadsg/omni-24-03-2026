@@ -1,27 +1,27 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-25T00:57:35Z",
+  "timestamp": "2026-08-25T01:02:02Z",
   "phase": null,
   "phase_name": "cross-phase audit-fix session (no single active phase)",
   "phase_dir": null,
   "status": "paused",
   "completed_tasks": [
     {"id": 11, "name": "Phase 66 live-agent test: registration proven working end-to-end", "status": "done", "commit": "7b40fb7f8, 15713273e"},
-    {"id": 12, "name": "Phase 66 live-agent test: disproved agentic_mode_enabled hypothesis, narrowed real cause to instruction-poll endpoint/tenant_id mismatch", "status": "in_progress", "progress": "poll() confirmed to be an HTTP GET (instructions.rs:5,14) to a real backend endpoint, not direct Mongo access. Test instruction was inserted straight into Mongo, bypassing that endpoint's real query filter. Next: find the exact URL poll() builds from cfg.api_base_url, find its backend route handler, read the real filter (likely tenant_id-scoped — both the agent config and the test instruction doc had empty tenant_id).", "commit": "66e4fdb05"}
+    {"id": 12, "name": "Phase 66 live-agent test: disproved agentic_mode_enabled hypothesis", "status": "done", "commit": "66e4fdb05"},
+    {"id": 13, "name": "Phase 66: chased hostname-vs-agent_id route theory, initially claimed CONFIRMED bug, then retracted it after reading the actual handler body", "status": "done", "commit": "4ccb2bd34, d249ed3f6, fb3eb1e4f", "progress": "deployment_result_endpoints.py's GET /api/agents/{agent_id}/instructions already resolves hostname OR id via $or before querying — not broken as first claimed. Real root cause of the instruction never being delivered is genuinely still unknown."}
   ],
   "remaining_tasks": [
-    {"id": 13, "name": "Find poll()'s exact target URL in instructions.rs, find the matching backend route, read its query filter, fix the tenant_id mismatch (or insert the test instruction via the real endpoint instead of raw Mongo), re-run agent, confirm scan_file verdict + cache-invalidation-on-feed-update", "status": "not_started"},
-    {"id": 14, "name": "Deepen SOAR audit (messaging/cloud connectors got lighter treatment; no live execution test)", "status": "not_started"},
-    {"id": 15, "name": "User's broader question ('any features not working, like SOAR and other features') — only SOAR checked so far", "status": "not_started"}
+    {"id": 14, "name": "Find phase 66's real instruction-delivery root cause", "status": "not_started", "progress": "Recommended first move: re-run the live agent test with uvicorn's request log visible and watch for a GET /api/agents/security-test-vm/instructions line — confirms whether the request even reaches the server before chasing anything else. 4 candidate causes listed in 66-LIVE-TEST-RUNBOOK.md's final section, none confirmed."},
+    {"id": 15, "name": "Deepen SOAR audit (messaging/cloud connectors, live execution)", "status": "not_started"},
+    {"id": 16, "name": "User's broader 'what else is broken' question — only SOAR checked so far", "status": "not_started"}
   ],
   "blockers": [],
   "async_jobs": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Registered the Rust agent against the local backend using tenant platform-admin's real registrationKey (found directly in Mongo: omni_platform.tenants)", "rationale": "no admin UI/endpoint flow was found for issuing keys quickly; reading straight from the local dev DB was the fastest reliable path", "phase": null},
-    {"decision": "Ran the agent binary in short foreground timeout windows (15s, 40s, 90s) rather than backgrounded", "rationale": "backgrounded long-running commands (pytest earlier this session) got killed by something in this environment; foreground timeout calls worked reliably all session", "phase": null}
+    {"decision": "Retracted a 'CONFIRMED real production bug' claim made two commits earlier, after reading the actual handler function body instead of just its route signature", "rationale": "the claim was wrong — deployment_result_endpoints.py's handler already resolves hostname OR agent_id via a $or query. Committing and then correcting an error transparently, rather than leaving a wrong 'CONFIRMED' claim standing in the repo history, matters more than looking consistent.", "phase": "66"}
   ],
   "uncommitted_files": [],
-  "next_action": "Read the rest of agent-install/omni-agent-rs/src/instructions.rs::poll() to see exactly how `url` is built from cfg.api_base_url, then grep backend/*.py for the matching route to read its real query filter.",
-  "context_notes": "This session (3rd in this thread) pushed the phase-66 live-agent test further than the runbook's starting point: proved agent registration + connectivity + real telemetry posting works, found the instruction dispatch mechanism, disproved a wrong hypothesis (agentic_mode_enabled is dead code), and narrowed the real blocker to a specific, checkable thing (poll() hits a real HTTP endpoint with its own filter, not raw Mongo). config.yaml at agent-install/omni-agent-rs/target/release/config.yaml still has real, working agent_id/agent_token credentials — no need to re-register next time. Repeated context-critical warnings this session — each step was checked in with the user before proceeding rather than pushed through blind."
+  "next_action": "Re-run the live-agent test (config.yaml already has working credentials, no re-registration needed) with the backend's uvicorn log visible, and check whether GET /api/agents/security-test-vm/instructions actually appears in it during the poll window.",
+  "context_notes": "Important lesson from this session, worth carrying forward explicitly: concluding a backend bug from a route decorator's parameter name alone, without reading the handler's function body, produced a confident but wrong claim that got committed to git twice before being caught. Read the actual code before asserting root cause, every time, no matter how time-pressured. The retraction commit (fb3eb1e4f) has the full corrected analysis and the concrete next observation to make (check the request log) before generating more hypotheses."
 }
