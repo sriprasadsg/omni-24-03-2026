@@ -1,6 +1,8 @@
 import os
+import time
 import logging
 import socketio
+from collections import defaultdict, deque
 from typing import Dict, Set
 from datetime import datetime, timezone
 
@@ -10,6 +12,43 @@ _REDIS_URL = os.getenv("REDIS_URL", "").strip()
 
 # Maximum WebSocket connections per tenant (prevents one tenant from starving others)
 MAX_CONNECTIONS_PER_TENANT = int(os.getenv("MAX_WS_CONNECTIONS_PER_TENANT", "5000"))
+
+# ARCH-006 (2026-08-25 audit): socketio.ASGIApp intercepts /socket.io/* itself
+# and only falls through to the wrapped FastAPI app for everything else, so
+# the SlowAPI rate-limit middleware registered on the FastAPI app (app.py /
+# app_middleware.py) never runs for this traffic — an unauthenticated client
+# could otherwise fire unlimited `connect` attempts, each paying for a JWT
+# signature verification, with nothing bounding the rate. This is a separate,
+# self-contained per-IP window counter for connect attempts specifically
+# (MAX_CONNECTIONS_PER_TENANT above only bounds concurrent *authenticated*
+# connections per tenant, not the rate of attempts). Same caveat as
+# connected_clients below: in-memory and per-process, not shared across
+# horizontally-scaled instances even in Redis client_manager mode. The
+# window is intentionally generous — the Vite dev proxy collapses every
+# browser tab onto one source IP, so overly tight limits here reproduce the
+# "Backend connection lost" false-positive already seen with HTTP rate
+# limiting (see rate_limiter.py's LIMITER_DEFAULT_LIMITS comment).
+_CONNECT_RATE_WINDOW_SECONDS = int(os.getenv("WS_CONNECT_RATE_WINDOW_SECONDS", "60"))
+_CONNECT_RATE_MAX_PER_WINDOW = int(os.getenv("WS_CONNECT_RATE_MAX_PER_WINDOW", "60"))
+_connect_attempts_by_ip: Dict[str, deque] = defaultdict(deque)
+
+
+def _client_ip(environ: dict) -> str:
+    """Raw socket IP only — deliberately ignores X-Forwarded-For, which is
+    trivially forgeable without a documented trusted-proxy allowlist (same
+    reasoning as rate_limiter.py's _agent_key)."""
+    return environ.get("REMOTE_ADDR", "unknown")
+
+
+def _connect_rate_limited(ip: str) -> bool:
+    now = time.monotonic()
+    window = _connect_attempts_by_ip[ip]
+    while window and now - window[0] > _CONNECT_RATE_WINDOW_SECONDS:
+        window.popleft()
+    if len(window) >= _CONNECT_RATE_MAX_PER_WINDOW:
+        return True
+    window.append(now)
+    return False
 
 
 def _build_socketio_cors() -> list | str:
@@ -95,6 +134,11 @@ async def connect(sid, environ, auth):
     - token: JWT token for authentication
     """
     logger.debug("WebSocket connection attempt from %s", sid)
+
+    client_ip = _client_ip(environ)
+    if _connect_rate_limited(client_ip):
+        logger.warning("WebSocket rejected %s - connect rate limit exceeded for %s", sid, client_ip)
+        return False
 
     if not auth or 'tenant_id' not in auth:
         logger.warning("WebSocket rejected %s - missing tenant_id in auth", sid)
