@@ -31,13 +31,18 @@ analysis, which is why they were never automated.
 Two paths, pick one:
 
 **A. Fresh self-enrollment (probably simpler):**
-1. Find how `registration_key`s are issued by this backend — likely an admin
-   endpoint or a value already sitting in the DB/UI (check the frontend's
-   agent-download/enrollment flow, or grep backend for `registration_key`).
-2. Write a new `config.yaml` next to the binary with `api_base_url:
-   http://localhost:5000`, the fresh `registration_key`, and leave
+1. Confirmed this session: registration flow is `src/registration.rs::ensure_registered()`
+   -> `POST {api_base_url}/api/agents/register`, handled by
+   `backend/agent_registry_endpoints.py`. Body shape (from the existing helper
+   script `backend/trigger_register.py`): `{hostname, registrationKey,
+   platform, ipAddress, macAddress, version, meta}`.
+2. **Not yet found:** what `registrationKey` value is actually valid for this
+   tenant/deployment — read `backend/agent_registry_endpoints.py`'s handler to
+   see what it validates against (a stored tenant setting? a fixed dev key?).
+3. Write a new `config.yaml` next to the binary with `api_base_url:
+   http://localhost:5000`, the valid `registration_key`, and leave
    `agent_id`/`agent_token` blank — the agent should self-register on first run
-   (confirm this is how `src/main.rs` actually behaves before assuming it).
+   (confirm this is how `src/main.rs`/`registration.rs` actually behaves).
 
 **B. Reuse the existing `agent_id`, repointed:**
 1. Check whether an agent document with `agent_id:
