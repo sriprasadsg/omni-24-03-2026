@@ -77,6 +77,44 @@ all session; this one just happened to hit the same killer.
 `config.yaml` still has the real registered credentials — reusable next
 time, no need to re-register.
 
+## Progress (2026-08-25, third check-in — `agentic_mode_enabled` disproven)
+
+Checked the leading suspect from above. It's wrong, but the real cause is
+narrower and cheaper to fix:
+
+1. **`agentic_mode_enabled` is dead code.** `grep -rn agentic_mode_enabled
+   src/*.rs` finds exactly one hit — the field declaration in
+   `config.rs:27`. Nothing reads it. Not a gate on anything.
+2. **The instruction-poll loop runs unconditionally.** `lib.rs:121` calls
+   `instructions::poll(&cfg, &client).await` every cycle inside
+   `agent_loop`, no flag around it.
+3. **`poll()` is an HTTP GET to a backend endpoint**
+   (`instructions.rs:5,14` — `pub async fn poll(...)`, `.get(&url)`), **not
+   a direct Mongo query.** The prior test session inserted the test
+   instruction straight into Mongo's `agent_instructions` collection,
+   bypassing whatever the real endpoint filters on. Both the inserted
+   instruction doc and the agent's own `config.yaml` have `tenant_id: ''`
+   (empty) — if the backend endpoint tenant-scopes its query, an
+   empty/missing `tenant_id` on either side would make the instruction
+   invisible to `poll()` regardless of `status: "pending"` being correct.
+
+**Next step, concretely:** find the exact URL `poll()`'s `.get(&url)`
+targets (read the rest of `instructions.rs::poll()`, specifically how `url`
+is constructed from `cfg.api_base_url`), then find that route's handler in
+`backend/*.py` and read its actual query filter — likely needs a real
+`tenant_id` set on both the agent's config and the instruction document.
+Once found, either re-insert the test instruction with the correct
+`tenant_id` (check what the `agents` collection's own document is scoped
+under — the earlier registration response likely returned/assigned one), or
+better: trigger the instruction through the real backend endpoint that
+inserts it correctly (mirroring `backend/compliance_scans_endpoints.py`'s
+pattern) rather than a raw Mongo insert, so the test exercises the real
+path end-to-end rather than working around it.
+
+This is a test-setup/insertion-path problem, not evidence of an agent-side
+bug — narrows the remaining unknown considerably from where this runbook
+started.
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
