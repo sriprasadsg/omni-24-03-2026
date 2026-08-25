@@ -1,52 +1,40 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-24T10:45:38.775Z",
+  "timestamp": "2026-08-25T00:46:22Z",
   "phase": null,
-  "phase_name": null,
+  "phase_name": "cross-phase audit-fix session (no single active phase)",
   "phase_dir": null,
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Phase 06 toast-on-failure UAT gap closed with real test", "status": "done", "commit": "a4b63302"},
-    {"id": 2, "name": "Phase 66 (YARA engine) doc debt reconciled — feature already shipped, docs/UAT/fake-completion-record fixed", "status": "done", "commit": "596ff578"},
-    {"id": 3, "name": "Phase 71 (Procurement) — 5 real gaps closed: PO panel built, notification routing fixed, dead code removed, wire-shape bug, T-71-04 validation", "status": "done", "commit": "3819f590..ed9b21d8"},
-    {"id": 4, "name": "Phase 72 (Reporting) WR-01 regression test added", "status": "done", "commit": "a4b63302"},
-    {"id": 5, "name": "STATE.md/ROADMAP.md/REQUIREMENTS.md reconciled after all above", "status": "done", "commit": "61da3733"},
-    {"id": 6, "name": "vector-db/federated-learning/webgpu backend+frontend files committed (were never in git — build-breaking on fresh clone)", "status": "done", "commit": "c9d42b4d"},
-    {"id": 7, "name": "Vite dev-server ENOSPC crash fixed (was watching 274k files across 3 Python venvs)", "status": "done", "commit": "d00bb02c"},
-    {"id": 8, "name": "Rust agent stuck unregistered — accept_invalid_certs never set against this platform's self-signed cert", "status": "done", "commit": "2cc8450c"},
-    {"id": 9, "name": "Windows-agent background pre-build used wrong (ancient) cargo under sudo", "status": "done", "commit": "77d4b910"},
-    {"id": 10, "name": "Python agent log_shipper — 3 compounding bugs (empty config, wrong token key, missing backend route)", "status": "done", "commit": "53fe9656"},
-    {"id": 11, "name": "GSD self-update 1.8.0 -> 1.11.0 + --reapply (1 local patch, confirmed incorporated upstream)", "status": "done", "commit": "n/a — gsd-core managed files, not project commits"}
+    {"id": 1, "name": "App.tsx lazy-import typecheck fix", "status": "done", "commit": "9486d4981"},
+    {"id": 2, "name": "Fix fabricated OCI/Alibaba/Cloudflare SIEM findings (Phase 32 CR-01)", "status": "done", "commit": "c33856ccf"},
+    {"id": 3, "name": "Fix Phase 32 WR-01/02/03 (Atlas severity, M365 threshold, posture-check tenant scoping)", "status": "done", "commit": "bf9115b77"},
+    {"id": 4, "name": "Surface Asset.purchase_order_id in FinancePanel (Phase 71 gap)", "status": "done", "commit": "c746cb332"},
+    {"id": 5, "name": "Move phases 50, 51-54, 55, 56-61 out of milestone-archive (fix gsd_run resolution)", "status": "done", "commit": "50a3735f2, 7e5426da7, 94531e08e"},
+    {"id": 6, "name": "Archive dead phase 64/65 planning drafts as _superseded-*", "status": "done", "commit": "a9b4737a0"},
+    {"id": 7, "name": "Re-verify and mark complete: Phase 32 (21/21), 71 (12/12), 64 (25/25 earlier)", "status": "done", "commit": "0a51bd7e0, 78cf6560d, ab54147f0"},
+    {"id": 8, "name": "Wire Test Connection/Discover to real CSPM polling for OCI/Alibaba/Cloudflare", "status": "done", "commit": "51434d7de"},
+    {"id": 9, "name": "Fix OCI compartment_id field-name mismatch in integration setup form", "status": "done", "commit": "f0f33df84"},
+    {"id": 10, "name": "Reconcile Phase 66 stale doc contradictions (D-01 override, Gaps Summary items 1-4)", "status": "done", "commit": "268dcf286, a4c1a1f05"},
+    {"id": 11, "name": "Write Phase 66 live-agent test runbook", "status": "in_progress", "progress": "registration endpoint/payload shape found (backend/agent_registry_endpoints.py, POST /api/agents/register); valid registrationKey for this tenant NOT yet found", "commit": "bfb2578c3, 7b40fb7f8"},
+    {"id": 12, "name": "SOAR feature audit", "status": "in_progress", "progress": "first pass done — no fabrication markers found across soar_engine.py/soar_endpoints.py/3 connector files/soar_integrations.py (1341 lines); connectors use real aiohttp calls; tests mock at transport layer correctly; playbook actions write to real mongodb.db.instructions agent queue. NOT done: messaging/cloud connectors got lighter treatment, no live execution test, not a full line-by-line read.", "commit": "bee10c315"}
   ],
   "remaining_tasks": [
-    {"id": 12, "name": "User's live Python agent process (PID from sudo ./start-all-services.sh) has not been restarted — code fixes for log_shipper/cargo/TLS won't take effect until it is", "status": "not_started"},
-    {"id": 13, "name": "maxAgents (free-tier cap of 5) is never updated anywhere when a tenant upgrades subscription tier — confirmed via grep, not yet fixed, user was told and did not explicitly ask for a fix", "status": "not_started"},
-    {"id": 14, "name": "Uncommitted Linux-native Rust agent build pipeline sitting in backend/agent_rust_builder.py (_ensure_rust_binary_native, systemd installer, tarball builder, ~160 lines) — real, substantial, found but never committed or decided on", "status": "not_started"},
-    {"id": 15, "name": "Zero test coverage for customer_vector_db/federated_learning/webgpu_inference (~3000 lines) — flagged, not addressed", "status": "not_started"},
-    {"id": 16, "name": "graphify build failed — 'graphify is not installed'; user was asked whether to run 'uv pip install graphifyy && graphify install' and had not answered before this pause", "status": "not_started"}
+    {"id": 13, "name": "Finish Phase 66 live-agent test: find valid registrationKey, register agent, cache signed feed bundle, find instruction-dispatch mechanism, run scan_file test + cache-invalidation test", "status": "not_started"},
+    {"id": 14, "name": "Deepen SOAR audit if warranted (messaging/cloud connectors, live execution)", "status": "not_started"},
+    {"id": 15, "name": "User's original broader question ('any features not working, like SOAR and other features') — only SOAR was checked; other features untouched", "status": "not_started"}
   ],
   "blockers": [
-    {"description": "graphify CLI not installed on this box", "type": "external", "workaround": "uv pip install graphifyy && graphify install — user has not confirmed they want this run"}
+    {"description": "Phase 66 live-agent test needs a valid registrationKey for this backend/tenant — not found yet", "type": "technical", "workaround": "read backend/agent_registry_endpoints.py's register handler to see what it validates against"}
   ],
   "async_jobs": [],
-  "human_actions_pending": [
-    {"action": "Restart the live agent process (agent/venv/bin/python agent.py, and/or the Rust omni-agent-rs binary if separately installed) to pick up this session's code fixes", "context": "log_shipper, cargo-resolution, and TLS-cert fixes only take effect on next agent start — did not restart the user's own live process without asking", "blocking": false},
-    {"action": "Decide whether to fix maxAgents not updating on tier upgrade", "context": "flagged as a real gap in response to a factual question; user has not asked for the fix yet", "blocking": false},
-    {"action": "Decide whether to commit/finish the uncommitted Linux Rust build pipeline in agent_rust_builder.py", "context": "found while fixing an unrelated bug in the same file; real substantial work (~160 lines) sitting uncommitted, matches a previously-known gap ('no Linux build path exists yet')", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Built a real Purchase Orders panel (not a backend-only descope) for Phase 71 SC1", "rationale": "explicit user choice via AskUserQuestion — 'build it for real' over 'formally descope'", "phase": "71"},
-    {"decision": "Deleted the disconnected frontend/ tree entirely rather than reconnecting it", "rationale": "it was unbuildable (missing react-router-dom dependency) and unreachable; nothing referenced it", "phase": "71"},
-    {"decision": "Left the dead legacy agent-rust/ YARA twin (yara_scan.rs, scanner/yara_engine.rs) in place, undeleted", "rationale": "deeply wired into that unshipped crate's own internal dispatch; removing it is a legacy-crate refactor disproportionate to a doc-debt cleanup pass — documented as a conscious deferral in 66-VERIFICATION.md", "phase": "66"},
-    {"decision": "accept_invalid_certs defaults true only when target URL is https AND this exact server's own self-signed certs/server.{crt,key} pair is present locally — never for an arbitrary customer https:// URL", "rationale": "avoid silently disabling TLS verification for a real CA-signed production deployment", "phase": null},
-    {"decision": "Did not restart the user's live agent process after code fixes", "rationale": "it's the user's own foreground process, not something this session started; restarting it without asking felt like the wrong default given how consequential interrupting live monitoring could be", "phase": null}
+    {"decision": "Fixed OCI/Alibaba/Cloudflare SIEM fabrication by making the functions fail safe (return 0) rather than implementing new unverified SDK calls", "rationale": "32-REVIEW.md itself sanctioned this as an acceptable remediation path; matches existing aws_guardduty/aws_securityhub precedent; avoided guessing at unverifiable third-party API shapes", "phase": "32"},
+    {"decision": "Moved phases 50-61 (except 64/65 drafts) out of .planning/milestones/*-phases/ back into .planning/phases/", "rationale": "restores gsd_run phase-number resolution; every other historical phase (01-49, 62-73) already lives there; the archival was an inconsistent one-off, not a real convention", "phase": null},
+    {"decision": "Left v3.4-phases/64 (bare dir) and v3.4-phases/65-fim-... unmoved, archived instead as _superseded-*", "rationale": "content-diff confirmed both are genuinely abandoned earlier drafts (wrong tree paths, different architecture), not valid parallel versions — moving them into .planning/phases/ would recreate a collision with the real, already-verified canonical directories", "phase": null}
   ],
-  "uncommitted_files": [
-    "910 files show as uncommitted in git status — pre-existing since session start (mass CRLF-only diff across .claude/agents,.claude/commands; ruflo-agent-dispatch-*/ruflo-test-report-* scratch artifacts; backup files; .venv/). Explicitly left untouched per user direction ('leave alone for now'). Only backend/agent_rust_builder.py has a real, substantial, INTENTIONAL uncommitted diff (see remaining_tasks #14)."
-  ],
-  "next_action": "Ask the user what they want next: (a) restart their live agent to pick up fixes, (b) decide on the uncommitted Linux Rust build pipeline, (c) fix maxAgents-on-upgrade, (d) install+run graphify, or something new entirely. Nothing in this session is mid-task — everything completed this session is already committed.",
-  "context_notes": "This was NOT phase-execution work — it was a long mixed session: GSD gap-closure across phases 06/66/71/72 (all now genuinely complete, verified, committed), followed by live production troubleshooting on a running VM (agent registration, Vite crash, cargo resolution, log shipping — all root-caused and fixed with tests, all committed in small scoped commits), followed by a GSD self-update. Repeatedly hit and fixed the same git mistake this session: `git commit -m ... -- <pathspec>` still commits the FULL current diff of that file, not just intended hunks, when other unrelated content is sitting unstaged/uncommitted in the same file — caught it twice (agent_rust_builder.py, types.ts-adjacent files) via git-show-after-commit checks and fixed via git reset --soft + restore-file + reapply-just-my-edit. Always verify a commit's actual diff after making it when the repo has other known-uncommitted content in the same files."
+  "uncommitted_files": [],
+  "next_action": "Read backend/agent_registry_endpoints.py's register handler to find a valid registrationKey, then continue 66-LIVE-TEST-RUNBOOK.md Step 1",
+  "context_notes": "This was a long cross-phase session that started as a /gsd-audit-fix run and grew into fixing everything it found: real bugs in phase 32 (fabricated SIEM data — a genuine pre-existing security issue), a display gap in phase 71, and a systemic routing bug affecting phase-number resolution for phases 50-65. Ran out of context budget mid-way through two follow-on asks (phase 66 live-agent testing, SOAR feature audit) — both have runbooks/partial results committed so a fresh session can pick up cleanly rather than re-deriving everything."
 }
