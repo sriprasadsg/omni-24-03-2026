@@ -249,6 +249,20 @@ async def list_yara_rules(current_user: TokenData = Depends(get_current_user)):
     tid = getattr(current_user, "tenant_id", None)
     query: dict = {"tenantId": tid} if tid else {}
     rules = await db.custom_yara_rules.find(query, {"_id": 0}).to_list(length=500)
+    if tid and tid != "platform-admin":
+        # Built-in rules are seeded platform-wide with tenantId=
+        # "platform-admin" (app_startup._seed_yara_rules) so every tenant
+        # is meant to see them — but TenantIsolatedCollection forcibly
+        # rescopes every query to the caller's own tenantId, so the find()
+        # above can never return them for a non-platform-admin caller.
+        # Without this, every regular tenant's YARA Rule Editor showed
+        # "0 built-in" despite 30 built-in rules existing in the DB.
+        # Fetch them via the raw collection explicitly (mirrors
+        # rbac_service.find_role_doc's bypass for global role docs).
+        builtin_rules = await db._db.custom_yara_rules.find(
+            {"source": "builtin", "tenantId": "platform-admin"}, {"_id": 0}
+        ).to_list(length=500)
+        rules = builtin_rules + rules
     return rules
 
 
