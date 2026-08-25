@@ -347,6 +347,59 @@ backgrounded ones).
 Not attempted this session: reading `lib.rs::agent_loop` (next session's
 first move, cheapest and most informative given it needs no test run).
 
+## Progress (2026-08-25, ninth check-in — mystery solved, question reframed)
+
+Read `lib.rs::agent_loop` in full. The loop body, in order, each iteration:
+```rust
+if agent_cpu > cfg.max_cpu_percent {
+    log::warn!("...throttling 5s");
+    tokio::time::sleep(...).await;
+    continue;  // skips heartbeat AND poll entirely for this iteration
+}
+let payload = heartbeat::build_payload(&cfg, &sys, &cap_mgr);
+heartbeat::send(&cfg, payload, &buf, &client).await;
+instructions::poll(&cfg, &client).await;  // same iteration, right after heartbeat, no gap
+```
+
+**`poll()` runs unconditionally, same iteration, immediately after every
+successful heartbeat send.** Every test run this session logged
+`Heartbeat -> 200`, which means `poll()` necessarily ran too, every time.
+
+**And `poll()`'s success branch logs nothing on an empty result**, by
+design — its only log line inside the success match arm is
+`log::info!("Instruction received: {action}")`, which sits *inside* the
+`for item in items` loop, so it only fires per-delivered-item. A `200 OK`
+with an empty JSON array produces zero log output at any level. Not a
+debug/info filtering bug, not a "didn't run" bug — correct behavior for
+"ran, got nothing back."
+
+**The real open question flips back to the server side:** the test
+instruction's `agent_id` field
+(`agent-310ee2eca93f47d2ae60efdd16ac70c4`) matches the real, registered
+agent — so why does the handler's query return empty? New concrete
+suspect, not yet checked: **this session ran agent registration multiple
+times** (at least twice — once early, once after the `agentic_mode_enabled`
+investigation reset the config). `deployment_result_endpoints.py`'s handler
+resolves hostname→id via `db.agents.find_one({"$or": [{"id": agent_id}, {"hostname": agent_id}]}, {"id": 1})`
+— a bare `find_one` with no sort, so if multiple `agents` documents exist
+for hostname `security-test-vm` (plausible if each registration created a
+new doc rather than upserting), Mongo could return an OLDER one whose `id`
+doesn't match what's currently in `config.yaml` / what the test instruction
+was tagged with.
+
+**Recommended next step, cheapest first, no agent run needed:**
+1. Query `db.getSiblingDB("omni_platform").agents.find({hostname: "security-test-vm"})`
+   directly — if more than one document comes back, that's very likely the
+   actual root cause. Confirm which `id` the *current* `config.yaml`'s
+   `agent_token` JWT actually corresponds to (decode the JWT's `sub` claim,
+   or check which `id` was most recently written).
+2. If duplicates exist: either delete the stale ones, or re-point the test
+   instruction's `agent_id` at whichever one the handler's `find_one`
+   actually returns (query it the same way the handler does, no `.sort()`,
+   to see what Mongo's natural order gives back).
+3. Only then re-run the live test — this time with a real, evidence-backed
+   reason to expect it to work, not another blind attempt.
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
