@@ -1,7 +1,7 @@
 """HADRService backup operations mixin: create, verify, and restore backups."""
 
 import gzip
-import json
+from bson import json_util
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -49,20 +49,36 @@ class HADRServiceBackupMixin:
                     query["tenantId"] = tenant_id
                 cursor = self.db[collection_name].find(query)
                 documents = await cursor.to_list(length=1000)
-                for doc in documents:
-                    if "_id" in doc:
-                        doc["_id"] = str(doc["_id"])
                 backup_data[collection_name] = documents
-                total_size += len(json.dumps(documents).encode("utf-8"))
+                total_size += len(json_util.dumps(documents).encode("utf-8"))
 
+            # DB-F07 (2026-08-25 audit): plain json.dump/json.load cannot
+            # round-trip BSON types — ObjectId, datetime, Decimal128, etc.
+            # The old code manually stringified _id before dumping, which
+            # avoided a crash but silently broke restores: insert_many() on
+            # a document whose _id is the *string* "507f1f..." instead of
+            # an ObjectId means any later ObjectId(_id) lookup against the
+            # restored data finds nothing, even though restore_backup
+            # reports success. bson.json_util uses MongoDB Extended JSON
+            # and correctly restores ObjectId/datetime/etc. to their native
+            # types on load, for every field, not just _id.
             backup_file = self.backup_dir / f"{backup_id}.json.gz"
             with gzip.open(backup_file, "wt", encoding="utf-8") as f:
-                json.dump(backup_data, f, indent=2)
+                f.write(json_util.dumps(backup_data, indent=2))
 
-            checksum = self._calculate_checksum(backup_file)
-
+            # Checksum the file exactly as it will sit at rest — computing it
+            # *before* encryption (the old order) meant verify_backup, which
+            # always checksums whatever file_path currently points to (the
+            # encrypted .enc file once encryption_enabled), compared an
+            # encrypted-bytes checksum against a plaintext-bytes checksum
+            # and reported "corrupted" on every single encrypted backup.
+            # encryption_enabled defaults to True, so this broke verification
+            # (and therefore restore_backup, which verifies first) for the
+            # default configuration, independent of the BSON fix above.
             if self.encryption_enabled:
                 backup_file = self._encrypt_backup(backup_file)
+
+            checksum = self._calculate_checksum(backup_file)
 
             backup_metadata.update({
                 "status": "completed",
@@ -122,9 +138,22 @@ class HADRServiceBackupMixin:
                 result["checks"]["checksum_valid"] = True
 
             try:
-                test_file = self._decrypt_backup(backup_file) if backup.get("encrypted") else backup_file
-                with gzip.open(test_file, "rt", encoding="utf-8") as f:
-                    data = json.load(f)
+                # DB-F07 (2026-08-25 audit): verification must be read-only.
+                # _decrypt_backup() writes a decrypted copy to disk *and
+                # deletes the original .enc file* — calling it here used to
+                # consume the canonical backup artifact just to check it was
+                # readable, so restore_backup's own subsequent _decrypt_backup
+                # call (on the same file_path) always hit a FileNotFoundError,
+                # since verify_backup (which restore_backup always calls
+                # first) had already deleted the .enc file out from under it.
+                # Decrypting into memory here, without touching the file on
+                # disk, keeps this check side-effect-free.
+                if backup.get("encrypted"):
+                    raw_bytes = self._cipher.decrypt(backup_file.read_bytes())
+                    data = json_util.loads(gzip.decompress(raw_bytes).decode("utf-8"))
+                else:
+                    with gzip.open(backup_file, "rt", encoding="utf-8") as f:
+                        data = json_util.loads(f.read())
                 result["checks"]["data_readable"] = True
                 result["checks"]["collections_count"] = len(data)
             except Exception as e:
@@ -178,7 +207,7 @@ class HADRServiceBackupMixin:
             data_file = self._decrypt_backup(backup_file) if backup.get("encrypted") else backup_file
 
             with gzip.open(data_file, "rt", encoding="utf-8") as f:
-                backup_data = json.load(f)
+                backup_data = json_util.loads(f.read())
 
             for collection_name in (collections or list(backup_data.keys())):
                 if collection_name not in backup_data:
