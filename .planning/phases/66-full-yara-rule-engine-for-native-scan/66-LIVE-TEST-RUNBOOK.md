@@ -115,6 +115,53 @@ This is a test-setup/insertion-path problem, not evidence of an agent-side
 bug — narrows the remaining unknown considerably from where this runbook
 started.
 
+## Progress (2026-08-25, fourth check-in — found the real root cause, may be a REAL bug not just test setup)
+
+Read `instructions.rs::poll()` in full. Confirmed:
+```rust
+let url = format!("{}/api/agents/{}/instructions", cfg.api_base_url.trim_end_matches('/'), hostname);
+```
+**Keyed by `hostname`, not `agent_id`.** (`hostname_str()` — this run logged
+host `security-test-vm`.) Uses `bearer_auth(&cfg.agent_token)`.
+
+Grepped for the matching backend route and found **three different files**
+registering a route matching this exact path shape:
+- `agent_instruction_endpoints.py:22` — `@router.get("/api/agents/{agent_id}/instructions")` — param is `agent_id`
+- `agent_tasks_endpoints.py:21` — `@router.get("/{hostname}/instructions")` — param is `hostname` (prefix presumably `/api/agents`, not confirmed)
+- `deployment_result_endpoints.py:40` — `@router.get("/api/agents/{agent_id}/instructions")` — **duplicate of the first**, also `agent_id`
+
+**This may be a real, shippable bug, not just a test-setup gap.** The Rust
+agent sends a hostname in that URL slot. If FastAPI/`router_registry.py`'s
+load order resolves the path to one of the `agent_id`-keyed handlers rather
+than the `hostname`-keyed one in `agent_tasks_endpoints.py`, then:
+1. The query filter would look up instructions by `agent_id ==
+   "security-test-vm"` — which will never match any real `agent_id` value
+   (real ones look like `agent-310ee2eca93f47d2ae60efdd16ac70c4`).
+2. **Every real agent's instruction poll could be silently broken this way**,
+   not just this test — worth checking if this is why 66-VERIFICATION.md's
+   original "Human Verification Required #1" (scan_file end-to-end) was
+   never actually provable: maybe nobody could get an instruction delivered
+   at all, for any instruction type, not just scan_file specifically.
+
+**Next step, concretely, in this order:**
+1. Read `backend/router_registry.py` to find the actual registration order
+   for `agent_instruction_endpoints`, `agent_tasks_endpoints`, and
+   `deployment_result_endpoints` — FastAPI resolves path conflicts by
+   registration order (first match wins), so this determines which handler
+   is actually live.
+2. Read whichever handler wins — confirm its exact query filter (does it
+   query by `agent_id` field value against the hostname string sent, or
+   does something translate hostname->agent_id first?).
+3. If confirmed broken: this becomes a real fix (dedupe the 3 competing
+   routes, make the Rust client and the winning handler agree on
+   hostname-vs-agent_id), not just a test workaround. Scope that properly
+   before touching it — 3 files with the same route path smells like
+   accreted debt, not a quick one-line fix.
+4. Once instructions can actually reach the agent (whichever way that gets
+   fixed), re-run the `scan_file` test from Step 3 above.
+
+Not yet confirmed which handler wins — this is the very next thing to check.
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
