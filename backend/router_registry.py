@@ -35,6 +35,16 @@ _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     # the app boots fine with the entire /api/cloud-accounts/* surface
     # silently absent instead of refusing to start as intended.
     "cloud_account_endpoints",
+    # ARCH-003 (2026-08-25 audit): the existing entries above are all
+    # single-feature routers — losing one degrades the app. authentication_
+    # endpoints is qualitatively different: it owns /api/auth/login,
+    # /signup, /refresh, and /me. A broken import here (bad merge, a typo,
+    # a missing dependency) previously left the app "up" — /health and
+    # /health/ready both pass, since neither checks router load state —
+    # while literally 100% of users are locked out with no login path at
+    # all. That's worse than any single feature being down and should
+    # never be silently tolerated at startup.
+    "authentication_endpoints",
 })
 
 
