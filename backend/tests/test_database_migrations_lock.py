@@ -2,17 +2,16 @@
 database_migrations.py had no distributed lock, so every horizontally-scaled
 replica re-scanned and re-wrote the same backlog on every restart (wasted
 work growing with replica count), and seed_compliance_frameworks could spawn
-duplicate concurrent child-process seeders. A Mongo-upsert-based lock (the
-standard atomic acquire-via-unique-index-collision pattern) now ensures only
-one replica actually runs a given migration at a time, self-healing via TTL
-if the holder crashes.
+duplicate concurrent child-process seeders. These migrations now use the
+shared distributed_lock module (see test_distributed_lock.py for the lock
+mechanism's own tests) so only one replica actually runs a given migration
+at a time, self-healing via TTL if the holder crashes.
 """
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from pymongo.errors import DuplicateKeyError
 
 import database_migrations as dm
 
@@ -23,37 +22,6 @@ class _EmptyAsyncCursor:
 
     async def __anext__(self):
         raise StopAsyncIteration
-
-
-class TestAcquireReleaseLock:
-
-    @pytest.mark.asyncio
-    async def test_acquire_succeeds_when_no_existing_lock(self):
-        db = MagicMock()
-        db._db._migration_locks.find_one_and_update = AsyncMock(return_value=None)
-        token = await dm._acquire_migration_lock(db, "some-migration")
-        assert token is not None
-        db._db._migration_locks.find_one_and_update.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_acquire_returns_none_when_held_by_another_replica(self):
-        """A live, unexpired lock means the upsert's insert path collides
-        with the existing _id — pymongo surfaces that as DuplicateKeyError."""
-        db = MagicMock()
-        db._db._migration_locks.find_one_and_update = AsyncMock(side_effect=DuplicateKeyError("dup"))
-        token = await dm._acquire_migration_lock(db, "some-migration")
-        assert token is None
-
-    @pytest.mark.asyncio
-    async def test_release_filters_by_own_token(self):
-        """Must never delete a lock some other replica has since
-        (re)acquired — only ever delete the exact token we were holding."""
-        db = MagicMock()
-        db._db._migration_locks.delete_one = AsyncMock()
-        await dm._release_migration_lock(db, "some-migration", "my-token")
-        db._db._migration_locks.delete_one.assert_awaited_once_with(
-            {"_id": "some-migration", "token": "my-token"}
-        )
 
 
 class TestMigrationsRespectTheLock:

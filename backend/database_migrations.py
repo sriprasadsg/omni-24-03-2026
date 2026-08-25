@@ -1,52 +1,18 @@
 import logging
-import uuid as _uuid
-from datetime import datetime, timezone, timedelta
-from typing import Optional
-from pymongo.errors import DuplicateKeyError
 from database import get_database
 from tenant_context import set_tenant_id, get_tenant_id
+from distributed_lock import acquire_lock as _acquire_migration_lock, release_lock as _release_migration_lock
 
 logger = logging.getLogger("database_migrations")
 
-_MIGRATION_LOCK_TTL_SECONDS = 300
-
-
-async def _acquire_migration_lock(db, name: str) -> Optional[str]:
-    """Best-effort distributed lock so only one replica runs a given
-    startup migration when horizontally scaled (DB-F08, 2026-08-25 audit).
-    These migrations are individually idempotent (each write is by _id, so
-    concurrent replicas re-doing the same update/delete isn't corrupting),
-    but with no lock every replica re-scans and re-writes the same backlog
-    on every restart — wasted work that grows with replica count, and log
-    noise that makes real errors harder to spot.
-
-    Returns a lock token to pass to _release_migration_lock() on success,
-    or None if another replica currently holds the lock. Self-healing: a
-    crashed holder's lock naturally becomes re-acquirable once
-    _MIGRATION_LOCK_TTL_SECONDS elapses — no separate crash-recovery path
-    needed, consistent with the "self-healing migration" design already
-    used by the migrations themselves. Uses db._db (raw, unwrapped)
-    deliberately: this lock is cross-tenant/global by nature, like the
-    collections these migrations themselves operate on.
-    """
-    now = datetime.now(timezone.utc)
-    token = str(_uuid.uuid4())
-    try:
-        await db._db._migration_locks.find_one_and_update(
-            {"_id": name, "expiresAt": {"$lt": now}},
-            {"$set": {"expiresAt": now + timedelta(seconds=_MIGRATION_LOCK_TTL_SECONDS), "token": token}},
-            upsert=True,
-        )
-        return token
-    except DuplicateKeyError:
-        return None
-
-
-async def _release_migration_lock(db, name: str, token: str) -> None:
-    """Release promptly on success so a redeploy/restart doesn't have to
-    wait out the full TTL. Filtered on our own token so we never delete a
-    lock some other replica has since (re)acquired."""
-    await db._db._migration_locks.delete_one({"_id": name, "token": token})
+# DB-F08 (2026-08-25 audit): these startup migrations had no lock, so every
+# horizontally-scaled replica re-scanned and re-wrote the same backlog on
+# every restart. See distributed_lock.py for the locking mechanism itself —
+# these are individually idempotent (each write is by _id), so the lock is
+# about avoiding wasted duplicate work and log noise, not correctness, with
+# one exception: seed_compliance_frameworks's "already seeded?" check and
+# the seed itself aren't atomic together, so without the lock concurrent
+# replicas could spawn duplicate seeder child processes.
 
 async def migrate_compliance_tenant_ids():
     """

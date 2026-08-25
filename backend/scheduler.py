@@ -9,8 +9,19 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from database import get_database
+from distributed_lock import acquire_lock, release_lock
 
 logger = logging.getLogger(__name__)
+
+# ARCH-001 (2026-08-25 audit): these jobs run every minute via IntervalTrigger
+# on every replica, with no lock. Unlike database_migrations.py's idempotent
+# migrations, this one is a genuine correctness bug, not just wasted work: a
+# job read as status="Scheduled" by two replicas in the same tick would both
+# flip it to "In Progress" and both fire off a duplicate
+# simulate_patch_deployment/execute_scan task for the same job. TTL is kept
+# just under the 1-minute interval so a crashed holder doesn't block the next
+# tick for long.
+_SCHEDULER_LOCK_TTL_SECONDS = 55
 
 # Global scheduler instance
 scheduler = None
@@ -163,6 +174,12 @@ async def process_scheduled_deployments():
     Runs every minute via scheduler
     """
     from tenant_context import set_tenant_id, reset_tenant_id
+    lock_db = get_database()
+    lock_token = await acquire_lock(lock_db, "process_scheduled_deployments", ttl_seconds=_SCHEDULER_LOCK_TTL_SECONDS)
+    if not lock_token:
+        logger.debug("[Scheduler] process_scheduled_deployments already running on another replica, skipping.")
+        return
+
     _tenant_ctx_token = set_tenant_id("platform-admin")
     try:
         db = get_database()
@@ -239,10 +256,17 @@ async def process_scheduled_deployments():
         logger.error("[Scheduler] Error processing scheduled deployments: %s", e)
     finally:
         reset_tenant_id(_tenant_ctx_token)
+        await release_lock(lock_db, "process_scheduled_deployments", lock_token)
 
 
 async def process_pentest_schedules():
     """Trigger any pentest recurring scans that are due to run."""
+    lock_db = get_database()
+    lock_token = await acquire_lock(lock_db, "process_pentest_schedules", ttl_seconds=_SCHEDULER_LOCK_TTL_SECONDS)
+    if not lock_token:
+        logger.debug("[PentestScheduler] process_pentest_schedules already running on another replica, skipping.")
+        return
+
     try:
         from pentest_integration_service import get_pentest_service
         db = get_database()
@@ -284,6 +308,8 @@ async def process_pentest_schedules():
                 logger.warning("[PentestScheduler] Failed to trigger scan for schedule %s: %s", schedule_id, exc)
     except Exception as exc:
         logger.error("[PentestScheduler] Error processing pentest schedules: %s", exc)
+    finally:
+        await release_lock(lock_db, "process_pentest_schedules", lock_token)
 
 
 def start_scheduler():

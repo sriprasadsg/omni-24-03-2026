@@ -7,10 +7,20 @@ from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timezone
 import logging
 
+from distributed_lock import acquire_lock, release_lock
 
 logger = logging.getLogger(__name__)
 
 scheduler = None
+
+# ARCH-001 (2026-08-25 audit): runs hourly on every replica with no lock —
+# with N replicas this multiplies real per-tenant cost-recalculation work
+# (often backed by external cloud billing API calls, which have their own
+# rate limits/costs) by N, plus duplicate audit_logs entries every hour.
+# TTL kept comfortably under the 1-hour interval so a crashed holder
+# doesn't block the next cycle for long.
+_FINOPS_LOCK_TTL_SECONDS = 3000  # 50 minutes
+
 
 async def recalculate_all_finops_costs():
     """
@@ -18,17 +28,23 @@ async def recalculate_all_finops_costs():
     Runs hourly to keep billing data up-to-date.
     """
     from tenant_context import set_tenant_id, reset_tenant_id
+    from database import get_database
+
+    lock_db = get_database()
+    if not lock_db:
+        print("[Scheduler] Database not available, skipping finOps recalculation")
+        return
+    lock_token = await acquire_lock(lock_db, "recalculate_all_finops_costs", ttl_seconds=_FINOPS_LOCK_TTL_SECONDS)
+    if not lock_token:
+        logger.debug("[Scheduler] finOps recalculation already running on another replica, skipping.")
+        return
 
     _tenant_ctx_token = set_tenant_id("platform-admin")
     try:
-        from database import get_database
         from finops_service import finops_service
 
         db = get_database()
-        if not db:
-            print("[Scheduler] Database not available, skipping finOps recalculation")
-            return
-        
+
         # Get all tenants (exclude platform-admin)
         tenants = await db.tenants.find(
             {"id": {"$ne": "platform-admin"}},
@@ -91,6 +107,7 @@ async def recalculate_all_finops_costs():
         logger.exception("Unhandled exception")
     finally:
         reset_tenant_id(_tenant_ctx_token)
+        await release_lock(lock_db, "recalculate_all_finops_costs", lock_token)
 
 def start_scheduler():
     """Initialize and start the background scheduler"""
