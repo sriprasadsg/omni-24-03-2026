@@ -19,7 +19,6 @@ class TenantMiddleware(BaseHTTPMiddleware):
         "/api/auth/signup",
         "/api/auth/reset-password",
         "/api/response/tasks",
-        "/api/agent/heartbeat",
         "/static",
         "/docs",
         "/openapi.json",

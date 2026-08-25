@@ -1,7 +1,7 @@
 
 import os
 from database import connect_to_mongo, close_mongo_connection, get_database
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import logging
@@ -100,6 +100,38 @@ async def health():
 @limiter.exempt
 async def api_health():
     return {"status": "ok", "service": "backend-fastapi", "edition": "2030"}
+
+
+@app.get("/health/ready")
+@app.get("/api/health/ready")
+@limiter.exempt
+async def health_ready(response: Response):
+    """ARCH-020: unauthenticated readiness probe for orchestrators (k8s
+    readinessProbe, Compose healthcheck). Unlike /health and /api/health —
+    which are static literals used for liveness only, matching the pattern
+    of `/api/health/extended` requiring auth and therefore being unusable
+    as an orchestrator probe — this actually pings MongoDB and reports the
+    in-memory-mock-DB fallback (ARCH-017/is_demo_mode), and returns HTTP 503
+    when either signal is bad so a rolling deploy does not route traffic to
+    a replica that is up but cannot serve real requests."""
+    from database import is_demo_mode
+
+    db_status = "ok"
+    try:
+        _db = get_database()
+        await _db._db.command("ping")
+    except Exception as _db_err:
+        db_status = f"unreachable: {_db_err}"
+
+    demo_mode = is_demo_mode()
+    ready = db_status == "ok" and not demo_mode
+    if not ready:
+        response.status_code = 503
+    return {
+        "status": "ready" if ready else "not_ready",
+        "database": db_status,
+        "demo_mode": demo_mode,
+    }
 
 
 @app.get("/api/demo-mode")
