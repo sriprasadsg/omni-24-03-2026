@@ -26,6 +26,57 @@ analysis, which is why they were never automated.
   `https://192.168.10.70`, a different, unreachable deployment. It has a real
   `agent_id`/`agent_token` for that other backend, not this one.
 
+## Progress (2026-08-25, second session)
+
+**Registration: DONE and confirmed working.** Local Mongo `omni_platform.tenants`
+has tenant `platform-admin` with a real `registrationKey`
+(`Hcqj3peK4ukFs4lSEFgwvEsdWSRSf5bCVpmI3grMVUs` — a local dev credential, not
+secret in the usual sense, but treat normally anyway). Wrote
+`agent-install/omni-agent-rs/target/release/config.yaml` with
+`api_base_url: http://localhost:5000` and that `registration_key`, blank
+`agent_id`/`agent_token`. Ran the binary once — it self-registered via
+`POST /api/agents/register` and rewrote `config.yaml` with a real
+`agent_id` (`agent-310ee2eca93f47d2ae60efdd16ac70c4`) and JWT `agent_token`.
+Confirmed real heartbeats (`Heartbeat -> 200`) with live telemetry
+(vulnerability_scanning results etc.) posted to the backend.
+
+**Instruction dispatch: found the shape, but agent never picked it up.**
+Instructions go in Mongo `omni_platform.agent_instructions`, shape (from
+`backend/compliance_scans_endpoints.py`'s existing dispatch calls):
+```js
+{ agent_id, instruction: "scan_file", parameters: {target: "<path>", path: "<path>"}, status: "pending", created_at, created_by, priority }
+```
+(Rust side: `src/instructions.rs:135` matches on the `instruction` string,
+`:482` reads `parameters.target`.) Inserted a real instruction (id
+`6a8ce75f12e698ced33d2477`, target `/tmp/eicar_test.txt` containing the
+EICAR string) and ran the agent through **two full heartbeat cycles**
+(~90s, interval_seconds=30) — the instruction stayed `status: "pending"`
+the whole time. The agent never touched it.
+
+**Leading suspect, not yet confirmed:** `config.yaml`'s
+`agentic_mode_enabled: false` — this session left it at the default. If
+that flag gates whether the agent polls/executes `agent_instructions` at
+all, that's the whole explanation. **Next step: check what
+`agentic_mode_enabled` actually gates in the Rust source
+(`src/main.rs`/wherever the instruction-poll loop lives), and if it's
+this, flip it to `true` in config.yaml and re-run.** If that's not it,
+check whether `instructions.rs`'s poll loop queries `agent_instructions`
+by a different filter than plain `status: "pending"` (e.g. a specific
+`created_by` allowlist, or a different collection/endpoint entirely —
+worth checking if there's a `GET /api/agents/{id}/instructions`-style
+pull endpoint instead of the agent reading Mongo directly).
+
+Also note: `timeout 90 ./omni-agent` was killed with SIGKILL (exit 137,
+not the SIGTERM `timeout` normally sends) — matches the same "something in
+this environment kills backgrounded/long-running processes" pattern seen
+elsewhere this session with backgrounded `pytest` runs. Not agent-specific,
+environmental. Foreground `timeout` calls have otherwise worked reliably
+all session; this one just happened to hit the same killer.
+
+**Cleanup done:** no `omni-agent` process left running after this session.
+`config.yaml` still has the real registered credentials — reusable next
+time, no need to re-register.
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
