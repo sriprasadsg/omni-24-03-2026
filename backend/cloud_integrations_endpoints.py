@@ -340,14 +340,20 @@ async def test_integration(
             from gcp_scc_ingest import poll_gcp_chronicle
             count = await poll_gcp_chronicle(config, integ.get("tenant_id", ""))
         elif provider == "oci_cloud_guard":
-            from oci_ingest import poll_oci_cloud_guard_problems
-            count = await poll_oci_cloud_guard_problems(config, integ.get("tenant_id", ""))
+            # The SIEM-domain poll_oci_cloud_guard_problems always returns 0
+            # (32-REVIEW.md CR-01: it used to fabricate fake events; fixed to
+            # fail safe instead). Route to the real, tested CSPM-domain poll
+            # instead — same Cloud Guard API, writes to cloud_findings. This
+            # integration record has no matching cloud_accounts document, so
+            # pass its own id as account_id (a label on the finding, not an FK).
+            from oci_ingest import poll_oci_cspm_findings
+            count = await poll_oci_cspm_findings(config, integration_id, integ.get("tenant_id", ""))
         elif provider == "alibaba_sas":
-            from alibaba_ingest import poll_alibaba_sas_alerts
-            count = await poll_alibaba_sas_alerts(config, integ.get("tenant_id", ""))
+            from alibaba_ingest import poll_alibaba_cspm_findings
+            count = await poll_alibaba_cspm_findings(config, integration_id, integ.get("tenant_id", ""))
         elif provider == "cloudflare_zero_trust":
-            from cloudflare_ingest import poll_cloudflare_zero_trust_events
-            count = await poll_cloudflare_zero_trust_events(config, integ.get("tenant_id", ""))
+            from cloudflare_ingest import poll_cloudflare_cspm_findings
+            count = await poll_cloudflare_cspm_findings(config, integration_id, integ.get("tenant_id", ""))
         elif provider in ("aws_guardduty", "aws_securityhub"):
             count = 0
 
@@ -394,14 +400,14 @@ async def trigger_cloud_discovery(
                 from gcp_scc_ingest import poll_gcp_scc_findings
                 real_count += await poll_gcp_scc_findings(config, tenant_id)
             elif provider == "oci_cloud_guard":
-                from oci_ingest import poll_oci_cloud_guard_problems
-                real_count += await poll_oci_cloud_guard_problems(config, tenant_id)
+                from oci_ingest import poll_oci_cspm_findings
+                real_count += await poll_oci_cspm_findings(config, integ.get("id", ""), tenant_id)
             elif provider == "alibaba_sas":
-                from alibaba_ingest import poll_alibaba_sas_alerts
-                real_count += await poll_alibaba_sas_alerts(config, tenant_id)
+                from alibaba_ingest import poll_alibaba_cspm_findings
+                real_count += await poll_alibaba_cspm_findings(config, integ.get("id", ""), tenant_id)
             elif provider == "cloudflare_zero_trust":
-                from cloudflare_ingest import poll_cloudflare_zero_trust_events
-                real_count += await poll_cloudflare_zero_trust_events(config, tenant_id)
+                from cloudflare_ingest import poll_cloudflare_cspm_findings
+                real_count += await poll_cloudflare_cspm_findings(config, integ.get("id", ""), tenant_id)
         except Exception as e:
             logger.warning("Cloud provider poll failed for %s: %s", provider, e)
 

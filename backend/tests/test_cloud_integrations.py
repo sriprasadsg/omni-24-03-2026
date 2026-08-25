@@ -134,6 +134,9 @@ class TestEndpoints:
         assert "BEGIN PRIVATE KEY" not in res.text
 
     def test_test_integration_endpoint(self):
+        # WR/CR-01 follow-up: /test routes oci_cloud_guard to the real,
+        # tested CSPM-domain poll (poll_oci_cspm_findings) instead of the
+        # SIEM-domain stub, which always returns 0 (32-REVIEW.md CR-01).
         from cloud_integrations_endpoints import router
         integration = {"id": "i1", "tenant_id": "t1", "provider": "oci_cloud_guard", "config": {}}
         col = _col(find_one=AsyncMock(return_value=integration))
@@ -141,10 +144,27 @@ class TestEndpoints:
         app = _app(router, _user(role="admin"))
 
         with patch("cloud_integrations_endpoints.get_database", return_value=db), \
-             patch("oci_ingest.poll_oci_cloud_guard_problems", new_callable=AsyncMock) as mock_poll:
+             patch("oci_ingest.poll_oci_cspm_findings", new_callable=AsyncMock) as mock_poll:
             mock_poll.return_value = 5
             res = TestClient(app).post("/api/cloud-integrations/i1/test")
 
         assert res.status_code == 200
         assert res.json()["events_ingested"] == 5
-        mock_poll.assert_called_once()
+        mock_poll.assert_called_once_with({}, "i1", "t1")
+
+    def test_discover_endpoint_routes_oci_to_cspm_poll(self):
+        # Same follow-up as test_test_integration_endpoint, for /discover.
+        from cloud_integrations_endpoints import router
+        integration = {"id": "i1", "tenant_id": "t1", "provider": "oci_cloud_guard", "config": {}, "enabled": True}
+        col = _col(update_many=AsyncMock())
+        col.find.return_value.to_list = AsyncMock(return_value=[integration])
+        db = _db(cloud_integrations=col, cloud_discovered_assets=_col())
+        app = _app(router, _user(role="admin"))
+
+        with patch("cloud_integrations_endpoints.get_database", return_value=db), \
+             patch("oci_ingest.poll_oci_cspm_findings", new_callable=AsyncMock) as mock_poll:
+            mock_poll.return_value = 3
+            res = TestClient(app).post("/api/cloud-integrations/discover", json={})
+
+        assert res.status_code == 200
+        mock_poll.assert_called_once_with({}, "i1", "t1")
