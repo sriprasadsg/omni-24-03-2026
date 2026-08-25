@@ -209,7 +209,7 @@ No orphaned requirements: ROADMAP maps only NSCAN-01 to Phase 66, and both plans
 | `agent-install/omni-agent-rs/src/instructions.rs` | — | none | — | Zero matches. |
 | `agent-install/omni-agent-rs/.planning/phases/66-.../66-01-SUMMARY.md` | 12-14, 30 | Stale placeholder record (`src/a.txt`, `status: complete`, `PASSED`) inside the shipped crate | ⚠️ Warning | Asserts a false completion; git-tracked in the crate that gets packaged. See gap 5. |
 | `agent-rust/src/scanner/yara_engine.rs`, `agent-rust/src/yara_scan.rs` | — | Dead parallel implementation | ⚠️ Warning | A second YARA implementation in an unshipped tree invites exactly the confusion this phase already suffered. |
-| `.planning/PROJECT.md` | 75, 133 | Documentation asserting the opposite of shipped behaviour | ⚠️ Warning | Decision table still records "yara-x rejected ... deferred to backlog 999.4" as final. See gap 1. |
+| `.planning/PROJECT.md` | 75, 133 | Documentation asserting the opposite of shipped behaviour | ✅ RESOLVED (2026-08-25) | Was stale at verification time — this file's own frontmatter `overrides:` already recorded the D-01 reversal as accepted the same day (2026-08-24T00:00:00Z, before this doc's 14:00 verification timestamp), and commit `596ff578b` updated PROJECT.md's decision table accordingly. This row and item 3 below simply hadn't been reconciled against the frontmatter. See gap 1 (unchanged — the override, not this row, is the source of truth). |
 
 ### Human Verification Required
 
@@ -225,11 +225,9 @@ No orphaned requirements: ROADMAP maps only NSCAN-01 to Phase 66, and both plans
 **Expected:** The second scan matches the new rules — cached `Rules` rebuilt, not reused.
 **Why human:** `compiled_rules` (security_scan.rs:154-181) is a process-wide `OnceLock<Mutex<Option<(u64, Arc<Rules>)>>>` keyed on a hash of `(name, source)` pairs. Presence of the hash-compare branch does not prove the rebuild transition fires. If it silently did not, a long-running agent would keep scanning with stale rules after every feed update — a security-relevant staleness bug. No test re-enters `compiled_rules` with a different row set.
 
-#### 3. Accept or reject the Phase 50 D-01 reversal
+#### 3. ~~Accept or reject the Phase 50 D-01 reversal~~ — RESOLVED 2026-08-25
 
-**Test:** Product/architecture decision — confirm that accepting wasmtime+cranelift JIT (shipped Windows binary now 31.5 MB, 460 cranelift/wasmtime symbols) in exchange for real YARA semantics is the intended call.
-**Expected:** An explicit accepted decision, recorded in `PROJECT.md`'s decision table (which currently still records the opposite) or as a verification override here.
-**Why human:** `security_scan.rs:12` states the reversal was "a conscious call (not made by this file)". No decision record anywhere in `.planning/` names who made it. This is a judgment call about shipped-binary size and cross-compile surface, not something static analysis can settle.
+Already accepted — this item was stale, contradicting this same file's own frontmatter. The `overrides:` block above recorded the D-01 reversal (wasmtime+cranelift JIT, 31.5 MB Windows binary, in exchange for real YARA semantics) as accepted on 2026-08-24T00:00:00Z, and `.planning/PROJECT.md`'s decision table (commit `596ff578b`) records it as final. Explicitly reconfirmed by the user on 2026-08-25. No further action needed on this item.
 
 ## Gaps Summary
 
