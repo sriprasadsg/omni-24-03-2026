@@ -1,8 +1,52 @@
 import logging
+import uuid as _uuid
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+from pymongo.errors import DuplicateKeyError
 from database import get_database
 from tenant_context import set_tenant_id, get_tenant_id
 
 logger = logging.getLogger("database_migrations")
+
+_MIGRATION_LOCK_TTL_SECONDS = 300
+
+
+async def _acquire_migration_lock(db, name: str) -> Optional[str]:
+    """Best-effort distributed lock so only one replica runs a given
+    startup migration when horizontally scaled (DB-F08, 2026-08-25 audit).
+    These migrations are individually idempotent (each write is by _id, so
+    concurrent replicas re-doing the same update/delete isn't corrupting),
+    but with no lock every replica re-scans and re-writes the same backlog
+    on every restart — wasted work that grows with replica count, and log
+    noise that makes real errors harder to spot.
+
+    Returns a lock token to pass to _release_migration_lock() on success,
+    or None if another replica currently holds the lock. Self-healing: a
+    crashed holder's lock naturally becomes re-acquirable once
+    _MIGRATION_LOCK_TTL_SECONDS elapses — no separate crash-recovery path
+    needed, consistent with the "self-healing migration" design already
+    used by the migrations themselves. Uses db._db (raw, unwrapped)
+    deliberately: this lock is cross-tenant/global by nature, like the
+    collections these migrations themselves operate on.
+    """
+    now = datetime.now(timezone.utc)
+    token = str(_uuid.uuid4())
+    try:
+        await db._db._migration_locks.find_one_and_update(
+            {"_id": name, "expiresAt": {"$lt": now}},
+            {"$set": {"expiresAt": now + timedelta(seconds=_MIGRATION_LOCK_TTL_SECONDS), "token": token}},
+            upsert=True,
+        )
+        return token
+    except DuplicateKeyError:
+        return None
+
+
+async def _release_migration_lock(db, name: str, token: str) -> None:
+    """Release promptly on success so a redeploy/restart doesn't have to
+    wait out the full TTL. Filtered on our own token so we never delete a
+    lock some other replica has since (re)acquired."""
+    await db._db._migration_locks.delete_one({"_id": name, "token": token})
 
 async def migrate_compliance_tenant_ids():
     """
@@ -13,11 +57,16 @@ async def migrate_compliance_tenant_ids():
     """
     logger.info("[Migration] Starting compliance tenantId migration...")
     db = get_database()
-    
+
+    lock_token = await _acquire_migration_lock(db, "compliance_tenant_ids")
+    if not lock_token:
+        logger.info("[Migration] compliance tenantId migration already running on another replica, skipping.")
+        return
+
     # We bypass isolation for migration
     old_tenant_id = get_tenant_id()
     set_tenant_id("platform-admin")
-    
+
     try:
         # Find asset compliance records missing tenantId or where tenantId is None/invalid
         cursor = db._db.asset_compliance.find({
@@ -67,6 +116,7 @@ async def migrate_compliance_tenant_ids():
         print(f"[Migration] Error migrating compliance records: {e}")
     finally:
         set_tenant_id(old_tenant_id)
+        await _release_migration_lock(db, "compliance_tenant_ids", lock_token)
 
 
 async def migrate_instructions_tenant_ids():
@@ -77,10 +127,15 @@ async def migrate_instructions_tenant_ids():
     """
     logger.info("[Migration] Starting agent instructions tenantId migration...")
     db = get_database()
-    
+
+    lock_token = await _acquire_migration_lock(db, "instructions_tenant_ids")
+    if not lock_token:
+        logger.info("[Migration] agent instructions tenantId migration already running on another replica, skipping.")
+        return
+
     old_tenant_id = get_tenant_id()
     set_tenant_id("platform-admin")
-    
+
     try:
         cursor = db._db.agent_instructions.find({
             "$or": [
@@ -124,6 +179,7 @@ async def migrate_instructions_tenant_ids():
         print(f"[Migration] Error migrating agent instructions: {e}")
     finally:
         set_tenant_id(old_tenant_id)
+        await _release_migration_lock(db, "instructions_tenant_ids", lock_token)
 
 
 async def seed_compliance_frameworks():
@@ -136,6 +192,12 @@ async def seed_compliance_frameworks():
     import os as _os
     import sys as _sys
     db = get_database()
+
+    lock_token = await _acquire_migration_lock(db, "seed_compliance_frameworks")
+    if not lock_token:
+        logger.info("[Migration] compliance frameworks seed already running on another replica, skipping.")
+        return
+
     old_tid = get_tenant_id()
     set_tenant_id("platform-admin")
     try:
@@ -161,6 +223,7 @@ async def seed_compliance_frameworks():
         logger.error("[Migration] Error seeding compliance frameworks: %s", e)
     finally:
         set_tenant_id(old_tid)
+        await _release_migration_lock(db, "seed_compliance_frameworks", lock_token)
 
 
 async def migrate_tenant_registration_keys():
@@ -170,6 +233,12 @@ async def migrate_tenant_registration_keys():
     """
     import secrets as _secrets
     db = get_database()
+
+    lock_token = await _acquire_migration_lock(db, "tenant_registration_keys")
+    if not lock_token:
+        logger.info("[Migration] tenant registration key backfill already running on another replica, skipping.")
+        return
+
     old_tenant_id = get_tenant_id()
     set_tenant_id("platform-admin")
     try:
@@ -189,3 +258,4 @@ async def migrate_tenant_registration_keys():
         logger.error("[Migration] Error backfilling tenant registration keys: %s", e)
     finally:
         set_tenant_id(old_tenant_id)
+        await _release_migration_lock(db, "tenant_registration_keys", lock_token)
