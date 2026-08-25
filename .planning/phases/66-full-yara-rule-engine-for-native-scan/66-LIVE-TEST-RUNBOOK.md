@@ -299,6 +299,54 @@ into either the backend's request log or the agent's `poll()` internals
 before running the agent again; running it blind a fourth time without
 better observability isn't likely to add new information.
 
+## Progress (2026-08-25, eighth check-in — RUST_LOG=debug tried, still inconclusive)
+
+Found via source read (no run needed for this part): `poll()`'s non-success
+paths log at `log::debug!`, not `log::info!` — `instructions.rs`:
+```rust
+Ok(r) => log::debug!("Instructions poll -> {}", r.status()),
+Err(e) => log::debug!("Instructions poll error: {e}"),
+```
+All prior runs used no `RUST_LOG` or `RUST_LOG=info`, which would filter
+these out — plausible full explanation for "zero log output" in every
+prior run.
+
+**Tried `RUST_LOG=debug timeout 40 ./omni-agent`. Zero debug lines
+appeared** — same single heartbeat, then killed (SIGKILL again, not
+`timeout`'s own SIGTERM — the same external-killer pattern seen
+throughout this session on long-running foreground commands too, not just
+backgrounded ones).
+
+**Two live possibilities, not distinguished yet:**
+1. The logger needs a crate-scoped filter (e.g. `RUST_LOG=omni_agent=debug`
+   or whatever the actual crate/binary name is — check `Cargo.toml`'s
+   `[package] name` and whatever logger init call is in `main.rs` to see
+   what scope it expects) rather than the bare `debug` tried here.
+2. `poll()` genuinely isn't reached within one heartbeat-interval window —
+   check `lib.rs`'s `agent_loop` directly to see the actual ordering/timing
+   between the heartbeat call and the `instructions::poll()` call at line
+   121 (already located, not yet read in context). If they're sequenced
+   with a delay, or gated on something not yet found, a single ~30-40s
+   window may complete the heartbeat but never reach the poll call before
+   getting killed.
+
+**Recommended next step, in order, cheapest first:**
+1. Read `lib.rs`'s `agent_loop` function in full — settles possibility 2
+   directly from source, no run needed.
+2. If poll() IS supposed to run every cycle, fix the `RUST_LOG` scope
+   (check `main.rs`'s logger init, e.g. `env_logger::init()` vs
+   `SimpleLogger` vs something with an explicit default filter) and retry
+   with the correct scoped value.
+3. Only after both of those: consider whether the mystery SIGKILL pattern
+   itself needs separate investigation (it's now hit 3+ long-running
+   foreground commands this session, not just backgrounded ones as
+   originally assumed — worth checking `dmesg`/OOM killer logs, or simply
+   whether something in this environment has a hard wall-clock limit on
+   any single command regardless of foreground/background).
+
+Not attempted this session: reading `lib.rs::agent_loop` (next session's
+first move, cheapest and most informative given it needs no test run).
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
