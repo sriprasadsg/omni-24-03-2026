@@ -139,7 +139,7 @@ class TestIsWebhookUrlSafe:
 
     def test_blocks_localhost_port(self):
         from webhook_endpoints import _is_safe_webhook_url
-        with patch("webhook_endpoints.socket.getaddrinfo", _loopback_dns_mock):
+        with patch("webhook_security.socket.getaddrinfo", _loopback_dns_mock):
             assert _is_safe_webhook_url("http://localhost:27017") is False
 
     def test_blocks_loopback_direct_ip(self):
@@ -157,9 +157,9 @@ class TestIsWebhookUrlSafe:
     def test_blocks_docker_service_name_resolving_to_private(self):
         """Docker internal service names (mongo, redis) resolving to private IPs must be blocked."""
         from webhook_endpoints import _is_safe_webhook_url
-        with patch("webhook_endpoints.socket.getaddrinfo", _private_192_dns_mock):
+        with patch("webhook_security.socket.getaddrinfo", _private_192_dns_mock):
             assert _is_safe_webhook_url("http://mongo:27017") is False
-        with patch("webhook_endpoints.socket.getaddrinfo", _loopback_dns_mock):
+        with patch("webhook_security.socket.getaddrinfo", _loopback_dns_mock):
             assert _is_safe_webhook_url("http://redis:6379") is False
 
     def test_blocks_javascript_scheme(self):
@@ -180,7 +180,7 @@ class TestIsWebhookUrlSafe:
 
     def test_allows_public_https(self):
         from webhook_endpoints import _is_safe_webhook_url
-        with patch("webhook_endpoints.socket.getaddrinfo", _public_dns_mock):
+        with patch("webhook_security.socket.getaddrinfo", _public_dns_mock):
             assert _is_safe_webhook_url("https://outlook.office.com/webhook/xxx") is True
 
     def test_guards_are_consistent_with_integrations_v2(self):

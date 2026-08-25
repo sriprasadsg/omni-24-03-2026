@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import httpx
+from fastapi import HTTPException
 from database import mongodb
+from webhook_security import is_safe_webhook_url
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,12 @@ async def get_webhooks(tenant_id: str) -> List[Dict]:
 async def register_webhook(
     tenant_id: str, url: str, events: List[str], secret: str = ""
 ) -> Dict:
+    # SSRF: this subsystem had no URL validation at all (2026-08-25 audit) —
+    # a tenant admin (manage:settings) could point a ticket webhook at any
+    # internal/metadata address and it would be dispatched on every ticket
+    # lifecycle event.
+    if not is_safe_webhook_url(url):
+        raise HTTPException(status_code=400, detail="Invalid or disallowed webhook URL")
     hook = {
         "id": str(uuid.uuid4()),
         "tenant_id": tenant_id,
@@ -61,6 +69,14 @@ async def dispatch_event(
 
     for hook in webhooks:
         try:
+            # SSRF: re-validate immediately before dispatch — narrows (does
+            # not eliminate) the DNS-rebinding window, and this is also the
+            # only check at all for any hook registered before this fix.
+            if not is_safe_webhook_url(hook.get("url", "")):
+                logger.warning(
+                    "Skipping ticket webhook %s: URL fails SSRF validation", hook.get("id")
+                )
+                continue
             body = json.dumps({
                 "event": event,
                 "payload": payload,

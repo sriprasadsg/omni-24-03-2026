@@ -1,6 +1,3 @@
-import ipaddress
-import socket
-from urllib.parse import urlparse as _wh_urlparse
 from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Dict, Any
 from database import get_database
@@ -14,23 +11,7 @@ import hashlib
 import httpx
 from intent_parser_service import intent_parser_service
 from integration_service import get_integration_service
-
-
-def _is_safe_webhook_url(url: str) -> bool:
-    """Reject webhook URLs that resolve to private/internal addresses (SSRF guard)."""
-    if not url or not url.startswith(("http://", "https://")):
-        return False
-    try:
-        hostname = _wh_urlparse(url).hostname
-        if not hostname:
-            return False
-        for info in socket.getaddrinfo(hostname, None):
-            addr = ipaddress.ip_address(info[4][0])
-            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-                return False
-        return True
-    except Exception:
-        return False
+from webhook_security import is_safe_webhook_url as _is_safe_webhook_url
 
 from auth_roles import SUPER_ROLES as _WEBHOOK_SUPER_ROLES
 
@@ -168,6 +149,11 @@ async def update_webhook(
     if "name" in data:
         update_fields["name"] = data["name"]
     if "url" in data:
+        # SSRF: create_webhook validates the URL but update_webhook never
+        # did, so a safe URL registered at creation could be silently
+        # repointed at an internal/metadata address (2026-08-25 audit).
+        if not _is_safe_webhook_url(data["url"]):
+            raise HTTPException(status_code=400, detail="Invalid or disallowed webhook URL")
         update_fields["url"] = data["url"]
     if "events" in data:
         update_fields["events"] = data["events"]
@@ -246,6 +232,12 @@ async def test_webhook(webhook_id: str, current_user: TokenData = Depends(get_cu
     webhook = await db.webhooks.find_one(wh_filter)
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook not found")
+
+    # SSRF: re-validate immediately before dispatch, not just at creation —
+    # narrows (does not eliminate) the DNS-rebinding window, and catches a
+    # URL that was ever stored unvalidated by an older code path.
+    if not _is_safe_webhook_url(webhook.get("url", "")):
+        raise HTTPException(status_code=400, detail="Webhook URL is no longer valid or resolves to a disallowed address")
 
     payload = {
         "event": "ping",
