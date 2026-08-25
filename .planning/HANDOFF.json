@@ -1,27 +1,31 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-25T01:02:02Z",
+  "timestamp": "2026-08-25T01:05:40Z",
   "phase": null,
   "phase_name": "cross-phase audit-fix session (no single active phase)",
   "phase_dir": null,
   "status": "paused",
   "completed_tasks": [
     {"id": 11, "name": "Phase 66 live-agent test: registration proven working end-to-end", "status": "done", "commit": "7b40fb7f8, 15713273e"},
-    {"id": 12, "name": "Phase 66 live-agent test: disproved agentic_mode_enabled hypothesis", "status": "done", "commit": "66e4fdb05"},
-    {"id": 13, "name": "Phase 66: chased hostname-vs-agent_id route theory, initially claimed CONFIRMED bug, then retracted it after reading the actual handler body", "status": "done", "commit": "4ccb2bd34, d249ed3f6, fb3eb1e4f", "progress": "deployment_result_endpoints.py's GET /api/agents/{agent_id}/instructions already resolves hostname OR id via $or before querying — not broken as first claimed. Real root cause of the instruction never being delivered is genuinely still unknown."}
+    {"id": 12, "name": "Phase 66: disproved agentic_mode_enabled hypothesis", "status": "done", "commit": "66e4fdb05"},
+    {"id": 13, "name": "Phase 66: chased and retracted a wrong 'confirmed bug' claim about hostname-vs-agent_id routing", "status": "done", "commit": "4ccb2bd34, d249ed3f6, fb3eb1e4f"},
+    {"id": 14, "name": "Phase 66: one more live-test data point (DB-status-flip proxy signal, since backend log wasn't tailable in the time available)", "status": "in_progress", "progress": "Re-ran agent fresh: 1 heartbeat fired, poll() logged nothing either way, instruction stayed pending. Inconclusive — doesn't confirm/rule out any of the 4 candidate causes. Stopped the live-test investigation line per the runbook's own recommendation (need real observability before running blind again).", "commit": "26c6be352"}
   ],
   "remaining_tasks": [
-    {"id": 14, "name": "Find phase 66's real instruction-delivery root cause", "status": "not_started", "progress": "Recommended first move: re-run the live agent test with uvicorn's request log visible and watch for a GET /api/agents/security-test-vm/instructions line — confirms whether the request even reaches the server before chasing anything else. 4 candidate causes listed in 66-LIVE-TEST-RUNBOOK.md's final section, none confirmed."},
+    {"id": 14, "name": "Get real observability into either the backend request log or the agent's poll() internals, THEN re-run the live test", "status": "not_started", "progress": "Options: redirect uvicorn's own log to a file by restarting it (currently logs to a pts terminal, /proc/{pid}/fd/1, not a file); or add a temporary log::info! line inside instructions.rs::poll() and rebuild; or strace/eBPF trace the backend process. Do this BEFORE running the agent again — 3 blind runs this session added little new signal."},
     {"id": 15, "name": "Deepen SOAR audit (messaging/cloud connectors, live execution)", "status": "not_started"},
     {"id": 16, "name": "User's broader 'what else is broken' question — only SOAR checked so far", "status": "not_started"}
   ],
-  "blockers": [],
+  "blockers": [
+    {"description": "No easy way found this session to view the backend's live request log (goes to a pts terminal, not a file) or confirm poll() even executes (produces no log output)", "type": "technical", "workaround": "restart uvicorn with output redirected to a file, or add a temp log line to poll() and rebuild the Rust binary — either is quick but wasn't attempted due to context running out"}
+  ],
   "async_jobs": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Retracted a 'CONFIRMED real production bug' claim made two commits earlier, after reading the actual handler function body instead of just its route signature", "rationale": "the claim was wrong — deployment_result_endpoints.py's handler already resolves hostname OR agent_id via a $or query. Committing and then correcting an error transparently, rather than leaving a wrong 'CONFIRMED' claim standing in the repo history, matters more than looking consistent.", "phase": "66"}
+    {"decision": "Retracted a wrong 'CONFIRMED real production bug' claim after reading the actual handler code instead of just its route signature", "rationale": "the handler already resolves hostname OR agent_id via a $or query — the claim was flatly wrong. Corrected transparently in git history (fb3eb1e4f) rather than left standing.", "phase": "66"},
+    {"decision": "Used the agent_instructions DB record's status field as a proxy signal for 'did the request reach and match the handler', instead of chasing backend log access under time pressure", "rationale": "equivalent informational value for the specific question (did poll() succeed), cheaper to obtain given the live log wasn't in a tailable file", "phase": "66"}
   ],
   "uncommitted_files": [],
-  "next_action": "Re-run the live-agent test (config.yaml already has working credentials, no re-registration needed) with the backend's uvicorn log visible, and check whether GET /api/agents/security-test-vm/instructions actually appears in it during the poll window.",
-  "context_notes": "Important lesson from this session, worth carrying forward explicitly: concluding a backend bug from a route decorator's parameter name alone, without reading the handler's function body, produced a confident but wrong claim that got committed to git twice before being caught. Read the actual code before asserting root cause, every time, no matter how time-pressured. The retraction commit (fb3eb1e4f) has the full corrected analysis and the concrete next observation to make (check the request log) before generating more hypotheses."
+  "next_action": "Before running the agent again: get real visibility into either the backend's request log (restart uvicorn with output to a file) or instructions.rs::poll()'s internals (add a temp log line, rebuild). Then re-run the live test once with that visibility in place.",
+  "context_notes": "This session ran the live-agent test 4 times total across two /gsd-resume-work cycles. Real progress: registration/connectivity is proven solid. The scan_file delivery question is still open after ruling out 2 hypotheses (agentic_mode_enabled is dead code; the hostname/agent_id route mismatch isn't real, the handler already handles both). Running the agent blind a 5th time without better observability first is unlikely to add information — that's the one thing to actually change before continuing this line."
 }
