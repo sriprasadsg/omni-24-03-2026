@@ -1,31 +1,32 @@
 {
   "version": "1.0",
-  "timestamp": "2026-08-25T01:05:40Z",
+  "timestamp": "2026-08-25T01:12:01Z",
   "phase": null,
   "phase_name": "cross-phase audit-fix session (no single active phase)",
   "phase_dir": null,
   "status": "paused",
   "completed_tasks": [
-    {"id": 11, "name": "Phase 66 live-agent test: registration proven working end-to-end", "status": "done", "commit": "7b40fb7f8, 15713273e"},
+    {"id": 11, "name": "Phase 66 live-agent test: registration proven working", "status": "done", "commit": "7b40fb7f8, 15713273e"},
     {"id": 12, "name": "Phase 66: disproved agentic_mode_enabled hypothesis", "status": "done", "commit": "66e4fdb05"},
-    {"id": 13, "name": "Phase 66: chased and retracted a wrong 'confirmed bug' claim about hostname-vs-agent_id routing", "status": "done", "commit": "4ccb2bd34, d249ed3f6, fb3eb1e4f"},
-    {"id": 14, "name": "Phase 66: one more live-test data point (DB-status-flip proxy signal, since backend log wasn't tailable in the time available)", "status": "in_progress", "progress": "Re-ran agent fresh: 1 heartbeat fired, poll() logged nothing either way, instruction stayed pending. Inconclusive — doesn't confirm/rule out any of the 4 candidate causes. Stopped the live-test investigation line per the runbook's own recommendation (need real observability before running blind again).", "commit": "26c6be352"}
+    {"id": 13, "name": "Phase 66: retracted a wrong hostname/agent_id route-mismatch bug claim", "status": "done", "commit": "4ccb2bd34, d249ed3f6, fb3eb1e4f"},
+    {"id": 14, "name": "Phase 66: solved the silent-poll mystery (correct behavior, not a bug) via reading agent_loop", "status": "done", "commit": "26c6be352, 03e13c64b, d7c919844"},
+    {"id": 15, "name": "Phase 66: CONFIRMED real root cause — duplicate agents documents for one hostname, unsorted find_one resolves to the wrong agent_id", "status": "done", "commit": "208d32e12"}
   ],
   "remaining_tasks": [
-    {"id": 14, "name": "Get real observability into either the backend request log or the agent's poll() internals, THEN re-run the live test", "status": "not_started", "progress": "Options: redirect uvicorn's own log to a file by restarting it (currently logs to a pts terminal, /proc/{pid}/fd/1, not a file); or add a temporary log::info! line inside instructions.rs::poll() and rebuild; or strace/eBPF trace the backend process. Do this BEFORE running the agent again — 3 blind runs this session added little new signal."},
-    {"id": 15, "name": "Deepen SOAR audit (messaging/cloud connectors, live execution)", "status": "not_started"},
-    {"id": 16, "name": "User's broader 'what else is broken' question — only SOAR checked so far", "status": "not_started"}
+    {"id": 16, "name": "Decide and implement the fix for the duplicate-agents-doc bug", "status": "not_started", "progress": "Two options identified, neither decided: (a) get_agent_instructions sorts its $or lookup by recency (e.g. most recent _id first) so it always resolves to the current registration; (b) agent registration upserts on hostname instead of always inserting a new document, so duplicates can't accumulate in the first place. (b) fixes the root cause, (a) is a smaller patch. Check what else might depend on multiple agent docs per hostname existing (e.g. historical/audit reasons) before choosing (b)."},
+    {"id": 17, "name": "Once fixed: re-run the scan_file live test (first time with an evidence-backed reason to expect success) and the cache-invalidation-on-feed-update test", "status": "not_started"},
+    {"id": 18, "name": "Deepen SOAR audit (messaging/cloud connectors, live execution)", "status": "not_started"},
+    {"id": 19, "name": "User's broader 'what else is broken' question — only SOAR checked so far", "status": "not_started"}
   ],
-  "blockers": [
-    {"description": "No easy way found this session to view the backend's live request log (goes to a pts terminal, not a file) or confirm poll() even executes (produces no log output)", "type": "technical", "workaround": "restart uvicorn with output redirected to a file, or add a temp log line to poll() and rebuild the Rust binary — either is quick but wasn't attempted due to context running out"}
-  ],
+  "blockers": [],
   "async_jobs": [],
-  "human_actions_pending": [],
+  "human_actions_pending": [
+    {"action": "Decide fix approach for the duplicate-agents-doc bug (sort-by-recency patch vs upsert-on-hostname at registration)", "context": "This is a real design decision with different blast radius per option — worth a deliberate choice, not a guess under time pressure. See 66-LIVE-TEST-RUNBOOK.md's final section for full detail.", "blocking": false}
+  ],
   "decisions": [
-    {"decision": "Retracted a wrong 'CONFIRMED real production bug' claim after reading the actual handler code instead of just its route signature", "rationale": "the handler already resolves hostname OR agent_id via a $or query — the claim was flatly wrong. Corrected transparently in git history (fb3eb1e4f) rather than left standing.", "phase": "66"},
-    {"decision": "Used the agent_instructions DB record's status field as a proxy signal for 'did the request reach and match the handler', instead of chasing backend log access under time pressure", "rationale": "equivalent informational value for the specific question (did poll() succeed), cheaper to obtain given the live log wasn't in a tailable file", "phase": "66"}
+    {"decision": "Found and confirmed the actual root cause of phase 66's undeliverable live-agent instructions: not a client bug, not a logging issue, not agentic_mode_enabled — a genuine server-side data/query bug (duplicate agents docs per hostname, unsorted resolution)", "rationale": "Traced systematically: proved registration/connectivity work, ruled out 3 wrong hypotheses in sequence (agentic_mode_enabled dead code; hostname/id route mismatch not real; silent poll is correct-not-broken behavior), then found the real cause via direct DB query showing 2 agents docs for one hostname.", "phase": "66"}
   ],
   "uncommitted_files": [],
-  "next_action": "Before running the agent again: get real visibility into either the backend's request log (restart uvicorn with output to a file) or instructions.rs::poll()'s internals (add a temp log line, rebuild). Then re-run the live test once with that visibility in place.",
-  "context_notes": "This session ran the live-agent test 4 times total across two /gsd-resume-work cycles. Real progress: registration/connectivity is proven solid. The scan_file delivery question is still open after ruling out 2 hypotheses (agentic_mode_enabled is dead code; the hostname/agent_id route mismatch isn't real, the handler already handles both). Running the agent blind a 5th time without better observability first is unlikely to add information — that's the one thing to actually change before continuing this line."
+  "next_action": "Decide the fix approach (sort-by-recency vs upsert-on-hostname), read backend/agent_registry_endpoints.py's register handler in full first to check if anything already relies on multiple agent docs per hostname before choosing upsert.",
+  "context_notes": "This phase-66 investigation ran across 3 resume cycles and found a genuinely real, previously-unknown production bug (not originally what the runbook set out to test) — a good example of a live-agent test doing exactly its job. The bug is narrow (only bites re-registered hosts with a leftover stale doc) but silent and real. Worth prioritizing the fix decision over continuing to task 18/19 (SOAR/broader audit), since this is a concrete confirmed bug vs. open-ended investigation."
 }
