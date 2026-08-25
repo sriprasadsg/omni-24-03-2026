@@ -3,6 +3,19 @@ Application Performance Monitoring (APM) Service
 
 Provides comprehensive performance monitoring with OpenTelemetry integration,
 metrics collection, distributed tracing, and performance analytics.
+
+DB-F02 (2026-08-25 audit): apm_metrics had no TTL index and no bound on
+growth — every HTTP request (via APMMiddleware), DB query, external API
+call, and background job writes a document here forever. `timestamp` is
+stored as a native datetime (not .isoformat()) specifically so the TTL
+index added in database.py can actually expire old documents — MongoDB's
+TTL monitor only acts on BSON Date-typed fields, never on ISO-8601
+strings. Query thresholds below pass the datetime object directly rather
+than its .isoformat() string for the same reason: comparing a Date-typed
+field against a String literal via $gte does not compare chronologically
+(BSON's canonical type-ordering puts Date and String in different
+buckets), so a same-type comparison is required for the time-window
+filters here to actually filter anything.
 """
 
 from typing import Dict, Any, List, Optional
@@ -71,7 +84,7 @@ class APMService:
             "tenant_id": tenant_id,
             "user_id": user_id,
             "trace_id": trace_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(timezone.utc),
             "is_error": status_code >= 400,
             "is_slow": duration_ms > self.thresholds["p95"]
         }
@@ -92,7 +105,7 @@ class APMService:
             "collection": collection,
             "duration_ms": duration_ms,
             "tenant_id": tenant_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(timezone.utc),
             "is_slow": duration_ms > 100  # Slow query threshold
         }
         
@@ -114,7 +127,7 @@ class APMService:
             "duration_ms": duration_ms,
             "success": success,
             "tenant_id": tenant_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc)
         }
         
         await self.db.apm_metrics.insert_one(metric)
@@ -133,7 +146,7 @@ class APMService:
             "duration_ms": duration_ms,
             "success": success,
             "tenant_id": tenant_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc)
         }
         
         await self.db.apm_metrics.insert_one(metric)
@@ -154,7 +167,7 @@ class APMService:
             {
                 "$match": {
                     "type": "http_request",
-                    "timestamp": {"$gte": threshold.isoformat()}
+                    "timestamp": {"$gte": threshold}
                 }
             },
             {
@@ -260,7 +273,7 @@ class APMService:
             {
                 "$match": {
                     "type": "database_query",
-                    "timestamp": {"$gte": threshold.isoformat()}
+                    "timestamp": {"$gte": threshold}
                 }
             },
             {
@@ -305,7 +318,7 @@ class APMService:
             {
                 "$match": {
                     "type": "external_api",
-                    "timestamp": {"$gte": threshold.isoformat()}
+                    "timestamp": {"$gte": threshold}
                 }
             },
             {
@@ -387,7 +400,7 @@ class APMService:
                 "$match": {
                     "type": "http_request",
                     "endpoint": endpoint,
-                    "timestamp": {"$gte": threshold.isoformat()}
+                    "timestamp": {"$gte": threshold}
                 }
             },
             {

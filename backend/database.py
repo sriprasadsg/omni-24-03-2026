@@ -355,6 +355,14 @@ async def connect_to_mongo():
         await mongodb.db.agent_telemetry.create_index("received_at", expireAfterSeconds=2592000)         # 30 days
         await mongodb.db.agent_telemetry_batches.create_index("received_at", expireAfterSeconds=2592000) # 30 days
         await mongodb.db.fim_events.create_index("timestamp", expireAfterSeconds=7776000)        # 90 days
+        # apm_metrics: DB-F02 (2026-08-25 audit) — every HTTP request (via
+        # APMMiddleware), DB query, external API call, and background job
+        # writes a document here with no prior bound on growth. Safe to add
+        # fresh (not a fix to an existing broken TTL index): apm_service.py
+        # and APMMiddleware now write `timestamp` as a native datetime, not
+        # an ISO-8601 string, so this index actually expires documents —
+        # MongoDB's TTL monitor only acts on BSON Date-typed fields.
+        await mongodb.db.apm_metrics.create_index("timestamp", expireAfterSeconds=2592000)       # 30 days
 
         # TTL indexes for auth/security collections that previously grew unboundedly.
         # login_attempts: brute-force records expire after 24 h (longer than any lockout window)

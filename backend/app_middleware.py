@@ -57,7 +57,10 @@ class APMMiddleware(BaseHTTPMiddleware):
                     "status_code": response.status_code,
                     "is_error": response.status_code >= 400,
                     "is_slow": duration_ms > 500,
-                    "timestamp": _dt.now(_tz.utc).isoformat(),
+                    # DB-F02: native datetime, not .isoformat() — the
+                    # apm_metrics TTL index (database.py) only expires
+                    # BSON Date-typed fields, not ISO-8601 strings.
+                    "timestamp": _dt.now(_tz.utc),
                 })
             except Exception as e:
                 logger.debug("APM metrics insert failed (non-fatal): %s", e)
