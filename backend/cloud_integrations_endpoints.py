@@ -132,8 +132,8 @@ SUPPORTED_PROVIDERS = {
     "oci_cloud_guard": {
         "name": "Oracle Cloud Guard",
         "icon": "oci",
-        "required_fields": ["oci_tenancy_ocid", "oci_user_ocid", "oci_private_key", "oci_fingerprint", "oci_region"],
-        "optional_fields": ["compartment_id"],
+        "required_fields": ["oci_tenancy_ocid", "oci_user_ocid", "oci_private_key", "oci_fingerprint", "oci_region", "oci_compartment_id"],
+        "optional_fields": [],
         "description": "Ingest security problems and recommendations from Oracle Cloud Guard",
     },
     "ibm_qradar": {
