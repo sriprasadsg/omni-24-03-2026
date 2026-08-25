@@ -45,9 +45,16 @@ async def get_agent_instructions(agent_id: str, caller: dict = Depends(_get_call
     """
     db = get_database()
 
-    # Resolve the canonical agent_id (agent may pass its hostname)
+    # Resolve the canonical agent_id (agent may pass its hostname). Scoped
+    # by the caller's own tenant (from its verified token, not
+    # client-suppliable) — without this, a hostname collision across
+    # tenants lets one tenant's agent resolve to a different tenant's
+    # agent document (cross-tenant data leak class, and the reason a
+    # re-registered host with a leftover doc under a different tenant
+    # silently never received instructions).
+    caller_tenant_id = caller.get("tenant_id")
     agent = await db.agents.find_one(
-        {"$or": [{"id": agent_id}, {"hostname": agent_id}]},
+        {"$or": [{"id": agent_id}, {"hostname": agent_id}], "tenantId": caller_tenant_id},
         {"id": 1},
     )
     actual_id = agent["id"] if agent else agent_id
