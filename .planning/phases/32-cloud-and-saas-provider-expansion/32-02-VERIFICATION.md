@@ -163,3 +163,18 @@ _Verified: 2026-07-10T00:00:00Z_
 _Verifier: Claude (gsd-verifier)_
 
 ---
+
+## Re-verification Addendum (2026-08-25)
+
+All 5 originally-failed truths are resolved in the current codebase:
+
+1. `backend/cloud_checks_m365.py` and `backend/cloud_checks_mongodb_atlas.py` both exist.
+2. `cloud_checks_service.py:40` — `RUNNABLE_PROVIDERS = ("aws", "azure", "gcp", "kubernetes", "digitalocean", "microsoft365", "mongodb_atlas", "oci", "alibaba", "cloudflare")` — all 10 providers present.
+3. `cloud_account_endpoints.py:13` — `_VALID_PROVIDERS` matches the same 10-provider set.
+4. `cloud_checks_endpoints.py:73-74` — `/run` route tuple matches the same 10 providers.
+5. The MCP gate: `mcp_server_endpoints.py` was refactored down to a 5-line header (the old provider tuple no longer lives there); `run_cloud_check` now lives in `mcp_server.py:56-66` and validates directly against the shared `RUNNABLE_PROVIDERS` import — no separate tuple to drift out of lockstep.
+6. `cloud_checks_service.py:108` — `"simulated": not has_real_findings` present on `run_checks()` result docs.
+
+**Status:** PASS — PROV-02 fully satisfied. No code change needed this session; documenting only.
+
+---

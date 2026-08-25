@@ -154,3 +154,14 @@ Both gaps require one-line or small fixes. They are not architectural problems; 
 
 _Verified: 2026-06-17_
 _Verifier: Claude (gsd-verifier)_
+
+---
+
+## Re-verification Addendum (2026-08-25)
+
+Both blockers are resolved in the current codebase:
+
+- **Gap 1 (file picker `accept`)** — `components/AssetComplianceList.tsx:307` now reads `accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"`, all 5 required types present.
+- **Gap 2 (no refresh after upload)** — `components/FrameworkDetail.tsx:397-408`'s `onUploadEvidence` handler now calls `await refreshAssetCompliance(assetId)` on success (line 402).
+
+**Status:** PASS — both EVID-01 and EVID-03 blockers closed. No code change needed this session; documenting only.
