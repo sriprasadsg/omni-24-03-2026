@@ -158,13 +158,26 @@ async def _seed_yara_rules(raw_db) -> None:
 
 
 async def seed_database():
-    """Create or refresh the super admin user and platform tenant."""
-    try:
-        db = get_database()
+    """Create or refresh the super admin user and platform tenant.
 
+    ARCH-018 (2026-08-25 audit): this used to be one try/except wrapping
+    every seeding step below. A failure partway through (e.g. the Super
+    Admin role write) silently aborted every step after it too — the ITAM
+    backfill and all 5 standard roles would simply never run that boot,
+    with only one generic "Database seeding error" log line and no
+    indication which step actually failed. Each step below now fails
+    independently: one broken step is logged with its own message and does
+    not prevent the others from running.
+    """
+    db = get_database()
+
+    try:
         # Run schema migrations before any seeding so indexes exist before data is inserted
         await run_migrations(db._db)
+    except Exception as e:
+        logger.error("[Seed] Schema migrations failed: %s", e)
 
+    try:
         raw_users = db._db.users
 
         _super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD")
@@ -204,7 +217,10 @@ async def seed_database():
             )
 
         logger.info("Super admin account verified.")
+    except Exception as e:
+        logger.error("[Seed] Super admin account seeding failed: %s", e)
 
+    try:
         platform_tenant = await db.tenants.find_one({"id": "platform-admin"})
         if not platform_tenant:
             _reg_key = os.getenv("PLATFORM_ADMIN_REG_KEY") or secrets.token_urlsafe(32)
@@ -220,7 +236,10 @@ async def seed_database():
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
             logger.info("Platform tenant created successfully.")
+    except Exception as e:
+        logger.error("[Seed] Platform tenant seeding failed: %s", e)
 
+    try:
         all_permissions = [
             "view:dashboard", "view:reporting", "export:reports", "view:agents",
             "view:software_deployment", "view:agent_logs", "remediate:agents", "view:assets",
@@ -273,7 +292,10 @@ async def seed_database():
             upsert=True,
         )
         logger.info("Super Admin role permissions updated")
+    except Exception as e:
+        logger.error("[Seed] Super Admin role seeding failed: %s", e)
 
+    try:
         tenant_admin_permissions = [
             "view:dashboard", "view:reporting", "export:reports",
             "view:agents", "view:software_deployment", "view:agent_logs", "remediate:agents",
@@ -331,7 +353,10 @@ async def seed_database():
             upsert=True,
         )
         logger.info("Tenant Admin role created/updated")
+    except Exception as e:
+        logger.error("[Seed] Tenant Admin role seeding failed: %s", e)
 
+    try:
         # Backfill: tenants provisioned before ITAM (Phase 56-61) never had
         # view:itam/manage:itam written into their enabledFeatures — the
         # frontend intersects a user's role permissions against their
@@ -343,7 +368,10 @@ async def seed_database():
         )
         if itam_backfill.modified_count:
             logger.info(f"Backfilled view:itam/manage:itam onto {itam_backfill.modified_count} existing tenant(s)")
+    except Exception as e:
+        logger.error("[Seed] ITAM enabledFeatures backfill failed: %s", e)
 
+    try:
         # ── Standard roles (seeded with tenantId="all" so they apply platform-wide) ──
         standard_roles = [
             {
@@ -426,9 +454,8 @@ async def seed_database():
                 upsert=True,
             )
         logger.info("Standard roles (analyst, security_analyst, incident_responder, user, viewer) seeded")
-
     except Exception as e:
-        logger.error("Database seeding error: %s", e)
+        logger.error("[Seed] Standard roles seeding failed: %s", e)
 
 
 def _resolve_cargo_binary() -> str | None:
