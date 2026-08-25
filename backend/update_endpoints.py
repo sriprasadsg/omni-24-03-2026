@@ -234,7 +234,21 @@ def _resolve_servable_path(filename: str) -> tuple[str, str]:
     if filename == "Collect-Evidence.ps1":
         return AGENT_COLLECT_PS1, filename
 
-    target_path = os.path.join(BINARY_STORAGE_PATH, filename)
+    # Path traversal (2026-08-25 audit): filename is attacker-controlled and
+    # was joined into BINARY_STORAGE_PATH with no containment check — a
+    # request like /download/..%2F..%2F..%2Fetc%2Fpasswd would resolve
+    # outside BINARY_STORAGE_PATH entirely. Reject anything that isn't a
+    # bare filename, then verify the resolved path is still inside the dir.
+    safe_name = os.path.basename(filename)
+    if not safe_name or safe_name != filename or safe_name in (".", ".."):
+        return "", filename
+
+    target_path = os.path.join(BINARY_STORAGE_PATH, safe_name)
+    storage_root = os.path.realpath(BINARY_STORAGE_PATH)
+    resolved = os.path.realpath(target_path)
+    if os.path.commonpath([resolved, storage_root]) != storage_root:
+        return "", filename
+
     # Fallback: if requesting omni-agent.exe but it doesn't exist, try to find the latest version
     if not os.path.exists(target_path) and filename == "omni-agent.exe":
         files = glob.glob(os.path.join(BINARY_STORAGE_PATH, "omni-agent-*-windows.exe"))
