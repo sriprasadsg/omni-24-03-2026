@@ -435,10 +435,12 @@ cross-tenant resolution depending on what else keys off that resolved id.
 own tenant's doc, and documents the pre-fix ambiguous-resolution failure
 mode directly.
 
-**Not verified this session (budget ran out immediately after the fix):**
-- Full backend test suite (only the new test file was run, not the full
-  ~2400-test suite this project normally gates on before considering a fix
-  complete). **Run it before considering this fully done.**
+**Verified since:** full backend suite run — 2395 passed, 34 skipped, 2
+failed (same pre-existing, unrelated `test_jira_intent_parsing`/
+`test_zoho_intent_parsing` order-dependent failures documented elsewhere in
+this repo's history). No regressions from this fix.
+
+**Still not verified:**
 - The actual live-agent `scan_file` test was never re-run after the fix —
   the original goal of this whole runbook is still technically open. The
   fix is logically sound and unit-tested, but "does the real agent now
