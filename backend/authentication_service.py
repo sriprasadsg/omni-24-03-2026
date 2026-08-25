@@ -68,6 +68,16 @@ def create_refresh_token(data: dict):
 def verify_token(token: str) -> TokenData:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # CRIT-01: refresh tokens carry no tenant_id/role claim by design (see
+        # create_refresh_token) and must never be accepted as access tokens —
+        # otherwise the missing-tenant_id branch below would escalate any
+        # holder of their own refresh token to a full cross-tenant bypass.
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials - refresh token used as access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         username: str = payload.get("sub")
         role: str = payload.get("role", "user")
         tenant_id: str = payload.get("tenant_id")
@@ -75,6 +85,18 @@ def verify_token(token: str) -> TokenData:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials - missing sub",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # CRIT-01: a missing tenant_id must never fall back to the
+        # "platform-admin" isolation-bypass sentinel — reject instead. Every
+        # legitimately-issued token (including the real Super Admin's) always
+        # carries an explicit tenant_id (app_startup.py seeds the Super Admin
+        # user with tenantId="platform-admin" and login puts it on the token
+        # verbatim), so this can only fire for a malformed/incomplete token.
+        if not tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials - missing tenant_id",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -93,7 +115,7 @@ def verify_token(token: str) -> TokenData:
             tenant_id=tenant_id,
             mfa_verified=payload.get("mfa_verified", False),
         )
-        _set_tenant_id(tenant_id or "platform-admin")
+        _set_tenant_id(tenant_id)
         return token_data
     except jwt.PyJWTError:
         raise HTTPException(
@@ -107,6 +129,14 @@ async def verify_token_async(token: str) -> TokenData:
     """Async version of verify_token — performs DB revocation check properly."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # CRIT-01: reject a refresh token presented as an access token — see
+        # the identical check and full rationale in verify_token() above.
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials - refresh token used as access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         username: str = payload.get("sub")
         role: str = payload.get("role", "user")
         tenant_id: str = payload.get("tenant_id")
@@ -116,6 +146,14 @@ async def verify_token_async(token: str) -> TokenData:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials - missing sub",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # CRIT-01: reject a missing tenant_id rather than defaulting to the
+        # "platform-admin" isolation-bypass sentinel — see verify_token() above.
+        if not tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials - missing tenant_id",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -154,7 +192,7 @@ async def verify_token_async(token: str) -> TokenData:
             tenant_id=tenant_id,
             mfa_verified=payload.get("mfa_verified", False),
         )
-        _set_tenant_id(tenant_id or "platform-admin")
+        _set_tenant_id(tenant_id)
         return token_data
     except jwt.PyJWTError:
         raise HTTPException(

@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 from datetime import datetime, timezone
 
 from database import get_database
-from authentication_service import verify_token
+from authentication_service import verify_token_async
 
 router = APIRouter(tags=["Deployment Results"])
 
@@ -29,7 +29,7 @@ async def _get_caller(request: Request) -> Dict[str, str]:
     if not auth.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Authorization header")
     token = auth.split(" ", 1)[1]
-    payload = await verify_token(token)
+    payload = await verify_token_async(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return payload
