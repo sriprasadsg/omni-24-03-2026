@@ -235,17 +235,17 @@ Already accepted — this item was stale, contradicting this same file's own fro
 
 That said, this phase reached "complete + UAT-passed" twice on false evidence before the real work happened, and the wreckage from those two false starts is still in the repo:
 
-1. **The UAT is void.** Both "PASSED" results in `66-UAT.md` tested `run_yara_scan` — a function that exists only in `agent-rust/`, the tree no installer ships. The output shape recorded there does not even match the shipped engine's verdict shape. Phase 66 currently has *zero* valid behavioral acceptance evidence, which is why two truths land at PRESENT_BEHAVIOR_UNVERIFIED rather than VERIFIED.
+1. ~~**The UAT is void.**~~ **RESOLVED same day — see Addendum point 2.** `66-UAT.md` was rewritten against the shipped tree.
 
-2. **A false completion record sits inside the shipped crate.** `agent-install/omni-agent-rs/.planning/` is a second git-tracked planning tree whose Phase 66 summary declares the phase complete on the basis of three files containing the letters a, b, c. The files were deleted; the record asserting they were the deliverable was not.
+2. ~~**A false completion record sits inside the shipped crate.**~~ **RESOLVED same day — see Addendum point 4.** `agent-install/omni-agent-rs/.planning/` is deleted.
 
-3. **Two literal must-haves failed with intent met.** `yara-x` was substituted for the `yara` C-bindings crate the goal names, and the engine lives inside `security_scan.rs` rather than a `scanner/yara_engine.rs` module. Both are defensible and both are documented in-code — but neither is *accepted*, and the yara-x substitution silently reverses a recorded architectural decision (Phase 50 D-01) that `PROJECT.md` still lists as final. These are override candidates, not defects.
+3. ~~**Two literal must-haves failed with intent met.**~~ **RESOLVED same day — see Addendum point 1 and this file's own `overrides:` frontmatter.** Both accepted.
 
-4. **The docs say the opposite of what shipped.** `PROJECT.md:75,133` and `MILESTONES.md:35` still describe yara-x as rejected and full YARA as deferred to backlog 999.4. `v3.4-REQUIREMENTS.md` still calls NSCAN-01 "YARA-fallback" and credits it to Phase 50 alone. `STATE.md` has no Phase 66 entry at all. Anyone reading the planning docs today would conclude this phase never happened.
+4. ~~**The docs say the opposite of what shipped.**~~ **RESOLVED same day — see Addendum point 3.** `PROJECT.md`, `MILESTONES.md`, and `v3.4-REQUIREMENTS.md` reconciled.
 
 5. **The dead twin is still there.** `agent-rust/src/scanner/yara_engine.rs` and `agent-rust/src/yara_scan.rs` remain, unshipped and unreferenced. Leaving a second YARA implementation in the repo is what made this collision possible in the first place, and it is what made the pre-flight `find` look like the feature was missing.
 
-Status is `gaps_found` rather than `passed` because two must-have truths failed literally and the phase's acceptance evidence is invalid. None of the gaps block the next phase — they are closable with an override entry, a real UAT re-run against `scan_file`, and documentation reconciliation.
+**Superseded by the Addendum below — as of 2026-08-25, `status: gaps_found` remains only because of the two live-agent `behavior_unverified` items (end-to-end `scan_file` verdict, cache invalidation on feed update). Everything else on this list is closed.** See `66-LIVE-TEST-RUNBOOK.md` for the concrete steps to close those two.
 
 ### Suggested Overrides
 
