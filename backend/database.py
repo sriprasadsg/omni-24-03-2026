@@ -213,7 +213,17 @@ async def connect_to_mongo():
             "All data written this session will be LOST on restart.",
             max_attempts, mongodb_url,
         )
-        if os.getenv("ALLOW_MOCK_DB", "false").lower() in ("1", "true", "yes"):
+        _env = os.getenv("ENVIRONMENT", "development").lower()
+        _prod_envs = {"production", "prod", "staging"}
+        if _env in _prod_envs:
+            _logging.getLogger(__name__).critical(
+                "[DATABASE] ALLOW_MOCK_DB is ignored outside development "
+                "(ENVIRONMENT=%r) — refusing to silently start against an "
+                "in-memory database in production. Fix MongoDB connectivity "
+                "instead.", _env,
+            )
+            raise last_exc
+        elif os.getenv("ALLOW_MOCK_DB", "false").lower() in ("1", "true", "yes"):
             if AsyncMongoMockClient:
                 _logging.getLogger(__name__).warning(
                     "⚠️  Running in DEMO MODE — data is not persisted. Set MONGODB_URL to use a real database."
