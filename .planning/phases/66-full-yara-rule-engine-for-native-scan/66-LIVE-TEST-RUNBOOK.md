@@ -162,6 +162,46 @@ than the `hostname`-keyed one in `agent_tasks_endpoints.py`, then:
 
 Not yet confirmed which handler wins — this is the very next thing to check.
 
+## CONFIRMED (2026-08-25, fifth check-in) — real production bug, not a test artifact
+
+`grep -n "agent_instruction_endpoints\|agent_tasks_endpoints\|deployment_result_endpoints" backend/router_registry.py`
+returns **exactly one hit**: `_load(app, "deployment_result_endpoints", "router")`.
+
+`agent_instruction_endpoints.py` and `agent_tasks_endpoints.py` are **never
+loaded into the app at all** — dead files, their routes don't exist in the
+running backend regardless of what's written in them.
+
+The only live handler for `GET /api/agents/{X}/instructions` is
+`deployment_result_endpoints.py:40`, which expects `{X}` to be `agent_id`.
+The Rust agent (`instructions.rs:7-11`) sends `hostname` in that slot.
+
+**This means: no agent, real or test, can ever receive an instruction
+through this path, in this deployment, as currently wired.** The mismatch
+isn't specific to `scan_file` or to this test — it's the entire instruction
+delivery mechanism for every instruction type the Rust agent supports.
+
+This reframes phase 66's original "Human Verification Required #1" item:
+it was never really a "needs a live agent to prove it" gap — it's a real
+wiring bug that a live agent test was always going to surface, which is
+exactly what happened.
+
+**Not yet done, and NOT attempted this session (ran out of budget):**
+- Decide the actual fix: repoint the Rust client to send `agent_id`
+  instead of `hostname` (need `agent_id` available in `Config` at poll
+  time — it should be, since it's already in `config.yaml` post-registration),
+  OR fix `deployment_result_endpoints.py`'s handler to resolve hostname→agent_id
+  before querying, OR register `agent_tasks_endpoints.py`'s hostname-keyed
+  route instead/first. Each has different blast radius — this needs a real
+  decision, not a guess, before touching code. **Do not just pick one and
+  ship it without checking what else depends on the current (broken)
+  behavior of `deployment_result_endpoints.py`'s handler** — it may be used
+  elsewhere for a different, working purpose.
+- Confirm whether `agent_instruction_endpoints.py`/`agent_tasks_endpoints.py`
+  are simply unfinished/abandoned alternate implementations (like the
+  phase-64/65 dead drafts found earlier this session) or were deliberately
+  disabled for some reason not yet found.
+- Once fixed, re-run the live test from Step 3.
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
