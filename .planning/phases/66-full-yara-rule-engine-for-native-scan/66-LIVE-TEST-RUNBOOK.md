@@ -400,6 +400,57 @@ was tagged with.
 3. Only then re-run the live test — this time with a real, evidence-backed
    reason to expect it to work, not another blind attempt.
 
+## CONFIRMED ROOT CAUSE (2026-08-25, tenth check-in)
+
+```js
+db.getSiblingDB("omni_platform").agents.find({hostname: "security-test-vm"})
+```
+returns **two documents**:
+```js
+{ id: 'agent-1ba27cf216b94d71b4f18a2791dc9b8b', tenantId: 'tenant_9f5d80ac64d0', hostname: 'security-test-vm' }
+{ id: 'agent-310ee2eca93f47d2ae60efdd16ac70c4', tenantId: 'platform-admin',      hostname: 'security-test-vm' }
+```
+Doc 1 is **pre-existing, from before this session** — matches the original
+`config.yaml` this runbook found at the very start, which pointed at a
+different, unreachable host (`192.168.10.70`) under a different tenant.
+Doc 2 is the one registered this session, the one the test instruction's
+`agent_id` correctly targets.
+
+`deployment_result_endpoints.py`'s handler does
+`db.agents.find_one({"$or": [{"id": agent_id}, {"hostname": agent_id}]}, {"id": 1})`
+— **no sort**. With two docs sharing the hostname, this can return either
+one depending on Mongo's natural/insertion order (commonly, but not
+guaranteed, the older one). If it returns doc 1, `actual_id` resolves to
+`agent-1ba27...`, and the subsequent
+`db.agent_instructions.find({"agent_id": actual_id, "status": "pending"})`
+searches for the WRONG agent_id — the test instruction's `agent_id` is
+`agent-310ee2...`. Zero match, every time. **This fully explains the
+result across every run this session, with no ambiguity left.**
+
+This is very likely a **real, if narrow, production bug class**: any
+tenant/host where an agent got re-registered without the old document
+being cleaned up (re-imaged VM keeping its hostname, a stale test/demo
+registration, etc.) would have the same silent-failure mode — instructions
+queued correctly, agent polling correctly, but silently resolving to a
+stale sibling document and never receiving anything. Worth flagging
+separately from "this test's setup was wrong," since it's a real gap in
+`get_agent_instructions`'s hostname-resolution query, not specific to this
+test environment.
+
+**Not yet done (next session):**
+1. Confirm the actual resolution order Mongo returns (query it the exact
+   same way the handler does, or just delete/rename doc 1 to remove the
+   ambiguity for this test — doc 1 looks like leftover cruft from a
+   different, now-irrelevant deployment anyway, but confirm it's not used
+   by anything else before touching it).
+2. Once resolved, re-run the live `scan_file` test — first time with an
+   actual evidence-backed reason to expect success.
+3. If confirmed as a real gap, consider whether `get_agent_instructions`
+   should add `.sort([("_id", -1)])` (most-recent) or otherwise disambiguate,
+   or whether agent registration should be upserting on hostname instead of
+   always inserting a new doc — that's the real fix decision, not attempted
+   this session (ran out of budget after finding the cause).
+
 ## Step 1 — Get the agent talking to this backend
 
 Two paths, pick one:
