@@ -47,7 +47,10 @@ services:
     env_file:
       - .env
     environment:
-      - MONGO_URI=mongodb://${MONGO_ROOT_USER:-omniagent}:${MONGO_ROOT_PASSWORD}@mongo:27017/omniagent
+      # ARCH-002: the application reads MONGODB_URL (backend/database.py);
+      # it now also accepts MONGO_URI as a fallback, but this is set to the
+      # name the app documents as primary so the two never drift again.
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-omniagent}:${MONGO_ROOT_PASSWORD}@mongo:27017/omniagent
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
     ports:
       - "5000:5000"
@@ -114,7 +117,7 @@ services:
     env_file:
       - .env
     environment:
-      - MONGO_URI=mongodb://mongo:27017/omniagent
+      - MONGODB_URL=mongodb://mongo:27017/omniagent
     depends_on:
       mongo:
         condition: service_healthy

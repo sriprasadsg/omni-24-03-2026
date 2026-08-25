@@ -172,7 +172,18 @@ async def connect_to_mongo():
     import logging as _logging
     import asyncio as _asyncio
 
-    mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017").strip()
+    # ARCH-002: docker-compose.yml and some scripts set MONGO_URI/MONGODB_URI
+    # rather than MONGODB_URL; accept all three (MONGODB_URL wins if several
+    # are set) instead of silently falling back to localhost inside the
+    # container, where no mongod runs.
+    _mongodb_url_raw = os.getenv("MONGODB_URL") or os.getenv("MONGO_URI") or os.getenv("MONGODB_URI")
+    if not _mongodb_url_raw:
+        _logging.getLogger(__name__).warning(
+            "[DATABASE] None of MONGODB_URL/MONGO_URI/MONGODB_URI is set — "
+            "defaulting to mongodb://localhost:27017. This is almost never "
+            "correct inside a container; set MONGODB_URL explicitly."
+        )
+    mongodb_url = (_mongodb_url_raw or "mongodb://localhost:27017").strip()
     mongodb_db_name = os.getenv("MONGODB_DB_NAME", "omni_platform")
     max_attempts = 3
     base_delay = 0.5  # seconds
