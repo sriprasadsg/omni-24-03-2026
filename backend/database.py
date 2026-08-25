@@ -188,10 +188,34 @@ async def connect_to_mongo():
     max_attempts = 3
     base_delay = 0.5  # seconds
 
+    # DB-F15 (2026-08-25 audit): connection pool had no explicit tuning —
+    # maxPoolSize/minPoolSize silently used pymongo's defaults (100/0), and
+    # waitQueueTimeoutMS/connectTimeoutMS were unset (None = wait
+    # indefinitely for a free pooled connection, 20s default to establish a
+    # new TCP connection). An exhausted pool under load previously meant
+    # requests queued forever for a connection instead of failing fast with
+    # a clear error. socketTimeoutMS (bounds an already-established
+    # operation's duration) is deliberately left unset here: several
+    # legitimate operations in this codebase (ITAM reporting exports, the
+    # data warehouse ETL sweep) can legitimately run long for large
+    # tenants, and guessing a ceiling without auditing every such call site
+    # risks turning a slow-but-working report into a hard failure.
+    _mongo_max_pool_size = int(os.getenv("MONGODB_MAX_POOL_SIZE", "100"))
+    _mongo_min_pool_size = int(os.getenv("MONGODB_MIN_POOL_SIZE", "0"))
+    _mongo_wait_queue_timeout_ms = int(os.getenv("MONGODB_WAIT_QUEUE_TIMEOUT_MS", "10000"))
+    _mongo_connect_timeout_ms = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS", "10000"))
+
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=3000)
+            client = AsyncIOMotorClient(
+                mongodb_url,
+                serverSelectionTimeoutMS=3000,
+                maxPoolSize=_mongo_max_pool_size,
+                minPoolSize=_mongo_min_pool_size,
+                waitQueueTimeoutMS=_mongo_wait_queue_timeout_ms,
+                connectTimeoutMS=_mongo_connect_timeout_ms,
+            )
             await client.server_info()
             mongodb.client = client
             _logging.getLogger(__name__).info(
