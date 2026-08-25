@@ -2,7 +2,33 @@ from fastapi import HTTPException, status, Depends
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+
+async def find_role_doc(db, role_name: str, tenant_id: Optional[str]) -> Optional[dict]:
+    """Look up a role document by name, trying the caller's own tenant first
+    and falling back to the platform-wide sentinels ("all", "platform").
+
+    DB-F10 (2026-08-25 audit): `roles` used to be exempt from the tenant-
+    isolation wrapper entirely, so any of these lookups worked with a bare
+    `db.roles.find_one({"name": role_name})` — but that also meant any
+    tenant could enumerate every OTHER tenant's custom role definitions.
+    Now that `roles` is wrapped like every other collection, an unscoped
+    query auto-injects the caller's own tenant_id, which correctly finds a
+    tenant-specific role but can never match a genuinely global one (real
+    tenantId "all"/"platform" != the caller's own tenant_id). The `db._db`
+    accesses below intentionally bypass the wrapper for those two sentinel
+    values only — they are not tenant secrets, they're the shared platform
+    role catalog every tenant is meant to see.
+    """
+    own_tenant = await db.roles.find_one({"name": role_name, "tenantId": tenant_id}) if tenant_id else None
+    if own_tenant:
+        return own_tenant
+    raw_db = db._db
+    return (
+        await raw_db.roles.find_one({"name": role_name, "tenantId": "all"})
+        or await raw_db.roles.find_one({"name": role_name, "tenantId": "platform"})
+    )
 
 # ITAM-USR-05 (Phase 64-05): roles whose require_role()-gated endpoints are
 # additionally narrowed to a specific scope when the caller authenticated via
@@ -27,6 +53,7 @@ class RBACService:
                 "manage:assets", # Added for ITAM Phase 56-01
                 "view:itam", # Added for ITAM Phase 61-01
                 "manage:itam", # Added for ITAM Phase 61-01
+                "view:vector_db", "view:federated_learning", "view:webgpu_inference",
                 "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
                 "view:agents", "view:agent_capabilities", "view:software_deployment", "view:agent_logs", "remediate:agents",
                 "view:assets", "view:patching", "manage:patches", "view:security",
@@ -45,6 +72,7 @@ class RBACService:
                 "manage:assets", # Added for ITAM Phase 56-01
                 "view:itam", # Added for ITAM Phase 61-01
                 "manage:itam", # Added for ITAM Phase 61-01
+                "view:vector_db", "view:federated_learning", "view:webgpu_inference",
                 "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
                 "view:agents", "view:agent_capabilities", "view:software_deployment", "view:agent_logs", "remediate:agents",
                 "view:assets", "view:patching", "manage:patches", "view:security",
@@ -154,14 +182,10 @@ class RBACService:
             return ["*"]
 
         db = get_database()
-        # Try exact match scoped to tenant first, then platform-wide fallbacks
-        role_doc = (
-            await db.roles.find_one({"name": user.role, "tenantId": user.tenant_id})
-            or await db.roles.find_one({"name": user.role, "tenantId": "all"})
-            or await db.roles.find_one({"name": user.role, "tenantId": "platform"})
-            # Also try normalized name for DB records that may use snake_case
-            or await db.roles.find_one({"name": normalized, "tenantId": user.tenant_id})
-            or await db.roles.find_one({"name": normalized, "tenantId": "all"})
+        # Try exact match scoped to tenant first, then platform-wide fallbacks.
+        # Also try normalized name for DB records that may use snake_case.
+        role_doc = await find_role_doc(db, user.role, user.tenant_id) or await find_role_doc(
+            db, normalized, user.tenant_id
         )
 
         if not role_doc:

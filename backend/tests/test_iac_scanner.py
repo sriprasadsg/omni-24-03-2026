@@ -10,6 +10,10 @@ def _mkuser(t="tenant-a", r="admin"):
 
 def _mkdb(collections=("iac_scan_results", "iac_scan_config", "container_scan_results")):
     db = MagicMock()
+    # DB-F10: set before the loop below so setattr(db._db, col, c) attaches
+    # onto `db` itself, not a separate auto-vivified mock that would be
+    # discarded by assigning db._db afterward.
+    db._db = db
     for col in collections:
         c = MagicMock()
         c.insert_one = AsyncMock(return_value=MagicMock(inserted_id="x"))

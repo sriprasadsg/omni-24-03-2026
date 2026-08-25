@@ -21,6 +21,10 @@ def _chain(result):
 
 def _mkdb():
     db = MagicMock()
+    # DB-F10: set before the loop below so setattr(db._db, col, c) attaches
+    # onto `db` itself, not a separate auto-vivified mock that would be
+    # discarded by assigning db._db afterward.
+    db._db = db
     for col in ("cloud_accounts", "cloud_check_results"):
         c = MagicMock()
         c.insert_one = AsyncMock(return_value=MagicMock(inserted_id="x"))

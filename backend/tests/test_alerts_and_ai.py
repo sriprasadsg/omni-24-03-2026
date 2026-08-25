@@ -42,6 +42,7 @@ def _db(**collections):
     db.__getitem__ = lambda self, name: getattr(self, name, _col())
     for name, col in collections.items():
         setattr(db, name, col)
+    db._db = db  # DB-F10: rbac_service.find_role_doc bypasses the wrapper via db._db for global-role fallback lookups
     return db
 
 

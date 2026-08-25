@@ -9,6 +9,7 @@ _SENSITIVE_USER_FIELDS = frozenset({
 })
 from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, oauth2_scheme, SECRET_KEY
 from database import get_database
+from rbac_service import find_role_doc
 
 # WHY db._db.* IS USED IN THIS FILE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -199,8 +200,11 @@ async def login_for_access_token(request: Request, response: Response, login_req
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
 
-    # Add permissions from role
-    role_obj = await db.roles.find_one({"name": role})
+    # Add permissions from role. DB-F10: roles is no longer exempt from
+    # tenant isolation, so a bare find_one with no tenantId would auto-scope
+    # to the caller's own tenant and never match a global role (real
+    # tenantId "all"/"platform") — find_role_doc tries both correctly.
+    role_obj = await find_role_doc(db, role, tenant_id)
     if role_obj:
         user_data['permissions'] = role_obj.get('permissions', [])
     else:
@@ -236,9 +240,11 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
             detail="User not found"
         )
     
-    # Get role permissions
+    # Get role permissions. DB-F10: see the /login handler's identical fix
+    # above — a bare find_one would auto-scope to the caller's own tenant
+    # and never match a global role.
     role_name = user.get("role", "user")
-    role = await db.roles.find_one({"name": role_name})
+    role = await find_role_doc(db, role_name, user.get("tenantId"))
     
     # Build user response object (exclude sensitive fields)
     user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}

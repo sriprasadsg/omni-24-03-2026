@@ -251,7 +251,14 @@ class TestTenantIsolatedDatabaseRouting:
         assert isinstance(db["tickets"], TenantIsolatedCollection)
 
     def test_exempt_collection_bypasses_isolation(self):
-        """Global reference collections (compliance_frameworks, roles, etc.) must not be wrapped."""
+        """Global reference collections (compliance_frameworks, etc.) must not be wrapped.
+
+        DB-F10 (2026-08-25 audit): "roles" is deliberately excluded from
+        this list now — a live query found it contains real tenant-specific
+        role documents, so exempting it leaked one tenant's custom roles to
+        every other tenant. See test_tenant_isolation.py's
+        test_exempt_collections_bypass_isolation for the full rationale.
+        """
         from database import TenantIsolatedCollection, TenantIsolatedDatabase
 
         raw_db = MagicMock()
@@ -259,8 +266,12 @@ class TestTenantIsolatedDatabaseRouting:
 
         for exempt in ("compliance_frameworks", "compliance_controls",
                        "ai_governance_frameworks", "system_features",
-                       "tenants", "roles", "response_policies", "playbooks"):
+                       "tenants", "response_policies", "playbooks"):
             col = db[exempt]
             assert not isinstance(col, TenantIsolatedCollection), (
                 f"Collection '{exempt}' should bypass tenant isolation but is wrapped"
             )
+
+        assert isinstance(db["roles"], TenantIsolatedCollection), (
+            "roles must be tenant-isolated (DB-F10) — it is not purely global reference data"
+        )

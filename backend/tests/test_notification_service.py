@@ -12,6 +12,11 @@ def _make_user(tenant_id="tenant-a", role="admin", username="admin1"):
 
 def _make_db():
     db = MagicMock()
+    # DB-F10: rbac_service.find_role_doc's global-role fallback goes through
+    # db._db — set this before the loop below populates per-collection mocks
+    # so setattr(db._db, col, c) attaches onto `db` itself, not a separate
+    # auto-vivified mock that a later reassignment would discard.
+    db._db = db
     for col in ("notification_channels", "notification_rules", "scheduled_domains", "domain_scans"):
         c = MagicMock()
         c.insert_one = AsyncMock(return_value=MagicMock(inserted_id="x"))

@@ -22,7 +22,12 @@ async def calculate_compliance_status():
 
     # Pre-fetch RBAC counts for access_control check
     rbac_user_count = await db.users.count_documents({})
-    rbac_role_count = await db.roles.count_documents({})
+    # DB-F10: this is a platform-wide "is RBAC configured at all" heuristic,
+    # not a per-tenant boundary — roles is no longer isolation-exempt, so
+    # this intentionally bypasses the wrapper (db._db) to preserve the
+    # pre-fix behavior of counting every role definition, matching how the
+    # global "all"/"platform" role catalog is shared across every tenant.
+    rbac_role_count = await db._db.roles.count_documents({})
     
     # --- Evidence Storage ---
     async def store_compliance_evidence(control_id: str, status: str, description: str, raw_data: Any = None):

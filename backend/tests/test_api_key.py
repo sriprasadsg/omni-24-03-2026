@@ -410,6 +410,7 @@ class TestAPIKeyEndpoints:
 def _mock_db(role_doc=None):
     db = MagicMock()
     db.roles = MagicMock()
+    db._db = db  # DB-F10: rbac_service.find_role_doc bypasses the wrapper via db._db for global-role fallback lookups
     db.roles.find_one = AsyncMock(return_value=role_doc)
     return db
 

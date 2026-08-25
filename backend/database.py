@@ -10,6 +10,30 @@ try:
 except ImportError:
     AsyncMongoMockClient = None
 
+# ARCH-009: previously duplicated verbatim in both TenantIsolatedDatabase
+# methods below, inviting the two copies to drift. Collections here return
+# the raw, unwrapped Motor collection — no tenantId is auto-injected.
+#
+# DB-F10 (2026-08-25 audit): "roles" used to be on this list but was found,
+# via a live query, to actually contain tenant-specific role documents
+# (6 global "all"/"platform" rows plus 2 belonging to one specific tenant)
+# — every tenant could read every other tenant's custom role definitions.
+# It is intentionally NOT exempt anymore. The shared global roles (tenantId
+# "all"/"platform") are still reachable by every tenant via
+# rbac_service.find_role_doc(), which explicitly bypasses the wrapper for
+# just those two sentinel values rather than for the whole collection.
+TENANT_ISOLATION_EXEMPT_COLLECTIONS = frozenset([
+    "compliance_frameworks",
+    "compliance_controls",
+    "ai_governance_frameworks",
+    "system_features",
+    "tenants",
+    "response_policies",  # platform-level security policies, seeded globally
+    "playbooks",          # platform-seeded playbooks shared across tenants
+    "ip_bans",            # platform-wide IP block list, checked before tenant context is set
+    "crypto_inventory",   # platform-wide PQC inventory seeded at startup
+])
+
 class TenantIsolatedCollection:
     """
     Wrapper for Motor collection to automatically inject tenantId filter.
@@ -119,36 +143,12 @@ class TenantIsolatedDatabase:
         # We only wrap actual collections, not internal methods
         if name.startswith("_") or name in ["client", "name", "codec_options", "read_preference", "write_concern", "read_concern", "list_collection_names", "create_collection", "drop_collection", "validate_collection", "command", "dereference"]:
             return collection
-        # EXEMPTION: global reference data (shared across all tenants)
-        if name in [
-            "compliance_frameworks",
-            "compliance_controls",
-            "ai_governance_frameworks",
-            "system_features",
-            "tenants",
-            "roles",
-            "response_policies",  # platform-level security policies, seeded globally
-            "playbooks",          # platform-seeded playbooks shared across tenants
-            "ip_bans",            # platform-wide IP block list, checked before tenant context is set
-            "crypto_inventory",   # platform-wide PQC inventory seeded at startup
-        ]:
+        if name in TENANT_ISOLATION_EXEMPT_COLLECTIONS:
             return collection
         return TenantIsolatedCollection(collection)
 
     def __getitem__(self, name):
-        # EXEMPTION: global reference data (shared across all tenants)
-        if name in [
-            "compliance_frameworks",
-            "compliance_controls",
-            "ai_governance_frameworks",
-            "system_features",
-            "tenants",
-            "roles",
-            "response_policies",  # platform-level security policies, seeded globally
-            "playbooks",          # platform-seeded playbooks shared across tenants
-            "ip_bans",            # platform-wide IP block list, checked before tenant context is set
-            "crypto_inventory",   # platform-wide PQC inventory seeded at startup
-        ]:
+        if name in TENANT_ISOLATION_EXEMPT_COLLECTIONS:
             return self._db[name]
         return TenantIsolatedCollection(self._db[name])
 

@@ -69,6 +69,7 @@ def _mock_rbac_db():
     db = MagicMock()
     db.roles = MagicMock()
     db.roles.find_one = AsyncMock(return_value=None)
+    db._db = db  # DB-F10: rbac_service.find_role_doc bypasses the wrapper via db._db for global-role fallback lookups
     return db
 
 
@@ -86,8 +87,9 @@ def _patched(tickets_db=None):
 # App factory
 # ---------------------------------------------------------------------------
 
-_VIEWER = TokenData(username="v@test.com", role="user",        tenant_id="t1",   mfa_verified=True)
-_SUPER  = TokenData(username="s@test.com", role="Super Admin", tenant_id=None,   mfa_verified=True)
+_VIEWER    = TokenData(username="v@test.com", role="user",        tenant_id="t1",   mfa_verified=True)
+_SUPER     = TokenData(username="s@test.com", role="Super Admin", tenant_id=None,   mfa_verified=True)
+_NO_TENANT = TokenData(username="n@test.com", role="user",        tenant_id="",     mfa_verified=True)
 
 
 def _app(user: TokenData):
@@ -171,6 +173,18 @@ class TestCreateTicket:
             with TestClient(_app(_VIEWER)) as client:
                 r = client.post("/api/tickets", json={"title": "T"})
         assert r.json()["priority"] == "medium"
+
+    def test_missing_tenant_context_returns_400_not_orphaned_ticket(self):
+        """A non-super-admin caller with no resolvable tenant (e.g. a JWT issued
+        before tenant_id was added to the payload) must be rejected up front —
+        not silently create a ticket that then has nowhere to be listed."""
+        db = _mock_db()
+        db._col.count_documents = AsyncMock(return_value=0)
+        with _patched(db):
+            with TestClient(_app(_NO_TENANT)) as client:
+                r = client.post("/api/tickets", json={"title": "Orphan risk"})
+        assert r.status_code == 400
+        db._col.insert_one.assert_not_called()
 
 
 # ===========================================================================

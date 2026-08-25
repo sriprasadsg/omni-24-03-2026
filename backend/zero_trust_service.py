@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from database import get_database
 from rbac_utils import require_permission
+from rbac_service import find_role_doc
 from auth_types import TokenData
 import logging
 
@@ -299,7 +300,9 @@ async def verify_zero_trust_access(
 
     # 4. Check user role permissions
     role_name = user_doc.get("role", "Viewer")
-    role_doc = await db.roles.find_one({"name": role_name})
+    # DB-F10: roles is no longer isolation-exempt; a bare find_one would
+    # auto-scope to the caller's own tenant and never match a global role.
+    role_doc = await find_role_doc(db, role_name, tenant_id)
     if role_doc:
         permissions = role_doc.get("permissions", [])
         action_perm = f"{req.action}:{req.resource.split('/')[0]}"

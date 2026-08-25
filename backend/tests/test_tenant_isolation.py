@@ -133,7 +133,17 @@ class TestCollectionPassThrough:
 class TestDatabaseRouting:
 
     def test_exempt_collections_bypass_isolation(self):
-        """Global reference data (roles, tenants) must NOT be tenant-scoped."""
+        """Global reference data (tenants) must NOT be tenant-scoped.
+
+        DB-F10 (2026-08-25 audit): "roles" used to be on this list, but a
+        live query found it actually contains tenant-specific role
+        documents (two rows belonging to one specific tenant, alongside
+        the genuinely shared "all"/"platform" rows) — every tenant could
+        read every other tenant's custom role definitions. It is now
+        wrapped like any other collection; the shared global roles remain
+        reachable via rbac_service.find_role_doc(), which explicitly
+        bypasses the wrapper for just the "all"/"platform" sentinel values.
+        """
         from database import TenantIsolatedCollection, TenantIsolatedDatabase
 
         raw_db = MagicMock()
@@ -142,10 +152,12 @@ class TestDatabaseRouting:
 
         db = TenantIsolatedDatabase(raw_db)
 
-        assert db["roles"] is raw_db["roles"] or not isinstance(db["roles"], TenantIsolatedCollection)
+        assert db["tenants"] is raw_db["tenants"] or not isinstance(db["tenants"], TenantIsolatedCollection)
         # Access via attribute (the other access path)
-        assert not isinstance(db.roles, TenantIsolatedCollection)
         assert not isinstance(db.tenants, TenantIsolatedCollection)
+        # roles is now correctly wrapped, not exempt
+        assert isinstance(db.roles, TenantIsolatedCollection)
+        assert isinstance(db["roles"], TenantIsolatedCollection)
 
     def test_regular_collections_are_wrapped(self):
         from database import TenantIsolatedCollection, TenantIsolatedDatabase

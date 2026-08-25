@@ -1,10 +1,16 @@
 import asyncio
 from database import connect_to_mongo, get_database, close_mongo_connection
+from tenant_context import set_tenant_id
 
 async def update_rbac():
     await connect_to_mongo()
+    # DB-F10: roles is no longer isolation-exempt; this is a one-off
+    # maintenance script editing the shared platform-wide "Tenant Admin"
+    # role definition, so it needs the platform-admin bypass context —
+    # the same pattern app_startup.py's role-seeding routines use.
+    set_tenant_id("platform-admin")
     db = get_database()
-    
+
     # Get the existing Tenant Admin role
     role = await db.roles.find_one({"name": "Tenant Admin"})
     if role:

@@ -18,6 +18,7 @@ def _mkuser(t="tenant-a", r="admin"):
 
 def _mkdb():
     db = MagicMock()
+    db._db = db  # DB-F10: rbac_service.find_role_doc bypasses the wrapper via db._db for global-role fallback lookups; set before use below
     c = MagicMock()
     c.find_one = AsyncMock(return_value=None)
     db._db.container_scan_results = c

@@ -50,6 +50,8 @@ def _make_db_mock(user=None, role_obj=None, login_record=None):
     raw_db.login_attempts.find_one = AsyncMock(return_value=login_record)
     raw_db.login_attempts.update_one = AsyncMock()
     raw_db.login_attempts.delete_one = AsyncMock()
+    raw_db.roles = MagicMock()
+    raw_db.roles.find_one = AsyncMock(return_value=role_obj)  # DB-F10: rbac_service.find_role_doc's global-role fallback goes through db._db
 
     db = MagicMock()
     db._db = raw_db
