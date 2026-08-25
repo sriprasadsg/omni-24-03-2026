@@ -315,6 +315,14 @@ async def connect_to_mongo():
         # possession trail must never be auto-purged.
         await mongodb.db.assignment_history.create_index([("tenantId", 1), ("assetId", 1)])
         await mongodb.db.assignment_history.create_index([("tenantId", 1), ("ts", -1)])
+        # license_assignments: unique guard against double-assigning the same
+        # seat (DB-F06, 2026-08-25 audit) — the app-level find_one-then-insert
+        # check in itam_license_service.assign_license_seat has a race window;
+        # this index is the authoritative backstop (DuplicateKeyError caught
+        # there and converted to 409).
+        await mongodb.db.license_assignments.create_index(
+            [("licenseId", 1), ("targetType", 1), ("targetId", 1)], unique=True, background=True
+        )
         # assets.lastAuditedAt: supports the 57-03 overdue-audit report query.
         await mongodb.db.assets.create_index([("tenantId", 1), ("lastAuditedAt", 1)])
         await mongodb.db.tickets.create_index([("tenantId", 1), ("status", 1)])

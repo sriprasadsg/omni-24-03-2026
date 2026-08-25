@@ -304,9 +304,14 @@ class TestLicenseAssignment:
 
     @pytest.mark.asyncio
     async def test_assign_license_seat_no_seats_available(self, mock_db, license_app, patch_get_database_globally):
+        """DB-F06: seat availability is now checked by inserting the
+        assignment, then recounting and rolling back if that pushed the
+        total past seatCount — the recount here simulates a DB that already
+        has 1 assignment (the pre-existing seat) plus the one this request
+        just inserted, i.e. 2 total against a seatCount of 1."""
         mock_db.licenses.find_one.return_value = {"id": "lic-1", "name": "Windows 11", "seatCount": 1, "tenantId": "tenant-a"}
         mock_db.users.find_one.return_value = {"id": "user-7"}
-        mock_db.license_assignments.count_documents.return_value = 1 # One seat already assigned
+        mock_db.license_assignments.count_documents.return_value = 2  # 1 existing + this request's insert
 
         current_user = make_token_data(tenant_id="tenant-a", username="admin@example.com")
         patch_get_database_globally("tenant-a")
@@ -320,7 +325,10 @@ class TestLicenseAssignment:
 
         assert r.status_code == 400, r.text
         assert "No seats available" in r.json()["detail"]
-        mock_db.license_assignments.insert_one.assert_not_called()
+        # The seat was inserted optimistically, then rolled back once the
+        # recount showed it pushed the total past seatCount.
+        mock_db.license_assignments.insert_one.assert_called_once()
+        mock_db.license_assignments.delete_one.assert_called_once()
         mock_db.assignment_history.insert_one.assert_not_called()
 
     @pytest.mark.asyncio

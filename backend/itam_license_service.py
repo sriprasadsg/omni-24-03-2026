@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Tuple
 
 from fastapi import HTTPException, status
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from itam_lifecycle_service import write_history
 
@@ -60,16 +61,6 @@ async def assign_license_seat(
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"This {target_type} already has a seat for this license.")
 
-    # 4. Count current assignments (Atomic check is hard without embedding seats, but license_doc is catalog-like)
-    # We use count_documents for now as a simple seat check.
-    # Ponytail: If high concurrency is expected, embed assignment IDs in the license doc or use a counter.
-    current_seats = await db.license_assignments.count_documents({"licenseId": license_id})
-    if current_seats >= seat_count:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No seats available. All {seat_count} seats are assigned."
-        )
-
     assignment_id = f"la-{uuid.uuid4().hex[:8]}"
     assignment_doc = {
         "id": assignment_id,
@@ -82,8 +73,39 @@ async def assign_license_seat(
         "note": note,
     }
 
-    # 5. Write assignment
-    await db.license_assignments.insert_one(assignment_doc)
+    # 4/5. Reserve the seat optimistically, then verify (DB-F06, 2026-08-25
+    # audit): the old code counted assignments *before* inserting, so two
+    # concurrent requests could both pass the count check before either had
+    # inserted, over-allocating seats beyond seatCount. Mongo has no
+    # multi-document transaction available here (no replica set assumed),
+    # but a single insert_one is atomic, so inserting first and recounting
+    # afterwards means any request that pushes the total past seatCount sees
+    # its own recount reflect that and can compensate by deleting what it
+    # just wrote — the same insert-then-compensate idiom used below for the
+    # history write. Under heavy contention this can reject more requests
+    # than strictly necessary (multiple concurrent winners may all roll
+    # back), but it can never allow more than seatCount seats to remain
+    # assigned.
+    # A unique index on (licenseId, targetType, targetId) — see database.py —
+    # is the authoritative guard against the same race on step 3's existence
+    # check above: two concurrent requests for the same target could both
+    # see no existing assignment before either inserts. The find_one above
+    # is just a fast, friendly-error fast path; this catches the case it
+    # misses.
+    try:
+        await db.license_assignments.insert_one(assignment_doc)
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"This {target_type} already has a seat for this license."
+        )
+    current_seats = await db.license_assignments.count_documents({"licenseId": license_id})
+    if current_seats > seat_count:
+        await db.license_assignments.delete_one({"id": assignment_id})
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No seats available. All {seat_count} seats are assigned."
+        )
 
     # 6. Write history (reuse assignment_history collection but different action)
     history_record = {
