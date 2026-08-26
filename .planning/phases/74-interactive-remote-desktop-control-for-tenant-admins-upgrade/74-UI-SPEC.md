@@ -117,7 +117,7 @@ To keep a consistent brand feel with the web admin console despite being a wholl
 | Property | Value |
 |----------|-------|
 | Font family | Segoe UI (Windows system default — do not bundle a custom font into a Session-0-spawned script; adds failure surface for zero visual benefit at this size) |
-| Font sizes | Title: 12pt bold · Body: 10pt regular · Button label: 10pt semibold |
+| Font sizes | Title: 12pt bold · Body: 10pt regular · Button label: 10pt bold |
 | Background | `#0b1220` (dark surface, matches web canvas background) |
 | Foreground text | `#F8FAFC` (near-white, matches web `slate-100`) |
 | Accept / primary button | Fill `#0369A1`, text `#FFFFFF` |
