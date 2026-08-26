@@ -131,3 +131,14 @@
 Full detail archived to `milestones/v4.1-ROADMAP.md`.
 
 </details>
+
+### Phase 74: Interactive Remote Desktop Control (Zoho Assist parity)
+
+**Goal:** Upgrade the existing view-only remote-desktop stream (`components/RemoteDesktop.tsx`, `agent-install/omni-agent-rs/src/capabilities/remote_access.rs`) to full attended interactive control: mouse/keyboard input relay from viewer to agent over the existing WebSocket tunnel, Win32 `SendInput`-based replay on the Windows agent, an on-endpoint consent/accept prompt before control is granted, a new `control:remote_access` RBAC permission distinct from the existing `view:remote_access`, and session audit logging. Faster/continuous screen capture (replacing the periodic PowerShell screenshot loop) is in scope as a stretch goal if time allows.
+**Requirements**: TBD
+**Depends on:** Phase 73
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 74 to break down)
