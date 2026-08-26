@@ -17,6 +17,9 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
     const wsRef = useRef<WebSocket | null>(null);
     const frameCountRef = useRef(0);
     const lastFpsTimeRef = useRef(Date.now());
+    // Mirrors `hasFrames` state but readable synchronously from closures
+    // (e.g. the no-frames timeout below) without going stale.
+    const hasFramesRef = useRef(false);
 
     const renderFrame = (base64Data: string) => {
         const canvas = canvasRef.current;
@@ -32,6 +35,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
         let cancelled = false;
 
         const openWs = (sid: string) => {
+            hasFramesRef.current = false;
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const token = sessionStorage.getItem('token') || '';
             const wsUrl = `${wsProtocol}//${window.location.host}/api/tunnel/${sid}/viewer?token=${encodeURIComponent(token)}`;
@@ -49,7 +53,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                     const payload = JSON.parse(event.data);
                     if (payload.type === 'frame' && payload.data) {
                         renderFrame(payload.data);
-                        if (!hasFrames) { setHasFrames(true); setStatusMsg(''); }
+                        if (!hasFramesRef.current) { hasFramesRef.current = true; setHasFrames(true); setStatusMsg(''); }
                         frameCountRef.current++;
                         const now = Date.now();
                         if (now - lastFpsTimeRef.current >= 1000) {
@@ -57,12 +61,28 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                             frameCountRef.current = 0;
                             lastFpsTimeRef.current = now;
                         }
+                    } else if (payload.type === 'error' && payload.message) {
+                        // Agent-reported capture failure (e.g. no interactive
+                        // desktop session, or unsupported platform) — surface
+                        // it instead of leaving the viewer waiting forever.
+                        setError(String(payload.message));
+                        setStatusMsg('');
                     }
                 } catch { /* ignore non-JSON */ }
             };
 
             ws.onerror = () => { setError('Stream connection failed'); setIsConnected(false); };
             ws.onclose = () => { setIsConnected(false); setFps(0); };
+
+            // Defense in depth: if the agent connects but never sends a frame
+            // or error message at all (e.g. it's offline, or a future capture
+            // path fails before it can report), don't leave the UI spinning
+            // forever with no signal.
+            setTimeout(() => {
+                if (!cancelled && !hasFramesRef.current) {
+                    setError((prev) => prev ?? 'No video received from the agent within 15s — it may be offline, lack an interactive desktop session, or not support remote desktop on its platform.');
+                }
+            }, 15000);
         };
 
         const init = async () => {
