@@ -8,8 +8,8 @@ in unrelated files are logged here, not fixed).
 
 ### 1. `backend/virustotal_client.py` — pre-existing broken import (`NameError: name 'BaseCapability' is not defined`)
 
-- **Status:** acknowledged
-- **Acknowledged at:** v4.1 milestone close, 2026-08-26 — missing-feature work, unrelated to this or any v4.1 phase; carried forward, not fixed.
+- **Status:** resolved
+- **Resolved note:** Already fixed 2026-08-04, commit `766e3ca01` (`feat(55-05): implement get_virustotal_client() factory + real VT v3 client`) — same fix STATE.md's v3.4-close session cross-referenced when closing `55-VERIFICATION.md`'s INT-04 gap, but this deferred-items.md entry was never updated to match. Re-verified 2026-08-26: `tests/test_virustotal_client.py` 11/11 pass, `import threat_intel_endpoints` mounts clean, all 4 real callers (`threat_intel_endpoints.py`, `threat_endpoints.py`, `soar_engine.py`, `agent_security_endpoints.py`) call the real factory. No `BaseCapability` reference remains anywhere in the file.
 - **Found during:** Task 2 (companion `/api/threat-intel/correlate-native` route) — sanity-checked
   `import threat_intel_endpoints` and hit this transitively via `from virustotal_client import
   get_virustotal_client`.
