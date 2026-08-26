@@ -304,10 +304,10 @@ pub async fn compute_instruction_result(
                 .unwrap_or("shell")
                 .to_lowercase();
             if session_kind == "desktop" || session_kind == "vnc" {
-                crate::capabilities::remote_access::start_desktop_stream(session_id, url);
+                crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone());
                 serde_json::json!({"status": "success", "message": "Desktop stream started"})
             } else {
-                crate::capabilities::remote_access::start_reverse_shell(session_id, url);
+                crate::capabilities::remote_access::start_reverse_shell(session_id, url, cfg.registration_key.clone());
                 serde_json::json!({"status": "success", "message": "Reverse shell session started"})
             }
         }
@@ -327,7 +327,7 @@ pub async fn compute_instruction_result(
                     return None;
                 }
             };
-            crate::capabilities::remote_access::start_desktop_stream(session_id, url);
+            crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone());
             serde_json::json!({"status": "success", "message": "Desktop stream started"})
         }
         // ── Ticketing (ticket_reporter) ──────────────────────────────────────
@@ -386,6 +386,7 @@ pub async fn compute_instruction_result(
             // to a one-way msg.exe notice when no interactive session exists.
             let outcome = crate::chat_ui::launch_interactive(
                 session_id, subject, initial, sender, backend_url, &cfg.agent_token,
+                cfg.accept_invalid_certs,
             );
 
             let reply = match outcome {
@@ -445,6 +446,7 @@ pub async fn compute_instruction_result(
                 sender,
                 cfg.api_base_url.trim_end_matches('/'),
                 &cfg.agent_token,
+                cfg.accept_invalid_certs,
             ) {
                 log::warn!("Interactive chat launch failed ({e}); using one-way display");
                 if let Err(de) = crate::chat_display::show_message(sender, content) {

@@ -69,11 +69,30 @@ pub fn set_rdp(enable: bool) -> Result<(), String> {
     }
 }
 
+/// Build a WebSocket client request carrying the tenant's `X-Tenant-Key`
+/// header. `tunnel_agent_side` (backend/tunnel_endpoints.py) requires either
+/// a valid JWT `?token=` or this header to authenticate the agent side of
+/// the tunnel — the agent has never had a JWT of its own, and the previous
+/// bare `connect_async(url)` sent neither, so every tunnel connection was
+/// silently rejected with code 4401 before any shell/capture logic ran.
+fn tunnel_request(
+    url: &str,
+    tenant_key: &str,
+) -> Result<tokio_tungstenite::tungstenite::handshake::client::Request, Box<dyn std::error::Error + Send + Sync>> {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let mut req = url.into_client_request()?;
+    req.headers_mut().insert(
+        "X-Tenant-Key",
+        tokio_tungstenite::tungstenite::http::HeaderValue::from_str(tenant_key)?,
+    );
+    Ok(req)
+}
+
 /// Spawn a WebSocket-based reverse shell in a background tokio task.
-pub fn start_reverse_shell(session_id: String, url: String) {
+pub fn start_reverse_shell(session_id: String, url: String, tenant_key: String) {
     tokio::spawn(async move {
         log::info!("Reverse shell starting: session={session_id} url={url}");
-        if let Err(e) = reverse_shell_run(&url).await {
+        if let Err(e) = reverse_shell_run(&url, &tenant_key).await {
             log::error!("Reverse shell error: {e}");
         }
         log::info!("Reverse shell ended: session={session_id}");
@@ -81,10 +100,10 @@ pub fn start_reverse_shell(session_id: String, url: String) {
 }
 
 /// Spawn a desktop streaming task that sends JPEG frames over WebSocket.
-pub fn start_desktop_stream(session_id: String, url: String) {
+pub fn start_desktop_stream(session_id: String, url: String, tenant_key: String) {
     tokio::spawn(async move {
         log::info!("Desktop stream starting: session={session_id} url={url}");
-        if let Err(e) = desktop_stream_run(&url).await {
+        if let Err(e) = desktop_stream_run(&url, &tenant_key).await {
             log::error!("Desktop stream error: {e}");
         }
         log::info!("Desktop stream ended: session={session_id}");
@@ -108,13 +127,13 @@ fn spawn_local_shell() -> std::io::Result<tokio::process::Child> {
         .spawn()
 }
 
-async fn reverse_shell_run(url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn reverse_shell_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::sync::mpsc;
     use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-    let (ws_stream, _) = connect_async(url).await?;
+    let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
     let (ws_write, mut ws_read) = ws_stream.split();
     let mut child = spawn_local_shell()?;
     let mut proc_stdin = child.stdin.take().ok_or("no stdin")?;
@@ -163,13 +182,13 @@ async fn reverse_shell_run(url: &str) -> Result<(), Box<dyn std::error::Error + 
 
 // Windows: long-lived PowerShell process captures JPEG frames and emits base64 lines
 #[cfg(windows)]
-async fn desktop_stream_run(url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn desktop_stream_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::time::{timeout, Duration};
     use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-    let (ws_stream, _) = connect_async(url).await?;
+    let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
     let (mut ws_write, _) = ws_stream.split();
 
     // Single PS process that emits one base64 JPEG per line at ~7 FPS. The
@@ -259,7 +278,7 @@ while ($true) {
 }
 
 #[cfg(not(windows))]
-async fn desktop_stream_run(url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn desktop_stream_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -267,7 +286,7 @@ async fn desktop_stream_run(url: &str) -> Result<(), Box<dyn std::error::Error +
     // coming, instead of leaving it connected-but-silent forever (the
     // previous behavior: returning Err before ever calling connect_async
     // meant the viewer had zero signal that streaming would never start).
-    let (ws_stream, _) = connect_async(url).await?;
+    let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
     let (mut ws_write, _) = ws_stream.split();
     let _ = ws_write
         .send(Message::Text(
