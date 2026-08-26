@@ -59,14 +59,16 @@ Exceptions: none — the codebase's existing `12px`/`20px` inline paddings in `R
 
 ## Typography — Surface 1
 
+This phase's new elements are constrained to exactly **2 font weights** — 400 (regular) and 700 (bold) — regardless of how many weights the project's font loader makes available elsewhere. 4 declared sizes, each mapped to one of the two weights:
+
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px | 400 | 1.5 |
-| Label (badges, status text, uppercase eyebrow) | 12px | 600 | 1.4 |
+| Label (badges, status text, uppercase eyebrow) | 12px | 700 | 1.4 |
 | Heading (panel titles, e.g. "Remote Desktop — {hostname}") | 16px | 700 | 1.2 |
-| Display (page title, "Remote Access") | 28px | 800 | 1.2 |
+| Display (page title, "Remote Access") | 28px | 700 | 1.2 |
 
-Matches `design-system/enterprise-omniagent/MASTER.md`'s Plus Jakarta Sans weight set (400/600/700/800 are the only weights loaded via the project's Google Fonts `<link>`) — do not introduce a 500 or 300 weight.
+Plus Jakarta Sans is loaded project-wide with weights 400/600/700/800 available (`design-system/enterprise-omniagent/MASTER.md`), but that project-wide availability does not exempt this phase from the 2-weight cap — **this phase's new UI elements use only 400 and 700**. 600 and 800 are out of scope for any element this phase introduces, even though the font family itself supports them; do not reach for 600 (e.g. for a "semibold" label) or 800 (e.g. for extra emphasis on the display size) anywhere in the new mode-toggle, disconnect button, or canvas-state elements.
 
 ---
 
