@@ -6,12 +6,18 @@ score: 10/12 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Open an agent detail view and click the new 'Metrics' tab. Confirm CPU/memory/disk AreaCharts render with real data and switch the 1h/6h/24h/48h range selector; confirm both the charts and the uptime timeline/percent update to match the selected range."
     expected: "Three recharts AreaCharts (CPU, memory, disk) render with data points; the uptime timeline strip and uptime % update in sync with the charts on every range change; empty-data agents show the friendly empty-state message instead of a blank/broken chart."
     why_human: "Automated typecheck/build and unit tests confirm the components are wired to the right endpoints and typecheck cleanly, but actual chart rendering, visual layout, and live reactive behavior against real heartbeat/metrics data can only be confirmed by opening the running app (per the plan's own <human-check> step, deferred to end-of-phase)."
+
   - test: "As an admin holding manage:agents, confirm the 'Fleet Observability' sidebar entry appears and opens a page listing real offline agents and version-drifted agents. As a user without manage:agents, confirm the entry is hidden and the view is unreachable."
     expected: "manage:agents holders see the nav entry and a working page with live offline/drift data (or friendly empty states); users without the permission never see the entry and cannot navigate to it."
     why_human: "Code review confirms the permission string ('manage:agents') is wired identically to the Sidebar/App.tsx/types.ts pattern for the pre-existing geoSecurity page, and the build emits a separate lazy-loaded chunk, but confirming the gate actually hides/blocks the view for a live non-admin session requires logging in as both roles (per the plan's own <human-check> step, deferred to end-of-phase)."
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  status: human_needed
 ---
 
 # Phase 48: Fleet Observability & Uptime Rollups Verification Report

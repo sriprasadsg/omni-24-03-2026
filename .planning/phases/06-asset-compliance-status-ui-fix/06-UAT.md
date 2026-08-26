@@ -4,6 +4,10 @@ phase: 06-asset-compliance-status-ui-fix
 source: [06-VERIFICATION.md]
 started: 2026-06-21T00:00:00Z
 updated: 2026-07-02T00:00:00Z
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  gap_snapshot: "partial::scenarios=0"
 ---
 
 ## Current Test
@@ -13,6 +17,7 @@ updated: 2026-07-02T00:00:00Z
 ## Tests
 
 ### 1. Toast error renders when PATCH /compliance/status fails
+
 expected: |
   Run the app. Navigate to a framework detail view with asset compliance
   controls visible. Stop/block the backend server (or force a 500). Click

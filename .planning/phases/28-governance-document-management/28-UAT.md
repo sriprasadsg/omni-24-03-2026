@@ -1,6 +1,14 @@
+---
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  gap_snapshot: "unknown::scenarios=0"
+---
+
 # UAT Report: Phase 28 — Governance Document Management
 
 ## Summary
+
 Validation of versioned document management, e-signature, and dashboard.
 **Completed 2026-07-14 by driving the running app** (uvicorn backend + Vite frontend + headless Chromium): full lifecycle exercised end-to-end — create → submit-for-approval → approve → publish → sign → export signed PDF, plus dashboard click-through.
 
@@ -21,5 +29,6 @@ Validation of versioned document management, e-signature, and dashboard.
 4. **Dashboard unreachable** — `GovernanceDocumentsDashboard.tsx` existed but was wired into none of App.tsx/Sidebar.tsx/types.ts (28-03's promised wiring never done).
 
 ## Evidence
+
 - Screenshots: scratchpad `shots/02-governance-dashboard.png`, `03-governance-created.png` (session-local).
 - API captures in UAT session log: publish blocked pre-approval (400 "not approved (status: pending)"), sign consent guard (400), signed PDF `doc-*_v1_signed.pdf` verified as `PDF document, version 1.4`.

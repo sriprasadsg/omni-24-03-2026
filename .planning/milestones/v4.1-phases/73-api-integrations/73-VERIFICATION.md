@@ -6,15 +6,22 @@ score: 24/26 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
 human_verification:
+
   - test: "Fire two concurrent API-key-authenticated ITAM requests from two different tenants (e.g. two overlapping asset-checkout calls) and confirm neither request's audit log / tenant-scoped write ever shows the other tenant's id."
     expected: "Each request's `get_current_user_or_api_key` -> `set_tenant_id` call is isolated to its own asyncio task; no cross-tenant contamination is observable in the resulting documents or logs."
     why_human: "This is a state-isolation invariant (contextvar scoping across concurrent asyncio tasks). Code inspection confirms `set_tenant_id(token_data.tenant_id)` is called per-request inside `get_current_user_or_api_key` (backend/api_key_auth.py:257-284), which relies on Python's per-task ContextVar copy semantics, but no test in `backend/tests/test_itam_api_integrations.py` (or elsewhere in the 122-test phase suite) issues two concurrent requests from different tenants and asserts non-contamination. Presence and wiring are confirmed; the concurrency guarantee itself is unexercised by any test."
+
   - test: "At a narrow viewport width, open the ticket-provider-choice dropdown on a LifecyclePanel or RequestsPanel row (with both Jira and ServiceNow configured) and confirm the dropdown stays fully on-screen and readable against the table's right edge."
     expected: "Dropdown does not clip off-screen or become unreadable at narrow widths."
     why_human: "Marked `verification: backstop` in 73-06-PLAN.md must_haves — an explicitly visual/responsive-layout claim that static analysis cannot confirm."
+
   - test: "Create a ticket whose provider-issued reference is unusually long (e.g. a long ServiceNow sys_id or Jira key) and confirm the LifecyclePanel/RequestsPanel row layout does not break."
     expected: "Row layout remains intact; long reference text wraps/truncates without breaking the table."
     why_human: "Marked `verification: backstop` in 73-06-PLAN.md must_haves — a visual layout claim requiring rendered-page inspection."
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  status: human_needed
 ---
 
 # Phase 73: API & Integrations Verification Report

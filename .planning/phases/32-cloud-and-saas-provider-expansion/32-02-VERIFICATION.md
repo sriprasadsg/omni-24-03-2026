@@ -8,29 +8,38 @@ behavior_unverified: 0
 overrides_applied: 0
 re_verification: false
 gaps:
+
   - truth: "run_checks() evaluates microsoft365 and mongodb_atlas checks unmodified once their catalogs exist and their provider strings are in RUNNABLE_PROVIDERS (PROV-02)"
     status: failed
     reason: Missing catalog files; RUNNABLE_PROVIDERS tuple in cloud_checks_service.py still only has aws/azure/gcp/kubernetes/digitalocean
+
   - truth: "All four CSPM gates accept microsoft365 and mongodb_atlas: _VALID_PROVIDERS (registration), cloud_checks_endpoints.py run tuple, mcp_server_endpoints.py tuples, and RUNNABLE_PROVIDERS — no gate accepts a provider another rejects (PROV-02, Phase 25 lockstep)"
     status: failed
     reason: RUNNABLE_PROVIDERS in cloud_checks_service.py missing microsoft365/mongodb_atlas; _VALID_PROVIDERS missing these providers; cloud_checks_endpoints.py tuple missing these providers; mcp_server_endpoints.py tuple missing these providers
+
   - truth: "The three CSPM registration/validation gates (_VALID_PROVIDERS, cloud_checks_endpoints.py, mcp_server_endpoints.py) also accept oci, alibaba, cloudflare so AddCloudAccountModal submissions for those three stop returning 400 (PROV-01 lockstep fix)"
     status: failed
     reason: _VALID_PROVIDERS missing oci/alibaba/cloudflare; cloud_checks_endpoints.py missing oci/alibaba/cloudflare; mcp_server_endpoints.py missing oci/alibaba/cloudflare
+
   - truth: "run_checks() results carry an additive simulated flag: true when db.cloud_findings had no entries for the account (catalog-only evaluation), false when real findings were present — distinguishing real-findings evaluations from empty-collection ones (PROV-02, Phase 25 simulated-flag convention)"
     status: failed
     reason: run_checks() does not have simulated flag in path 63-110; no simulated field added to cloud_check_results docs; Plan 32-05 not yet implemented for M365/Atlas providers
+
   - truth: "Existing catalog-only providers (aws/azure/gcp/kubernetes/digitalocean) keep identical PASS/FAIL behavior and ran counts — the simulated field is purely additive, no fail-closed change, no regression"
     status: uncertain
     reason: Hard to determine without full test suite verification; the current cloud_checks_service.py does not include simulated flag at all
   artifacts:
+
     - path: "backend/cloud_checks_m365.py"
       issue: "Missing - should expose M365_CHECKS: List[Dict[str, Any]] with provider == microsoft365"
+
     - path: "backend/cloud_checks_mongodb_atlas.py"
       issue: "Missing - should expose MONGODB_ATLAS_CHECKS: List[Dict[str, Any]] with provider == mongodb_atlas"
+
     - path: "backend/cloud_checks_service.py"
       issue: "RUNNABLE_PROVIDERS tuple missing microsoft365/mongodb_atlas; _VALID_PROVIDERS (in cloud_account_endpoints.py) missing all new providers; cloud_checks_endpoints.py tuple missing all new providers; mcp_server_endpoints.py provider lists missing all new providers"
   missing:
+
     - "Create backend/cloud_checks_m365.py with M365 checks and provider string 'microsoft365'"
     - "Create backend/cloud_checks_mongodb_atlas.py with Atlas checks and provider string 'mongodb_atlas'"
     - "Widen cloud_checks_service.py RUNNABLE_PROVIDERS tuple with 'microsoft365' and 'mongodb_atlas'"
@@ -39,6 +48,10 @@ gaps:
     - "Widen mcp_server_endpoints.py provider lists with 'microsoft365', 'mongodb_atlas', 'oci', 'alibaba', 'cloudflare'"
     - "Add simulated provenance flag to run_checks() logic (before line 110)"
   key_links: []
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  status: gaps_found
 ---
 
 # Phase 32 Plan 02 Verification Report
@@ -54,6 +67,7 @@ gaps:
 ## Goal Achievement
 
 ### Observable Truths
+
 | #   | Truth | Status | Evidence |
 |-----|-------|--------|----------|
 | 1   | run_checks() evaluates microsoft365 and mongodb_atlas checks unmodified once their catalogs exist and their provider strings are in RUNNABLE_PROVIDERS (PROV-02) | ✗ FAILED | Missing M365/Atlas check catalog files; RUNNABLE_PROVIDERS tuple in cloud_checks_service.py only has aws/azure/gcp/kubernetes/digitalocean |
@@ -76,22 +90,27 @@ gaps:
 | `backend/mcp_server_endpoints.py` | Provider doc-string + validation tuple widened | ✗ MISSING | Provider lists only have existing providers; should also include M365/Atlas/OCI/Alibaba/Cloudflare |
 
 ## Key Link Verification
+
 | From | To | Via | Status | Details |
 |------|----|----|--------|--------|
 
 ## Data-Flow Trace (Level 4)
+
 | Artifact | Data Variable | Source | Produces Real Data | Status |
 |----------|---------------|--------|-------------------|--------|
 
 ## Behavioral Spot-Checks
+
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
 
 ## Probe Execution
+
 | Probe | Command | Result | Status |
 |-------|---------|--------|--------|
 
 ## Requirements Coverage
+
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|------------|------------|--------|----------|
 | PROV-01 | 32-01-PLAN.md | OCI/Alibaba/Cloudflare real polling ingest modules + dispatch/secret-set wiring + package-legitimacy checkpoint | ⚠️ PARTIAL | Phase 01 completed; test_cloud_integrations.py likely tests some providers but missing M365/Atlas catalog files |
@@ -100,17 +119,20 @@ gaps:
 | PROV-04 | 32-04-PLAN.md | Attack-path rewire to real service + simulated flag + edge-field fix + SIMULATED badge + test_attack_path.py | ⚠️ PARTIAL | Most components exist; actual endpoint wiring unclear |
 
 ## Anti-Patterns Found
+
 | File | Line | Pattern | Severity | Impact |
 |------|----|--------|--------|--------|
 
 ## Human Verification Required
 
 ### 1. Awaiting Package Legitimacy (Phase 32-01)
+
 **Test:** Complete human approval of oci/aliyun-python-sdk-core-v3/cloudflare packages via PyPI verification
 **Expected:** All three packages are legitimate vendor packages; requirements.txt includes them with versions pinned
 **Why human:** This is a blocking-human checkpoint for supply chain security; artifact existence alone cannot verify vendor legitimacy
 
 ### 2. Final Verification of Phase 32 Completion
+
 **Test:** Manually open the Risk Register (RiskRegister.tsx) and create a new risk via UI, verify UI updates (toast, sidebar, undo).
 **Expected:** New risk appears immediately in all UI sections: undo toast, sidebar loading, sidebar scrolling, branch crafting input, RiskRegister list both cell and skeleton, plus toast text content
 **Why human:** UI behavior cannot be confirmed via artifact-level checks alone; toast rendering is a UI-layer interaction that requires human observation or e2e test runner

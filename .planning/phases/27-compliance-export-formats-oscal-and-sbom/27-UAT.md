@@ -1,8 +1,16 @@
+---
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  gap_snapshot: "unknown::scenarios=0"
+---
+
 ## Phase 27 UAT
 
 **Status:** PASS
 
 **Tests:**
+
 1. OSCAL endpoint `/api/oscal/assessment-results` returns 200 with valid OSCAL v1.1.2 JSON, includes required metadata, and maps Non-Compliant controls to `"planned"` status.
 2. OSCAL tenant isolation returns 403 for missing tenant_id, preserves privacy.
 3. OSCAL framework not found returns 404 with clear error.

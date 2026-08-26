@@ -1,6 +1,14 @@
+---
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  gap_snapshot: "unknown::scenarios=0"
+---
+
 # UAT Report: Phase 29 — Public Trust Center
 
 ## Overview
+
 Validation of the public trust center, including backend API, public-facing routes, and frontend integration.
 **Executed 2026-07-14 against the running app.** Result: **the phase's planned implementation is not in the tree** — UAT confirms the 29-UAT-SUMMARY.md finding and extends it: not just the test file, the *feature* is missing.
 

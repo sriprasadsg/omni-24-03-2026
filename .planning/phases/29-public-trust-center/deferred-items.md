@@ -5,6 +5,8 @@ plan 29-01 — pre-existing and unrelated to the trust_service/trust_endpoints c
 
 ## test_auth_mfa.py order-dependent failures (pre-existing, unrelated)
 
+- **Status:** acknowledged
+- **Acknowledged at:** v4.1 milestone close, 2026-08-26 — pre-existing, unrelated to this or any v4.1 phase; carried forward, not fixed.
 - **Found during:** Plan 29-01, Task 3 full-suite verification (`pytest tests/ -q`)
 - **Symptom:** 10 tests in `tests/test_auth_mfa.py::TestMFAVerifyLogin` fail when run as part
   of the full `tests/` suite, but all 21 tests in that file pass when run in isolation

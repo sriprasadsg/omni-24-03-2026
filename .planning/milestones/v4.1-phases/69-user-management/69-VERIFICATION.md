@@ -6,15 +6,22 @@ score: 27/27 must-haves verified (code + automated tests)
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Configure a real LDAP/AD directory (env vars from 64-03's user_setup) and exercise POST /api/admin/ldap/test-connection, POST /api/admin/ldap/sync, and POST /api/auth/ldap/login end-to-end."
     expected: "Bind succeeds against the real directory, users/groups sync into MongoDB with source=\"ldap\" and correct role mapping, and a directory user can log in and receive a JWT."
     why_human: "No LDAP/AD server is available in this sandbox; only a mocked ldap3.Server/Connection was exercised by test_ldap_service.py. This is external-service integration, not verifiable by static analysis or unit tests alone."
+
   - test: "Configure a real SAML IdP (Okta/Azure AD/Keycloak, env vars from 64-04's user_setup) and exercise both SP-initiated (GET /api/auth/saml/login) and IdP-initiated SSO through to a minted JWT, plus SLO."
     expected: "AuthnRequest/redirect, ACS assertion validation (signature/audience/timestamp/InResponseTo/replay), user provisioning with source=\"saml\", and SLO all work against a live IdP."
     why_human: "No SAML IdP is reachable in this sandbox; only a mocked OneLogin_Saml2_Auth was exercised by test_sso_saml.py. External IdP integration cannot be confirmed by unit tests alone."
+
   - test: "In a running browser session, enable 2FA, then use UserProfilePage.tsx's inline disable-2FA form to disable it with the account password."
     expected: "The form renders a password input (not a 6-digit TOTP field), and submitting the correct password successfully disables 2FA via POST /api/mfa/disable."
     why_human: "64-06's SUMMARY explicitly notes the React form change was verified by code inspection and a backend contract test only — no live-browser click-through was run this session to confirm the rendered input type/label reads correctly to an end user."
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  status: human_needed
 ---
 
 # Phase 69: User Management Verification Report
@@ -172,6 +179,7 @@ No blocking gaps. All 27 must-have truths across the 6 plans (User CRUD, RBAC, L
 The 9 additional security-hardening commits from this session's 64-REVIEW.md code-review pass (CR-02, WR-01 through WR-07, IN-02) were independently re-verified against the actual source (not just commit messages) and are all genuinely present and correctly wired: password-confirm gate on MFA re-enrollment, atomic backup-code consumption, rate limiting on disable/regenerate, TOTP anti-replay via time-step tracking, login-lockout folding for wrong TOTP/backup codes, a live-session cap of 1 per account, request-model length bounds, DB-error handling in the login MFA branch, and QR-failure logging. CR-01 (the password-hash leak fix from a prior pass) was also independently confirmed present.
 
 The only reasons overall status is `human_needed` rather than `passed`:
+
 1. LDAP and SAML authentication are functionally complete and unit-tested against mocked directory/IdP servers, but neither has been exercised against a real external LDAP/AD server or SAML IdP in this sandbox (no such infrastructure is available here) — this is expected, externally-scoped verification, not a code defect.
 2. The MFA disable-form frontend change (password field replacing TOTP field) has not had a live-browser click-through, per 64-06's own SUMMARY admission.
 

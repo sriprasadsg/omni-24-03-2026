@@ -8,6 +8,8 @@ in unrelated files are logged here, not fixed).
 
 ### 1. `backend/virustotal_client.py` — pre-existing broken import (`NameError: name 'BaseCapability' is not defined`)
 
+- **Status:** acknowledged
+- **Acknowledged at:** v4.1 milestone close, 2026-08-26 — missing-feature work, unrelated to this or any v4.1 phase; carried forward, not fixed.
 - **Found during:** Task 2 (companion `/api/threat-intel/correlate-native` route) — sanity-checked
   `import threat_intel_endpoints` and hit this transitively via `from virustotal_client import
   get_virustotal_client`.
@@ -50,6 +52,9 @@ in unrelated files are logged here, not fixed).
 
 ### 2. Full backend suite baseline (re-run at end of 55-01)
 
+- **Status:** acknowledged
+- **Acknowledged at:** v4.1 milestone close, 2026-08-26 — pre-existing failures, unrelated to this or any v4.1 phase; carried forward, not fixed.
+
 `cd backend && venv/bin/python -m pytest -q --ignore=tests/test_graphql.py --ignore=test_ai_service_config.py --ignore=test_network_endpoint.py --ignore=test_sbom_api.py` →
 **1525 passed / 34 skipped / 5 failed**, all failures pre-existing and unrelated to this plan's files:
 - `test_webhook_logic.py::TestWebhookLogic::test_jira_intent_parsing` / `test_zoho_intent_parsing` —
@@ -71,6 +76,8 @@ this-session regressions): `tests/test_graphql.py` (strawberry/pydantic version 
 
 ### 3. `REQUIREMENTS.md` does not contain AUT-03 (or any 55-advanced-threat-detection requirement)
 
+- **Status:** resolved
+- **Resolved note:** see `**RESOLVED 2026-08-04**` below — REQUIREMENTS.md/STATE.md corrected same session.
 - **Found during:** post-execution state update (`requirements.mark-complete AUT-03`).
 - **Root cause:** `.planning/REQUIREMENTS.md` currently holds a completely different, later
   requirements set (header `# Requirements: v4.0`, defined 2026-07-31, requirements SCALE-*/SEC-*/
@@ -98,6 +105,8 @@ this-session regressions): `tests/test_graphql.py` (strawberry/pydantic version 
 
 ### 4. `backend/test_virustotal.py` — stale manual smoke-script for a non-existent API surface
 
+- **Status:** resolved
+- **Resolved note:** see `**RESOLVED 2026-08-04**` below — file deleted, confirmed zero references.
 - **Found during:** 55-05 gap-closure planning (rewriting `virustotal_client.py`).
 - **Root cause:** `backend/test_virustotal.py` (backend root, NOT `tests/`) is a manual dev
   smoke-test hitting `http://localhost:5000/api/threat-intelligence/config` and

@@ -1,6 +1,14 @@
+---
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  gap_snapshot: "unknown::scenarios=0"
+---
+
 # UAT Report: Phase 35 — GraphQL API
 
 ## Overview
+
 Validation of the GraphQL API layer alongside the existing FastAPI REST surface.
 
 ## Test Cases
@@ -17,7 +25,9 @@ Validation of the GraphQL API layer alongside the existing FastAPI REST surface.
 | 8 | RBAC Enforcement | Pass | `test_graphql_rbac_denied_gets_empty` + `test_graphql_multi_query_partial_permissions` (per-root enforcement in one request) |
 
 ## Verification Gaps
+
 - Human verification with Altair/GraphiQL against a live server not performed (optional; the integration suite covers the same query surface with auth/RBAC/tenant assertions).
 
 ## Test Run
+
 - `backend/tests/test_graphql.py` — 10 passed (2026-07-14).

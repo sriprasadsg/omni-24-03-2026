@@ -9,10 +9,12 @@ re_verification: # Retroactive — no prior VERIFICATION.md existed in the phase
   previous_status: null
   note: "72-UAT.md declares `source: [72-VERIFICATION.md]` but no such file was present. This report is the retroactive reconstruction; the three pending 72-UAT items are carried forward verbatim below."
 behavior_unverified_items:
+
   - truth: "The preview table stays horizontally scrollable via an overflow-x-auto wrapper when many columns are selected."
     test: "Open the ITAM console Reports tab, build a custom report selecting many columns (10+), and run it."
     expected: "The preview table scrolls horizontally inside its card rather than overflowing the console layout."
     why_human: "Marked `verification: backstop` in 72-01-PLAN.md must_haves. The `overflow-x-auto` wrapper is present at components/itam/ReportsPanel.tsx:314, but whether the rendered table actually scrolls (rather than the card growing or clipping) at a real column count is a rendered-layout property no unit test exercises."
+
   - truth: "Preview cells truncate with the truncate class plus a title tooltip rather than growing row height."
     test: "Run a report whose rows contain a very long cell value (e.g. a long asset description) and hover the cell."
     expected: "The cell truncates with an ellipsis at max-w-xs and reveals the full value via the native title tooltip; row height stays constant."
@@ -21,15 +23,24 @@ behavior_unverified_items:
   # test_between_date_swaps_reversed_bounds in test_itam_reporting_builder.py.
   # See the Re-verification note in the body for the full account.
 human_verification:
+
   - test: "Tenant brand-colour accent rendering — open the ITAM console Reports tab and confirm the tab's accent underline and the KPI panel's chart primary-series colour match the active tenant's configured brand colour."
     expected: "Accent colour matches the active tenant's configured brand colour, consistent with every other ITAMConsole tab's accent theming."
     why_human: "Carried forward from 72-UAT.md test 1. Theme-colour propagation into recharts series is a rendered-appearance property."
+
   - test: "Preview table horizontal scroll + cell truncation tooltip — in the custom builder select many columns and run a report containing a long cell value."
     expected: "Table scrolls horizontally inside its card rather than overflowing; long cells truncate with a title tooltip rather than growing row height."
     why_human: "Carried forward from 72-UAT.md test 2. Covers both `verification: backstop` must-haves from 72-01-PLAN.md (see behavior_unverified_items 1 and 2)."
+
   - test: "KPI empty-state visual presentation — view the KPI tiles on a tenant with no ITAM data, and again on a tenant with data."
     expected: "Empty tiles read as 'No data yet' with entity-specific next-step copy — never a 0% or 100% presented as a measurement."
     why_human: "Carried forward from 72-UAT.md test 3. The no-data contract is unit-tested at both ends (backend `test_every_kpi_reports_no_data_on_empty_tenant_never_a_fabricated_number`, frontend `a KPI payload with hasData false renders \"No data yet\" and never a fabricated 0% or 100%`), but the against-real-data visual read is human."
+previous_status: null
+note: "72-UAT.md declares `source: [72-VERIFICATION.md]` but no such file was present. This report is the retroactive reconstruction; the three pending 72-UAT items are carried forward verbatim below."
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  status: human_needed
 ---
 
 # Phase 72: Reporting & Dashboards Verification Report
@@ -209,6 +220,7 @@ The must-have's **intent** (every reporting route is permission-gated; an unauth
 
 ```yaml
 overrides:
+
   - must_have: "Every reporting route rejects a caller without the ITAM admin permission with HTTP 403, using the same _require_itam_admin dependency"
     reason: "Post-phase fix f100168c6 split read vs write RBAC so view:itam roles aren't 403'd inside a console they can see. Read routes use _require_itam_viewer (still 403s without view:itam OR manage:assets); all write/run routes keep _require_itam_admin."
     accepted_by: "{your name}"

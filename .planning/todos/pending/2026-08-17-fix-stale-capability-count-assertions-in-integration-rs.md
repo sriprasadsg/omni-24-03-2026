@@ -4,6 +4,7 @@ title: Fix stale capability-count assertions in integration.rs
 area: testing
 severity: minor
 files:
+
   - agent-install/omni-agent-rs/tests/integration.rs:81
   - agent-install/omni-agent-rs/tests/integration.rs:105
   - agent-install/omni-agent-rs/tests/integration.rs:116
@@ -11,6 +12,10 @@ files:
   - agent-install/omni-agent-rs/tests/integration.rs:220
   - agent-install/omni-agent-rs/tests/integration.rs:254
   - agent-install/omni-agent-rs/tests/integration.rs:265
+
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
 ---
 
 ## Problem

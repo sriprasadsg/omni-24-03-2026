@@ -6,18 +6,26 @@ score: 5/5 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Catalog → Models → Manage Fields: add a select field with two options, save, reload the page, confirm it persists with its options; then remove a field that reports a non-zero usage count and confirm the warning names it before saving."
     expected: "Field definition survives reload; removal warning names the affected key and asset count before Save."
     why_human: "Requires driving the running browser UI against a live backend (page reload persistence, visual warning rendering) — deferred per human_verify_mode: end-of-phase (65-01 Task 3 human-check)."
+
   - test: "Create/check out an asset, open the Activity tab, confirm the change appears with username/action/asset id; filter by entity id to that asset alone; click 'Verify ledger integrity' and confirm it reports a valid chain."
     expected: "Activity feed shows the new entry with correct actor/action/entity; entity-id filter narrows to just that asset; integrity check passes."
     why_human: "Requires a running browser + backend session — deferred per human_verify_mode: end-of-phase (65-02 Task 3 human-check)."
+
   - test: "Import/Export tab: Export downloads a CSV with a header and asset rows; edit two rows (one valid, one with a bad select-type custom-field value), dry-run re-upload and confirm the report names only the bad row and nothing is created; untick dry run, import for real, and confirm the good row appears in the asset list and both the creation and the batch appear in Activity."
     expected: "Dry run reports errors without writing; real import creates the valid row and both events are audited."
     why_human: "Requires a running browser + backend session and file upload interaction — deferred per human_verify_mode: end-of-phase (65-03 Task 3 human-check)."
+
   - test: "Settings tab: set company name/logo URL/primary colour, save, confirm header and active-tab underline change immediately; reload and confirm persistence; switch interface language and confirm tab labels change; confirm the settings change appears in Activity; sign in as a non-admin and confirm save is refused with a clear message."
     expected: "Branding applies live and survives reload; language switch changes visible labels; settings change is audited; non-admin save is rejected."
     why_human: "Requires a running browser + backend session across two user roles — deferred per human_verify_mode: end-of-phase (65-04 Task 3 human-check)."
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  status: human_needed
 ---
 
 # Phase 70: Core Data, Audit & Customization Verification Report

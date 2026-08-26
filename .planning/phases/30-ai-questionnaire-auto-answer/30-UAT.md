@@ -1,6 +1,14 @@
+---
+audit_acknowledged:
+  milestone: v4.1
+  at: 2026-08-26
+  gap_snapshot: "unknown::scenarios=0"
+---
+
 # UAT Report: Phase 30 — AI Questionnaire Auto-Answer
 
 ## Overview
+
 Validation of AI-powered questionnaire auto-answer feature, including inbound intake, RAG integration, draft generation, and human review workflow.
 **Completed 2026-07-14 by driving the running app** (uvicorn backend + Vite frontend + headless Chromium) as a signup-created Tenant Admin.
 
@@ -24,4 +32,5 @@ Validation of AI-powered questionnaire auto-answer feature, including inbound in
 3. **Submit unreachable from the UI** — the review queue listed only `pending_review` drafts, but "Mark Submitted" renders only on `approved` drafts, so approving a draft removed it from the queue before it could be submitted. `GET /` now returns all tenant drafts; dashboard filters out `submitted`.
 
 ## Evidence
+
 - Screenshots: scratchpad `shots/04-inbound-questionnaires.png` … `09-csv-uploaded.png` (session-local); `08-draft-submitted.png` shows Approved badge + "Answer marked submitted" toast + Reviews(1).
