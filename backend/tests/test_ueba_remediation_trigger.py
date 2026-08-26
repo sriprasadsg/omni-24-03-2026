@@ -182,7 +182,11 @@ class TestAutoBanUntouched:
     phase's scope and must remain byte-for-byte unmodified."""
 
     def test_auto_ban_block_still_present_and_unmodified(self):
-        src = inspect.getsource(ueba_service)
+        # analyze_login (and its auto-ban block) lives in ueba_analysis.py
+        # since the CLAUDE.md 500-line-cap split of ueba_service.py — follow
+        # it to its actual defining module rather than the re-exporting one.
+        import ueba_analysis
+        src = inspect.getsource(ueba_analysis)
         assert '_AUTO_BAN_RULES = {"brute_force", "known_malicious_ip"}' in src
         assert 'if risk_score >= 80 and _AUTO_BAN_RULES.intersection(triggered_rules):' in src
 
