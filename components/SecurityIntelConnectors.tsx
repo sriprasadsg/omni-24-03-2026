@@ -162,7 +162,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ connector, onClose, onSaved }
                     placeholder={connector.api_key_hint ? 'Enter new key to replace…' : 'Paste your API key here'}
                     className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-slate-500 outline-none mb-2"
                     style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
-                    onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,210,255,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,210,255,0.1)'; }}
+                    onFocus={e => { e.currentTarget.style.border = '1px solid rgba(14,165,233,0.4)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14,165,233,0.1)'; }}
                     onBlur={e => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.12)'; e.currentTarget.style.boxShadow = 'none'; }}
                     autoFocus
                 />
@@ -178,7 +178,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ connector, onClose, onSaved }
                         onClick={handleSave}
                         disabled={saving || key.length < 8}
                         className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-                        style={{ background: 'linear-gradient(135deg, #00d2ff, #3a7bd5)' }}
+                        style={{ background: 'linear-gradient(135deg, #0369a1, #0284c7)' }}
                     >
                         {saving ? 'Saving…' : 'Save API Key'}
                     </button>
@@ -336,7 +336,7 @@ const ConnectorCard: React.FC<CardProps> = ({ connector, onRefresh }) => {
                         <button
                             onClick={() => setConfigOpen(true)}
                             className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:brightness-110"
-                            style={{ background: 'linear-gradient(135deg, rgba(0,210,255,0.2), rgba(127,0,255,0.2))', border: '1px solid rgba(0,210,255,0.3)', color: '#7dd3fc' }}
+                            style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.2), rgba(3,105,161,0.2))', border: '1px solid rgba(14,165,233,0.3)', color: '#7dd3fc' }}
                         >
                             ⚙ Configure
                         </button>
@@ -410,12 +410,12 @@ const AgentDistributionPanel: React.FC<{ vtConnected: boolean }> = ({ vtConnecte
     };
 
     return (
-        <div className="rounded-2xl p-6" style={{ background: 'rgba(127,0,255,0.06)', border: '1px solid rgba(127,0,255,0.18)' }}>
+        <div className="rounded-2xl p-6" style={{ background: 'rgba(3,105,161,0.06)', border: '1px solid rgba(3,105,161,0.18)' }}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
                     {/* Icon */}
                     <div className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xl"
-                        style={{ background: 'linear-gradient(135deg, rgba(127,0,255,0.3), rgba(0,210,255,0.2))', border: '1px solid rgba(127,0,255,0.4)' }}>
+                        style={{ background: 'linear-gradient(135deg, rgba(3,105,161,0.3), rgba(14,165,233,0.2))', border: '1px solid rgba(3,105,161,0.4)' }}>
                         📡
                     </div>
                     <div>
@@ -446,8 +446,8 @@ const AgentDistributionPanel: React.FC<{ vtConnected: boolean }> = ({ vtConnecte
                         disabled={pushing || !vtConnected}
                         className="px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                         style={{
-                            background: vtConnected ? 'linear-gradient(135deg, #7f00ff, #3a7bd5)' : undefined,
-                            boxShadow: vtConnected ? '0 4px 20px rgba(127,0,255,0.3)' : undefined,
+                            background: vtConnected ? 'linear-gradient(135deg, #075985, #0284c7)' : undefined,
+                            boxShadow: vtConnected ? '0 4px 20px rgba(3,105,161,0.3)' : undefined,
                         }}
                         title={!vtConnected ? 'VirusTotal must be connected before pushing' : undefined}
                     >
@@ -514,7 +514,7 @@ export const SecurityIntelConnectors: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-20 gap-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>⚠</div>
                 <p className="text-slate-400 text-sm">{error}</p>
-                <button onClick={load} className="px-4 py-2 rounded-xl text-sm text-white" style={{ background: 'linear-gradient(135deg, #00d2ff, #3a7bd5)' }}>
+                <button onClick={load} className="px-4 py-2 rounded-xl text-sm text-white" style={{ background: 'linear-gradient(135deg, #0369a1, #0284c7)' }}>
                     Retry
                 </button>
             </div>
@@ -547,7 +547,7 @@ export const SecurityIntelConnectors: React.FC = () => {
             <AgentDistributionPanel vtConnected={info.connectors.find(c => c.provider === 'virustotal')?.status === 'connected'} />
 
             {/* Info panel */}
-            <div className="rounded-2xl p-5" style={{ background: 'rgba(0,210,255,0.04)', border: '1px solid rgba(0,210,255,0.12)' }}>
+            <div className="rounded-2xl p-5" style={{ background: 'rgba(14,165,233,0.04)', border: '1px solid rgba(14,165,233,0.12)' }}>
                 <h3 className="text-sm font-semibold text-primary-400 mb-3">About these integrations</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-400 leading-relaxed">
                     <div>

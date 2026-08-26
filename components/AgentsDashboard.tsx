@@ -327,7 +327,7 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
       {/* Stats Cards - Flash UI Style */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6 mb-6">
         {/* Total Agents */}
-        <div className="glass rounded-2xl p-6 flex items-center justify-between transition-all duration-300 transform hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(0,210,255,0.3)] hover:border-primary-400 group cursor-pointer">
+        <div className="glass rounded-2xl p-6 flex items-center justify-between transition-all duration-300 transform hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(14,165,233,0.3)] hover:border-primary-400 group cursor-pointer">
           <div className="flex items-center">
             <div className="mr-4 p-3 rounded-2xl bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 transition-transform duration-300 group-hover:rotate-12">
               <ServerIcon size={24} />

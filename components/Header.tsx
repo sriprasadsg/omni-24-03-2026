@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                         </button>
                         <div className="hidden md:flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                style={{ background: 'linear-gradient(135deg, rgba(0,210,255,0.2), rgba(127,0,255,0.2))', border: '1px solid rgba(0,210,255,0.3)' }}>
+                                style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.2), rgba(3,105,161,0.2))', border: '1px solid rgba(14,165,233,0.3)' }}>
                                 <BotIcon className="text-primary-400" size={18} />
                             </div>
                             <h1 className="text-[15px] font-semibold text-gradient tracking-tight">Omni-Agent AI</h1>

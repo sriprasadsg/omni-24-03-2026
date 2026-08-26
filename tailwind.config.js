@@ -10,7 +10,7 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Outfit', 'sans-serif'],
+                sans: ['Plus Jakarta Sans', 'sans-serif'],
             },
             colors: {
                 'primary': {
@@ -40,19 +40,19 @@ export default {
                     '950': '#020617',
                 },
                 'flash': {
-                    'cyan': '#00d2ff',
-                    'blue': '#3a7bd5',
-                    'violet': '#7f00ff',
-                    'dark': '#0a0a1f',
-                    'panel': 'rgba(20, 20, 40, 0.6)',
+                    'cyan': '#0ea5e9',
+                    'blue': '#0369a1',
+                    'violet': '#334155',
+                    'dark': '#0b1220',
+                    'panel': 'rgba(15, 23, 42, 0.6)',
                 }
             },
             boxShadow: {
-                'neon':    '0 0 12px rgba(0, 210, 255, 0.5), 0 0 30px rgba(0, 210, 255, 0.2)',
-                'neon-sm': '0 0 6px rgba(0, 210, 255, 0.4)',
-                'glass':   '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+                'neon':    '0 0 12px rgba(3, 105, 161, 0.4), 0 0 30px rgba(3, 105, 161, 0.15)',
+                'neon-sm': '0 0 6px rgba(3, 105, 161, 0.3)',
+                'glass':   '0 8px 32px 0 rgba(15, 23, 42, 0.25)',
                 'card':    '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08)',
-                'card-hover': '0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,210,255,0.12)',
+                'card-hover': '0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(3,105,161,0.12)',
                 'inner-top': 'inset 0 1px 0 rgba(255,255,255,0.06)',
             },
             keyframes: {
@@ -81,9 +81,9 @@ export default {
             },
             backgroundImage: {
                 'glass-gradient':    'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
-                'neon-gradient':     'linear-gradient(135deg, #00d2ff, #7f00ff)',
-                'neon-gradient-h':   'linear-gradient(to right, #00d2ff, #3a7bd5)',
-                'flash-gradient':    'linear-gradient(135deg, #080818 0%, #10103a 100%)',
+                'neon-gradient':     'linear-gradient(135deg, #0369a1, #0ea5e9)',
+                'neon-gradient-h':   'linear-gradient(to right, #0369a1, #0ea5e9)',
+                'flash-gradient':    'linear-gradient(135deg, #0b1220 0%, #111c30 100%)',
                 'card-gradient':     'linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))',
                 'success-gradient':  'linear-gradient(135deg, #10b981, #059669)',
                 'danger-gradient':   'linear-gradient(135deg, #ef4444, #dc2626)',

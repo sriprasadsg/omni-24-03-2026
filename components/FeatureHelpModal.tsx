@@ -35,7 +35,7 @@ export const FeatureHelpModal: React.FC<FeatureHelpModalProps> = ({ isOpen, onCl
         style={{
           background: 'rgba(12,12,30,0.97)',
           border: '1px solid rgba(255,255,255,0.10)',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,210,255,0.08)',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(14,165,233,0.08)',
         }}
       >
         {/* Header */}
@@ -43,7 +43,7 @@ export const FeatureHelpModal: React.FC<FeatureHelpModalProps> = ({ isOpen, onCl
           <div className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, rgba(0,210,255,0.15), rgba(127,0,255,0.15))', border: '1px solid rgba(0,210,255,0.25)' }}
+              style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.15), rgba(3,105,161,0.15))', border: '1px solid rgba(14,165,233,0.25)' }}
             >
               <HelpCircleIcon size={18} className="text-primary-400" />
             </div>
@@ -73,7 +73,7 @@ export const FeatureHelpModal: React.FC<FeatureHelpModalProps> = ({ isOpen, onCl
               {content.capabilities.map((cap, i) => (
                 <li key={i} className="flex items-start gap-2.5">
                   <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: 'rgba(0,210,255,0.12)', border: '1px solid rgba(0,210,255,0.25)' }}>
+                    style={{ background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.25)' }}>
                     <CheckIcon size={9} className="text-primary-400" />
                   </div>
                   <span className="text-sm text-slate-300">{cap}</span>
@@ -88,7 +88,7 @@ export const FeatureHelpModal: React.FC<FeatureHelpModalProps> = ({ isOpen, onCl
               <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Best for</span>
               <span
                 className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                style={{ background: 'rgba(127,0,255,0.12)', border: '1px solid rgba(127,0,255,0.25)', color: 'rgba(180,130,255,0.9)' }}
+                style={{ background: 'rgba(3,105,161,0.12)', border: '1px solid rgba(3,105,161,0.25)', color: 'rgba(125,211,252,0.9)' }}
               >
                 {content.audience}
               </span>

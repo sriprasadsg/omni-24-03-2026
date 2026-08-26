@@ -4,41 +4,45 @@
 
 
 :root {
-    /* Flash UI Variables - Light Mode */
-    --primary-50: #e0faff;
-    --primary-100: #b3f4ff;
-    --primary-200: #80ecff;
-    --primary-300: #4de3ff;
-    --primary-400: #26d9ff;
-    --primary-500: #00d2ff;
-    --primary-600: #00a8cc;
-    --primary-700: #007e99;
-    --primary-800: #005466;
-    --primary-900: #002a33;
-    --primary-950: #00151a;
+    /* Enterprise design system — "Trust & Authority" (ui-ux-pro-max,
+       design-system/enterprise-omniagent/MASTER.md). Replaces the prior
+       neon-cyan "Flash UI" palette (#00d2ff) project-wide: every component
+       that uses the semantic `primary-*` Tailwind scale (161 files) picks
+       this up automatically — no per-component edits needed. */
+    --primary-50: #f0f9ff;
+    --primary-100: #e0f2fe;
+    --primary-200: #bae6fd;
+    --primary-300: #7dd3fc;
+    --primary-400: #38bdf8;
+    --primary-500: #0ea5e9;
+    --primary-600: #0284c7;
+    --primary-700: #0369a1;
+    --primary-800: #075985;
+    --primary-900: #0c4a6e;
+    --primary-950: #082f49;
 
-    --accent-glow: 0 0 20px rgba(0, 210, 255, 0.4);
+    --accent-glow: 0 0 0 3px rgba(3, 105, 161, 0.12);
     --card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.08);
     --card-shadow-hover: 0 4px 24px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06);
 
-    --bg-main: #f0f4f8;
-    --text-main: #1e293b;
-    --glass-border: rgba(0, 210, 255, 0.18);
-    --glass-bg: rgba(255, 255, 255, 0.72);
-    --surface: rgba(255,255,255,0.9);
+    --bg-main: #f8fafc;
+    --text-main: #0f172a;
+    --glass-border: rgba(15, 23, 42, 0.08);
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --surface: rgba(255,255,255,0.95);
     --surface-raised: #ffffff;
 }
 
 .dark {
-    /* Flash Dark Mode Variables */
-    --bg-main: #080818;
+    /* Enterprise design system — dark mode */
+    --bg-main: #0b1220;
     --text-main: #e2e8f0;
-    --glass-border: rgba(255, 255, 255, 0.07);
-    --glass-bg: rgba(16, 16, 36, 0.72);
-    --surface: rgba(18, 18, 40, 0.85);
-    --surface-raised: rgba(24, 24, 52, 0.95);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-bg: rgba(15, 23, 42, 0.75);
+    --surface: rgba(15, 23, 42, 0.9);
+    --surface-raised: #111c30;
     --card-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.4);
-    --card-shadow-hover: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,210,255,0.15);
+    --card-shadow-hover: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.15);
 }
 
 /* ── Glassmorphism ─────────────────────────────────────────────────────────── */
@@ -78,7 +82,7 @@
 
 /* ── Gradient text ─────────────────────────────────────────────────────────── */
 .text-gradient {
-    background: linear-gradient(135deg, #00d2ff 0%, #7f00ff 100%);
+    background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -102,7 +106,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, rgba(0,210,255,0.5), rgba(127,0,255,0.3));
+    background: linear-gradient(135deg, rgba(3,105,161,0.5), rgba(14,165,233,0.3));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -111,7 +115,7 @@
 
 /* ── Glow effects ──────────────────────────────────────────────────────────── */
 .glow-primary {
-    box-shadow: 0 0 0 1px rgba(0,210,255,0.2), 0 0 20px rgba(0,210,255,0.15);
+    box-shadow: 0 0 0 1px rgba(3,105,161,0.2), 0 0 20px rgba(3,105,161,0.15);
 }
 
 .glow-success {
@@ -132,9 +136,9 @@
     position: absolute;
     inset: 0;
     background:
-        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(0,210,255,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 80% 90%, rgba(127,0,255,0.10) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 40% at 60% 40%, rgba(58,123,213,0.08) 0%, transparent 50%);
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(3,105,161,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 90%, rgba(14,165,233,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 60% 40%, rgba(15,23,42,0.04) 0%, transparent 50%);
     pointer-events: none;
     animation: auroraShift 12s ease-in-out infinite alternate;
 }
@@ -226,7 +230,7 @@
 body {
     background-color: var(--bg-main);
     color: var(--text-main);
-    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.01em;
@@ -275,16 +279,16 @@ input:-webkit-autofill:focus {
 .tour-highlight {
     position: relative;
     z-index: 50;
-    box-shadow: 0 0 0 3px rgba(0,210,255,0.5), 0 0 24px rgba(0,210,255,0.3) !important;
+    box-shadow: 0 0 0 3px rgba(3,105,161,0.5), 0 0 24px rgba(3,105,161,0.3) !important;
     border-radius: 8px;
     transition: all 0.3s ease-in-out;
-    background-color: rgba(0,210,255,0.04) !important;
+    background-color: rgba(3,105,161,0.04) !important;
     animation: tourPulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @keyframes tourPulse {
-    0%, 100% { box-shadow: 0 0 0 2px rgba(0,210,255,0.4), 0 0 16px rgba(0,210,255,0.2); }
-    50%       { box-shadow: 0 0 0 5px rgba(0,210,255,0.5), 0 0 28px rgba(0,210,255,0.5); }
+    0%, 100% { box-shadow: 0 0 0 2px rgba(3,105,161,0.4), 0 0 16px rgba(3,105,161,0.2); }
+    50%       { box-shadow: 0 0 0 5px rgba(3,105,161,0.5), 0 0 28px rgba(3,105,161,0.5); }
 }
 
 .animation-delay-200  { animation-delay: 200ms; }
@@ -297,8 +301,8 @@ input:-webkit-autofill:focus {
 }
 
 @keyframes subtlePulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(124, 58, 237, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(3, 105, 161, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(3, 105, 161, 0); }
 }
 
 /* Accessibility: honour the user's reduced-motion preference app-wide.

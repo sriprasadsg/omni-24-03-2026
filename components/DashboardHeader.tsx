@@ -41,7 +41,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ userName, setC
                     <button
                         onClick={() => setCurrentView('reporting')}
                         className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        style={{ background: 'linear-gradient(135deg, #00d2ff, #3a7bd5)', boxShadow: '0 4px 16px rgba(0,210,255,0.25)' }}>
+                        style={{ background: 'linear-gradient(135deg, #0369a1, #0284c7)', boxShadow: '0 4px 16px rgba(14,165,233,0.25)' }}>
                         <FileTextIcon size={15} />
                         Generate Report
                     </button>

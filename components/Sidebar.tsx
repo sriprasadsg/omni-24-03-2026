@@ -55,8 +55,8 @@ const NavLink: React.FC<{
                 : 'text-slate-500 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             } ${disabled && !locked ? 'opacity-40 cursor-not-allowed' : ''}`}
         style={active && !locked ? {
-            background: 'linear-gradient(135deg, rgba(0,210,255,0.12) 0%, rgba(127,0,255,0.06) 100%)',
-            border: '1px solid rgba(0,210,255,0.18)',
+            background: 'linear-gradient(135deg, rgba(14,165,233,0.12) 0%, rgba(3,105,161,0.06) 100%)',
+            border: '1px solid rgba(14,165,233,0.18)',
         } : undefined}
     >
         {/* Icon */}
@@ -90,7 +90,7 @@ const NavLink: React.FC<{
         {/* Gradient active bar */}
         {!locked && active && (
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full -ml-3"
-                style={{ background: 'linear-gradient(to bottom, #00d2ff, #7f00ff)' }} />
+                style={{ background: 'linear-gradient(to bottom, #0369a1, #075985)' }} />
         )}
     </button>
 );

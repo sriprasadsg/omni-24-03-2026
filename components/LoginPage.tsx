@@ -24,8 +24,8 @@ const SmartCTA: React.FC<{ isLoading: boolean }> = ({ isLoading }) => {
             disabled={isLoading}
             className="w-full py-3 px-4 text-white font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             style={{
-                background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 50%, #7f00ff 100%)',
-                boxShadow: isLoading ? 'none' : '0 4px 20px rgba(0,210,255,0.3)',
+                background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #075985 100%)',
+                boxShadow: isLoading ? 'none' : '0 4px 20px rgba(14,165,233,0.3)',
             }}
             onMouseEnter={e => { if (!isLoading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = ''; }}
@@ -56,7 +56,7 @@ const HeroSection: React.FC = () => {
         <aside className="hidden lg:flex flex-col items-center justify-center px-12 py-10 text-center relative z-10">
             <div className="mb-8">
                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4"
-                    style={{ background: 'linear-gradient(135deg, rgba(0,210,255,0.2), rgba(127,0,255,0.2))', border: '1px solid rgba(0,210,255,0.3)', boxShadow: '0 0 24px rgba(0,210,255,0.2)' }}>
+                    style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.2), rgba(3,105,161,0.2))', border: '1px solid rgba(14,165,233,0.3)', boxShadow: '0 0 24px rgba(14,165,233,0.2)' }}>
                     <BotIcon className="text-primary-400" size={44} />
                 </div>
                 <h1 className="text-5xl font-bold tracking-tight text-gradient">
@@ -201,11 +201,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
         <div className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden aurora-bg" style={{ background: 'var(--bg-main)' }}>
             {/* Aurora blobs */}
             <div className="absolute top-[-15%] left-[-8%] w-[55%] h-[55%] rounded-full pointer-events-none"
-                style={{ background: 'radial-gradient(ellipse, rgba(0,210,255,0.18) 0%, transparent 70%)', filter: 'blur(60px)', animation: 'pulse 6s ease-in-out infinite' }} />
+                style={{ background: 'radial-gradient(ellipse, rgba(14,165,233,0.18) 0%, transparent 70%)', filter: 'blur(60px)', animation: 'pulse 6s ease-in-out infinite' }} />
             <div className="absolute bottom-[-10%] right-[-8%] w-[50%] h-[50%] rounded-full pointer-events-none animation-delay-1000"
-                style={{ background: 'radial-gradient(ellipse, rgba(127,0,255,0.15) 0%, transparent 70%)', filter: 'blur(80px)', animation: 'pulse 8s ease-in-out infinite' }} />
+                style={{ background: 'radial-gradient(ellipse, rgba(3,105,161,0.15) 0%, transparent 70%)', filter: 'blur(80px)', animation: 'pulse 8s ease-in-out infinite' }} />
             <div className="absolute top-[40%] right-[15%] w-[30%] h-[30%] rounded-full pointer-events-none animation-delay-400"
-                style={{ background: 'radial-gradient(ellipse, rgba(58,123,213,0.12) 0%, transparent 70%)', filter: 'blur(50px)', animation: 'pulse 7s ease-in-out infinite' }} />
+                style={{ background: 'radial-gradient(ellipse, rgba(2,132,199,0.12) 0%, transparent 70%)', filter: 'blur(50px)', animation: 'pulse 7s ease-in-out infinite' }} />
 
             <div className="w-full max-w-6xl z-10 slide-up grid lg:grid-cols-2 gap-10 items-center">
                 <HeroSection />
@@ -214,7 +214,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                     {/* Mobile-only Header (hero is hidden on mobile) */}
                     <div className="text-center mb-8 lg:hidden">
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
-                            style={{ background: 'linear-gradient(135deg, rgba(0,210,255,0.2), rgba(127,0,255,0.2))', border: '1px solid rgba(0,210,255,0.3)', boxShadow: '0 0 24px rgba(0,210,255,0.2)' }}>
+                            style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.2), rgba(3,105,161,0.2))', border: '1px solid rgba(14,165,233,0.3)', boxShadow: '0 0 24px rgba(14,165,233,0.2)' }}>
                             <BotIcon className="text-primary-400" size={36} />
                        </div>
                         <h1 className="text-4xl font-bold tracking-tight text-gradient">
@@ -258,7 +258,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                                             background: 'rgba(255,255,255,0.05)',
                                             border: '1px solid rgba(255,255,255,0.1)',
                                         }}
-                                        onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,210,255,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,210,255,0.12)'; }}
+                                        onFocus={e => { e.currentTarget.style.border = '1px solid rgba(14,165,233,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14,165,233,0.12)'; }}
                                         onBlur={e => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
                                         placeholder="you@company.com"
                                         autoComplete="email"
@@ -286,7 +286,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                                             background: 'rgba(255,255,255,0.05)',
                                             border: '1px solid rgba(255,255,255,0.1)',
                                         }}
-                                        onFocus={e => { e.currentTarget.style.border = '1px solid rgba(0,210,255,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,210,255,0.12)'; }}
+                                        onFocus={e => { e.currentTarget.style.border = '1px solid rgba(14,165,233,0.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14,165,233,0.12)'; }}
                                         onBlur={e => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
                                         placeholder="••••••••••••"
                                         autoComplete="current-password"
@@ -366,7 +366,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                    </div>
 
                     {/* Demo Credentials */}
-                    <div className="mt-5 p-4 rounded-xl" style={{ background: 'rgba(0,210,255,0.06)', border: '1px solid rgba(0,210,255,0.15)' }}>
+                    <div className="mt-5 p-4 rounded-xl" style={{ background: 'rgba(14,165,233,0.06)', border: '1px solid rgba(14,165,233,0.15)' }}>
                         <p className="text-xs font-semibold text-primary-400 mb-2 uppercase tracking-wider">Demo Credentials</p>
                         <div className="space-y-1 text-xs text-slate-400">
                             <p>Super Admin: <span className="font-mono text-slate-300">super@omni.ai</span></p>

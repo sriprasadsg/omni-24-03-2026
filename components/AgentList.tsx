@@ -154,7 +154,7 @@ const AgentCard: React.FC<{
     const hasRemediationAttempts = agent.remediationAttempts && agent.remediationAttempts.length > 0;
 
     return (
-        <div className={`glass rounded-2xl shadow-lg flex flex-col justify-between transition-all duration-300 w-full relative ${info.cardBorder} ${isSelected ? 'ring-2 ring-primary-500 shadow-[0_0_20px_rgba(0,210,255,0.4)]' : 'hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(0,210,255,0.2)]'} ${isUpgrading ? 'opacity-70' : ''}`}>
+        <div className={`glass rounded-2xl shadow-lg flex flex-col justify-between transition-all duration-300 w-full relative ${info.cardBorder} ${isSelected ? 'ring-2 ring-primary-500 shadow-[0_0_20px_rgba(14,165,233,0.4)]' : 'hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(14,165,233,0.2)]'} ${isUpgrading ? 'opacity-70' : ''}`}>
             <div className="absolute top-4 right-4 z-10">
                 <input
                     type="checkbox"
