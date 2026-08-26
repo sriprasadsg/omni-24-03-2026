@@ -401,10 +401,11 @@ class AgentCapabilityManager:
         remote_cap = self.capability_instances.get('remote_access')
         if remote_cap:
             import threading
+            tenant_key = self.cfg.get('registration_key', '') if hasattr(self, 'cfg') else ''
             if session_type == "desktop":
-                t = threading.Thread(target=remote_cap.start_desktop_stream, args=(session_id, url))
+                t = threading.Thread(target=remote_cap.start_desktop_stream, args=(session_id, url, tenant_key))
             else:
-                t = threading.Thread(target=remote_cap.start_reverse_shell, args=(session_id, url))
+                t = threading.Thread(target=remote_cap.start_reverse_shell, args=(session_id, url, tenant_key))
             t.daemon = True
             t.start()
             return {"status": "started", "session_id": session_id}

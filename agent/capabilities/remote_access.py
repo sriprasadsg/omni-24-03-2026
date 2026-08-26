@@ -91,7 +91,7 @@ class RemoteAccessCapability(BaseCapability):
             logger.error(f"Failed to disable RDP: {e}")
             return {"status": "error", "error": str(e)}
 
-    def start_reverse_shell(self, session_id: str, url: str):
+    def start_reverse_shell(self, session_id: str, url: str, tenant_key: str = ""):
         """
         Start a reverse shell connected to the WebSocket URL.
         Spawns a new thread to handle the connection to avoid blocking the agent.
@@ -99,7 +99,9 @@ class RemoteAccessCapability(BaseCapability):
         import threading
         import websocket
         import os
-        
+
+        ws_headers = [f"X-Tenant-Key: {tenant_key}"] if tenant_key else None
+
         def run_shell():
             logger.info(f"Starting reverse shell for session {session_id} to {url}")
             
@@ -161,6 +163,7 @@ class RemoteAccessCapability(BaseCapability):
                 # Connection
                 ws = websocket.WebSocketApp(
                     url,
+                    header=ws_headers,
                     on_open=on_open,
                     on_message=on_message,
                     on_error=on_error,
@@ -177,7 +180,7 @@ class RemoteAccessCapability(BaseCapability):
         
         return {"status": "success", "message": "Reverse shell thread started"}
 
-    def start_desktop_stream(self, session_id: str, url: str):
+    def start_desktop_stream(self, session_id: str, url: str, tenant_key: str = ""):
         """
         Start sending desktop screenshots to the WebSocket URL.
         """
@@ -188,6 +191,8 @@ class RemoteAccessCapability(BaseCapability):
         import base64
         import io
         import mss
+
+        ws_headers = [f"X-Tenant-Key: {tenant_key}"] if tenant_key else None
         from PIL import Image
 
         def run_stream():
@@ -246,6 +251,7 @@ class RemoteAccessCapability(BaseCapability):
                 # Connection
                 ws = websocket.WebSocketApp(
                     url,
+                    header=ws_headers,
                     on_open=on_open,
                     on_error=on_error,
                     on_close=on_close
