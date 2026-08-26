@@ -137,8 +137,12 @@ Full detail archived to `milestones/v4.1-ROADMAP.md`.
 **Goal:** Upgrade the existing view-only remote-desktop stream (`components/RemoteDesktop.tsx`, `agent-install/omni-agent-rs/src/capabilities/remote_access.rs`) to full attended interactive control: mouse/keyboard input relay from viewer to agent over the existing WebSocket tunnel, Win32 `SendInput`-based replay on the Windows agent, an on-endpoint consent/accept prompt before control is granted, a new `control:remote_access` RBAC permission distinct from the existing `view:remote_access`, and session audit logging. Faster/continuous screen capture (replacing the periodic PowerShell screenshot loop) is in scope as a stretch goal if time allows.
 **Requirements**: TBD
 **Depends on:** Phase 73
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 74 to break down)
+- [ ] 74-01-PLAN.md — Tracer: one mousemove end-to-end from canvas through the `/user` tunnel to `SendInput`, behind the new `control:remote_access` gate (wave 1)
+- [ ] 74-02-PLAN.md — Backend: append-only control-session audit trail, real `close_session` kill switch, disconnect/force-kill, agent-authenticated consent reporting, capability probe (wave 2)
+- [ ] 74-03-PLAN.md — Rust agent: Session-0 consent dialog, persistent stop-control bar, consent-gated full input replay (wave 3)
+- [ ] 74-04-PLAN.md — Python legacy agent: pywin32 session injection, ctypes `SendInput` relay, closing the dropped-receive gap (wave 3)
+- [ ] 74-05-PLAN.md — Frontend: four-state control canvas, permission-gated View/Control toggle, disconnect and force-end affordances (wave 3)
