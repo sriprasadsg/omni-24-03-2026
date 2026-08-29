@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
+import rbac_utils
 from models import User
 import uuid
 import os
@@ -93,7 +94,14 @@ async def start_remote_session(request: Request, payload: dict, current_user: Us
     agent_id = payload.get("agent_id")
     protocol = payload.get("protocol", "ssh")
     session_type = payload.get("type", "shell")
-    
+
+    if session_type == "control" and not await rbac_utils.verify_permission(current_user, "control:remote_access"):
+        # Phase 74: interactive control is a distinct permission — a
+        # view:remote_access-only principal must be refused before any session
+        # or instruction is written (T-74-01). No permission implication: a
+        # control gate never checks view, and view never grants control.
+        raise HTTPException(status_code=403, detail="Missing required permission: control:remote_access")
+
     if not agent_id:
         raise HTTPException(status_code=400, detail="Agent ID is required")
 

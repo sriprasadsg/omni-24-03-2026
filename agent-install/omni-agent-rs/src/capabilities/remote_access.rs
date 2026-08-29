@@ -100,10 +100,12 @@ pub fn start_reverse_shell(session_id: String, url: String, tenant_key: String) 
 }
 
 /// Spawn a desktop streaming task that sends JPEG frames over WebSocket.
-pub fn start_desktop_stream(session_id: String, url: String, tenant_key: String) {
+/// When `control` is true the same tunnel also relays browser input frames
+/// back to the agent (`parse_input_frame` → `control_input_replay`).
+pub fn start_desktop_stream(session_id: String, url: String, tenant_key: String, control: bool) {
     tokio::spawn(async move {
-        log::info!("Desktop stream starting: session={session_id} url={url}");
-        if let Err(e) = desktop_stream_run(&url, &tenant_key).await {
+        log::info!("Desktop stream starting: session={session_id} url={url} control={control}");
+        if let Err(e) = desktop_stream_run(&url, &tenant_key, control).await {
             log::error!("Desktop stream error: {e}");
         }
         log::info!("Desktop stream ended: session={session_id}");
@@ -180,16 +182,157 @@ async fn reverse_shell_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn st
     Ok(())
 }
 
+/// One decoded interactive-control input frame (Phase 74 wire contract,
+/// Option A): an `input` frame with a nested `kind`, normalized absolute
+/// coordinates, and Windows virtual-key codes. Parsed at the boundary by
+/// `parse_input_frame`; replayed by `control_input_replay` on Windows.
+#[derive(Debug, PartialEq)]
+pub enum InputEvent {
+    MouseMove { x: f64, y: f64 },
+    MouseButton { down: bool, button: u8 },
+    Wheel { delta_x: i64, delta_y: i64 },
+    Key { down: bool, vk: u8, extended: bool, unicode: Option<u16> },
+}
+
+const INPUT_KINDS: &[&str] = &["mousemove", "mousedown", "mouseup", "wheel", "keydown", "keyup"];
+
+/// Parse and validate one browser→agent input frame. Rejects at the boundary:
+/// any `kind` outside the enumerated set, `x`/`y` outside 0.0..=1.0 inclusive,
+/// `vk` outside 0..=254, or a non-`input` `type` — returning `Err` with a
+/// short reason rather than panicking or silently clamping into a
+/// valid-looking event (T-74-04).
+pub fn parse_input_frame(raw: &str) -> Result<InputEvent, String> {
+    let value: Value = serde_json::from_str(raw).map_err(|e| format!("invalid JSON: {e}"))?;
+    if value.get("type").and_then(|v| v.as_str()) != Some("input") {
+        return Err("frame type is not 'input'".to_string());
+    }
+    let kind = value.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+    if !INPUT_KINDS.contains(&kind) {
+        return Err(format!("unknown input kind: {kind}"));
+    }
+
+    let coord = |key: &str| -> Result<f64, String> {
+        match value.get(key).and_then(|v| v.as_f64()) {
+            Some(n) if (0.0..=1.0).contains(&n) => Ok(n),
+            Some(n) => Err(format!("{key} {n} out of range 0.0..=1.0")),
+            None => Err(format!("missing or non-numeric {key}")),
+        }
+    };
+    let int = |key: &str| -> Result<Option<i64>, String> {
+        Ok(value.get(key).and_then(|v| v.as_i64()))
+    };
+    let vk = |key: &str| -> Result<Option<u8>, String> {
+        match int(key)? {
+            Some(n) if (0..=254).contains(&n) => Ok(Some(n as u8)),
+            Some(n) => Err(format!("{key} {n} out of range 0..=254")),
+            None => Ok(None),
+        }
+    };
+
+    Ok(match kind {
+        "mousemove" => InputEvent::MouseMove { x: coord("x")?, y: coord("y")? },
+        "mousedown" => InputEvent::MouseButton { down: true, button: vk("button")?.unwrap_or(0) },
+        "mouseup" => InputEvent::MouseButton { down: false, button: vk("button")?.unwrap_or(0) },
+        "wheel" => InputEvent::Wheel {
+            delta_x: int("deltaX")?.unwrap_or(0),
+            delta_y: int("deltaY")?.unwrap_or(0),
+        },
+        "keydown" => InputEvent::Key {
+            down: true,
+            vk: vk("vk")?.ok_or("missing vk")?,
+            extended: matches!(value.get("extended"), Some(Value::Bool(true))),
+            unicode: int("unicode")?.and_then(|n| u16::try_from(n).ok()),
+        },
+        "keyup" => InputEvent::Key {
+            down: false,
+            vk: vk("vk")?.ok_or("missing vk")?,
+            extended: matches!(value.get("extended"), Some(Value::Bool(true))),
+            unicode: int("unicode")?.and_then(|n| u16::try_from(n).ok()),
+        },
+        _ => unreachable!("kind validated above"),
+    })
+}
+
+#[cfg(windows)]
+fn control_input_replay(ev: &InputEvent) {
+    use std::mem::size_of;
+    use winapi::um::winuser::*;
+
+    match ev {
+        InputEvent::MouseMove { x, y } => {
+            // winapi 0.3: INPUT has no Default impl and the union method is
+            // `mi()` (not `mouse_mut`, which is Windows-rs style). `zeroed`
+            // is the canonical init for a raw union that is fully written by
+            // the assignment below.
+            let mut input: INPUT = unsafe { std::mem::zeroed() };
+            input.type_ = INPUT_MOUSE;
+            // winapi 0.3: INPUT has a MOUSEINPUT as the first field of the
+            // internal union. Form the pointer from the INPUT pointer itself
+            // (avoids the `&mut -> *mut` reborrow error E0606) and write the
+            // mouse event fields through that mutable view. The shared bytes
+            // are immediately reborrowed as `&mut INPUT` for SendInput.
+            let mi: &mut MOUSEINPUT = unsafe {
+                &mut *(&mut input as *mut INPUT as *mut MOUSEINPUT)
+            };
+            mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+            mi.dx = (x * 65535.0).round() as i32;
+            mi.dy = (y * 65535.0).round() as i32;
+            let sent = unsafe { SendInput(1, &mut input, size_of::<INPUT>() as i32) };
+            if sent == 0 {
+                log::warn!("SendInput failed for mousemove ({x}, {y}): error {}", unsafe {
+                    winapi::um::errhandlingapi::GetLastError()
+                });
+            }
+        }
+        // Tracer slice: only mousemove is replayed. Every other accepted
+        // variant is dropped for now; Plan 03 (consent-gated full input) and
+        // Plan 05 (full browser keymap) fill these in.
+        _ => log::debug!("control_input_replay: dropping unsupported variant {ev:?}"),
+    }
+}
+
 // Windows: long-lived PowerShell process captures JPEG frames and emits base64 lines
 #[cfg(windows)]
-async fn desktop_stream_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn desktop_stream_run(
+    url: &str,
+    tenant_key: &str,
+    control: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::time::{timeout, Duration};
     use tokio_tungstenite::{connect_async, tungstenite::Message};
 
     let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
-    let (mut ws_write, _) = ws_stream.split();
+    let (mut ws_write, mut ws_read) = ws_stream.split();
+
+    // Phase 74 control path: spawn a writer-concurrent reader over the same
+    // tunnel the frames flow out on. The `/user` → `/agent` relay is
+    // bidirectional (T-74-01), so browser `input` frames arrive here and are
+    // replayed via SendInput. View-only mode never spawns this — no input
+    // frames are ever sent on a `/viewer` connection.
+    if control {
+        tokio::spawn(async move {
+            while let Some(Ok(msg)) = ws_read.next().await {
+                let text = match msg {
+                    Message::Text(t) => t.to_string(),
+                    Message::Binary(b) => match String::from_utf8(b.to_vec()) {
+                        Ok(t) => t,
+                        Err(_) => {
+                            log::warn!("control input: non-UTF8 binary frame dropped");
+                            continue;
+                        }
+                    },
+                    Message::Close(_) => break,
+                    _ => continue,
+                };
+                match parse_input_frame(&text) {
+                    Ok(ev) => control_input_replay(&ev),
+                    Err(e) => log::warn!("control input: rejected frame: {e}"),
+                }
+            }
+        });
+    }
 
     // Single PS process that emits one base64 JPEG per line at ~7 FPS. The
     // capture branch reports failures as "ERR:<message>" instead of the
@@ -225,13 +368,33 @@ while ($true) {
     Start-Sleep -Milliseconds 150
 }"#;
 
-    let mut child = tokio::process::Command::new("powershell.exe")
+    let mut child = match tokio::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
-        .spawn()?;
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(e) => {
+            let msg = format!("Failed to launch capture process: {}", e).replace('"', "'");
+            let payload = format!(r#"{{"type":"error","message":"{}"}}"#, msg);
+            let _ = ws_write.send(Message::Text(payload.into())).await;
+            return Err(format!("failed to spawn powershell.exe: {}", e).into());
+        }
+    };
 
-    let stdout = child.stdout.take().ok_or("no stdout")?;
+    let stdout = match child.stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            let _ = ws_write
+                .send(Message::Text(
+                    r#"{"type":"error","message":"Failed to capture stdout from the desktop capture process"}"#.into(),
+                ))
+                .await;
+            let _ = child.kill().await;
+            return Err("no stdout from capture process".into());
+        }
+    };
     let mut lines = BufReader::new(stdout).lines();
 
     // First line must arrive within 5s — if PowerShell never produces output
@@ -278,7 +441,11 @@ while ($true) {
 }
 
 #[cfg(not(windows))]
-async fn desktop_stream_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn desktop_stream_run(
+    url: &str,
+    tenant_key: &str,
+    control: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -288,10 +455,52 @@ async fn desktop_stream_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn s
     // meant the viewer had zero signal that streaming would never start).
     let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
     let (mut ws_write, _) = ws_stream.split();
-    let _ = ws_write
-        .send(Message::Text(
-            r#"{"type":"error","message":"Desktop streaming is only supported on Windows agents"}"#.into(),
-        ))
-        .await;
+    // Control mode must say WHY it cannot proceed, so the browser can show a
+    // real terminal state (T-74-04) rather than an endless spinner. View mode
+    // keeps its original message untouched.
+    let body = if control {
+        r#"{"type":"error","reason":"unsupported_platform","message":"Interactive control is only supported on Windows agents"}"#
+    } else {
+        r#"{"type":"error","message":"Desktop streaming is only supported on Windows agents"}"#
+    };
+    let _ = ws_write.send(Message::Text(body.into())).await;
     Err("desktop streaming is only supported on Windows".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_input_frame_rejects_unknown_kind() {
+        let raw = r#"{"type":"input","kind":"teleport","x":0.5,"y":0.5}"#;
+        assert!(parse_input_frame(raw).is_err());
+    }
+
+    #[test]
+    fn parse_input_frame_rejects_out_of_range_coords() {
+        let raw = r#"{"type":"input","kind":"mousemove","x":1.5,"y":0.5}"#;
+        assert!(parse_input_frame(raw).is_err());
+    }
+
+    #[test]
+    fn parse_input_frame_rejects_non_input_type() {
+        let raw = r#"{"type":"frame","kind":"mousemove","x":0.5,"y":0.5}"#;
+        assert!(parse_input_frame(raw).is_err());
+    }
+
+    #[test]
+    fn parse_input_frame_accepts_valid_mousemove() {
+        let raw = r#"{"type":"input","kind":"mousemove","x":0.25,"y":0.75}"#;
+        assert_eq!(
+            parse_input_frame(raw).unwrap(),
+            InputEvent::MouseMove { x: 0.25, y: 0.75 }
+        );
+    }
+
+    #[test]
+    fn parse_input_frame_rejects_bad_vk() {
+        let raw = r#"{"type":"input","kind":"keydown","vk":300}"#;
+        assert!(parse_input_frame(raw).is_err());
+    }
 }

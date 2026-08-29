@@ -1,6 +1,6 @@
 [package]
 name = "omni-agent"
-version = "2.1.6"
+version = "2.1.8"
 edition = "2021"
 description = "Enterprise Omni Agent - AI-Powered Security Agent"
 authors = ["Enterprise Omni Agent"]
@@ -57,7 +57,7 @@ winreg = "0.52"
 windows-service = "0.7"
 winapi = { version = "0.3", features = [
     "minwindef", "winnt", "handleapi", "errhandlingapi", "processthreadsapi",
-    "securitybaseapi", "userenv", "winbase", "wtsapi32",
+    "securitybaseapi", "userenv", "winbase", "wtsapi32", "winuser",
 ] }
 
 # Phase 65 (FIM fanotify): fanotify is a Linux kernel API with no macOS/Windows

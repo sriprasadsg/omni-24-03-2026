@@ -5,14 +5,16 @@ import { startRemoteSession } from '../services/apiService';
 interface RemoteDesktopProps {
     agentId: string;
     sessionId?: string;
+    mode?: 'view' | 'control';
 }
 
-export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId: sessionIdProp }) => {
+export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId: sessionIdProp, mode = 'view' }) => {
     const [isConnected, setIsConnected] = useState(false);
     const [fps, setFps] = useState(0);
     const [hasFrames, setHasFrames] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [statusMsg, setStatusMsg] = useState('Requesting desktop session…');
+    const [controlState, setControlState] = useState<'awaiting_consent' | 'active' | 'ended' | null>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
     const frameCountRef = useRef(0);
@@ -20,6 +22,15 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
     // Mirrors `hasFrames` state but readable synchronously from closures
     // (e.g. the no-frames timeout below) without going stale.
     const hasFramesRef = useRef(false);
+    // React 18 StrictMode (dev only) mounts this effect, cleans it up, then
+    // mounts it again with the same props — synchronously, before the first
+    // mount's startRemoteSession() POST has resolved. `cancelled` alone
+    // doesn't stop that POST from firing twice, since each invocation gets
+    // its own closure. This ref survives the synthetic remount (same
+    // component instance), so the second invocation sees the key already
+    // claimed and skips re-requesting a session — while still re-requesting
+    // on a genuine agentId/sessionIdProp change.
+    const initedForRef = useRef<string | null>(null);
 
     const renderFrame = (base64Data: string) => {
         const canvas = canvasRef.current;
@@ -34,11 +45,11 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
     useEffect(() => {
         let cancelled = false;
 
-        const openWs = (sid: string) => {
+        const openWs = (sid: string, mode: 'view' | 'control' = 'view') => {
             hasFramesRef.current = false;
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const token = sessionStorage.getItem('token') || '';
-            const wsUrl = `${wsProtocol}//${window.location.host}/api/tunnel/${sid}/viewer?token=${encodeURIComponent(token)}`;
+            const wsUrl = `${wsProtocol}//${window.location.host}/api/tunnel/${sid}/${mode === 'control' ? 'user' : 'viewer'}?token=${encodeURIComponent(token)}`;
 
             if (cancelled) return;
             setStatusMsg('Connecting to desktop stream…');
@@ -61,6 +72,11 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                             frameCountRef.current = 0;
                             lastFpsTimeRef.current = now;
                         }
+                    } else if (payload.type === 'control_state') {
+                        // Agent→browser consent/activity lifecycle. Rendering the
+                        // four visual states is Plan 05's job — for now just hold
+                        // the value so the state machine starts accumulating.
+                        setControlState(payload.state);
                     } else if (payload.type === 'error' && payload.message) {
                         // Agent-reported capture failure (e.g. no interactive
                         // desktop session, or unsupported platform) — surface
@@ -77,22 +93,30 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             // Defense in depth: if the agent connects but never sends a frame
             // or error message at all (e.g. it's offline, or a future capture
             // path fails before it can report), don't leave the UI spinning
-            // forever with no signal.
+            // forever with no signal. 45s, not 15s: the agent only picks up
+            // the start_remote_session instruction on its next poll cycle
+            // (observed ~26-33s), so a shorter timeout routinely fires before
+            // the agent has even joined the tunnel.
             setTimeout(() => {
                 if (!cancelled && !hasFramesRef.current) {
-                    setError((prev) => prev ?? 'No video received from the agent within 15s — it may be offline, lack an interactive desktop session, or not support remote desktop on its platform.');
+                    setError((prev) => prev ?? 'No video received from the agent within 45s — it may be offline, lack an interactive desktop session, or not support remote desktop on its platform.');
                 }
-            }, 15000);
+            }, 45000);
         };
 
         const init = async () => {
+            const key = `${agentId}:${sessionIdProp || ''}`;
+            if (initedForRef.current === key) return;
+            initedForRef.current = key;
+
             if (sessionIdProp) {
-                openWs(sessionIdProp);
+                openWs(sessionIdProp, mode);
                 return;
             }
             // No sessionId supplied — start a new desktop session via the API.
+            const sessionType = mode === 'control' ? 'control' : 'desktop';
             setStatusMsg('Requesting desktop session…');
-            const resp = await startRemoteSession(agentId, 'vnc', 'desktop');
+            const resp = await startRemoteSession(agentId, 'vnc', sessionType);
             if (cancelled) return;
             if (resp?.session_id) {
                 openWs(resp.session_id);
@@ -156,6 +180,14 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                     width={800}
                     height={600}
                     className={`max-w-full max-h-full object-contain ${!hasFrames ? 'hidden' : ''}`}
+                    onMouseMove={mode === 'control' ? (event) => {
+                        const canvas = canvasRef.current;
+                        const ws = wsRef.current;
+                        if (!canvas || !ws || ws.readyState !== WebSocket.OPEN) return;
+                        const x = Math.min(1, Math.max(0, event.nativeEvent.offsetX / canvas.clientWidth));
+                        const y = Math.min(1, Math.max(0, event.nativeEvent.offsetY / canvas.clientHeight));
+                        ws.send(JSON.stringify({ type: 'input', kind: 'mousemove', x, y }));
+                    } : undefined}
                 />
             </div>
 

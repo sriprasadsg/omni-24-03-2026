@@ -230,6 +230,54 @@ class TestRemoteSessionEndpoints:
         assert r.status_code == 403
 
 
+# ── Phase 74: control:remote_access is a distinct, non-implied permission ─────
+
+class TestControlSessionPermission:
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        import remote_endpoints as mod
+        self.mod = mod
+        self.user = _user()
+        self.db = _db()
+        self.app = _app(mod.router, self.user)
+
+    def test_control_permission_denied_yields_403_and_no_instruction(self):
+        """A principal without control:remote_access gets 403 and no instruction."""
+        with patch("remote_endpoints.get_database", return_value=self.db):
+            with patch("rbac_utils.verify_permission", AsyncMock(return_value=False)):
+                with TestClient(self.app) as c:
+                    r = c.post("/api/remote/session/start",
+                               json={"agent_id": "agent-abc", "protocol": "vnc", "type": "control"})
+        assert r.status_code == 403
+        assert r.json()["detail"] == "Missing required permission: control:remote_access"
+        assert self.db.agent_instructions.insert_one.call_count == 0
+
+    def test_control_permission_granted_yields_200_control_instruction(self):
+        """A holder of control:remote_access gets a control-typed instruction."""
+        captured = {}
+        async def capture(doc):
+            captured.update(doc)
+            return MagicMock(inserted_id="instr-id")
+        self.db.agent_instructions.insert_one = capture
+        with patch("remote_endpoints.get_database", return_value=self.db):
+            with patch("rbac_utils.verify_permission", AsyncMock(return_value=True)):
+                with TestClient(self.app) as c:
+                    r = c.post("/api/remote/session/start",
+                               json={"agent_id": "agent-abc", "protocol": "vnc", "type": "control"})
+        assert r.status_code == 200
+        assert captured.get("payload", {}).get("type") == "control"
+
+    def test_desktop_never_consults_control_permission(self):
+        """desktop is independent of control:remote_access — denied control still gets 200 (D-06)."""
+        with patch("remote_endpoints.get_database", return_value=self.db):
+            with patch("rbac_utils.verify_permission", AsyncMock(return_value=False)):
+                with TestClient(self.app) as c:
+                    r = c.post("/api/remote/session/start",
+                               json={"agent_id": "agent-abc", "protocol": "vnc", "type": "desktop"})
+        assert r.status_code == 200
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 2.  WebSocket Tunnel  (tunnel_endpoints.py)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -530,5 +578,106 @@ class TestTunnelWebSocket:
 
         ws.receive_bytes.assert_not_called()
         assert queue.empty()
+
+    # ── Phase 74: /user carries control frames, /viewer is receive-only ────────
+
+    def test_relay_control_frame_arrives_byte_identical_at_agent(self):
+        """JSON input frame sent via /user arrives byte-identical at /agent."""
+        sid = "relay-frame-" + uuid.uuid4().hex[:8]
+        frame = '{"type":"input","kind":"mousemove","x":0.45,"y":0.72}'
+        received = []
+        agent_ready = threading.Event()
+        agent_done = threading.Event()
+        errors = []
+
+        with patch("authentication_service.verify_token_async", _user_token()):
+            with _patch_tunnel_db():
+                with TestClient(self.app) as client:
+
+                    def run_agent():
+                        try:
+                            with client.websocket_connect(
+                                f"/api/tunnel/{sid}/agent?token=tok"
+                            ) as ws:
+                                agent_ready.set()
+                                msg = ws.receive_text()
+                                received.append(msg)
+                        except Exception as exc:
+                            errors.append(str(exc))
+                        finally:
+                            agent_done.set()
+
+                    t = threading.Thread(target=run_agent, daemon=True)
+                    t.start()
+                    assert agent_ready.wait(timeout=3), "Agent did not connect in time"
+
+                    with client.websocket_connect(
+                        f"/api/tunnel/{sid}/user?token=tok"
+                    ) as user_ws:
+                        user_ws.send_text(frame)
+
+                    assert agent_done.wait(timeout=3), "Agent did not finish in time"
+                    t.join(timeout=2)
+
+        assert not errors, f"Agent thread raised: {errors}"
+        assert received == [frame]
+
+    def test_relay_viewer_frame_does_not_reach_agent(self):
+        """Frame sent via /viewer is never forwarded to /agent (receive-only lock)."""
+        sid = "viewer-no-leak-" + uuid.uuid4().hex[:8]
+        frame = '{"type":"input","kind":"mousemove","x":0.45,"y":0.72}'
+        marker = '{"type":"input","kind":"mousemove","x":0.9,"y":0.9}'
+        received = []
+        agent_ready = threading.Event()
+        agent_done = threading.Event()
+        errors = []
+
+        with patch("authentication_service.verify_token_async", _user_token()):
+            with _patch_tunnel_db():
+                with TestClient(self.app) as client:
+
+                    def run_agent():
+                        try:
+                            with client.websocket_connect(
+                                f"/api/tunnel/{sid}/agent?token=tok"
+                            ) as ws:
+                                agent_ready.set()
+                                # Block until something arrives, then exit. The
+                                # marker (0.9) proves delivery; if the viewer frame
+                                # (0.45) had leaked onto u2a it would have arrived
+                                # first and interleaved.
+                                msg = ws.receive_text()
+                                received.append(msg)
+                        except Exception as exc:
+                            errors.append(str(exc))
+                        finally:
+                            agent_done.set()
+
+                    t = threading.Thread(target=run_agent, daemon=True)
+                    t.start()
+                    assert agent_ready.wait(timeout=3), "Agent did not connect in time"
+
+                    with client.websocket_connect(
+                        f"/api/tunnel/{sid}/viewer?token=tok"
+                    ) as viewer_ws:
+                        viewer_ws.send_text(frame)
+
+                    # Give any (incorrect) viewer->agent relay time to deliver.
+                    agent_done.wait(timeout=0.0)  # must still be empty here
+                    import time as _time
+                    _time.sleep(0.4)
+
+                    # Now deliver a marker via /user. Agent must receive exactly
+                    # this — proving the viewer frame never interleaved.
+                    with client.websocket_connect(
+                        f"/api/tunnel/{sid}/user?token=tok"
+                    ) as user_ws:
+                        user_ws.send_text(marker)
+
+                    assert agent_done.wait(timeout=3), "Agent did not finish in time"
+                    t.join(timeout=2)
+
+        assert not errors, f"Agent thread raised: {errors}"
+        assert received == [marker], "Viewer frame must not reach the agent side"
 
 

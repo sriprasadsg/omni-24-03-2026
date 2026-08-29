@@ -97,6 +97,7 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
             "view:chaos", "view:network", "manage:pricing", "manage:playbooks",
             "view:software_updates", "view:sbom", "manage:sbom", "view:mdr", "view:xdr",
             "view:secrets", "manage:agents", "view:approvals", "view:remote_access",
+            "control:remote_access", # Phase 74: interactive control (never implied by view:remote_access)
         ],
         "Tenant Admin": [
             "manage:assets", # Added for ITAM Phase 56-01
@@ -121,6 +122,7 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
             "view:mlops", "view:llmops", "view:automl", "manage:experiments",
             "view:xai", "view:governance", "view:swarm", "view:integrations",
             "view:secrets", "manage:secrets", "view:approvals", "manage:approvals", "view:remote_access",
+            "control:remote_access", # Phase 74: interactive control (never implied by view:remote_access)
         ],
         "tenant_admin": [],  # normalized variant — resolved via Tenant Admin above
         # Standard user
