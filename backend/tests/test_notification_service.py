@@ -297,6 +297,38 @@ def test_list_rules_tenant_isolation():
     assert "rule-a" in ids and "rule-b" not in ids
 
 
+def test_send_notification_slack_url_fallback_key():
+    """A slack channel whose config stores the hook under 'url' (the shared
+    notification_config schema) must dispatch via send_notification too — not
+    just one named 'webhook_url'. Regression for phase 59+ ITAM rules where
+    the channel is created with config.url and the rule then silently fails
+    with 'no webhook URL configured' at dispatch time."""
+    import asyncio
+    from notification_service import send_notification
+    rule = {"id": "rule-1", "tenantId": "tenant-a", "event_type": "ticket_created",
+            "channel_ids": ["chan-1"], "severity_filter": []}
+    channel = {"id": "chan-1", "tenantId": "tenant-a", "type": "slack",
+               "config": {"url": "https://hooks.slack.com/test"}}
+    db = _make_channel_db(rules=[rule], channels=[channel])
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+    _client = MagicMock()
+    _client.post = AsyncMock(return_value=_Resp())
+    _cm = MagicMock()
+    _cm.__aenter__ = AsyncMock(return_value=_client)
+    _cm.__aexit__ = AsyncMock(return_value=False)
+    with patch("httpx.AsyncClient", return_value=_cm):
+        result = asyncio.run(send_notification(db, "tenant-a", "ticket_created", {
+            "severity": "high", "message": "test",
+        }))
+    assert result["matched_rules"] == 1
+    assert result["results"] == [{"channel_id": "chan-1", "status": "sent"}]
+    posted = _client.post.call_args.args[0]
+    assert posted == "https://hooks.slack.com/test"
+
+
 def test_send_alert_sms_fallback_and_slack_unconfigured():
     """Multi-channel dispatch through NotificationService.send_alert: SMS falls
     back to file (no Twilio creds) and Slack reports unconfigured when no

@@ -22,7 +22,13 @@ class NotificationManager:
         
         # 2. Email
         # Check if email is configured and relevant for this event
-        if event_type in ["agent.offline", "security.alert", "compliance.violation"]:
+        if event_type in [
+            "agent.offline", "security.alert", "compliance.violation",
+            "ticket_created", "ticket_status_changed", "ticket_assigned",
+            "ticket_comment_added", "ticket_sla_breached", "ticket_escalated",
+            "chat_message", "support_message", "agent_chat_message",
+            "endpoint_notification", "tenant_admin_notification"
+        ]:
             # We also wrap email dispatch in create_task
             asyncio.create_task(self._dispatch_email(event_type, payload, tenant_id))
 
@@ -65,18 +71,19 @@ class NotificationManager:
 
             # Send Email (using run_in_executor to avoid blocking main loop)
             loop = asyncio.get_running_loop()
-            
+
             # Send to each recipient (or use BCC in real impl)
             for recipient in recipients:
-                await loop.run_in_executor(
-                    None, 
-                    lambda: email_service.send_email(
+                # Fix closure bug: bind recipient via default arg so each iteration
+                # captures its own value instead of all lambdas sharing the last one
+                def send_one(rcpt=recipient):
+                    return email_service.send_email(
                         smtp_config=smtp_settings['config'],
-                        to_email=recipient,
+                        to_email=rcpt,
                         subject=subject,
                         body_text=body
                     )
-                )
+                await loop.run_in_executor(None, send_one)
                 print(f"[NotificationManager] Email sent to {recipient}")
                 
         except Exception as e:

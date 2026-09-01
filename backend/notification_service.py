@@ -230,11 +230,13 @@ class NotificationService:
             {"type": "slack", "tenantId": tenant_id}, {"_id": 0}
         )
         
-        if not config or not config.get("webhook_url"):
-            return {
-                "success": False,
-                "error": "Slack webhook not configured"
-            }
+        if not config:
+            return {"success": False, "error": "Slack webhook not configured"}
+        webhook_url = config.get("webhook_url") or config.get("url") or ""
+        if not webhook_url:
+            return {"success": False, "error": "Slack webhook not configured"}
+        if not _validate_webhook_url(webhook_url):
+            return {"success": False, "error": "invalid or unsafe webhook URL"}
         
         # Determine color based on severity
         color_map = {
@@ -551,7 +553,8 @@ async def send_notification(db, tenant_id: str, event_type: str, payload: dict) 
         for ch in channels:
             try:
                 if ch["type"] == "slack":
-                    url = ch.get("config", {}).get("url", "")
+                    cfg = ch.get("config", {}) or {}
+                    url = cfg.get("url") or cfg.get("webhook_url") or ""
                     if not url:
                         results.append({"channel_id": ch["id"], "status": "failed", "error": "no webhook URL configured"})
                         continue
@@ -563,7 +566,8 @@ async def send_notification(db, tenant_id: str, event_type: str, payload: dict) 
                         resp.raise_for_status()
                     results.append({"channel_id": ch["id"], "status": "sent"})
                 elif ch["type"] == "webhook":
-                    url = ch.get("config", {}).get("webhook_url", "")
+                    cfg = ch.get("config", {}) or {}
+                    url = cfg.get("webhook_url") or cfg.get("url") or ""
                     if not url:
                         results.append({"channel_id": ch["id"], "status": "failed", "error": "no webhook URL configured"})
                         continue
