@@ -87,6 +87,22 @@ class NotificationService:
             "metadata": metadata
         })
 
+        # Push to live WS clients (non-fatal). Skipped when broadcast module
+        # is unavailable (e.g. CLI/test invocations without an event loop).
+        if tenant_id:
+            try:
+                from websocket_manager import broadcast_notification as _ws_broadcast
+                await _ws_broadcast(tenant_id, {
+                    "title": title,
+                    "message": message,
+                    "severity": severity,
+                    "alert_id": results["alert_id"],
+                    "metadata": metadata,
+                })
+            except Exception as _ws_err:
+                import logging as _logging
+                _logging.getLogger(__name__).debug("WS broadcast skipped (non-fatal): %s", _ws_err)
+
         return results
     
     async def _send_email(
@@ -130,9 +146,10 @@ class NotificationService:
             msg.attach(MIMEText(body, 'plain'))
 
             def _smtp_send():
+                import ssl
                 with smtplib.SMTP(smtp_host, smtp_port) as server:
                     if smtp_user and smtp_pass:
-                        server.starttls()
+                        server.starttls(context=ssl.create_default_context())
                         server.login(smtp_user, smtp_pass)
                     server.send_message(msg)
 
@@ -210,7 +227,7 @@ class NotificationService:
         """
         # Get Slack webhook URL from config, scoped to the requesting tenant
         config = await self.db.notification_config.find_one(
-            {"type": "slack", "tenant_id": tenant_id}, {"_id": 0}
+            {"type": "slack", "tenantId": tenant_id}, {"_id": 0}
         )
         
         if not config or not config.get("webhook_url"):
@@ -470,15 +487,18 @@ def _now() -> str: return datetime.now(timezone.utc).isoformat()
 def _id(prefix: str) -> str: return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
 VALID_EVENTS = {
+    # GRC / compliance
     "finding_created", "control_failed", "evidence_expired", "review_overdue", "cert_expiring",
-    # Added by Phase 59 (ITAM Procurement & Finance) for warranty-expiry alerts.
-    # Dotted form deliberately namespaces the ITAM domain's events away from the
-    # flat GRC vocabulary above — not a typo among the five undotted legacy names.
-    "itam.warranty_expiring",
-    # Added by Phase 71 (Asset Request & Approval Workflow) — itam_notification_service.py
-    # sends this on every create/approve/reject, but no rule could ever bind to it
-    # since it was missing here and from RuleCreate's Literal below.
-    "itam.asset_request_status",
+    # ITAM
+    "itam.warranty_expiring",      # Phase 59
+    "itam.asset_request_status",   # Phase 71
+    # Ticket lifecycle
+    "ticket_created", "ticket_status_changed", "ticket_assigned",
+    "ticket_comment_added", "ticket_sla_breached", "ticket_escalated",
+    # Chat / support
+    "chat_message", "support_message", "agent_chat_message",
+    # Endpoint & tenant-admin popup
+    "endpoint_notification", "tenant_admin_notification",
 }
 VALID_CHANNEL_TYPES = {"slack", "email", "webhook"}
 

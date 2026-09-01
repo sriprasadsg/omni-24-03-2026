@@ -189,3 +189,139 @@ def test_tenant_isolation_channels():
     ids = {c["id"] for c in resp.json()["items"]}
     assert "chan-a" in ids, "tenant-a should see its own channel"
     assert "chan-b" not in ids, "tenant isolation violated: tenant-a saw tenant-b's channel"
+
+
+def _make_channel_db(rules=None, channels=None):
+    """Raw-handle fake for the module-level send_notification._DbAdapter."""
+    db = MagicMock()
+    db._db = MagicMock()
+    db._db.notification_rules = MagicMock()
+    db._db.notification_rules.find = MagicMock(
+        return_value=MagicMock(to_list=AsyncMock(return_value=rules or [])))
+    db._db.notification_channels = MagicMock()
+    db._db.notification_channels.find = MagicMock(
+        return_value=MagicMock(to_list=AsyncMock(return_value=channels or [])))
+    return db
+
+
+def test_create_channel_rejects_ssrf_private_ip():
+    """SSRF guard (notification_service.create_channel) must reject a webhook
+    channel whose URL points at a private/loopback address — not just at create
+    time but so the stored config can never be an internal-LAN callback."""
+    import asyncio
+    from notification_service import create_channel
+    db = _make_db()
+    for bad in ("http://127.0.0.1:8080/hook", "http://192.168.1.5/hook", "ftp://example.com/x"):
+        try:
+            asyncio.run(create_channel(db, "tenant-a", {
+                "type": "webhook", "name": "bad", "config": {"webhook_url": bad},
+            }))
+            assert False, f"Expected ValueError for SSRF URL {bad}"
+        except ValueError:
+            pass  # correct — rejected
+
+
+def test_send_notification_severity_filter_non_match():
+    """A rule with a severity_filter that does not include the payload's severity
+    must NOT match — matched_rules must be 0 and no channel dispatched."""
+    import asyncio
+    from notification_service import send_notification
+    rule = {"id": "rule-1", "tenantId": "tenant-a", "event_type": "ticket_created",
+            "channel_ids": ["chan-1"], "severity_filter": ["critical"]}
+    channel = {"id": "chan-1", "tenantId": "tenant-a", "type": "email",
+               "config": {"email": "ops@acme.com"}}
+    db = _make_channel_db(rules=[rule], channels=[channel])
+    result = asyncio.run(send_notification(db, "tenant-a", "ticket_created", {
+        "severity": "info", "message": "info-level ticket",
+    }))
+    assert result["matched_rules"] == 0, f"Low-severity payload matched a critical-only rule: {result}"
+    assert result["sent"] == 0
+
+
+def test_send_notification_missing_slack_webhook_url():
+    """A slack channel bound to a rule but whose config lacks any url must report
+    a failed dispatch with a clear error, not crash or silently pass."""
+    import asyncio
+    from notification_service import send_notification
+    rule = {"id": "rule-1", "tenantId": "tenant-a", "event_type": "ticket_created",
+            "channel_ids": ["chan-1"], "severity_filter": []}
+    channel = {"id": "chan-1", "tenantId": "tenant-a", "type": "slack", "config": {}}
+    db = _make_channel_db(rules=[rule], channels=[channel])
+    result = asyncio.run(send_notification(db, "tenant-a", "ticket_created", {
+        "severity": "high", "message": "test",
+    }))
+    assert result["matched_rules"] == 1
+    assert result["results"] == [{
+        "channel_id": "chan-1", "status": "failed", "error": "no webhook URL configured",
+    }]
+    assert result["sent"] == 0
+
+
+def test_send_notification_ssrf_slack_url_rejected():
+    """A slack channel whose config url points at a private IP must be rejected at
+    dispatch time by the same SSRF guard used at channel creation."""
+    import asyncio
+    from notification_service import send_notification
+    rule = {"id": "rule-1", "tenantId": "tenant-a", "event_type": "ticket_created",
+            "channel_ids": ["chan-1"], "severity_filter": []}
+    channel = {"id": "chan-1", "tenantId": "tenant-a", "type": "slack",
+               "config": {"url": "http://127.0.0.1:9000/hook"}}
+    db = _make_channel_db(rules=[rule], channels=[channel])
+    result = asyncio.run(send_notification(db, "tenant-a", "ticket_created", {
+        "severity": "high", "message": "test",
+    }))
+    assert result["results"] == [{
+        "channel_id": "chan-1", "status": "failed", "error": "invalid or unsafe webhook URL",
+    }]
+    assert result["sent"] == 0
+
+
+def test_list_rules_tenant_isolation():
+    """list_rules filters by the requesting tenantId — tenant-a must never see
+    tenant-b's notification rules."""
+    from notification_service import list_rules
+    import asyncio
+    seeded = [
+        {"id": "rule-a", "tenantId": "tenant-a", "event_type": "ticket_created"},
+        {"id": "rule-b", "tenantId": "tenant-b", "event_type": "ticket_created"},
+    ]
+
+    def _fake_find(query, *_a, **_kw):
+        matched = [r for r in seeded if r["tenantId"] == query.get("tenantId")]
+        return MagicMock(sort=MagicMock(return_value=MagicMock(to_list=AsyncMock(return_value=matched))))
+
+    db = _make_db()
+    db._db.notification_rules.find = MagicMock(side_effect=_fake_find)
+    got = asyncio.run(list_rules(db, "tenant-a"))
+    ids = {r["id"] for r in got}
+    assert "rule-a" in ids and "rule-b" not in ids
+
+
+def test_send_alert_sms_fallback_and_slack_unconfigured():
+    """Multi-channel dispatch through NotificationService.send_alert: SMS falls
+    back to file (no Twilio creds) and Slack reports unconfigured when no
+    notification_config exists for the tenant — not a crash."""
+    import asyncio
+    from notification_service import NotificationService
+    db = MagicMock()
+    db.notifications = MagicMock()
+    db.notifications.insert_one = AsyncMock()
+    db.notification_config = MagicMock()
+    db.notification_config.find_one = AsyncMock(return_value=None)
+    svc = NotificationService(db)
+
+    result = asyncio.run(svc.send_alert(
+        title="t", message="m", severity="warning",
+        recipients=["+15551234567", "bob@acme.com"],
+        tenant_id="tenant-a", channels=["sms", "slack"], metadata={},
+    ))
+    # sms: no Twilio env creds -> file fallback provider, success False
+    assert result["channels"]["sms"]["provider"] == "file_fallback"
+    assert result["channels"]["sms"]["success"] is False
+    # slack: no notification_config -> unconfigured error
+    assert result["channels"]["slack"]["success"] is False
+    assert result["channels"]["slack"]["error"] == "Slack webhook not configured"
+    # both docs still land in db.notifications with tenantId+tenant_id
+    inserted = db.notifications.insert_one.call_args.args[0]
+    assert inserted["tenantId"] == "tenant-a"
+    assert inserted["tenant_id"] == "tenant-a"
