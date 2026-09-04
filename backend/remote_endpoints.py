@@ -4,6 +4,8 @@ from authentication_service import get_current_user
 from rbac_utils import require_permission
 import rbac_utils
 from models import User
+from tunnel_endpoints import close_session
+from control_session_audit_service import write_audit, list_audit
 import uuid
 import os
 import socket
@@ -12,6 +14,23 @@ from datetime import datetime, timezone
 router = APIRouter(prefix="/api/remote", tags=["Remote Access"])
 
 _REMOTE_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
+# Consent decisions the tunnel-authenticated agent may report (74-02 Task 3)
+_CONTROL_CONSENT_DECISIONS = {"accept", "decline", "timeout"}
+
+
+def _requester_identity(current_user) -> dict:
+    """Extract requester identity for audit payload."""
+    if isinstance(current_user, dict):
+        return {
+            "requester_name": current_user.get("name") or current_user.get("displayName") or "Unknown",
+            "requester_email": current_user.get("email") or current_user.get("username") or "unknown@local",
+            "requester_role": current_user.get("role") or "unknown",
+        }
+    return {
+        "requester_name": getattr(current_user, "name", None) or getattr(current_user, "displayName", None) or "Unknown",
+        "requester_email": getattr(current_user, "email", None) or getattr(current_user, "username", None) or "unknown@local",
+        "requester_role": getattr(current_user, "role", None) or "unknown",
+    }
 
 
 def _remote_tenant(current_user) -> dict:
@@ -106,6 +125,24 @@ async def start_remote_session(request: Request, payload: dict, current_user: Us
         raise HTTPException(status_code=400, detail="Agent ID is required")
 
     db = get_database()
+
+    # Single-active-control-session guard (74-02, D-10/T-74-10): refuse a
+    # second control request against an agent that already has a pending or
+    # active control session. Leave desktop/shell/vnc unaffected.
+    if session_type == "control":
+        existing = await db.remote_sessions.find_one(
+            {"agent_id": agent_id, "type": "control", "status": {"$in": ["pending", "active"]}},
+            {"_id": 1, "session_id": 1},
+        )
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail={"reason": "already_controlled",
+                        "message": f"Agent {agent_id} already has a control session ({existing['session_id']})."
+                                   " Disconnect it first before starting another."},
+            )
+
+    db = get_database()
     session_id = str(uuid.uuid4())
 
     # Get user identifier - try email first, fall back to id
@@ -134,17 +171,32 @@ async def start_remote_session(request: Request, payload: dict, current_user: Us
     # Use smart URL resolution: handles PLATFORM_URL, LAN IP detection, and HTTPS
     agent_ws_base = _resolve_backend_ws_base(request)
 
+    # `payload` param holds the original request body — save before shadowing
+    request_body = payload
+    instruction_payload = {
+        "session_id": session_id,
+        "protocol":   protocol,
+        "type":       session_type,
+        "url":        f"{agent_ws_base}/api/tunnel/{session_id}/agent",
+    }
+    # Linux SSH shell sessions may carry credentials provided by the browser
+    if session_type == "shell" and request_body.get("protocol") == "ssh":
+        cred_user = request_body.get("username", "")
+        cred_pass = request_body.get("password", "")
+        if cred_user:
+            instruction_payload["username"] = cred_user
+        if cred_pass:
+            instruction_payload["password"] = cred_pass
+    if session_type == "control":
+        instruction_payload.update(_requester_identity(current_user))
+        instruction_payload["tenant_name"] = caller_tenant_id or "platform"
+
     instruction = {
         "id":          str(uuid.uuid4()),
         "agent_id":    agent_id,
         "instruction": "start_remote_session",
         "type":        "start_remote_session",
-        "payload": {
-            "session_id": session_id,
-            "protocol":   protocol,
-            "type":       session_type,
-            "url":        f"{agent_ws_base}/api/tunnel/{session_id}/agent",
-        },
+        "payload":     instruction_payload,
         "status":      "pending",
         "tenantId":    agent_tenant_id,
         "created_at":  datetime.now(timezone.utc).isoformat(),
@@ -156,3 +208,140 @@ async def start_remote_session(request: Request, payload: dict, current_user: Us
         "status": "pending",
         "websocket_url": f"/api/tunnel/{session_id}/user",
     }
+
+
+@router.post("/session/{session_id}/disconnect")
+async def disconnect_session(
+    session_id: str,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+):
+    """Disconnect an active control session (admin force-kill). Gated on control:remote_access."""
+    if not await rbac_utils.verify_permission(current_user, "control:remote_access"):
+        raise HTTPException(status_code=403, detail="Missing required permission: control:remote_access")
+
+    db = get_database()
+    session = await db.remote_sessions.find_one({"session_id": session_id})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.get("type") != "control":
+        raise HTTPException(status_code=400, detail="Only control sessions can be force-disconnected")
+
+    requester = _requester_identity(current_user)
+    tenant_id = session.get("tenantId")
+
+    # Kill the tunnel
+    close_session(session_id)
+
+    # Update session status
+    await db.remote_sessions.update_one(
+        {"session_id": session_id}, {"$set": {"status": "closed"}}
+    )
+
+    # Write audit record
+    await write_audit(
+        db,
+        tenant_id,
+        {
+            "session_id": session_id,
+            "agent_id": session.get("agent_id"),
+            "event": "session_end",
+            "disconnect_reason": payload.get("reason", "admin_disconnect"),
+            "mode": "control",
+            **requester,
+        },
+    )
+
+    return {"status": "disconnected", "session_id": session_id}
+
+
+@router.post("/session/{session_id}/consent")
+async def report_consent(
+    session_id: str,
+    payload: dict,
+    current_user=Depends(get_current_user),  # Agent auth via token or X-Tenant-Key
+):
+    """Agent reports consent decision (accept/decline/timeout). Writes audit."""
+    from authentication_service import verify_token_async
+
+    # Verify agent identity via JWT or X-Tenant-Key header
+    token = payload.get("token", "")
+    tenant_key = payload.get("tenant_key", "")
+
+    agent_verified = False
+    if token:
+        try:
+            await verify_token_async(token)
+            agent_verified = True
+        except Exception:
+            pass
+
+    if not agent_verified and tenant_key:
+        db = get_database()
+        tenant = await db.tenants.find_one({"registrationKey": tenant_key})
+        if tenant:
+            agent_verified = True
+
+    if not agent_verified:
+        raise HTTPException(status_code=401, detail="Agent authentication required")
+
+    decision = payload.get("decision")
+    if decision not in _CONTROL_CONSENT_DECISIONS:
+        raise HTTPException(status_code=400, detail="Invalid decision: must be accept, decline, or timeout")
+
+    db = get_database()
+    session = await db.remote_sessions.find_one({"session_id": session_id})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.get("type") != "control":
+        raise HTTPException(status_code=400, detail="Consent only applies to control sessions")
+
+    # Tenant scope check
+    session_tenant = session.get("tenantId")
+    if session_tenant and session_tenant != "platform-admin":
+        agent_tenant = tenant.get("id") if tenant_key and (tenant := await db.tenants.find_one({"registrationKey": tenant_key})) else None
+        if agent_tenant and agent_tenant != session_tenant:
+            raise HTTPException(status_code=403, detail="Agent tenant mismatch")
+
+    tenant_id = session_tenant
+    disconnect_reason = {
+        "accept": None,
+        "decline": "consent_declined",
+        "timeout": "consent_timeout",
+    }.get(decision)
+
+    if disconnect_reason:
+        close_session(session_id)
+        await db.remote_sessions.update_one(
+            {"session_id": session_id}, {"$set": {"status": "closed"}}
+        )
+
+    await write_audit(
+        db,
+        tenant_id,
+        {
+            "session_id": session_id,
+            "agent_id": session.get("agent_id"),
+            "event": "consent_decision",
+            "consent_decision": decision,
+            "disconnect_reason": disconnect_reason,
+            "mode": "control",
+        },
+    )
+
+    if decision == "accept":
+        await db.remote_sessions.update_one(
+            {"session_id": session_id}, {"$set": {"status": "active"}}
+        )
+
+    return {"status": "recorded", "decision": decision}
+
+
+@router.get("/capabilities")
+async def get_capabilities(current_user=Depends(get_current_user)):
+    """Return what the caller can do: view vs control."""
+    can_view = await rbac_utils.verify_permission(current_user, "view:remote_access")
+    can_control = await rbac_utils.verify_permission(current_user, "control:remote_access")
+    return {"can_view": can_view, "can_control": can_control}

@@ -627,6 +627,165 @@ export interface AiSystemDocumentationLink {
   type: 'Model Card' | 'Technical Paper' | 'API Reference' | 'Other';
 }
 
+// ── Interactive remote desktop control wire types (Phase 74) ─────────────────
+// Locked by 74-01 Task 1 (Option A): normalized absolute coordinates, nested
+// `input` kind, browser-side DOM-code-to-VK map. Spoken by the browser, the
+// backend WS relay, and both agent binaries — changing any field after agents
+// ship means a coordinated agent redeployment.
+
+/** Browser→agent input frame. `type` is always "input"; `kind` discriminates. */
+export interface RemoteInputFrame {
+  type: 'input';
+  kind: 'mousemove' | 'mousedown' | 'mouseup' | 'wheel' | 'keydown' | 'keyup';
+  /** Normalized absolute coords, 0.0–1.0 of the remote desktop. */
+  x?: number;
+  y?: number;
+  /** Mouse button, 0–4. */
+  button?: number;
+  deltaX?: number;
+  deltaY?: number;
+  /** Windows virtual-key code, 0–254. */
+  vk?: number;
+  extended?: boolean;
+  /** Optional Unicode code unit for textual input. */
+  unicode?: number | null;
+}
+
+/** Agent→browser control-state frame (consent / activity lifecycle). */
+export interface RemoteControlStateFrame {
+  type: 'control_state';
+  state: 'awaiting_consent' | 'active' | 'ended';
+  reason?: string | null;
+  message?: string | null;
+}
+
+/** Discriminator on the existing agent→browser `error` frame. */
+export type RemoteErrorReason =
+  | 'no_interactive_desktop'
+  | 'unsupported_platform'
+  | 'already_controlled'
+  | 'consent_declined'
+  | 'consent_timeout'
+  | 'relay_failed';
+
+/**
+ * DOM `KeyboardEvent.code` → Windows virtual-key code.
+ * Covers: letters, digits, arrows, navigation, modifiers, numpad, function keys, punctuation.
+ * Returns `undefined` for unmapped codes — never a wrong default.
+ */
+export const DOM_CODE_TO_VK: Record<string, number> = (() => {
+  const m: Record<string, number> = {};
+
+  // Letters A–Z → VK_A..VK_Z (0x41–0x5A)
+  for (let i = 0; i < 26; i++) m[`Key${String.fromCharCode(65 + i)}`] = 0x41 + i;
+  // Digits 0–9 → VK_0..VK_9 (0x30–0x39)
+  for (let i = 0; i <= 9; i++) m[`Digit${i}`] = 0x30 + i;
+  // Numpad digits → VK_NUMPAD0..VK_NUMPAD9 (0x60–0x69)
+  for (let i = 0; i <= 9; i++) m[`Numpad${i}`] = 0x60 + i;
+  // Numpad operators
+  m['NumpadEnter']     = 0x0D;
+  m['NumpadAdd']       = 0x6B;
+  m['NumpadSubtract']  = 0x6D;
+  m['NumpadMultiply']  = 0x6A;
+  m['NumpadDivide']    = 0x6F;
+  m['NumpadDecimal']   = 0x6E;
+  // Arrow keys
+  m['ArrowUp']    = 0x26;
+  m['ArrowDown']  = 0x28;
+  m['ArrowLeft']  = 0x25;
+  m['ArrowRight'] = 0x27;
+  // Navigation
+  m['Home']     = 0x24;
+  m['End']      = 0x23;
+  m['PageUp']   = 0x21;
+  m['PageDown'] = 0x22;
+  m['Insert']   = 0x2D;
+  m['Delete']   = 0x2E;
+  // Edit
+  m['Backspace'] = 0x08;
+  m['Tab']       = 0x09;
+  m['Enter']     = 0x0D;
+  m['Escape']    = 0x1B;
+  m['Space']     = 0x20;
+  // Modifier keys — left and right variants
+  m['ShiftLeft']     = 0xA0;
+  m['ShiftRight']    = 0xA1;
+  m['ControlLeft']   = 0xA2;
+  m['ControlRight']  = 0xA3;
+  m['AltLeft']       = 0xA4;
+  m['AltRight']      = 0xA5;
+  m['MetaLeft']      = 0x5B;
+  m['MetaRight']     = 0x5C;
+  m['CapsLock']      = 0x14;
+  m['NumLock']       = 0x90;
+  m['ScrollLock']    = 0x91;
+  // Function keys F1–F24
+  for (let i = 1; i <= 12; i++) m[`F${i}`] = 0x70 + (i - 1);
+  // Punctuation row (US layout)
+  m['Minus']         = 0xBD;
+  m['Equal']         = 0xBB;
+  m['BracketLeft']   = 0xDB;
+  m['BracketRight']  = 0xDD;
+  m['Backslash']     = 0xDC;
+  m['Semicolon']     = 0xBA;
+  m['Quote']         = 0xDE;
+  m['Backquote']     = 0xC0;
+  m['Comma']         = 0xBC;
+  m['Period']        = 0xBE;
+  m['Slash']         = 0xBF;
+  // PrintScreen, Pause
+  m['PrintScreen'] = 0x2C;
+  m['Pause']       = 0x13;
+
+  return m;
+})();
+
+/**
+ * Resolve a `KeyboardEvent` to a virtual-key code.
+ * Returns `{ vk, extended?, unicode? }`:
+ *  - mapped key → { vk: code, extended }
+ *  - unmapped key but single printable char → { vk: 0, unicode: charCodeAt(0), extended }
+ *  - unmapped and non-printable → { vk: 0 }
+ */
+export function resolveKeyEventToFrame(
+  event: React.KeyboardEvent,
+): { vk: number; extended?: boolean; unicode?: number } {
+  const vk = DOM_CODE_TO_VK[event.code];
+  const extended = [
+    'ControlRight', 'ShiftRight', 'AltRight', 'MetaRight', 'MetaLeft',
+    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
+    'NumpadEnter',
+  ].includes(event.code);
+
+  if (vk !== undefined) return { vk, extended };
+
+  // Single printable character fallback — send UTF-16 code unit with vk=0
+  if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+    return { vk: 0, extended, unicode: event.key.charCodeAt(0) };
+  }
+
+  return { vk: 0, extended };
+}
+
+/**
+ * Clamp a pointer offset to 0..1 inclusive relative to the canvas element.
+ * Clamping matters because a pointer can leave the canvas during a drag
+ * and an unclamped value would fail the agent's range validation.
+ */
+export function normalizeCanvasPoint(
+  clientOffsetX: number,
+  clientOffsetY: number,
+  canvasWidth: number,
+  canvasHeight: number,
+): { x: number; y: number } {
+  if (!canvasWidth || !canvasHeight) return { x: 0, y: 0 };
+  return {
+    x: Math.min(1, Math.max(0, clientOffsetX / canvasWidth)),
+    y: Math.min(1, Math.max(0, clientOffsetY / canvasHeight)),
+  };
+}
+
 export type AgentPlatform = 'Linux' | 'Windows' | 'macOS' | 'Docker' | 'Kubernetes' | 'AWS EC2';
 export type AgentStatus = 'Online' | 'Offline' | 'Error' | 'Quarantined';
 export type AgentCapability =
@@ -1186,6 +1345,9 @@ export interface VoiceBotSettings {
   voiceURI: string;
   pitch: number;
   rate: number;
+  // Fallback reply when both primary AI and 9router are unavailable.
+  // Tenant admins override the platform default.
+  defaultResponse?: string;
 }
 
 export interface AiTool {
