@@ -156,7 +156,14 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             };
 
             ws.onerror = () => { setError('Stream connection failed'); setIsConnected(false); };
-            ws.onclose = () => { setIsConnected(false); setFps(0); };
+            ws.onclose = (ev) => {
+                setIsConnected(false);
+                setFps(0);
+                if (!hasFramesRef.current && !cancelled) {
+                    if (ev.code === 4401) setError('Authentication failed — token may be expired. Refresh the page.');
+                    else if (ev.code === 4403) setError('Access denied — session not found or tenant mismatch. The agent may have rejected the connection.');
+                }
+            };
 
             setTimeout(() => {
                 if (!cancelled && !hasFramesRef.current) {
@@ -166,7 +173,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
         };
 
         const init = async () => {
-            const key = `${agentId}:${sessionIdProp || ''}`;
+            const key = `${agentId}:${sessionIdProp || ''}:${mode}`;
             if (initedForRef.current === key) return;
             initedForRef.current = key;
 
@@ -179,9 +186,13 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             const resp = await startRemoteSession(agentId, 'vnc', sessionType);
             if (cancelled) return;
             if (resp?.session_id) {
-                openWs(resp.session_id);
+                openWs(resp.session_id, mode);
             } else {
-                setError(resp?.error ? String(resp.error) : 'Failed to start desktop session');
+                const errText = resp?.error
+                    ? (typeof resp.error === 'string' ? resp.error : String(resp.error))
+                    : 'Failed to start desktop session';
+                const statusHint = resp?.status === 403 ? ' — missing permission' : resp?.status === 409 ? ' — session already active' : resp?.status === 404 ? ' — agent not found' : resp?.status === 401 ? ' — token expired' : '';
+                setError(errText + statusHint);
                 setStatusMsg('');
             }
         };

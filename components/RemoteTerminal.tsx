@@ -10,6 +10,14 @@ interface RemoteTerminalProps {
     onClose: () => void;
 }
 
+/** Validate a single credential field: non-empty, no control chars, max 128 bytes. */
+const validateCredential = (v: string): boolean => {
+    if (!v || v.length > 128) return false;
+    // Reject control characters (0x00-0x1F, 0x7F) except common whitespace
+    // Allow tabs/newlines only if intentional (user may paste). Strip and re-check.
+    return /^[\x20-\x7E -ɏ]+$/.test(v);
+};
+
 export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
@@ -17,7 +25,35 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
     const fitRef = useRef<FitAddon | null>(null);
     const [connected, setConnected] = useState(false);
 
+    // Linux credential prompt state
+    const isLinux = agent.platform === 'Linux' || agent.platform === 'linux';
+    const [showCreds, setShowCreds] = useState(isLinux);
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [credError, setCredError] = useState('');
+
+    // Store credentials after submit so the useEffect can read them
+    const credsRef = useRef<{username: string; password: string} | null>(null);
+
+    const submitCredentials = () => {
+        const u = username.trim();
+        const p = password;
+        if (!validateCredential(u)) {
+            setCredError('Username: non-empty, max 128 chars, no control characters.');
+            return;
+        }
+        if (!validateCredential(p)) {
+            setCredError('Password: non-empty, max 128 chars, no control characters.');
+            return;
+        }
+        credsRef.current = { username: u, password: p };
+        setShowCreds(false);
+        setCredError('');
+    };
+
     useEffect(() => {
+        if (showCreds) return; // don't connect until creds submitted
+
         if (!terminalRef.current) return;
 
         let cancelled = false;
@@ -36,7 +72,6 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
         fitRef.current = fitAddon;
 
         // Defer fit() until after the browser has painted the flex container.
-        // Calling it synchronously gives a 0×0 measurement and crashes xterm.
         const fitTimer = setTimeout(() => {
             if (!cancelled) {
                 try { fitAddon.fit(); } catch { /* container not yet visible */ }
@@ -79,7 +114,9 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
             terminal.writeln(`\x1b[33mConnecting to ${agent.hostname} (${agent.ipAddress || 'unknown IP'})...\x1b[0m`);
             terminal.writeln('\x1b[34mRequesting agent connection...\x1b[0m');
             try {
-                const response = await startRemoteSession(agent.id || agent.hostname, 'ssh', 'shell');
+                const creds = credsRef.current;
+                const extra = (creds && isLinux) ? { username: creds.username, password: creds.password } : undefined;
+                const response = await startRemoteSession(agent.id || agent.hostname, 'ssh', 'shell', extra);
                 if (cancelled) return;
 
                 if (response?.session_id) {
@@ -117,7 +154,58 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
             termRef.current = null;
             fitRef.current = null;
         };
-    }, [agent]);
+    }, [agent, showCreds]);
+
+    // Linux credential prompt — shown before connecting
+    if (showCreds) {
+        return (
+            <div className="h-full w-full flex flex-col bg-[#1a1a2e] rounded-lg border border-gray-700">
+                <div className="flex items-center justify-between px-4 py-3 bg-[#2d2d2d] border-b border-gray-700 rounded-t-lg">
+                    <span className="text-gray-200 font-mono text-sm">SSH Credentials — {agent.hostname}</span>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors text-lg leading-none">✕</button>
+                </div>
+                <div className="flex-1 flex items-center justify-center p-6">
+                    <div className="w-full max-w-sm space-y-4">
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Username</label>
+                            <input
+                                type="text"
+                                value={username}
+                                onChange={(e) => { setUsername(e.target.value); setCredError(''); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') submitCredentials(); }}
+                                autoFocus
+                                maxLength={128}
+                                className="w-full bg-[#1e1e1e] border border-gray-600 rounded px-3 py-2 text-sm text-gray-100 font-mono focus:outline-none focus:border-blue-500"
+                                placeholder="e.g. root"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400 mb-1">Password</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => { setPassword(e.target.value); setCredError(''); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') submitCredentials(); }}
+                                maxLength={128}
+                                className="w-full bg-[#1e1e1e] border border-gray-600 rounded px-3 py-2 text-sm text-gray-100 font-mono focus:outline-none focus:border-blue-500"
+                                placeholder="••••••"
+                            />
+                        </div>
+                        {credError && (
+                            <p className="text-red-400 text-xs">{credError}</p>
+                        )}
+                        <button
+                            onClick={submitCredentials}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded transition-colors"
+                        >
+                            Connect
+                        </button>
+                        <p className="text-gray-500 text-xs text-center">Credentials are sent over the encrypted tunnel and never logged.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-full w-full flex flex-col bg-black">
