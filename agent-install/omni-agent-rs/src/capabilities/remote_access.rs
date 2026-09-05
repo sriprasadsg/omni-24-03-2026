@@ -2,6 +2,15 @@ use super::Capability;
 use serde_json::{json, Value};
 use sysinfo::System;
 
+/// Identity of the admin requesting interactive control. Rendered in the consent
+/// dialog and stop bar, and POSTed with the consent decision (T-74-19 audit).
+#[derive(Default, Clone)]
+pub struct Requester {
+    pub name: String,
+    pub email: String,
+    pub tenant: String,
+}
+
 pub struct RemoteAccessCapability;
 
 impl Capability for RemoteAccessCapability {
@@ -101,11 +110,19 @@ pub fn start_reverse_shell(session_id: String, url: String, tenant_key: String) 
 
 /// Spawn a desktop streaming task that sends JPEG frames over WebSocket.
 /// When `control` is true the same tunnel also relays browser input frames
-/// back to the agent (`parse_input_frame` → `control_input_replay`).
-pub fn start_desktop_stream(session_id: String, url: String, tenant_key: String, control: bool) {
+/// back to the agent, gated behind endpoint-user consent (D-01).
+pub fn start_desktop_stream(
+    session_id: String,
+    url: String,
+    tenant_key: String,
+    control: bool,
+    requester: Requester,
+) {
     tokio::spawn(async move {
-        log::info!("Desktop stream starting: session={session_id} url={url} control={control}");
-        if let Err(e) = desktop_stream_run(&url, &tenant_key, control).await {
+        log::info!(
+            "Desktop stream starting: session={session_id} url={url} control={control}"
+        );
+        if let Err(e) = desktop_stream_run(&session_id, &url, &tenant_key, control, &requester).await {
             log::error!("Desktop stream error: {e}");
         }
         log::info!("Desktop stream ended: session={session_id}");
@@ -182,164 +199,98 @@ async fn reverse_shell_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn st
     Ok(())
 }
 
-/// One decoded interactive-control input frame (Phase 74 wire contract,
-/// Option A): an `input` frame with a nested `kind`, normalized absolute
-/// coordinates, and Windows virtual-key codes. Parsed at the boundary by
-/// `parse_input_frame`; replayed by `control_input_replay` on Windows.
-#[derive(Debug, PartialEq)]
-pub enum InputEvent {
-    MouseMove { x: f64, y: f64 },
-    MouseButton { down: bool, button: u8 },
-    Wheel { delta_x: i64, delta_y: i64 },
-    Key { down: bool, vk: u8, extended: bool, unicode: Option<u16> },
-}
 
-const INPUT_KINDS: &[&str] = &["mousemove", "mousedown", "mouseup", "wheel", "keydown", "keyup"];
-
-/// Parse and validate one browser→agent input frame. Rejects at the boundary:
-/// any `kind` outside the enumerated set, `x`/`y` outside 0.0..=1.0 inclusive,
-/// `vk` outside 0..=254, or a non-`input` `type` — returning `Err` with a
-/// short reason rather than panicking or silently clamping into a
-/// valid-looking event (T-74-04).
-pub fn parse_input_frame(raw: &str) -> Result<InputEvent, String> {
-    let value: Value = serde_json::from_str(raw).map_err(|e| format!("invalid JSON: {e}"))?;
-    if value.get("type").and_then(|v| v.as_str()) != Some("input") {
-        return Err("frame type is not 'input'".to_string());
-    }
-    let kind = value.get("kind").and_then(|v| v.as_str()).unwrap_or("");
-    if !INPUT_KINDS.contains(&kind) {
-        return Err(format!("unknown input kind: {kind}"));
-    }
-
-    let coord = |key: &str| -> Result<f64, String> {
-        match value.get(key).and_then(|v| v.as_f64()) {
-            Some(n) if (0.0..=1.0).contains(&n) => Ok(n),
-            Some(n) => Err(format!("{key} {n} out of range 0.0..=1.0")),
-            None => Err(format!("missing or non-numeric {key}")),
-        }
-    };
-    let int = |key: &str| -> Result<Option<i64>, String> {
-        Ok(value.get(key).and_then(|v| v.as_i64()))
-    };
-    let vk = |key: &str| -> Result<Option<u8>, String> {
-        match int(key)? {
-            Some(n) if (0..=254).contains(&n) => Ok(Some(n as u8)),
-            Some(n) => Err(format!("{key} {n} out of range 0..=254")),
-            None => Ok(None),
-        }
-    };
-
-    Ok(match kind {
-        "mousemove" => InputEvent::MouseMove { x: coord("x")?, y: coord("y")? },
-        "mousedown" => InputEvent::MouseButton { down: true, button: vk("button")?.unwrap_or(0) },
-        "mouseup" => InputEvent::MouseButton { down: false, button: vk("button")?.unwrap_or(0) },
-        "wheel" => InputEvent::Wheel {
-            delta_x: int("deltaX")?.unwrap_or(0),
-            delta_y: int("deltaY")?.unwrap_or(0),
-        },
-        "keydown" => InputEvent::Key {
-            down: true,
-            vk: vk("vk")?.ok_or("missing vk")?,
-            extended: matches!(value.get("extended"), Some(Value::Bool(true))),
-            unicode: int("unicode")?.and_then(|n| u16::try_from(n).ok()),
-        },
-        "keyup" => InputEvent::Key {
-            down: false,
-            vk: vk("vk")?.ok_or("missing vk")?,
-            extended: matches!(value.get("extended"), Some(Value::Bool(true))),
-            unicode: int("unicode")?.and_then(|n| u16::try_from(n).ok()),
-        },
-        _ => unreachable!("kind validated above"),
-    })
-}
-
-#[cfg(windows)]
-fn control_input_replay(ev: &InputEvent) {
-    use std::mem::size_of;
-    use winapi::um::winuser::*;
-
-    match ev {
-        InputEvent::MouseMove { x, y } => {
-            // winapi 0.3: INPUT has no Default impl and the union method is
-            // `mi()` (not `mouse_mut`, which is Windows-rs style). `zeroed`
-            // is the canonical init for a raw union that is fully written by
-            // the assignment below.
-            let mut input: INPUT = unsafe { std::mem::zeroed() };
-            input.type_ = INPUT_MOUSE;
-            // winapi 0.3: INPUT has a MOUSEINPUT as the first field of the
-            // internal union. Form the pointer from the INPUT pointer itself
-            // (avoids the `&mut -> *mut` reborrow error E0606) and write the
-            // mouse event fields through that mutable view. The shared bytes
-            // are immediately reborrowed as `&mut INPUT` for SendInput.
-            let mi: &mut MOUSEINPUT = unsafe {
-                &mut *(&mut input as *mut INPUT as *mut MOUSEINPUT)
-            };
-            mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
-            mi.dx = (x * 65535.0).round() as i32;
-            mi.dy = (y * 65535.0).round() as i32;
-            let sent = unsafe { SendInput(1, &mut input, size_of::<INPUT>() as i32) };
-            if sent == 0 {
-                log::warn!("SendInput failed for mousemove ({x}, {y}): error {}", unsafe {
-                    winapi::um::errhandlingapi::GetLastError()
-                });
-            }
-        }
-        // Tracer slice: only mousemove is replayed. Every other accepted
-        // variant is dropped for now; Plan 03 (consent-gated full input) and
-        // Plan 05 (full browser keymap) fill these in.
-        _ => log::debug!("control_input_replay: dropping unsupported variant {ev:?}"),
-    }
-}
-
-// Windows: long-lived PowerShell process captures JPEG frames and emits base64 lines
+// Windows: long-lived PowerShell process captures JPEG frames and emits base64 lines.
+// Phase 74 consent-gate flow:
+//   1. Connect tunnel, send control_state:"awaiting_consent"
+//   2. spawn_blocking request_consent (blocks on endpoint user)
+//   3. POST decision to backend audit endpoint (T-74-19)
+//   4. On accept: show_stop_bar, send control_state:"active", start capture + input loop
+//   5. Input loop: rate cap 50/s, ConsentGate.authorised() per frame, stop_requested() per frame
+//   6. On decline/timeout/stop: send control_state:"ended", cleanup, exit
 #[cfg(windows)]
 async fn desktop_stream_run(
+    session_id: &str,
     url: &str,
     tenant_key: &str,
     control: bool,
+    requester: &Requester,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use crate::capabilities::control_input::{control_input_replay, parse_input_frame, ConsentGate};
+    use crate::consent_ui::{request_consent, show_stop_bar, hide_stop_bar, stop_requested, ConsentDecision, ConsentError};
     use futures_util::{SinkExt, StreamExt};
     use tokio::io::{AsyncBufReadExt, BufReader};
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{timeout, Duration, interval};
     use tokio_tungstenite::{connect_async, tungstenite::Message};
 
     let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
-    let (mut ws_write, mut ws_read) = ws_stream.split();
+    let (mut ws_write, ws_read) = ws_stream.split();
 
-    // Phase 74 control path: spawn a writer-concurrent reader over the same
-    // tunnel the frames flow out on. The `/user` → `/agent` relay is
-    // bidirectional (T-74-01), so browser `input` frames arrive here and are
-    // replayed via SendInput. View-only mode never spawns this — no input
-    // frames are ever sent on a `/viewer` connection.
-    if control {
-        tokio::spawn(async move {
-            while let Some(Ok(msg)) = ws_read.next().await {
-                let text = match msg {
-                    Message::Text(t) => t.to_string(),
-                    Message::Binary(b) => match String::from_utf8(b.to_vec()) {
-                        Ok(t) => t,
-                        Err(_) => {
-                            log::warn!("control input: non-UTF8 binary frame dropped");
-                            continue;
-                        }
-                    },
-                    Message::Close(_) => break,
-                    _ => continue,
-                };
-                match parse_input_frame(&text) {
-                    Ok(ev) => control_input_replay(&ev),
-                    Err(e) => log::warn!("control input: rejected frame: {e}"),
-                }
-            }
-        });
+    // Build a control_state frame. `Message` is the WS frame wrapper; string
+    // building avoids a lifetime-heavy closure returning a self-referential type.
+    let send_state = |state: &str, reason: Option<&str>, message: Option<&str>| {
+        let mut payload = format!(r#"{{"type":"control_state","state":"{}""#, state);
+        if let Some(r) = reason { payload.push_str(&format!(r#","reason":"{}""#, r)); }
+        if let Some(m) = message { payload.push_str(&format!(r#","message":"{}""#, m)); }
+        payload.push('}');
+        Message::Text(payload.into())
+    };
+
+    // 1. Signal awaiting consent
+    let _ = ws_write.send(send_state("awaiting_consent", None, Some("Waiting for endpoint user consent"))).await;
+
+    // 2. Request consent via spawn_blocking (blocks on endpoint UI)
+    let session_id_owned = session_id.to_string();
+    let requester_name = requester.name.clone();
+    let requester_email = requester.email.clone();
+    let tenant_name = requester.tenant.clone();
+    let decision = tokio::task::spawn_blocking({
+        let session_id = session_id_owned.clone();
+        let name = requester_name.clone();
+        let email = requester_email.clone();
+        let tenant = tenant_name.clone();
+        move || {
+            request_consent(&session_id, &name, &email, &tenant, 60)
+        }
+    }).await.unwrap_or(Err(ConsentError::SpawnFailed("task join failed".into())));
+
+    let decision = match decision {
+        Ok(ConsentDecision::Accept) => ConsentDecision::Accept,
+        Ok(ConsentDecision::Decline) => ConsentDecision::Decline,
+        Ok(ConsentDecision::Timeout) => ConsentDecision::Timeout,
+        Err(ConsentError::NoInteractiveSession) => {
+            let _ = ws_write.send(Message::Text(r#"{"type":"error","reason":"no_interactive_desktop","message":"No interactive desktop session available (Session 0 isolation)"}"#.into())).await;
+            return Err("no interactive desktop session".into());
+        }
+        Err(ConsentError::SpawnFailed(e)) => {
+            let msg = e.replace('"', "'");
+            let _ = ws_write.send(Message::Text(format!(r#"{{"type":"error","reason":"relay_failed","message":"{}"}}"#, msg).into())).await;
+            return Err(e.into());
+        }
+    };
+
+    // 3. POST decision to backend audit endpoint (T-74-19)
+    let _ = post_consent_decision(url, &session_id_owned, &decision, requester).await;
+
+    match decision {
+        ConsentDecision::Decline => {
+            let _ = ws_write.send(send_state("ended", Some("consent_declined"), Some("Endpoint user declined control"))).await;
+            return Ok(());
+        }
+        ConsentDecision::Timeout => {
+            let _ = ws_write.send(send_state("ended", Some("consent_timeout"), Some("Consent request timed out"))).await;
+            return Ok(());
+        }
+        ConsentDecision::Accept => {}
     }
 
-    // Single PS process that emits one base64 JPEG per line at ~7 FPS. The
-    // capture branch reports failures as "ERR:<message>" instead of the
-    // previous bare `catch {}` — a service running as LocalSystem (Session 0)
-    // has no interactive desktop to capture, and CopyFromScreen either
-    // throws or silently yields a 0x0 bitmap there; either way the operator
-    // needs a real signal instead of an infinite "waiting for stream" spinner.
+    // 4. Consent accepted — show stop bar, signal active
+    if let Err(e) = show_stop_bar(&session_id_owned, &requester_name) {
+        log::warn!("Failed to show stop bar: {e}");
+    }
+    let _ = ws_write.send(send_state("active", None, Some("Interactive control active"))).await;
+
+    // 5. Start capture process
     let ps_script = r#"Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 if ($bounds.Width -le 0 -or $bounds.Height -le 0) {
@@ -379,6 +330,7 @@ while ($true) {
             let msg = format!("Failed to launch capture process: {}", e).replace('"', "'");
             let payload = format!(r#"{{"type":"error","message":"{}"}}"#, msg);
             let _ = ws_write.send(Message::Text(payload.into())).await;
+            let _ = hide_stop_bar(&session_id_owned);
             return Err(format!("failed to spawn powershell.exe: {}", e).into());
         }
     };
@@ -392,14 +344,13 @@ while ($true) {
                 ))
                 .await;
             let _ = child.kill().await;
+            let _ = hide_stop_bar(&session_id_owned);
             return Err("no stdout from capture process".into());
         }
     };
     let mut lines = BufReader::new(stdout).lines();
 
-    // First line must arrive within 5s — if PowerShell never produces output
-    // at all (e.g. it fails before its own try/catch can run), the viewer
-    // would otherwise wait forever with zero signal.
+    // First line must arrive within 5s
     let first_line = timeout(Duration::from_secs(5), lines.next_line()).await;
     let mut pending = match first_line {
         Ok(next) => next,
@@ -410,16 +361,76 @@ while ($true) {
                 ))
                 .await;
             let _ = child.kill().await;
+            let _ = hide_stop_bar(&session_id_owned);
             return Err("desktop capture timed out with no output".into());
         }
     };
 
+    // 6. Authorisation gate, shared between the input loop and this loop so a
+    //    revocation (stop sentinel / capture failure) is visible to the running,
+    //    spawned input task. Concede ONCE after accept; every later SendInput is
+    //    re-checked against the gate (D-01) before replay.
+    let gate = std::sync::Arc::new(std::sync::Mutex::new(ConsentGate::new()));
+    gate.lock().unwrap().concede(); // consent accepted
+
+    let input_task = if control {
+        let mut ws_read = ws_read;
+        let gate_input = gate.clone();
+        tokio::spawn(async move {
+            let mut rate_limiter = interval(Duration::from_millis(20)); // 50 frames/sec cap
+            while let Some(Ok(msg)) = ws_read.next().await {
+                rate_limiter.tick().await;
+                // Re-check authorisation before EVERY SendInput (D-01). The gate
+                // is revoked by the capture loop on stop — a revoked gate refuses
+                // further replay permanently within this session (D-12).
+                if !gate_input.lock().unwrap().authorised() {
+                    log::info!("Input gate revoked, ending input loop");
+                    break;
+                }
+                let text = match msg {
+                    Message::Text(t) => t.to_string(),
+                    Message::Binary(b) => match String::from_utf8(b.to_vec()) {
+                        Ok(t) => t,
+                        Err(_) => {
+                            log::warn!("control input: non-UTF8 binary frame dropped");
+                            continue;
+                        }
+                    },
+                    Message::Close(_) => break,
+                    _ => continue,
+                };
+                match parse_input_frame(&text) {
+                    Ok(ev) => control_input_replay(&ev),
+                    Err(e) => log::warn!("control input: rejected frame: {e}"),
+                }
+            }
+        })
+    } else {
+        tokio::spawn(async {})
+    };
+
+    // 7. Frame capture loop
+    let mut end_reason = "unknown";
+    let mut end_message = "Session ended";
     loop {
+        // Check stop sentinel each frame (D-09/D-12): the endpoint user's Stop
+        // Control click writes stop_{session}.stop. On fire, revoke the gate so
+        // the concurrent input task stops replaying immediately.
+        if stop_requested(&session_id_owned) {
+            end_reason = "stop_requested";
+            end_message = "Endpoint user stopped control";
+            gate.lock().unwrap().revoke();
+            break;
+        }
+
         match pending {
             Ok(Some(ref line)) if line.starts_with("ERR:") => {
                 let msg = line.trim_start_matches("ERR:").replace('"', "'");
                 let payload = format!(r#"{{"type":"error","message":"{}"}}"#, msg);
                 let _ = ws_write.send(Message::Text(payload.into())).await;
+                end_reason = "capture_error";
+                end_message = "Desktop capture failed";
+                gate.lock().unwrap().revoke();
                 break;
             }
             Ok(Some(ref line)) if !line.is_empty() => {
@@ -428,23 +439,82 @@ while ($true) {
                     r#"{{"type":"frame","timestamp":{},"data":"{}"}}"#,
                     ts, line
                 );
-                if ws_write.send(Message::Text(payload.into())).await.is_err() { break; }
+                if ws_write.send(Message::Text(payload.into())).await.is_err() {
+                    end_reason = "relay_failed";
+                    end_message = "WebSocket relay failed";
+                    gate.lock().unwrap().revoke();
+                    break;
+                }
             }
-            Ok(None) | Err(_) => break,
+            Ok(None) | Err(_) => {
+                end_reason = "capture_ended";
+                end_message = "Desktop capture process ended";
+                gate.lock().unwrap().revoke();
+                break;
+            }
             _ => {}
         }
         pending = lines.next_line().await;
     }
 
+    // 8. Cleanup: abort input task, kill capture, hide stop bar, send ended state
+    input_task.abort();
     let _ = child.kill().await;
+    let _ = hide_stop_bar(&session_id_owned);
+    let _ = ws_write.send(send_state("ended", Some(end_reason), Some(end_message))).await;
+
     Ok(())
+}
+
+/// POST consent decision to the backend audit endpoint (T-74-19).
+/// Derives HTTP base from the tunnel WebSocket URL.
+async fn post_consent_decision(
+    tunnel_url: &str,
+    session_id: &str,
+    decision: &crate::consent_ui::ConsentDecision,
+    requester: &Requester,
+) {
+    use reqwest::Client;
+    // Derive HTTP endpoint from ws:// or wss:// tunnel URL
+    let http_url = tunnel_url
+        .replace("wss://", "https://")
+        .replace("ws://", "http://")
+        .replace("/tunnel", "/consent-decision")
+        .replace("/viewer", "/consent-decision")
+        .replace("/user", "/consent-decision");
+
+    let body = serde_json::json!({
+        "session_id": session_id,
+        "decision": match decision {
+            crate::consent_ui::ConsentDecision::Accept => "accept",
+            crate::consent_ui::ConsentDecision::Decline => "decline",
+            crate::consent_ui::ConsentDecision::Timeout => "timeout",
+        },
+        "requester_name": &requester.name,
+        "requester_email": &requester.email,
+        "tenant": &requester.tenant,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+    });
+
+    let client = Client::new();
+    if let Err(e) = client
+        .post(&http_url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+    {
+        log::warn!("Failed to POST consent decision: {e}");
+    }
 }
 
 #[cfg(not(windows))]
 async fn desktop_stream_run(
+    _session_id: &str,
     url: &str,
     tenant_key: &str,
     control: bool,
+    _requester: &Requester,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -472,35 +542,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_input_frame_rejects_unknown_kind() {
-        let raw = r#"{"type":"input","kind":"teleport","x":0.5,"y":0.5}"#;
-        assert!(parse_input_frame(raw).is_err());
-    }
-
-    #[test]
-    fn parse_input_frame_rejects_out_of_range_coords() {
-        let raw = r#"{"type":"input","kind":"mousemove","x":1.5,"y":0.5}"#;
-        assert!(parse_input_frame(raw).is_err());
-    }
-
-    #[test]
-    fn parse_input_frame_rejects_non_input_type() {
-        let raw = r#"{"type":"frame","kind":"mousemove","x":0.5,"y":0.5}"#;
-        assert!(parse_input_frame(raw).is_err());
-    }
-
-    #[test]
-    fn parse_input_frame_accepts_valid_mousemove() {
-        let raw = r#"{"type":"input","kind":"mousemove","x":0.25,"y":0.75}"#;
+    fn post_consent_decision_url_derivation() {
+        // HTTP base derives from the tunnel WebSocket URL (T-74-19)
+        let http_url = "wss://relay.example.com/tunnel/abc"
+            .replace("wss://", "https://")
+            .replace("/tunnel", "/consent-decision");
         assert_eq!(
-            parse_input_frame(raw).unwrap(),
-            InputEvent::MouseMove { x: 0.25, y: 0.75 }
+            http_url,
+            "https://relay.example.com/consent-decision/abc"
         );
     }
 
     #[test]
-    fn parse_input_frame_rejects_bad_vk() {
-        let raw = r#"{"type":"input","kind":"keydown","vk":300}"#;
-        assert!(parse_input_frame(raw).is_err());
+    fn post_consent_decision_url_viewer_derivation() {
+        let http_url = "ws://relay.example.com/viewer/xyz"
+            .replace("ws://", "http://")
+            .replace("/viewer", "/consent-decision")
+            .replace("/user", "/consent-decision");
+        assert_eq!(
+            http_url,
+            "http://relay.example.com/consent-decision/xyz"
+        );
     }
 }

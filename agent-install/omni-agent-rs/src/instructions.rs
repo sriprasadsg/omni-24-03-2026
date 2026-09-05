@@ -303,9 +303,15 @@ pub async fn compute_instruction_result(
                 .and_then(|v| v.as_str())
                 .unwrap_or("shell")
                 .to_lowercase();
-            if session_kind == "desktop" || session_kind == "vnc" {
-                crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone());
-                serde_json::json!({"status": "success", "message": "Desktop stream started"})
+            if session_kind == "desktop" || session_kind == "vnc" || session_kind == "control" {
+                let control = session_kind == "control";
+                let requester = crate::capabilities::remote_access::Requester {
+                    name: payload.get("requester_name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string(),
+                    email: payload.get("requester_email").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    tenant: payload.get("tenant").and_then(|v| v.as_str()).unwrap_or("Default").to_string(),
+                };
+                crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone(), control, requester);
+                serde_json::json!({"status": "success", "message": if control { "Interactive control session started" } else { "Desktop stream started" }})
             } else {
                 crate::capabilities::remote_access::start_reverse_shell(session_id, url, cfg.registration_key.clone());
                 serde_json::json!({"status": "success", "message": "Reverse shell session started"})
@@ -327,7 +333,12 @@ pub async fn compute_instruction_result(
                     return None;
                 }
             };
-            crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone());
+            let requester = crate::capabilities::remote_access::Requester {
+                name: payload.get("requester_name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string(),
+                email: payload.get("requester_email").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                tenant: payload.get("tenant").and_then(|v| v.as_str()).unwrap_or("Default").to_string(),
+            };
+            crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone(), false, requester);
             serde_json::json!({"status": "success", "message": "Desktop stream started"})
         }
         // ── Ticketing (ticket_reporter) ──────────────────────────────────────

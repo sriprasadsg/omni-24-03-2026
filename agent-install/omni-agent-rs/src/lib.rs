@@ -2,6 +2,8 @@ pub mod buffer;
 pub mod capabilities;
 pub mod chat_display;
 pub mod chat_ui;
+pub mod consent_scripts;
+pub mod consent_ui;
 pub mod config;
 pub mod heartbeat;
 pub mod instructions;
