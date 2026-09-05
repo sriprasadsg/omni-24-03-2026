@@ -3685,16 +3685,42 @@ export const createPrompt = async (prompt: any) => {
     } catch (e) { return { success: false }; }
 };
 
-export const startRemoteSession = async (agentId: string, protocol: string, type: 'shell' | 'desktop' = 'shell') => {
+export const startRemoteSession = async (agentId: string, protocol: string, type: 'shell' | 'desktop' | 'control' = 'shell', extra?: {username?: string; password?: string}) => {
     try {
         const res = await authFetch(`${API_BASE}/remote/session/start`, {
             method: 'POST',
-            body: JSON.stringify({ agent_id: agentId, protocol, type })
+            body: JSON.stringify({ agent_id: agentId, protocol, type, ...extra })
         });
+        if (!res.ok) {
+            const detail = await res.json().catch(() => ({ detail: res.statusText }));
+            return { error: detail?.detail || res.statusText || 'Request failed', status: res.status };
+        }
         return await res.json();
     } catch (e) {
         console.error("Error starting remote session:", e);
+        return { error: e instanceof Error ? e.message : String(e) };
+    }
+};
+
+export const disconnectRemoteSession = async (sessionId: string) => {
+    try {
+        const res = await authFetch(`${API_BASE}/remote/session/${sessionId}/disconnect`, {
+            method: 'POST'
+        });
+        return await res.json();
+    } catch (e) {
+        console.error("Error disconnecting remote session:", e);
         return { error: e };
+    }
+};
+
+export const getRemoteCapabilities = async () => {
+    try {
+        const res = await authFetch(`${API_BASE}/remote/capabilities`);
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching remote capabilities:", e);
+        return { error: e, can_view: false, can_control: false };
     }
 };
 
