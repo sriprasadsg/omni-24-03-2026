@@ -403,7 +403,19 @@ class AgentCapabilityManager:
             import threading
             tenant_key = self.cfg.get('registration_key', '') if hasattr(self, 'cfg') else ''
             if session_type == "desktop":
-                t = threading.Thread(target=remote_cap.start_desktop_stream, args=(session_id, url, tenant_key))
+                # Interactive-control consent/identity forwarded (74-04). A
+                # `mode=control` payload triggers the D-01..D-12 consent flow.
+                control = payload.get("mode") == "control"
+                t = threading.Thread(
+                    target=remote_cap.start_desktop_stream,
+                    args=(session_id, url, tenant_key),
+                    kwargs={
+                        "requester_name": payload.get("requester_name", ""),
+                        "requester_email": payload.get("requester_email", ""),
+                        "tenant_name": payload.get("tenant_name", ""),
+                        "control": control,
+                    },
+                )
             else:
                 t = threading.Thread(target=remote_cap.start_reverse_shell, args=(session_id, url, tenant_key))
             t.daemon = True
@@ -1384,6 +1396,33 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
         logger.info(f"Heartbeat → {resp.status_code}")
 
         if resp.status_code == 200:
+            # Also POST metrics to dedicated endpoint for frontend charts
+            metrics_data = capability_data.get("metrics_collection", {}).get("data", {})
+            if metrics_data:
+                try:
+                    cpu = metrics_data.get("cpu", {})
+                    mem = metrics_data.get("memory", {})
+                    disks = metrics_data.get("disk", [])
+                    net = metrics_data.get("network", {})
+                    disk_primary = disks[0] if disks else {}
+
+                    metrics_payload = {
+                        "cpu_percent": cpu.get("percent", 0.0),
+                        "memory_percent": mem.get("percent", 0.0),
+                        "memory_used_mb": round(mem.get("used", 0) / 1024 / 1024, 1) if mem.get("used") else round((mem.get("total", 0) - mem.get("available", 0)) / 1024 / 1024, 1),
+                        "memory_total_mb": round(mem.get("total", 0) / 1024 / 1024, 1),
+                        "disk_percent": disk_primary.get("percent", 0.0),
+                        "disk_used_gb": round(disk_primary.get("used", 0) / 1024 / 1024 / 1024, 2),
+                        "disk_total_gb": round(disk_primary.get("total", 0) / 1024 / 1024 / 1024, 2),
+                        "network_bytes_sent_mb": round(net.get("bytes_sent", 0) / 1024 / 1024, 2),
+                        "network_bytes_recv_mb": round(net.get("bytes_recv", 0) / 1024 / 1024, 2),
+                        "process_count": len(psutil.pids()) if 'psutil' in globals() else None,
+                    }
+                    metrics_url = cfg["api_base_url"].rstrip("/") + f"/api/agents/{capability_mgr.agent_id}/metrics"
+                    metrics_resp = requests.post(metrics_url, json=metrics_payload, headers=headers, timeout=10)
+                    logger.info(f"Metrics POST → {metrics_resp.status_code}")
+                except Exception as e:
+                    logger.error(f"Failed to post metrics: {e}")
             # Drain offline buffer
             if buffer_mgr:
                 pending = buffer_mgr.get_messages(limit=5)
