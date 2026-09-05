@@ -141,8 +141,8 @@ Full detail archived to `milestones/v4.1-ROADMAP.md`.
 
 Plans:
 
-- [ ] 74-01-PLAN.md — Tracer: one mousemove end-to-end from canvas through the `/user` tunnel to `SendInput`, behind the new `control:remote_access` gate (wave 1)
-- [ ] 74-02-PLAN.md — Backend: append-only control-session audit trail, real `close_session` kill switch, disconnect/force-kill, agent-authenticated consent reporting, capability probe (wave 2)
-- [ ] 74-03-PLAN.md — Rust agent: Session-0 consent dialog, persistent stop-control bar, consent-gated full input replay (wave 3)
-- [ ] 74-04-PLAN.md — Python legacy agent: pywin32 session injection, ctypes `SendInput` relay, closing the dropped-receive gap (wave 3)
-- [ ] 74-05-PLAN.md — Frontend: four-state control canvas, permission-gated View/Control toggle, disconnect and force-end affordances (wave 3)
+- [x] 74-01-PLAN.md — Tracer: one mousemove end-to-end from canvas through the `/user` tunnel to `SendInput`, behind the new `control:remote_access` gate (wave 1)
+- [x] 74-02-PLAN.md — Backend: append-only control-session audit trail, real `close_session` kill switch, disconnect/force-kill, agent-authenticated consent reporting, capability probe (wave 2)
+- [x] 74-03-PLAN.md — Rust agent: Session-0 consent dialog, persistent stop-control bar, consent-gated full input replay (wave 3)
+- [x] 74-04-PLAN.md — Python legacy agent: pywin32 session injection, ctypes `SendInput` relay, closing the dropped-receive gap (wave 3)
+- [x] 74-05-PLAN.md — Frontend: four-state control canvas, permission-gated View/Control toggle, disconnect and force-end affordances (wave 3)
