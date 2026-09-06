@@ -1,0 +1,30 @@
+Hostname:
+security-test-vm
+
+Architecture:
+x86_64
+
+Kernel:
+7.0.0-29-generic
+
+CPU:
+32
+
+CPU Model:
+Model name:                              Common KVM processor
+
+Memory:
+               total        used        free      shared  buff/cache   available
+Mem:            61Gi       3.1Gi        40Gi        16Mi        18Gi        58Gi
+Swap:          4.0Gi       1.9Gi       2.1Gi
+
+Disk:
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2       787G  334G  420G  45% /
+
+Inodes:
+Filesystem     Inodes IUsed IFree IUse% Mounted on
+/dev/sda2         50M  2.6M   48M    6% /
+
+Load:
+ 03:38:55 up 14:51,  1 user,  load average: 0.01, 0.06, 0.13

@@ -5,7 +5,14 @@ from typing import Dict, Any, AsyncIterator, Optional
 from ai_playbook_service import ai_playbook_service
 from ai_remediation_service import ai_remediation_service
 from ai_service import ai_service
+from ai_providers import MockProvider
 from authentication_service import get_current_user, get_optional_user
+import uuid
+import json
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai", tags=["AI Automation"])
 
@@ -17,8 +24,9 @@ from rbac_service import rbac_service
 @router.get("/")
 async def ai_service_status(current_user: Optional[TokenData] = Depends(get_optional_user)):
     """Get AI automation service status including active provider."""
-    provider_name = getattr(getattr(ai_service, "provider", None), "name", None)
-    is_mock = provider_name == "Chitti (Mock)" if provider_name else not ai_service.is_configured
+    provider = getattr(ai_service, "provider", None)
+    provider_name = getattr(provider, "name", None)
+    is_mock = isinstance(provider, MockProvider) if provider else not ai_service.is_configured
     return {
         "status": "operational",
         "services": ["remediation", "playbook_generation", "chat_assistant"],
@@ -58,7 +66,11 @@ async def chat_assistant(
     context = payload.get("context", {})
     context["tenantId"] = get_tenant_id()
     context["role"] = getattr(current_user, "role", "") or ""
-    return {"response": await ai_service.chat(message, context)}
+    response = await ai_service.chat(message, context)
+    # Include mock_mode so frontend can decide 9router fallback
+    provider = ai_service.provider
+    is_mock = isinstance(provider, MockProvider) if provider else True
+    return {"response": response, "is_mock_mode": is_mock}
 
 
 @router.post("/chat/stream")
@@ -67,14 +79,18 @@ async def chat_assistant_stream(
     current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))
 ):
     """Stream chat with AI Assistant via Server-Sent Events."""
-    message = payload.get("message", "")
+    # Accept both {messages: [...]} (new) and {message: "..."} (legacy)
+    messages = payload.get("messages")
+    if not messages:
+        single = payload.get("message", "")
+        messages = [{"role": "user", "content": single}] if single else []
     context = payload.get("context", {})
     context["tenantId"] = get_tenant_id()
     context["role"] = getattr(current_user, "role", "") or ""
 
     async def sse_generator() -> AsyncIterator[str]:
         try:
-            async for chunk in ai_service.chat_stream(message, context):
+            async for chunk in ai_service.chat_stream(messages, context):
                 # Escape newlines in JSON so SSE frame stays on one line
                 yield f"data: {_json.dumps({'chunk': chunk})}\n\n"
         except Exception as exc:
@@ -84,6 +100,38 @@ async def chat_assistant_stream(
 
     return StreamingResponse(
         sse_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/chat/completions")
+async def chat_completions_stream(
+    payload: Dict[str, Any] = Body(...),
+    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard"))
+):
+    """OpenAI-compatible streaming chat completions."""
+    messages = payload.get("messages", [])
+    if not messages:
+        raise HTTPException(status_code=400, detail="Messages array is required")
+    context = payload.get("context", {})
+    context["tenantId"] = get_tenant_id()
+    context["role"] = getattr(current_user, "role", "") or ""
+
+    async def openai_sse_generator() -> AsyncIterator[str]:
+        try:
+            async for chunk in ai_service.chat_stream(messages, context):
+                yield f"data: {_json.dumps({'chunk': chunk})}\n\n"
+        except Exception as exc:
+            yield f"data: {_json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        openai_sse_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -374,9 +422,11 @@ async def test_llm_connection(
                             "models": []}
 
                 if model not in available:
+                    # Suggest pulling or auto-selecting first available
                     return {"success": True,
-                            "message": f"Ollama running. Model '{model}' not found — available: {', '.join(available[:5])}. Pull with: ollama pull {model}",
-                            "models": available}
+                            "message": f"Ollama running. Model '{model}' not found — will auto-use '{available[0]}'. Available: {', '.join(available[:5])}. To use '{model}', run: ollama pull {model}",
+                            "models": available,
+                            "auto_selected": available[0] if available else None}
 
                 # Quick generate test
                 gen_resp = await _client.post(

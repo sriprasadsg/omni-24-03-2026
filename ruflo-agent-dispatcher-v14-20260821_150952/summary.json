@@ -1,0 +1,78 @@
+{
+  "schema": "ruflo-agent-dispatcher-v14",
+  "generated": "2026-08-21T15:32:10+0530",
+  "agents": [
+    {
+      "role": "architect",
+      "ruflo_id": "agent-1787305208554-r8l2g5",
+      "pid": "592651",
+      "result": "PASS",
+      "exit_code": "0",
+      "duration_seconds": "276",
+      "log_bytes": "16437"
+    },
+    {
+      "role": "backend",
+      "ruflo_id": "registration-failed",
+      "pid": "592657",
+      "result": "FAIL",
+      "exit_code": "0",
+      "duration_seconds": "386",
+      "log_bytes": "441"
+    },
+    {
+      "role": "frontend",
+      "ruflo_id": "registration-failed",
+      "pid": "592664",
+      "result": "FAIL",
+      "exit_code": "0",
+      "duration_seconds": "211",
+      "log_bytes": "441"
+    },
+    {
+      "role": "security",
+      "ruflo_id": "registration-failed",
+      "pid": "592671",
+      "result": "FAIL",
+      "exit_code": "0",
+      "duration_seconds": "171",
+      "log_bytes": "441"
+    },
+    {
+      "role": "dependencies",
+      "ruflo_id": "registration-failed",
+      "pid": "592678",
+      "result": "FAIL",
+      "exit_code": "0",
+      "duration_seconds": "1042",
+      "log_bytes": "441"
+    },
+    {
+      "role": "tester",
+      "ruflo_id": "agent-1787305218437-cdcxyu",
+      "pid": "592685",
+      "result": "FAIL",
+      "exit_code": "0",
+      "duration_seconds": "566",
+      "log_bytes": "441"
+    },
+    {
+      "role": "performance",
+      "ruflo_id": "registration-failed",
+      "pid": "592692",
+      "result": "FAIL",
+      "exit_code": "0",
+      "duration_seconds": "35",
+      "log_bytes": "546"
+    },
+    {
+      "role": "reviewer",
+      "ruflo_id": "agent-1787305222677-tn6m8m",
+      "pid": "592699",
+      "result": "PASS",
+      "exit_code": "0",
+      "duration_seconds": "1197",
+      "log_bytes": "6030"
+    }
+  ]
+}

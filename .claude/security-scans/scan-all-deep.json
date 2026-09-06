@@ -1,0 +1,4863 @@
+{
+  "timestamp": "2026-08-24T18:59:32.694Z",
+  "target": ".",
+  "depth": "deep",
+  "type": "all",
+  "summary": {
+    "critical": 1,
+    "high": 677,
+    "medium": 130,
+    "low": 0,
+    "total": 808
+  },
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@claude-flow/memory",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@claude-flow/neural",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@claude-flow/plugin-gastown-bridge",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:@huggingface/transformers",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/auto-instrumentations-node",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/configuration",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/core",
+      "description": "OpenTelemetry Core: Unbounded memor"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-logs-otlp-grpc",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-logs-otlp-http",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-logs-otlp-proto",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-metrics-otlp-grpc",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-metrics-otlp-http",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-metrics-otlp-proto",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-prometheus",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-trace-otlp-grpc",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-trace-otlp-http",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-trace-otlp-proto",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/exporter-zipkin",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-amqplib",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-aws-lambda",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-aws-sdk",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-connect",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-express",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-fastify",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-fs",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-hapi",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-http",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-koa",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-mongodb",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-mongoose",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-mysql2",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-pg",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-restify",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/instrumentation-undici",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/otlp-exporter-base",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/otlp-grpc-exporter-base",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/otlp-transformer",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/propagator-b3",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/propagator-jaeger",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/resource-detector-alibaba-cloud",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/resource-detector-aws",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/resource-detector-azure",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/resource-detector-container",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/resource-detector-gcp",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/resources",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/sdk-logs",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/sdk-metrics",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/sdk-node",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/sdk-trace-base",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/sdk-trace-node",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:@opentelemetry/sql-common",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:@xenova/transformers",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:adm-zip",
+      "description": "adm-zip: Crafted ZIP file triggers "
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:agentdb",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:agentic-flow",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:claude-flow",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:gaxios",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:onnx-proto",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:onnxruntime-node",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:onnxruntime-web",
+      "description": "Vulnerability"
+    },
+    {
+      "severity": "CRITICAL",
+      "type": "Dependency CVE",
+      "location": "package.json:protobufjs",
+      "description": "Arbitrary code execution in protobu"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Dependency CVE",
+      "location": "package.json:sharp",
+      "description": "sharp inherited vulnerabilities in "
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "Dependency CVE",
+      "location": "package.json:uuid",
+      "description": "uuid: Missing buffer bounds check i"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:130",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:280",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:305",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:847",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:870",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:876",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:1403",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:36",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:108",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:154",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:222",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "backend/venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:253",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:9906",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:9979",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:10251",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:12150",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13015",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13035",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13055",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13401",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13441",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13467",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13493",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13519",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13545",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13626",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13809",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:13893",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:14034",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:14914",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15034",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15094",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15134",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15174",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15214",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15254",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15374",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15454",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15554",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15594",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15654",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:15694",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:22716",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:22736",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:22756",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_app.json:23225",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:247421",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:247494",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:247766",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:249665",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:250530",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:250550",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:250570",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:250916",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:250956",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:250982",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:251008",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:251034",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:251060",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:251141",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:251324",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:251408",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:251549",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252429",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252549",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252609",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252649",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252689",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252729",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252769",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252889",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:252969",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:253069",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:253109",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:253169",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:253209",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:260231",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:260251",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:260271",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:270305",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:270333",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:270360",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:271133",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:271153",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:275321",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:275341",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:275361",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:275381",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:275401",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:276896",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:276916",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277278",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277298",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277584",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277811",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277881",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277913",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277945",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:277977",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:278155",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:278215",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280701",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280721",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280741",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280761",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280781",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280801",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280825",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:280845",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:281174",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:284002",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:329062",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361089",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361116",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361143",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361163",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361183",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361203",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361223",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361243",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361343",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361409",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361449",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361469",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361489",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361509",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361529",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361549",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361569",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361591",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361611",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361631",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361651",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:361671",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:376286",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:376306",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:376406",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:376426",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:376915",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:377240",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:383924",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:383949",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:383969",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:385601",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:385681",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:385761",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:388140",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:388200",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:388444",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:388690",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:391084",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:411227",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:411247",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:411267",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:411287",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:411307",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:411327",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:412177",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:412197",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:412217",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:412237",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:412257",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:412279",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:412299",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:414011",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:414031",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:414054",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:414079",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:414186",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:414634",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:418086",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:418657",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:418897",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:419226",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437529",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437554",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437603",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437654",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437681",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437708",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437762",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437789",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437816",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437843",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437868",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437893",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437918",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:437975",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438007",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438039",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438071",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438102",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438133",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438164",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438195",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438226",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438257",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438288",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438319",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438350",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438381",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438407",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438433",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438457",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438481",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438507",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438533",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438559",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438585",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438611",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438660",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438683",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438715",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438747",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438779",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438874",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438937",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438966",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:438995",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439024",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439053",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439084",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439115",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439146",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439202",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439254",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439281",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439307",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439333",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439359",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439477",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439581",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439608",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439662",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439710",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439730",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439750",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439770",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439790",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439830",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439850",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439893",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439939",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:439982",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440152",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440177",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440226",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440277",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440304",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440331",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440385",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440412",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440439",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440466",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440491",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440516",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440541",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440598",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440630",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440662",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440694",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440725",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440756",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440787",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440818",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440849",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440880",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440911",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440942",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:440973",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441004",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441030",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441056",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441080",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441104",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441130",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441156",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441182",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441208",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441234",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441283",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441306",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441338",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441370",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441402",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441497",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441560",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441589",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441618",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441647",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441676",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441707",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441738",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441769",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441825",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441877",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441904",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441930",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441956",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:441982",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442100",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442204",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442231",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442285",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442381",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442401",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442421",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442441",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442505",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442545",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442565",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442585",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442628",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442649",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442692",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442713",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442756",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442897",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:442917",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:513923",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:514045",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:514268",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:521886",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:524539",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:526973",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:903496",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:903536",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:903564",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:903584",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:985065",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:985124",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:990962",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:990982",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:991002",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1111271",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1111291",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1113851",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1212990",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1221841",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1229695",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1229815",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1229915",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1229935",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1230057",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1230801",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_full.json:1238498",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:247390",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:247463",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:247735",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:249634",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:250499",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:250519",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:250539",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:250885",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:250925",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:250951",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:250977",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:251003",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:251029",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:251110",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:251293",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:251377",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:251518",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252398",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252518",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252578",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252618",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252658",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252698",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252738",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252858",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:252938",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:253038",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:253078",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:253138",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:253178",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:260200",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:260220",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:260240",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:270274",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:270302",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:270329",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:271102",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:271122",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:275290",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:275310",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:275330",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:275350",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:275370",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:276865",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:276885",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277247",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277267",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277553",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277780",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277850",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277882",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277914",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:277946",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:278124",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:278184",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280670",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280690",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280710",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280730",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280750",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280770",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280794",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:280814",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:281143",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:283971",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:329031",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361058",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361085",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361112",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361132",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361152",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361172",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361192",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361212",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361312",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361378",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361418",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361438",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361458",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361478",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361498",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361518",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361538",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361560",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361580",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361600",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361620",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:361640",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:376255",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:376275",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:376375",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:376395",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:376884",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:377209",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:383893",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:383918",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:383938",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:385570",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:385650",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:385730",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:388109",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:388169",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:388413",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:388659",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:391053",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:411196",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:411216",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:411236",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:411256",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:411276",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:411296",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:412146",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:412166",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:412186",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:412206",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:412226",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:412248",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:412268",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:413980",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:414000",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:414023",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:414048",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:414155",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:414603",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:418055",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:418626",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:418866",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:419195",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437498",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437523",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437572",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437623",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437650",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437677",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437731",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437758",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437785",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437812",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437837",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437862",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437887",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437944",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:437976",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438008",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438040",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438071",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438102",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438133",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438164",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438195",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438226",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438257",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438288",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438319",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438350",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438376",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438402",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438426",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438450",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438476",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438502",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438528",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438554",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438580",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438629",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438652",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438684",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438716",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438748",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438843",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438906",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438935",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438964",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:438993",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439022",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439053",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439084",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439115",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439171",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439223",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439250",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439276",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439302",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439328",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439446",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439550",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439577",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439631",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439679",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439699",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439719",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439739",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439759",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439799",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439819",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439862",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439908",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:439951",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440121",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440146",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440195",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440246",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440273",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440300",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440354",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440381",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440408",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440435",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440460",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440485",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440510",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440567",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440599",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440631",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440663",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440694",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440725",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440756",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440787",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440818",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440849",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440880",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440911",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440942",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440973",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:440999",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441025",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441049",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441073",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441099",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441125",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441151",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441177",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441203",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441252",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441275",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441307",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441339",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441371",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441466",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441529",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441558",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441587",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441616",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441645",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441676",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441707",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441738",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441794",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441846",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441873",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441899",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441925",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:441951",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442069",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442173",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442200",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442254",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442350",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442370",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442390",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442410",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442474",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442514",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442534",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442554",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442597",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442618",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442661",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442682",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442725",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442866",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:442886",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:513892",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:514014",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:514237",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:521855",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:524508",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:526942",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:903465",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:903505",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:903533",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:903553",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:985034",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:985093",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:990931",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:990951",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:990971",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1111240",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1111260",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1113820",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1212959",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1221810",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1229664",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1229784",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1229884",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1229904",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1230026",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1230770",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "bandit_results.json:1238467",
+      "description": "Hardcoded Password"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:130",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:280",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:305",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:847",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:870",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:876",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/iam/2010-05-08/examples-1.json:1403",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:36",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:108",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:154",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:222",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "HIGH",
+      "type": "Hardcoded Secret",
+      "location": "venv/lib/python3.12/site-packages/botocore/data/sts/2011-06-15/examples-1.json:253",
+      "description": "AWS Access Key"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/main-5013f961.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/main-5013f961.js:14",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/main-5013f961.js:15",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/main-5013f961.js:24",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/scrape-examples-2bbcccac.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/search-b5634cc7.js:5",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/settings-170eb4bf.js:17",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/storage-41dd4d93.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-install/omni-agent-rs/target/doc/static.files/storage-41dd4d93.js:13",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/main-5013f961.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/main-5013f961.js:14",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/main-5013f961.js:15",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/main-5013f961.js:24",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/scrape-examples-2bbcccac.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/search-b5634cc7.js:5",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/settings-170eb4bf.js:17",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/storage-41dd4d93.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "agent-rust/target/doc/static.files/storage-41dd4d93.js:13",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:38",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:42",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:70",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:71",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:73",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:101",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:102",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "client-presentation/assets/book.js:104",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "code-review-graph-main/code-review-graph-vscode/src/webview/graph.ts:566",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "components/CSPMRemediationModal.tsx:38",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "HIGH",
+      "type": "SQL Injection",
+      "location": "components/DatabaseSettings.tsx:96",
+      "description": "Possible SQL injection"
+    },
+    {
+      "severity": "HIGH",
+      "type": "SQL Injection",
+      "location": "components/DatabaseSettings.tsx:99",
+      "description": "Possible SQL injection"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "components/EvidenceMarkdownViewer.tsx:121",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "components/FleetGeoMap.tsx:157",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "components/HADRDashboard.tsx:374",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "components/IncidentWarRoomDashboard.tsx:530",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "components/InteractiveVoiceBot.tsx:481",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "components/MascotCharacter.tsx:399",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "coverage/prettify.js:2",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "coverage/sorter.js:84",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/AssetComplianceList-dd2q1rXU.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/CategoricalChart-BJ2YxJ77.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/CharacterTourBot-DJ4T3VDh.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/CloudSecurityDashboard-C_TXc7bd.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/FleetGeoMap-B7V32WVy.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/HADRDashboard-BdazqPHG.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/IncidentWarRoomDashboard-BN5acRwV.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/InteractiveVoiceBot-CCtjMnWG.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-new/assets/PlaybookBuilder-B_8pz1Yr.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "HIGH",
+      "type": "SQL Injection",
+      "location": "dist-new/assets/SettingsDashboard-ChdBSzLA.js:1",
+      "description": "Possible SQL injection"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-new/assets/index-CpyBVvRK.js:9",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-new/assets/index-CpyBVvRK.js:10",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/index-CpyBVvRK.js:10",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-new/assets/index-CpyBVvRK.js:18",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-new/assets/purify.es-BKQOAcDz.js:2",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/AssetComplianceList-B3voCfrv.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/CategoricalChart-BJ2YxJ77.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/CharacterTourBot-DRqIM6j9.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/CloudSecurityDashboard-C5h_IWCE.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/FleetGeoMap-RrWyOOin.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/HADRDashboard-CVcy9ryh.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/IncidentWarRoomDashboard-C5MhdDcb.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/InteractiveVoiceBot-DAToZUVV.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-test/assets/PlaybookBuilder-Cn2AZVXg.js:1",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "HIGH",
+      "type": "SQL Injection",
+      "location": "dist-test/assets/SettingsDashboard-CTXC2qlz.js:1",
+      "description": "Possible SQL injection"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-test/assets/index-DqqwpF4N.js:9",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-test/assets/index-DqqwpF4N.js:10",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/index-DqqwpF4N.js:10",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "dist-test/assets/index-DqqwpF4N.js:18",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "dist-test/assets/purify.es-BKQOAcDz.js:2",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "src/__tests__/EvidenceMarkdownViewer.test.tsx:132",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "test_entry.tsx:4",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:40",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:44",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:44",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:45",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:47",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:47",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:606",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-BC3OPQuM.js:615",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "React XSS",
+      "location": "venv/lib/python3.12/site-packages/phoenix/server/static/assets/vendor-recharts-BXLYwcXF.js:1",
+      "description": "React XSS risk"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:20",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:23",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:30",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:32",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:75",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:86",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:93",
+      "description": "XSS risk with innerHTML"
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "innerHTML",
+      "location": "venv/lib/python3.12/site-packages/sklearn/utils/_repr_html/estimator.js:95",
+      "description": "XSS risk with innerHTML"
+    }
+  ]
+}

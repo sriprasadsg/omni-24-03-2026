@@ -1,0 +1,23 @@
+===== v13-security =====
+TYPE=security-architect
+TASK_TYPE=security
+DESCRIPTION=Perform a defensive security review for secrets exposure, unsafe configuration, dependency risk, auth concerns, and insecure patterns. Do not exploit or modify files.
+
+[INFO] Creating security task...
+
+[OK] Task created: task-1787301659210-gs2w68
+
++-------------+------------------------------------------+
+| Property    | Value                                    |
++-------------+------------------------------------------+
+| ID          | task-1787301659210-gs2w68                |
+| Type        | security                                 |
+| Description | Perform a defensive security review f... |
+| Priority    | normal                                   |
+| Status      | pending                                  |
+| Assigned To | Unassigned                               |
+| Tags        | None                                     |
+| Created     | 8/21/2026, 2:10:59 PM                    |
++-------------+------------------------------------------+
+
+[OK] Task task-1787301659210-gs2w68 assigned to v13-security

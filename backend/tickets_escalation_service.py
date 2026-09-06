@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from tickets_helpers import _compute_sla, _now
+from tenant_context import set_tenant_id, reset_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -95,5 +96,9 @@ async def start_escalation_scheduler(db: Any) -> None:
     """Loop every 5 minutes running the escalation pass."""
     logger.info("Escalation scheduler started (interval=300s)")
     while True:
-        await run_escalation_pass(db)
+        _tctx = set_tenant_id("platform-admin")
+        try:
+            await run_escalation_pass(db)
+        finally:
+            reset_tenant_id(_tctx)
         await asyncio.sleep(300)

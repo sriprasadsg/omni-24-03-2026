@@ -1,0 +1,1 @@
+35-01 GraphQL API. Objective: external access via Strawberry FastAPI. Reuse API gateway and auth. Artifacts: api_gateway.py schema.py types.py resolvers.py endpoints.py router_registry.py test_api.py. Status complete awaiting verification.

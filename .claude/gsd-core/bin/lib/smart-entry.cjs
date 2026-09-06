@@ -43,6 +43,10 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_child_process_1 = require("node:child_process");
 const markdown_sectionizer_cjs_1 = require("./markdown-sectionizer.cjs");
+// #3696: the calendar-validity predicate moved to the STATE.md document module
+// so `state validate` can assert the same `last_activity` invariant this reader
+// already enforces (ADR-227). Two copies would let the two surfaces disagree
+// about whether a STATE.md is usable — which is the defect #3696 reports.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ioMod = require("./io.cjs");
 const { output } = ioMod;
@@ -57,10 +61,16 @@ const phaseLifecycle = require("./phase-lifecycle.cjs");
 const { deriveProgressFromRoadmap } = phaseLifecycle;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const stateDocument = require("./state-document.cjs");
-const { stateExtractField } = stateDocument;
+const { stateFieldValue } = stateDocument;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const phaseId = require("./phase-id.cjs");
-const { comparePhaseNum, extractPhaseToken, normalizePhaseName, phaseTokenMatches } = phaseId;
+const { comparePhaseNum, extractPhaseToken, matchPhaseDirs, normalizePhaseName, parsePhaseFromProse, stripProjectCodePrefix } = phaseId;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const stateMod = require("./state.cjs");
+const { readStateHeadFreshness } = stateMod;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const unusableInput = require("./unusable-input.cjs");
+const { warnUnusableInput, UNUSABLE_REASON } = unusableInput;
 // ─── Constants ────────────────────────────────────────────────────────────────
 /**
  * Staleness threshold for idle-stranded detection. A clean tree whose last
@@ -83,15 +93,6 @@ exports.SITUATIONS = Object.freeze([
     'unknown',
 ]);
 // ─── Detection ─────────────────────────────────────────────────────────────────
-/** Frontmatter scalar helper: prefer YAML frontmatter, fall back to body field. */
-function fmScalar(fm, body, key, bodyField) {
-    const v = fm[key];
-    if (typeof v === 'string' && v.trim())
-        return v.trim();
-    if (typeof v === 'number' || typeof v === 'boolean')
-        return String(v);
-    return stateExtractField(body, bodyField);
-}
 /** Read a scalar value from a nested frontmatter object (e.g. progress.total_phases). */
 function fmScalarKey(obj, key) {
     if (!obj || typeof obj !== 'object')
@@ -112,17 +113,95 @@ function parseIntOrNull(s) {
 }
 function phaseTokenFromDirName(name) {
     const token = extractPhaseToken(name);
-    return /^\d+(?:[A-Z])?(?:\.\d+)*(?:-|$)/i.test(token) ? token : null;
+    // #2528: the shape probe runs on the PROJECT-CODE-STRIPPED token. A prefixed
+    // directory tokenizes to `MEM-05-80-20`, which does not start with a digit,
+    // so the unstripped probe rejected it and the entry was dropped before any
+    // resolution ran — every phase in a project-coded plan was invisible here.
+    // The full token is still what is returned: `comparePhaseNum` strips the
+    // prefix itself, so the sort is unaffected, and `matchPhaseDirs` needs the
+    // real directory name.
+    const probe = stripProjectCodePrefix(token);
+    return /^\d+(?:[A-Z])?(?:\.\d+)*(?:-|$)/i.test(probe) ? token : null;
 }
 /**
  * Parse a `last_activity` value that may be an ISO date or a free-form string
  * into an epoch-ms timestamp. Returns null when unparseable.
+ *
+ * #2570: `last_activity` routinely carries a trailing " — <description>" — the
+ * shape `templates/state.md` itself prescribes (`Last activity: [YYYY-MM-DD] —
+ * [What happened]`), which gsd-core's own STATE.md mirrors into frontmatter.
+ * `Date.parse` on the whole string returns NaN, and because `staleActivity`
+ * treats null as "not stale" (fails open), the ONLY idle/staleness detector
+ * never fired on any project whose last_activity retained its description.
+ * Be liberal in what we accept (Postel): read the leading ISO date/time token
+ * when the value carries one, so the description suffix — whatever separator
+ * (em dash or hyphen) it uses — no longer silently blinds the detector; fall
+ * back to a whole-string parse for any other shape a hand edit might use.
  */
+/** Leading ISO date, with an optional time-of-day and offset. */
+const ISO_LEADING_RE = /^(\d{4})-(\d{2})-(\d{2})((?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)/;
+/**
+ * A NAMED timezone designator at the start of the un-reconstructable remainder
+ * (#2571). ISO_LEADING_RE's offset group captures only `Z` / `±HH:MM`, so a
+ * named zone (GMT, EST, ...) is not in the leading token — it sits here.
+ * Reconstructing the token without it would let Date.parse read the time as
+ * LOCAL, shifting the instant by the host's offset (a wrong, host-dependent
+ * value), so a zone-shaped remainder must fail open (ADR-227).
+ *
+ * The shape is a short all-caps run (2–5 letters) that stands alone — the
+ * negative lookahead excludes the first letter of a Capitalised word like
+ * "Milestone", and an optional trailing offset is subsumed because the leading
+ * all-caps run already matches. Everything else — a lowercase or Capitalised
+ * description, a separator — is describable text and is reconstructed from the
+ * leading date.
+ *
+ * Consulted ONLY when the leading token captured a time-of-day (see the caller):
+ * a zone designator qualifies a clock time, so a BARE date can carry no zone
+ * hazard — reconstructing it is always just that date's UTC midnight, whatever
+ * trails it. Gating on the time keeps a description that merely opens with a
+ * tech acronym ("2026-06-08 CI green", "API refactor") on the reconstruct path
+ * instead of failing open. The prior "any letter" guard was too liberal — it
+ * failed open on every letter-led description and re-opened #2570.
+ */
+const ZONE_DESIGNATOR_RE = /^\s*[A-Z]{2,5}(?![A-Za-z])/;
 function parseActivityTimestamp(raw) {
     if (!raw)
         return null;
-    const ms = Date.parse(raw);
-    return Number.isNaN(ms) ? null : ms;
+    const trimmed = raw.trim();
+    const iso = trimmed.match(ISO_LEADING_RE);
+    if (iso) {
+        const [, year, month, day, time] = iso;
+        // Reject an impossible calendar date outright rather than letting
+        // Date.parse substitute a rolled-forward one. null = "no activity signal",
+        // the safe default staleActivity already fails open on.
+        if (!stateDocument.isRealCalendarDate(Number(year), Number(month), Number(day)))
+            return null;
+        // The date is real, so stay as liberal as before (Postel): a whole-string
+        // parse still wins when the engine can make sense of the value. Reading the
+        // token first would silently DROP a trailing zone name -- "2026-06-08
+        // 12:34:56 GMT" parses whole as 12:34:56Z but as local time from the token,
+        // shifting the instant by the host's UTC offset.
+        const whole = Date.parse(trimmed);
+        if (!Number.isNaN(whole))
+            return whole;
+        // Whole-string failed: the value carries a suffix the engine can't read as
+        // one instant (#2570). Reconstruct from the leading token UNLESS the remainder
+        // is a named zone the token dropped (GMT, EST, ...): reconstructing without it
+        // reads the time as LOCAL and shifts the instant by the host's offset, so a
+        // zone-shaped remainder fails open (ADR-227: never propagate a wrong instant;
+        // null is the base's not-stale default). An ordinary description -- the #2570
+        // template's " -- description", or a hand edit's bare-space/tab/colon suffix --
+        // carries no zone and IS reconstructed. See ZONE_DESIGNATOR_RE for the shape;
+        // the earlier "any letter" guard failed open on every description and re-opened
+        // #2570 for whitespace-separated suffixes.
+        const rest = trimmed.slice(iso[0].length);
+        if (time && ZONE_DESIGNATOR_RE.test(rest))
+            return null;
+        const ms = Date.parse(`${year}-${month}-${day}${time}`);
+        return Number.isNaN(ms) ? null : ms;
+    }
+    const direct = Date.parse(trimmed);
+    return Number.isNaN(direct) ? null : direct;
 }
 /** Read-only git signals. Any git error is swallowed → "no git signal". */
 function readGitSignals(cwd) {
@@ -134,6 +213,7 @@ function readGitSignals(cwd) {
                 maxBuffer: 4 * 1024 * 1024,
                 windowsHide: true,
                 stdio: ['pipe', 'pipe', 'pipe'],
+                timeout: 10_000,
             });
         }
         catch {
@@ -153,10 +233,7 @@ function readGitSignals(cwd) {
 }
 /** Leading numeric phase token from a STATE.md scalar or body `Phase:` value. */
 function phaseTokenFromState(raw) {
-    if (!raw?.trim())
-        return null;
-    const match = raw.trim().match(/^(\d+(?:[A-Z])?(?:\.\d+)*)/i);
-    return match ? match[1] : null;
+    return parsePhaseFromProse(raw).phase;
 }
 /**
  * Detect whether the current phase's verify report indicates failure. The
@@ -183,7 +260,16 @@ function detectVerifyFailed(cwd, currentPhaseRaw) {
     let targetDir;
     if (phaseToken) {
         const normalized = normalizePhaseName(phaseToken);
-        targetDir = entries.find((name) => phaseTokenMatches(name, normalized));
+        // #2528: the fourth directory-resolution site, and the one where a miss is
+        // silent — a phase whose directory cannot be found reports "not failed",
+        // which reads identically to a healthy phase. It must therefore apply the
+        // same canonical selection as the locator and the two command scans, or a
+        // dir like `05-80-20-cleanup` (phase 5 named "80/20 Cleanup") never
+        // surfaces its own failed verification. `entries` is already sorted, and
+        // `matchPhaseDirs` filters without reordering, so taking the first match
+        // preserves the previous `.find()` selection exactly.
+        const { matches } = matchPhaseDirs(entries, normalized);
+        targetDir = matches[0];
         if (!targetDir)
             return false;
     }
@@ -224,7 +310,7 @@ function readStateFile(statePath) {
     catch {
         return null;
     }
-    const fm = extractFrontmatter(content);
+    const fm = extractFrontmatter(content, statePath);
     const body = content.replace(/^---[\s\S]*?---\s*/, '');
     return { fm, body };
 }
@@ -250,6 +336,9 @@ function detectSignals(cwd, now = Date.now) {
         stale_activity: false,
         roadmap_total_phases: null,
         roadmap_completed_phases: null,
+        // No STATE.md (or unreadable) → no stamp to compare. Unknown, not fresh.
+        state_commits_behind: null,
+        state_commit_stale: null,
     };
     if (!hasPlanning)
         return empty;
@@ -263,21 +352,29 @@ function detectSignals(cwd, now = Date.now) {
     //   - body prose:         `Phase: 3`, `**Status:** verifying`, `Total Phases: 5`
     // Read each field across every form, scalar-first then nested then body, so
     // the classifier works on real STATE.md files written by current GSD.
-    const statusRaw = fmScalar(fm, body, 'status', 'Status');
-    const pausedAtRaw = fmScalar(fm, body, 'paused_at', 'Paused At');
-    const lastActivityRaw = fmScalar(fm, body, 'last_activity', 'Last Activity');
+    const statusRaw = stateFieldValue(fm, body, 'status', 'Status').value;
+    const pausedAtRaw = stateFieldValue(fm, body, 'paused_at', 'Paused At').value;
+    const lastActivityRaw = stateFieldValue(fm, body, 'last_activity', 'Last Activity').value;
     // current_phase: scalar fm → nested (none) → body "Current Phase" → body "Phase".
     // The body `Phase:` field is the canonical location in prose-form STATE.md
     // (e.g. "Phase: 3" or "Phase: 3 — ui-review"); parse the leading number.
-    const currentPhaseRaw = fmScalar(fm, body, 'current_phase', 'Current Phase') ??
-        stateExtractField(body, 'Phase');
+    // #3187 / ADR-3180 Amendment 3 ("0.x split"): this read is DELIBERATELY
+    // unscoped — smart-entry classifies `gsd next` routing over the whole body,
+    // whereas state.cts's copies of this same field scope it to `## Current
+    // Position` (#1776/#2956). Those are two different questions sharing a
+    // name; folding the scoped read in here would silently change smart-entry's
+    // routing, an undisclosed Tier-2 change (design's Rejected #3). Both owner
+    // calls below intentionally pass the unscoped `body`, never a Current-
+    // Position slice.
+    const currentPhaseRaw = stateFieldValue(fm, body, 'current_phase', 'Current Phase').value ??
+        stateFieldValue(fm, body, null, 'Phase').value;
     // total_phases & percent: nested `progress:` object takes precedence in the
     // nested schema; scalar fm / body fields cover the flat schema.
     const progressFm = typeof fm.progress === 'object' ? fm.progress : null;
     const totalPhasesRaw = fmScalarKey(progressFm, 'total_phases') ??
-        fmScalar(fm, body, 'total_phases', 'Total Phases');
+        stateFieldValue(fm, body, 'total_phases', 'Total Phases').value;
     const progressRaw = fmScalarKey(progressFm, 'percent') ??
-        fmScalar(fm, body, 'progress', 'Progress');
+        stateFieldValue(fm, body, 'progress', 'Progress').value;
     // Blockers list: `- <text>` items under a `## Blockers` heading.
     const blockers = [];
     const blockersSection = (0, markdown_sectionizer_cjs_1.collectSection)(body, (h) => h.level === 2 && h.text.trim().toLowerCase() === 'blockers', { levelBounded: true });
@@ -290,7 +387,16 @@ function detectSignals(cwd, now = Date.now) {
     // Stale = no recorded activity for IDLE_STALE_MS. Used only by idle-stranded.
     // Computed here (with the clock seam) so the pure classify() stays a function
     // of (signals, staleActivity) and detectSignals owns all disk reads.
+    // #3099 (ADR-1411 amendment): if last_activity is present but unparseable,
+    // emit a diagnostic so the silent fallback (stale_activity: false) is visible.
+    // The fallback itself stays — continuity is correct, the silence was the defect.
     const lastActivityMs = parseActivityTimestamp(lastActivityRaw);
+    if (lastActivityRaw && lastActivityMs === null) {
+        warnUnusableInput({
+            reason: UNUSABLE_REASON.LAST_ACTIVITY_UNPARSEABLE,
+            source: paths.state,
+        });
+    }
     const staleActivity = lastActivityMs !== null && now() - lastActivityMs > IDLE_STALE_MS;
     // Verify-failed may be signalled either by STATE.md status or by a failed
     // STATUS: marker on the current phase's summary/verify artifact.
@@ -314,8 +420,13 @@ function detectSignals(cwd, now = Date.now) {
             /* ROADMAP.md unreadable — leave null; isComplete falls back to legacy. */
         }
     }
+    // #2573: commit-age freshness proxy. Derived through state.cjs's
+    // readStateHeadFreshness so the tri-state and the hash fence stay identical
+    // to validate.health's W024 — one derivation, two surfaces.
+    const stateHeadRaw = stateFieldValue(fm, body, 'state_head', 'State Head').value;
+    const freshness = readStateHeadFreshness(cwd, stateHeadRaw);
     return {
-        current_phase: parseIntOrNull(currentPhaseRaw),
+        current_phase: phaseTokenFromState(currentPhaseRaw),
         total_phases: parseIntOrNull(totalPhasesRaw),
         status: (statusRaw || '').toLowerCase(),
         progress: parseIntOrNull(progressRaw),
@@ -330,6 +441,8 @@ function detectSignals(cwd, now = Date.now) {
         stale_activity: staleActivity,
         roadmap_total_phases: roadmapTotalPhases,
         roadmap_completed_phases: roadmapCompletedPhases,
+        state_commits_behind: freshness.commits_behind,
+        state_commit_stale: freshness.commit_stale,
     };
 }
 // ─── Situation classification ─────────────────────────────────────────────────
@@ -356,11 +469,12 @@ function isComplete(s) {
             return false;
     }
     else {
-        // Legacy path: STATE.md comparison. Still subject to the two-scale bug,
-        // but only fires when ROADMAP.md is absent or has no Progress table.
+        // Legacy path: STATE.md comparison. It only fires when ROADMAP.md is
+        // absent or has no Progress table, and uses canonical phase-id ordering
+        // so dotted phase ids are never coerced to JavaScript numbers.
         if (s.total_phases === null || s.current_phase === null)
             return false;
-        if (s.current_phase < s.total_phases)
+        if (comparePhaseNum(s.current_phase, s.total_phases) < 0)
             return false;
     }
     // Status regex: require milestone-level completion language. The pre-fix
@@ -410,7 +524,13 @@ function classify(s) {
         return 'planning';
     if (/\bexecut(e|ing)|active|in.progress|building\b/i.test(s.status))
         return 'executing';
-    if (/\bverify|review|needs.review|pending.review\b/i.test(s.status))
+    // #3864: `verif` (not `verify`) — the same stem state-document's
+    // normalizeStateStatus matches. "verified" and "verification" contain no
+    // "verify" substring, so the exact word left them falling through to
+    // `unknown` (or idle-stranded on a clean unpushed tree — differently
+    // wrong). verify_failed is tested above, so a failed verification still
+    // wins over this branch.
+    if (/\bverif|review|needs.review|pending.review\b/i.test(s.status))
         return 'verify-pending';
     if (isIdleStranded(s))
         return 'idle-stranded';

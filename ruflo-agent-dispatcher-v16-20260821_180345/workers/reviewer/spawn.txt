@@ -1,0 +1,14 @@
+[INFO] Spawning reviewer agent: ruflo-v16-reviewer
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787315648976-7359qw               |
+| Type         | reviewer                                 |
+| Name         | ruflo-v16-reviewer                       |
+| Status       | registered                               |
+| Created      | 2026-08-21T12:34:08.976Z                 |
+| Capabilities | code-review, security-audit, quality-... |
++--------------+------------------------------------------+
+
+[OK] Agent ruflo-v16-reviewer spawned successfully

@@ -1,0 +1,1 @@
+./test-ruflo-agents-v11.sh: line 232: npx --no-install claude-flow: command not found

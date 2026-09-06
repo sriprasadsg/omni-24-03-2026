@@ -1,0 +1,1 @@
+Perform a READ-ONLY release readiness audit. Inspect build configuration, package manifests, environment handling, Docker/Kubernetes/deployment files, startup paths, health checks, logging, monitoring and rollback assumptions. Do not modify files. Return findings.

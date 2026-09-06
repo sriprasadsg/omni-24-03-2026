@@ -1,0 +1,4 @@
+VALID .mcp.json
+VALID .claude.json
+VALID .claude/settings.json
+VALID .claude/settings.local.json

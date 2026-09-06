@@ -1,0 +1,14 @@
+[INFO] Spawning researcher agent: v13-researcher
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787301644581-tddx50               |
+| Type         | researcher                               |
+| Name         | v13-researcher                           |
+| Status       | registered                               |
+| Created      | 2026-08-21T08:40:44.581Z                 |
+| Capabilities | web-search, data-analysis, summarizat... |
++--------------+------------------------------------------+
+
+[OK] Agent v13-researcher spawned successfully

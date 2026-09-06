@@ -1,0 +1,28 @@
+
+ruflo task
+Task management commands
+
+SUBCOMMANDS:
+  create          Create a new task (new, add)
+  list            List tasks (ls)
+  status          Get task status and details (info, get)
+  cancel          Cancel a running task (abort, stop)
+  assign          Assign a task to agent(s)
+  retry           Retry a failed task (rerun)
+
+EXAMPLES:
+  $ claude-flow task create -t implementation -d "Add user auth"
+    Create a task
+  $ claude-flow task list
+    List pending/running tasks
+  $ claude-flow task list --all
+    List all tasks
+  $ claude-flow task status task-123
+    Get task details
+  $ claude-flow task cancel task-123
+    Cancel a task
+  $ claude-flow task assign task-123 --agent coder-1
+    Assign task to agent
+  $ claude-flow task retry task-123
+    Retry a failed task
+

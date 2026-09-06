@@ -216,8 +216,13 @@ async def process_scheduled_deployments():
             # Trigger deployment simulation
             patch_count = len(job.get("targetPatchIds", []))
             asset_count = len(job.get("targetAssetIds", []))
-            asyncio.create_task(simulate_patch_deployment(job["id"], patch_count, asset_count))
-        
+            tenant_id = job.get("tenant_id", "platform-admin")
+            _tctx = set_tenant_id(tenant_id)
+            try:
+                asyncio.create_task(simulate_patch_deployment(job["id"], patch_count, asset_count))
+            finally:
+                reset_tenant_id(_tctx)
+
         # Find software deployment jobs ready to execute
         software_jobs = await db.software_deployment_jobs.find({
             "status": "Scheduled",
@@ -246,7 +251,12 @@ async def process_scheduled_deployments():
             
             # Trigger deployment simulation
             update_count = len(job.get("softwareUpdates", []))
-            asyncio.create_task(simulate_software_deployment(job["id"], update_count))
+            # Set tenant context for this job
+            _tctx = set_tenant_id(job.get("tenant_id", "platform-admin"))
+            try:
+                asyncio.create_task(simulate_software_deployment(job["id"], update_count))
+            finally:
+                reset_tenant_id(_tctx)
         
         total_executed = len(patch_jobs) + len(software_jobs)
         if total_executed > 0:
@@ -282,6 +292,8 @@ async def process_pentest_schedules():
 
             schedule_id = schedule["_id"]
             try:
+                # Set tenant context for this schedule
+                _tctx = set_tenant_id(schedule.get("tenant_id", "platform-admin"))
                 service = get_pentest_service(db)
                 job = await service.create_scan_job(
                     target=schedule["target"],

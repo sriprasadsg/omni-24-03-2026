@@ -12,11 +12,7 @@ try:
 except ImportError:
     _HAS_SOCKETIO = False
 
-try:
-    from agent.capabilities.base import BaseCapability
-except ImportError:
-    class BaseCapability:
-        pass
+from .base import BaseCapability
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +123,7 @@ class RealTimeFIMCapability(BaseCapability):
     """Real-time File Integrity Monitoring using Watchdog with Socket.IO + HTTP fallback."""
 
     def __init__(self, config=None):
-        self.config = config or {}
+        super().__init__(config)
         self.observer = None
         self.sio = None
         self.agent_id = self.config.get("agent_id", "unknown-agent")

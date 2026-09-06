@@ -1,0 +1,23 @@
+===== v13-tester =====
+TYPE=tester
+TASK_TYPE=testing
+DESCRIPTION=Run or inspect appropriate tests and separate genuine application failures from environment/network/fixture/collection diagnostics. Do not modify source files.
+
+[INFO] Creating testing task...
+
+[OK] Task created: task-1787301659052-25loz2
+
++-------------+------------------------------------------+
+| Property    | Value                                    |
++-------------+------------------------------------------+
+| ID          | task-1787301659052-25loz2                |
+| Type        | testing                                  |
+| Description | Run or inspect appropriate tests and ... |
+| Priority    | normal                                   |
+| Status      | pending                                  |
+| Assigned To | Unassigned                               |
+| Tags        | None                                     |
+| Created     | 8/21/2026, 2:10:59 PM                    |
++-------------+------------------------------------------+
+
+[OK] Task task-1787301659052-25loz2 assigned to v13-tester

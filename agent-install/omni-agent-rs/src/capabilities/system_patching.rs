@@ -2,6 +2,7 @@ use super::Capability;
 use serde_json::{json, Value};
 use std::process::Command;
 use std::sync::Mutex;
+use std::fs;
 use sysinfo::System;
 
 pub struct SystemPatchingCapability;
@@ -77,6 +78,38 @@ fn bios_version_str() -> String {
             return key.get_value("BIOSReleaseDate").unwrap_or_default();
         }
     }
+
+    // Linux: try sysfs (no sudo needed), then dmidecode (needs sudo)
+    #[cfg(target_os = "linux")]
+    {
+        // Try sysfs first - no root required
+        let bios_version = fs::read_to_string("/sys/class/dmi/id/bios_version")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty() && s != "Not Specified");
+        if let Some(v) = bios_version {
+            return v;
+        }
+
+        // Fallback to dmidecode if available
+        if let Ok(out) = Command::new("dmidecode")
+            .args(["-t", "bios"])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&out.stdout);
+            for line in text.lines() {
+                let line = line.trim();
+                if line.to_lowercase().starts_with("version:") && line.to_lowercase().contains("bios") {
+                    if let Some(val) = line.split(':').nth(1) {
+                        let val = val.trim();
+                        if !val.is_empty() && val != "Not Specified" {
+                            return val.to_string();
+                        }
+                    }
+                }
+            }
+        }
+    }
     String::new()
 }
 
@@ -112,6 +145,78 @@ if ($updates.Count -eq 0) { '[]' } else { $updates | ConvertTo-Json -Compress }
                 return serde_json::from_str::<Value>(&text)
                     .map(|v| vec![v])
                     .unwrap_or_default();
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Try apt (Debian/Ubuntu)
+        if let Ok(out) = Command::new("apt")
+            .args(["list", "--upgradable"])
+            .output()
+        {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout);
+                let mut updates = Vec::new();
+                for line in text.lines().skip(1) { // Skip header
+                    if line.contains('/') {
+                        let parts: Vec<&str> = line.split('/').collect();
+                        if let Some(pkg_name) = parts.first() {
+                            let version_part = parts.get(1).unwrap_or(&"").split(' ').next().unwrap_or("");
+                            updates.push(json!({
+                                "title": format!("{} ({})", pkg_name.trim(), version_part.trim()),
+                                "severity": "Medium",
+                                "mandatory": false
+                            }));
+                        }
+                    }
+                }
+                return updates.into_iter().take(50).collect();
+            }
+        }
+
+        // Try dnf (Fedora/RHEL 8+)
+        if let Ok(out) = Command::new("dnf")
+            .args(["check-update", "-q"])
+            .output()
+        {
+            if out.status.code() == Some(100) { // 100 = updates available
+                let text = String::from_utf8_lossy(&out.stdout);
+                let mut updates = Vec::new();
+                for line in text.lines() {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if let Some(pkg) = parts.first() {
+                        updates.push(json!({
+                            "title": pkg.trim(),
+                            "severity": "Medium",
+                            "mandatory": false
+                        }));
+                    }
+                }
+                return updates.into_iter().take(50).collect();
+            }
+        }
+
+        // Try yum (RHEL/CentOS 7)
+        if let Ok(out) = Command::new("yum")
+            .args(["check-update", "-q"])
+            .output()
+        {
+            if out.status.code() == Some(100) {
+                let text = String::from_utf8_lossy(&out.stdout);
+                let mut updates = Vec::new();
+                for line in text.lines() {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if let Some(pkg) = parts.first() {
+                        updates.push(json!({
+                            "title": pkg.trim(),
+                            "severity": "Medium",
+                            "mandatory": false
+                        }));
+                    }
+                }
+                return updates.into_iter().take(50).collect();
             }
         }
     }

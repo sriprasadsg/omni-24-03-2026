@@ -1,0 +1,40 @@
+
+RuFlo Doctor
+System diagnostics and health check
+──────────────────────────────────────────────────
+
+... Running health checks in parallel...... Running health checks in parallel.....: Running health checks in parallel....:: Running health checks in parallel...::: Running health checks in parallel...::. Running health checks in parallel...:.. Running health checks in parallel...... Running health checks in parallel.....: Running health checks in parallel....:: Running health checks in parallel...::: Running health checks in parallel...::. Running health checks in parallel...:.. Running health checks in parallel...... Running health checks in parallel.....: Running health checks in parallel....:: Running health checks in parallel...                                              ✓ Version Freshness: v3.38.12 (up to date)
+✓ Node.js Version: v20.20.2 (>= 20 required)
+✓ npm Version: v10.8.2
+✓ Claude Code CLI: v2.1.228
+✓ Git: v2.43.0
+✓ Git Repository: In a git repository
+⚠ Config File: No config file (using defaults)
+✓ Stale npx@latest in settings (#2448): no runaway commands detected
+✓ Daemon Status: Running (PID: 388886)
+✓ Memory Database Presence: /home/user/enterprise-omni-agent-ai-platform/.swarm/memory.db (0.60 MB) — existence/size only, not a health check (see Memory Structural Integrity)
+✓ Memory Structural Integrity (quick_check): /home/user/enterprise-omni-agent-ai-platform/.swarm/memory.db — PRAGMA quick_check: ok [structural-only, native + WAL-aware]
+✓ Learning Bridge: @claude-flow/memory resolvable (v3.0.0-alpha.22)
+✓ API Keys: Found: ANTHROPIC_API_KEY
+⚠ MCP Servers: Duplicate Ruflo MCP registrations found (legacy /home/user/.claude.json projects[/home/user/enterprise-omni-agent-ai-platform]: ruflo + current .mcp.json top-level: claude-flow) — Claude Code will start both tool schemas
+⚠ MCP Schema Overhead: 356 advertised tools ≈ 64858 schema tokens (all tools)
+⚠ AIDefence: @claude-flow/aidefence not loadable — aidefence_* MCP tools will fail (optional package)
+✓ Disk Space: 420G available
+✓ TypeScript: v5.7.3
+⚠ agentic-flow: Not installed (optional — embeddings/routing will use fallbacks)
+⚠ Encryption at Rest: Off — session/terminal/memory stores are plaintext (mode 0600 only)
+✓ Federation Breaker: ADR-097 breaker loadable — federation_breaker_status / federation_evict / federation_reactivate MCP tools available
+⚠ MetaHarness (ADR-150): Installed but version-string not parseable; integration may still work
+✓ MetaHarness declared packages (ADR-150): 4 declared package(s) resolve: @metaharness/darwin, @metaharness/flywheel, @metaharness/radio, @metaharness/turn-credit
+✓ MetaHarness integration (ADR-150): plugin scripts intact, _similarity.mjs + parseMcpScanText load, smoke OK
+✓ Funnel (ADR-305): enabled (decided by: package-default; disclosure: never_seen)
+⚠ Meta LLM Proxy (ADR-313): not installed — no proxy-token found; sponsored-downtime capacity is unavailable
+⚠ Cognitum identity (ADR-306): not logged in
+
+──────────────────────────────────────────────────
+
+Summary: 18 passed, 9 warnings
+
+Run with --fix to see 8 suggested commands (does not auto-apply)
+
+All checks passed with some warnings.

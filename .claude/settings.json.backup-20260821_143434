@@ -1,0 +1,77 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_FLOW_V3_ENABLED": "true",
+    "CLAUDE_FLOW_HOOKS_ENABLED": "true"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx gsd-core *)",
+      "Read(.planning/*)",
+      "Write(.planning/*)",
+      "Read(STATE.md)",
+      "Write(STATE.md)",
+      "Bash(npx @claude-flow*)",
+      "Bash(npx claude-flow*)",
+      "Bash(node .claude/*)",
+      "mcp__claude-flow__*"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.secrets)"
+    ],
+    "defaultMode": "auto"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"/home/user/.claude/hooks/gsd-graphify-update.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-worktree-path-guard.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "worktree": {
+    "baseRef": "head"
+  },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "frontend-design@claude-plugins-official": true,
+    "ruflo-adr@ruflo": true
+  },
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
+  },
+  "effortLevel": "xhigh",
+  "fastMode": true,
+  "autoUpdatesChannel": "stable",
+  "tui": "fullscreen",
+  "theme": "auto",
+  "verbose": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
+  "hasCompletedOnboarding": true
+}

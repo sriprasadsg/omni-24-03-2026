@@ -16,12 +16,15 @@ const node_os_1 = __importDefault(require("node:os"));
 const io = require("./io.cjs");
 const { output, error, ERROR_REASON } = io;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
+const cliExitMod = require("./cli-exit.cjs");
+const { ExitError } = cliExitMod;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const configLoader = require("./config-loader.cjs");
 const { CONFIG_DEFAULTS } = configLoader;
 const shell_command_projection_cjs_1 = require("./shell-command-projection.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const planningWorkspace = require("./planning-workspace.cjs");
-const { planningDir, withPlanningLock } = planningWorkspace;
+const { planningDir, planningRoot, withPlanningLock } = planningWorkspace;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const modelProfiles = require("./model-profiles.cjs");
 const { VALID_PROFILES, getAgentToModelMapForProfile, formatAgentToModelMapAsTable } = modelProfiles;
@@ -31,6 +34,13 @@ const { VALID_CONFIG_KEYS, isValidConfigKey, getCapabilityConfigSchema } = confi
 const secrets_cjs_1 = require("./secrets.cjs");
 const review_reviewer_selection_cjs_1 = require("./review-reviewer-selection.cjs");
 const configuration_cjs_1 = require("./configuration.cjs");
+// #3760: the ADR-1411 out-of-band diagnostic. It lives here rather than inside
+// `migrateOnDisk` because `configuration.cjs` must stay loadable from an install
+// layout holding only itself plus its manifests (#3571) — see the note at the top
+// of configuration.cts.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const unusableInputModule = require("./unusable-input.cjs");
+const { UNUSABLE_REASON, warnUnusableInput } = unusableInputModule;
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CONFIG_KEY_SUGGESTIONS = {
     'workflow.nyquist_validation_enabled': 'workflow.nyquist_validation',
@@ -65,7 +75,24 @@ const SCHEMA_DEFAULTS = {
     'context_window': 200000,
     'executor.stall_detect_interval_minutes': 5,
     'executor.stall_threshold_minutes': 10,
+    'planner.stall_detect_interval_minutes': 5,
+    'planner.stall_threshold_minutes': 10,
     'git.create_tag': true,
+    // #1689: per-plan agent_hint executor routing — default-on. A no-op for plans
+    // without an agent_hint field, so existing dispatch is byte-identical.
+    'workflow.agent_hint_routing': true,
+    // Derived from the defaults manifest rather than restated, so the manifest
+    // stays the single source of truth for the smart-zone budget (#2630).
+    'workflow.smart_zone_tokens': CONFIG_DEFAULTS.smart_zone_tokens,
+    // #2971: /gsd:pr-branch reads this key directly; an absent key must resolve to the
+    // manifest default rather than "Key not found". Derived from the defaults manifest so
+    // the manifest stays the single source of truth.
+    'planning.pr_strict': CONFIG_DEFAULTS.pr_strict,
+    // #3801: execute-plan reads this key on every run; an absent key must resolve
+    // to the manifest default (2) rather than "Key not Found" — previously the
+    // effective default existed only as the workflow's shell fallback and the
+    // docs disagreed (settings-advanced said 3). Manifest stays the one owner.
+    'workflow.inline_plan_threshold': CONFIG_DEFAULTS.inline_plan_threshold,
 };
 /**
  * Resolve a schema-level default for an absent key (#2256). Checks the legacy
@@ -112,6 +139,35 @@ function validateKnownConfigKeyPath(keyPath) {
     if (suggested) {
         error(`Unknown config key: ${keyPath}. Did you mean ${suggested}?`, ERROR_REASON.CONFIG_INVALID_KEY);
     }
+}
+/**
+ * Is `value` an acceptable `git.protected_branches` list (#3552)?
+ *
+ * A non-empty array whose every element is a string with non-whitespace
+ * content. Exported so a property test can pin this predicate against the
+ * resolver's own per-entry filter in `git-base-branch.cts` — `config-set` must
+ * only accept lists the resolver will honour in full, with nothing rejected.
+ * The two are deliberately different shapes (all-or-nothing here, per-entry
+ * there, because a direct file edit bypasses this check), so nothing keeps them
+ * agreeing except a test that asks both.
+ */
+function isValidProtectedBranches(value) {
+    if (!Array.isArray(value) || value.length === 0)
+        return false;
+    const entries = value;
+    // Index, do NOT use `.every()`. `.every()` SKIPS holes, so a sparse array
+    // (`["main", , "develop"]`) passed this check while the resolver's `for...of`
+    // — which yields `undefined` for a hole — rejected that element. The two
+    // surfaces then disagreed about the same value. JSON cannot express a hole,
+    // so neither surface meets one in production, but "unreachable" is not a
+    // reason to leave two definitions of the same predicate contradicting each
+    // other (round-4 external review).
+    for (let i = 0; i < entries.length; i += 1) {
+        const branch = entries[i];
+        if (typeof branch !== 'string' || branch.trim().length === 0)
+            return false;
+    }
+    return true;
 }
 function validateShipPrBodySections(value) {
     if (!Array.isArray(value)) {
@@ -286,10 +342,19 @@ function buildNewProjectConfig(userChoices) {
     const ud = userDefaults;
     const ch = choices;
     const hd = hardcoded;
+    // #2840: `runtime` is host-specific (written by the installer for whichever
+    // runtime's install ran last). On a machine with 2+ runtimes, it poisons every
+    // new project config — e.g. a Codex install's `runtime:"codex"` leaks into
+    // Claude Code projects, resolving agents to wrong model IDs. `resolve_model_ids`
+    // already has a per-install guard (#2297); `runtime` gets the same treatment
+    // by excluding it from the defaults spread. Projects detect the runtime from
+    // the install path / .gsd-runtime marker, not from a copied config key.
+    const safeDefaults = { ...userDefaults };
+    delete safeDefaults['runtime'];
     // Three-level deep merge: hardcoded <- userDefaults <- choices
     const config = {
         ...hardcoded,
-        ...userDefaults,
+        ...safeDefaults,
         ...choices,
         git: {
             ...hd['git'],
@@ -638,7 +703,7 @@ function cmdConfigSet(cwd, keyPath, value, raw) {
     const val = value;
     validateKnownConfigKeyPath(kp);
     if (!isValidConfigKey(kp, cwd)) {
-        error(`Unknown config key: "${kp}". Valid keys: ${[...VALID_CONFIG_KEYS].sort().join(', ')}, agent_skills.<agent-type>, features.<feature_name>`, ERROR_REASON.CONFIG_INVALID_KEY);
+        error(`Unknown config key: "${kp}". Valid keys: ${[...VALID_CONFIG_KEYS].sort().join(', ')}, agent_skills.<agent-type>, features.<feature_name>, phase_commit_docs.<phase-id>`, ERROR_REASON.CONFIG_INVALID_KEY);
     }
     // Parse value (handle booleans, numbers, and JSON arrays/objects)
     let parsedValue = val;
@@ -704,16 +769,39 @@ function cmdConfigSet(cwd, keyPath, value, raw) {
             error(`Invalid context_window '${val}'. Must be a positive integer (token count).`, ERROR_REASON.USAGE);
         }
     }
+    // Smart-zone token budget (#2630, ADR-2629). Same shape as context_window:
+    // a positive integer token count. A POLICY default, not a benchmark constant.
+    // Number.isSafeInteger, NOT Number.isInteger: the read side
+    // (estimate-cli readSmartZoneBudget) accepts only safe integers, so an
+    // isInteger-only gate would let config-set 'succeed' on a value past 2^53
+    // that estimate-check then silently ignores in favour of the default.
+    // Accept and honour must agree.
+    if (kp === 'workflow.smart_zone_tokens') {
+        if (typeof parsedValue !== 'number' || !Number.isSafeInteger(parsedValue) || parsedValue < 1) {
+            error(`Invalid workflow.smart_zone_tokens '${val}'. Must be a positive integer (token count).`, ERROR_REASON.USAGE);
+        }
+    }
     // Post-planning gap checker (#2493)
     if (kp === 'workflow.post_planning_gaps') {
         if (typeof parsedValue !== 'boolean') {
             error(`Invalid workflow.post_planning_gaps '${val}'. Must be a boolean (true or false).`);
         }
     }
+    // Per-plan executor routing via agent_hint frontmatter (#1689)
+    if (kp === 'workflow.agent_hint_routing') {
+        if (typeof parsedValue !== 'boolean') {
+            error(`Invalid workflow.agent_hint_routing '${val}'. Must be a boolean (true or false).`);
+        }
+    }
     // #3086 — git.create_tag: boolean only
     if (kp === 'git.create_tag') {
         if (typeof parsedValue !== 'boolean') {
             error(`Invalid git.create_tag '${val}'. Must be a boolean (true or false).`);
+        }
+    }
+    if (kp === 'git.protected_branches') {
+        if (!isValidProtectedBranches(parsedValue)) {
+            error(`Invalid git.protected_branches '${val}'. Must be a non-empty array of non-empty branch names.`);
         }
     }
     if (kp === 'ship.pr_body_sections') {
@@ -867,11 +955,21 @@ function cmdConfigGet(cwd, keyPath, raw, defaultValue) {
         if (node_fs_1.default.existsSync(configPath)) {
             config = JSON.parse(node_fs_1.default.readFileSync(configPath, 'utf-8'));
         }
-        else if (hasDefault) {
-            emitResolvedDefault(kp, defaultValue, raw);
-            return;
-        }
         else {
+            // #2702: when a workstream is active and has no config.json of its own, fall
+            // back to the project ROOT config first — a key the user configured at root is
+            // a real, present value and must inherit (per #1893: a present key wins over
+            // --default). Only when root also misses do --default / schema default apply.
+            // (When no workstream is active, resolveFromRootConfig is a no-op: same file.)
+            const rootVal = resolveFromRootConfig(cwd, kp);
+            if (rootVal.found) {
+                emitResolvedDefault(kp, rootVal.value, raw);
+                return;
+            }
+            if (hasDefault) {
+                emitResolvedDefault(kp, defaultValue, raw);
+                return;
+            }
             const sd = resolveSchemaDefault(cwd, kp);
             if (sd.found) {
                 emitResolvedDefault(kp, sd.value, raw);
@@ -881,6 +979,16 @@ function cmdConfigGet(cwd, keyPath, raw, defaultValue) {
         }
     }
     catch (err) {
+        // ADR-3889: error() now throws ExitError (carries no message) instead of
+        // calling process.exit() directly. The message-sniffing check below
+        // (`.startsWith('No config.json')`) can never match an ExitError raised
+        // by the "no config.json" error() call above it — ExitError.message
+        // defaults to `process exit ${code}` when no message is passed — so
+        // without this unconditional guard that ExitError falls through and gets
+        // re-wrapped as a WRONG reason (CONFIG_PARSE_FAILED instead of
+        // CONFIG_NO_FILE) with a nonsense message, plus a duplicate stderr write.
+        if (err instanceof ExitError)
+            throw err;
         if (err.message.startsWith('No config.json'))
             throw err;
         error('Failed to read config.json: ' + err.message, ERROR_REASON.CONFIG_PARSE_FAILED);
@@ -890,6 +998,12 @@ function cmdConfigGet(cwd, keyPath, raw, defaultValue) {
     let current = config;
     for (const key of keys) {
         if (current === undefined || current === null || typeof current !== 'object') {
+            // #2702: root-config inheritance before --default / schema default (see above).
+            const rootVal = resolveFromRootConfig(cwd, kp);
+            if (rootVal.found) {
+                emitResolvedDefault(kp, rootVal.value, raw);
+                return;
+            }
             if (hasDefault) {
                 emitResolvedDefault(kp, defaultValue, raw);
                 return;
@@ -915,6 +1029,12 @@ function cmdConfigGet(cwd, keyPath, raw, defaultValue) {
             : undefined;
     }
     if (current === undefined) {
+        // #2702: root-config inheritance before --default / schema default (see above).
+        const rootVal = resolveFromRootConfig(cwd, kp);
+        if (rootVal.found) {
+            emitResolvedDefault(kp, rootVal.value, raw);
+            return;
+        }
         if (hasDefault) {
             emitResolvedDefault(kp, defaultValue, raw);
             return;
@@ -934,6 +1054,54 @@ function cmdConfigGet(cwd, keyPath, raw, defaultValue) {
         return;
     }
     output(current, raw, String(current));
+}
+/**
+ * #2702: resolve a dot-notation key against the project ROOT config
+ * (`.planning/config.json`), ignoring any active workstream scope. Returns
+ * `{found:false}` when the root config is absent, unparseable, or does not
+ * contain the key. This is the inheritance rung `cmdConfigGet` was missing —
+ * when a workstream's own config doesn't set a key, the project root value
+ * must show through (workstream overrides root; it never fully replaces it),
+ * exactly as `loadConfigResolved`'s root+workstream merge already does for
+ * every other config consumer. No-op (found:false) when no workstream is
+ * active, because `planningDir === planningRoot` and the caller already read
+ * that file directly.
+ */
+function resolveFromRootConfig(cwd, kp) {
+    // Only meaningful when a workstream is active (GSD_WORKSTREAM set) — that is what
+    // redirects planningDir away from root AND what loadConfigResolved gates root-reading
+    // on. Gating on `process.env.GSD_WORKSTREAM` (not on a planningDir !== planningRoot
+    // path inequality) avoids a false trigger under GSD_PROJECT alone, where planningDir
+    // diverges from planningRoot without a workstream and loadConfigResolved does NOT
+    // inherit root — matching the runtime's own `if (ws)` gate keeps the two surfaces
+    // from diverging on the project-scoped (non-workstream) case.
+    if (!process.env['GSD_WORKSTREAM'])
+        return { found: false, value: undefined };
+    const root = planningRoot(cwd);
+    const rootConfigPath = node_path_1.default.join(root, 'config.json');
+    let rootConfig;
+    try {
+        if (!node_fs_1.default.existsSync(rootConfigPath))
+            return { found: false, value: undefined };
+        rootConfig = JSON.parse(node_fs_1.default.readFileSync(rootConfigPath, 'utf-8'));
+    }
+    catch {
+        // Unparseable root config → don't inherit (do not let a corrupt root file
+        // change config-get's verdict). Fall through to schema default / error.
+        return { found: false, value: undefined };
+    }
+    let current = rootConfig;
+    for (const key of kp.split('.')) {
+        if (current === undefined || current === null || typeof current !== 'object') {
+            return { found: false, value: undefined };
+        }
+        current = Object.prototype.hasOwnProperty.call(current, key)
+            ? current[key]
+            : undefined;
+    }
+    if (current === undefined)
+        return { found: false, value: undefined };
+    return { found: true, value: current };
 }
 /**
  * Command to set the model profile in the config file.
@@ -1015,16 +1183,42 @@ function cmdConfigPath(cwd, _raw, workstreamContext = null) {
  */
 function cmdMigrateConfig(cwd, raw) {
     const ws = process.env['GSD_WORKSTREAM'] || null;
-    const report = (0, configuration_cjs_1.migrateOnDisk)(cwd, ws || undefined);
+    // #3749: resolve the migration target through the project-aware resolver so
+    // GSD_PROJECT scopes the write; migrateOnDisk itself cannot (see its
+    // configPathOverride note).
+    const scopedConfigPath = node_path_1.default.join(planningDir(cwd, ws || undefined), 'config.json');
+    const report = (0, configuration_cjs_1.migrateOnDisk)(cwd, ws || undefined, scopedConfigPath);
+    // #3760: deduplicated on (path, reason), so a repeated invocation stays quiet.
+    if (report.skipped.length > 0) {
+        warnUnusableInput({
+            reason: UNUSABLE_REASON.CONFIG_SECTION_NOT_OBJECT,
+            source: node_path_1.default.join(planningDir(cwd, ws || undefined), 'config.json'),
+        });
+    }
     if (raw) {
-        if (!report.migrated) {
+        // #3760: a refused migration is NOT an already-canonical config. Reporting
+        // "no legacy keys found" when a legacy key was found and declined would send
+        // the user away believing there is nothing to fix — and the thing to fix is
+        // the one thing only they can fix, by hand.
+        const declined = report.skipped;
+        const declinedLines = declined.map(s => `  ${s.from} → ${s.to}  SKIPPED: '${s.section}' holds a ${s.sectionType}, not an object`);
+        if (!report.migrated && declined.length === 0) {
             const msg = 'No legacy keys found — config is already canonical.';
             output(msg, true, msg);
+        }
+        else if (!report.migrated) {
+            const lines = [
+                'Not migrated — every legacy key found was left in place:',
+                ...declinedLines,
+                'Fix the section by hand, then re-run. Nothing was written.',
+            ].join('\n');
+            output(lines, true, lines);
         }
         else {
             const lines = [
                 `Migrated: ${String(report.wrote)}`,
                 ...report.normalizations.map(n => `  ${n.from} → ${n.to}`),
+                ...declinedLines,
             ].join('\n');
             output(lines, true, lines);
         }
@@ -1046,4 +1240,5 @@ module.exports = {
     // Exported for programmatic use by capability-writer and tests
     setConfigValue,
     setConfigValues,
+    isValidProtectedBranches,
 };

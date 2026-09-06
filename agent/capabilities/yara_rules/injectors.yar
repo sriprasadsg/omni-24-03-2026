@@ -1,8 +1,8 @@
-"""
+/*
 YARA Rule: Process Injection Techniques
 Detects shellcode injection patterns and memory manipulation APIs
 used by malware and dual-use tools.
-"""
+*/
 
 rule ProcessInjectionAPIs {
     meta:

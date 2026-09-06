@@ -84,6 +84,7 @@ pub fn write_tray_config(cfg: &Config) -> Result<(), Box<dyn std::error::Error>>
         "agent_id": cfg.agent_id,
         "agent_token": cfg.agent_token,
         "chat_ui": chat_ui.to_string_lossy(),
+        "accept_invalid_certs": cfg.accept_invalid_certs,
     });
     std::fs::write(dir.join("tray-config.json"), serde_json::to_vec_pretty(&tray)?)?;
     Ok(())

@@ -1012,6 +1012,10 @@ const App: React.FC = () => {
       const handleNotification = (data: any) => {
         playNotificationSound();
         console.log('[App] Notification received:', data);
+        const text = data?.title ? `${data.title}: ${data.message ?? ''}` : (data?.message ?? String(data ?? ''));
+        if (text) {
+          showToast(text, ['critical', 'warning'].includes(data?.severity) ? (data.severity === 'critical' ? 'error' : 'warning') : 'info');
+        }
       };
 
       const handleComplianceAlert = (data: any) => {
@@ -1088,6 +1092,16 @@ const App: React.FC = () => {
           at: Date.now(),
         };
         setSupportToasts(prev => [...prev.slice(-4), toast]); // max 5 stacked
+      }
+
+      // 3b. Auto-open the support chat window for inbound conversations so the
+      //     message surfaces even when the user isn't on a chat view — no OS
+      //     notification click required. New conversation always opens; a
+      //     follow-up message only opens if no window is already open (never
+      //     yank the user away from other work mid-session).
+      if (!isOnSupportChat && (isNewConvo || !isSupportChatOpenRef.current)) {
+        setPendingSupportConvo(convoId);
+        setIsSupportChatOpen(true);
       }
 
       // 4. OS-level push notification (works when tab is hidden/minimised)

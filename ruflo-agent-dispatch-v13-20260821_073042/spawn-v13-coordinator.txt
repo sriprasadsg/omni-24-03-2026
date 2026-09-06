@@ -1,0 +1,14 @@
+[INFO] Spawning coordinator agent: v13-coordinator
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787277666052-j17j9e               |
+| Type         | coordinator                              |
+| Name         | v13-coordinator                          |
+| Status       | registered                               |
+| Created      | 2026-08-21T02:01:06.052Z                 |
+| Capabilities | task-orchestration, agent-management,... |
++--------------+------------------------------------------+
+
+[OK] Agent v13-coordinator spawned successfully

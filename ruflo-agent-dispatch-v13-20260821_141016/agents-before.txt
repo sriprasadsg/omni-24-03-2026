@@ -1,0 +1,39 @@
+
+Active Agents
+
++----------------------+-----------------+--------+------------+--------------+
+| ID                   | Type            | Status | Created    | Last Acti... |
++----------------------+-----------------+--------+------------+--------------+
+| agent-17872714462... | coordinator     | idle   | 5:47:26 AM | N/A          |
+| agent-17872714482... | tester          | idle   | 5:47:28 AM | N/A          |
+| agent-17872714500... | reviewer        | idle   | 5:47:30 AM | N/A          |
+| agent-17872714755... | coordinator     | idle   | 5:47:55 AM | N/A          |
+| agent-17872714772... | architect       | idle   | 5:47:57 AM | N/A          |
+| agent-17872714792... | tester          | idle   | 5:47:59 AM | N/A          |
+| agent-17872714812... | security-arc... | idle   | 5:48:01 AM | N/A          |
+| agent-17872714830... | reviewer        | idle   | 5:48:03 AM | N/A          |
+| agent-17872740892... | coder           | idle   | 6:31:29 AM | N/A          |
+| agent-17872750082... | researcher      | idle   | 6:46:48 AM | N/A          |
+| agent-17872754200... | coordinator     | idle   | 6:53:40 AM | N/A          |
+| agent-17872754223... | architect       | active | 6:53:42 AM | N/A          |
+| agent-17872754244... | researcher      | idle   | 6:53:44 AM | N/A          |
+| agent-17872754322... | tester          | active | 6:53:52 AM | N/A          |
+| agent-17872754342... | reviewer        | idle   | 6:53:54 AM | N/A          |
+| agent-17872759183... | coder           | idle   | 7:01:58 AM | N/A          |
+| agent-17872760000... | coordinator     | idle   | 7:03:20 AM | N/A          |
+| agent-17872760021... | architect       | idle   | 7:03:22 AM | N/A          |
+| agent-17872760044... | researcher      | idle   | 7:03:24 AM | N/A          |
+| agent-17872760065... | coder           | idle   | 7:03:26 AM | N/A          |
+| agent-17872760085... | security-aud... | idle   | 7:03:28 AM | N/A          |
+| agent-17872760106... | tester          | idle   | 7:03:30 AM | N/A          |
+| agent-17872760126... | reviewer        | idle   | 7:03:32 AM | N/A          |
+| agent-17872760147... | performance-... | idle   | 7:03:34 AM | N/A          |
+| agent-17872776660... | coordinator     | idle   | 7:31:06 AM | N/A          |
+| agent-17872776681... | architect       | idle   | 7:31:08 AM | N/A          |
+| agent-17872776702... | researcher      | idle   | 7:31:10 AM | N/A          |
+| agent-17872776760... | security-arc... | idle   | 7:31:16 AM | N/A          |
+| agent-17872776781... | tester          | idle   | 7:31:18 AM | N/A          |
+| agent-17872776802... | reviewer        | idle   | 7:31:20 AM | N/A          |
++----------------------+-----------------+--------+------------+--------------+
+
+[INFO] Total: 30 agents

@@ -1,0 +1,6 @@
+Python 3.12.3
+No broken requirements found.
+  File "<stdin>", line 2
+    numpy
+    ^^^^
+SyntaxError: invalid syntax. Perhaps you forgot a comma?

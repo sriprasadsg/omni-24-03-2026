@@ -1,0 +1,20 @@
+RUFLO DISPATCHER v20
+Project: /home/user/enterprise-omni-agent-ai-platform
+Run: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-v20-20260822_031152
+Workers: 8
+
+Completed : 7
+Failed    : 1
+Timeout   : 0
+PromptTooLong : 0
+GatewayErrors : 0
+
+Worker status:
+  architect        SUCCESS
+  researcher       INVALID_RESULT
+  code-analyzer    SUCCESS
+  security         SUCCESS
+  tester           SUCCESS
+  reviewer         SUCCESS
+  performance      SUCCESS
+  qa               SUCCESS

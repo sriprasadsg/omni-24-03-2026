@@ -1,0 +1,1 @@
+[ERROR] Invalid value for --type: review. Must be one of: coder, researcher, tester, reviewer, architect, coordinator, analyst, optimizer, security-architect, security-auditor, memory-specialist, swarm-specialist, performance-engineer, core-architect, test-architect

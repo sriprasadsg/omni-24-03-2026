@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-08-03T14:49:40.582Z",
+  "timestamp": "2026-09-01T09:01:00.451Z",
   "backedUp": true,
-  "path": "/home/user/enterprise-omni-agent-ai-platform/.swarm/backups/memory-2026-08-03T14-49-40-576Z.db",
-  "sizeBytes": 172032,
-  "rotatedAway": 0
+  "path": "/home/user/enterprise-omni-agent-ai-platform/.swarm/backups/memory-2026-09-01T09-01-00-324Z.db",
+  "sizeBytes": 995328,
+  "rotatedAway": 1
 }

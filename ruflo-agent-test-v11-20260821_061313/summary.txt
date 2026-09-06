@@ -1,0 +1,32 @@
+RUFLO AGENT ENTERPRISE TEST v11 SUMMARY
+
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri Aug 21 06:14:32 IST 2026
+Host: security-test-vm
+
+Ruflo Runtime: npx --no-install claude-flow
+Runtime Type: npx-claude-flow
+Ruflo Version: ruflo v3.38.12
+
+Health Score: 60 / 100
+
+PASS: 37
+WARN: 10
+FAIL: 0
+
+Result: AT_RISK
+
+Important:
+This test distinguishes:
+1. Ruflo runtime availability
+2. Supported CLI capabilities
+3. Agent inventory capability
+4. Agent spawn capability
+5. Project core health
+6. Full pytest environmental diagnostics
+
+The script does NOT treat unsupported Ruflo commands
+as application failures.
+
+Report directory:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v11-20260821_061313

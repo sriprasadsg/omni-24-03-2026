@@ -1,0 +1,38 @@
+Python: /home/user/enterprise-omni-agent-ai-platform/backend/venv/bin/python
+Python 3.12.3
+WARNING: Ignoring invalid distribution ~cipy (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ebsocket-client (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ebsockets (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ytz (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~umpy (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~urationpy (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~rllib3 (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~zdata (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~cikit-learn (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ypika (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~latbuffers (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~vloop (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~cipy (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ebsocket-client (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ebsockets (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ytz (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~umpy (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~urationpy (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~rllib3 (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~zdata (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~cikit-learn (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~ypika (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~latbuffers (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+WARNING: Ignoring invalid distribution ~vloop (/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages)
+No broken requirements found.
+[OK] NumPy 2.0.2
+[OK] SciPy 1.14.1
+[OK] Pandas 2.3.3
+[OK] Scikit-learn 1.5.2
+[OK] ChromaDB 1.5.9
+[OK] ONNX Runtime 1.29.0
+[OK] CPUInfo loaded
+[OK] Watchdog loaded
+[OK] WebSockets 16.1.1
+[OK] LangGraph loaded
+FAILED: NONE

@@ -1,0 +1,25 @@
+
+ruflo swarm
+Swarm coordination commands
+
+SUBCOMMANDS:
+  init            Initialize a new swarm
+  start           Start swarm execution
+  status          Show swarm status
+  stop            Stop swarm execution
+  scale           Scale swarm agent count
+  coordinate      Execute V3 15-agent hierarchical mesh coordination
+  compress-message Compress an inter-agent message to a token budget (IB+VQ-inspired, dream-cycle #2727)
+  pheromone       Inspect or update ADR-330 pheromone-adaptive scheduling state
+  join            Join a SLIM group-membership channel scoped to a namespace (ADR-380 §2)
+
+EXAMPLES:
+  $ claude-flow swarm init --v3-mode
+    Initialize V3 swarm
+  $ claude-flow swarm start -o "Build API" -s development
+    Start development swarm
+  $ claude-flow swarm coordinate --agents 15
+    V3 coordination
+  $ claude-flow swarm pheromone
+    Inspect pheromone-adaptive scheduling state
+

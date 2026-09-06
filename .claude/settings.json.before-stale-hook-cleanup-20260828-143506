@@ -1,0 +1,47 @@
+{
+  "env": {},
+  "permissions": {
+    "allow": [
+      "Bash(npx gsd-core *)",
+      "Read(.planning/*)",
+      "Edit(.planning/*)",
+      "Read(STATE.md)",
+      "Edit(STATE.md)",
+      "Bash(npx @claude-flow*)",
+      "Bash(npx claude-flow*)",
+      "Bash(node .claude/*)",
+      "mcp__claude-flow__*"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.secrets)"
+    ],
+    "defaultMode": "auto"
+  },
+  "worktree": {
+    "baseRef": "head"
+  },
+  "enabledPlugins": {
+    "caveman@caveman": true,
+    "frontend-design@claude-plugins-official": true,
+    "ruflo-adr@ruflo": true
+  },
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
+  },
+  "effortLevel": "xhigh",
+  "fastMode": true,
+  "autoUpdatesChannel": "stable",
+  "tui": "fullscreen",
+  "theme": "auto",
+  "verbose": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
+  "hasCompletedOnboarding": true
+}

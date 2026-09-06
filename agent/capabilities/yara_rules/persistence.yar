@@ -1,8 +1,8 @@
-"""
+/*
 YARA Rule: Persistence Mechanisms
 Detects registry run keys, scheduled task manipulation, startup folder abuse,
 WMI event subscriptions, DLL hijacking, and bootkit indicators.
-"""
+*/
 
 rule RegistryRunKeyPersistence {
     meta:
@@ -110,7 +110,7 @@ rule BootkitAndMBRInfection {
         $vbr = "BOOTMGR" nocase
         $grub_evil = "Evil GRUB" nocase
     condition:
-        any of ($bootkit*) or $grub_evil or ($mbr1 and $uefi1)
+        any of ($bootkit*) or $grub_evil or $vbr or ($mbr1 and $uefi1)
 }
 
 rule ServicePersistence {
@@ -128,5 +128,5 @@ rule ServicePersistence {
         $malicious_svc1 = "VSSMini" nocase
         $malicious_svc2 = "NetMan" nocase
     condition:
-        ($svc1 and $svc2) or ($svc_key and ($image_path or $service_dll))
+        (2 of ($svc1, $svc2, $svc3)) or ($svc_key and ($image_path or $service_dll)) or $malicious_svc1 or $malicious_svc2
 }

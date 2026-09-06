@@ -1,0 +1,1 @@
+Perform a READ-ONLY senior code review. Identify architectural smells, duplicated logic, error handling problems, maintainability issues, unsafe assumptions, API concerns and high-risk code paths. Do not modify files. Return findings with file-path evidence.

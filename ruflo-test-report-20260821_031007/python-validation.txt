@@ -1,0 +1,16 @@
+============================================================
+PYTHON ENVIRONMENT VALIDATION
+============================================================
+Python: 3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]
+[OK]   NumPy              2.0.2
+[OK]   SciPy              1.14.1
+[OK]   Pandas             2.3.3
+[OK]   Scikit-learn       1.5.2
+[OK]   ChromaDB           1.5.9
+[OK]   ONNX Runtime       1.29.0
+[OK]   CPUInfo            loaded
+[OK]   Watchdog           loaded
+[OK]   WebSockets         16.1.1
+[OK]   LangGraph          loaded
+============================================================
+ALL CORE IMPORTS PASSED

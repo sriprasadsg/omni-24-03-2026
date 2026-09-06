@@ -357,3 +357,42 @@ def test_send_alert_sms_fallback_and_slack_unconfigured():
     inserted = db.notifications.insert_one.call_args.args[0]
     assert inserted["tenantId"] == "tenant-a"
     assert inserted["tenant_id"] == "tenant-a"
+
+
+def test_send_alert_slack_url_fallback_key():
+    """Send_alert's _send_slack must dispatch through the resolved webhook_url
+    variable when the stored config keys the hook under 'url' — not crash on
+    config['webhook_url'] KeyError or post to a None URL. Regression for
+    channels created with the shared notification_config.url schema."""
+    import asyncio
+    from notification_service import NotificationService
+
+    db = MagicMock()
+    db.notifications = MagicMock()
+    db.notifications.insert_one = AsyncMock()
+    db.notification_config = MagicMock()
+    db.notification_config.find_one = AsyncMock(
+        return_value={"type": "slack", "tenantId": "tenant-a",
+                      "url": "https://hooks.slack.com/test"})
+    svc = NotificationService(db)
+
+    _resp = MagicMock()
+    _resp.status = 200
+    _resp_cm = MagicMock()
+    _resp_cm.__aenter__ = AsyncMock(return_value=_resp)
+    _resp_cm.__aexit__ = AsyncMock(return_value=False)
+    _session = MagicMock()
+    _session.post = MagicMock(return_value=_resp_cm)
+    _cm = MagicMock()
+    _cm.__aenter__ = AsyncMock(return_value=_session)
+    _cm.__aexit__ = AsyncMock(return_value=False)
+    with patch("aiohttp.ClientSession", return_value=_cm):
+        result = asyncio.run(svc.send_alert(
+            title="t", message="m", severity="high",
+            recipients=["bob@acme.com"], tenant_id="tenant-a",
+            channels=["slack"], metadata={},
+        ))
+    assert result["channels"]["slack"]["success"] is True
+    assert result["channels"]["slack"]["webhook_url"] == "https://hooks.slack.com/test"
+    posted = _session.post.call_args.args[0]
+    assert posted == "https://hooks.slack.com/test"

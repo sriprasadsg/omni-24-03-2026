@@ -1,0 +1,5 @@
+388886 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+463505 bash ./test-ruflo-enterprise-v3.sh
+.claude-flow: 13 files
+.agents: 5908 files
+.swarm: 5 files

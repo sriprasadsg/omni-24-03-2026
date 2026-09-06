@@ -1,0 +1,1 @@
+Perform a READ-ONLY performance audit. Inspect likely CPU, memory, I/O, database, network, frontend, backend, LLM, vector-search, concurrency and scalability bottlenecks. Do not run destructive workloads or modify files. Return findings.

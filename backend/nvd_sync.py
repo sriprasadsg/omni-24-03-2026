@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
+from tenant_context import set_tenant_id, reset_tenant_id
+
 NVD_API_KEY = os.getenv("NVD_API_KEY", "")
 NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 EPSS_BASE_URL = "https://api.first.org/data/v1/epss"
@@ -121,7 +123,20 @@ async def sync_nvd_cves(db) -> Dict[str, int]:
     """
     Fetch recent Critical CVEs from NVD, enrich with EPSS, upsert into db.patches.
     Returns summary dict with counts.
+
+    Background sync: writes platform-level threat intel shared across tenants.
+    Sets tenant context to "platform-admin" for the duration of the sync so
+    TenantIsolatedCollection on db.patches does not raise SECURITY ALERT or
+    fail-closed filter out the upsert.
     """
+    _tenant_ctx_token = set_tenant_id("platform-admin")
+    try:
+        return await _sync_nvd_cves_impl(db)
+    finally:
+        reset_tenant_id(_tenant_ctx_token)
+
+
+async def _sync_nvd_cves_impl(db) -> Dict[str, int]:
     now = datetime.now(timezone.utc)
     pub_start = (now - timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%dT00:00:00.000")
     pub_end = now.strftime("%Y-%m-%dT%H:%M:%S.000")

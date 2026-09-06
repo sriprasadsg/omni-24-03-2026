@@ -1,0 +1,23 @@
+===== v13-researcher =====
+TYPE=researcher
+TASK_TYPE=research
+DESCRIPTION=Analyze dependencies, integrations, package versions, MCP/runtime assumptions, and compatibility risks. Do not modify files.
+
+[INFO] Creating research task...
+
+[OK] Task created: task-1787277684681-bjibat
+
++-------------+------------------------------------------+
+| Property    | Value                                    |
++-------------+------------------------------------------+
+| ID          | task-1787277684681-bjibat                |
+| Type        | research                                 |
+| Description | Analyze dependencies, integrations, p... |
+| Priority    | normal                                   |
+| Status      | pending                                  |
+| Assigned To | Unassigned                               |
+| Tags        | None                                     |
+| Created     | 8/21/2026, 7:31:24 AM                    |
++-------------+------------------------------------------+
+
+[OK] Task task-1787277684681-bjibat assigned to v13-researcher

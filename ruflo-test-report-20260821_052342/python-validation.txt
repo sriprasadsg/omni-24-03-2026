@@ -1,0 +1,16 @@
+No broken requirements found.
+Python 3.12.3
+Executable: /home/user/enterprise-omni-agent-ai-platform/backend/venv/bin/python
+
+[PASS] numpy: 2.0.2
+[PASS] scipy: 1.14.1
+[PASS] pandas: 2.3.3
+[PASS] sklearn: 1.5.2
+[PASS] chromadb: 1.5.9
+[PASS] onnxruntime: 1.29.0
+[PASS] psutil: 7.2.2
+[PASS] watchdog: loaded
+[PASS] websockets: 16.1.1
+[PASS] langgraph: loaded
+
+FAILED_MODULES=0

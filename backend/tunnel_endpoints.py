@@ -26,6 +26,29 @@ def _get_tunnel(session_id: str) -> dict:
     return _tunnels[session_id]
 
 
+def close_session(session_id: str) -> bool:
+    """Out-of-band kill switch: push the stop sentinel into both tunnel
+    queues so both WebSocket peers actually disconnect (D-10/D-11).
+
+    A database-only status flip cannot end a live session — the connection
+    state lives in `_tunnels` — so REST handlers call this seam, never
+    `_tunnels` directly. Returns True when the session was live and is now
+    shutting down; False for an unknown session id. Never pops `_tunnels`
+    here: the per-side `finally` blocks own cleanup, and popping out from
+    under a live handler is what `tunnel_viewer_side` already warns against.
+    """
+    tunnel = _tunnels.get(session_id)
+    if tunnel is None:
+        return False
+    # Sentinel into both queues; a full queue must not starve the other.
+    for qname in ("u2a", "a2u"):
+        try:
+            tunnel[qname].put_nowait(_SENTINEL)
+        except asyncio.QueueFull:
+            pass
+    return True
+
+
 async def _recv_to_queue(websocket: WebSocket, queue: asyncio.Queue):
     """Read all incoming messages from a WebSocket and push them onto a queue."""
     try:
@@ -164,12 +187,15 @@ def register_tunnel_routes(app: FastAPI) -> None:
             except Exception as e:
                 logger.debug("Agent tunnel token verification failed: %s", e)
 
-        # Validate tenant_key against the stored registrationKey and session tenantId
+        # Validate tenant_key against the stored registrationKey and session tenantId.
+        # Raw Motor db (same reason as tunnel_user_side/tunnel_viewer_side): no tenant
+        # context exists yet at this point — this lookup is what establishes it — so
+        # the tenant-isolated wrapper would fail-closed on a sentinel tenantId and
+        # always return no match, rejecting every agent connection.
         tenant_key_valid = False
         if not jwt_valid and tenant_key:
-            db = get_database()
-            session = await db.remote_sessions.find_one({"session_id": session_id})
-            tenant = await db.tenants.find_one({"registrationKey": tenant_key})
+            session = await mongodb.db.remote_sessions.find_one({"session_id": session_id})
+            tenant = await mongodb.db.tenants.find_one({"registrationKey": tenant_key})
             if (tenant and session
                     and tenant.get("id") == session.get("tenantId")):
                 tenant_key_valid = True

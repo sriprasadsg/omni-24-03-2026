@@ -1,8 +1,8 @@
-"""
+/*
 YARA Rule: Network IOC & C2 Beacon Detection
 Detects C2 callback patterns, DNS tunnelling, suspicious HTTP user-agents,
 and common RAT/beacon network artifacts.
-"""
+*/
 
 rule C2BeaconCobaltStrike {
     meta:
@@ -56,7 +56,7 @@ rule DNSTunnelingPatterns {
         $tunnel1 = "tunnel.domain" nocase
         $subdomain_len = /[a-z0-9]{50,}\.[a-z]{2,6}/  // abnormally long subdomain
     condition:
-        any of ($iodine, $dnscat, $dnsexfil) or $subdomain_len
+        any of ($iodine, $dnscat, $dnsexfil) or $subdomain_len or $tunnel1 or $dns_b32
 }
 
 rule SuspiciousUserAgents {
@@ -77,7 +77,7 @@ rule SuspiciousUserAgents {
         $ua_empty = "User-Agent: \r\n"
         $ua_empty2 = "User-Agent:  \r\n"
     condition:
-        any of ($ua_evil*) or $ua_empty or $ua_empty2
+        any of ($ua_evil*) or $ua_empty or $ua_empty2 or any of ($ua_python, $ua_curl, $ua_wget, $ua_go, $ua_java)
 }
 
 rule ICMPTunneling {
@@ -92,7 +92,7 @@ rule ICMPTunneling {
         $data_in_icmp = "ICMP_EXFIL" nocase
         $large_payload = { 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 }  // 16-byte zero padding typical of tunnel tools
     condition:
-        any of ($ptunnel, $icmpsh, $data_in_icmp)
+        any of ($ptunnel, $icmpsh, $data_in_icmp) or ($icmp_magic and $large_payload)
 }
 
 rule ReverseShellNetcat {

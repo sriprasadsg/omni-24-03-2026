@@ -1,0 +1,14 @@
+[INFO] Spawning architect agent: v14-architect
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787305208554-r8l2g5               |
+| Type         | architect                                |
+| Name         | v14-architect                            |
+| Status       | registered                               |
+| Created      | 2026-08-21T09:40:08.555Z                 |
+| Capabilities | system-design, pattern-analysis, scal... |
++--------------+------------------------------------------+
+
+[OK] Agent v14-architect spawned successfully

@@ -1,0 +1,6 @@
+Transformers.js loaded: Xenova/all-MiniLM-L6-v2
+
+Memory Entries
+
+[WARN] No entries found
+[INFO] Store data: claude-flow memory store -k "key" --value "data"

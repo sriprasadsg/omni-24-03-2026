@@ -1,0 +1,670 @@
+#!/usr/bin/env bash
+
+set -u
+set -o pipefail
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$PROJECT_DIR"
+
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+REPORT_DIR="$PROJECT_DIR/ruflo-test-report-$TIMESTAMP"
+LOG_FILE="$REPORT_DIR/ruflo-enterprise-test.log"
+
+mkdir -p "$REPORT_DIR"
+
+PASS=0
+WARN=0
+FAIL=0
+
+pass() {
+    echo "[PASS] $1" | tee -a "$LOG_FILE"
+    PASS=$((PASS + 1))
+}
+
+warn() {
+    echo "[WARN] $1" | tee -a "$LOG_FILE"
+    WARN=$((WARN + 1))
+}
+
+fail() {
+    echo "[FAIL] $1" | tee -a "$LOG_FILE"
+    FAIL=$((FAIL + 1))
+}
+
+section() {
+    echo "" | tee -a "$LOG_FILE"
+    echo "============================================================" | tee -a "$LOG_FILE"
+    echo "$1" | tee -a "$LOG_FILE"
+    echo "============================================================" | tee -a "$LOG_FILE"
+}
+
+run_capture() {
+    local outfile="$1"
+    shift
+
+    "$@" >"$outfile" 2>&1
+    return $?
+}
+
+echo "============================================================" | tee "$LOG_FILE"
+echo "RUFLO ENTERPRISE VALIDATION" | tee -a "$LOG_FILE"
+echo "============================================================" | tee -a "$LOG_FILE"
+
+echo "Project : $PROJECT_DIR" | tee -a "$LOG_FILE"
+echo "Date    : $(date)" | tee -a "$LOG_FILE"
+echo "Host    : $(hostname)" | tee -a "$LOG_FILE"
+echo "User    : $(id -un)" | tee -a "$LOG_FILE"
+echo "Kernel  : $(uname -r)" | tee -a "$LOG_FILE"
+echo "Report  : $LOG_FILE" | tee -a "$LOG_FILE"
+
+
+# ============================================================
+# 1. SYSTEM INFORMATION
+# ============================================================
+
+section "1. SYSTEM INFORMATION"
+
+echo "CPU:" | tee -a "$LOG_FILE"
+lscpu 2>/dev/null | egrep \
+    'Architecture|CPU\(s\)|Model name|Virtualization|NUMA node' \
+    | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+
+echo "Memory:" | tee -a "$LOG_FILE"
+free -h | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+
+echo "Disk:" | tee -a "$LOG_FILE"
+df -h "$PROJECT_DIR" | tee -a "$LOG_FILE"
+
+
+# ============================================================
+# 2. NODE / NPM ENVIRONMENT
+# ============================================================
+
+section "2. NODE / NPM ENVIRONMENT"
+
+if command -v node >/dev/null 2>&1; then
+    pass "Node available: $(command -v node)"
+    node --version | tee -a "$LOG_FILE"
+else
+    fail "Node is not available"
+fi
+
+if command -v npm >/dev/null 2>&1; then
+    pass "npm available: $(command -v npm)"
+    npm --version | tee -a "$LOG_FILE"
+else
+    fail "npm is not available"
+fi
+
+if command -v npx >/dev/null 2>&1; then
+    pass "npx available: $(command -v npx)"
+else
+    fail "npx is not available"
+fi
+
+if command -v git >/dev/null 2>&1; then
+    pass "git available: $(git --version)"
+else
+    fail "git is not available"
+fi
+
+
+# ============================================================
+# 3. RUFLO CLI DISCOVERY
+# ============================================================
+
+section "3. RUFLO CLI DISCOVERY"
+
+if command -v ruflo >/dev/null 2>&1; then
+    pass "Global Ruflo executable found: $(command -v ruflo)"
+    ruflo --version 2>&1 | tee -a "$LOG_FILE"
+else
+    warn "No global Ruflo executable found"
+    echo "Ruflo will be tested using npx ruflo@latest." | tee -a "$LOG_FILE"
+fi
+
+if command -v claude-flow >/dev/null 2>&1; then
+    pass "Global claude-flow executable found"
+    claude-flow --version 2>&1 | tee -a "$LOG_FILE"
+else
+    echo "[INFO] No global claude-flow executable" | tee -a "$LOG_FILE"
+fi
+
+
+# ============================================================
+# 4. RUFLO NPX VERSION
+# ============================================================
+
+section "4. RUFLO NPX CLI TEST"
+
+RUFLO_VERSION_LOG="$REPORT_DIR/ruflo-version.log"
+
+if run_capture "$RUFLO_VERSION_LOG" npx --yes ruflo@latest --version; then
+    pass "npx ruflo@latest --version"
+    cat "$RUFLO_VERSION_LOG" | tee -a "$LOG_FILE"
+else
+    fail "npx ruflo@latest --version failed"
+    cat "$RUFLO_VERSION_LOG" | tee -a "$LOG_FILE"
+fi
+
+
+# ============================================================
+# 5. RUFLO HELP
+# ============================================================
+
+section "5. RUFLO CLI HELP"
+
+RUFLO_HELP_LOG="$REPORT_DIR/ruflo-help.log"
+
+if run_capture "$RUFLO_HELP_LOG" npx --yes ruflo@latest --help; then
+    pass "Ruflo CLI help"
+    head -80 "$RUFLO_HELP_LOG" | tee -a "$LOG_FILE"
+else
+    fail "Ruflo CLI help failed"
+    cat "$RUFLO_HELP_LOG" | tee -a "$LOG_FILE"
+fi
+
+
+# ============================================================
+# 6. RUFLO DOCTOR
+# ============================================================
+
+section "6. RUFLO DOCTOR"
+
+RUFLO_DOCTOR_LOG="$REPORT_DIR/ruflo-doctor.log"
+
+if run_capture "$RUFLO_DOCTOR_LOG" npx --yes ruflo@latest doctor; then
+    pass "Ruflo doctor completed"
+else
+    warn "Ruflo doctor returned non-zero status"
+fi
+
+cat "$RUFLO_DOCTOR_LOG" | tee -a "$LOG_FILE"
+
+
+# ============================================================
+# 7. RUFLO PROJECT STRUCTURE
+# ============================================================
+
+section "7. RUFLO PROJECT STRUCTURE"
+
+REQUIRED_DIRS=(
+    ".agents"
+    ".agents/skills"
+    ".agents/skills/ruflo"
+    ".claude-flow"
+    ".claude"
+)
+
+REQUIRED_FILES=(
+    "CLAUDE.md"
+    ".mcp.json"
+    ".claude.json"
+    ".claude/settings.json"
+)
+
+for item in "${REQUIRED_DIRS[@]}"; do
+    if [[ -d "$PROJECT_DIR/$item" ]]; then
+        pass "Directory exists: $PROJECT_DIR/$item"
+    else
+        warn "Directory missing: $PROJECT_DIR/$item"
+    fi
+done
+
+for item in "${REQUIRED_FILES[@]}"; do
+    if [[ -f "$PROJECT_DIR/$item" ]]; then
+        pass "File exists: $PROJECT_DIR/$item"
+    else
+        warn "File missing: $PROJECT_DIR/$item"
+    fi
+done
+
+
+# ============================================================
+# 8. RUFLO STATE
+# ============================================================
+
+section "8. RUFLO STATE"
+
+if [[ -d "$PROJECT_DIR/.claude-flow" ]]; then
+
+    find "$PROJECT_DIR/.claude-flow" \
+        -maxdepth 3 \
+        -type f \
+        -print \
+        | sort \
+        | tee "$REPORT_DIR/ruflo-state-files.txt"
+
+    du -sh "$PROJECT_DIR/.claude-flow" 2>/dev/null \
+        | tee -a "$LOG_FILE"
+
+    pass "Ruflo state inspected"
+
+else
+    warn ".claude-flow state directory missing"
+fi
+
+
+# ============================================================
+# 9. RUFLO SKILLS
+# ============================================================
+
+section "9. RUFLO SKILLS"
+
+SKILL_DIR="$PROJECT_DIR/.agents/skills/ruflo"
+
+if [[ -d "$SKILL_DIR" ]]; then
+
+    SKILL_COUNT="$(
+        find "$SKILL_DIR" \
+            -type f \
+            \( -name "SKILL.md" -o -name "*.sh" \) \
+            2>/dev/null \
+            | wc -l
+    )"
+
+    echo "Ruflo skill files/scripts: $SKILL_COUNT" | tee -a "$LOG_FILE"
+
+    find "$SKILL_DIR" \
+        -type f \
+        \( -name "SKILL.md" -o -name "*.sh" \) \
+        -print \
+        | sort \
+        > "$REPORT_DIR/ruflo-skills.txt"
+
+    head -100 "$REPORT_DIR/ruflo-skills.txt" | tee -a "$LOG_FILE"
+
+    if [[ "$SKILL_COUNT" -gt 0 ]]; then
+        pass "Ruflo skills discovered: $SKILL_COUNT"
+    else
+        warn "Ruflo skill directory is empty"
+    fi
+
+else
+    warn "Ruflo skill directory missing"
+fi
+
+
+# ============================================================
+# 10. PACKAGE.JSON
+# ============================================================
+
+section "10. PACKAGE.JSON"
+
+if [[ -f package.json ]]; then
+    pass "package.json exists"
+
+    if node -e 'JSON.parse(require("fs").readFileSync("package.json","utf8"))' \
+        >/dev/null 2>&1; then
+        pass "package.json is valid JSON"
+    else
+        fail "package.json contains invalid JSON"
+    fi
+else
+    warn "package.json not found"
+fi
+
+
+# ============================================================
+# 11. NODE MODULES
+# ============================================================
+
+section "11. NODE_MODULES"
+
+if [[ -d node_modules ]]; then
+    pass "node_modules exists"
+
+    du -sh node_modules 2>/dev/null | tee -a "$LOG_FILE"
+
+    if npm ls --depth=0 >/dev/null 2>&1; then
+        pass "npm top-level dependency tree is healthy"
+    else
+        warn "npm top-level dependency tree reports issues"
+        npm ls --depth=0 2>&1 \
+            | head -100 \
+            | tee "$REPORT_DIR/npm-tree.log" \
+            | tee -a "$LOG_FILE"
+    fi
+else
+    warn "node_modules does not exist"
+fi
+
+
+# ============================================================
+# 12. GIT
+# ============================================================
+
+section "12. GIT STATUS"
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    pass "Git repository detected"
+
+    git status --short \
+        | head -100 \
+        | tee "$REPORT_DIR/git-status.txt" \
+        | tee -a "$LOG_FILE"
+
+else
+    warn "Git repository not detected"
+fi
+
+
+# ============================================================
+# 13. RUFLO FUNCTIONAL COMMANDS
+# ============================================================
+
+section "13. RUFLO FUNCTIONAL COMMANDS"
+
+AGENT_LOG="$REPORT_DIR/ruflo-agent-list.log"
+
+echo "Testing Ruflo agent list..." | tee -a "$LOG_FILE"
+
+if run_capture "$AGENT_LOG" \
+    npx --yes ruflo@latest agent list; then
+
+    pass "Ruflo agent list"
+
+else
+    warn "Ruflo agent list returned non-zero status"
+fi
+
+cat "$AGENT_LOG" | tee -a "$LOG_FILE"
+
+
+# ============================================================
+# 14. RUFLO MEMORY
+# ============================================================
+
+section "14. RUFLO MEMORY"
+
+MEMORY_LOG="$REPORT_DIR/ruflo-memory-list.log"
+
+if run_capture "$MEMORY_LOG" \
+    npx --yes ruflo@latest memory list; then
+
+    pass "Ruflo memory list"
+
+else
+    warn "Ruflo memory list failed"
+fi
+
+cat "$MEMORY_LOG" | tee -a "$LOG_FILE"
+
+
+# ============================================================
+# 15. TARGETED PYTEST
+# ============================================================
+
+section "15. TARGETED PYTEST"
+
+echo "IMPORTANT:" | tee -a "$LOG_FILE"
+echo "The complete repository is NOT used as a pytest target." | tee -a "$LOG_FILE"
+echo "Unrelated repositories and generated artifacts are excluded." | tee -a "$LOG_FILE"
+
+PYTHON_BIN="$PROJECT_DIR/backend/venv/bin/python"
+
+if [[ ! -x "$PYTHON_BIN" ]]; then
+    PYTHON_BIN="$(command -v python3 || true)"
+fi
+
+if [[ -z "$PYTHON_BIN" ]]; then
+    fail "Python executable not found"
+else
+    echo "Python: $PYTHON_BIN" | tee -a "$LOG_FILE"
+
+    "$PYTHON_BIN" --version | tee -a "$LOG_FILE"
+
+    PYTEST_LOG="$REPORT_DIR/pytest-targeted.log"
+
+    TARGETS=()
+
+    # Only collect actual Python test files from the intended agent/backend
+    # directories. Ignore text artifacts and unrelated repositories.
+
+    if [[ -d "$PROJECT_DIR/agent" ]]; then
+        while IFS= read -r file; do
+            TARGETS+=("$file")
+        done < <(
+            find "$PROJECT_DIR/agent" \
+                -type f \
+                -name 'test_*.py' \
+                -not -path '*/node_modules/*' \
+                -not -path '*/.venv/*' \
+                -not -path '*/venv/*' \
+                -not -path '*/code-review-graph-main/*' \
+                | sort
+        )
+    fi
+
+    if [[ -d "$PROJECT_DIR/backend/tests" ]]; then
+        while IFS= read -r file; do
+            TARGETS+=("$file")
+        done < <(
+            find "$PROJECT_DIR/backend/tests" \
+                -type f \
+                -name 'test_*.py' \
+                | sort
+        )
+    fi
+
+    if [[ "${#TARGETS[@]}" -eq 0 ]]; then
+        warn "No targeted Python test files found"
+    else
+
+        echo "Targeted test files: ${#TARGETS[@]}" | tee -a "$LOG_FILE"
+
+        printf '%s\n' "${TARGETS[@]}" \
+            > "$REPORT_DIR/pytest-targets.txt"
+
+        if "$PYTHON_BIN" -m pytest \
+            --collect-only \
+            -q \
+            "${TARGETS[@]}" \
+            >"$PYTEST_LOG" 2>&1; then
+
+            pass "Targeted pytest collection passed"
+
+        else
+            warn "Targeted pytest collection has errors"
+        fi
+
+        cat "$PYTEST_LOG" | tee -a "$LOG_FILE"
+    fi
+fi
+
+
+# ============================================================
+# 16. PYTHON ENVIRONMENT
+# ============================================================
+
+section "16. PYTHON ENVIRONMENT"
+
+if [[ -x "$PROJECT_DIR/backend/venv/bin/python" ]]; then
+
+    pass "Backend Python environment found"
+
+    PYTHON_BIN="$PROJECT_DIR/backend/venv/bin/python"
+
+    PIP_CHECK_LOG="$REPORT_DIR/pip-check.log"
+
+    if "$PYTHON_BIN" -m pip check >"$PIP_CHECK_LOG" 2>&1; then
+        pass "Python pip check passed"
+    else
+        warn "Python pip check reports dependency conflicts"
+    fi
+
+    cat "$PIP_CHECK_LOG" | tee -a "$LOG_FILE"
+
+else
+    warn "Backend Python environment not found"
+fi
+
+
+# ============================================================
+# 17. PYTHON CORE IMPORTS
+# ============================================================
+
+section "17. PYTHON CORE IMPORTS"
+
+if [[ -x "$PROJECT_DIR/backend/venv/bin/python" ]]; then
+
+    IMPORT_LOG="$REPORT_DIR/python-imports.log"
+
+    if "$PROJECT_DIR/backend/venv/bin/python" - <<'PY' >"$IMPORT_LOG" 2>&1
+modules = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "sklearn",
+    "chromadb",
+    "onnxruntime",
+    "cpuinfo",
+    "watchdog",
+    "websockets",
+    "langgraph",
+]
+
+failed = []
+
+for module in modules:
+    try:
+        m = __import__(module)
+        print(
+            "[OK]",
+            module,
+            getattr(m, "__version__", "loaded")
+        )
+    except Exception as e:
+        print(
+            "[FAIL]",
+            module,
+            type(e).__name__,
+            str(e)
+        )
+        failed.append(module)
+
+if failed:
+    raise SystemExit(
+        "Failed imports: " + ", ".join(failed)
+    )
+
+print("ALL CORE IMPORTS PASSED")
+PY
+    then
+        pass "Python core imports"
+    else
+        warn "Some Python core imports failed"
+    fi
+
+    cat "$IMPORT_LOG" | tee -a "$LOG_FILE"
+fi
+
+
+# ============================================================
+# 18. LARGE FILE DETECTION
+# ============================================================
+
+section "18. LARGE FILE DETECTION"
+
+echo "Largest files excluding dependency/cache directories:" \
+    | tee -a "$LOG_FILE"
+
+find "$PROJECT_DIR" \
+    -type f \
+    -size +100M \
+    -not -path "$PROJECT_DIR/node_modules/*" \
+    -not -path "$PROJECT_DIR/backend/venv/*" \
+    -not -path "$PROJECT_DIR/venv/*" \
+    -not -path "$PROJECT_DIR/.git/*" \
+    -not -path "$PROJECT_DIR/.claude/worktrees/*" \
+    -printf '%s %p\n' \
+    2>/dev/null \
+    | sort -nr \
+    | head -30 \
+    | numfmt --field=1 --to=iec \
+    | tee "$REPORT_DIR/large-files.txt" \
+    | tee -a "$LOG_FILE"
+
+
+# ============================================================
+# 19. AUDIT REPORT STORAGE
+# ============================================================
+
+section "19. AUDIT REPORT STORAGE"
+
+if [[ -d "$PROJECT_DIR/audit-reports" ]]; then
+
+    du -sh "$PROJECT_DIR/audit-reports" \
+        | tee -a "$LOG_FILE"
+
+    find "$PROJECT_DIR/audit-reports" \
+        -type f \
+        -size +1G \
+        -printf '%s %p\n' \
+        2>/dev/null \
+        | sort -nr \
+        | numfmt --field=1 --to=iec \
+        | head -20 \
+        | tee "$REPORT_DIR/audit-large-files.txt" \
+        | tee -a "$LOG_FILE"
+
+else
+    pass "audit-reports directory does not exist"
+fi
+
+
+# ============================================================
+# 20. PROJECT SIZE
+# ============================================================
+
+section "20. PROJECT SIZE"
+
+du -sh "$PROJECT_DIR" \
+    | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+echo "Top-level directories:" | tee -a "$LOG_FILE"
+
+du -h --max-depth=1 "$PROJECT_DIR" 2>/dev/null \
+    | sort -h \
+    | tail -30 \
+    | tee -a "$LOG_FILE"
+
+
+# ============================================================
+# 21. FINAL RESULT
+# ============================================================
+
+section "FINAL RESULT"
+
+echo "PASS : $PASS" | tee -a "$LOG_FILE"
+echo "WARN : $WARN" | tee -a "$LOG_FILE"
+echo "FAIL : $FAIL" | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+
+echo "Report:" | tee -a "$LOG_FILE"
+echo "$LOG_FILE" | tee -a "$LOG_FILE"
+
+echo "" | tee -a "$LOG_FILE"
+
+echo "Project:" | tee -a "$LOG_FILE"
+echo "$PROJECT_DIR" | tee -a "$LOG_FILE"
+
+echo "============================================================" \
+    | tee -a "$LOG_FILE"
+
+# Only hard failures determine overall result.
+# Warnings are informational and do not automatically fail validation.
+
+if [[ "$FAIL" -eq 0 ]]; then
+    echo "RESULT: PASSED" | tee -a "$LOG_FILE"
+    exit 0
+else
+    echo "RESULT: FAILED" | tee -a "$LOG_FILE"
+    exit 1
+fi

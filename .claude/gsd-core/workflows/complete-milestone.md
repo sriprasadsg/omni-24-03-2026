@@ -41,12 +41,12 @@ When a milestone completes:
 Before proceeding with milestone close, run the comprehensive open artifact audit.
 
 ```bash
-_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; if [ -f "$GSD_TOOLS" ]; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif command -v gsd-tools >/dev/null 2>&1; then GSD_TOOLS="$(command -v gsd-tools)"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif [ -f "${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd-tools is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
-RESPONSE_LANGUAGE=$(gsd_run query config-get response_language --default "" 2>/dev/null || echo "")
+_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; _gsd_at() { for _p; do if [ -f "$_p" ]; then GSD_TOOLS="$_p"; return 0; fi; done; return 1; }; if _gsd_at "${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}" "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif unset -f gsd_run; _G="$(command -v gsd_run)"; then GSD_TOOLS="$_G"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif _gsd_at "${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; then gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd_run is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; GSD_IDENTITY_STATUS=unverified; case "$(gsd_run runtime-identity --raw 2>/dev/null || true)" in '{"packageName":"@opengsd/gsd-core"'*'}') GSD_IDENTITY_STATUS=ok;; esac; export GSD_IDENTITY_STATUS; [ "$GSD_IDENTITY_STATUS" = ok ] || echo "WARNING: \"$GSD_TOOLS\" did not prove it is @opengsd/gsd-core - it is either a different package or an @opengsd/gsd-core older than the runtime-identity verb. See docs/how-to/diagnose-a-foreign-gsd-tools.md" >&2; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
+RESPONSE_LANGUAGE=$(gsd_run query config-get response_language --raw --default "" 2>/dev/null || echo "")
 gsd_run query audit-open
 ```
 
-**If `response_language` is set:** All user-facing questions, prompts, and explanations in this workflow MUST be presented in `{response_language}`. Technical terms, code, file paths, and subagent prompts stay in English — only user-facing output is translated.
+**If `response_language` is set:** All user-facing output of this workflow — narration between tool calls, status updates, progress notes, findings, questions, prompts, and explanations — MUST be presented in `{response_language}`. Technical terms, code, file paths, and subagent prompts stay in English — only user-facing output is translated.
 
 If the output contains open items (any section with count > 0):
 
@@ -61,26 +61,135 @@ These items are open. Choose an action:
 ```
 
 If user chooses [A] (Acknowledge):
-1. Re-run `gsd-tools.cjs query audit-open --json` to get structured data
-2. Write acknowledged items to STATE.md under `## Deferred Items` section:
+1. Re-run `gsd_run query audit-open --json` to get structured data.
+2. Acknowledge every open item through the `audit-open acknowledge` CLI writer — this is what actually suppresses each item starting at the NEXT `audit-open` scan; the STATE.md table in step 3 is a disclosure record only, it is no longer the suppression mechanism. Every acknowledge call's exit status is accumulated (`ACK_FAILURES`); the step HALTS before closing if any failed — a refusal (`unsupported_heading_shape`, `ambiguous`, `not_found`, missing file, etc.) must never be silently discarded and let the close proceed as if everything were suppressed. `AUDIT_JSON` uses the same `@file:` large-payload sentinel handling `INIT_MANAGER` uses in `verify_readiness` below — `io.output` swaps any JSON payload over 50000 chars for a `@file:<path>` marker, and feeding that literal string to `jq` would silently make every loop body below iterate zero times:
+   ```bash
+   AUDIT_JSON=$(gsd_run query audit-open --json)
+   if [[ "$AUDIT_JSON" == @file:* ]]; then AUDIT_JSON=$(cat "${AUDIT_JSON#@file:}"); fi
+   MILESTONE_VERSION="v[X.Y]"   # already known from ROADMAP.md's active milestone header — the same identifier `milestone.complete` uses in the archive_milestone step
+
+   ACK_FAILURES=0
+   ACK_FAILURE_LOG=""
+   record_ack_failure() {
+     ACK_FAILURES=$((ACK_FAILURES + 1))
+     ACK_FAILURE_LOG="${ACK_FAILURE_LOG}
+   - $1"
+   }
+
+   # debug_sessions / threads (--slug)
+   # NOTE: `< <(...)` process substitution, not `... | while`, so the loop
+   # runs in THIS shell — a `| while` pipeline puts the loop in a subshell
+   # and any ACK_FAILURES/ACK_FAILURE_LOG update inside it is lost the
+   # moment the pipeline exits.
+   for cat in debug_sessions threads; do
+     while IFS= read -r slug; do
+       [ -z "$slug" ] && continue
+       if ! gsd_run query audit-open acknowledge --category "$cat" --milestone "$MILESTONE_VERSION" --slug "$slug"; then
+         record_ack_failure "$cat slug=$slug"
+       fi
+     done < <(printf '%s' "$AUDIT_JSON" | jq -r --arg cat "$cat" '.items[$cat][] | select(.scan_error | not) | .slug')
+   done
+
+   # seeds (--seed-id)
+   while IFS= read -r seed_id; do
+     [ -z "$seed_id" ] && continue
+     if ! gsd_run query audit-open acknowledge --category seeds --milestone "$MILESTONE_VERSION" --seed-id "$seed_id"; then
+       record_ack_failure "seeds seed_id=$seed_id"
+     fi
+   done < <(printf '%s' "$AUDIT_JSON" | jq -r '.items.seeds[] | select(.scan_error | not) | .seed_id')
+
+   # todos (--filename) — the scanner caps its list to 5 entries per scan
+   # (remainder items carry `_remainder_count`, no `filename`, and are skipped)
+   while IFS= read -r filename; do
+     [ -z "$filename" ] && continue
+     if ! gsd_run query audit-open acknowledge --category todos --milestone "$MILESTONE_VERSION" --filename "$filename"; then
+       record_ack_failure "todos filename=$filename"
+     fi
+   done < <(printf '%s' "$AUDIT_JSON" | jq -r '.items.todos[] | select((.scan_error or ._remainder_count) | not) | .filename')
+
+   # quick_tasks (--dir) — the scanner's `slug` strips a leading
+   # YYYYMMDD-/YYYY-MM-DD- date prefix for display; `--dir` needs the
+   # ORIGINAL .planning/quick/<dir>/ name, so reconstruct it from `date`+`slug`.
+   while IFS= read -r dir; do
+     [ -z "$dir" ] && continue
+     if ! gsd_run query audit-open acknowledge --category quick_tasks --milestone "$MILESTONE_VERSION" --dir "$dir"; then
+       record_ack_failure "quick_tasks dir=$dir"
+     fi
+   done < <(printf '%s' "$AUDIT_JSON" | jq -r '.items.quick_tasks[] | select(.scan_error | not) | if .date != "" then "\(.date)-\(.slug)" else .slug end')
+
+   # uat_gaps / verification_gaps / context_questions — phase-scoped
+   # (--phase --file [--archived-milestone] when the item was found in an archived phase)
+   for cat in uat_gaps verification_gaps context_questions; do
+     while IFS= read -r item; do
+       [ -z "$item" ] && continue
+       phase=$(printf '%s' "$item" | jq -r '.phase')
+       file=$(printf '%s' "$item" | jq -r '.file')
+       archived=$(printf '%s' "$item" | jq -r '.archived_milestone // empty')
+       if [ -n "$archived" ]; then
+         if ! gsd_run query audit-open acknowledge --category "$cat" --milestone "$MILESTONE_VERSION" --phase "$phase" --file "$file" --archived-milestone "$archived"; then
+           record_ack_failure "$cat phase=$phase file=$file archived-milestone=$archived"
+         fi
+       else
+         if ! gsd_run query audit-open acknowledge --category "$cat" --milestone "$MILESTONE_VERSION" --phase "$phase" --file "$file"; then
+           record_ack_failure "$cat phase=$phase file=$file"
+         fi
+       fi
+     done < <(printf '%s' "$AUDIT_JSON" | jq -c --arg cat "$cat" '.items[$cat][] | select(.scan_error | not)')
+   done
+
+   # deferred_items — same phase-scoped identification, plus --text (the
+   # exact bullet the audit read, which uniquely identifies the entry)
+   while IFS= read -r item; do
+     [ -z "$item" ] && continue
+     phase=$(printf '%s' "$item" | jq -r '.phase')
+     file=$(printf '%s' "$item" | jq -r '.file')
+     text=$(printf '%s' "$item" | jq -r '.text')
+     archived=$(printf '%s' "$item" | jq -r '.archived_milestone // empty')
+     if [ -n "$archived" ]; then
+       if ! gsd_run query audit-open acknowledge --category deferred_items --milestone "$MILESTONE_VERSION" --phase "$phase" --file "$file" --text "$text" --archived-milestone "$archived"; then
+         record_ack_failure "deferred_items phase=$phase file=$file archived-milestone=$archived"
+       fi
+     else
+       if ! gsd_run query audit-open acknowledge --category deferred_items --milestone "$MILESTONE_VERSION" --phase "$phase" --file "$file" --text "$text"; then
+         record_ack_failure "deferred_items phase=$phase file=$file"
+       fi
+     fi
+   done < <(printf '%s' "$AUDIT_JSON" | jq -c '.items.deferred_items[] | select(.scan_error | not)')
+
+   if [ "$ACK_FAILURES" -gt 0 ]; then
+     echo "ERROR: $ACK_FAILURES acknowledge call(s) failed — HALTING before milestone close. Resolve each listed item manually (e.g. edit the file directly for unsupported_heading_shape/ambiguous, or re-run the audit if a --text/--file target has since changed) and re-run /gsd-complete-milestone:" >&2
+     printf '%s\n' "$ACK_FAILURE_LOG" >&2
+     exit 1
+   fi
+   ```
+   `todos` is the only category the scanner caps (5 entries per scan, with a remainder count for the rest). Re-run `gsd_run query audit-open --json` (through the same `@file:` handling above) and repeat the `todos` block until it reports no `todos` items — every other category always returns its full open set in one pass.
+3. Re-run `gsd_run query audit-open --json` once more and write the items just acknowledged as new rows to STATE.md under `## Deferred Items` — append to the existing table (creating the section if absent) rather than overwriting it, preserving rows recorded at earlier milestone closes:
    ```markdown
    ## Deferred Items
 
-   Items acknowledged and deferred at milestone close on {date}:
+   Items acknowledged and deferred at milestone close, most recent first:
 
-   | Category | Item | Status |
-   |----------|------|--------|
-   | debug | {slug} | {status} |
-   | quick_task | {slug} | {status} |
-   ...
+   | Category | Item | Status | Deferred At | Milestone |
+   |----------|------|--------|-------------|-----------|
+   | debug_sessions | {slug} | {status} | {date} | {milestone} |
+   | quick_tasks | {slug} | {status} | {date} | {milestone} |
+   | threads | {slug} | {status} | {date} | {milestone} |
+   | seeds | {seed_id} | {status} | {date} | {milestone} |
+   | todos | {filename} | (presence-only) | {date} | {milestone} |
+   | uat_gaps | {phase}/{file} | {status} | {date} | {milestone} |
+   | verification_gaps | {phase}/{file} | {status} | {date} | {milestone} |
+   | context_questions | {phase}/{file} | {question_count} questions | {date} | {milestone} |
+   | deferred_items | {phase}/{file}: {text} | acknowledged | {date} | {milestone} |
    ```
-   Sanitize all slug and status values via `sanitizeForDisplay()` before writing. Never inject raw file content into STATE.md.
-3. Set `closeout_type=override_closeout` and record `Known verification overrides: {count} (see STATE.md Deferred Items)` in the MILESTONES.md entry.
-4. Proceed with milestone close.
+   One row per item actually acknowledged in step 2 (omit categories with nothing to disclose this close). `{date}` is today's date; `{milestone}` is `MILESTONE_VERSION`. Sanitize all slug/status/text values via `sanitizeForDisplay()` before writing. Never inject raw file content into STATE.md.
+4. Set `closeout_type=override_closeout` and record in the MILESTONES.md entry: `Known verification overrides: {N} newly acknowledged, {M} carried forward from a prior close (see STATE.md Deferred Items)` — `{N}` is the count of items acknowledged in step 2 (the pre-acknowledgment audit JSON's `counts.total`) and `{M}` is that same audit JSON's `acknowledged.total` (items a PRIOR close already suppressed and still are).
+5. Proceed with milestone close.
 
-If output shows all clear (no open items): set `closeout_type=verified_closeout`, print `All artifact types clear.`, and proceed.
+Acknowledging is verdict-preserving and self-invalidating: it never rewrites the artifact's own `status:` field (except `deferred_items`, whose entry has no other meaning for that field), and the suppression it grants lapses automatically the moment the artifact's observed state changes again — a reopened debug session, an edited UAT gap, a re-triggered seed, etc. resurfaces on its own at the next audit and must be acknowledged again.
 
-SECURITY: Audit JSON output is structured data from the `audit-open` query handler (same JSON contract as legacy `gsd-tools.cjs audit-open`) — validated and sanitized at source. When writing to STATE.md, item slugs and descriptions are sanitized via `sanitizeForDisplay()` before inclusion. Never inject raw user-supplied content into STATE.md without sanitization.
+If output shows all clear (no open items): set `closeout_type=verified_closeout`. If the audit JSON's `acknowledged.total` is `0`, print `All artifact types clear.` and proceed. Otherwise the close is clean only because `{acknowledged.total}` item(s) acknowledged at an earlier milestone close are still being suppressed, not because everything was fixed this time — print `All artifact types clear ({acknowledged.total} previously acknowledged item(s) still suppressed — see STATE.md Deferred Items).` and record `Known verification overrides: 0 newly acknowledged, {acknowledged.total} carried forward from a prior close (see STATE.md Deferred Items)` in the MILESTONES.md entry before proceeding.
+
+SECURITY: Audit JSON output is structured data from the `audit-open` query handler (same JSON contract as legacy `gsd_run audit-open`) — validated and sanitized at source. The `audit-open acknowledge` writer is the only path that sets the `audit_acknowledged` suppression marker — it snapshots each artifact's current state itself from the identifiers passed on the command line, so this workflow never hand-authors the marker. When writing the STATE.md disclosure table, item identifiers, statuses, and deferred-item text are sanitized via `sanitizeForDisplay()` before inclusion. Never inject raw user-supplied content into STATE.md without sanitization.
 </step>
 
 <step name="verify_readiness">
@@ -219,6 +328,9 @@ Milestone Stats:
 Extract one-liners from SUMMARY.md files using summary-extract:
 
 ```bash
+# #2962: zsh aborts the block on an unmatched for-list glob (nomatch); bash passes it through. nullglob both.
+shopt -s nullglob 2>/dev/null; setopt NULL_GLOB 2>/dev/null
+
 # For each phase in milestone, extract one-liner
 for summary in .planning/phases/*-*/*-SUMMARY.md; do
   [ -e "$summary" ] || continue
@@ -241,7 +353,7 @@ Key accomplishments for this milestone:
 
 <step name="create_milestone_entry">
 
-**Note:** MILESTONES.md entry is now created automatically by `gsd-tools.cjs query milestone.complete` in the archive_milestone step. The entry includes version, date, phase/plan/task counts, and accomplishments extracted from SUMMARY.md files.
+**Note:** MILESTONES.md entry is now created automatically by `gsd_run query milestone.complete` in the archive_milestone step. The entry includes version, date, phase/plan/task counts, and accomplishments extracted from SUMMARY.md files.
 
 If additional details are needed (e.g., user-provided "Delivered" summary, git range, LOC stats), add them manually after the CLI creates the base entry.
 
@@ -254,7 +366,8 @@ Full PROJECT.md evolution review at milestone completion.
 Read all phase summaries:
 
 ```bash
-cat .planning/phases/*-*/*-SUMMARY.md
+_SUMMARIES=( .planning/phases/*-*/*-SUMMARY.md )
+if [ -e "${_SUMMARIES[0]}" ]; then cat "${_SUMMARIES[@]}"; fi
 ```
 
 **Full review checklist:**
@@ -392,57 +505,28 @@ Initial user testing showed demand for shape tools.
 
 </step>
 
-<step name="reorganize_roadmap">
-
-Update `.planning/ROADMAP.md` — group completed milestone phases:
-
-```markdown
-# Roadmap: [Project Name]
-
-## Milestones
-
-- ✅ **v1.0 MVP** — Phases 1-4 (shipped YYYY-MM-DD)
-- 🚧 **v1.1 Security** — Phases 5-6 (in progress)
-- 📋 **v2.0 Redesign** — Phases 7-10 (planned)
-
-## Phases
-
-<details>
-<summary>✅ v1.0 MVP (Phases 1-4) — SHIPPED YYYY-MM-DD</summary>
-
-- [x] Phase 1: Foundation (2/2 plans) — completed YYYY-MM-DD
-- [x] Phase 2: Authentication (2/2 plans) — completed YYYY-MM-DD
-- [x] Phase 3: Core Features (3/3 plans) — completed YYYY-MM-DD
-- [x] Phase 4: Polish (1/1 plan) — completed YYYY-MM-DD
-
-</details>
-
-### 🚧 v[Next] [Name] (In Progress / Planned)
-
-- [ ] Phase 5: [Name] ([N] plans)
-- [ ] Phase 6: [Name] ([N] plans)
-
-## Progress
-
-| Phase             | Milestone | Plans Complete | Status      | Completed  |
-| ----------------- | --------- | -------------- | ----------- | ---------- |
-| 1. Foundation     | v1.0      | 2/2            | Complete    | YYYY-MM-DD |
-| 2. Authentication | v1.0      | 2/2            | Complete    | YYYY-MM-DD |
-| 3. Core Features  | v1.0      | 3/3            | Complete    | YYYY-MM-DD |
-| 4. Polish         | v1.0      | 1/1            | Complete    | YYYY-MM-DD |
-| 5. Security Audit | v1.1      | 0/1            | Not started | -          |
-| 6. Hardening      | v1.1      | 0/2            | Not started | -          |
-```
-
-</step>
-
 <step name="archive_milestone">
 
-**Delegate archival to `gsd-tools.cjs query milestone.complete`:**
+**Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available.
+
+**Quick-task archival (opt-in — NOT symmetrical with phase archival below, #2142):** unlike phase archival, quick-task archival is **opt-in, default OFF**. Doing nothing leaves `.planning/quick/` untouched, exactly like today's behavior. Decide this BEFORE calling `milestone complete` below, so the flag can be folded into that single invocation rather than issuing a second, redundant call.
+
+If `.planning/quick/` contains at least one directory, ask:
+
+AskUserQuestion: "Archive completed quick tasks into this milestone too?" with options: "Yes — archive quick tasks into v[X.Y]" | "Skip"
+
+If "Yes": set `ARCHIVE_QUICK_FLAG="--archive-quick"`. If "Skip" (or `.planning/quick/` is empty): set `ARCHIVE_QUICK_FLAG=""`.
+
+**Delegate archival to `gsd_run query milestone.complete`:**
 
 ```bash
-ARCHIVE=$(gsd_run query milestone.complete "v[X.Y]" --name "[Milestone Name]")
+ARCHIVE=$(gsd_run query milestone.complete "v[X.Y]" --name "[Milestone Name]" --confirm $ARCHIVE_QUICK_FLAG)
 ```
+
+`--confirm` is required (#3726): the archive is irreversible (ROADMAP/REQUIREMENTS archived, phase
+directories MOVED, STATE.md rewritten), so `milestone complete` refuses to mutate without it. This
+workflow has already gathered the user's explicit intent by this step, so passing the flag here is
+correct; `--dry-run` previews the exact move list without mutating if a preview is ever needed first.
 
 The CLI handles:
 - Creating `.planning/milestones/` directory
@@ -451,25 +535,28 @@ The CLI handles:
 - Moving audit file to milestones if it exists
 - Creating/appending MILESTONES.md entry with accomplishments from SUMMARY.md files
 - Updating STATE.md (status, last activity)
+- When `ARCHIVE_QUICK_FLAG` is `--archive-quick`: moving every directory under `.planning/quick/` into `.planning/milestones/v[X.Y]-quick/`, writing a `README.md` index into that archive directory (generated by scanning the archive directory itself), and clearing the data rows of STATE.md's `### Quick Tasks Completed` table — preserving the table's header and whichever column variant (with/without a Status column) was detected
 
 Extract from result: `version`, `date`, `phases`, `plans`, `tasks`, `accomplishments`, `archived`.
 
 Verify: `✅ Milestone archived to .planning/milestones/`
+
+**Known limit (quick-task archival):** there is no on-disk provenance recording which milestone a given quick task belonged to. Archival buckets **all** remaining `.planning/quick/*` into the completing milestone — a quick task that predates an earlier, unarchived milestone lands in the current bucket regardless.
+
+Verify after `--archive-quick` was passed: `✅ Quick tasks archived to .planning/milestones/v[X.Y]-quick/`
 
 **Phase archival (default-on):** `milestone complete` archives phase directories to `milestones/v[X.Y]-phases/` by default (#1871), so the next `/gsd-new-milestone` never inherits un-archived dirs. No manual `mkdir`/`mv` or `--archive-phases` flag is needed.
 
 If the user explicitly wants to keep phase directories in place as raw execution history, invoke `milestone complete` with `--no-archive-phases`:
 
 ```bash
-gsd_run query milestone complete v[X.Y] --no-archive-phases
+gsd_run query milestone complete v[X.Y] --no-archive-phases --confirm
 ```
 
 Verify after a default (archived) completion: `✅ Phase directories archived to .planning/milestones/v[X.Y]-phases/`
 
-**Text mode (`workflow.text_mode: true` in config or `--text` flag):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from init JSON is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` call with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available.
-
 After archival, the AI still handles:
-- Reorganizing ROADMAP.md with milestone grouping (requires judgment) — overwrite in place after extracting Backlog section
+- Reorganizing ROADMAP.md with milestone grouping (requires judgment) — overwrite in place after extracting Backlog section, with the write-guard's single-use sentinel armed first (a per-step env var cannot reach a hook — see the reorganize step for the sentinel mechanics)
 - Full PROJECT.md evolution review (requires understanding)
 - Safety commit of archive files + updated ROADMAP.md, then `git rm .planning/REQUIREMENTS.md`
 - These are NOT fully delegated because they require AI interpretation of content
@@ -491,7 +578,19 @@ BACKLOG_SECTION=$(awk '/^## Backlog/{found=1} found{print}' .planning/ROADMAP.md
 
 If `$BACKLOG_SECTION` is empty, there is no Backlog section — skip silently.
 
-**Reorganize ROADMAP.md** — overwrite in place (do NOT delete first) with milestone groupings:
+**Reorganize ROADMAP.md** — overwrite in place (do NOT delete first) with milestone groupings.
+
+This rewrite is an *intentional* catastrophic shrink: phase detail was just archived to `milestones/v[X.Y]-ROADMAP.md`, and a multi-hundred-line ROADMAP.md collapses to a compact grouped summary. The `gsd-write-guard` PreToolUse hook (#2255) hard-blocks exactly that shape on curated `.planning/` files — this step is the legitimate milestone reset its escape hatch exists for. A hook inherits the *runtime's* environment, so no per-step env var can reach it; the hatch is a **single-use sentinel file the guard itself consumes**. Arm it, then write:
+
+1. Arm the sentinel (single-use; the guard checks it is fresh — within 15 minutes — and names exactly this file, then consumes it):
+
+```bash
+printf '.planning/ROADMAP.md\n' > .planning/.gsd-allow-shrink
+```
+
+2. Compose the full new ROADMAP.md content (template below) and overwrite `.planning/ROADMAP.md` with the **Write tool** — the normal path. The guard allows this one shrink and deletes the sentinel. If the Write is blocked anyway, the sentinel was stale or consumed — re-run the `printf` and retry the Write.
+
+Template for the composed content:
 
 ```markdown
 # Roadmap: [Project Name]
@@ -624,9 +723,11 @@ Use `init milestone-op` for context, or load config directly:
 ```bash
 INIT=$(gsd_run query init.execute-phase "1")
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
+INIT_CM=$(gsd_run query init.complete-milestone)
+if [[ "$INIT_CM" == @file:* ]]; then INIT_CM=$(cat "${INIT_CM#@file:}"); fi
 ```
 
-Extract `branching_strategy`, `phase_branch_template`, `milestone_branch_template`, and `commit_docs` from init JSON.
+Extract `branching_strategy`, `phase_branch_template`, `milestone_branch_template`, and `commit_docs` from init JSON. Extract `git_create_tag` and `section_manifest` from `INIT_CM` (used by the `git_tag` step below).
 
 Detect base branch:
 ```bash
@@ -674,7 +775,10 @@ CURRENT_BRANCH=$(git branch --show-current)
 git checkout ${BASE_BRANCH}
 
 if [ "$BRANCHING_STRATEGY" = "phase" ]; then
-  for branch in $PHASE_BRANCHES; do
+  # Rewrapped through unquoted command substitution (gsd-core#4109): a bare
+  # `$VAR` word-splits under bash but not zsh, collapsing every element onto
+  # one iteration there.
+  for branch in $(printf '%s' "$PHASE_BRANCHES"); do
     git merge --squash "$branch"
     # Strip .planning/ from staging if commit_docs is false
     if [ "$COMMIT_DOCS" = "false" ]; then
@@ -703,7 +807,10 @@ CURRENT_BRANCH=$(git branch --show-current)
 git checkout ${BASE_BRANCH}
 
 if [ "$BRANCHING_STRATEGY" = "phase" ]; then
-  for branch in $PHASE_BRANCHES; do
+  # Rewrapped through unquoted command substitution (gsd-core#4109): a bare
+  # `$VAR` word-splits under bash but not zsh, collapsing every element onto
+  # one iteration there.
+  for branch in $(printf '%s' "$PHASE_BRANCHES"); do
     git merge --no-ff --no-commit "$branch"
     # Strip .planning/ from staging if commit_docs is false
     if [ "$COMMIT_DOCS" = "false" ]; then
@@ -729,7 +836,10 @@ git checkout "$CURRENT_BRANCH"
 
 ```bash
 if [ "$BRANCHING_STRATEGY" = "phase" ]; then
-  for branch in $PHASE_BRANCHES; do
+  # Rewrapped through unquoted command substitution (gsd-core#4109): a bare
+  # `$VAR` word-splits under bash but not zsh, collapsing every element onto
+  # one iteration there.
+  for branch in $(printf '%s' "$PHASE_BRANCHES"); do
     git branch -d "$branch" 2>/dev/null || git branch -D "$branch"
   done
 fi
@@ -743,40 +853,7 @@ fi
 
 </step>
 
-<step name="git_tag">
-
-<config-check>
-Read `git.create_tag` via `gsd-tools.cjs query config-get git.create_tag 2>/dev/null || echo "true"`.
-If the result is `false` → skip this step entirely and proceed to `git_commit_milestone`.
-</config-check>
-
-Create git tag:
-
-```bash
-# Pre-check: skip if tag already exists (prevents silent failure on retry)
-if git rev-parse "v[X.Y]" >/dev/null 2>&1; then echo "Tag v[X.Y] already exists, skipping"; exit 0; fi
-git tag -a v[X.Y] -m "v[X.Y] [Name]
-
-Delivered: [One sentence]
-
-Key accomplishments:
-- [Item 1]
-- [Item 2]
-- [Item 3]
-
-See .planning/MILESTONES.md for full details."
-```
-
-Confirm: "Tagged: v[X.Y]"
-
-Ask: "Push tag to remote? (y/n)"
-
-If yes:
-```bash
-git push origin v[X.Y]
-```
-
-</step>
+If `section_manifest` is `null` or `"git-tag"` is in its `included` list: read and execute `gsd-core/workflows/complete-milestone/steps/git-tag.md`. Otherwise skip — do not read the file; proceed to `git_commit_milestone`.
 
 <step name="git_commit_milestone">
 

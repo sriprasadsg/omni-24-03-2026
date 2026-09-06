@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from authentication_service import get_current_user
 from database import get_database
 from rate_limiter import limiter
+from tenant_context import set_tenant_id, get_tenant_id
 
 router = APIRouter(prefix="/api/security-intel", tags=["Security Intelligence"])
 logger = logging.getLogger(__name__)
@@ -358,6 +359,8 @@ async def trigger_sync(
     if provider == "nvd":
         try:
             from nvd_sync import sync_nvd_cves
+            # Set tenant context for background sync
+            _tctx = set_tenant_id(get_tenant_id() or "platform-admin")
             asyncio.create_task(sync_nvd_cves(db._db))
             await db._db.security_intel_config.update_one(
                 {"provider": "nvd"}, {"$set": {"last_sync": now}}, upsert=True
@@ -369,6 +372,8 @@ async def trigger_sync(
     elif provider == "osv":
         try:
             from osv_sync import sync_osv_vulns
+            # Set tenant context for background sync
+            _tctx = set_tenant_id(get_tenant_id() or "platform-admin")
             asyncio.create_task(sync_osv_vulns(db._db))
             await db._db.security_intel_config.update_one(
                 {"provider": "osv"}, {"$set": {"last_sync": now}}, upsert=True

@@ -1,0 +1,23 @@
+RUFLO ENTERPRISE TEST v6 SUMMARY
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri Aug 21 05:38:38 IST 2026
+Host: security-test-vm
+
+Ruflo: unknown
+Claude Flow: ruflo v3.38.12
+
+Health Score: 74 / 100
+PASS: 48
+WARN: 14
+FAIL: 0
+RESULT: AT_RISK
+
+Main report: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/ruflo-enterprise-test-v6.log
+Ruflo CLI: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/claude-flow.txt
+Python validation: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/python-validation.txt
+Core tests: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/core-tests.txt
+Full project tests: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/full-project-tests.txt
+NPM validation: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/npm-validation.txt
+Source blockers: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/source-blockers.txt
+Large files: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/large-files.txt
+Large logs: /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053729/large-logs.txt

@@ -1,0 +1,5 @@
+External-service diagnostics are informational.
+These checks do not automatically cause Ruflo FAIL.
+[INFO] TCP port 11434 is listening
+[INFO] TCP port 27017 is listening
+[INFO] TCP port 6379 is listening

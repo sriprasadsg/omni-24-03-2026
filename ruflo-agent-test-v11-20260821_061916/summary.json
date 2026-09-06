@@ -1,0 +1,14 @@
+{
+  "version": "v11",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "score": 13,
+  "pass": 40,
+  "warn": 16,
+  "fail": 1,
+  "agents": {
+    "requested": 8,
+    "completed": 0
+  },
+  "result": "FAILED",
+  "report_directory": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v11-20260821_061916"
+}

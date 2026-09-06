@@ -1,0 +1,23 @@
+===== v13-tester =====
+TYPE=tester
+TASK_TYPE=testing
+DESCRIPTION=Run or inspect appropriate tests and separate genuine application failures from environment/network/fixture/collection diagnostics. Do not modify source files.
+
+[INFO] Creating testing task...
+
+[OK] Task created: task-1787277684636-hf6eme
+
++-------------+------------------------------------------+
+| Property    | Value                                    |
++-------------+------------------------------------------+
+| ID          | task-1787277684636-hf6eme                |
+| Type        | testing                                  |
+| Description | Run or inspect appropriate tests and ... |
+| Priority    | normal                                   |
+| Status      | pending                                  |
+| Assigned To | Unassigned                               |
+| Tags        | None                                     |
+| Created     | 8/21/2026, 7:31:24 AM                    |
++-------------+------------------------------------------+
+
+[OK] Task task-1787277684636-hf6eme assigned to v13-tester

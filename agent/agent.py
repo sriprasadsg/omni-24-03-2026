@@ -402,10 +402,13 @@ class AgentCapabilityManager:
         if remote_cap:
             import threading
             tenant_key = self.cfg.get('registration_key', '') if hasattr(self, 'cfg') else ''
-            if session_type == "desktop":
-                # Interactive-control consent/identity forwarded (74-04). A
-                # `mode=control` payload triggers the D-01..D-12 consent flow.
-                control = payload.get("mode") == "control"
+            if session_type in ("desktop", "control"):
+                # Interactive-control consent/identity forwarded (74-04). The
+                # backend stamps `type=control` for interactive sessions and the
+                # frontend sends `mode=control`; either form triggers the
+                # D-01..D-12 consent flow (a `type=control` session previously
+                # fell into start_reverse_shell, so Control never streamed).
+                control = payload.get("mode") == "control" or session_type == "control"
                 t = threading.Thread(
                     target=remote_cap.start_desktop_stream,
                     args=(session_id, url, tenant_key),

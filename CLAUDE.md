@@ -174,3 +174,33 @@ npx @claude-flow/cli@latest doctor --fix
 ```
 
 **Agent tool** handles execution (agents, files, code, git). **MCP tools** handle coordination (swarm, memory, hooks). **CLI** is the same via Bash.
+## Compact Instructions
+
+When compacting context, preserve:
+
+- Current GSD milestone and phase
+- Current phase objective
+- Completed tasks
+- Pending tasks
+- Files modified
+- Files requiring modification
+- Test results and failures
+- Security findings
+- Vulnerabilities and CVEs
+- Architecture decisions
+- Database/schema decisions
+- API changes
+- Authentication/RBAC decisions
+- Multi-tenant isolation findings
+- AI/LLM security findings
+- Agent/tool execution findings
+- Ruflo agent results
+- Graphify/knowledge-graph status
+- Commands that failed and their error messages
+- Root causes already identified
+- Remediation steps already completed
+- Next recommended action
+
+Do not discard unresolved errors or partially completed work.
+Do not restart completed GSD phases.
+Do not repeat investigations already completed.

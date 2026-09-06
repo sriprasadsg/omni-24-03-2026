@@ -226,6 +226,7 @@ const TicketModal: React.FC<{
         delete payload.tenant_name;
       }
       const ticket = await createTicket(payload);
+      showToast('Ticket created — ' + (ticket?.ticket_number ?? 'Your ticket was raised'), 'success');
       onCreate(ticket);
       onClose();
     } catch (e: any) { setErr(e.message || 'Failed to create ticket'); }

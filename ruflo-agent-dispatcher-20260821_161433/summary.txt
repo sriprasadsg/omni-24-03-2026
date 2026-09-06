@@ -1,0 +1,60 @@
+RUFLO MULTI-AGENT ENTERPRISE TEST v14
+
+Project:
+/home/user/enterprise-omni-agent-ai-platform
+
+Started:
+2026-08-21 16:14:33 IST
+
+Finished:
+2026-08-21 16:26:20 IST
+
+Duration:
+707s
+
+Ruflo:
+ruflo v3.38.12
+
+Claude:
+2.1.228 (Claude Code)
+
+============================================================
+AGENTS
+============================================================
+
+Configured agents : 8
+Workers launched  : 8
+Workers success   : 2
+Workers failed    : 6
+
+============================================================
+DISPATCHER RESULT
+============================================================
+
+PASS : 17
+WARN : 16
+FAIL : 0
+
+============================================================
+REPORT DIRECTORY
+============================================================
+
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433
+
+Main log:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/dispatcher.log
+
+Summary:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/summary.txt
+
+Worker logs:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/logs/
+
+Worker reports:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/results/
+
+Ruflo state:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/state/
+
+Diagnostics:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/diagnostics/

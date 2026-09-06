@@ -1,0 +1,23 @@
+===== v13-reviewer =====
+TYPE=reviewer
+TASK_TYPE=review
+DESCRIPTION=Perform an independent enterprise code/configuration review and produce prioritized findings. Do not modify files.
+
+[INFO] Creating review task...
+
+[OK] Task created: task-1787277684555-s2nvmt
+
++-------------+------------------------------------------+
+| Property    | Value                                    |
++-------------+------------------------------------------+
+| ID          | task-1787277684555-s2nvmt                |
+| Type        | review                                   |
+| Description | Perform an independent enterprise cod... |
+| Priority    | normal                                   |
+| Status      | pending                                  |
+| Assigned To | Unassigned                               |
+| Tags        | None                                     |
+| Created     | 8/21/2026, 7:31:24 AM                    |
++-------------+------------------------------------------+
+
+[OK] Task task-1787277684555-s2nvmt assigned to v13-reviewer

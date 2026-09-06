@@ -17,13 +17,13 @@ The matrix below is therefore the subtraction record for the OS API surface.
 
 | capability | decision | reason |
 |---|---|---|
-| `INPUT_MOUSE` / `MOUSEEVENTF_MOVE` (absolute, normalized) | INTEGRATE | |
-| `INPUT_MOUSE` / `MOUSEEVENTF_LEFTDOWN` + `LEFTUP` | INTEGRATE | |
-| `INPUT_MOUSE` / `MOUSEEVENTF_RIGHTDOWN` + `RIGHTUP` | INTEGRATE | |
-| `INPUT_MOUSE` / `MOUSEEVENTF_MIDDLEDOWN` + `MIDDLEUP` | INTEGRATE | |
-| `INPUT_MOUSE` / `MOUSEEVENTF_WHEEL` (vertical) | INTEGRATE | |
-| `INPUT_MOUSE` / `MOUSEEVENTF_HWHEEL` (horizontal) | INTEGRATE | Browser `WheelEvent.deltaX` exists; no reason to drop it once the wheel path is built |
-| `INPUT_MOUSE` / `MOUSEEVENTF_XDOWN` + `XUP` (browser back/forward buttons 3-4) | INTEGRATE | `MouseEvent.button` 3/4 are capturable; D-05 says unrestricted |
+| `MOUSEEVENTF_MOVE` (absolute, normalized) | INTEGRATE | |
+| `MOUSEEVENTF_LEFTDOWN` + `LEFTUP` | INTEGRATE | |
+| `MOUSEEVENTF_RIGHTDOWN` + `RIGHTUP` | INTEGRATE | |
+| `MOUSEEVENTF_MIDDLEDOWN` + `MIDDLEUP` | INTEGRATE | |
+| `MOUSEEVENTF_WHEEL` (vertical) | INTEGRATE | |
+| `MOUSEEVENTF_HWHEEL` (horizontal) | INTEGRATE | Browser `WheelEvent.deltaX` exists; no reason to drop it once the wheel path is built |
+| `MOUSEEVENTF_XDOWN` + `XUP` (back/forward btns 3-4) | INTEGRATE | `MouseEvent.button` 3/4 capturable; D-05 says unrestricted |
 | `INPUT_KEYBOARD` / key down (`wVk` virtual-key) | INTEGRATE | |
 | `INPUT_KEYBOARD` / key up (`KEYEVENTF_KEYUP`) | INTEGRATE | |
 | `INPUT_KEYBOARD` / `KEYEVENTF_EXTENDEDKEY` (arrows, Ins/Del/Home/End/PgUp/PgDn, right-Alt/Ctrl, numpad Enter) | INTEGRATE | Omitting the extended-key flag silently breaks arrow keys and Del — a classic half-integration |

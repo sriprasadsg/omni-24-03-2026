@@ -8,17 +8,33 @@ from typing import Any, Dict
 logger = logging.getLogger(__name__)
 
 
-async def _send(title: str, message: str, severity: str, recipients: list, metadata: dict) -> None:
+class _DbAdapter:
+    """Expose raw mongo handle the module-level send_notification reads."""
+    __slots__ = ("_db",)
+    def __init__(self, db):
+        self._db = db._db if hasattr(db, "_db") else db
+
+
+async def _send(title: str, message: str, severity: str, recipients: list, metadata: dict, tenant_id: str = "") -> None:
     try:
-        from notification_service import notification_service
-        await notification_service.send_alert(
+        from database import get_database
+        from notification_service import get_notification_service, send_notification as _route
+        db = get_database()
+        # In-app notification (writes db.notifications, feeds bell + popup)
+        await get_notification_service(db).send_alert(
             title=title,
             message=message,
             severity=severity,
             recipients=recipients,
-            channels=["email"],
+            tenant_id=tenant_id,
+            channels=[],  # in-app only; rule routing handled below
             metadata=metadata,
         )
+        # Rule-routed external channels (email/slack/webhook) bound to the event
+        if tenant_id:
+            await _route(_DbAdapter(db), tenant_id, metadata.get("event", ""), {
+                "message": message, "severity": severity,
+            })
     except Exception as exc:
         logger.debug("Ticket notification failed (non-fatal): %s", exc)
 
@@ -37,7 +53,8 @@ async def notify_ticket_created(ticket: Dict[str, Any]) -> None:
         ),
         severity="info",
         recipients=recipients,
-        metadata={"ticket_id": ticket.get("id"), "event": "created"},
+        metadata={"ticket_id": ticket.get("id"), "event": "ticket_created"},
+        tenant_id=ticket.get("tenantId", ""),
     )
 
 
@@ -54,7 +71,8 @@ async def notify_status_changed(ticket: Dict[str, Any], old_status: str, actor: 
         ),
         severity="info",
         recipients=recipients,
-        metadata={"ticket_id": ticket.get("id"), "event": "status_changed"},
+        metadata={"ticket_id": ticket.get("id"), "event": "ticket_status_changed"},
+        tenant_id=ticket.get("tenantId", ""),
     )
 
 
@@ -71,7 +89,8 @@ async def notify_assigned(ticket: Dict[str, Any], new_assignee: str, actor: str)
         ),
         severity="warning" if ticket.get("priority") in ("critical", "high") else "info",
         recipients=recipients,
-        metadata={"ticket_id": ticket.get("id"), "event": "assigned"},
+        metadata={"ticket_id": ticket.get("id"), "event": "ticket_assigned"},
+        tenant_id=ticket.get("tenantId", ""),
     )
 
 
@@ -89,7 +108,8 @@ async def notify_sla_breached(ticket: Dict[str, Any]) -> None:
         ),
         severity="critical",
         recipients=recipients,
-        metadata={"ticket_id": ticket.get("id"), "event": "sla_breached"},
+        metadata={"ticket_id": ticket.get("id"), "event": "ticket_sla_breached"},
+        tenant_id=ticket.get("tenantId", ""),
     )
 
 
@@ -106,7 +126,8 @@ async def notify_escalated(ticket: Dict[str, Any], actor: str, reason: str) -> N
         ),
         severity="critical",
         recipients=recipients,
-        metadata={"ticket_id": ticket.get("id"), "event": "escalated"},
+        metadata={"ticket_id": ticket.get("id"), "event": "ticket_escalated"},
+        tenant_id=ticket.get("tenantId", ""),
     )
 
 
@@ -119,7 +140,8 @@ async def notify_comment_added(ticket: Dict[str, Any], author: str, preview: str
         message=f"'{preview[:100]}...' — on ticket '{ticket.get('title', '')}'",
         severity="info",
         recipients=recipients,
-        metadata={"ticket_id": ticket.get("id"), "event": "comment_added"},
+        metadata={"ticket_id": ticket.get("id"), "event": "ticket_comment_added"},
+        tenant_id=ticket.get("tenantId", ""),
     )
 
 

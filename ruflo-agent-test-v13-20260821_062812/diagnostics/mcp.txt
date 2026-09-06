@@ -1,0 +1,1 @@
+[PASS] FastMCP: <class 'mcp.server.fastmcp.server.FastMCP'>

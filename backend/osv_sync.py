@@ -11,6 +11,8 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 
+from tenant_context import set_tenant_id, reset_tenant_id
+
 # Environment configuration
 OSV_API_URL = os.getenv('OSV_API_URL', 'https://api.osv.dev/v1/vulns')
 SYNC_INTERVAL_HOURS = int(os.getenv('OSV_SYNC_INTERVAL_HOURS', '24'))
@@ -85,7 +87,21 @@ def _parse_osv(vuln: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 async def sync_osv_vulns(db) -> Dict[str, int]:
-    """Fetch recent OSV vulnerabilities and upsert into db.patches."""
+    """Fetch recent OSV vulnerabilities and upsert into db.patches.
+
+    Background sync: writes platform-level threat intel shared across tenants.
+    Sets tenant context to "platform-admin" for the duration of the sync so
+    TenantIsolatedCollection on db.patches does not raise SECURITY ALERT or
+    fail-closed filter out the upsert.
+    """
+    _tenant_ctx_token = set_tenant_id("platform-admin")
+    try:
+        return await _sync_osv_vulns_impl(db)
+    finally:
+        reset_tenant_id(_tenant_ctx_token)
+
+
+async def _sync_osv_vulns_impl(db) -> Dict[str, int]:
     now = datetime.now(timezone.utc)
     start_time = now - timedelta(days=LOOKBACK_DAYS)
     upserted = 0

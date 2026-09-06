@@ -1,0 +1,15 @@
+{
+  "test": "ruflo-enterprise-v5",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "host": "security-test-vm",
+  "date": "Fri 21 Aug 2026 05:31:04 IST",
+  "ruflo": "unknown",
+  "claude_flow": "ruflo v3.38.12",
+  "pass": 48,
+  "warn": 11,
+  "fail": 0,
+  "result": "DEGRADED",
+  "report_directory": "/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104",
+  "main_report": "/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/ruflo-enterprise-test-v5.log",
+  "summary": "/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/summary.txt"
+}

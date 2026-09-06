@@ -1,0 +1,14 @@
+[INFO] Spawning tester agent: ruflo-tester
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787311059591-5wq3u5               |
+| Type         | tester                                   |
+| Name         | ruflo-tester                             |
+| Status       | registered                               |
+| Created      | 2026-08-21T11:17:39.591Z                 |
+| Capabilities | unit-testing, integration-testing, co... |
++--------------+------------------------------------------+
+
+[OK] Agent ruflo-tester spawned successfully

@@ -1,0 +1,13 @@
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/daemon-state.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/daemon.pid
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/harness-active-policy.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/logs/daemon.log
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/memory-package.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/backup.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/codebase-map.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/consolidation.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/harness-loop.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/performance.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/security-audit.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/test-gaps.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/policy/state.json

@@ -14,6 +14,7 @@ export const VoiceBotSettingsPanel: React.FC<VoiceBotSettingsPanelProps> = ({ se
         voiceURI: '',
         pitch: 1.0,
         rate: 1.0,
+        defaultResponse: 'Chitti is offline right now. Please try again later or contact support.',
     };
 
     const [currentSettings, setCurrentSettings] = useState<VoiceBotSettings>(settings || defaultSettings);
@@ -156,6 +157,19 @@ export const VoiceBotSettingsPanel: React.FC<VoiceBotSettingsPanelProps> = ({ se
                                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
                                 />
                             </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Reply</label>
+                            <textarea
+                                name="defaultResponse"
+                                value={currentSettings.defaultResponse ?? ''}
+                                onChange={(e) => setCurrentSettings(prev => ({ ...prev, defaultResponse: e.target.value }))}
+                                rows={2}
+                                placeholder="Chitti is offline right now. Please try again later or contact support."
+                                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Shown when both AI and 9router are unavailable. Tenant admins can override.</p>
                         </div>
 
                         <div className="flex space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">

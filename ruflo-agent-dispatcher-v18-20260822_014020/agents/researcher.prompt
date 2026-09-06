@@ -1,0 +1,1 @@
+Perform a READ-ONLY repository research audit. Identify frameworks, runtimes, libraries, APIs, MCP configuration, AI/LLM components, databases, infrastructure assumptions and dependency relationships. Do not modify files. Return complete findings directly.

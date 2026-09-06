@@ -1,0 +1,5 @@
+===== v13-frontend =====
+TYPE=frontend
+TASK_TYPE=analysis
+DESCRIPTION=Analyze frontend code, build configuration, dependencies, UI structure, and API integration. Do not modify files.
+[ERROR] Invalid value for --type: analysis. Must be one of: implementation, bug-fix, refactoring, testing, documentation, research, review, optimization, security, custom

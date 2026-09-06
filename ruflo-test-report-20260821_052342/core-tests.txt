@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/user/enterprise-omni-agent-ai-platform
+configfile: pytest.ini
+plugins: langsmith-0.11.1, asyncio-1.4.0, cov-7.1.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 21 items
+
+tests/test_program_control.py ........                                   [ 38%]
+backend/tests/test_mcp_server.py .............                           [100%]
+
+=============================== warnings summary ===============================
+backend/venv/lib/python3.12/site-packages/pydantic_settings/sources/utils.py:47
+  /home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages/pydantic_settings/sources/utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 21 passed, 1 warning in 1.03s =========================

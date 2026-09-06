@@ -1,0 +1,162 @@
+===== GLOBAL WORKFLOW =====
+Path: ~/.claude/gsd-core/workflows/plan-phase.md
+1530 /home/user/.claude/gsd-core/workflows/plan-phase.md
+e452a604ebf358dd00f4e4760e3daa962f57b88cda0edb17586db250d9b95229  /home/user/.claude/gsd-core/workflows/plan-phase.md
+
+===== PROJECT WORKFLOW =====
+Path: .claude/gsd-core/workflows/plan-phase.md
+1530 .claude/gsd-core/workflows/plan-phase.md
+ce8252c188cfc4ce5acbfca9db6ba784cff388cf662ebba7db48ed99e19e7932  .claude/gsd-core/workflows/plan-phase.md
+
+===== FIRST DIFFERENCES =====
+--- /home/user/.claude/gsd-core/workflows/plan-phase.md	2026-08-24 16:12:15.087824789 +0530
++++ .claude/gsd-core/workflows/plan-phase.md	2026-08-24 16:10:28.410634483 +0530
+@@ -12,11 +12,11 @@
+ <required_reading>
+ Read all files referenced by the invoking prompt's execution_context before starting.
+ 
+-@~/.claude/gsd-core/references/ui-brand.md
+-@~/.claude/gsd-core/references/revision-loop.md
+-@~/.claude/gsd-core/references/gate-prompts.md
+-@~/.claude/gsd-core/references/agent-contracts.md
+-@~/.claude/gsd-core/references/gates.md
++@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/ui-brand.md
++@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/revision-loop.md
++@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/gate-prompts.md
++@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/agent-contracts.md
++@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/gates.md
+ </required_reading>
+ 
+ <available_agent_types>
+@@ -66,7 +66,7 @@
+ Load all context in one call (paths only to minimize orchestrator context):
+ 
+ ```bash
+-_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; if [ -f "$GSD_TOOLS" ]; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif command -v gsd-tools >/dev/null 2>&1; then GSD_TOOLS="$(command -v gsd-tools)"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif [ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd-tools is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
++_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; if [ -f "$GSD_TOOLS" ]; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif command -v gsd-tools >/dev/null 2>&1; then GSD_TOOLS="$(command -v gsd-tools)"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif [ -f "${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd-tools is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
+ GRAN_PARAM=""; if [[ "$ARGUMENTS" =~ (^|[[:space:]])--granularity[[:space:]]+([^[:space:]-][^[:space:]]*) ]]; then GRAN_PARAM="--granularity ${BASH_REMATCH[2]}"; fi
+ PRD_PARAM=""; if [[ "$ARGUMENTS" =~ (^|[[:space:]])--prd[[:space:]]+([^[:space:]-][^[:space:]]*) ]]; then PRD_PARAM="--prd ${BASH_REMATCH[2]}"; fi
+ INGEST_PARAM=""; if [[ "$ARGUMENTS" =~ (^|[[:space:]])--ingest[[:space:]]+([^[:space:]-][^[:space:]]*) ]]; then INGEST_PARAM="--ingest ${BASH_REMATCH[2]}"; fi
+@@ -165,7 +165,7 @@
+ ```
+ 
+ When `WALKING_SKELETON=true`:
+-- Planner is instructed to produce `SKELETON.md` in the phase directory alongside `PLAN.md`. The template lives at `$HOME/.claude/gsd-core/references/skeleton-template.md` — the planner reads it when producing SKELETON.md (lazy; not loaded on non-skeleton runs).
++- Planner is instructed to produce `SKELETON.md` in the phase directory alongside `PLAN.md`. The template lives at `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/skeleton-template.md` — the planner reads it when producing SKELETON.md (lazy; not loaded on non-skeleton runs).
+ - The plan must scaffold project + routing + one real DB read/write + one real UI interaction + dev deployment — the thinnest possible end-to-end working slice.
+ 
+ **Interaction with `--prd <filepath>`.** `--mvp` and `--prd` compose. The PRD express path (Step 3.5) creates `CONTEXT.md` from the PRD file and continues to research; the Walking Skeleton gate fires independently from the conditions above. When both are active on Phase 1 of a new project, the planner receives `WALKING_SKELETON=true` and PRD-derived context simultaneously — the PRD informs *what the skeleton should prove*. No precedence is needed; the two signals are orthogonal. See [`gsd-core/references/mvp-concepts.md`](../references/mvp-concepts.md) for the broader interaction map.
+@@ -391,7 +391,7 @@
+ ```
+ 
+ **If found:**
+-1. Read template: `$HOME/.claude/gsd-core/templates/VALIDATION.md`
++1. Read template: `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/templates/VALIDATION.md`
+ 2. Write to `${PHASE_DIR}/${PADDED_PHASE}-VALIDATION.md` (use Write tool)
+ 3. Fill frontmatter: `{N}` → phase number, `{phase-slug}` → slug, `{date}` → current date
+ 4. Verify:
+@@ -661,7 +661,7 @@
+ `<downstream_consumer>` lift below). Core workflow-body substrate, not a capability rail (D-03). Runs
+ after `$SPEC_FILE` (Step 7), before the gsd-planner spawn (Step 8).
+ 
+-**Read and run** the gate + edge probe in `$HOME/.claude/gsd-core/references/specless-probe-fallback.md`
++**Read and run** the gate + edge probe in `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/specless-probe-fallback.md`
+ (§0 default-ON toggle + per-section absence via the `spec-section` helper, visibly skipping when
+ disabled or no requirement IDs; §A deterministic edge probe → `$COVERAGE` when `EDGE_ABSENT`; §B
+ prohibition recall in the planner). Pass `$COVERAGE` and `$SPECLESS_FALLBACK_DISABLED` into Step 8.
+@@ -741,20 +741,20 @@
+ 
+ **TRACER_MODE:** ${TRACER_MODE} (false = horizontal layers instead of a leading `type="tracer"` slice; see `planner-mvp-mode.md`.)
+ **REVERSIBILITY_GATES:** ${REVERSIBILITY_GATES} (false = rate but do not gate; see `planner-reversibility.md`.)
+-**MVP_MODE:** ${MVP_MODE} (when true, follow vertical-slice rules from `$HOME/.claude/gsd-core/references/planner-mvp-mode.md`; when false, ignore MVP guidance entirely.)
+-**WALKING_SKELETON:** ${WALKING_SKELETON} (when true, the first deliverable must be a Walking Skeleton — Read the template at `$HOME/.claude/gsd-core/references/skeleton-template.md` and produce SKELETON.md alongside PLAN.md.)
++**MVP_MODE:** ${MVP_MODE} (when true, follow vertical-slice rules from `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/planner-mvp-mode.md`; when false, ignore MVP guidance entirely.)
++**WALKING_SKELETON:** ${WALKING_SKELETON} (when true, the first deliverable must be a Walking Skeleton — Read the template at `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/skeleton-template.md` and produce SKELETON.md alongside PLAN.md.)
+ **Granularity:** {granularity}
+ 
+ ${MVP_MODE === 'true' ? `
+ <mvp_mode_active>
+-**MVP Mode is ENABLED.** Read `$HOME/.claude/gsd-core/references/planner-mvp-mode.md` now and follow its vertical-slice planning rules. Each plan must deliver a complete vertical slice — thin end-to-end functionality rather than horizontal layers.
++**MVP Mode is ENABLED.** Read `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/planner-mvp-mode.md` now and follow its vertical-slice planning rules. Each plan must deliver a complete vertical slice — thin end-to-end functionality rather than horizontal layers.
+ </mvp_mode_active>
+ ` : ''}
+ 
+ <specless_probe_fallback>
+ **Spec-less probe fallback** (only when step 7.95 set `EDGE_ABSENT` and/or `PROHIB_ABSENT`). The SPEC
+ omitted that section — author its predicates into `must_haves` via the `<downstream_consumer>`
+-else-branch below, per §A/§B/§C of `$HOME/.claude/gsd-core/references/specless-probe-fallback.md`
++else-branch below, per §A/§B/§C of `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/specless-probe-fallback.md`
+ (descriptor-less prohibitions, never auto-dismiss, no silent drops).
+ 
+ Edge coverage report (`$COVERAGE`, present when `EDGE_ABSENT`):
+
+===== PROJECT GSD COMMAND =====
+---
+name: gsd-plan-phase
+description: Create detailed phase plan (PLAN.md) with verification loop
+argument-hint: "[phase] [--auto] [--research] [--skip-research] [--research-phase <N>] [--view] [--gaps] [--skip-verify] [--skip-ui] [--prd <file>] [--ingest <path-or-glob>] [--ingest-format <auto|nygard|madr|narrative>] [--reviews] [--text] [--bounce] [--skip-bounce] [--chunked] [--tdd] [--mvp] [--granularity <coarse|standard|fine>] [--no-tracer] [--no-reversibility-gates]"
+effort: max
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
+  - Agent
+  - AskUserQuestion
+  - WebFetch
+  - mcp__context7__*
+requires: [discuss-phase, phase, review, update]
+---
+<objective>
+Create executable phase prompts (PLAN.md files) for a roadmap phase with integrated research and verification.
+
+**Default flow:** Research (if needed) → Plan → Verify → Done
+
+**Research-only mode (`--research-phase <N>`):** Spawn `gsd-phase-researcher` for phase `N`, write `RESEARCH.md`, then exit before the planner runs. Useful for cross-phase research, doc review before committing to a planning approach, and correction-without-replanning loops where iterating on research alone is dramatically cheaper than re-spawning the planner. Replaces the deleted research-phase command (#3042).
+
+**Research-only modifiers:**
+- **No flag** — when `RESEARCH.md` already exists, auto-uses it: emits a one-line notice and exits cleanly, no prompt.
+- **`--research`** — force-refresh: re-spawn the researcher unconditionally, no prompt. Bypasses the existing-RESEARCH.md auto-use path.
+- **`--view`** — view-only: print existing `RESEARCH.md` to stdout. Does not spawn the researcher. Cheapest mode for the correction-without-replanning loop. If no `RESEARCH.md` exists yet, errors with a hint to drop `--view`.
+
+**Orchestrator role:** Parse arguments, validate phase, research domain (unless skipped), spawn gsd-planner, verify with gsd-plan-checker, iterate until pass or max iterations, present results.
+</objective>
+
+<execution_context>
+@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/workflows/plan-phase.md
+@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/ui-brand.md
+</execution_context>
+
+<runtime_note>
+**Copilot (VS Code):** Use `vscode_askquestions` wherever this workflow calls `AskUserQuestion`. They are equivalent — `vscode_askquestions` is the VS Code Copilot implementation of the same interactive question API. Do not skip questioning steps because `AskUserQuestion` appears unavailable; use `vscode_askquestions` instead.
+</runtime_note>
+
+<context>
+Phase number: $ARGUMENTS (optional — when omitted, the orchestrating workflow reads ROADMAP.md and selects the next unplanned phase; `gsd-tools.cjs` itself has no auto-detect feature and requires an explicit phase number)
+
+**Flags:**
+- `--research` — Force re-research even if RESEARCH.md exists
+- `--skip-research` — Skip research, go straight to planning
+- `--gaps` — Gap closure mode (reads VERIFICATION.md, skips research)
+- `--skip-verify` — Skip verification loop
+- `--prd <file>` — Use a PRD/acceptance criteria file instead of discuss-phase. Parses requirements into CONTEXT.md automatically. Skips discuss-phase entirely.
+- `--ingest <path-or-glob>` — Use one or more ADR files instead of discuss-phase. Parses locked decisions + scope fences into CONTEXT.md automatically. Skips discuss-phase entirely.
+- `--ingest-format <auto|nygard|madr|narrative>` — Optional ADR parser format override (`auto` default).
+- `--reviews` — Replan incorporating cross-AI review feedback from REVIEWS.md (produced by `/gsd-review`)
+- `--text` — Use plain-text numbered lists instead of TUI menus (required for `/rc` remote sessions)
+- `--mvp` — MVP enrichment on top of the default tracer-first ordering: frames the phase goal as a user story and, on Phase 1 of a new project, also emits `SKELETON.md` (Walking Skeleton). Vertical slicing itself is now the default (see `--no-tracer`); `--mvp` no longer *turns it on*. Can be persisted on a phase via `**Mode:** mvp` in ROADMAP.md.
+- `--no-tracer` — Opt out of the default **tracer-first** decomposition and plan horizontal layers (the legacy default). By default every plan LEADS with one production-quality end-to-end `tracer` slice that is verified before any expansion task.
+- `--no-reversibility-gates` — Suppress the human checkpoint that a **one-way-door** decision normally earns, for runs you intend to leave unattended. By default a decision rated `one-way` (undo needs a migration, breaks a published contract, or is impossible) gets a `checkpoint:decision` before the task implementing it. Ratings are still recorded on tasks and `costly` items still flagged — the flag changes what stops the run, not what the plan remembers.
+
+Normalize phase input in step 2 before any directory lookups.
+</context>
+
+<process>
+Execute end-to-end.
+Preserve all workflow gates (validation, research, planning, verification loop, routing).
+</process>
+
+===== GSD COMMAND/SKILL LOCATIONS =====
+.claude/commands/gsd-plan-phase.md
+/home/user/.claude/skills/gsd-plan-phase/SKILL.md

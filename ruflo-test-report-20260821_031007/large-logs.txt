@@ -1,0 +1,5 @@
+189M /home/user/enterprise-omni-agent-ai-platform/agent/agent.log
+23M /home/user/enterprise-omni-agent-ai-platform/.claude/projects/-home-user-enterprise-omni-agent-ai-platform/7447c7c4-47c3-44d8-a637-35f44c1c854b.jsonl
+15M /home/user/enterprise-omni-agent-ai-platform/.claude/projects/-home-user-enterprise-omni-agent-ai-platform/67f40265-7c21-401e-913e-c361595fb38a.jsonl
+14M /home/user/enterprise-omni-agent-ai-platform/backend/backend_final.log
+13M /home/user/enterprise-omni-agent-ai-platform/.claude/projects/-home-user-enterprise-omni-agent-ai-platform/bce5466e-592e-48c3-931d-8964de340549.jsonl

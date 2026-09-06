@@ -121,39 +121,60 @@ class RemoteAccessCapability(BaseCapability):
             logger.info(f"Starting desktop stream for session {session_id} to {url}")
 
             # Interactive-control consent flow (D-01): no SendInput before the
-            # endpoint user accepts. Non-Windows surfaces unsupported_platform.
+            # endpoint user accepts. Consent runs on a daemon thread so the
+            # socket can keep processing control_stop / admin force-close while
+            # the endpoint user decides. State messages are only sent once ws
+            # exists (on open) — a pre-open send hits a reference-before-
+            # assignment NameError that previously killed the whole stream.
             from . import consent_ui
             from .control_input import ConsentGate, parse_input_frame, replay_input_event
 
             gate = ConsentGate()
             stop_bar_shown = False
-            consent_ok = False
 
-            if control and platform.system() != "Windows":
-                send_json(ws, {"type": "error", "reason": "unsupported_platform",
-                               "message": "interactive control requires Windows"})
-                return
+            def on_message(ws, message):
+                # Only input frames from an accepted+active control session
+                # are replayed, and only while the gate authorises (D-01).
+                if not control or not gate.authorised():
+                    return
+                try:
+                    if isinstance(message, bytes):
+                        message = message.decode("utf-8")
+                    ev = parse_input_frame(message)
+                    replay_input_event(ev)
+                except ValueError as e:
+                    logger.warning(f"input frame rejected: {e}")
 
-            try:
-                if control:
+            def on_error(ws, error):
+                logger.error(f"Desktop Stream WebSocket Error: {error}")
+
+            def on_close(ws, close_status_code, close_msg):
+                logger.info("Desktop Stream WebSocket Closed.")
+                if stop_bar_shown:
                     try:
-                        decision = consent_ui.request_consent(
-                            session_id, requester_name, requester_email,
-                            tenant_name, timeout_secs=60)
-                        if decision == consent_ui.ConsentDecision.Accept:
-                            gate.concede()
-                            consent_ok = True
-                        else:
-                            reason = ("consent_timeout" if decision == consent_ui.ConsentDecision.Timeout
-                                     else "consent_declined")
-                            send_json(ws, {"type": "control_state", "state": "ended",
-                                           "reason": reason, "message": "consent not granted"})
-                            return
-                    except consent_ui.ConsentError as ce:
-                        reason = "no_interactive_desktop" if "no interactive" in ce.reason else (
-                            "consent_declined")
-                        send_json(ws, {"type": "error", "reason": reason, "message": ce.reason})
-                        return
+                        consent_ui.hide_stop_bar(session_id)
+                    except Exception:
+                        pass
+
+            def consent_flow(ws):
+                # Runs on a daemon thread; concedes the gate (or ends the
+                # session) once the endpoint user decides.
+                nonlocal stop_bar_shown
+                if platform.system() != "Windows":
+                    send_json(ws, {"type": "error", "reason": "unsupported_platform",
+                                   "message": "interactive control requires Windows"})
+                    return
+                try:
+                    decision = consent_ui.request_consent(
+                        session_id, requester_name, requester_email,
+                        tenant_name, timeout_secs=60)
+                except consent_ui.ConsentError as ce:
+                    reason = "no_interactive_desktop" if "no interactive" in ce.reason else (
+                        "consent_declined")
+                    send_json(ws, {"type": "error", "reason": reason, "message": ce.reason})
+                    return
+                if decision == consent_ui.ConsentDecision.Accept:
+                    gate.concede()
                     send_json(ws, {"type": "control_state", "state": "active",
                                    "message": "consent granted"})
                     try:
@@ -161,97 +182,88 @@ class RemoteAccessCapability(BaseCapability):
                         stop_bar_shown = True
                     except consent_ui.ConsentError:
                         pass
+                else:
+                    reason = ("consent_timeout" if decision == consent_ui.ConsentDecision.Timeout
+                             else "consent_declined")
+                    send_json(ws, {"type": "control_state", "state": "ended",
+                                   "reason": reason, "message": "consent not granted"})
 
-                def on_message(ws, message):
-                    # Only input frames from an accepted+active control session
-                    # are replayed, and only while the gate authorises (D-01).
-                    if not control or not gate.authorised():
-                        return
-                    try:
-                        if isinstance(message, bytes):
-                            message = message.decode("utf-8")
-                        ev = parse_input_frame(message)
-                        replay_input_event(ev)
-                    except ValueError as e:
-                        logger.warning(f"input frame rejected: {e}")
+            def on_open(ws):
+                logger.info("Desktop Stream Connected. Starting frame capture.")
+                if control:
+                    send_json(ws, {"type": "control_state", "state": "awaiting_consent",
+                                   "message": "consent required before control"})
+                    threading.Thread(target=consent_flow, args=(ws,), daemon=True).start()
 
-                def on_error(ws, error):
-                    logger.error(f"Desktop Stream WebSocket Error: {error}")
+                with mss.mss() as sct:
+                    # Use first monitor
+                    monitor = sct.monitors[1]
 
-                def on_close(ws, close_status_code, close_msg):
-                    logger.info("Desktop Stream WebSocket Closed.")
-                    if stop_bar_shown:
+                    while True:
+                        # Endpoint stop bar one-click revocation (D-09).
+                        if control and consent_ui.stop_requested(session_id):
+                            gate.revoke()
+                            send_json(ws, {"type": "control_state", "state": "ended",
+                                           "reason": "user_stopped",
+                                           "message": "control stopped by endpoint user"})
+                            if stop_bar_shown:
+                                try:
+                                    consent_ui.hide_stop_bar(session_id)
+                                except Exception:
+                                    pass
+                            break
+
+                        # No screen before consent (D-01): a refused control
+                        # session must not leak frames to the requester.
+                        if control and not gate.authorised():
+                            time.sleep(0.3)
+                            continue
+
                         try:
-                            consent_ui.hide_stop_bar(session_id)
-                        except Exception:
-                            pass
+                            # Capture
+                            sct_img = sct.grab(monitor)
 
-                def on_open(ws):
-                    logger.info("Desktop Stream Connected. Starting frame capture.")
+                            # Convert to PIL Image
+                            img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
 
-                    with mss.mss() as sct:
-                        # Use first monitor
-                        monitor = sct.monitors[1]
+                            # Resize for performance (max 800px width)
+                            max_width = 800
+                            if img.width > max_width:
+                                ratio = max_width / img.width
+                                new_size = (max_width, int(img.height * ratio))
+                                img = img.resize(new_size, Image.Resampling.LANCZOS)
 
-                        while True:
-                            # Endpoint stop bar one-click revocation (D-09).
-                            if control and consent_ui.stop_requested(session_id):
-                                gate.revoke()
-                                send_json(ws, {"type": "control_state", "state": "ended",
-                                               "reason": "user_stopped",
-                                               "message": "control stopped by endpoint user"})
-                                if stop_bar_shown:
-                                    try:
-                                        consent_ui.hide_stop_bar(session_id)
-                                    except Exception:
-                                        pass
-                                break
+                            # Compress to JPEG
+                            buffer = io.BytesIO()
+                            img.save(buffer, format="JPEG", quality=50, optimize=True)
+                            b64_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-                            try:
-                                # Capture
-                                sct_img = sct.grab(monitor)
+                            # Send
+                            payload = {
+                                "type": "frame",
+                                "timestamp": time.time(),
+                                "data": b64_data
+                            }
+                            ws.send(json.dumps(payload))
 
-                                # Convert to PIL Image
-                                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                            # Limit FPS (~5-10 FPS)
+                            time.sleep(0.15)
 
-                                # Resize for performance (max 800px width)
-                                max_width = 800
-                                if img.width > max_width:
-                                    ratio = max_width / img.width
-                                    new_size = (max_width, int(img.height * ratio))
-                                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                        except Exception as capture_err:
+                            logger.error(f"Frame Capture Error: {capture_err}")
+                            time.sleep(1)  # Backoff
 
-                                # Compress to JPEG
-                                buffer = io.BytesIO()
-                                img.save(buffer, format="JPEG", quality=50, optimize=True)
-                                b64_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-                                # Send
-                                payload = {
-                                    "type": "frame",
-                                    "timestamp": time.time(),
-                                    "data": b64_data
-                                }
-                                ws.send(json.dumps(payload))
-
-                                # Limit FPS (~5-10 FPS)
-                                time.sleep(0.15)
-
-                            except Exception as capture_err:
-                                logger.error(f"Frame Capture Error: {capture_err}")
-                                time.sleep(1)  # Backoff
-
-                # Connection
-                ws = websocket.WebSocketApp(
-                    url,
-                    header=ws_headers,
-                    on_open=on_open,
-                    on_message=on_message,
-                    on_error=on_error,
-                    on_close=on_close
-                )
+            # Connection
+            ws = websocket.WebSocketApp(
+                url,
+                header=ws_headers,
+                on_open=on_open,
+                on_message=on_message,
+                on_error=on_error,
+                on_close=on_close
+            )
+            try:
                 ws.run_forever()
-
             except Exception as e:
                 logger.error(f"Failed to start desktop stream: {e}")
 

@@ -1,0 +1,14 @@
+[INFO] Spawning tester agent: v14-tester
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787305218437-cdcxyu               |
+| Type         | tester                                   |
+| Name         | v14-tester                               |
+| Status       | registered                               |
+| Created      | 2026-08-21T09:40:18.438Z                 |
+| Capabilities | unit-testing, integration-testing, co... |
++--------------+------------------------------------------+
+
+[OK] Agent v14-tester spawned successfully

@@ -64,7 +64,7 @@ class IncidentAnalyzer:
     async def get_provider_for_tenant(self, tenant_id: Optional[str]) -> Optional[AIProvider]:
         """Return a provider configured for the given tenant, caching the result."""
         if not tenant_id:
-            if not self.is_configured:
+            if not self.is_configured or isinstance(self.provider, MockProvider):
                 await self.initialize()
             return self.provider
 
@@ -73,14 +73,15 @@ class IncidentAnalyzer:
 
         db = get_database()
         if not db:
-            if not self.is_configured:
+            if not self.is_configured or isinstance(self.provider, MockProvider):
                 await self.initialize()
             return self.provider
         raw = db._db if hasattr(db, "_db") else db
         settings = await raw.system_settings.find_one({"type": "llm", "tenantId": tenant_id})
         if not settings:
             # No tenant-specific config → fall back to global provider
-            if not self.is_configured:
+            # ponytail: Mock sticks after bad initial boot; re-init when stale
+            if not self.is_configured or isinstance(self.provider, MockProvider):
                 await self.initialize()
             return self.provider
 
@@ -89,20 +90,12 @@ class IncidentAnalyzer:
             self._tenant_providers[tenant_id] = provider
             return provider
 
-        if not self.is_configured:
+        if not self.is_configured or isinstance(self.provider, MockProvider):
             await self.initialize()
         return self.provider
 
     async def initialize(self):
         """Initialize the AI Provider with fallback chain."""
-        if os.getenv("OMNI_LOCAL_ENABLED", "true").lower() in ("1", "true", "yes"):
-            omni_local = OmniLocalProvider()
-            if await omni_local.configure({}):
-                self.provider = omni_local
-                self.is_configured = True
-                logger.info("[AI] Using Omni-Local fine-tuned model (TinyLlama + LoRA adapter).")
-                return
-
         env_provider = os.getenv("LLM_PROVIDER", "").lower()
         if env_provider in ("router", "9router", "openai_compat", "openai-compatible"):
             router = OpenAICompatProvider()
@@ -155,8 +148,10 @@ class IncidentAnalyzer:
                     return
 
         db = get_database()
-        settings = (await db.system_settings.find_one({"type": "llm"})) if db else {}
-        settings = settings or {}
+        settings = {}
+        if db:
+            raw = db._db if hasattr(db, "_db") else db
+            settings = await raw.system_settings.find_one({"type": "llm", "tenantId": {"$exists": False}}) or {}
         configured_provider = settings.get("provider")
 
         if configured_provider == "Anthropic Claude":
@@ -171,6 +166,13 @@ class IncidentAnalyzer:
                 self.provider = gemini
                 self.is_configured = True
                 return
+        if configured_provider in ("9router", "OpenAI-Compatible", "openai_compat", "router"):
+            router = OpenAICompatProvider()
+            if await router.configure(settings):
+                self.provider = router
+                self.is_configured = True
+                logger.info("[AI] Using OpenAI-compatible router from DB: %s (%s)", router.base_url, router.model_name)
+                return
         if configured_provider in ("Ollama (Local)", "Local", "ollama"):
             ollama = OllamaProvider()
             if await ollama.configure({
@@ -183,6 +185,16 @@ class IncidentAnalyzer:
             }):
                 self.provider = ollama
                 self.is_configured = True
+                return
+
+        # Omni-Local fallback (TinyLlama + LoRA adapter) — only if no explicit
+        # DB/env provider configured, so a saved 9router/Ollama setting wins.
+        if os.getenv("OMNI_LOCAL_ENABLED", "true").lower() in ("1", "true", "yes"):
+            omni_local = OmniLocalProvider()
+            if await omni_local.configure({}):
+                self.provider = omni_local
+                self.is_configured = True
+                logger.info("[AI] Using Omni-Local fine-tuned model (TinyLlama + LoRA adapter).")
                 return
 
         ollama = OllamaProvider()
@@ -302,10 +314,24 @@ class IncidentAnalyzer:
                         await _asyncio.sleep(2 ** attempt)
                 except Exception as e:
                     last_err = e
+                    # Respect Retry-After header on 429 rate-limit responses
+                    retry_after = None
+                    if hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 429:
+                        retry_after = e.response.headers.get("retry-after") or e.response.headers.get("Retry-After")
                     if attempt < _retries - 1:
-                        await _asyncio.sleep(2 ** attempt)
+                        if retry_after:
+                            try:
+                                wait = max(1, min(int(retry_after), 30))
+                            except (ValueError, TypeError):
+                                wait = 2 ** attempt
+                        else:
+                            wait = 2 ** attempt
+                        await _asyncio.sleep(wait)
             else:
-                return f"Error: AI generation failed after {_retries} attempts: {last_err}"
+                # All retries exhausted — return user-friendly message for 429
+                if hasattr(last_err, 'response') and hasattr(last_err.response, 'status_code') and last_err.response.status_code == 429:
+                    return "AI service is busy — too many requests. Please wait a moment and try again."
+                return f"AI generation failed after {_retries} attempts. Please try again later."
 
             if not response:
                 return f"Error: AI generation failed: {last_err}"
@@ -449,8 +475,9 @@ class IncidentAnalyzer:
             return f"Policy check blocked: {', '.join(scan.findings)}"
         return await self.generate_text(prompt, source="remediation_suggestion")
 
-    async def chat_stream(self, message: str, context: dict) -> AsyncIterator[str]:
+    async def chat_stream(self, messages: list[dict], context: dict) -> AsyncIterator[str]:
         """Stream chat response token-by-token via SSE.
+        Messages is a list of dicts: [{"role": "user", "content": "..."}]
 
         Uses native provider streaming when available. Falls back to
         generate_text (which handles OmniLocal low-confidence and external
@@ -461,13 +488,20 @@ class IncidentAnalyzer:
         tenant_id = context.get("tenantId")
         provider = await self.get_provider_for_tenant(tenant_id)
 
+        # messages is now a list[dict]; the last user message is the query.
+        if not messages:
+            yield "No message provided."
+            return
+        last_user = next((m for m in reversed(messages) if m.get("role") == "user"), None)
+        query = (last_user or messages[-1]).get("content", "")
+
         # Skill commands: dispatch synchronously, yield full result
-        if message.startswith("/"):
-            result = await self._dispatch_skill(message, context)
+        if query.startswith("/"):
+            result = await self._dispatch_skill(query, context)
             yield result
             return
 
-        scan = await self._check_policy(message)
+        scan = await self._check_policy(query)
         if not scan.passed:
             yield f"Message blocked by security policy: {', '.join(scan.findings)}"
             return
@@ -479,7 +513,7 @@ class IncidentAnalyzer:
             "Keep responses under 3 sentences and end with a follow-up question.\n"
             f"Current view: {context.get('currentView', 'unknown')}.\n"
             f"{feedback_guidance}\n"
-            f"User query: {message}\n"
+            f"User query: {query}\n"
             "Include EXACTLY ONE navigation tag at the end exactly formatted like [NAVIGATE:dashboard] without spaces."
         )
 
@@ -487,10 +521,15 @@ class IncidentAnalyzer:
             yield "AI provider not configured."
             return
 
+        # Chat-completions providers accept the full message list; others get the
+        # flattened system+user prompt.
+        from ai_providers import OpenAICompatProvider
+        model_input = messages if isinstance(provider, OpenAICompatProvider) else prompt
+
         # Try native streaming first
         native_failed = False
         try:
-            async for chunk in provider.generate_stream(prompt):
+            async for chunk in provider.generate_stream(model_input):
                 yield chunk
             return
         except OmniLowConfidenceError:
@@ -510,5 +549,15 @@ class IncidentAnalyzer:
             except Exception as e:
                 yield f"Error generating response: {str(e)}"
 
+
+    def get_current_model_name(self) -> str:
+        """Return the model name of the currently configured provider."""
+        if self.provider:
+            # Most providers have a model_name attribute, for others we can infer or default
+            if hasattr(self.provider, 'model_name') and self.provider.model_name:
+                return self.provider.model_name
+            # Fallback for providers that might not expose it directly or for mock
+            return self.provider.name.lower().replace(" ", "-") + "-model"
+        return "unknown-model"
 
 ai_service = IncidentAnalyzer()

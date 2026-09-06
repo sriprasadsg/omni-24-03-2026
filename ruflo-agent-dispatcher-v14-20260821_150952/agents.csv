@@ -1,0 +1,9 @@
+role,ruflo_id,pid,result,exit_code,duration_seconds,log_bytes
+architect,agent-1787305208554-r8l2g5,592651,PASS,0,276,16437
+backend,registration-failed,592657,FAIL,0,386,441
+frontend,registration-failed,592664,FAIL,0,211,441
+security,registration-failed,592671,FAIL,0,171,441
+dependencies,registration-failed,592678,FAIL,0,1042,441
+tester,agent-1787305218437-cdcxyu,592685,FAIL,0,566,441
+performance,registration-failed,592692,FAIL,0,35,546
+reviewer,agent-1787305222677-tn6m8m,592699,PASS,0,1197,6030

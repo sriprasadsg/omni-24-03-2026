@@ -9,6 +9,9 @@ from datetime import datetime, timezone
 import hashlib
 import uuid
 import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tenants", tags=["Tenant Management"])
 
@@ -86,7 +89,27 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
     }
     
     await mongodb.db.tenants.insert_one(tenant_doc)
-    
+
+    # Notify tenant admin creation
+    try:
+        from notification_service import get_notification_service, send_notification
+        svc = get_notification_service(get_database())
+        await svc.send_alert(
+            title=f"New Tenant Created: {data.name}",
+            message=f"Tenant {data.name} was successfully created with tier {data.subscriptionTier}.",
+            severity="info",
+            recipients=[],
+            tenant_id=tenant_id,
+            channels=[],
+            metadata={"event": "tenant_admin_notification", "tenant_id": tenant_id},
+        )
+        await send_notification(
+            get_database(), tenant_id, "tenant_admin_notification",
+            {"message": f"Tenant {data.name} created", "severity": "info", "tenant_id": tenant_id},
+        )
+    except Exception as e:
+        logger.debug("Tenant creation notification failed (non-fatal): %s", e)
+
     # Remove _id
     if "_id" in tenant_doc:
         del tenant_doc["_id"]
@@ -171,7 +194,29 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
     if result.modified_count == 0:
         # Tenant exists but no changes were made (same data)
         pass
-    
+
+    # Notify tenant admin update
+    try:
+        from notification_service import get_notification_service, send_notification
+        svc = get_notification_service(get_database())
+        changes = list(update_data.keys())
+        await svc.send_alert(
+            title=f"Tenant Updated: {tenant.get('name', tenant_id)}",
+            message=f"Tenant configuration updated. Changed: {', '.join(changes)}",
+            severity="info",
+            recipients=[],
+            tenant_id=tenant_id,
+            channels=[],
+            metadata={"event": "tenant_admin_notification", "tenant_id": tenant_id, "action": "update"},
+        )
+        await send_notification(
+            get_database(), tenant_id, "tenant_admin_notification",
+            {"message": "Tenant configuration updated", "severity": "info", "tenant_id": tenant_id, "action": "update"},
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug("Tenant update notification failed (non-fatal): %s", e)
+
     # Fetch and return updated tenant
     updated_tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 0})
     return updated_tenant
@@ -213,7 +258,28 @@ async def delete_tenant(tenant_id: str, current_user = Depends(get_current_user)
     
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
+    # Notify tenant admin deletion
+    try:
+        from notification_service import send_notification, get_notification_service
+        svc = get_notification_service(get_database())
+        await svc.send_alert(
+            title=f"Tenant Deleted: {tenant['name']}",
+            message=f"Tenant {tenant['name']} ({tenant_id}) and all associated data have been deleted.",
+            severity="warning",
+            recipients=[],
+            tenant_id="platform-admin",
+            channels=[],
+            metadata={"event": "tenant_admin_notification", "tenant_id": tenant_id, "action": "delete"},
+        )
+        await send_notification(
+            get_database(), "platform-admin", "tenant_admin_notification",
+            {"message": f"Tenant {tenant['name']} deleted", "severity": "warning", "tenant_id": tenant_id, "action": "delete"},
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug("Tenant delete notification failed (non-fatal): %s", e)
+
     return {
         "success": True,
         "message": f"Tenant {tenant['name']} and all associated data deleted successfully"
@@ -264,6 +330,27 @@ async def update_tenant_branding(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    # Notify tenant admin branding change
+    try:
+        from notification_service import send_notification, get_notification_service
+        svc = get_notification_service(get_database())
+        await svc.send_alert(
+            title="Tenant Branding Updated",
+            message=f"Branding updated for tenant {tenant_id}.",
+            severity="info",
+            recipients=[],
+            tenant_id=tenant_id,
+            channels=[],
+            metadata={"event": "tenant_admin_notification", "tenant_id": tenant_id, "action": "branding"},
+        )
+        await send_notification(
+            get_database(), tenant_id, "tenant_admin_notification",
+            {"message": "Tenant branding updated", "severity": "info", "tenant_id": tenant_id, "action": "branding"},
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug("Branding update notification failed (non-fatal): %s", e)
+
     return {"success": True, "message": "Branding updated"}
 
 
@@ -300,10 +387,40 @@ async def generate_api_key(
         "createdAt": now,
         "userId": data.get("userId") or getattr(current_user, "username", ""),
     }
+    key_doc = {
+        "id": key_id,
+        "name": data.get("name", "API Key"),
+        "key": plaintext[:12] + "••••••••••••",   # store only prefix for display
+        "keyHash": hashlib.sha256(plaintext.encode()).hexdigest(),
+        "createdAt": now,
+        "userId": data.get("userId") or getattr(current_user, "username", ""),
+    }
     await mongodb.db.tenants.update_one(
         {"id": tenant_id},
         {"$push": {"apiKeys": key_doc}},
     )
+
+    # Notify tenant admin of API key generation
+    try:
+        from notification_service import send_notification, get_notification_service
+        svc = get_notification_service(get_database())
+        await svc.send_alert(
+            title=f"API Key Generated for {tenant['name']}",
+            message=f"New API key {key_id} generated for tenant {tenant['name']}.",
+            severity="info",
+            recipients=[],
+            tenant_id=tenant_id,
+            channels=[],
+            metadata={"event": "tenant_admin_notification", "tenant_id": tenant_id, "action": "api_key_generated"},
+        )
+        await send_notification(
+            get_database(), tenant_id, "tenant_admin_notification",
+            {"message": f"API key {key_id} generated", "severity": "info", "tenant_id": tenant_id, "action": "api_key_generated"},
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug("API key notification failed (non-fatal): %s", e)
+
     return {"id": key_id, "name": key_doc["name"], "key": plaintext, "createdAt": now}
 
 
@@ -435,4 +552,26 @@ async def revoke_api_key(
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Notify tenant admin of API key revocation
+    try:
+        from notification_service import get_notification_service, send_notification
+        tenant_name = tenant_id
+        svc = get_notification_service(get_database())
+        await svc.send_alert(
+            title=f"API Key Revoked",
+            message=f"API key {key_id} revoked for tenant {tenant_name}.",
+            severity="info",
+            recipients=[],
+            tenant_id=tenant_id,
+            channels=[],
+            metadata={"event": "tenant_admin_notification", "tenant_id": tenant_id, "action": "api_key_revoked"},
+        )
+        await send_notification(
+            get_database(), tenant_id, "tenant_admin_notification",
+            {"message": f"API key {key_id} revoked", "severity": "info", "tenant_id": tenant_id, "action": "api_key_revoked"},
+        )
+    except Exception as e:
+        logger.debug("API key revocation notification failed (non-fatal): %s", e)
+
     return {"success": True}

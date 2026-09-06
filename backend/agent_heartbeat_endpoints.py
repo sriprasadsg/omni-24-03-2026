@@ -89,7 +89,31 @@ async def report_heartbeat(
                 status_code=403,
                 detail="Agent is quarantined. Contact your administrator to release it.",
             )
+    else:
+        # New agent registration — dispatch endpoint_notification
+        if _hb_tenant_id:
+            try:
+                from notification_service import get_notification_service, send_notification
+                svc = get_notification_service(get_database())
+                await svc.send_alert(
+                    title=f"New Endpoint Registered: {payload.get('hostname', agent_id)}",
+                    message=f"Agent {agent_id} ({payload.get('platform', 'unknown')}) connected to tenant {_hb_tenant_id}.",
+                    severity="info",
+                    recipients=[],
+                    tenant_id=_hb_tenant_id,
+                    channels=[],
+                    metadata={"event": "endpoint_notification", "agent_id": agent_id, "tenant_id": _hb_tenant_id},
+                )
+                await send_notification(
+                    get_database(), _hb_tenant_id, "endpoint_notification",
+                    {"message": f"Endpoint {agent_id} registered", "severity": "info", "agent_id": agent_id, "tenant_id": _hb_tenant_id},
+                )
+            except Exception as e:
+                logger.debug("Endpoint registration notification failed (non-fatal): %s", e)
 
+    # Device-id binding check — only meaningful for EXISTING agents (new-agent
+    # path has no stored device id to compare against).
+    if existing_agent:
         stored_device_id = existing_agent.get("deviceId")
         incoming_device_id = payload.get("device_id") or payload.get("deviceId")
         if stored_device_id and incoming_device_id and stored_device_id != incoming_device_id:

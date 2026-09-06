@@ -1,0 +1,11 @@
+[SYSTEM]
+Linux security-test-vm 7.0.0-29-generic #29~24.04.2-Ubuntu SMP PREEMPT_DYNAMIC Wed Aug 12 17:25:56 UTC 2 x86_64 x86_64 x86_64 GNU/Linux
+32
+               total        used        free      shared  buff/cache   available
+Mem:            61Gi       3.0Gi       4.4Gi        15Mi        54Gi        58Gi
+Swap:          4.0Gi       248Mi       3.8Gi
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2       787G  333G  420G  45% /
+Filesystem     Inodes IUsed IFree IUse% Mounted on
+/dev/sda2         50M  2.6M   48M    6% /
+ 15:09:52 up 1 day,  2:22,  1 user,  load average: 0.12, 0.49, 0.33

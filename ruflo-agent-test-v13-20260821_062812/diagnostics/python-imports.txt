@@ -1,0 +1,9 @@
+[OK] numpy
+[OK] scipy
+[OK] pandas
+[OK] sklearn
+[OK] chromadb
+[OK] onnxruntime
+[OK] watchdog
+[OK] websockets
+[OK] langgraph

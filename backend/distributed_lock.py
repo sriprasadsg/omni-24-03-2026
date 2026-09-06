@@ -29,7 +29,7 @@ async def acquire_lock(db, name: str, ttl_seconds: int = DEFAULT_LOCK_TTL_SECOND
     now = datetime.now(timezone.utc)
     token = str(_uuid.uuid4())
     try:
-        await db._db._distributed_locks.find_one_and_update(
+        await db._db["_distributed_locks"].find_one_and_update(
             {"_id": name, "expiresAt": {"$lt": now}},
             {"$set": {"expiresAt": now + timedelta(seconds=ttl_seconds), "token": token}},
             upsert=True,
@@ -43,4 +43,4 @@ async def release_lock(db, name: str, token: str) -> None:
     """Release promptly on completion so the next run doesn't have to wait
     out the full TTL. Filtered on our own token so we never delete a lock
     some other replica has since (re)acquired after our TTL lapsed."""
-    await db._db._distributed_locks.delete_one({"_id": name, "token": token})
+    await db._db["_distributed_locks"].delete_one({"_id": name, "token": token})

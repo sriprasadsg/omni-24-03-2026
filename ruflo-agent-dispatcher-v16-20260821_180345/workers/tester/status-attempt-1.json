@@ -1,0 +1,9 @@
+{
+  "agent": "tester",
+  "agent_id": "agent-1787315646586-lxiflr",
+  "task_id": "unknown",
+  "attempt": 1,
+  "exit_code": 1,
+  "finished": "2026-08-21T18:06:46+05:30",
+  "result_bytes": 19
+}

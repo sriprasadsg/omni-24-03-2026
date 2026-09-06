@@ -51,7 +51,7 @@ const availableLocalModels  = Object.keys(localModelDescriptions);
 
 
 export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, settings, onSave }) => {
-    const [formData, setFormData] = useState<LlmSettingsType>({ ...settings, provider: settings.provider || 'Local' });
+    const [formData, setFormData] = useState<LlmSettingsType>({ ...settings, provider: settings.provider || 'OpenAI-Compatible' });
     const [showKey, setShowKey] = useState(false);
     const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
     const [testMessage, setTestMessage] = useState('');
@@ -230,7 +230,7 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                 </div>
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {renderField('Provider', 'provider', 'select', ['Gemini', 'Anthropic Claude', 'Local', 'Omni-LLM-Scratch'])}
+                        {renderField('Provider', 'provider', 'select', ['Gemini', 'Anthropic Claude', 'Local', 'Omni-LLM-Scratch', 'OpenAI-Compatible'])}
                         <div>
                             <label htmlFor="model" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Preferred Model</label>
                             <div className="flex space-x-2">
@@ -355,6 +355,40 @@ export const LlmSettings: React.FC<LlmSettingsProps> = ({ isOpen, onClose, setti
                             <p className="font-bold mb-1">🧠 Omni-LLM (Custom Transformer)</p>
                             <p>This model was trained from scratch on the platform. It runs entirely offline with no external API calls. Navigate to <strong>AI &gt; LLMOps &gt; Train Custom Model</strong> to start or monitor training.</p>
                         </div>
+                    )}
+                    {formData.provider === 'OpenAI-Compatible' && (
+                        <>
+                            <div>
+                                <label htmlFor="routerUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Router / Base URL</label>
+                                <input
+                                    type="text"
+                                    id="routerUrl" name="routerUrl"
+                                    value={formData.routerUrl || ''}
+                                    onChange={handleChange}
+                                    className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm font-mono"
+                                    placeholder="http://192.168.1.100:20128/v1"
+                                />
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Full URL of your OpenAI-compatible router/server (e.g., <code className="font-mono bg-gray-100 dark:bg-gray-600 px-1 rounded">http://192.168.1.100:20128/v1</code>).
+                                </p>
+                            </div>
+                            <div>
+                                <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300">API Key</label>
+                                <div className="relative mt-1">
+                                    <input
+                                        type={showKey ? 'text' : 'password'}
+                                        id="apiKey" name="apiKey"
+                                        value={formData.apiKey}
+                                        onChange={handleChange}
+                                        className="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm sm:text-sm"
+                                        placeholder="sk-..."
+                                    />
+                                    <button type="button" onClick={() => setShowKey(!showKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-sm text-gray-500">
+                                        {showKey ? 'Hide' : 'Show'}
+                                    </button>
+                                </div>
+                            </div>
+                        </>
                     )}
                 </div>
 

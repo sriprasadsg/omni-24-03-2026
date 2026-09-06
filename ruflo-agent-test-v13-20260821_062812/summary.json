@@ -1,0 +1,16 @@
+{
+  "version": "v13",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "timestamp": "2026-08-21T06:29:22+05:30\n",
+  "host": "security-test-vm\n",
+  "ruflo_mode": "embedded",
+  "health_score": 60,
+  "pass": 42,
+  "warn": 20,
+  "fail": 0,
+  "agents_total": 8,
+  "agents_completed": 0,
+  "result": "AT_RISK",
+  "report": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812",
+  "main_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812/ruflo-agent-test-v13.log"
+}

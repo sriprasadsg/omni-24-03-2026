@@ -1,0 +1,23 @@
+{
+  "report_version": "ruflo-agent-dispatcher-v14",
+  "timestamp": "2026-08-21T10:56:22.152410+00:00",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "report_directory": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433",
+  "ruflo": "ruflo v3.38.12",
+  "configured_agents": 8,
+  "workers_success": 2,
+  "workers_failed": 6,
+  "pass": 17,
+  "warn": 16,
+  "fail": 0,
+  "duration_seconds": 707,
+  "artifacts": {
+    "summary": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/summary.txt",
+    "main_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/dispatcher.log",
+    "agents": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/agents",
+    "worker_logs": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/logs",
+    "results": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/results",
+    "diagnostics": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/diagnostics",
+    "state": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-20260821_161433/state"
+  }
+}

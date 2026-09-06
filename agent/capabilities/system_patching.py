@@ -34,7 +34,8 @@ class SystemPatchingCapability(BaseCapability):
             data["uptime"] = self._get_windows_uptime()
         elif system == "Linux":
             data["pending_updates"] = self._get_linux_updates()
-            # Linux BIOS/Uptime placeholder
+            data["bios_info"] = self._get_linux_bios()
+            data["uptime"] = self._get_linux_uptime()
             
         return data
 
@@ -123,16 +124,16 @@ class SystemPatchingCapability(BaseCapability):
             """
             cmd = ["powershell", "-Command", ps_script]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            
+
             if result.returncode == 0 and result.stdout.strip():
                 import json
                 try:
                     data = json.loads(result.stdout)
                     if isinstance(data, list):
                         data = data[0]
-                        
+
                     info["boot_time"] = data.get("LastBootUpTime", "Unknown")
-                    
+
                     # Calculate uptime if possible (simplified for now)
                     # In a real scenario, we'd parse the date string to a datetime obj
                 except json.JSONDecodeError:
@@ -141,6 +142,117 @@ class SystemPatchingCapability(BaseCapability):
             print(f"Error checking Uptime: {e}")
         return info
 
+    def _get_linux_bios(self) -> Dict[str, str]:
+        """Get BIOS Version and Manufacturer via dmidecode"""
+        info = {"version": "Unknown", "manufacturer": "Unknown", "release_date": "Unknown"}
+        try:
+            # Try dmidecode for BIOS info
+            result = subprocess.run(
+                ["dmidecode", "-t", "bios"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    line = line.strip()
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        key = key.strip().lower()
+                        value = value.strip()
+                        if 'version' in key and 'bios' in key:
+                            info["version"] = value
+                        elif 'vendor' in key or 'manufacturer' in key:
+                            info["manufacturer"] = value
+                        elif 'release' in key and 'date' in key:
+                            info["release_date"] = value
+        except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError, Exception):
+            pass
+        return info
+
+    def _get_linux_uptime(self) -> Dict[str, str]:
+        """Get Last Boot Time and uptime from /proc/uptime"""
+        info = {"boot_time": "Unknown", "uptime_seconds": 0}
+        try:
+            with open("/proc/uptime", "r") as f:
+                uptime_seconds = float(f.read().split()[0])
+            info["uptime_seconds"] = uptime_seconds
+
+            # Calculate boot time
+            import datetime
+            boot_time = datetime.datetime.now() - datetime.timedelta(seconds=uptime_seconds)
+            info["boot_time"] = boot_time.strftime("%Y-%m-%d %H:%M:%S")
+        except (FileNotFoundError, PermissionError, Exception):
+            pass
+        return info
+
     def _get_linux_updates(self) -> List[Dict[str, str]]:
-        # Placeholder for Linux update check (apt/yum)
-        return []
+        """Check for pending Linux updates (apt/dnf/yum)"""
+        updates = []
+        try:
+            # Try apt (Debian/Ubuntu)
+            result = subprocess.run(
+                ["apt", "list", "--upgradable"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n')[1:]:  # Skip header line
+                    if '/' in line:
+                        parts = line.split('/')
+                        pkg_name = parts[0].strip()
+                        # Parse version info from the rest
+                        version_part = '/'.join(parts[1:]).split(' ')[0].strip()
+                        updates.append({
+                            "title": f"{pkg_name} ({version_part})",
+                            "severity": "Medium",
+                            "mandatory": False
+                        })
+                return updates[:50]  # Limit to 50
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+            pass
+
+        try:
+            # Try dnf (Fedora/RHEL 8+)
+            result = subprocess.run(
+                ["dnf", "check-update", "-q"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 100:  # 100 means updates available
+                for line in result.stdout.strip().split('\n'):
+                    parts = line.split()
+                    if len(parts) >= 1:
+                        updates.append({
+                            "title": parts[0],
+                            "severity": "Medium",
+                            "mandatory": False
+                        })
+                return updates[:50]
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+            pass
+
+        try:
+            # Try yum (RHEL/CentOS 7)
+            result = subprocess.run(
+                ["yum", "check-update", "-q"],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 100:
+                for line in result.stdout.strip().split('\n'):
+                    parts = line.split()
+                    if len(parts) >= 1:
+                        updates.append({
+                            "title": parts[0],
+                            "severity": "Medium",
+                            "mandatory": False
+                        })
+                return updates[:50]
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+            pass
+
+        return updates

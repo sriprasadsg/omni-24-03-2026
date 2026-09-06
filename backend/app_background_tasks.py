@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 # New imports for autonomous remediation
 from autonomous_remediation_service import AutonomousRemediationService, AUTONOMOUS_REMEDIATION_INTERVAL_SEC
+from database import get_database
 from tenant_context import set_tenant_id, reset_tenant_id # Import set_tenant_id, reset_tenant_id
 
 
@@ -20,8 +21,9 @@ async def autonomous_remediation_loop():
 
     while True:
         _tenant_ctx_token = None
+        tid = None
         try:
-            db = get_database() # Ensure get_database is imported or globally available
+            db = get_database()
             # Scan all tenants
             tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
             for tenant in tenants:
@@ -77,11 +79,19 @@ async def monitor_agent_status():
                         )
 
                 from notification_manager import notification_manager
-                await notification_manager.send_notification(
-                    "agent.offline",
-                    {"count": result.modified_count, "timestamp": datetime.now().isoformat()},
-                    "platform-admin",
-                )
+                # Broadcast offline event per-tenant so each tenant's admins are notified
+                for agent in affected_agents:
+                    tid = agent.get("tenantId") or "platform-admin"
+                    await notification_manager.send_notification(
+                        "agent.offline",
+                        {
+                            "count": 1,
+                            "agent_id": agent.get("id"),
+                            "hostname": agent.get("hostname"),
+                            "timestamp": datetime.now().isoformat(),
+                        },
+                        tid,
+                    )
         except Exception as e:
             logger.error("[Monitor] Error in stale agent check: %s", e)
         finally:
@@ -323,36 +333,3 @@ async def agent_uptime_rollup_loop():
             _log.error("Agent uptime rollup loop error: %s", _e)
 
 
-async def refresh_mitre_heatmap_loop():
-    """Nightly rebuild of the MITRE ATT&CK heatmap cache."""
-    from mitre_heatmap_service import MitreHeatmapService
-    from database import get_database
-    from tenant_context import set_tenant_id, reset_tenant_id
-
-    _log = logging.getLogger(__name__ + ".mitre_heatmap")
-    _log.info("MITRE heatmap refresh loop started (interval=86400s)")
-
-    while True:
-        await asyncio.sleep(86400)  # run once per day
-        _tenant_ctx_token = None
-        try:
-            db = get_database()
-            _tenant_ctx_token = set_tenant_id("platform-admin") # Admin context for tenant enumeration
-
-            tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
-            heatmap_service = MitreHeatmapService(db)
-
-            for tenant in tenants:
-                tid = tenant.get("id")
-                if tid:
-                    try:
-                        set_tenant_id(tid) # Switch to tenant context for heatmap generation
-                        await heatmap_service.rebuild_heatmap_cache(tid)
-                        _log.info("MITRE heatmap refreshed for tenant %s", tid)
-                    except Exception as _te:
-                        _log.error("MITRE heatmap refresh error for tenant %s: %s", tid, _te)
-        except Exception as _e:
-            _log.error("MITRE heatmap refresh cycle error: %s", _e)
-        finally:
-            if _tenant_ctx_token is not None:
-                reset_tenant_id(_tenant_ctx_token)

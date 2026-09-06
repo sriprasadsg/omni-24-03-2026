@@ -1,0 +1,10 @@
+[OK]   numpy: 2.0.2
+[OK]   scipy: 1.14.1
+[OK]   pandas: 2.3.3
+[OK]   sklearn: 1.5.2
+[OK]   chromadb: 1.5.9
+[OK]   onnxruntime: 1.29.0
+[OK]   cpuinfo: loaded
+[OK]   watchdog: loaded
+[OK]   websockets: 16.1.1
+[OK]   langgraph: loaded

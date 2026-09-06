@@ -1,0 +1,5 @@
+v20.20.2
+10.8.2
+Python 3.12.3
+git version 2.43.0
+2.1.228 (Claude Code)

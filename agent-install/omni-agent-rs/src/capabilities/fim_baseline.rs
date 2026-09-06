@@ -353,9 +353,6 @@ fn fim_queue_path_for_dir(base_path: &Path) -> PathBuf {
     base_path.join("fim_queue.db")
 }
 
-fn fim_queue_path() -> PathBuf {
-    fim_queue_path_for_dir(&baseline_dir())
-}
 
 #[cfg(test)]
 mod tests {

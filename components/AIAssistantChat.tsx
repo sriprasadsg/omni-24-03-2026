@@ -103,7 +103,9 @@ export const AIAssistantChat: React.FC = () => {
           const next = [...prev];
           const last = next[next.length - 1];
           if (last && last.role === 'assistant') {
-            next[next.length - 1] = { role: 'assistant', content: `Error: ${err}`, isStreaming: false };
+            // Backend already returns user-friendly message; don't double-wrap "Error:"
+            const msg = (err || '').startsWith('Error:') ? err : `Error: ${err}`;
+            next[next.length - 1] = { role: 'assistant', content: msg, isStreaming: false };
           }
           return next;
         });

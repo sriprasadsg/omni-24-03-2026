@@ -45,21 +45,22 @@ class TenantIsolatedCollection:
 
     def _inject_tenant_id(self, filter_query: Dict[str, Any]) -> Dict[str, Any]:
         tenant_id = get_tenant_id()
-        
+
         # If Super Admin, bypass isolation
         if tenant_id == "platform-admin":
             return filter_query if filter_query is not None else {}
-        
+
         # Fail-Closed: If no tenant_id, use a dummy one that never matches
         effective_tenant_id = tenant_id if tenant_id else "NON_EXISTENT_TENANT_ISOLATION_EMERGENCY"
-        
+
         new_filter = filter_query.copy() if filter_query else {}
+
+        # Context-var tenant always wins — caller-supplied tenantId is ignored
         new_filter["tenantId"] = effective_tenant_id
-        
         import logging
         if not tenant_id:
             logging.error(f"[SECURITY ALERT] DB Access without tenant context on collection: {self._collection.name}")
-            
+
         return new_filter
 
     def find(self, filter=None, *args, **kwargs):

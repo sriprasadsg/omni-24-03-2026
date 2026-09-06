@@ -13,8 +13,6 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_os_1 = __importDefault(require("node:os"));
 const validate_cjs_1 = require("./validate.cjs");
-const clock_cjs_1 = require("./clock.cjs");
-const validate_cjs_2 = require("./validate.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- planning-workspace.cjs is an export= CommonJS module
 const planningWorkspace = require("./planning-workspace.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- frontmatter.cjs is an export= CommonJS module
@@ -25,52 +23,93 @@ const stateMod = require("./state.cjs");
 const modelProfilesMod = require("./model-profiles.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- plan-scan.cjs is an export= CommonJS module
 const planScanMod = require("./plan-scan.cjs");
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- verification.cjs is an export= CommonJS module
+const verificationMod = require("./verification.cjs");
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- core-utils.cjs is an export= CommonJS module
+const coreUtilsMod = require("./core-utils.cjs");
+const { findOrphanSummaries, findUnsummarizedPlans } = coreUtilsMod;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- planning-scope.cjs is an export= CommonJS module
+const planningScopeMod = require("./planning-scope.cjs");
+const { SCOPE } = planningScopeMod;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- worktree-safety.cjs is an export= CommonJS module
+const worktreeSafetyMod = require("./worktree-safety.cjs");
+// Single owner of git C-quoted-path decoding (see #4081 note at the
+// codebase-drift --name-status parse loop).
+const { decodeGitQuotedPath } = worktreeSafetyMod;
 const shell_command_projection_cjs_1 = require("./shell-command-projection.cjs");
-const package_identity_cjs_1 = require("./package-identity.cjs");
+const security_cjs_1 = require("./security.cjs");
 const runtime_slash_cjs_1 = require("./runtime-slash.cjs");
 const schema_detect_cjs_1 = require("./schema-detect.cjs");
-const artifacts_cjs_1 = require("./artifacts.cjs");
 const markdown_sectionizer_cjs_1 = require("./markdown-sectionizer.cjs");
-const model_catalog_cjs_1 = require("./model-catalog.cjs");
+const pattern_cjs_1 = require("./pattern.cjs");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- agent-install-check.cjs is an export= CommonJS module
 const agentInstallCheck = require("./agent-install-check.cjs");
-const { checkAgentsInstalled } = agentInstallCheck;
+const { checkAgentsInstalled, checkCodexModelPosture, checkCodexSandboxPosture } = agentInstallCheck;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ioMod = require("./io.cjs");
 const { output, error } = ioMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const configLoaderMod = require("./config-loader.cjs");
-const { loadConfig, CONFIG_DEFAULTS } = configLoaderMod;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const phaseIdMod = require("./phase-id.cjs");
-const { normalizePhaseName, phaseTokenMatches, escapeRegex, getMilestoneFromPhaseId, OPTIONAL_PHASE_TAG_SOURCE, PHASE_NUMBER_TOKEN_SOURCE, extractPhaseToken, comparePhaseNum } = phaseIdMod;
+const { normalizePhaseName, matchPhaseDirs } = phaseIdMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const phaseLocatorMod = require("./phase-locator.cjs");
 const { findPhaseInternal } = phaseLocatorMod;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const roadmapParserMod = require("./roadmap-parser.cjs");
-const { getMilestoneInfo, stripShippedMilestones, extractCurrentMilestone } = roadmapParserMod;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const worktreeSafetyMod = require("./worktree-safety.cjs");
-const { inspectWorktreeHealth } = worktreeSafetyMod;
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- commands.cjs is an export= CommonJS module
-const commandsMod = require("./commands.cjs");
-const { determinePhaseStatus } = commandsMod;
-const { planningDir, planningRoot } = planningWorkspace;
+const { stripShippedMilestones } = roadmapParserMod;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- health-diagnostic.cjs is an export= CommonJS module
+const healthDiagnosticMod = require("./health-diagnostic.cjs");
+const { SEVERITY: HEALTH_SEVERITY, REMEDY_ACTION, REMEDY_RISK, evaluateRules, evaluateConsistencyRules, applyRepairs } = healthDiagnosticMod;
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- planning-snapshot.cjs is an export= CommonJS module
+const planningSnapshotMod = require("./planning-snapshot.cjs");
+const { buildPlanningSnapshot } = planningSnapshotMod;
+const { planningDir } = planningWorkspace;
+const { defaultPhaseCleanCommitTimesMs } = verificationMod;
 const { extractFrontmatter, parseMustHavesBlock } = frontmatterMod;
-const { writeStateMd } = stateMod;
+const { readStateHeadFreshness } = stateMod;
+/**
+ * W024 (#2573) threshold — how many commits STATE.md may lag HEAD before
+ * `validate.health` mentions it.
+ *
+ * Deliberately coarse. `state_head` restamps on every state write, so a small
+ * count is normal for any active project; firing near zero would make health
+ * noisy for healthy projects without telling anyone anything. This is a
+ * freshness proxy, not a drift measurement — see readStateHeadFreshness.
+ */
+const STATE_HEAD_ADVISORY_COMMITS = 20;
 const { MODEL_PROFILES } = modelProfilesMod;
 // Unused but imported for structural parity
 void stripShippedMilestones;
 void schema_detect_cjs_1.detectSchemaFiles;
-function cmdVerifySummary(cwd, summaryPath, checkFileCount, raw) {
-    if (!summaryPath) {
-        error('summary-path required');
-    }
+/**
+ * Pure core of `verify-summary` (#2572).
+ *
+ * Same artifact↔git checks the CLI verb has always run, lifted out of the
+ * `output()` wrapper so other verbs can consume the structured
+ * `{ passed, checks, errors }` contract directly instead of shelling out and
+ * re-parsing JSON. `cmdVerifySummary` is now a thin adapter over this.
+ *
+ * Never throws and never writes to stdout: a missing SUMMARY, a non-repo, or an
+ * unresolvable commit all come back as structured `false`/`missing` values.
+ *
+ * Caveat for callers surfacing `commits_exist`: the hash pattern is a loose
+ * `\b[0-9a-f]{7,40}\b`, so any hex-shaped token in the prose counts as a
+ * candidate. That is cheap as an advisory signal and unacceptable as a gate.
+ *
+ * @param checkFileCount How many extracted candidates to probe. Defaults to 2 —
+ *   the value the CLI verb has always used. Pass `Infinity` to probe every
+ *   candidate (see `cmdPhaseComplete`, which reports on all of them).
+ * @param opts.checkCommits When `false`, the `git cat-file` probes are skipped
+ *   entirely and `commits_exist` comes back `false` meaning *not checked*.
+ *   Callers that do not surface `commits_exist` should pass `false` so this
+ *   stays a pure-filesystem check with no subprocess cost.
+ */
+function verifySummaryCore(cwd, summaryPath, checkFileCount, opts) {
     const fullPath = node_path_1.default.join(cwd, summaryPath);
     const checkCount = checkFileCount || 2;
+    const checkCommits = opts?.checkCommits !== false;
     if (!node_fs_1.default.existsSync(fullPath)) {
-        const result = {
+        return {
             passed: false,
             checks: {
                 summary_exists: false,
@@ -80,34 +119,104 @@ function cmdVerifySummary(cwd, summaryPath, checkFileCount, raw) {
             },
             errors: ['SUMMARY.md not found'],
         };
-        output(result, raw, 'failed');
-        return;
     }
     const content = node_fs_1.default.readFileSync(fullPath, 'utf-8');
     const errors = [];
+    const projectRoot = node_path_1.default.resolve(cwd);
+    /**
+     * Is `candidate` plausibly a repo-relative file this check should probe?
+     *
+     * Deliberately narrowing. This is an ADVISORY, so the two error directions are
+     * not symmetric: a false positive tells a user their healthy project is
+     * missing a file that was never claimed, while a false negative just means one
+     * reference goes unprobed. Every rejection below is a noise class confirmed on
+     * #2685; when in doubt, skip rather than warn.
+     */
+    const isProbableProjectFile = (candidate) => {
+        // Only repo-relative paths — a bare filename is too ambiguous to locate.
+        if (!candidate.includes('/'))
+            return false;
+        // URLs, protocol-relative links, and any other scheme.
+        if (candidate.startsWith('http') || candidate.startsWith('//'))
+            return false;
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate))
+            return false;
+        // Globs name a set, not a file: `src/**/*.cts` is never "missing".
+        if (/[*?]/.test(candidate))
+            return false;
+        // Bare hostnames (`docs.example.com/guide.html`). A repo-relative path's
+        // first segment is a directory name, which in practice contains a dot only
+        // when it is a dotfile directory (`.github/`, `.changeset/`, `.planning/`)
+        // — i.e. the dot is at index 0. A dot anywhere later marks a hostname.
+        const firstSegment = candidate.split('/')[0] || '';
+        if (firstSegment.indexOf('.') > 0)
+            return false;
+        // Containment guard: a `../`-bearing reference must not turn this advisory
+        // into a filesystem existence probe outside the project.
+        const resolved = node_path_1.default.resolve(projectRoot, candidate);
+        if (resolved !== projectRoot && !resolved.startsWith(projectRoot + node_path_1.default.sep))
+            return false;
+        return true;
+    };
+    // Pattern 2 excludes `[` and `]` from its path class (#2685 Blocker 1). All
+    // three SUMMARY templates prescribe a YAML flow sequence for `key-files`:
+    //
+    //     key-files:
+    //       created: [src/auth/login.ts, src/auth/session.ts]
+    //
+    // and the label matches `(?:Created|Modified|…):` case-insensitively. Without
+    // the bracket exclusion the class captures the literal `[` as part of the
+    // first path, yielding `[src/auth/login.ts` — a candidate that can never exist
+    // on disk. That fired on healthy projects built from GSD's own shipped
+    // template. The exclusion also stops a markdown list in the body from
+    // reintroducing the same artifact.
+    //
+    // Stripping frontmatter first was the other remedy offered on #2685. It is a
+    // verified no-op on top of this exclusion — measured identical extraction
+    // across all three shipped templates — because the exclusion already makes a
+    // flow-sequence line contribute nothing. Consequence worth naming: the
+    // `key-files` block, the most authoritative statement of what a phase created,
+    // is still not read. Recovering it needs a real frontmatter parse, which is
+    // deliberately left as a follow-up rather than smuggled in here.
     const mentionedFiles = new Set();
+    // #2844: Pattern 1 matches any backticked path-like token. A SUMMARY body is
+    // predominantly about what the phase DID, so a backticked path in prose ("Built
+    // `src/kept.ts`", a `- \`src/x.ts\`` list item) is a legitimate claim (#2685
+    // pins this). The false-positive class #2844 fixes is a path mentioned as a
+    // FUTURE/CONDITIONAL deliverable — "next phase will add `shared/types.ts`",
+    // "planned", "would", "to be created" — which is NOT a claim about this phase.
+    // Exclude those lines rather than requiring an explicit claim verb (which would
+    // drop the legitimate "Built …" / list-item forms #2685 protects).
+    const isFutureMention = (line) => /\b(?:will(?:\s+(?:add|create|build|land))?(?:[^.])?|(?:next|later|future)\s+phase|planned?|would\s+(?:be|add|create|build)|to\s+be\s+(?:added|created|built)|eventually|not\s+yet)\b/i.test(line);
     const patterns = [
         /`([^`]+\.[a-zA-Z]+)`/g,
-        /(?:Created|Modified|Added|Updated|Edited):\s*`?([^\s`]+\.[a-zA-Z]+)`?/gi,
+        /(?:Created|Modified|Added|Updated|Edited):\s*`?([^\s`[\]]+\.[a-zA-Z]+)`?/gi,
     ];
     for (const pattern of patterns) {
         let m;
         while ((m = pattern.exec(content)) !== null) {
             const filePath = m[1];
-            if (filePath && !filePath.startsWith('http') && filePath.includes('/')) {
-                mentionedFiles.add(filePath);
-            }
+            if (!filePath || !isProbableProjectFile(filePath))
+                continue;
+            // #2844: skip a backticked path on a future/conditional line — it names a
+            // deliverable this phase did NOT produce, so probing it is a false positive.
+            const lineStart = content.lastIndexOf('\n', m.index) + 1;
+            const lineEnd = content.indexOf('\n', m.index);
+            const line = content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+            if (isFutureMention(line))
+                continue;
+            mentionedFiles.add(filePath);
         }
     }
     const filesToCheck = Array.from(mentionedFiles).slice(0, checkCount);
     const missing = [];
     for (const file of filesToCheck) {
-        if (!node_fs_1.default.existsSync(node_path_1.default.join(cwd, file))) {
+        if (!node_fs_1.default.existsSync(node_path_1.default.resolve(projectRoot, file))) {
             missing.push(file);
         }
     }
     const commitHashPattern = /\b[0-9a-f]{7,40}\b/g;
-    const hashes = content.match(commitHashPattern) || [];
+    const hashes = checkCommits ? content.match(commitHashPattern) || [] : [];
     let commitsExist = false;
     if (hashes.length > 0) {
         for (const hash of hashes.slice(0, 3)) {
@@ -144,8 +253,15 @@ function cmdVerifySummary(cwd, summaryPath, checkFileCount, raw) {
         self_check: selfCheck,
     };
     const passed = missing.length === 0 && selfCheck !== 'failed';
-    const result = { passed, checks, errors };
-    output(result, raw, passed ? 'passed' : 'failed');
+    return { passed, checks, errors };
+}
+/** CLI adapter over verifySummaryCore — arg guard + output shaping only. */
+function cmdVerifySummary(cwd, summaryPath, checkFileCount, raw) {
+    if (!summaryPath) {
+        error('summary-path required');
+    }
+    const result = verifySummaryCore(cwd, summaryPath, checkFileCount);
+    output(result, raw, result.passed ? 'passed' : 'failed');
 }
 /**
  * Issue #429 — negative-grep comment-text echo gate.
@@ -154,15 +270,78 @@ function cmdVerifySummary(cwd, summaryPath, checkFileCount, raw) {
  * verify gate fails on the comment echo rather than a real regression. Conservative:
  * errors only on a confidently-extracted QUOTED literal; ambiguous (bareword) → warning.
  */
+/**
+ * Decode entity-escaped ampersands (&amp; → &) — #3611. Planners emit
+ * <automated> bodies with `&amp;&amp;` as the chain operator (66 occurrences
+ * vs 0 literal in the reporting repo), and the executing agent reads the
+ * decoded (rendered) form. Every downstream scan — segment split,
+ * zero-comparison, literal harvest, echo matching — must operate on the same
+ * decoded text or a negative clause (`= 0`) poisons the literals of a
+ * POSITIVE clause (-ge 3) joined to it. Shared by both plan-discipline
+ * scanners so the two gates cannot drift apart again.
+ */
+function decodeEntityAmps(s) {
+    return s.replace(/&amp;/g, '&');
+}
+/**
+ * Split one shell line into &&/|| segments, QUOTE-AWARE (#3611 adversarial
+ * review): an operator inside a quoted literal (`grep -c 'a&&b'`) is part of
+ * the pattern, not a chain operator — a quote-blind split destroys the
+ * literal and silently disarms the gate for exactly the plans that spell
+ * patterns with ampersands. Backslash escapes count inside double quotes
+ * (POSIX single quotes have none, and over-staying a single-quoted span can
+ * only miss a split, never invent one).
+ */
+function splitShellSegments(line) {
+    const segments = [];
+    let current = '';
+    let quote = null;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (quote === "'") {
+            if (ch === "'")
+                quote = null;
+            current += ch;
+            continue;
+        }
+        if (quote === '"') {
+            if (ch === '\\') {
+                current += ch + (line[i + 1] ?? '');
+                i++;
+                continue;
+            }
+            if (ch === '"')
+                quote = null;
+            current += ch;
+            continue;
+        }
+        if (ch === "'" || ch === '"') {
+            quote = ch;
+            current += ch;
+            continue;
+        }
+        if ((ch === '&' && line[i + 1] === '&') || (ch === '|' && line[i + 1] === '|')) {
+            segments.push(current.trim());
+            current = '';
+            i++;
+            continue;
+        }
+        current += ch;
+    }
+    segments.push(current.trim());
+    return segments.filter((s) => s !== '');
+}
 function scanNegativeGrepCommentEcho(content) {
     const errors = [];
     const warnings = [];
     // Normalize newlines; join backslash line-continuations so a verify command wrapped
     // across lines (grep ... \ <newline> == 0) is still seen as one segment.
-    const text = (content || '')
+    // #3611: decode entity-escaped ampersands (see decodeEntityAmps) so every
+    // downstream scan reads the same decoded text the executing agent reads.
+    const text = decodeEntityAmps((content || '')
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
-        .replace(/\\\n/g, ' ');
+        .replace(/\\\n/g, ' '));
     // 1. Allowlisted literals: <!-- planner-discipline-allow: LIT -->
     const allow = new Set();
     const allowRe = /<!--\s*planner-discipline-allow:\s*(.+?)\s*-->/g;
@@ -205,7 +384,7 @@ function scanNegativeGrepCommentEcho(content) {
     //    poisoning a negative gate (`== 0`) sharing the same physical line.
     const seenErr = new Set();
     const seenWarn = new Set();
-    const segments = text.split('\n').flatMap((line) => line.split(/\s*(?:&&|\|\|)\s*/));
+    const segments = text.split('\n').flatMap(splitShellSegments);
     for (const seg of segments) {
         if (!/grep(?:\s+-{1,2}[A-Za-z])/.test(seg) || !zeroCmp(seg))
             continue;
@@ -254,10 +433,13 @@ function scanNegativeGrepCommentEcho(content) {
 function scanFileWideNegativeGateConflict(content) {
     const warnings = [];
     // Normalize newlines; join backslash line-continuations (same as #429).
-    const text = (content || '')
+    // #3611: the SAME entity decode as the #429 scanner — the two gates share
+    // the caller and the input; a decode on one side only let an entity-escaped
+    // chain poison this detector's harvest exactly the same way.
+    const text = decodeEntityAmps((content || '')
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
-        .replace(/\\\n/g, ' ');
+        .replace(/\\\n/g, ' '));
     // Allowlisted patterns: <!-- planner-region-allow: PAT -->
     const allow = new Set();
     const allowRe = /<!--\s*planner-region-allow:\s*(.+?)\s*-->/g;
@@ -391,8 +573,8 @@ function scanFileWideNegativeGateConflict(content) {
     // For each task A, scan gate text for file-wide negative grep bans.
     for (let ai = 0; ai < tasks.length; ai++) {
         const taskA = tasks[ai];
-        // Split gate text into shell segments (split on && / || within lines).
-        const segments = taskA.gateText.split('\n').flatMap(line => line.split(/\s*(?:&&|\|\|)\s*/));
+        // Split gate text into shell segments (quote-aware, shared with #429 — #3611).
+        const segments = taskA.gateText.split('\n').flatMap(splitShellSegments);
         for (const seg of segments) {
             if (!/grep/.test(seg))
                 continue;
@@ -521,6 +703,189 @@ function scanFileWideNegativeGateConflict(content) {
     return { warnings, valid: true };
 }
 /**
+ * Issue #4024 — quantitative-criteria trap-shape scanner, the third plan-discipline
+ * gate in this family (after #429's comment-echo gate and #968's file-wide
+ * negative-gate conflict detector). #429/#968 judge `grep -c … == 0` shapes; this
+ * scanner judges the OTHER quantitative criterion shapes that are provably traps
+ * at HEAD, so a plan whose criteria are unsatisfiable-or-vacuous before any
+ * executor touches them no longer passes `verify plan-structure` clean.
+ *
+ * Scope: criteria text only — `<acceptance_criteria>`, `<automated>`, and
+ * `<verify>` blocks. Prose elsewhere in the plan (e.g. an explanatory
+ * `<action>`) is not judged (fail-open; see the negative-space section of the
+ * #4024 diagnosis).
+ *
+ * Ban list, each rule with a corrected arm asserted in tests (a rule that fires
+ * on its own fix is a refusal, not a rule):
+ *   R1 (error) exact count out of `grep -c` with N ≥ 2 — `grep -c` counts LINES,
+ *       not matches. Hedged counts (`>=`, "at least"), `== 0` (the #429/#968
+ *       family) and the `== 1` presence idiom stay clean.
+ *   R2 (error) bulk observed-failing claims — "all N tests … observed failing" /
+ *       "tests N through M … each … observed failing". A test asserting a
+ *       non-change cannot go red before the change exists. Per-test
+ *       "discriminates" wording and subset claims stay clean.
+ *   R3 (error) `$VAR` unquoted in command position — zsh does not word-split an
+ *       unquoted expansion, the command exits 127, and any arm reading its
+ *       status passes vacuously.
+ *   R4 (warn)  a fallible command (`git …`) in a non-final pipeline stage — the
+ *       pipeline reports the LAST stage's status, so the failure is swallowed.
+ *       Warn-only: the shape is ambiguous unless the criterion reads the status.
+ *   R5 (error) `wc` output compared by string equality (`… | wc -l | grep -x 0`)
+ *       — BSD `wc` pads its output, so the comparison never matches.
+ *   R6 (error) `git diff`/`git log` with a relative `HEAD~N` anchor — it names
+ *       whatever commit happened to land (another session's). Bare `git diff`
+ *       with no range is a WARNING: a committed change produces no output and
+ *       the check passes, but an uncommitted-tree check is a legitimate idiom.
+ *
+ * Legitimate exit: `<!-- plan-criteria-allow: R# - reason -->` (house style of
+ * `planner-discipline-allow`); the reason must be non-empty. Fail open: no
+ * criteria zones → no findings; every parse is text-only, nothing executes.
+ */
+function scanQuantitativeCriteria(content) {
+    const errors = [];
+    const warnings = [];
+    // Criteria zones: <acceptance_criteria>, <automated>, <verify>. A <verify>
+    // block contains its <automated> child, so the same segment may be harvested
+    // twice — dedupe findings by message below.
+    const zones = [];
+    for (const tag of ['acceptance_criteria', 'automated', 'verify']) {
+        for (const block of (0, markdown_sectionizer_cjs_1.extractTaggedBlocks)(content || '', tag)) {
+            zones.push({ text: block, prose: tag === 'acceptance_criteria' });
+        }
+    }
+    if (zones.length === 0)
+        return { errors, warnings };
+    // Allow markers may sit anywhere in the plan (same as the sibling scanners).
+    // The reason must be non-empty: `R1 - -->` is not an auditable exit.
+    const allow = new Set();
+    const allowRe = /<!--\s*plan-criteria-allow:\s*(R[1-6])\s+-\s+([^>]*\S)\s*-->/g;
+    let am;
+    while ((am = allowRe.exec(content || '')) !== null)
+        allow.add(am[1]);
+    const record = (bucket, rule, message, seen) => {
+        if (allow.has(rule) || seen.has(message))
+            return;
+        seen.add(message);
+        bucket.push(message);
+    };
+    // A count-grep invocation (grep with -c / --count), per the #429 idiom.
+    const countGrepRe = /grep((?:\s+-{1,2}[A-Za-z][A-Za-z-]*)+)\s+(?:'[^']*'|"[^"]*"|[^\s|>&;]+)/g;
+    const optsHaveCount = (opts) => /(?:^|\s)-[A-Za-z]*c[A-Za-z]*(?=\s|$)/.test(opts) || /--count\b/.test(opts);
+    const hasCountGrep = (s) => {
+        countGrepRe.lastIndex = 0;
+        let m;
+        while ((m = countGrepRe.exec(s)) !== null) {
+            if (optsHaveCount(m[1]))
+                return true;
+        }
+        return false;
+    };
+    const seenErr = new Set();
+    const seenWarn = new Set();
+    for (const zone of zones) {
+        // Same normalization as the sibling scanners (#3611): newline join,
+        // backslash continuation join, entity-amp decode.
+        const text = decodeEntityAmps(zone.text
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .replace(/\\\n/g, ' '));
+        // R2 — bulk observed-failing prose (acceptance_criteria only). The gap
+        // [^\n.]{0,120} keeps the subject and the claim adjacent within one
+        // sentence, so the corrected arm (a subset claim, or "each test
+        // discriminates") never fires.
+        if (zone.prose) {
+            const bulkRedRes = [
+                /\ball\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+tests\b[^\n.]{0,120}?observed\s+fail/i,
+                /\btests\s+\d+\s+through\s+\d+\b[^\n.]{0,120}?observed\s+fail/i,
+            ];
+            for (const re of bulkRedRes) {
+                if (re.test(text)) {
+                    record(errors, 'R2', '[plan-criteria R2] A bulk "all N tests / tests N through M were observed failing" criterion is ' +
+                        'unsatisfiable whenever any of the N tests asserts a non-change, which cannot go red before the ' +
+                        'change exists. Say "each test discriminates" (fails before the change, passes after), and attach a ' +
+                        'mutation record for any test that cannot be seen red.', seenErr);
+                }
+            }
+        }
+        for (const seg of text.split('\n').flatMap(splitShellSegments)) {
+            // R1 — exact count out of `grep -c` (N ≥ 2). Spaced `==`/`-eq` (the
+            // #429 zeroCmp idiom, excluding assignments and >=/<=/!=), or the prose
+            // "returns exactly N".
+            if (hasCountGrep(seg)) {
+                const exact = [];
+                let m;
+                const shellCmp = /\s==?\s*(\d+)\b/g;
+                while ((m = shellCmp.exec(seg)) !== null)
+                    exact.push(parseInt(m[1], 10));
+                const eqCmp = /-eq\s+(\d+)\b/g;
+                while ((m = eqCmp.exec(seg)) !== null)
+                    exact.push(parseInt(m[1], 10));
+                const proseCmp = /\breturns?\s+exactly\s+(\d+)\b/gi;
+                while ((m = proseCmp.exec(seg)) !== null)
+                    exact.push(parseInt(m[1], 10));
+                if (exact.some((n) => n >= 2)) {
+                    record(errors, 'R1', '[plan-criteria R1] An exact count out of `grep -c` is a trap: `grep -c` counts LINES, not matches, ' +
+                        'so the criterion can be false at HEAD before any executor touches it. Use `>= 1`, `== 0`, or ' +
+                        '`grep -n` and read the line numbers.', seenErr);
+                }
+            }
+            // R3 — unquoted $VAR in command position (zsh does not word-split; the
+            // command exits 127 and any arm reading its status passes vacuously).
+            // The anchor tolerates a markdown list bullet and/or an inline-code
+            // backtick before the command — criteria are prose lines like
+            // "- `$NOKEY npx tsx x.ts` exits 0" — but nothing else: the expansion
+            // must still be the FIRST token of the command itself.
+            if (/^(?:[-*]\s*)?\u0060?\$[A-Z_][A-Z0-9_]*\s/.test(seg)) {
+                record(errors, 'R3', '[plan-criteria R3] `$VAR` unquoted in command position does not word-split under zsh — the shell ' +
+                    'looks for a command literally named by the whole expansion and exits 127, so any arm reading its ' +
+                    'status passes vacuously. Write the prefix inline or use a shell function.', seenErr);
+            }
+            // R4 — a fallible `git …` in a non-final pipeline stage: the pipeline
+            // reports the LAST stage's status, so git's failure is swallowed.
+            // Warn-only: without a status assertion the shape is ambiguous.
+            // Not a markdown table: the negated-pipe class matches a SHELL pipeline
+            // stage boundary (git before the next `|`), the same shape the
+            // #429/#968 scanners use; there is no table row to parse.
+            // allow-adhoc-markdown: shell pipeline stage boundary, not a table cell (#4024)
+            if (/\bgit\s+[a-z][^\n|]*\|/.test(seg)) {
+                record(warnings, 'R4', '[plan-criteria R4] A fallible `git` in a non-final pipeline stage is swallowed — the pipeline reports ' +
+                    'the last stage\'s status, so a broken command reads as clean. Capture the status first.', seenWarn);
+            }
+            // R5 — `wc` output compared by string equality: BSD `wc` pads its output
+            // (seven spaces then the number), so `grep -x 0` can never match.
+            if (/\bwc\b/.test(seg) && /\bgrep\s+(?:-{1,2}[A-Za-z]*x[A-Za-z]*|--line-regexp)\s+['"]?\d+['"]?/.test(seg)) {
+                record(errors, 'R5', '[plan-criteria R5] `wc` output compared by string equality is unsatisfiable on BSD `wc`, which pads ' +
+                    'its output before the number. Compare numerically: `test "$n" -eq 0`, or `tr -d \' \'` first.', seenErr);
+            }
+            // R6 — relative HEAD~N anchors name whatever commit happened to land;
+            // a bare `git diff` with no range makes a committed change invisible.
+            if (/\bgit\s+(?:diff|log)\b[^\n|;&]*\bHEAD~\d+/.test(seg)) {
+                record(errors, 'R6', '[plan-criteria R6] `git diff`/`git log` with a relative `HEAD~N` anchor names whatever commit ' +
+                    'happened to land last — in a repository with parallel sessions that is another session\'s commit. ' +
+                    'Pin an explicit range: `<sha>^..<sha>`.', seenErr);
+            }
+            else {
+                // The argument span ends at the closing backtick of an inline-code
+                // span ("`git diff` shows ..."), at a redirection, or at a chain
+                // operator — trailing prose must never read as diff arguments.
+                const bareDiff = /\bgit\s+diff\b([^\u0060\n|;&<>]*)/.exec(seg);
+                if (bareDiff) {
+                    const rest = bareDiff[1].trim();
+                    // Bare or flags-only (no rev, range, or path): ambiguous between an
+                    // uncommitted-tree check (legitimate) and a committed-change check
+                    // (vacuously clean) — warn, never error.
+                    if (rest === '' || /^-{1,2}[A-Za-z-]+$/.test(rest)) {
+                        record(warnings, 'R6', '[plan-criteria R6] Bare `git diff` with no revision range produces no output for a COMMITTED ' +
+                            'change, so the criterion passes vacuously. Pin an explicit range (`<sha>^..<sha>`) unless the ' +
+                            'check is intentionally about the uncommitted tree.', seenWarn);
+                    }
+                }
+            }
+        }
+    }
+    return { errors, warnings };
+}
+/**
  * Single pass over `<task ...>…</task>` blocks. The body pattern is
  * ReDoS-safe stop-at-next-open (mirrors `taggedBlockPattern` in
  * markdown-sectionizer.cts): bounded attributes (`[^>]{0,1000}`) and a body
@@ -557,17 +922,22 @@ function extractPlanTaskInfos(content) {
             name,
             type,
             hasName,
-            hasFiles: /<files>/.test(body),
-            hasAction: /<action>/.test(body),
-            hasVerify: /<verify>/.test(body),
-            hasDone: /<done>/.test(body),
-            hasWhatBuilt: /<what-built>/.test(body),
-            hasHowToVerify: /<how-to-verify>/.test(body),
-            hasDecision: /<decision>/.test(body),
-            hasOptions: /<options>/.test(body),
-            hasInstructions: /<instructions>/.test(body),
-            hasVerification: /<verification>/.test(body),
-            hasResumeSignal: /<resume-signal>/.test(body),
+            // #3193: child-tag presence uses /<tag[\s>]/ (attribute-tolerant) so an
+            // opener like <verify type="auto"> still counts as present, matching how
+            // the parent <task type="…"> is read by PLAN_TASK_BLOCK_RE. The [\s>]
+            // terminator (not \b) keeps <verify> from satisfying <verification> and
+            // prevents a hyphenated sibling like <verify-mode> from masking <verify>.
+            hasFiles: /<files[\s>]/.test(body),
+            hasAction: /<action[\s>]/.test(body),
+            hasVerify: /<verify[\s>]/.test(body),
+            hasDone: /<done[\s>]/.test(body),
+            hasWhatBuilt: /<what-built[\s>]/.test(body),
+            hasHowToVerify: /<how-to-verify[\s>]/.test(body),
+            hasDecision: /<decision[\s>]/.test(body),
+            hasOptions: /<options[\s>]/.test(body),
+            hasInstructions: /<instructions[\s>]/.test(body),
+            hasVerification: /<verification[\s>]/.test(body),
+            hasResumeSignal: /<resume-signal[\s>]/.test(body),
         });
         // Guard against zero-length matches looping forever.
         if (match.index === PLAN_TASK_BLOCK_RE.lastIndex) {
@@ -649,13 +1019,24 @@ function cmdVerifyPlanStructure(cwd, filePath, raw) {
     if (!filePath) {
         error('file path required');
     }
+    if (filePath.includes('\0')) {
+        error('file path contains null bytes');
+    }
     const fullPath = node_path_1.default.isAbsolute(filePath) ? filePath : node_path_1.default.join(cwd, filePath);
     const content = (0, shell_command_projection_cjs_1.platformReadSync)(fullPath);
     if (!content) {
         output({ error: 'File not found', path: filePath }, raw);
         return;
     }
-    const fm = extractFrontmatter(content);
+    // #2701: fail loud on NUL/binary corruption before structure checks. A
+    // structurally intact-but-NUL-corrupted plan otherwise passes as valid and is
+    // silently skipped by recursive/binary-skipping searchers downstream.
+    const encErr = (0, validate_cjs_1.textEncodingError)(content, filePath);
+    if (encErr) {
+        output({ valid: false, errors: [encErr] }, raw);
+        return;
+    }
+    const fm = extractFrontmatter(content, fullPath);
     const errors = [];
     const warnings = [];
     const required = ['phase', 'plan', 'type', 'wave', 'depends_on', 'files_modified', 'autonomous', 'must_haves'];
@@ -714,6 +1095,12 @@ function cmdVerifyPlanStructure(cwd, filePath, raw) {
     warnings.push(...echoScan.warnings);
     const conflictScan = scanFileWideNegativeGateConflict(content);
     warnings.push(...conflictScan.warnings);
+    // #4024: quantitative-criteria trap shapes (exact grep -c counts, bulk
+    // observed-failing claims, $VAR command position, swallowed pipeline
+    // stages, wc string-equality, relative git anchors).
+    const quantScan = scanQuantitativeCriteria(content);
+    errors.push(...quantScan.errors);
+    warnings.push(...quantScan.warnings);
     output({
         valid: errors.length === 0,
         errors,
@@ -736,31 +1123,34 @@ function cmdVerifyPhaseCompleteness(cwd, phase, raw) {
     const errors = [];
     const warnings = [];
     const phaseDir = node_path_1.default.join(cwd, phaseInfo['directory']);
-    let files;
-    try {
-        files = node_fs_1.default.readdirSync(phaseDir);
-    }
-    catch {
+    // #3183 (lint-plan-count-drift / ADR-3180 Decision 2): source plans/
+    // summaries and their pairing from the single owner (scanPhasePlans +
+    // findUnsummarizedPlans/findOrphanSummaries) instead of a bespoke
+    // root-only `-PLAN.md`/`-SUMMARY.md` filter and exact-suffix-stem
+    // Set-diff. The prior pairing missed bare PLAN.md/SUMMARY.md, nested
+    // (#3139 layout) plans, and any of the canonical pairing's other
+    // recognized naming forms — producing false "Plans without summaries" /
+    // "Summaries without plans" for names it could not recognize as paired
+    // (the same failure class #1988/#2648 fixed for the owner's own callers).
+    const scan = planScanMod.scanPhasePlans(phaseDir);
+    if (scan.scope === SCOPE.UNREADABLE) {
         output({ error: 'Cannot read phase directory' }, raw);
         return;
     }
-    const plans = files.filter((f) => f.match(/-PLAN\.md$/i));
-    const summaries = files.filter((f) => f.match(/-SUMMARY\.md$/i));
-    const planIds = new Set(plans.map((p) => p.replace(/-PLAN\.md$/i, '')));
-    const summaryIds = new Set(summaries.map((s) => s.replace(/-SUMMARY\.md$/i, '')));
-    const incompletePlans = [...planIds].filter((id) => !summaryIds.has(id));
+    const { planFiles, summaryFiles } = scan;
+    const incompletePlans = findUnsummarizedPlans(planFiles, summaryFiles);
     if (incompletePlans.length > 0) {
         errors.push(`Plans without summaries: ${incompletePlans.join(', ')}`);
     }
-    const orphanSummaries = [...summaryIds].filter((id) => !planIds.has(id));
+    const orphanSummaries = findOrphanSummaries(planFiles, summaryFiles);
     if (orphanSummaries.length > 0) {
         warnings.push(`Summaries without plans: ${orphanSummaries.join(', ')}`);
     }
     output({
         complete: errors.length === 0,
         phase: phaseInfo['phase_number'],
-        plan_count: plans.length,
-        summary_count: summaries.length,
+        plan_count: planFiles.length,
+        summary_count: summaryFiles.length,
         incomplete_plans: incompletePlans,
         orphan_summaries: orphanSummaries,
         errors,
@@ -887,12 +1277,19 @@ function cmdVerifyArtifacts(cwd, planFilePath, raw) {
         results.push(check);
     }
     const passed = results.filter((r) => r['passed']).length;
+    // Positive-evidence floor (#3956): a non-empty artifacts block whose items are
+    // all bare strings / path-less objects is item-by-item skipped, leaving results
+    // empty; `passed === results.length` would then be `0 === 0` → a vacuous GREEN
+    // over zero checks. Require at least one checked artifact, mirroring the
+    // no-vacuous-pass rule at src/uat-predicate.cts. The fully-empty block is still
+    // caught earlier by the `artifacts.length === 0` guard and returns its error.
+    const allPassed = results.length > 0 && passed === results.length;
     output({
-        all_passed: passed === results.length,
+        all_passed: allPassed,
         passed,
         total: results.length,
         artifacts: results,
-    }, raw, passed === results.length ? 'valid' : 'invalid');
+    }, raw, allPassed ? 'valid' : 'invalid');
 }
 /**
  * Returns a Set of file paths (relative to cwd) that are promised by plans in
@@ -909,7 +1306,7 @@ function collectPromisedFilesAtOrAfterWave(phaseDir, minWave) {
         const planContent = (0, shell_command_projection_cjs_1.platformReadSync)(planFullPath);
         if (!planContent)
             continue;
-        const fm = extractFrontmatter(planContent);
+        const fm = extractFrontmatter(planContent, planFullPath);
         const waveRaw = fm['wave'];
         const wave = typeof waveRaw === 'string' ? parseInt(waveRaw, 10) : (typeof waveRaw === 'number' ? waveRaw : NaN);
         if (isNaN(wave) || wave < minWave)
@@ -944,7 +1341,7 @@ function cmdVerifyKeyLinks(cwd, planFilePath, raw) {
     }
     // Derive the current plan's wave number and phase directory for wave-aware
     // missing-file handling (fix #1202).
-    const currentFm = extractFrontmatter(content);
+    const currentFm = extractFrontmatter(content, fullPath);
     const currentWaveRaw = currentFm['wave'];
     const currentWave = typeof currentWaveRaw === 'string'
         ? parseInt(currentWaveRaw, 10)
@@ -971,8 +1368,40 @@ function cmdVerifyKeyLinks(cwd, planFilePath, raw) {
             verified: false,
             detail: '',
         };
-        const fromPath = link['from'] || '';
-        const sourceContent = (0, shell_command_projection_cjs_1.platformReadSync)(node_path_1.default.join(cwd, fromPath));
+        const fromRaw = link['from'];
+        const fromPath = typeof fromRaw === 'string' ? fromRaw : '';
+        let sourceContent = null;
+        if (fromPath !== '') {
+            // An empty/missing `from:` is a malformed plan, not a path-confinement
+            // violation — validatePath's traversal check (and path_rejected) only
+            // applies to a non-empty path that actually resolves outside the
+            // project. Leave sourceContent as null so the existing not-found /
+            // pending classification below runs unchanged. Note this guard is
+            // narrower than it may look: `from: "."` is a non-empty string, so it
+            // still reaches validatePath and safeReadFile below, and DOES read the
+            // cwd directory (yielding "Source read failed: EISDIR") — this branch
+            // only short-circuits the true empty-string case.
+            const fromCheck = (0, security_cjs_1.validatePath)(fromPath, cwd);
+            if (!fromCheck.safe) {
+                // Do not echo result.error — it embeds absolute host paths.
+                check['path_rejected'] = 'from';
+                check['detail'] = 'Source path rejected — resolves outside the project directory';
+                results.push(check);
+                continue;
+            }
+            try {
+                sourceContent = (0, shell_command_projection_cjs_1.platformReadSync)(fromCheck.resolved);
+            }
+            catch (err) {
+                // Report the errno only — never the message or path (untrusted `from:`
+                // can trigger EISDIR/EACCES, which platformReadSync re-throws for any
+                // non-ENOENT errno). A single bad link must not abort the whole command.
+                const code = err?.code ?? 'unknown';
+                check['detail'] = `Source read failed: ${code}`;
+                results.push(check);
+                continue;
+            }
+        }
         if (!sourceContent) {
             // Check if the missing file is promised by a plan at the same or later wave.
             const promised = getPromisedFiles();
@@ -987,25 +1416,76 @@ function cmdVerifyKeyLinks(cwd, planFilePath, raw) {
             }
         }
         else if (link['pattern']) {
-            try {
-                const regex = new RegExp(link['pattern']);
-                if (regex.test(sourceContent)) {
-                    check['verified'] = true;
-                    check['detail'] = 'Pattern found in source';
+            const pat = (0, pattern_cjs_1.compileUserPattern)(link['pattern']);
+            if (pat.neutralized !== null) {
+                // A neutralized pattern was refused and never compiled — that is NOT
+                // the check the plan author wrote, so it must never report verified
+                // regardless of what an unrelated fallback might otherwise have
+                // matched (#3477 regression: pattern "(" previously neutralized to a
+                // literal-escaped match that matched nearly any source file,
+                // producing a false verified: true / all_verified: true). The engine
+                // itself now guarantees `test()` returns false for a refused
+                // pattern; this explicit branch exists to produce the good message.
+                // The match-and-report path below is skipped entirely rather than
+                // run and then overwritten, which used to leave a misleading
+                // "Pattern found in source" detail alongside the neutralization note.
+                check['pattern_neutralized'] = pat.neutralized;
+                let reason;
+                switch (pat.neutralized) {
+                    case 'empty':
+                        reason = 'pattern is not a usable string — no match attempted';
+                        break;
+                    case 'too-long':
+                        reason = `pattern exceeded ${pattern_cjs_1.MAX_USER_PATTERN_LEN} chars — not evaluated`;
+                        break;
+                    case 'unsupported':
+                        reason = 'pattern is not valid RE2 syntax — backreferences and look-around are not supported';
+                        break;
                 }
-                else {
-                    const targetContent = (0, shell_command_projection_cjs_1.platformReadSync)(node_path_1.default.join(cwd, link['to'] || ''));
-                    if (targetContent && regex.test(targetContent)) {
+                check['detail'] = `Pattern not verified (${reason})`;
+            }
+            else {
+                try {
+                    if (pat.test(sourceContent)) {
                         check['verified'] = true;
-                        check['detail'] = 'Pattern found in target';
+                        check['detail'] = 'Pattern found in source';
                     }
                     else {
-                        check['detail'] = `Pattern "${link['pattern']}" not found in source or target`;
+                        const toRaw = link['to'];
+                        const toPath = typeof toRaw === 'string' ? toRaw : '';
+                        let targetContent = null;
+                        if (toPath !== '') {
+                            // An empty/missing `to:` is a malformed plan, not a
+                            // path-confinement violation — only a non-empty path that
+                            // actually resolves outside the project is path_rejected.
+                            const toCheck = (0, security_cjs_1.validatePath)(toPath, cwd);
+                            if (!toCheck.safe) {
+                                // Do not read a rejected `to:` — treat as no target content
+                                // and do not echo result.error, which embeds absolute host
+                                // paths.
+                                check['path_rejected'] = 'to';
+                                check['detail'] = `Pattern "${link['pattern']}" not found in source; target path rejected — resolves outside the project directory`;
+                            }
+                            else {
+                                targetContent = (0, shell_command_projection_cjs_1.platformReadSync)(toCheck.resolved);
+                            }
+                        }
+                        if (targetContent && pat.test(targetContent)) {
+                            check['verified'] = true;
+                            check['detail'] = 'Pattern found in target';
+                        }
+                        else if (!check['path_rejected']) {
+                            check['detail'] = `Pattern "${link['pattern']}" not found in source or target`;
+                        }
                     }
                 }
-            }
-            catch {
-                check['detail'] = `Invalid regex pattern: ${link['pattern']}`;
+                catch (err) {
+                    // Report the errno only — never the full error/message, which for a
+                    // re-thrown non-ENOENT platformReadSync failure (e.g. EISDIR from an
+                    // untrusted `to:` like "../..") embeds an absolute filesystem path.
+                    const code = err?.code ?? 'unknown';
+                    check['detail'] = `Pattern check failed: ${code}`;
+                }
             }
         }
         else {
@@ -1023,7 +1503,17 @@ function cmdVerifyKeyLinks(cwd, planFilePath, raw) {
     // A pending link (from: file promised by a same-or-later-wave plan) is not a
     // hard failure — it should not count against the all_verified gate (#1202).
     const hardFailed = results.filter((r) => !r['verified'] && !r['pending']).length;
-    const allVerified = hardFailed === 0;
+    // Positive-evidence floor (#3956): an all-bare-string key_links block skips
+    // every item (only `typeof link === 'string'` items are continue-skipped
+    // above), leaving results empty; `hardFailed === 0` would then be a vacuous
+    // GREEN over zero checks. Require at least one checked link. (A `from:`-less
+    // object is NOT skipped, unlike a path-less object on the artifacts side — it
+    // falls through to a `verified: false` result and hard-fails, so it was never
+    // part of the vacuous-pass surface; only the all-bare-string case is.) A
+    // pending link IS pushed to results (with pending: true), so an all-pending
+    // block still satisfies results.length > 0 and its #1202 non-hard-failing
+    // semantics are unchanged — the floor only rejects the zero-result case.
+    const allVerified = results.length > 0 && hardFailed === 0;
     output({
         all_verified: allVerified,
         verified,
@@ -1032,200 +1522,115 @@ function cmdVerifyKeyLinks(cwd, planFilePath, raw) {
         links: results,
     }, raw, allVerified ? 'valid' : 'invalid');
 }
-function listMilestoneArchiveDirs(planBase) {
-    const milestonesDir = node_path_1.default.join(planBase, 'milestones');
-    try {
-        return node_fs_1.default
-            .readdirSync(milestonesDir, { withFileTypes: true })
-            .filter((e) => e.isDirectory() && validate_cjs_2.MILESTONE_ARCHIVE_DIR_RE.test(e.name))
-            .map((e) => node_path_1.default.join(milestonesDir, e.name))
-            .sort((a, b) => node_path_1.default.basename(a).localeCompare(node_path_1.default.basename(b), undefined, { numeric: true }));
-    }
-    catch {
-        return [];
+/**
+ * Wrapper-level fix-text table for `cmdValidateHealth`'s migrated
+ * `HealthDiagnostic` -> `IssueEntry` mapping (Phase 11, #3309). Rules cannot
+ * call `slash()` (forbidden ambient I/O, §8.1 rule 1) so every REPAIRABLE
+ * (non-ADVISE) diagnostic's `fix` text — which the pre-migration code always
+ * built via `${slash('health')} --repair|--backfill ...` — is reconstructed
+ * HERE instead, keyed by `remedy.action`. Each real repair action maps 1:1
+ * back to exactly one pre-migration code (confirmed: no `REMEDY_ACTION`
+ * other than `ADVISE` is used by more than one rule in the migrated table),
+ * so this table reproduces the original `fix` text byte-for-byte, including
+ * its `slash()` calls, without the RULE ever needing to know about `slash`.
+ * Source line refs are the exact pre-migration `addIssue(...)` call each
+ * text was copied from:
+ *   - createConfig      — verify.cts:1782 (W003)
+ *   - resetConfig        — verify.cts:1830 (E005)
+ *   - regenerateState     — verify.cts:1702 (E004)
+ *   - addNyquistKey       — verify.cts:1847 (W008)
+ *   - addAiIntegrationPhaseKey — verify.cts:1857 (W016)
+ *   - backfillMilestones  — verify.cts:2326 (W018)
+ * ADVISE diagnostics do NOT go through this table — their `fix` is
+ * `diagnostic.remedy.args.command` directly (already a complete, final
+ * string baked in by the rule, confirmed via
+ * `src/health-diagnostic-rules/root-existence.cts`/`config-validation.cts`).
+ */
+function repairFixText(slash, action) {
+    switch (action) {
+        case REMEDY_ACTION.CREATE_CONFIG:
+            return `Run ${slash('health')} --repair to create with defaults`;
+        case REMEDY_ACTION.RESET_CONFIG:
+            return `Run ${slash('health')} --repair to reset to defaults`;
+        case REMEDY_ACTION.REGENERATE_STATE:
+            return `Run ${slash('health')} --repair to regenerate`;
+        case REMEDY_ACTION.ADD_NYQUIST_KEY:
+        case REMEDY_ACTION.ADD_AI_INTEGRATION_PHASE_KEY:
+            return `Run ${slash('health')} --repair to add key`;
+        case REMEDY_ACTION.BACKFILL_MILESTONES:
+            return `Run ${slash('health')} --backfill to synthesize missing entries from archive snapshots`;
+        default:
+            return '';
     }
 }
-function forEachArchivedPhaseToken(planBase, onPhase) {
-    for (const archiveDir of listMilestoneArchiveDirs(planBase)) {
-        try {
-            const entries = node_fs_1.default.readdirSync(archiveDir, { withFileTypes: true });
-            for (const e of entries) {
-                if (!e.isDirectory())
-                    continue;
-                const m = e.name.match(validate_cjs_2.PHASE_TOKEN_FROM_DIR_RE);
-                if (m)
-                    onPhase(m[1]);
-            }
-        }
-        catch {
-            /* archive dir absent/unreadable */
-        }
+/**
+ * Map one `HealthDiagnostic` (rule-table shape) back onto the legacy
+ * `IssueEntry` shape `cmdValidateHealth` has always returned (design doc,
+ * "Output-shape preservation" section).
+ *
+ * `repairable` for a DESTRUCTIVE-risk remedy (regenerateState/resetConfig)
+ * is `false` here — NOT the pre-migration `true` those two codes always
+ * carried. This is a deliberate, disclosed decision (see this batch's
+ * dispatch report): the design doc's own "`--repair` behavior change"
+ * section establishes that `--repair` never actually applies a DESTRUCTIVE
+ * remedy post-migration, so marking it `repairable: true` would mislead a
+ * caller that uses this field to decide whether re-running with `--repair`
+ * will fix anything. `repairable` now means "an automatic repair will
+ * actually run", not merely "a remedy exists to describe" — the more
+ * conservative of the two readings the brief identified, chosen because the
+ * question was genuinely ambiguous and this reading cannot itself cause a
+ * caller to skip a fix that would have worked.
+ */
+function diagnosticToIssueEntry(diagnostic, slash) {
+    const { code, message, remedy } = diagnostic;
+    if (remedy.action === REMEDY_ACTION.ADVISE) {
+        return { code, message, fix: remedy.args['command'], repairable: false };
     }
-}
-function getActiveMilestoneArchiveDir(planBase) {
-    const archiveDirs = listMilestoneArchiveDirs(planBase);
-    if (archiveDirs.length === 0)
-        return null;
-    try {
-        const statePath = node_path_1.default.join(planBase, 'STATE.md');
-        if (node_fs_1.default.existsSync(statePath)) {
-            const state = node_fs_1.default.readFileSync(statePath, 'utf-8');
-            const m = state.match(/^\s*(?:\*\*)?milestone(?:\*\*)?:\s*\*{0,2}\s*([^\s*\r\n#][^\s\r\n#]*)/mi);
-            if (m && m[1]) {
-                const milestone = m[1].trim();
-                const candidate = node_path_1.default.join(planBase, 'milestones', `${milestone}-phases`);
-                return archiveDirs.includes(candidate) ? candidate : null;
-            }
-        }
-    }
-    catch {
-        /* intentionally empty — fall through to version-sort below */
-    }
-    return archiveDirs[archiveDirs.length - 1];
-}
-function collectPhaseRoots(planBase) {
-    const roots = [];
-    const flatPhasesDir = node_path_1.default.join(planBase, 'phases');
-    if (node_fs_1.default.existsSync(flatPhasesDir))
-        roots.push(flatPhasesDir);
-    const activeArchive = getActiveMilestoneArchiveDir(planBase);
-    if (activeArchive)
-        roots.push(activeArchive);
-    return roots;
-}
-function collectDiskPhases(planBase) {
-    const diskPhases = new Set();
-    const phaseRoots = collectPhaseRoots(planBase);
-    const scanDir = (dir) => {
-        try {
-            const entries = node_fs_1.default.readdirSync(dir, { withFileTypes: true });
-            for (const e of entries) {
-                if (e.isDirectory()) {
-                    const m = e.name.match(validate_cjs_2.PHASE_TOKEN_FROM_DIR_RE);
-                    if (m)
-                        diskPhases.add(m[1]);
-                }
-            }
-        }
-        catch {
-            /* dir absent */
-        }
+    return {
+        code,
+        message,
+        fix: repairFixText(slash, remedy.action),
+        repairable: remedy.risk !== REMEDY_RISK.DESTRUCTIVE,
     };
-    for (const root of phaseRoots)
-        scanDir(root);
-    return diskPhases;
-}
-function checkMilestonePrefixMismatches(roadmapContent, { getMilestoneFromPhaseId }) {
-    const mismatches = [];
-    const sections = [];
-    const sectionRx = /^#{1,3}\s+(?:\[[^\]]{1,200}\]\s*)?.*v(\d+\.\d+)/gim;
-    let m;
-    while ((m = sectionRx.exec(roadmapContent)) !== null) {
-        if (sections.length > 0)
-            sections[sections.length - 1].end = m.index;
-        sections.push({ version: `v${m[1]}`, start: m.index, end: roadmapContent.length });
-    }
-    for (const section of sections) {
-        const content = roadmapContent.slice(section.start, section.end);
-        // #1729: `(?:\s*\([^)\n]{0,200}\))?` tolerates a pre-colon ( ) tag (literal mirror of OPTIONAL_PHASE_TAG_SOURCE).
-        const phaseRx = /#{2,4}\s*(?:\[[^\]]{1,200}\]\s*)?Phase\s+([\w][\w.-]*)(?:\s*\([^)\n]{0,200}\))?\s*:/gi;
-        let pm;
-        while ((pm = phaseRx.exec(content)) !== null) {
-            const phaseId = pm[1];
-            const expectedMilestone = getMilestoneFromPhaseId(phaseId);
-            if (expectedMilestone !== null && expectedMilestone !== section.version) {
-                mismatches.push({
-                    phaseId,
-                    foundInMilestone: section.version,
-                    expectedMilestone,
-                });
-            }
-        }
-    }
-    return mismatches;
 }
 function cmdValidateConsistency(cwd, raw) {
     const planBase = planningDir(cwd);
     const roadmapPath = node_path_1.default.join(planBase, 'ROADMAP.md');
     const errors = [];
     const warnings = [];
+    // Pre-check, stays OUTSIDE the rule table — same shape as `validate.health`'s
+    // E001/E010/I010 (design doc, "Which rules run where"). `.planning/` cannot
+    // build a `PlanningSnapshot` worth evaluating without a ROADMAP.md to read.
     if (!node_fs_1.default.existsSync(roadmapPath)) {
         errors.push('ROADMAP.md not found');
         output({ passed: false, errors, warnings }, raw, 'failed');
         return;
     }
-    const roadmapContentRaw = node_fs_1.default.readFileSync(roadmapPath, 'utf-8');
-    const roadmapContent = extractCurrentMilestone(roadmapContentRaw, cwd);
-    const { roadmapPhases } = (0, validate_cjs_1.buildRoadmapPhaseVariants)(roadmapContent);
-    const { roadmapPhaseVariants: fullRoadmapPhaseVariants } = (0, validate_cjs_1.buildRoadmapPhaseVariants)(roadmapContentRaw);
-    const diskPhases = collectDiskPhases(planBase);
-    for (const p of roadmapPhases) {
-        if (!diskPhases.has(p) && !diskPhases.has(normalizePhaseName(p))) {
-            warnings.push(`Phase ${p} in ROADMAP.md but no directory on disk`);
-        }
-    }
-    for (const p of diskPhases) {
-        const variants = (0, validate_cjs_1.phaseVariants)(p);
-        if (![...variants].some((v) => fullRoadmapPhaseVariants.has(v))) {
-            warnings.push(`Phase ${p} exists on disk but not in ROADMAP.md`);
-        }
-    }
-    const config = loadConfig(cwd);
-    if (config.phase_naming !== 'custom') {
-        const integerPhases = [...diskPhases]
-            .filter((p) => !p.includes('.'))
-            .map((p) => parseInt(p, 10))
-            .sort((a, b) => a - b);
-        for (let i = 1; i < integerPhases.length; i++) {
-            if (integerPhases[i] !== integerPhases[i - 1] + 1) {
-                warnings.push(`Gap in phase numbering: ${integerPhases[i - 1]} → ${integerPhases[i]}`);
-            }
-        }
-    }
-    const phaseRoots = collectPhaseRoots(planBase);
-    for (const phaseRoot of phaseRoots) {
-        try {
-            const entries = node_fs_1.default.readdirSync(phaseRoot, { withFileTypes: true });
-            const dirs = entries
-                .filter((e) => e.isDirectory())
-                .map((e) => e.name)
-                .sort();
-            for (const dir of dirs) {
-                const phasePath = node_path_1.default.join(phaseRoot, dir);
-                const phaseLabel = (0, shell_command_projection_cjs_1.posixNormalize)(node_path_1.default.relative(planBase, phasePath));
-                const phaseFiles = node_fs_1.default.readdirSync(phasePath);
-                const plans = phaseFiles.filter((f) => f.endsWith('-PLAN.md')).sort();
-                const planNums = plans
-                    .map((p) => {
-                    const pm = p.match(/-(\d{2})-PLAN\.md$/);
-                    return pm ? parseInt(pm[1], 10) : null;
-                })
-                    .filter((n) => n !== null);
-                for (let i = 1; i < planNums.length; i++) {
-                    if (planNums[i] !== planNums[i - 1] + 1) {
-                        warnings.push(`Gap in plan numbering in ${phaseLabel}: plan ${planNums[i - 1]} → ${planNums[i]}`);
-                    }
-                }
-                const summaries = phaseFiles.filter((f) => f.endsWith('-SUMMARY.md'));
-                const planIds = new Set(plans.map((p) => p.replace('-PLAN.md', '')));
-                const summaryIds = new Set(summaries.map((s) => s.replace('-SUMMARY.md', '')));
-                for (const sid of summaryIds) {
-                    if (!planIds.has(sid)) {
-                        warnings.push(`Summary ${sid}-SUMMARY.md in ${phaseLabel} has no matching PLAN.md`);
-                    }
-                }
-                for (const plan of plans) {
-                    const content = node_fs_1.default.readFileSync(node_path_1.default.join(phasePath, plan), 'utf-8');
-                    const fmData = extractFrontmatter(content);
-                    if (!fmData['wave']) {
-                        warnings.push(`${phaseLabel}/${plan}: missing 'wave' in frontmatter`);
-                    }
-                }
-            }
-        }
-        catch {
-            /* intentionally empty */
-        }
+    // ─── Rule-table evaluation (Phase 12, #3310) ───────────────────────────────
+    // Replaces this function's entire hand-rolled disk-vs-roadmap /
+    // numbering-gap / orphan-summary / wave-missing scan — see the design
+    // doc's "Which rules run where" section. `evaluateConsistencyRules` runs
+    // W006/W007 (the SAME `Rule` objects `validate.health` evaluates, reused
+    // verbatim — not a second, independently-drifting copy) plus the four new
+    // C001-C004 rules, against the same `PlanningSnapshot` `validate.health`
+    // builds.
+    const snapshot = buildPlanningSnapshot(cwd);
+    const diagnostics = evaluateConsistencyRules(snapshot);
+    // Every current C0NN/W006/W007 diagnostic is `SEVERITY.WARNING` (confirmed
+    // by direct read of `consistency.cts`/`roadmap-disk-consistency.cts`) —
+    // matching the pre-migration shape, where only the ROADMAP-missing
+    // pre-check above ever populated `errors`. Bucketed defensively by
+    // severity anyway, mirroring `cmdValidateHealth`'s own pattern, so a
+    // future ERROR-severity rule added to `CONSISTENCY_RULES` lands in the
+    // right bucket without another migration.
+    const _slashRuntime = (0, runtime_slash_cjs_1.resolveRuntime)(cwd);
+    const slash = (name) => (0, runtime_slash_cjs_1.formatGsdSlash)(name, _slashRuntime);
+    for (const diagnostic of diagnostics) {
+        const entry = diagnosticToIssueEntry(diagnostic, slash);
+        if (diagnostic.severity === HEALTH_SEVERITY.ERROR)
+            errors.push(entry.message);
+        else
+            warnings.push(entry);
     }
     const passed = errors.length === 0;
     output({ passed, errors, warnings, warning_count: warnings.length }, raw, passed ? 'passed' : 'failed');
@@ -1248,656 +1653,104 @@ function cmdValidateHealth(cwd, options, raw) {
         }, raw);
         return;
     }
-    // rootBase always resolves to .planning/ (shared root — PROJECT.md, config.json live here)
-    // wsBase resolves to .planning/workstreams/<ws>/ when GSD_WORKSTREAM is set (STATE.md, ROADMAP.md, phases/)
-    const rootBase = planningRoot(cwd);
-    const wsBase = planningDir(cwd);
-    // planBase is kept as an alias for wsBase for all the internal helpers (collectDiskPhases, etc.)
-    // that are already parameterised on the workstream-aware path.
-    const planBase = wsBase;
-    const projectPath = node_path_1.default.join(rootBase, 'PROJECT.md');
-    const roadmapPath = node_path_1.default.join(wsBase, 'ROADMAP.md');
-    const statePath = node_path_1.default.join(wsBase, 'STATE.md');
-    const configPath = node_path_1.default.join(rootBase, 'config.json');
-    const phasesDir = node_path_1.default.join(wsBase, 'phases');
+    // rootBase resolves to the PROJECT-scoped planning root (`.planning[/<project>]`
+    // — PROJECT.md, config.json live here; #3749). Workstream-free by construction:
+    // planningDir(cwd, null) honors GSD_PROJECT and suppresses GSD_WORKSTREAM.
+    const rootBase = planningDir(cwd, null);
     const _slashRuntime = (0, runtime_slash_cjs_1.resolveRuntime)(cwd);
     const slash = (name) => (0, runtime_slash_cjs_1.formatGsdSlash)(name, _slashRuntime);
+    // Second (and last) pre-check that stays OUTSIDE the rule table entirely
+    // (design doc, "Two guards that stay OUTSIDE the rule table entirely" —
+    // this one must run BEFORE any snapshot is built, since a flat
+    // `evaluateRules` pass over an entirely-absent `.planning/` would produce
+    // spurious per-rule clutter no one asked for, not a clean E001-only
+    // report).
+    if (!node_fs_1.default.existsSync(rootBase)) {
+        const errors = [
+            {
+                code: 'E001',
+                message: '.planning/ directory not found',
+                fix: `Run ${slash('new-project')} to initialize`,
+                repairable: false,
+            },
+        ];
+        output({ status: 'broken', errors, warnings: [], info: [], repairable_count: 0 }, raw);
+        return;
+    }
+    // ─── Rule-table evaluation (Phase 11, #3309) ───────────────────────────────
+    // Replaces the entire hand-rolled addIssue/switch accumulation this
+    // function used to run inline (verify.cts, pre-migration) — see the
+    // design doc's "Output-shape preservation" section for the exact
+    // Diagnostic -> IssueEntry mapping contract this reproduces.
+    const snapshot = buildPlanningSnapshot(cwd);
+    const diagnostics = evaluateRules(snapshot);
     const errors = [];
     const warnings = [];
     const info = [];
-    const repairs = [];
-    const addIssue = (severity, code, message, fix, repairable = false) => {
-        const issue = { code, message, fix, repairable };
-        if (severity === 'error')
-            errors.push(issue);
-        else if (severity === 'warning')
-            warnings.push(issue);
+    for (const diagnostic of diagnostics) {
+        const entry = diagnosticToIssueEntry(diagnostic, slash);
+        if (diagnostic.severity === HEALTH_SEVERITY.ERROR)
+            errors.push(entry);
+        else if (diagnostic.severity === HEALTH_SEVERITY.WARNING)
+            warnings.push(entry);
         else
-            info.push(issue);
-    };
-    if (!node_fs_1.default.existsSync(rootBase)) {
-        addIssue('error', 'E001', '.planning/ directory not found', `Run ${slash('new-project')} to initialize`);
-        output({ status: 'broken', errors, warnings, info, repairable_count: 0 }, raw);
-        return;
+            info.push(entry);
     }
-    if (!node_fs_1.default.existsSync(projectPath)) {
-        addIssue('error', 'E002', 'PROJECT.md not found', `Run ${slash('new-project')} to create`);
-    }
-    else {
-        const content = node_fs_1.default.readFileSync(projectPath, 'utf-8');
-        const requiredSections = ['## What This Is', '## Core Value', '## Requirements'];
-        for (const section of requiredSections) {
-            if (!content.includes(section)) {
-                addIssue('warning', 'W001', `PROJECT.md missing section: ${section}`, 'Add section manually');
-            }
-        }
-    }
-    if (!node_fs_1.default.existsSync(roadmapPath)) {
-        addIssue('error', 'E003', 'ROADMAP.md not found', `Run ${slash('new-milestone')} to create roadmap`);
-    }
-    if (!node_fs_1.default.existsSync(statePath)) {
-        addIssue('error', 'E004', 'STATE.md not found', `Run ${slash('health')} --repair to regenerate`, true);
-        repairs.push('regenerateState');
-    }
-    else {
-        const stateContent = node_fs_1.default.readFileSync(statePath, 'utf-8');
-        const phaseRefs = [
-            ...stateContent.matchAll(new RegExp(`[Pp]hase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})`, 'g')),
-        ].map((m) => m[1]);
-        const validPhases = collectDiskPhases(planBase);
-        try {
-            if (node_fs_1.default.existsSync(roadmapPath)) {
-                const roadmapRaw = node_fs_1.default.readFileSync(roadmapPath, 'utf-8');
-                const all = [
-                    ...roadmapRaw.matchAll(new RegExp(`#{2,4}\\s*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})`, 'gi')),
-                ];
-                for (const m of all)
-                    validPhases.add(m[1]);
-            }
-        }
-        catch {
-            /* intentionally empty */
-        }
-        forEachArchivedPhaseToken(planBase, (token) => validPhases.add(token));
-        const normalizedValid = new Set();
-        for (const p of validPhases) {
-            normalizedValid.add(p);
-            const dotIdx = p.indexOf('.');
-            const head = dotIdx === -1 ? p : p.slice(0, dotIdx);
-            const tail = dotIdx === -1 ? '' : p.slice(dotIdx);
-            if (/^\d+$/.test(head)) {
-                normalizedValid.add(head.padStart(2, '0') + tail);
-            }
-        }
-        for (const ref of phaseRefs) {
-            const dotIdx = ref.indexOf('.');
-            const head = dotIdx === -1 ? ref : ref.slice(0, dotIdx);
-            const tail = dotIdx === -1 ? '' : ref.slice(dotIdx);
-            const padded = /^\d+$/.test(head) ? head.padStart(2, '0') + tail : ref;
-            if (!normalizedValid.has(ref) && !normalizedValid.has(padded)) {
-                if (normalizedValid.size > 0) {
-                    addIssue('warning', 'W002', `STATE.md references phase ${ref}, but only phases ${[...validPhases].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join(', ')} are declared`, `Review STATE.md manually before changing it; ${slash('health')} --repair will not overwrite an existing STATE.md for phase mismatches`);
-                }
-            }
-        }
-    }
-    if (!node_fs_1.default.existsSync(configPath)) {
-        addIssue('warning', 'W003', 'config.json not found', `Run ${slash('health')} --repair to create with defaults`, true);
-        repairs.push('createConfig');
-    }
-    else {
-        try {
-            const rawCfg = node_fs_1.default.readFileSync(configPath, 'utf-8');
-            const parsed = JSON.parse(rawCfg);
-            if (parsed['model_profile'] && !model_catalog_cjs_1.VALID_PROFILES.includes(parsed['model_profile'])) {
-                addIssue('warning', 'W004', `config.json: invalid model_profile "${parsed['model_profile']}"`, `Valid values: ${model_catalog_cjs_1.VALID_PROFILES.join(', ')}`);
-            }
-            const configModels = parsed['models'];
-            if (configModels && typeof configModels === 'object' && !Array.isArray(configModels)) {
-                for (const [phaseType, tierValue] of Object.entries(configModels)) {
-                    if (!model_catalog_cjs_1.VALID_PHASE_TYPES.has(phaseType)) {
-                        addIssue('warning', 'W022', `config.json: models has an unknown phase type "${phaseType}" which will be ignored`, `Valid phase types: ${[...model_catalog_cjs_1.VALID_PHASE_TYPES].join(', ')}`);
-                    }
-                    else if (typeof tierValue !== 'string' || !model_catalog_cjs_1.VALID_TIERS.has(tierValue)) {
-                        addIssue('warning', 'W022', `config.json: models.${phaseType} has an invalid tier value ${JSON.stringify(tierValue)} which will be ignored`, `Valid tiers: ${[...model_catalog_cjs_1.VALID_TIERS].join(', ')}`);
-                    }
-                }
-            }
-            else if (configModels !== undefined && configModels !== null) {
-                addIssue('warning', 'W022', `config.json: models is set to ${JSON.stringify(configModels)}, but must be an object mapping phase types to tiers — this value will be ignored`, `Set models to an object like {"planning": "sonnet"}, or remove the key to use profile defaults`);
-            }
-        }
-        catch (err) {
-            addIssue('error', 'E005', `config.json: JSON parse error - ${err instanceof Error ? err.message : String(err)}`, `Run ${slash('health')} --repair to reset to defaults`, true);
-            repairs.push('resetConfig');
-        }
-    }
-    if (node_fs_1.default.existsSync(configPath)) {
-        try {
-            const configRaw = node_fs_1.default.readFileSync(configPath, 'utf-8');
-            const configParsed = JSON.parse(configRaw);
-            const workflow = configParsed['workflow'];
-            if (workflow && workflow['nyquist_validation'] === undefined) {
-                addIssue('warning', 'W008', 'config.json: workflow.nyquist_validation absent (defaults to enabled but agents may skip)', `Run ${slash('health')} --repair to add key`, true);
-                if (!repairs.includes('addNyquistKey'))
-                    repairs.push('addNyquistKey');
-            }
-            if (workflow && workflow['ai_integration_phase'] === undefined) {
-                addIssue('warning', 'W016', `config.json: workflow.ai_integration_phase absent (defaults to enabled — run ${slash('ai-integration-phase')} before planning AI system phases)`, `Run ${slash('health')} --repair to add key`, true);
-                if (!repairs.includes('addAiIntegrationPhaseKey'))
-                    repairs.push('addAiIntegrationPhaseKey');
-            }
-        }
-        catch {
-            /* intentionally empty */
-        }
-    }
-    let phaseDirEntries = [];
-    const phaseDirFiles = new Map();
-    try {
-        phaseDirEntries = node_fs_1.default
-            .readdirSync(phasesDir, { withFileTypes: true })
-            .filter((e) => e.isDirectory());
-        for (const e of phaseDirEntries) {
-            try {
-                phaseDirFiles.set(e.name, node_fs_1.default.readdirSync(node_path_1.default.join(phasesDir, e.name)));
-            }
-            catch {
-                phaseDirFiles.set(e.name, []);
-            }
-        }
-    }
-    catch {
-        /* intentionally empty */
-    }
-    for (const e of phaseDirEntries) {
-        if (!e.name.match(validate_cjs_2.phaseDirNameRe)) {
-            addIssue('warning', 'W005', `Phase directory "${e.name}" doesn't follow NN-name format`, 'Rename to match pattern (e.g., 01-setup)');
-        }
-    }
-    // W023 (#2408): detect two or more real on-disk phase directories that
-    // normalize to the same phase key (e.g. `05-real/` + `05-real-stray/`).
-    // The collision silently breaks /gsd-stats status accuracy (now folded by
-    // precedence — see commands.cts foldPhaseStatus) and forces an operator
-    // decision. Wording is neutral — never guesses which directory is "real".
+    // W024 (#2573): STATE.md commit-age freshness — kept OUTSIDE the rule
+    // table, exactly like E001/E010/I010 above. NOT a preservation nicety: the
+    // committed `RULE_W024` (`src/health-diagnostic-rules/state-consistency.cts`)
+    // is a documented PERMANENT no-op (`check` always returns `[]`) because
+    // `readStateHeadFreshness`'s `git log` shell-out is ambient I/O a
+    // `Rule.check(snapshot)` may never perform (§8.1 rule 1) and no
+    // `PlanningSnapshot` field carries a commits-behind count. Migrating
+    // `cmdValidateHealth` onto the rule table as designed would silently
+    // regress `tests/health-validation.test.cjs`'s "W024 — STATE.md commit-age
+    // freshness advisory" suite (7 currently-passing tests exercising the REAL
+    // git-based check end-to-end) — found while wiring this function to the
+    // rule table, fixed inline per this repo's no-defer policy rather than
+    // silently accepting the loss. `cmdValidateHealth` itself (unlike a Rule)
+    // is licensed to perform its own bounded I/O — the same license
+    // `applyRepairs` already relies on (see `health-diagnostic.cts`'s header
+    // comment) — so this reproduces the exact pre-migration check
+    // (`verify.cts`, W024) verbatim, advisory-only: it only ever appends to
+    // `warnings`, never touches `status`/`errors`/the repair set.
     {
-        const groups = new Map();
-        for (const e of phaseDirEntries) {
-            // extractPhaseToken never returns empty — for unparseable dir names it
-            // falls back to the dir name itself. Two distinct unparseable names
-            // therefore normalize to distinct keys and cannot false-positive here;
-            // only dirs whose tokens collapse to the same key (e.g. `05-real` and
-            // `05-real-stray` → token `05`) produce a collision group.
-            const token = extractPhaseToken(e.name);
-            const key = normalizePhaseName(token);
-            const list = groups.get(key);
-            if (list)
-                list.push(e.name);
-            else
-                groups.set(key, [e.name]);
-        }
-        for (const [key, dirs] of groups) {
-            if (dirs.length < 2)
-                continue;
-            // Compute each dir's status independently so the warning is informative.
-            // Sort by phase id for stable output regardless of readdir order; tie-
-            // break on the dir name itself so two dirs sharing the same phase token
-            // (the collision case itself) still sort deterministically (V8's stable
-            // sort would otherwise fall back to non-portable fs.readdirSync order).
-            const described = dirs
-                .slice()
-                .sort((a, b) => comparePhaseNum(a, b) || String(a).localeCompare(String(b)))
-                .map((d) => {
-                const files = phaseDirFiles.get(d) || [];
-                const plans = files.filter(f => f.endsWith('-PLAN.md') || f === 'PLAN.md').length;
-                const summaries = files.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
-                const status = determinePhaseStatus(plans, summaries, node_path_1.default.join(phasesDir, d), 'Not Started');
-                return `${d} (${status})`;
-            })
-                .join(', ');
-            addIssue('warning', 'W023', `Phase directories collide on normalized key "${key}": ${described}`, 'Inspect each directory; rename or remove the duplicate so only one directory maps to this phase key');
-        }
-    }
-    for (const e of phaseDirEntries) {
-        const phaseFiles = phaseDirFiles.get(e.name) || [];
-        const plans = phaseFiles.filter((f) => f.endsWith('-PLAN.md') || f === 'PLAN.md');
-        const summaries = phaseFiles.filter((f) => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md');
-        const summaryBases = new Set();
-        for (const s of summaries) {
-            const summaryBase = s.replace('-SUMMARY.md', '').replace('SUMMARY.md', '');
-            summaryBases.add(summaryBase);
-            summaryBases.add((0, validate_cjs_2.canonicalPlanStem)(summaryBase));
-        }
-        for (const plan of plans) {
-            const planBase = plan.replace('-PLAN.md', '').replace('PLAN.md', '');
-            const canonicalBase = (0, validate_cjs_2.canonicalPlanStem)(planBase);
-            if (!summaryBases.has(planBase) && !summaryBases.has(canonicalBase)) {
-                addIssue('info', 'I001', `${e.name}/${plan} has no SUMMARY.md`, 'May be in progress');
-            }
-        }
-    }
-    for (const e of phaseDirEntries) {
-        const phaseFiles = phaseDirFiles.get(e.name) || [];
-        const hasResearch = phaseFiles.some((f) => f.endsWith('-RESEARCH.md'));
-        const hasValidation = phaseFiles.some((f) => f.endsWith('-VALIDATION.md'));
-        if (hasResearch && !hasValidation) {
-            const researchFile = phaseFiles.find((f) => f.endsWith('-RESEARCH.md'));
+        const wsBase = planningDir(cwd);
+        const statePath = node_path_1.default.join(wsBase, 'STATE.md');
+        if (node_fs_1.default.existsSync(statePath)) {
             try {
-                const researchContent = node_fs_1.default.readFileSync(node_path_1.default.join(phasesDir, e.name, researchFile), 'utf-8');
-                if (researchContent.includes('## Validation Architecture')) {
-                    addIssue('warning', 'W009', `Phase ${e.name}: has Validation Architecture in RESEARCH.md but no VALIDATION.md`, `Re-run ${slash('plan-phase')} with --research to regenerate`);
+                const stateContent = node_fs_1.default.readFileSync(statePath, 'utf-8');
+                const fm = extractFrontmatter(stateContent);
+                const freshness = readStateHeadFreshness(cwd, fm['state_head']);
+                if (freshness.commits_behind !== null &&
+                    freshness.commits_behind >= STATE_HEAD_ADVISORY_COMMITS) {
+                    warnings.push({
+                        code: 'W024',
+                        message: `STATE.md was written ${freshness.commits_behind} commits ago (at ${freshness.state_head}) — treat its contents as approximate`,
+                        fix: 'Re-read the current phase artifacts before relying on STATE.md, or run a GSD command that refreshes it',
+                        repairable: false,
+                    });
                 }
             }
             catch {
-                /* intentionally empty */
+                /* intentionally empty — W024 is advisory */
             }
         }
-    }
-    try {
-        const agentStatus = checkAgentsInstalled();
-        if (!agentStatus.agents_installed) {
-            if ((agentStatus.installed_agents).length === 0) {
-                addIssue('warning', 'W010', `No GSD agents found in ${agentStatus.agents_dir} — Task(subagent_type="gsd-*") will fall back to general-purpose`, `Run the GSD installer: npx ${package_identity_cjs_1.PACKAGE_NAME}@latest`);
-            }
-            else if ((agentStatus.incomplete_agents).length > 0 && (agentStatus.missing_agents).length === 0) {
-                addIssue('warning', 'W010', `Incomplete agent installs (missing generated file): ${(agentStatus.incomplete_agents).join(', ')} — affected workflows may fall back to general-purpose`, `Re-run the GSD installer to complete the install: npx ${package_identity_cjs_1.PACKAGE_NAME}@latest`);
-            }
-            else if ((agentStatus.incomplete_agents).length > 0) {
-                addIssue('warning', 'W010', `Missing ${(agentStatus.missing_agents).length} GSD agents: ${(agentStatus.missing_agents).join(', ')}; incomplete agent installs (missing generated file): ${(agentStatus.incomplete_agents).join(', ')} — affected workflows will fall back to general-purpose`, `Run the GSD installer: npx ${package_identity_cjs_1.PACKAGE_NAME}@latest`);
-            }
-            else {
-                addIssue('warning', 'W010', `Missing ${(agentStatus.missing_agents).length} GSD agents: ${(agentStatus.missing_agents).join(', ')} — affected workflows will fall back to general-purpose`, `Run the GSD installer: npx ${package_identity_cjs_1.PACKAGE_NAME}@latest`);
-            }
-        }
-    }
-    catch {
-        /* intentionally empty — agent check is non-blocking */
-    }
-    if (node_fs_1.default.existsSync(roadmapPath)) {
-        const roadmapContentRaw = node_fs_1.default.readFileSync(roadmapPath, 'utf-8');
-        const roadmapContent = extractCurrentMilestone(roadmapContentRaw, cwd);
-        const { roadmapPhases } = (0, validate_cjs_1.buildRoadmapPhaseVariants)(roadmapContent);
-        const { roadmapPhaseVariants: fullRoadmapPhaseVariants } = (0, validate_cjs_1.buildRoadmapPhaseVariants)(roadmapContentRaw);
-        const diskPhases = collectDiskPhases(planBase);
-        forEachArchivedPhaseToken(planBase, (token) => diskPhases.add(token));
-        const activeDiskPhases = collectDiskPhases(planBase);
-        const notStartedPhases = (0, validate_cjs_1.buildNotStartedPhaseVariants)(roadmapContent);
-        for (const p of roadmapPhases) {
-            const variants = (0, validate_cjs_1.phaseVariants)(p);
-            const existsOnDisk = [...variants].some((v) => diskPhases.has(v));
-            if (!existsOnDisk) {
-                const isNotStarted = [...variants].some((v) => notStartedPhases.has(v));
-                if (isNotStarted)
-                    continue;
-                addIssue('warning', 'W006', `Phase ${p} in ROADMAP.md but no directory on disk`, 'Create phase directory or remove from roadmap');
-            }
-        }
-        for (const p of activeDiskPhases) {
-            const variants = (0, validate_cjs_1.phaseVariants)(p);
-            if (![...variants].some((v) => fullRoadmapPhaseVariants.has(v))) {
-                addIssue('warning', 'W007', `Phase ${p} exists on disk but not in ROADMAP.md`, 'Add to roadmap or remove directory');
-            }
-        }
-    }
-    if (node_fs_1.default.existsSync(statePath) && node_fs_1.default.existsSync(roadmapPath)) {
-        try {
-            const stateContent = node_fs_1.default.readFileSync(statePath, 'utf-8');
-            const roadmapContentFull = node_fs_1.default.readFileSync(roadmapPath, 'utf-8');
-            const currentPhaseMatch = stateContent.match(/\*\*Current Phase:\*\*\s*(\S+)/i) ||
-                stateContent.match(/Current Phase:\s*(\S+)/i);
-            if (currentPhaseMatch) {
-                const statePhase = currentPhaseMatch[1].replace(/^0+/, '');
-                const phaseCheckboxRe = new RegExp(`-\\s*\\[x\\].*Phase\\s+0*${escapeRegex(statePhase)}${OPTIONAL_PHASE_TAG_SOURCE}[:\\s]`, 'i');
-                if (phaseCheckboxRe.test(roadmapContentFull)) {
-                    const stateStatus = stateContent.match(/\*\*Status:\*\*\s*(.+)/i);
-                    const statusVal = stateStatus ? stateStatus[1].trim().toLowerCase() : '';
-                    if (statusVal !== 'complete' && statusVal !== 'done') {
-                        addIssue('warning', 'W011', `STATE.md says current phase is ${statePhase} (status: ${statusVal || 'unknown'}) but ROADMAP.md shows it as [x] complete — state files may be out of sync`, `Run ${slash('progress')} to re-derive current position, or manually update STATE.md`);
-                    }
-                }
-            }
-        }
-        catch {
-            /* intentionally empty — cross-validation is advisory */
-        }
-    }
-    if (node_fs_1.default.existsSync(configPath)) {
-        try {
-            const configRaw = node_fs_1.default.readFileSync(configPath, 'utf-8');
-            const configParsed = JSON.parse(configRaw);
-            const validStrategies = ['none', 'phase', 'milestone'];
-            if (configParsed['branching_strategy'] &&
-                !validStrategies.includes(configParsed['branching_strategy'])) {
-                addIssue('warning', 'W012', `config.json: invalid branching_strategy "${configParsed['branching_strategy']}"`, `Valid values: ${validStrategies.join(', ')}`);
-            }
-            if (configParsed['context_window'] !== undefined) {
-                const cw = configParsed['context_window'];
-                if (typeof cw !== 'number' || cw <= 0 || !Number.isInteger(cw)) {
-                    addIssue('warning', 'W013', `config.json: context_window should be a positive integer, got "${cw}"`, 'Set to 200000 (default) or 1000000 (for 1M models)');
-                }
-            }
-            if (configParsed['phase_branch_template'] &&
-                !configParsed['phase_branch_template'].includes('{phase}')) {
-                addIssue('warning', 'W014', 'config.json: phase_branch_template missing {phase} placeholder', 'Template must include {phase} for phase number substitution');
-            }
-            if (configParsed['milestone_branch_template'] &&
-                !configParsed['milestone_branch_template'].includes('{milestone}')) {
-                addIssue('warning', 'W015', 'config.json: milestone_branch_template missing {milestone} placeholder', 'Template must include {milestone} for version substitution');
-            }
-        }
-        catch {
-            /* parse error already caught in Check 5 */
-        }
-    }
-    try {
-        const worktreeHealth = inspectWorktreeHealth(cwd, { staleAfterMs: 60 * 60 * 1000 }, { execGit: shell_command_projection_cjs_1.execGit, existsSync: node_fs_1.default.existsSync, statSync: node_fs_1.default.statSync });
-        if (!worktreeHealth['ok']) {
-            if (worktreeHealth['reason'] === 'git_timed_out') {
-                addIssue('warning', 'W020', 'Worktree health check degraded: git worktree list timed out after 10s — orphan/stale worktrees could not be inspected', 'Run: git worktree list --porcelain to diagnose; check for .git/index.lock or a hung git process');
-            }
-            if (worktreeHealth['reason'] === 'git_list_failed') {
-                addIssue('warning', 'W020', 'Worktree health check degraded: git worktree list failed — orphan/stale worktrees could not be inspected', 'Run: git worktree list --porcelain to diagnose; check git repository state and permissions');
-            }
-        }
-        else {
-            for (const finding of worktreeHealth['findings']) {
-                if (finding['kind'] === 'orphan') {
-                    addIssue('warning', 'W017', `Orphan git worktree: ${finding['path']} (path no longer exists on disk)`, 'Run: git worktree prune');
-                    continue;
-                }
-                if (finding['kind'] === 'stale') {
-                    // Do not flag the active session's worktree — removing it would be harmful.
-                    const worktreePath = finding['path'];
-                    const activeCwd = process.cwd();
-                    const normalizedWorktree = node_path_1.default.resolve(worktreePath);
-                    const normalizedCwd = node_path_1.default.resolve(activeCwd);
-                    // Skip if the worktree IS the cwd or is an ancestor of it.
-                    const isActiveWorktree = normalizedCwd === normalizedWorktree ||
-                        normalizedCwd.startsWith(normalizedWorktree + node_path_1.default.sep);
-                    if (isActiveWorktree)
-                        continue;
-                    addIssue('warning', 'W017', `Stale git worktree: ${worktreePath} (last modified ${finding['ageMinutes']} minutes ago)`, `Run: git worktree remove ${worktreePath} --force`);
-                }
-            }
-        }
-    }
-    catch {
-        /* git worktree not available or not a git repo — skip silently */
-    }
-    try {
-        const phaseConvention = (() => {
-            if (!node_fs_1.default.existsSync(configPath))
-                return null;
-            try {
-                const configRaw = node_fs_1.default.readFileSync(configPath, 'utf-8');
-                const configParsed = JSON.parse(configRaw);
-                return configParsed['phase_id_convention'] || null;
-            }
-            catch {
-                return null;
-            }
-        })();
-        if (phaseConvention === 'milestone-prefixed') {
-            if (node_fs_1.default.existsSync(roadmapPath)) {
-                const roadmapContent = node_fs_1.default.readFileSync(roadmapPath, 'utf-8');
-                const mismatches = checkMilestonePrefixMismatches(roadmapContent, {
-                    getMilestoneFromPhaseId: getMilestoneFromPhaseId,
-                });
-                for (const mm of mismatches) {
-                    addIssue('warning', 'W021', `Phase ${mm.phaseId}: integer prefix implies ${mm.expectedMilestone} but listed under ${mm.foundInMilestone}`, 'Run `gsd-tools roadmap upgrade --convention milestone-prefixed` to migrate (dry-run by default)');
-                }
-            }
-        }
-    }
-    catch {
-        /* W021 check is advisory — skip on error */
-    }
-    const milestonesPath = node_path_1.default.join(rootBase, 'MILESTONES.md');
-    const milestonesArchiveDir = node_path_1.default.join(rootBase, 'milestones');
-    const missingFromRegistry = [];
-    try {
-        if (node_fs_1.default.existsSync(milestonesArchiveDir)) {
-            const archiveFiles = node_fs_1.default.readdirSync(milestonesArchiveDir);
-            const archivedVersions = archiveFiles
-                .map((f) => f.match(/^(v\d+\.\d+(?:\.\d+)?)-ROADMAP\.md$/))
-                .filter(Boolean)
-                .map((m) => m[1]);
-            if (archivedVersions.length > 0) {
-                const registryContent = node_fs_1.default.existsSync(milestonesPath)
-                    ? node_fs_1.default.readFileSync(milestonesPath, 'utf-8')
-                    : '';
-                for (const ver of archivedVersions) {
-                    if (!registryContent.includes(`## ${ver}`)) {
-                        missingFromRegistry.push(ver);
-                    }
-                }
-                if (missingFromRegistry.length > 0) {
-                    addIssue('warning', 'W018', `MILESTONES.md missing ${missingFromRegistry.length} archived milestone(s): ${missingFromRegistry.join(', ')}`, `Run ${slash('health')} --backfill to synthesize missing entries from archive snapshots`, true);
-                    repairs.push('backfillMilestones');
-                }
-            }
-        }
-    }
-    catch {
-        /* intentionally empty — milestone sync check is advisory */
-    }
-    try {
-        const entries = node_fs_1.default.readdirSync(rootBase, { withFileTypes: true });
-        for (const entry of entries) {
-            if (!entry.isFile())
-                continue;
-            if (!entry.name.endsWith('.md'))
-                continue;
-            if (!(0, artifacts_cjs_1.isCanonicalPlanningFile)(entry.name)) {
-                addIssue('warning', 'W019', `Unrecognized .planning/ file: ${entry.name} — not a canonical GSD artifact`, 'Move to .planning/milestones/ archive subdir or delete if stale. See templates/README.md for the canonical artifact list.', false);
-            }
-        }
-    }
-    catch {
-        /* artifact check is advisory — skip on error */
-    }
-    try {
-        if (node_fs_1.default.existsSync(statePath) && node_fs_1.default.existsSync(roadmapPath)) {
-            const stateRaw = node_fs_1.default.readFileSync(statePath, 'utf-8');
-            const statusMatch = stateRaw.match(/^status:\s*(.+)/im);
-            const stateStatus = statusMatch ? statusMatch[1].trim().toLowerCase() : '';
-            const isMarkedComplete = /milestone complete|archived/.test(stateStatus);
-            if (isMarkedComplete) {
-                const roadmapRaw = node_fs_1.default.readFileSync(roadmapPath, 'utf-8');
-                const scopedContent = extractCurrentMilestone(roadmapRaw, cwd);
-                // #1729: `(?:\s*\([^)\n]{0,200}\))?` tolerates a pre-colon ( ) tag (literal mirror of OPTIONAL_PHASE_TAG_SOURCE).
-                const phasePattern = new RegExp(`#{2,4}\\s*Phase\\s+(${PHASE_NUMBER_TOKEN_SOURCE})(?:\\s*\\([^)\\n]{0,200}\\))?\\s*:\\s*([^\\n]+)`, 'gi');
-                const unstarted = [];
-                let pm;
-                // Non-hoisted: load-order matters (circular dep guard)
-                // eslint-disable-next-line @typescript-eslint/no-require-imports -- planning-workspace.cjs is an export= CommonJS module
-                const planningWorkspace2 = require('./planning-workspace.cjs');
-                const phasesDir2 = planningWorkspace2.planningPaths(cwd).phases;
-                const phaseDirNames2 = (() => {
-                    try {
-                        return node_fs_1.default
-                            .readdirSync(phasesDir2, { withFileTypes: true })
-                            .filter((e) => e.isDirectory())
-                            .map((e) => e.name);
-                    }
-                    catch {
-                        return [];
-                    }
-                })();
-                while ((pm = phasePattern.exec(scopedContent)) !== null) {
-                    const phaseNum = pm[1];
-                    const normalizedPh = normalizePhaseName(phaseNum);
-                    const hasDirectory = phaseDirNames2.some((d) => phaseTokenMatches(d, normalizedPh));
-                    if (!hasDirectory) {
-                        unstarted.push(phaseNum);
-                    }
-                }
-                if (unstarted.length > 0) {
-                    addIssue('warning', 'W021', `STATE says milestone complete but ROADMAP lists ${unstarted.length} unstarted phase(s) (e.g. Phase ${unstarted[0]})`, 'Run validate consistency or re-run complete-milestone after verifying all phases are done');
-                }
-            }
-        }
-    }
-    catch {
-        /* W021 check is advisory — skip on error */
     }
     // ─── Perform repairs if requested ─────────────────────────────────────────
-    const repairActions = [];
-    if (options['repair'] && repairs.length > 0) {
-        for (const repair of repairs) {
-            try {
-                switch (repair) {
-                    case 'createConfig':
-                    case 'resetConfig': {
-                        const defaults = {
-                            model_profile: CONFIG_DEFAULTS.model_profile,
-                            commit_docs: CONFIG_DEFAULTS.commit_docs,
-                            search_gitignored: CONFIG_DEFAULTS.search_gitignored,
-                            branching_strategy: CONFIG_DEFAULTS.branching_strategy,
-                            phase_branch_template: CONFIG_DEFAULTS.phase_branch_template,
-                            milestone_branch_template: CONFIG_DEFAULTS.milestone_branch_template,
-                            quick_branch_template: CONFIG_DEFAULTS.quick_branch_template,
-                            workflow: {
-                                research: CONFIG_DEFAULTS.research,
-                                plan_check: CONFIG_DEFAULTS.plan_checker,
-                                verifier: CONFIG_DEFAULTS.verifier,
-                                nyquist_validation: CONFIG_DEFAULTS.nyquist_validation,
-                            },
-                            parallelization: CONFIG_DEFAULTS.parallelization,
-                            brave_search: CONFIG_DEFAULTS.brave_search,
-                        };
-                        (0, shell_command_projection_cjs_1.platformWriteSync)(configPath, JSON.stringify(defaults, null, 2));
-                        repairActions.push({ action: repair, success: true, path: 'config.json' });
-                        break;
-                    }
-                    case 'regenerateState': {
-                        if (node_fs_1.default.existsSync(statePath)) {
-                            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                            const backupPath = `${statePath}.bak-${timestamp}`;
-                            node_fs_1.default.copyFileSync(statePath, backupPath);
-                            repairActions.push({ action: 'backupState', success: true, path: backupPath });
-                        }
-                        const milestone = getMilestoneInfo(cwd);
-                        const projectRef = node_path_1.default
-                            .relative(cwd, node_path_1.default.join(rootBase, 'PROJECT.md'))
-                            .split(node_path_1.default.sep)
-                            .join('/');
-                        let stateContent = `# Session State\n\n`;
-                        stateContent += `## Project Reference\n\n`;
-                        stateContent += `See: ${projectRef}\n\n`;
-                        stateContent += `## Position\n\n`;
-                        stateContent += `**Milestone:** ${milestone.version} ${milestone.name}\n`;
-                        stateContent += `**Current phase:** (determining...)\n`;
-                        stateContent += `**Status:** Resuming\n\n`;
-                        stateContent += `## Session Log\n\n`;
-                        stateContent += `- ${clock_cjs_1.realClock.localToday()}: STATE.md regenerated by ${slash('health')} --repair\n`;
-                        writeStateMd(statePath, stateContent, cwd);
-                        repairActions.push({ action: repair, success: true, path: 'STATE.md' });
-                        break;
-                    }
-                    case 'addNyquistKey': {
-                        if (node_fs_1.default.existsSync(configPath)) {
-                            try {
-                                const configRaw = node_fs_1.default.readFileSync(configPath, 'utf-8');
-                                const configParsed = JSON.parse(configRaw);
-                                if (!configParsed['workflow'])
-                                    configParsed['workflow'] = {};
-                                const wf = configParsed['workflow'];
-                                if (wf['nyquist_validation'] === undefined) {
-                                    wf['nyquist_validation'] = true;
-                                    (0, shell_command_projection_cjs_1.platformWriteSync)(configPath, JSON.stringify(configParsed, null, 2));
-                                }
-                                repairActions.push({ action: repair, success: true, path: 'config.json' });
-                            }
-                            catch (err) {
-                                repairActions.push({
-                                    action: repair,
-                                    success: false,
-                                    error: err instanceof Error ? err.message : String(err),
-                                });
-                            }
-                        }
-                        break;
-                    }
-                    case 'addAiIntegrationPhaseKey': {
-                        if (node_fs_1.default.existsSync(configPath)) {
-                            try {
-                                const configRaw = node_fs_1.default.readFileSync(configPath, 'utf-8');
-                                const configParsed = JSON.parse(configRaw);
-                                if (!configParsed['workflow'])
-                                    configParsed['workflow'] = {};
-                                const wf = configParsed['workflow'];
-                                if (wf['ai_integration_phase'] === undefined) {
-                                    wf['ai_integration_phase'] = true;
-                                    (0, shell_command_projection_cjs_1.platformWriteSync)(configPath, JSON.stringify(configParsed, null, 2));
-                                }
-                                repairActions.push({ action: repair, success: true, path: 'config.json' });
-                            }
-                            catch (err) {
-                                repairActions.push({
-                                    action: repair,
-                                    success: false,
-                                    error: err instanceof Error ? err.message : String(err),
-                                });
-                            }
-                        }
-                        break;
-                    }
-                    case 'backfillMilestones': {
-                        if (!options['backfill'] && !options['repair'])
-                            break;
-                        const today = clock_cjs_1.realClock.localToday();
-                        let backfilled = 0;
-                        for (const ver of missingFromRegistry) {
-                            try {
-                                const snapshotPath = node_path_1.default.join(milestonesArchiveDir, `${ver}-ROADMAP.md`);
-                                const snapshot = (0, shell_command_projection_cjs_1.platformReadSync)(snapshotPath);
-                                const titleMatch = snapshot && snapshot.match(/^#\s+(.+)$/m);
-                                const milestoneName = titleMatch
-                                    ? titleMatch[1].replace(/^Milestone\s+/i, '').replace(/^v[\d.]+\s*/, '').trim()
-                                    : ver;
-                                const entry = `## ${ver}${milestoneName && milestoneName !== ver ? ` ${milestoneName}` : ''} (Backfilled: ${today})\n\n**Note:** Synthesized from archive snapshot by \`${slash('health')} --backfill\`. Original completion date unknown.\n\n---\n\n`;
-                                const milestonesContent = node_fs_1.default.existsSync(milestonesPath)
-                                    ? node_fs_1.default.readFileSync(milestonesPath, 'utf-8')
-                                    : '';
-                                if (!milestonesContent.trim()) {
-                                    (0, shell_command_projection_cjs_1.platformWriteSync)(milestonesPath, `# Milestones\n\n${entry}`);
-                                }
-                                else {
-                                    const headerMatch = milestonesContent.match(/^(#{1,3}\s+[^\n]*\n\n?)/);
-                                    if (headerMatch) {
-                                        const header = headerMatch[1];
-                                        const rest = milestonesContent.slice(header.length);
-                                        (0, shell_command_projection_cjs_1.platformWriteSync)(milestonesPath, header + entry + rest);
-                                    }
-                                    else {
-                                        (0, shell_command_projection_cjs_1.platformWriteSync)(milestonesPath, entry + milestonesContent);
-                                    }
-                                }
-                                backfilled++;
-                            }
-                            catch {
-                                /* intentionally empty — partial backfill is acceptable */
-                            }
-                        }
-                        repairActions.push({
-                            action: repair,
-                            success: true,
-                            detail: `Backfilled ${backfilled} milestone(s) into MILESTONES.md`,
-                        });
-                        break;
-                    }
-                }
-            }
-            catch (err) {
-                repairActions.push({
-                    action: repair,
-                    success: false,
-                    error: err instanceof Error ? err.message : String(err),
-                });
-            }
-        }
-    }
+    // `applyRepairs` internally no-ops (produces zero `details` rows, no
+    // filesystem writes) when both `repair` and `backfill` are falsy, so this
+    // call is unconditional — mirroring the original's own
+    // `if (options['repair'] && repairs.length > 0)` gate without needing to
+    // duplicate that condition here. `backfill` is threaded through as its own
+    // boolean (not folded into `repair`), which is what makes `--backfill`
+    // alone now actually trigger `backfillMilestones` — the disclosed latent-
+    // bug fix from `verify.cts:2504`'s previously-unreachable inner gate (see
+    // design doc "Known limits").
+    const repairResult = applyRepairs(cwd, diagnostics, Boolean(options['repair']), Boolean(options['backfill']));
+    // The legacy `repairs_performed` shape never carried a `code` field —
+    // strip it before it reaches JSON output.
+    const repairActions = repairResult.details.map(({ code: _code, ...rest }) => rest);
     let status;
     if (errors.length > 0) {
         status = 'broken';
@@ -1921,8 +1774,28 @@ function cmdValidateHealth(cwd, options, raw) {
     return result;
 }
 function cmdValidateAgents(cwd, raw) {
-    const agentStatus = checkAgentsInstalled();
+    const runtime = (0, runtime_slash_cjs_1.resolveRuntime)(cwd);
+    const agentStatus = checkAgentsInstalled(runtime, cwd);
     const expected = Object.keys(MODEL_PROFILES);
+    // #3242 ADR-2313 D6 — additive: validates posture (never an Anthropic-flavored
+    // model or an orphaned reasoning-effort pin in a Codex agent .toml), not just
+    // presence. checkAgentsInstalled above is untouched.
+    const codexPosture = checkCodexModelPosture(runtime, cwd);
+    // #3897 rung 3 (ADR-3473 §8.3 criterion 3) — sibling posture check, additive
+    // alongside codex_posture (never nested inside it, never replacing it): a
+    // TOML's `sandbox_mode` disagreeing with its role's derived expectation is a
+    // different defect class than an Anthropic-flavored model. Same short-circuits,
+    // same read-only posture as checkCodexModelPosture above; checkAgentsInstalled
+    // and codex_posture are both left untouched.
+    //
+    // Failure semantics: matches the checkCodexModelPosture precedent exactly.
+    // Neither posture check makes `validate agents` exit non-zero on its own —
+    // both are report-only fields inspected by the caller (or a human) via the
+    // JSON payload. A `validate` verb whose two posture checks disagreed on
+    // fatality would be its own defect (#3897 dispatch note); this keeps them
+    // consistent rather than inventing new exit-code behavior for only one of
+    // the two siblings.
+    const sandboxPosture = checkCodexSandboxPosture(runtime, cwd);
     output({
         agents_dir: agentStatus.agents_dir,
         agents_found: agentStatus.agents_installed,
@@ -1930,6 +1803,123 @@ function cmdValidateAgents(cwd, raw) {
         missing: agentStatus.missing_agents,
         incomplete: agentStatus.incomplete_agents,
         expected,
+        codex_posture: codexPosture,
+        sandbox_posture: sandboxPosture,
+    }, raw);
+}
+// ─── Context drift (#3348) ───────────────────────────────────────────────────
+/**
+ * Resolve a phase directory under `phasesDir` from a user-supplied `phaseArg`,
+ * via the canonical phase-directory matcher (phase-id.cjs::matchPhaseDirs) rather
+ * than a naive substring test — a bare `.includes(phaseArg)` lets a non-existent
+ * phase silently match a different phase whose directory name merely contains the
+ * requested token (e.g. "1" matching "11-expansion"). Falls back to an exact
+ * directory-name match. Returns null if neither resolves. (#1571, #2528)
+ */
+function resolvePhaseDirByToken(phasesDir, phaseArg) {
+    const normalizedPhase = normalizePhaseName(phaseArg);
+    const dirEntries = node_fs_1.default.readdirSync(phasesDir, { withFileTypes: true });
+    const dirNames = dirEntries.filter((e) => e.isDirectory()).map((e) => e.name);
+    const matched = matchPhaseDirs(dirNames, normalizedPhase).matches[0];
+    if (matched)
+        return node_path_1.default.join(phasesDir, matched);
+    const check = (0, security_cjs_1.validatePath)(phaseArg, phasesDir);
+    if (check.safe && node_fs_1.default.existsSync(check.resolved))
+        return check.resolved;
+    return null;
+}
+/**
+ * Pure comparator: which of `entries` have an effective last-changed time
+ * STRICTLY BEFORE `contextEffectiveMs` (CONTEXT.md's own effective time)? Strict
+ * `<` is "stale" (matches findStaleVerificationSummary's own strict `>` convention
+ * for "newer than" elsewhere in this codebase — an artifact committed in the SAME
+ * commit/second as CONTEXT.md is in sync, not stale).
+ */
+function computeContextDrift(contextEffectiveMs, entries) {
+    return entries.filter((e) => e.effectiveMs < contextEffectiveMs).map((e) => e.file);
+}
+function buildContextDriftMessage(staleArtifacts, phaseArg) {
+    const parts = [`CONTEXT.md decisions are newer than: ${staleArtifacts.join(', ')}.`];
+    if (staleArtifacts.some((f) => f.endsWith('-RESEARCH.md'))) {
+        parts.push(`Regenerate research: /gsd:plan-phase ${phaseArg} --research.`);
+    }
+    if (staleArtifacts.some((f) => f.endsWith('-PATTERNS.md'))) {
+        parts.push('Regenerate patterns: delete the PATTERNS.md file, then re-run /gsd:plan-phase.');
+    }
+    if (staleArtifacts.some((f) => f.endsWith('-VALIDATION.md') || (f.endsWith('-SPEC.md') && !f.endsWith('-AI-SPEC.md') && !f.endsWith('-UI-SPEC.md')))) {
+        parts.push('Regenerate or manually reconcile VALIDATION.md / SPEC.md against the current decisions.');
+    }
+    parts.push('Do not hand-inject the newer decisions into a prompt as a substitute for regenerating — that carries the staleness forward.');
+    return parts.join(' ');
+}
+function cmdVerifyContextDrift(cwd, phaseArg, raw) {
+    if (!phaseArg) {
+        error('Usage: verify context-drift <phase>');
+        return;
+    }
+    const pDir = planningDir(cwd);
+    const phasesDir = node_path_1.default.join(pDir, 'phases');
+    const emitSkip = (reason, message = '') => {
+        output({ block: false, skipped: true, reason, stale_artifacts: [], message }, raw);
+    };
+    if (!node_fs_1.default.existsSync(phasesDir)) {
+        emitSkip('phase-not-found', `Phase directory not found: ${phaseArg}`);
+        return;
+    }
+    // Same phase-directory resolution rule cmdVerifySchemaDrift uses (#1571, #2528):
+    // matchPhaseDirs, never a naive substring test.
+    const phaseDir = resolvePhaseDirByToken(phasesDir, phaseArg);
+    if (!phaseDir) {
+        emitSkip('phase-not-found', `Phase directory not found: ${phaseArg}`);
+        return;
+    }
+    let phaseFiles;
+    try {
+        phaseFiles = node_fs_1.default.readdirSync(phaseDir).slice().sort();
+    }
+    catch {
+        emitSkip('phase-not-found', `Phase directory not found: ${phaseArg}`);
+        return;
+    }
+    const contextFile = phaseFiles.find((f) => f.endsWith('-CONTEXT.md'));
+    if (!contextFile) {
+        emitSkip('no-context-md');
+        return;
+    }
+    const researchFile = phaseFiles.find((f) => f.endsWith('-RESEARCH.md'));
+    const patternsFile = phaseFiles.find((f) => f.endsWith('-PATTERNS.md'));
+    const validationFile = phaseFiles.find((f) => f.endsWith('-VALIDATION.md'));
+    const specFile = phaseFiles.find((f) => f.endsWith('-SPEC.md') && !f.endsWith('-AI-SPEC.md') && !f.endsWith('-UI-SPEC.md'));
+    const upstreamFiles = [researchFile, patternsFile, validationFile, specFile].filter((f) => !!f);
+    if (upstreamFiles.length === 0) {
+        emitSkip('no-upstream-artifacts');
+        return;
+    }
+    const allFiles = [contextFile, ...upstreamFiles];
+    const cleanCommitMs = defaultPhaseCleanCommitTimesMs(phaseDir, allFiles);
+    const effectiveTimeMs = (file) => cleanCommitMs.has(file)
+        ? cleanCommitMs.get(file)
+        : node_fs_1.default.statSync(node_path_1.default.join(phaseDir, file)).mtimeMs;
+    const contextMs = effectiveTimeMs(contextFile);
+    const driftEntries = upstreamFiles.map((f) => ({ file: f, effectiveMs: effectiveTimeMs(f) }));
+    const staleArtifacts = computeContextDrift(contextMs, driftEntries);
+    let wf;
+    try {
+        const rawCfg = JSON.parse(node_fs_1.default.readFileSync(node_path_1.default.join(pDir, 'config.json'), 'utf-8'));
+        wf = rawCfg['workflow'];
+    }
+    catch {
+        wf = undefined;
+    }
+    const action = wf?.context_drift_action === 'block' ? 'block' : 'warn';
+    const block = staleArtifacts.length > 0 && action === 'block';
+    const message = staleArtifacts.length > 0 ? buildContextDriftMessage(staleArtifacts, phaseArg) : '';
+    output({
+        block,
+        skipped: false,
+        stale_artifacts: staleArtifacts,
+        action,
+        message,
     }, raw);
 }
 function cmdVerifySchemaDrift(cwd, phaseArg, skipFlag, raw) {
@@ -1943,32 +1933,26 @@ function cmdVerifySchemaDrift(cwd, phaseArg, skipFlag, raw) {
         output({ block: false, drift_detected: false, blocking: false, message: 'No phases directory' }, raw);
         return;
     }
-    // Resolve the phase directory with the canonical phase-token matcher
-    // (phase-id.cjs), not a naive substring test. A bare `.includes(phaseArg)`
-    // lets a non-existent phase silently match a different phase whose directory
-    // name merely contains the requested token (e.g. "1" matching "11-expansion"),
-    // making the drift gate inspect the wrong phase. This mirrors find-phase /
-    // verify phase-completeness, which both use phaseTokenMatches. (#1571)
-    let phaseDir = null;
-    const normalizedPhase = normalizePhaseName(phaseArg);
-    const entries = node_fs_1.default.readdirSync(phasesDir, { withFileTypes: true });
-    for (const entry of entries) {
-        if (entry.isDirectory() && phaseTokenMatches(entry.name, normalizedPhase)) {
-            phaseDir = node_path_1.default.join(phasesDir, entry.name);
-            break;
-        }
-    }
-    if (!phaseDir) {
-        const exact = node_path_1.default.join(phasesDir, phaseArg);
-        if (node_fs_1.default.existsSync(exact))
-            phaseDir = exact;
-    }
+    // Resolve the phase directory with the canonical phase-directory matcher
+    // (phase-id.cjs::matchPhaseDirs), not a naive substring test. A bare
+    // `.includes(phaseArg)` lets a non-existent phase silently match a different
+    // phase whose directory name merely contains the requested token (e.g. "1"
+    // matching "11-expansion"), making the drift gate inspect the wrong phase.
+    // This shares the one selection rule with find-phase / verify
+    // phase-completeness rather than restating it. (#1571, #2528)
+    const phaseDir = resolvePhaseDirByToken(phasesDir, phaseArg);
     if (!phaseDir) {
         output({ block: false, drift_detected: false, blocking: false, message: `Phase directory not found: ${phaseArg}` }, raw);
         return;
     }
+    // #3183: canonical LIVE plan/summary sets (root+nested,
+    // status: superseded EXCLUDED) from the single owner, rather than a
+    // root-only readdirSync filter — a superseded plan's claimed
+    // files_modified is no longer treated as an expected drift target, and
+    // nested (#3139 layout) plans/summaries are no longer invisible to the
+    // drift check.
+    const { planFiles, summaryFiles } = planScanMod.scanPhasePlans(phaseDir);
     const allFiles = [];
-    const planFiles = node_fs_1.default.readdirSync(phaseDir).filter((f) => f.endsWith('-PLAN.md'));
     for (const pf of planFiles) {
         const content = node_fs_1.default.readFileSync(node_path_1.default.join(phaseDir, pf), 'utf-8');
         const fmMatch = content.match(/files_modified:\s*\[([^\]]{0,8000})\]/);
@@ -1978,7 +1962,6 @@ function cmdVerifySchemaDrift(cwd, phaseArg, skipFlag, raw) {
         }
     }
     let executionLog = '';
-    const summaryFiles = node_fs_1.default.readdirSync(phaseDir).filter((f) => f.endsWith('-SUMMARY.md'));
     for (const sf of summaryFiles) {
         executionLog += node_fs_1.default.readFileSync(node_path_1.default.join(phaseDir, sf), 'utf-8') + '\n';
     }
@@ -2083,7 +2066,16 @@ function cmdVerifyCodebaseDrift(cwd, raw) {
             if (!m)
                 continue;
             const status = m[1];
-            const file = m[3] || m[2];
+            // execGit sets no core.quotepath config, so git's default `true` applies:
+            // any path containing non-ASCII bytes (or `"`, `\`, control bytes) is
+            // C-quoted — `"docs/\350\256\276…/overview.md"`. Capturing that verbatim
+            // garbles affected_paths/elements and makes isPathMapped compare the
+            // quoted prefix (`"docs`) against STRUCTURE.md, misclassifying DOCUMENTED
+            // directories as new_dir (#4081). Decode with the single owner of the
+            // git C-quote seam (worktree-safety.cjs); a non-quoted value — the plain
+            // ASCII common case — passes through untouched. Both capture groups are
+            // decoded: R/C lines carry old AND new paths, either may be quoted.
+            const file = decodeGitQuotedPath(m[3] || m[2]);
             if (status === 'A' || status === 'R' || status === 'C')
                 added.push(file);
             else if (status === 'M')
@@ -2146,7 +2138,9 @@ function cmdVerifyCodebaseDrift(cwd, raw) {
 module.exports = {
     scanNegativeGrepCommentEcho,
     scanFileWideNegativeGateConflict,
+    scanQuantitativeCriteria,
     cmdVerifySummary,
+    verifySummaryCore,
     cmdVerifyPlanStructure,
     cmdVerifyPhaseCompleteness,
     cmdVerifyReferences,
@@ -2158,4 +2152,7 @@ module.exports = {
     cmdValidateAgents,
     cmdVerifySchemaDrift,
     cmdVerifyCodebaseDrift,
+    computeContextDrift,
+    cmdVerifyContextDrift,
+    STATE_HEAD_ADVISORY_COMMITS,
 };

@@ -1,0 +1,4 @@
+388886 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+512631 bash ./test-ruflo-agents-v13.sh
+512635 tee -a /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812/ruflo-agent-test-v13.log
+513744 tail -f ruflo-agent-test-v13-background/launcher.log

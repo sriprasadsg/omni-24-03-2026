@@ -1,0 +1,25 @@
+RUFLO AGENT DISPATCHER v13
+Project: /home/user/enterprise-omni-agent-ai-platform
+Runtime: project-claude-flow
+Ruflo version: ruflo v3.38.12
+
+Configured roles: 8
+Agents spawned this run: 6
+Tasks created: 4
+Tasks assigned: 4
+Task-log error/warning lines: 4
+
+NOTE:
+Ruflo/Claude Flow v3 is an orchestration/state layer. An "idle" agent is not
+necessarily broken; after a task finishes, idle is expected. This script proves
+spawn/create/assign/state evidence. Actual LLM/code execution requires a
+connected worker runtime (for example Claude Code/Task) capable of executing
+those assigned tasks.
+
+REPORT: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042
+Runtime log: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042/runtime.log
+Agent log: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042/agents.log
+Task log: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042/tasks.log
+Agent final state: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042/agents-final.txt
+Task final state: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042/tasks-final.txt
+Swarm final state: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042/swarm-final.txt

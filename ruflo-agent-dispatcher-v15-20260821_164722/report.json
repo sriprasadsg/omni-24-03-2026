@@ -1,0 +1,11 @@
+{
+  "report_version": "15",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "ruflo": "ruflo v3.38.12",
+  "generated_at": "2026-08-21T17:04:49.870990+05:30",
+  "configured_agents": 8,
+  "workers_completed": 0,
+  "workers_failed": 7,
+  "workers_timed_out": 1,
+  "duration_seconds": 1047
+}

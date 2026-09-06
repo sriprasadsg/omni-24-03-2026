@@ -264,6 +264,28 @@ async def send_message(
     except Exception as e:
         logger.debug("Support WS broadcast failed (non-fatal): %s", e)
 
+    # Notification rule dispatch (email/webhook) — non-fatal
+    try:
+        from notification_service import get_notification_service, send_notification
+        # In-app bell notification
+        tenant_for_notif = convo.get("tenant_id") or c["tenant"] or ""
+        svc = get_notification_service(get_database())
+        await svc.send_alert(
+            title=f"New chat message — {convo.get('subject', convo_id)}",
+            message=msg.get("content", "")[:200],
+            severity="info",
+            recipients=[convo.get("initiator_id") or "", convo.get("target_user_id") or ""],
+            tenant_id=tenant_for_notif,
+            channels=[],  # in-app only; rule-routed channels below
+            metadata={"event": "support_message", "convo_id": convo_id},
+        )
+        await send_notification(
+            get_database(), tenant_for_notif, "support_message",
+            {"message": msg.get("content", "")[:200], "severity": "info", "convo_id": convo_id},
+        )
+    except Exception as e:
+        logger.debug("Support message notification failed (non-fatal): %s", e)
+
     return msg
 
 

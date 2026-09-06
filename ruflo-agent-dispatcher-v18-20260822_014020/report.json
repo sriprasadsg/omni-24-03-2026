@@ -1,0 +1,67 @@
+{
+  "version": "v18",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "run_directory": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-v18-20260822_014020",
+  "ruflo": "ruflo v3.38.12",
+  "configured": 8,
+  "completed": 2,
+  "failed": 6,
+  "workers": [
+    {
+      "name": "architect",
+      "exit_code": 1,
+      "success": false,
+      "result": "results/architect.md",
+      "log": "logs/architect.log"
+    },
+    {
+      "name": "researcher",
+      "exit_code": 1,
+      "success": false,
+      "result": "results/researcher.md",
+      "log": "logs/researcher.log"
+    },
+    {
+      "name": "code-analyzer",
+      "exit_code": 0,
+      "success": true,
+      "result": "results/code-analyzer.md",
+      "log": "logs/code-analyzer.log"
+    },
+    {
+      "name": "security",
+      "exit_code": 1,
+      "success": false,
+      "result": "results/security.md",
+      "log": "logs/security.log"
+    },
+    {
+      "name": "tester",
+      "exit_code": 0,
+      "success": true,
+      "result": "results/tester.md",
+      "log": "logs/tester.log"
+    },
+    {
+      "name": "reviewer",
+      "exit_code": 1,
+      "success": false,
+      "result": "results/reviewer.md",
+      "log": "logs/reviewer.log"
+    },
+    {
+      "name": "performance",
+      "exit_code": 1,
+      "success": false,
+      "result": "results/performance.md",
+      "log": "logs/performance.log"
+    },
+    {
+      "name": "qa",
+      "exit_code": 1,
+      "success": false,
+      "result": "results/qa.md",
+      "log": "logs/qa.log"
+    }
+  ]
+}

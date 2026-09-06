@@ -1,0 +1,2 @@
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/user/enterprise-omni-agent-ai-platform/.agents/skills/ruflo/v3/@claude-flow/cli/dist/src/index.js' imported from /home/user/enterprise-omni-agent-ai-platform/.agents/skills/ruflo/v3/@claude-flow/cli/bin/cli.js
+  url: 'file:///home/user/enterprise-omni-agent-ai-platform/.agents/skills/ruflo/v3/@claude-flow/cli/dist/src/index.js'

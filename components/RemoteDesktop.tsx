@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { AlertTriangleIcon, MonitorIcon, XIcon, ShieldCheckIcon, UserIcon, BuildingIcon, LoaderIcon, CheckCircleIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { AlertTriangleIcon, MonitorIcon, XIcon, ShieldCheckIcon, UserIcon, BuildingIcon, LoaderIcon, CheckCircleIcon, ChevronRightIcon } from './icons';
 import { startRemoteSession, disconnectRemoteSession } from '../services/apiService';
 import { resolveKeyEventToFrame, normalizeCanvasPoint } from '../types';
 
@@ -31,6 +31,10 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
     const keysDownRef = useRef<Set<string>>(new Set());
     const [disconnectConfirm, setDisconnectConfirm] = useState(false);
     const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // True while the agent holds the endpoint user's consent prompt open; the
+    // 45s no-video watchdog must not fire during that window because frames
+    // are (correctly) gated until the user accepts.
+    const awaitingConsentRef = useRef(false);
 
     const getControlStateCopy = useCallback((): string => {
         if (controlState === 'ended') {
@@ -142,10 +146,13 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                         if (payload.requester_email) setRequesterEmail(String(payload.requester_email));
                         if (payload.tenant_name) setTenantName(String(payload.tenant_name));
                         if (payload.state === 'active') {
+                            awaitingConsentRef.current = false;
                             setStatusMsg('');
                         } else if (payload.state === 'awaiting_consent') {
+                            awaitingConsentRef.current = true;
                             setStatusMsg('Awaiting endpoint user consent…');
                         } else if (payload.state === 'ended') {
+                            awaitingConsentRef.current = false;
                             setStatusMsg('');
                         }
                     } else if (payload.type === 'error' && payload.message) {
@@ -166,7 +173,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             };
 
             setTimeout(() => {
-                if (!cancelled && !hasFramesRef.current) {
+                if (!cancelled && !hasFramesRef.current && !awaitingConsentRef.current) {
                     setError((prev) => prev ?? 'No video received from the agent within 45s — it may be offline, lack an interactive desktop session, or not support remote desktop on its platform.');
                 }
             }, 45000);
@@ -183,7 +190,17 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             }
             const sessionType = mode === 'control' ? 'control' : 'desktop';
             setStatusMsg('Requesting desktop session…');
-            const resp = await startRemoteSession(agentId, 'vnc', sessionType);
+            // ponytail: timed-out session may still land server-side; add TTL/track once a control registry exists
+            const TIMEOUT_MS = 20000;
+            const resp = await Promise.race([
+                startRemoteSession(agentId, 'vnc', sessionType),
+                new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), TIMEOUT_MS)),
+            ]);
+            if (resp === 'timeout') {
+                setError('Remote desktop request timed out — agent unreachable');
+                setStatusMsg('');
+                return;
+            }
             if (cancelled) return;
             if (resp?.session_id) {
                 openWs(resp.session_id, mode);
@@ -237,7 +254,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
 
     const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
         event.preventDefault();
-        const frame = resolveKeyEventToFrame(event.nativeEvent);
+        const frame = resolveKeyEventToFrame(event);
         if (frame) {
             sendInput({ type: 'input', kind: 'keydown', ...frame });
         }
@@ -246,7 +263,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
 
     const handleKeyUp = useCallback((event: React.KeyboardEvent) => {
         event.preventDefault();
-        const frame = resolveKeyEventToFrame(event.nativeEvent);
+        const frame = resolveKeyEventToFrame(event);
         if (frame) {
             sendInput({ type: 'input', kind: 'keyup', ...frame });
         }

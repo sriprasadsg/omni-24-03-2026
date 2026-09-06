@@ -1,0 +1,14 @@
+[INFO] Spawning security-auditor agent: ruflo-security
+
++--------------+----------------------------+
+| Property     | Value                      |
++--------------+----------------------------+
+| ID           | agent-1787311057466-12w9c8 |
+| Type         | security-auditor           |
+| Name         | ruflo-security             |
+| Status       | registered                 |
+| Created      | 2026-08-21T11:17:37.466Z   |
+| Capabilities | general                    |
++--------------+----------------------------+
+
+[OK] Agent ruflo-security spawned successfully

@@ -1,0 +1,27 @@
+
+ruflo agent
+Agent management commands
+
+SUBCOMMANDS:
+  spawn           Spawn a new agent
+  list            List all active agents (ls)
+  status          Show detailed status of an agent
+  stop            Stop a running agent (kill)
+  metrics         Show agent performance metrics
+  pool            Manage agent pool for scaling
+  health          Show agent health and metrics
+  logs            Show agent activity logs
+  wasm-status     Check rvagent-wasm availability, version, and capabilities
+  wasm-create     Create a WASM-sandboxed agent
+  wasm-prompt     Send a prompt to a WASM agent
+  wasm-gallery    List available WASM agent gallery templates
+  publish         Publish the AGNTCY-identified, OASF-described agent record to the configured Directory (ADR-380 §2)
+
+EXAMPLES:
+  $ claude-flow agent spawn -t coder
+    Spawn a coder agent
+  $ claude-flow agent list
+    List all agents
+  $ claude-flow agent status agent-001
+    Show agent status
+

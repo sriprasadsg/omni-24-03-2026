@@ -1,0 +1,24 @@
+
+Agent Metrics (24h)
+
++-----------------+-------+
+| Metric          | Value |
++-----------------+-------+
+| Total Agents    |     0 |
+| Active Agents   |     0 |
+| Tasks Completed |     0 |
+| Success Rate    |   N/A |
+| Memory Vectors  |   364 |
++-----------------+-------+
+
+By Agent Type
++------+-------+-------+---------+
+| Type | Count | Tasks | Success |
++------+-------+-------+---------+
++------+-------+-------+---------+
+
+No agents spawned yet. Use: agent spawn -t coder
+
+Memory
+  - Vectors: 364 vectors
+  - Backend: HNSW-indexed

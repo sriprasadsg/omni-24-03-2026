@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"/home/user/.claude/hooks/gsd-graphify-update.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-worktree-path-guard.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

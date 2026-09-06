@@ -1,0 +1,1 @@
+Perform a READ-ONLY QA/test audit. Identify test frameworks, existing tests, missing coverage, critical flows, integration boundaries, failure modes, CI/CD checks and recommended tests. Do not modify files. Return complete findings.

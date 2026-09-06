@@ -107,9 +107,10 @@ for i in $(seq 1 30); do
 done
 
 # ── 2. Frontend ───────────────────────────────────────────────────────────────
-# Serves HTTPS on :443 when certs/ exist (see vite.config.ts). Binding :443
-# requires root — run this launcher with sudo, or set VITE_PORT for a high port.
-print_info "[2/3] Starting Frontend (HTTPS on port 443)..."
+# nginx (system service) terminates TLS on :443 and proxies to Vite on plain
+# HTTP :3000 — see /etc/nginx/sites-available/omni-platform and VITE_HTTPS=false
+# in .env. Only set VITE_HTTPS=true (and run as root) if nginx is not in front.
+print_info "[2/3] Starting Frontend (port 3000, behind nginx TLS on 443)..."
 (
     cd "$PROJECT_ROOT"
     npm run dev

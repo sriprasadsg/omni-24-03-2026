@@ -1,0 +1,8 @@
+Python: /home/user/enterprise-omni-agent-ai-platform/backend/venv/bin/python
+Python 3.12.3
+
+=== pip check ===
+No broken requirements found.
+
+=== invalid distributions ===
+

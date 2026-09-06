@@ -1,0 +1,3 @@
+[PASS] FastMCP import
+FastMCP: <class 'mcp.server.fastmcp.server.FastMCP'>
+MCP module: <module 'mcp' from '/home/user/enterprise-omni-agent-ai-platform/backend/venv/lib/python3.12/site-packages/mcp/__init__.py'>

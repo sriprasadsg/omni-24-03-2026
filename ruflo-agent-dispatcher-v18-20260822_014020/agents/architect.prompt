@@ -1,0 +1,1 @@
+Perform a READ-ONLY software architecture audit. Inspect structure, frontend, backend, services, APIs, data flow, configuration, dependencies, deployment, observability and design risks. Do not modify files. Return complete findings directly.

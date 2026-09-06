@@ -1,0 +1,1353 @@
+
+===== GSD CONTEXT MONITOR FULL RELEVANT SECTION =====
+#!/usr/bin/env node
+// gsd-hook-version: 1.11.0
+// Context Monitor - PostToolUse/AfterTool hook (Gemini uses AfterTool)
+// Reads context metrics from the statusline bridge file and injects
+// warnings when context usage is high. This makes the AGENT aware of
+// context limits (the statusline only shows the user).
+//
+// How it works:
+// 1. The statusline hook writes metrics to /tmp/claude-ctx-{session_id}.json
+// 2. This hook reads those metrics after each tool use
+// 3. When remaining context drops below thresholds, it injects a warning
+//    as additionalContext, which the agent sees in its conversation
+//
+// Thresholds:
+//   WARNING  (remaining <= 35%): Agent should wrap up current task
+//   CRITICAL (remaining <= 25%): Agent should stop immediately and save state
+//
+// Debounce: 5 tool uses between warnings to avoid spam
+// Severity escalation bypasses debounce (WARNING -> CRITICAL fires immediately)
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
+
+const WARNING_THRESHOLD = 35;  // remaining_percentage <= 35%
+const CRITICAL_THRESHOLD = 25; // remaining_percentage <= 25%
+const STALE_SECONDS = 60;      // ignore metrics older than 60s
+const DEBOUNCE_CALLS = 5;      // min tool uses between warnings
+
+let input = '';
+// Timeout guard: if stdin doesn't close within 10s (e.g. pipe issues on
+// Windows/Git Bash, or slow Claude Code piping during large outputs),
+// exit silently instead of hanging until Claude Code kills the process
+// and reports "hook error". See #775, #1162.
+const stdinTimeout = setTimeout(() => process.exit(0), 10000);
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => input += chunk);
+process.stdin.on('end', () => {
+  clearTimeout(stdinTimeout);
+  try {
+    const data = JSON.parse(input);
+    const sessionId = data.session_id;
+
+    if (!sessionId) {
+      process.exit(0);
+    }
+
+    // Reject session IDs that contain path traversal sequences or path separators.
+    // session_id is used to construct file paths in /tmp — an unsanitized value
+    // could escape the temp directory and read or write arbitrary files.
+    if (/[/\\]|\.\./.test(sessionId)) {
+      process.exit(0);
+    }
+
+    // Check if context warnings are disabled via config.
+    // Collapsed existsSync+readFileSync into a single read guarded by try/catch
+    // (ENOENT or parse error → use defaults, same as old "planningDir absent" branch).
+    const cwd = data.cwd || process.cwd();
+    try {
+      const configPath = path.join(cwd, '.planning', 'config.json');
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (config.hooks?.context_warnings === false) {
+        process.exit(0);
+      }
+    } catch (e) {
+      // Missing or unparseable config → proceed with defaults (context warnings enabled)
+    }
+
+    const tmpDir = os.tmpdir();
+    const metricsPath = path.join(tmpDir, `claude-ctx-${sessionId}.json`);
+
+    // If no metrics file, this is a subagent or fresh session -- exit silently.
+    // Collapsed existsSync+readFileSync: ENOENT → exit 0 (identical to old !existsSync branch),
+    // other errors rethrow to the outer catch (swallowed → exit 0, as before).
+    let metricsRaw;
+    try {
+      metricsRaw = fs.readFileSync(metricsPath, 'utf8');
+    } catch (e) {
+      if (e && e.code === 'ENOENT') process.exit(0);
+      throw e;
+    }
+    const metrics = JSON.parse(metricsRaw);
+    const now = Math.floor(Date.now() / 1000);
+
+    // Ignore stale metrics
+    if (metrics.timestamp && (now - metrics.timestamp) > STALE_SECONDS) {
+      process.exit(0);
+    }
+
+    const remaining = metrics.remaining_percentage;
+    const usedPct = metrics.used_pct;
+
+    // No warning needed
+    if (remaining > WARNING_THRESHOLD) {
+      process.exit(0);
+    }
+
+    // Debounce: check if we warned recently
+    const warnPath = path.join(tmpDir, `claude-ctx-${sessionId}-warned.json`);
+    let warnData = { callsSinceWarn: 0, lastLevel: null };
+    let firstWarn = true;
+
+    // Collapsed existsSync+readFileSync: ENOENT or parse error → keep default warnData
+    // (same as old "file absent" branch). firstWarn tracks whether we read a valid sentinel.
+    try {
+      warnData = JSON.parse(fs.readFileSync(warnPath, 'utf8'));
+      firstWarn = false;
+    } catch (e) {
+      // Missing or corrupted sentinel → firstWarn stays true, warnData stays at defaults
+    }
+
+    warnData.callsSinceWarn = (warnData.callsSinceWarn || 0) + 1;
+
+    const isCritical = remaining <= CRITICAL_THRESHOLD;
+    const currentLevel = isCritical ? 'critical' : 'warning';
+
+    // Emit immediately on first warning, then debounce subsequent ones
+    // Severity escalation (WARNING -> CRITICAL) bypasses debounce
+    const severityEscalated = currentLevel === 'critical' && warnData.lastLevel === 'warning';
+    if (!firstWarn && warnData.callsSinceWarn < DEBOUNCE_CALLS && !severityEscalated) {
+      // Update counter and exit without warning
+      fs.writeFileSync(warnPath, JSON.stringify(warnData));
+      process.exit(0);
+    }
+
+    // Reset debounce counter
+    warnData.callsSinceWarn = 0;
+    warnData.lastLevel = currentLevel;
+    fs.writeFileSync(warnPath, JSON.stringify(warnData));
+
+    // Detect if GSD is active (has .planning/STATE.md in working directory)
+    const isGsdActive = fs.existsSync(path.join(cwd, '.planning', 'STATE.md'));
+
+    // On CRITICAL with active GSD project, auto-record session state as a
+    // breadcrumb for /gsd-resume-work (#1974). Fire-and-forget subprocess —
+    // doesn't block the hook or the agent. Fires ONCE per CRITICAL session,
+    // guarded by warnData.criticalRecorded to prevent repeated overwrites
+    // of the "crash moment" record on every debounce cycle.
+    if (isCritical && isGsdActive && !warnData.criticalRecorded) {
+      try {
+        // Runtime-agnostic path: this hook lives at <runtime-config>/hooks/
+        // and gsd-tools.cjs lives at <runtime-config>/gsd-core/bin/.
+        // Using __dirname makes this work on Claude Code, OpenCode, Gemini,
+        // Kilo, etc. without hardcoding ~/.claude/.
+        const gsdTools = path.join(__dirname, '..', 'gsd-core', 'bin', 'gsd-tools.cjs');
+        // Coerce usedPct to a safe number in case bridge file is malformed
+        const safeUsedPct = Number(usedPct) || 0;
+        const stoppedAt = `context exhaustion at ${safeUsedPct}% (${new Date().toISOString().split('T')[0]})`;
+        spawn(
+          process.execPath,
+          [gsdTools, 'state', 'record-session', '--stopped-at', stoppedAt],
+          { cwd, detached: true, stdio: 'ignore', windowsHide: true }
+        ).unref();
+        warnData.criticalRecorded = true;
+        // Persist the sentinel so subsequent debounce cycles don't re-fire
+        fs.writeFileSync(warnPath, JSON.stringify(warnData));
+      } catch { /* non-critical — don't let state recording break the hook */ }
+    }
+
+    // Build advisory warning message (never use imperative commands that
+    // override user preferences — see #884)
+    let message;
+    if (isCritical) {
+      message = isGsdActive
+        ? `CONTEXT CRITICAL: Usage at ${usedPct}%. Remaining: ${remaining}%. ` +
+          'Context is nearly exhausted. Do NOT start new complex work or write handoff files — ' +
+          'GSD state is already tracked in STATE.md. Inform the user so they can run ' +
+          '/gsd-pause-work at the next natural stopping point.'
+        : `CONTEXT CRITICAL: Usage at ${usedPct}%. Remaining: ${remaining}%. ` +
+          'Context is nearly exhausted. Inform the user that context is low and ask how they ' +
+          'want to proceed. Do NOT autonomously save state or write handoff files unless the user asks.';
+    } else {
+      message = isGsdActive
+        ? `CONTEXT WARNING: Usage at ${usedPct}%. Remaining: ${remaining}%. ` +
+          'Context is getting limited. Avoid starting new complex work. If not between ' +
+          'defined plan steps, inform the user so they can prepare to pause.'
+        : `CONTEXT WARNING: Usage at ${usedPct}%. Remaining: ${remaining}%. ` +
+          'Be aware that context is getting limited. Avoid unnecessary exploration or ' +
+          'starting new complex work.';
+    }
+
+    // #2289: the hookSpecificOutput.additionalContext envelope is only a valid
+    // output shape for the context-injection events (PostToolUse, and AfterTool
+    // for the Gemini dialect). This hook is also wired to other lifecycle events
+    // on some hosts — Codex registers it under Stop / SubagentStart /
+    // SubagentStop / PreCompact (#772) — and those reject the envelope
+    // ("hook returned invalid stop hook JSON output"). Use a POSITIVE allowlist:
+    // emit only for injection-capable events; every other event, and a
+    // missing/unrecognized name, exits 0 with no stdout. A Stop-only blacklist is
+    // not enough — a missing name would still fall through to the injection path.
+    // All side effects above (debounce counter, one-time critical-session
+    // recording) have already run regardless of whether output is emitted.
+    const eventName = (data.hook_event_name && data.hook_event_name.trim()) || "";
+    // Preserve the pre-#2289 Gemini fallback: a missing event name under a
+    // Gemini-dialect runtime (GEMINI_API_KEY set) still means AfterTool, so its
+    // advisory output is unchanged. A missing name on any other host is silent.
+    const geminiFallback = eventName === "" && !!process.env.GEMINI_API_KEY;
+    const injectionSupported = eventName === "PostToolUse" || eventName === "AfterTool" || geminiFallback;
+
+    if (injectionSupported) {
+      const output = {
+        hookSpecificOutput: {
+          hookEventName: eventName || "AfterTool",
+          additionalContext: message
+        }
+      };
+      process.stdout.write(JSON.stringify(output));
+    }
+  } catch (e) {
+    // Silent fail -- never block tool execution
+    process.exit(0);
+  }
+});
+
+===== GSD PLAN PHASE SKILL =====
+---
+name: gsd-plan-phase
+description: "Create detailed phase plan (PLAN.md) with verification loop"
+argument-hint: "[phase] [--auto] [--research] [--skip-research] [--research-phase <N>] [--view] [--gaps] [--skip-verify] [--skip-ui] [--prd <file>] [--ingest <path-or-glob>] [--ingest-format <auto|nygard|madr|narrative>] [--reviews] [--text] [--bounce] [--skip-bounce] [--chunked] [--tdd] [--mvp] [--granularity <coarse|standard|fine>] [--no-tracer] [--no-reversibility-gates]"
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
+  - Agent
+  - AskUserQuestion
+  - WebFetch
+  - mcp__context7__*
+---
+
+<objective>
+Create executable phase prompts (PLAN.md files) for a roadmap phase with integrated research and verification.
+
+**Default flow:** Research (if needed) → Plan → Verify → Done
+
+**Research-only mode (`--research-phase <N>`):** Spawn `gsd-phase-researcher` for phase `N`, write `RESEARCH.md`, then exit before the planner runs. Useful for cross-phase research, doc review before committing to a planning approach, and correction-without-replanning loops where iterating on research alone is dramatically cheaper than re-spawning the planner. Replaces the deleted research-phase command (#3042).
+
+**Research-only modifiers:**
+- **No flag** — when `RESEARCH.md` already exists, auto-uses it: emits a one-line notice and exits cleanly, no prompt.
+- **`--research`** — force-refresh: re-spawn the researcher unconditionally, no prompt. Bypasses the existing-RESEARCH.md auto-use path.
+- **`--view`** — view-only: print existing `RESEARCH.md` to stdout. Does not spawn the researcher. Cheapest mode for the correction-without-replanning loop. If no `RESEARCH.md` exists yet, errors with a hint to drop `--view`.
+
+**Orchestrator role:** Parse arguments, validate phase, research domain (unless skipped), spawn gsd-planner, verify with gsd-plan-checker, iterate until pass or max iterations, present results.
+</objective>
+
+<execution_context>
+To load this command's workflow spec: check for `.claude/gsd-core/workflows/plan-phase.md` relative to the current working directory first (project-local); if it is not there, fall back to `~/.claude/gsd-core/workflows/plan-phase.md` (the global install). If neither file exists, stop — a workflow spec is required and none was found.
+@~/.claude/gsd-core/references/ui-brand.md
+</execution_context>
+
+<runtime_note>
+**Copilot (VS Code):** Use `vscode_askquestions` wherever this workflow calls `AskUserQuestion`. They are equivalent — `vscode_askquestions` is the VS Code Copilot implementation of the same interactive question API. Do not skip questioning steps because `AskUserQuestion` appears unavailable; use `vscode_askquestions` instead.
+</runtime_note>
+
+<context>
+Phase number: $ARGUMENTS (optional — when omitted, the orchestrating workflow reads ROADMAP.md and selects the next unplanned phase; `gsd-tools.cjs` itself has no auto-detect feature and requires an explicit phase number)
+
+**Flags:**
+- `--research` — Force re-research even if RESEARCH.md exists
+- `--skip-research` — Skip research, go straight to planning
+- `--gaps` — Gap closure mode (reads VERIFICATION.md, skips research)
+- `--skip-verify` — Skip verification loop
+- `--prd <file>` — Use a PRD/acceptance criteria file instead of discuss-phase. Parses requirements into CONTEXT.md automatically. Skips discuss-phase entirely.
+- `--ingest <path-or-glob>` — Use one or more ADR files instead of discuss-phase. Parses locked decisions + scope fences into CONTEXT.md automatically. Skips discuss-phase entirely.
+- `--ingest-format <auto|nygard|madr|narrative>` — Optional ADR parser format override (`auto` default).
+- `--reviews` — Replan incorporating cross-AI review feedback from REVIEWS.md (produced by `/gsd-review`)
+- `--text` — Use plain-text numbered lists instead of TUI menus (required for `/rc` remote sessions)
+- `--mvp` — MVP enrichment on top of the default tracer-first ordering: frames the phase goal as a user story and, on Phase 1 of a new project, also emits `SKELETON.md` (Walking Skeleton). Vertical slicing itself is now the default (see `--no-tracer`); `--mvp` no longer *turns it on*. Can be persisted on a phase via `**Mode:** mvp` in ROADMAP.md.
+- `--no-tracer` — Opt out of the default **tracer-first** decomposition and plan horizontal layers (the legacy default). By default every plan LEADS with one production-quality end-to-end `tracer` slice that is verified before any expansion task.
+- `--no-reversibility-gates` — Suppress the human checkpoint that a **one-way-door** decision normally earns, for runs you intend to leave unattended. By default a decision rated `one-way` (undo needs a migration, breaks a published contract, or is impossible) gets a `checkpoint:decision` before the task implementing it. Ratings are still recorded on tasks and `costly` items still flagged — the flag changes what stops the run, not what the plan remembers.
+
+Normalize phase input in step 2 before any directory lookups.
+</context>
+
+<process>
+Execute end-to-end.
+Preserve all workflow gates (validation, research, planning, verification loop, routing).
+</process>
+
+===== GSD TOOLS LOCATION =====
+-rwxr-xr-x 1 user user 212K Aug 24 16:12 /home/user/.claude/gsd-core/bin/gsd-tools.cjs
+⚠ GSD: /home/user/.claude/gsd-core/bin/gsd-tools.cjs may shadow project-local GSD.
+Usage: gsd-tools <command> [args] [--raw] [--pick <field>] [--cwd <path>] [--ws <name>] [--json-errors]
+Commands: agent, agent-skills, assumption-delta, audit-open, audit-uat, check, check-commit, commit, commit-docs-guard, commit-to-subrepo, pr-subrepo, config-ensure-section, config-get, config-new-project, config-path, config-set, migrate-config, normalize-test-command, context-predicates, current-timestamp, detect-custom-files, docs-init, drift-guard, effort, extract-messages, find-phase, from-gsd2, frontmatter, gap-analysis, generate-claude-md, generate-claude-profile, generate-dev-preferences, generate-slug, graphify, history-digest, init, intel, capability, classify-confidence, git, learnings, list-seeds, list-todos, loop, milestone, package-legitimacy, phase, phase-plan-index, phases, profile-questionnaire, profile-sample, progress, project-instruction-file, prompt-budget, quick-tasks-append, requirements, research-plan, research-store, resolve-granularity, resolve-model, restore-custom-files, roadmap, scaffold, smart-entry, state, config-set-model-profile, dispatch-isolation, dispatch-should-flatten, inspect-dispatch-isolation, record-dispatch-isolation, estimate-calibrate, estimate-calibration, estimate-check, resolve-agent, resolve-dispatch-type, resolve-execution, review-lane, skill-manifest, skills-root, state-snapshot, stats, summary-extract, teams-status, todo, uat, update-context, verification, websearch, windows, task, template, user-story, validate, verify, verify-path-exists, verify-summary, eval, workstream, worktree
+
+Global flags:
+  --raw              Emit raw output without post-processing
+  --pick <field>     Extract a single field from JSON output (dot/bracket notation)
+  --cwd <path>       Override working directory for project-root resolution
+  --ws <name>        Override active workstream (or set GSD_WORKSTREAM)
+  --json-errors      Emit structured JSON error objects on stderr (or set GSD_JSON_ERRORS=1)
+
+For command-specific argument requirements, invoke the command without args (e.g. `gsd-tools phase add`) — the resulting error lists what is required.
+
+===== GSD WORKFLOW SIZE =====
+1530 /home/user/.claude/gsd-core/workflows/plan-phase.md
+
+===== PROJECT PLANNING =====
+.planning/.continue-here.md
+.planning/HANDOFF.json
+.planning/MILESTONES.md
+.planning/PROJECT.md
+.planning/RETROSPECTIVE.md
+.planning/ROADMAP.md
+.planning/STATE.md
+.planning/WINDOWS.md
+.planning/agent-history.json
+.planning/audits/SOAR-AUDIT-RUNBOOK.md
+.planning/codebase/ARCHITECTURE.md
+.planning/codebase/CONVENTIONS.md
+.planning/codebase/INTEGRATIONS.md
+.planning/codebase/ITAM-VS-SNIPE.md
+.planning/codebase/STACK.md
+.planning/codebase/TESTING.md
+.planning/config.json
+.planning/graphs/.last-build-snapshot.json
+.planning/graphs/GRAPH_REPORT.md
+.planning/graphs/graph.html
+.planning/graphs/graph.json
+.planning/milestones/v1.0-REQUIREMENTS.md
+.planning/milestones/v1.0-ROADMAP.md
+.planning/milestones/v3.2-MILESTONE-AUDIT.md
+.planning/milestones/v3.2-REQUIREMENTS.md
+.planning/milestones/v3.2-ROADMAP.md
+.planning/milestones/v3.3-MILESTONE-AUDIT.md
+.planning/milestones/v3.3-REQUIREMENTS.md
+.planning/milestones/v3.3-ROADMAP.md
+.planning/milestones/v3.4-REQUIREMENTS.md
+.planning/milestones/v3.4-ROADMAP.md
+.planning/milestones/v4.0-MILESTONE-AUDIT.md
+.planning/milestones/v4.0-REQUIREMENTS.md
+.planning/milestones/v4.0-ROADMAP.md
+.planning/milestones/v4.1-REQUIREMENTS.md
+.planning/milestones/v4.1-ROADMAP.md
+.planning/phases/01-rust-agent-evidence-parity/01-01-PLAN.md
+.planning/phases/01-rust-agent-evidence-parity/01-01-SUMMARY.md
+.planning/phases/01-rust-agent-evidence-parity/01-02-PLAN.md
+.planning/phases/01-rust-agent-evidence-parity/01-02-SUMMARY.md
+.planning/phases/01-rust-agent-evidence-parity/01-PATTERNS.md
+.planning/phases/01-rust-agent-evidence-parity/01-RESEARCH.md
+.planning/phases/01-rust-agent-evidence-parity/01-REVIEW-FIX.md
+.planning/phases/01-rust-agent-evidence-parity/01-REVIEW.md
+.planning/phases/01-rust-agent-evidence-parity/01-UI-REVIEW.md
+.planning/phases/01-rust-agent-evidence-parity/01-VERIFICATION.md
+.planning/phases/02-manual-evidence-uploads/02-01-PLAN.md
+.planning/phases/02-manual-evidence-uploads/02-01-SUMMARY.md
+.planning/phases/02-manual-evidence-uploads/02-02-PLAN.md
+.planning/phases/02-manual-evidence-uploads/02-02-SUMMARY.md
+.planning/phases/02-manual-evidence-uploads/02-PATTERNS.md
+.planning/phases/02-manual-evidence-uploads/02-RESEARCH.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEW-FIX.iter1.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEW-FIX.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEW.iter1.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEW.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEWS.iter1.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEWS.iter2.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEWS.iter3.md
+.planning/phases/02-manual-evidence-uploads/02-REVIEWS.md
+.planning/phases/02-manual-evidence-uploads/02-UAT.md
+.planning/phases/02-manual-evidence-uploads/02-UI-REVIEW.md
+.planning/phases/02-manual-evidence-uploads/02-VERIFICATION.md
+.planning/phases/03-audit-ready-export/03-01-PLAN.md
+.planning/phases/03-audit-ready-export/03-01-SUMMARY.md
+.planning/phases/03-audit-ready-export/03-02-PLAN.md
+.planning/phases/03-audit-ready-export/03-02-SUMMARY.md
+.planning/phases/03-audit-ready-export/03-PATTERNS.md
+.planning/phases/03-audit-ready-export/03-RESEARCH.md
+.planning/phases/03-audit-ready-export/03-REVIEW-FIX.iter1.md
+.planning/phases/03-audit-ready-export/03-REVIEW-FIX.md
+.planning/phases/03-audit-ready-export/03-REVIEW.iter1.md
+.planning/phases/03-audit-ready-export/03-REVIEW.md
+.planning/phases/03-audit-ready-export/03-UI-REVIEW.md
+.planning/phases/03-audit-ready-export/03-VERIFICATION.md
+.planning/phases/04-remediation-workflow/04-00-PLAN.md
+.planning/phases/04-remediation-workflow/04-00-SUMMARY.md
+.planning/phases/04-remediation-workflow/04-01-PLAN.md
+.planning/phases/04-remediation-workflow/04-01-SUMMARY.md
+.planning/phases/04-remediation-workflow/04-02-PLAN.md
+.planning/phases/04-remediation-workflow/04-02-SUMMARY.md
+.planning/phases/04-remediation-workflow/04-PATTERNS.md
+.planning/phases/04-remediation-workflow/04-RESEARCH.md
+.planning/phases/04-remediation-workflow/04-REVIEW-FIX.md
+.planning/phases/04-remediation-workflow/04-REVIEW.md
+.planning/phases/04-remediation-workflow/04-UI-REVIEW.md
+.planning/phases/04-remediation-workflow/04-VERIFICATION.md
+.planning/phases/04-remediation-workflow/AI-SPEC.md
+.planning/phases/05-integration-and-e2e-verification/05-00-PLAN.md
+.planning/phases/05-integration-and-e2e-verification/05-00-SUMMARY.md
+.planning/phases/05-integration-and-e2e-verification/05-01-PLAN.md
+.planning/phases/05-integration-and-e2e-verification/05-01-SUMMARY.md
+.planning/phases/05-integration-and-e2e-verification/05-PATTERNS.md
+.planning/phases/05-integration-and-e2e-verification/05-RESEARCH.md
+.planning/phases/05-integration-and-e2e-verification/05-REVIEW.md
+.planning/phases/05-integration-and-e2e-verification/05-UI-REVIEW.md
+.planning/phases/05-integration-and-e2e-verification/05-VERIFICATION.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-01-PLAN.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-01-SUMMARY.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-02-PLAN.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-02-SUMMARY.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-RESEARCH.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-REVIEW-FIX.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-REVIEW.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-UAT.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-UI-REVIEW.md
+.planning/phases/06-asset-compliance-status-ui-fix/06-VERIFICATION.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-01-PLAN.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-01-SUMMARY.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-02-PLAN.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-02-SUMMARY.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-03-PLAN.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-03-SUMMARY.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-PATTERNS.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-RESEARCH.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-REVIEW-FIX.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-REVIEW.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-UI-REVIEW.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-UI-SPEC.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-VALIDATION.md
+.planning/phases/07-evidence-lifecycle-staleness-chain-of-custody/07-VERIFICATION.md
+.planning/phases/08-bulk-evidence-upload/08-01-PLAN.md
+.planning/phases/08-bulk-evidence-upload/08-01-SUMMARY.md
+.planning/phases/08-bulk-evidence-upload/08-02-PLAN.md
+.planning/phases/08-bulk-evidence-upload/08-02-SUMMARY.md
+.planning/phases/08-bulk-evidence-upload/08-RESEARCH.md
+.planning/phases/08-bulk-evidence-upload/08-REVIEW-FIX.md
+.planning/phases/08-bulk-evidence-upload/08-REVIEW.md
+.planning/phases/08-bulk-evidence-upload/08-UI-REVIEW.md
+.planning/phases/08-bulk-evidence-upload/08-UI-SPEC.md
+.planning/phases/08-bulk-evidence-upload/08-VERIFICATION.md
+.planning/phases/09-compliance-score-dashboard/09-01-PLAN.md
+.planning/phases/09-compliance-score-dashboard/09-01-SUMMARY.md
+.planning/phases/09-compliance-score-dashboard/09-02-PLAN.md
+.planning/phases/09-compliance-score-dashboard/09-02-SUMMARY.md
+.planning/phases/09-compliance-score-dashboard/09-RESEARCH.md
+.planning/phases/09-compliance-score-dashboard/09-REVIEW-FIX.md
+.planning/phases/09-compliance-score-dashboard/09-REVIEW.md
+.planning/phases/09-compliance-score-dashboard/09-UI-REVIEW.md
+.planning/phases/09-compliance-score-dashboard/09-UI-SPEC.md
+.planning/phases/09-compliance-score-dashboard/09-VERIFICATION.md
+.planning/phases/10-scheduled-reports/10-01-PLAN.md
+.planning/phases/10-scheduled-reports/10-01-SUMMARY.md
+.planning/phases/10-scheduled-reports/10-02-PLAN.md
+.planning/phases/10-scheduled-reports/10-02-SUMMARY.md
+.planning/phases/10-scheduled-reports/10-RESEARCH.md
+.planning/phases/10-scheduled-reports/10-REVIEW-FIX.md
+.planning/phases/10-scheduled-reports/10-REVIEW.md
+.planning/phases/10-scheduled-reports/10-UI-REVIEW.md
+.planning/phases/10-scheduled-reports/10-VERIFICATION.md
+.planning/phases/11-security-hardening/11-01-PLAN.md
+.planning/phases/11-security-hardening/11-01-SUMMARY.md
+.planning/phases/11-security-hardening/11-RESEARCH.md
+.planning/phases/11-security-hardening/11-REVIEW-FIX.md
+.planning/phases/11-security-hardening/11-REVIEW.md
+.planning/phases/11-security-hardening/11-UI-REVIEW.md
+.planning/phases/11-security-hardening/11-VERIFICATION.md
+.planning/phases/12-agentic-ai-integration/12-01-PLAN.md
+.planning/phases/12-agentic-ai-integration/12-01-SUMMARY.md
+.planning/phases/12-agentic-ai-integration/12-02-PLAN.md
+.planning/phases/12-agentic-ai-integration/12-02-SUMMARY.md
+.planning/phases/12-agentic-ai-integration/12-AI-SPEC.md
+.planning/phases/12-agentic-ai-integration/12-RESEARCH.md
+.planning/phases/12-agentic-ai-integration/12-REVIEW-FIX.md
+.planning/phases/12-agentic-ai-integration/12-REVIEW.md
+.planning/phases/12-agentic-ai-integration/12-UI-REVIEW.md
+.planning/phases/12-agentic-ai-integration/12-VERIFICATION.md
+.planning/phases/12-agentic-ai-integration/promptfooconfig.yaml
+.planning/phases/13-ai-compliance-narratives/13-01-PLAN.md
+.planning/phases/13-ai-compliance-narratives/13-01-SUMMARY.md
+.planning/phases/13-ai-compliance-narratives/13-02-PLAN.md
+.planning/phases/13-ai-compliance-narratives/13-02-SUMMARY.md
+.planning/phases/13-ai-compliance-narratives/13-AI-SPEC.md
+.planning/phases/13-ai-compliance-narratives/13-PATTERNS.md
+.planning/phases/13-ai-compliance-narratives/13-RESEARCH.md
+.planning/phases/13-ai-compliance-narratives/13-REVIEW-FIX.md
+.planning/phases/13-ai-compliance-narratives/13-REVIEW.md
+.planning/phases/13-ai-compliance-narratives/13-REVIEWS.md
+.planning/phases/13-ai-compliance-narratives/13-UI-REVIEW.md
+.planning/phases/13-ai-compliance-narratives/13-VALIDATION.md
+.planning/phases/13-ai-compliance-narratives/13-VERIFICATION.md
+.planning/phases/14-saas-evidence-integration/14-01-PLAN.md
+.planning/phases/14-saas-evidence-integration/14-01-SUMMARY.md
+.planning/phases/14-saas-evidence-integration/14-02-PLAN.md
+.planning/phases/14-saas-evidence-integration/14-02-SUMMARY.md
+.planning/phases/14-saas-evidence-integration/14-REVIEW-FIX.md
+.planning/phases/14-saas-evidence-integration/14-REVIEW.md
+.planning/phases/14-saas-evidence-integration/14-UI-REVIEW.md
+.planning/phases/15-evidence-review-workflow/.continue-here.md
+.planning/phases/15-evidence-review-workflow/15-01-PLAN.md
+.planning/phases/15-evidence-review-workflow/15-01-SUMMARY.md
+.planning/phases/15-evidence-review-workflow/15-REVIEW-FIX.iter2.md
+.planning/phases/15-evidence-review-workflow/15-REVIEW-FIX.iter3.md
+.planning/phases/15-evidence-review-workflow/15-REVIEW-FIX.md
+.planning/phases/15-evidence-review-workflow/15-REVIEW.iter2.md
+.planning/phases/15-evidence-review-workflow/15-REVIEW.iter3.md
+.planning/phases/15-evidence-review-workflow/15-REVIEW.md
+.planning/phases/15-evidence-review-workflow/15-UAT.md
+.planning/phases/15-evidence-review-workflow/15-UI-REVIEW.md
+.planning/phases/15-evidence-review-workflow/SECURITY.md
+.planning/phases/16-program-control-grouping/16-01-PLAN.md
+.planning/phases/16-program-control-grouping/16-01-SUMMARY.md
+.planning/phases/16-program-control-grouping/16-REVIEW-FIX.md
+.planning/phases/16-program-control-grouping/16-REVIEW.md
+.planning/phases/16-program-control-grouping/16-SECURITY.md
+.planning/phases/16-program-control-grouping/16-UAT.md
+.planning/phases/16-program-control-grouping/16-UI-REVIEW.md
+.planning/phases/17-cloud-checks-expansion/17-01-PLAN.md
+.planning/phases/17-cloud-checks-expansion/17-01-SUMMARY.md
+.planning/phases/17-cloud-checks-expansion/17-REVIEW-FIX.iter2.md
+.planning/phases/17-cloud-checks-expansion/17-REVIEW-FIX.md
+.planning/phases/17-cloud-checks-expansion/17-REVIEW.iter2.md
+.planning/phases/17-cloud-checks-expansion/17-REVIEW.iter3.md
+.planning/phases/17-cloud-checks-expansion/17-REVIEW.md
+.planning/phases/17-cloud-checks-expansion/17-UI-REVIEW.md
+.planning/phases/18-privacy-legal-modules/18-01-PLAN.md
+.planning/phases/18-privacy-legal-modules/18-01-SUMMARY.md
+.planning/phases/18-privacy-legal-modules/18-REVIEW-FIX.md
+.planning/phases/18-privacy-legal-modules/18-REVIEW.md
+.planning/phases/18-privacy-legal-modules/18-UI-REVIEW.md
+.planning/phases/19-compliance-frameworks/19-01-PLAN.md
+.planning/phases/19-compliance-frameworks/19-01-SUMMARY.md
+.planning/phases/19-compliance-frameworks/19-REVIEW-FIX.md
+.planning/phases/19-compliance-frameworks/19-REVIEW.md
+.planning/phases/19-compliance-frameworks/19-UI-REVIEW.md
+.planning/phases/20-multi-account-cloud/20-01-PLAN.md
+.planning/phases/20-multi-account-cloud/20-01-SUMMARY.md
+.planning/phases/20-multi-account-cloud/20-REVIEW-FIX.iter2.md
+.planning/phases/20-multi-account-cloud/20-REVIEW-FIX.iter3.md
+.planning/phases/20-multi-account-cloud/20-REVIEW-FIX.md
+.planning/phases/20-multi-account-cloud/20-REVIEW.iter2.md
+.planning/phases/20-multi-account-cloud/20-REVIEW.iter3.md
+.planning/phases/20-multi-account-cloud/20-REVIEW.md
+.planning/phases/20-multi-account-cloud/20-UI-REVIEW.md
+.planning/phases/21-notification-domain-scanner/21-01-PLAN.md
+.planning/phases/21-notification-domain-scanner/21-01-SUMMARY.md
+.planning/phases/21-notification-domain-scanner/21-REVIEW-FIX.md
+.planning/phases/21-notification-domain-scanner/21-REVIEW.md
+.planning/phases/21-notification-domain-scanner/21-UI-REVIEW.md
+.planning/phases/22-api-extensions/22-01-PLAN.md
+.planning/phases/22-api-extensions/22-01-SUMMARY.md
+.planning/phases/22-api-extensions/22-REVIEW-FIX.md
+.planning/phases/22-api-extensions/22-REVIEW.md
+.planning/phases/22-api-extensions/22-UI-REVIEW.md
+.planning/phases/23-windows-powershell-evidence/23-01-PLAN.md
+.planning/phases/23-windows-powershell-evidence/23-01-SUMMARY.md
+.planning/phases/23-windows-powershell-evidence/23-02-PLAN.md
+.planning/phases/23-windows-powershell-evidence/23-02-SUMMARY.md
+.planning/phases/23-windows-powershell-evidence/23-03-PLAN.md
+.planning/phases/23-windows-powershell-evidence/23-03-SUMMARY.md
+.planning/phases/23-windows-powershell-evidence/23-REVIEW-FIX.md
+.planning/phases/23-windows-powershell-evidence/23-REVIEW.md
+.planning/phases/23-windows-powershell-evidence/23-UI-REVIEW.md
+.planning/phases/24-iac-container-security/24-01-PLAN.md
+.planning/phases/24-iac-container-security/24-01-SUMMARY.md
+.planning/phases/24-iac-container-security/24-CONTEXT.md
+.planning/phases/24-iac-container-security/24-REVIEW.md
+.planning/phases/24-iac-container-security/24-UI-SPEC.md
+.planning/phases/25-cloud-checks-execution-gaps/.gitkeep
+.planning/phases/25-cloud-checks-execution-gaps/25-01-PLAN.md
+.planning/phases/25-cloud-checks-execution-gaps/25-01-SUMMARY.md
+.planning/phases/25-cloud-checks-execution-gaps/25-02-PLAN.md
+.planning/phases/25-cloud-checks-execution-gaps/25-02-SUMMARY.md
+.planning/phases/25-cloud-checks-execution-gaps/25-03-PLAN.md
+.planning/phases/25-cloud-checks-execution-gaps/25-03-SUMMARY.md
+.planning/phases/25-cloud-checks-execution-gaps/25-PATTERNS.md
+.planning/phases/25-cloud-checks-execution-gaps/25-RESEARCH.md
+.planning/phases/25-cloud-checks-execution-gaps/25-REVIEW-FIX.md
+.planning/phases/25-cloud-checks-execution-gaps/25-REVIEW.md
+.planning/phases/25-cloud-checks-execution-gaps/25-SECURITY.md
+.planning/phases/25-cloud-checks-execution-gaps/25-UAT.md
+.planning/phases/25-cloud-checks-execution-gaps/25-VALIDATION.md
+.planning/phases/25-cloud-checks-execution-gaps/25-VERIFICATION.md
+.planning/phases/26-vendor-and-risk-data-completeness/.continue-here.md
+.planning/phases/26-vendor-and-risk-data-completeness/.gitkeep
+.planning/phases/26-vendor-and-risk-data-completeness/26-01-PLAN.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-01-SUMMARY.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-02-PLAN.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-02-SUMMARY.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-03-PLAN.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-03-SUMMARY.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-04-PLAN.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-04-SUMMARY.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-05-PLAN.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-05-SUMMARY.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-PATTERNS.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-RESEARCH.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-REVIEW.md
+.planning/phases/26-vendor-and-risk-data-completeness/26-VALIDATION.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/.gitkeep
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-01-PLAN.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-01-SUMMARY.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-02-PLAN.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-02-SUMMARY.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-PATTERNS.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-RESEARCH.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-REVIEW.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-UAT.md
+.planning/phases/27-compliance-export-formats-oscal-and-sbom/27-VALIDATION.md
+.planning/phases/28-governance-document-management/.gitkeep
+.planning/phases/28-governance-document-management/28-01-PLAN.md
+.planning/phases/28-governance-document-management/28-01-SUMMARY.md
+.planning/phases/28-governance-document-management/28-02-PLAN.md
+.planning/phases/28-governance-document-management/28-02-SUMMARY.md
+.planning/phases/28-governance-document-management/28-03-PLAN.md
+.planning/phases/28-governance-document-management/28-03-SUMMARY.md
+.planning/phases/28-governance-document-management/28-PATTERNS.md
+.planning/phases/28-governance-document-management/28-RESEARCH.md
+.planning/phases/28-governance-document-management/28-REVIEW.md
+.planning/phases/28-governance-document-management/28-UAT.md
+.planning/phases/28-governance-document-management/28-VALIDATION.md
+.planning/phases/29-public-trust-center/.gitkeep
+.planning/phases/29-public-trust-center/29-01-PLAN.md
+.planning/phases/29-public-trust-center/29-01-SUMMARY.md
+.planning/phases/29-public-trust-center/29-02-PLAN.md
+.planning/phases/29-public-trust-center/29-02-SUMMARY.md
+.planning/phases/29-public-trust-center/29-03-PLAN.md
+.planning/phases/29-public-trust-center/29-03-SUMMARY.md
+.planning/phases/29-public-trust-center/29-04-PLAN.md
+.planning/phases/29-public-trust-center/29-04-SUMMARY.md
+.planning/phases/29-public-trust-center/29-PATTERNS.md
+.planning/phases/29-public-trust-center/29-RESEARCH.md
+.planning/phases/29-public-trust-center/29-REVIEW.md
+.planning/phases/29-public-trust-center/29-UAT-SUMMARY.md
+.planning/phases/29-public-trust-center/29-UAT.md
+.planning/phases/29-public-trust-center/29-UI-SPEC.md
+.planning/phases/29-public-trust-center/29-VALIDATION.md
+.planning/phases/29-public-trust-center/deferred-items.md
+.planning/phases/30-ai-questionnaire-auto-answer/.gitkeep
+.planning/phases/30-ai-questionnaire-auto-answer/30-01-PLAN.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-01-SUMMARY.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-02-PLAN.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-02-SUMMARY.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-03-PLAN.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-03-SUMMARY.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-04-PLAN.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-04-SUMMARY.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-05-PLAN.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-05-SUMMARY.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-06-PLAN.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-06-SUMMARY.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-AI-SPEC.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-PATTERNS.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-RESEARCH.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-REVIEW.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-UAT.md
+.planning/phases/30-ai-questionnaire-auto-answer/30-VALIDATION.md
+.planning/phases/30-ai-questionnaire-auto-answer/PLAN.md
+.planning/phases/31-fair-risk-quantification/.gitkeep
+.planning/phases/31-fair-risk-quantification/31-01-PLAN.md
+.planning/phases/31-fair-risk-quantification/31-01-SUMMARY.md
+.planning/phases/31-fair-risk-quantification/31-02-PLAN.md
+.planning/phases/31-fair-risk-quantification/31-02-SUMMARY.md
+.planning/phases/31-fair-risk-quantification/31-03-PLAN.md
+.planning/phases/31-fair-risk-quantification/31-03-SUMMARY.md
+.planning/phases/31-fair-risk-quantification/31-PATTERNS.md
+.planning/phases/31-fair-risk-quantification/31-RESEARCH.md
+.planning/phases/31-fair-risk-quantification/31-REVIEW.md
+.planning/phases/31-fair-risk-quantification/31-VALIDATION.md
+.planning/phases/32-cloud-and-saas-provider-expansion/.continue-here.md
+.planning/phases/32-cloud-and-saas-provider-expansion/.gitkeep
+.planning/phases/32-cloud-and-saas-provider-expansion/32-01-PLAN.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-01-SUMMARY.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-02-PLAN.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-02-SUMMARY.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-02-VERIFICATION.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-03-PLAN.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-03-SUMMARY.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-04-PLAN.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-04-SUMMARY.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-05-PLAN.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-05-SUMMARY.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-PATTERNS.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-RESEARCH.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-REVIEW.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-UAT.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-VALIDATION.md
+.planning/phases/32-cloud-and-saas-provider-expansion/32-VERIFICATION.md
+.planning/phases/33-workflow-automation-connectors/.gitkeep
+.planning/phases/33-workflow-automation-connectors/33-01-PLAN.md
+.planning/phases/33-workflow-automation-connectors/33-01-SUMMARY.md
+.planning/phases/33-workflow-automation-connectors/33-02-PLAN.md
+.planning/phases/33-workflow-automation-connectors/33-02-SUMMARY.md
+.planning/phases/33-workflow-automation-connectors/33-03-PLAN.md
+.planning/phases/33-workflow-automation-connectors/33-03-SUMMARY.md
+.planning/phases/33-workflow-automation-connectors/33-04-PLAN.md
+.planning/phases/33-workflow-automation-connectors/33-04-SUMMARY.md
+.planning/phases/33-workflow-automation-connectors/33-PATTERNS.md
+.planning/phases/33-workflow-automation-connectors/33-RESEARCH.md
+.planning/phases/33-workflow-automation-connectors/33-REVIEW.md
+.planning/phases/33-workflow-automation-connectors/33-UAT.md
+.planning/phases/33-workflow-automation-connectors/33-VALIDATION.md
+.planning/phases/34-passkey-and-webauthn-authentication/.gitkeep
+.planning/phases/34-passkey-and-webauthn-authentication/34-PATTERNS.md
+.planning/phases/34-passkey-and-webauthn-authentication/34-PLAN.md
+.planning/phases/34-passkey-and-webauthn-authentication/34-RESEARCH.md
+.planning/phases/34-passkey-and-webauthn-authentication/34-REVIEW.md
+.planning/phases/34-passkey-and-webauthn-authentication/34-SUMMARY.md
+.planning/phases/34-passkey-and-webauthn-authentication/34-UAT.md
+.planning/phases/34-passkey-and-webauthn-authentication/34-VALIDATION.md
+.planning/phases/35-graphql-api/.gitkeep
+.planning/phases/35-graphql-api/35-01-SUMMARY.md
+.planning/phases/35-graphql-api/35-02-SUMMARY.md
+.planning/phases/35-graphql-api/35-03-SUMMARY.md
+.planning/phases/35-graphql-api/35-PLAN.md
+.planning/phases/35-graphql-api/35-RESEARCH.md
+.planning/phases/35-graphql-api/35-REVIEW.md
+.planning/phases/35-graphql-api/35-UAT.md
+.planning/phases/36-fine-grained-relationship-based-authorization/.gitkeep
+.planning/phases/36-fine-grained-relationship-based-authorization/36-01-SUMMARY.md
+.planning/phases/36-fine-grained-relationship-based-authorization/36-02-SUMMARY.md
+.planning/phases/36-fine-grained-relationship-based-authorization/36-03-SUMMARY.md
+.planning/phases/36-fine-grained-relationship-based-authorization/36-PLAN.md
+.planning/phases/36-fine-grained-relationship-based-authorization/36-REVIEW.md
+.planning/phases/37-spec-compliant-mcp-server/.gitkeep
+.planning/phases/37-spec-compliant-mcp-server/37-03-SUMMARY.md
+.planning/phases/37-spec-compliant-mcp-server/37-PLAN.md
+.planning/phases/37-spec-compliant-mcp-server/37-REVIEW.md
+.planning/phases/38-interactive-ai-security-assistant/.gitkeep
+.planning/phases/38-interactive-ai-security-assistant/38-01-SUMMARY.md
+.planning/phases/38-interactive-ai-security-assistant/38-02-SUMMARY.md
+.planning/phases/38-interactive-ai-security-assistant/38-03-SUMMARY.md
+.planning/phases/38-interactive-ai-security-assistant/38-PLAN.md
+.planning/phases/38-interactive-ai-security-assistant/38-REVIEW.md
+.planning/phases/39-langchain-ai-integration/39-01-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-01-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-02-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-02-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-03-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-03-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-04-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-04-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-05-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-05-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-06-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-06-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-07-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-07-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-08-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-08-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-09-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-09-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-10-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-10-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-11-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-11-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-12-PLAN.md
+.planning/phases/39-langchain-ai-integration/39-12-SUMMARY.md
+.planning/phases/39-langchain-ai-integration/39-AI-SPEC.md
+.planning/phases/39-langchain-ai-integration/39-CONTEXT.md
+.planning/phases/39-langchain-ai-integration/39-PATTERNS.md
+.planning/phases/39-langchain-ai-integration/39-RESEARCH.md
+.planning/phases/39-langchain-ai-integration/39-UAT.md
+.planning/phases/39-langchain-ai-integration/39-VALIDATION.md
+.planning/phases/39-langchain-ai-integration/deferred-items.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-01-PLAN.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-01-SUMMARY.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-02-PLAN.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-02-SUMMARY.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-CONTEXT.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-DISCUSSION-LOG.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-PATTERNS.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-RESEARCH.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-REVIEW.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-UAT.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-VALIDATION.md
+.planning/phases/40-rust-agent-modernization-session-reliability/40-VERIFICATION.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-01-PLAN.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-01-SUMMARY.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-02-PLAN.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-02-SUMMARY.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-03-PLAN.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-03-SUMMARY.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-04-PLAN.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-04-SUMMARY.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-05-PLAN.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-05-SUMMARY.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-CONTEXT.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-DISCUSSION-LOG.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-PATTERNS.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-RESEARCH.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-REVIEW.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-UAT.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-VALIDATION.md
+.planning/phases/41-cspm-provider-expansion-oci-alibaba-cloudflare/41-VERIFICATION.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-01-PLAN.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-01-SUMMARY.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-02-PLAN.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-02-SUMMARY.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-03-PLAN.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-03-SUMMARY.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-CONTEXT.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-DISCUSSION-LOG.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-PATTERNS.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-RESEARCH.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-REVIEW.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-UI-REVIEW.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-UI-SPEC.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-VALIDATION.md
+.planning/phases/42-comment-threads-on-compliance-controls/42-VERIFICATION.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-01-PLAN.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-01-SUMMARY.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-02-PLAN.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-02-SUMMARY.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-03-PLAN.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-03-SUMMARY.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-04-PLAN.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-04-SUMMARY.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-CONTEXT.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-DISCUSSION-LOG.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-PATTERNS.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-RESEARCH.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-UI-REVIEW.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-UI-SPEC.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-VALIDATION.md
+.planning/phases/43-remediation-to-ticketing-bridge/43-VERIFICATION.md
+.planning/phases/44-remediation-sla-escalation/44-01-PLAN.md
+.planning/phases/44-remediation-sla-escalation/44-01-SUMMARY.md
+.planning/phases/44-remediation-sla-escalation/44-02-PLAN.md
+.planning/phases/44-remediation-sla-escalation/44-02-SUMMARY.md
+.planning/phases/44-remediation-sla-escalation/44-03-PLAN.md
+.planning/phases/44-remediation-sla-escalation/44-03-SUMMARY.md
+.planning/phases/44-remediation-sla-escalation/44-04-PLAN.md
+.planning/phases/44-remediation-sla-escalation/44-04-SUMMARY.md
+.planning/phases/44-remediation-sla-escalation/44-CONTEXT.md
+.planning/phases/44-remediation-sla-escalation/44-DISCUSSION-LOG.md
+.planning/phases/44-remediation-sla-escalation/44-PATTERNS.md
+.planning/phases/44-remediation-sla-escalation/44-RESEARCH.md
+.planning/phases/44-remediation-sla-escalation/44-UI-REVIEW.md
+.planning/phases/44-remediation-sla-escalation/44-UI-SPEC.md
+.planning/phases/44-remediation-sla-escalation/44-VALIDATION.md
+.planning/phases/44-remediation-sla-escalation/44-VERIFICATION.md
+.planning/phases/45-close-gap-rust-01-tls-backend-explicit-decision/.gitkeep
+.planning/phases/45-close-gap-rust-01-tls-backend-explicit-decision/45-01-PLAN.md
+.planning/phases/45-close-gap-rust-01-tls-backend-explicit-decision/45-01-SUMMARY.md
+.planning/phases/45-close-gap-rust-01-tls-backend-explicit-decision/45-CONTEXT.md
+.planning/phases/45-close-gap-rust-01-tls-backend-explicit-decision/45-REVIEW.md
+.planning/phases/45-close-gap-rust-01-tls-backend-explicit-decision/45-VERIFICATION.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-01-PLAN.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-01-SUMMARY.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-02-PLAN.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-02-SUMMARY.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-03-PLAN.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-03-SUMMARY.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-04-PLAN.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-04-SUMMARY.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-05-PLAN.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-05-SUMMARY.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-06-PLAN.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-06-SUMMARY.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-07-PLAN.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-07-SUMMARY.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-CONTEXT.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-DISCUSSION-LOG.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-PATTERNS.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-RESEARCH.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-UAT.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-UI-SPEC.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-VALIDATION.md
+.planning/phases/46-public-ip-asn-vpn-enrichment-location-history-audit/46-VERIFICATION.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-01-PLAN.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-01-SUMMARY.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-02-PLAN.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-02-SUMMARY.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-03-PLAN.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-03-SUMMARY.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-04-PLAN.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-04-SUMMARY.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-05-PLAN.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-05-SUMMARY.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-06-PLAN.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-06-SUMMARY.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-CONTEXT.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-RESEARCH.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-UAT.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-VALIDATION.md
+.planning/phases/47-agent-scoped-geo-security-detectors/47-VERIFICATION.md
+.planning/phases/47-agent-scoped-geo-security-detectors/deferred-items.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-01-PLAN.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-01-SUMMARY.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-02-PLAN.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-02-SUMMARY.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-03-PLAN.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-03-SUMMARY.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-04-PLAN.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-04-SUMMARY.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-05-PLAN.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-05-SUMMARY.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-CONTEXT.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-RESEARCH.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-UAT.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-VALIDATION.md
+.planning/phases/48-fleet-observability-uptime-rollups/48-VERIFICATION.md
+.planning/phases/49-fleet-geo-map/49-01-PLAN.md
+.planning/phases/49-fleet-geo-map/49-01-SUMMARY.md
+.planning/phases/49-fleet-geo-map/49-02-PLAN.md
+.planning/phases/49-fleet-geo-map/49-02-SUMMARY.md
+.planning/phases/49-fleet-geo-map/49-03-PLAN.md
+.planning/phases/49-fleet-geo-map/49-03-SUMMARY.md
+.planning/phases/49-fleet-geo-map/49-04-PLAN.md
+.planning/phases/49-fleet-geo-map/49-04-SUMMARY.md
+.planning/phases/49-fleet-geo-map/49-05-PLAN.md
+.planning/phases/49-fleet-geo-map/49-05-SUMMARY.md
+.planning/phases/49-fleet-geo-map/49-CONTEXT.md
+.planning/phases/49-fleet-geo-map/49-RESEARCH.md
+.planning/phases/49-fleet-geo-map/49-UAT.md
+.planning/phases/49-fleet-geo-map/49-VERIFICATION.md
+.planning/phases/50-native-security-scanning/50-01-PLAN.md
+.planning/phases/50-native-security-scanning/50-02-PLAN.md
+.planning/phases/50-native-security-scanning/50-03-PLAN.md
+.planning/phases/50-native-security-scanning/50-04-PLAN.md
+.planning/phases/50-native-security-scanning/50-05-PLAN.md
+.planning/phases/50-native-security-scanning/50-CONTEXT.md
+.planning/phases/50-native-security-scanning/50-RESEARCH.md
+.planning/phases/50-native-security-scanning/50-REVIEWS.md
+.planning/phases/50-native-security-scanning/50-SUMMARY.md
+.planning/phases/50-native-security-scanning/50-UAT.md
+.planning/phases/51-vulnerability-detection-engine/51-01-PLAN.md
+.planning/phases/51-vulnerability-detection-engine/51-02-PLAN.md
+.planning/phases/51-vulnerability-detection-engine/51-02-SUMMARY.md
+.planning/phases/51-vulnerability-detection-engine/51-03-PLAN.md
+.planning/phases/51-vulnerability-detection-engine/51-03-SUMMARY.md
+.planning/phases/51-vulnerability-detection-engine/51-CONTEXT.md
+.planning/phases/51-vulnerability-detection-engine/51-RESEARCH.md
+.planning/phases/51-vulnerability-detection-engine/51-REVIEWS.md
+.planning/phases/51-vulnerability-detection-engine/51-VERIFICATION.md
+.planning/phases/52-file-integrity-monitoring/52-01-PLAN.md
+.planning/phases/52-file-integrity-monitoring/52-01-SUMMARY.md
+.planning/phases/52-file-integrity-monitoring/52-02-PLAN.md
+.planning/phases/52-file-integrity-monitoring/52-03-PLAN.md
+.planning/phases/52-file-integrity-monitoring/52-03-SUMMARY.md
+.planning/phases/52-file-integrity-monitoring/52-04-PLAN.md
+.planning/phases/52-file-integrity-monitoring/52-04-SUMMARY.md
+.planning/phases/52-file-integrity-monitoring/52-CONTEXT.md
+.planning/phases/52-file-integrity-monitoring/52-RESEARCH.md
+.planning/phases/52-file-integrity-monitoring/52-REVIEWS.md
+.planning/phases/52-file-integrity-monitoring/52-VERIFICATION.md
+.planning/phases/52-file-integrity-monitoring/VERIFICATION.md
+.planning/phases/53-autonomous-remediation/53-01-PLAN.md
+.planning/phases/53-autonomous-remediation/53-01-SUMMARY.md
+.planning/phases/53-autonomous-remediation/53-02-PLAN.md
+.planning/phases/53-autonomous-remediation/53-02-SUMMARY.md
+.planning/phases/53-autonomous-remediation/53-03-PLAN.md
+.planning/phases/53-autonomous-remediation/53-03-SUMMARY.md
+.planning/phases/53-autonomous-remediation/53-04-PLAN.md
+.planning/phases/53-autonomous-remediation/53-04-SUMMARY.md
+.planning/phases/53-autonomous-remediation/53-CONTEXT.md
+.planning/phases/53-autonomous-remediation/53-RESEARCH.md
+.planning/phases/53-autonomous-remediation/53-REVIEWS.md
+.planning/phases/53-autonomous-remediation/53-VERIFICATION.md
+.planning/phases/54-integration-operator-ui/.continue-here.md
+.planning/phases/54-integration-operator-ui/54-01-PLAN.md
+.planning/phases/54-integration-operator-ui/54-02-PLAN.md
+.planning/phases/54-integration-operator-ui/54-03-PLAN.md
+.planning/phases/54-integration-operator-ui/54-04-PLAN.md
+.planning/phases/54-integration-operator-ui/54-CONTEXT.md
+.planning/phases/54-integration-operator-ui/54-RESEARCH.md
+.planning/phases/54-integration-operator-ui/54-REVIEWS.md
+.planning/phases/55-advanced-threat-detection/55-01-PLAN.md
+.planning/phases/55-advanced-threat-detection/55-01-SUMMARY.md
+.planning/phases/55-advanced-threat-detection/55-02-PLAN.md
+.planning/phases/55-advanced-threat-detection/55-02-SUMMARY.md
+.planning/phases/55-advanced-threat-detection/55-03-PLAN.md
+.planning/phases/55-advanced-threat-detection/55-03-SUMMARY.md
+.planning/phases/55-advanced-threat-detection/55-04-PLAN.md
+.planning/phases/55-advanced-threat-detection/55-04-SUMMARY.md
+.planning/phases/55-advanced-threat-detection/55-05-PLAN.md
+.planning/phases/55-advanced-threat-detection/55-05-SUMMARY.md
+.planning/phases/55-advanced-threat-detection/55-CONTEXT.md
+.planning/phases/55-advanced-threat-detection/55-DISCUSSION-LOG.md
+.planning/phases/55-advanced-threat-detection/55-PATTERNS.md
+.planning/phases/55-advanced-threat-detection/55-RESEARCH.md
+.planning/phases/55-advanced-threat-detection/55-REVIEW.md
+.planning/phases/55-advanced-threat-detection/55-UI-SPEC.md
+.planning/phases/55-advanced-threat-detection/55-VALIDATION.md
+.planning/phases/55-advanced-threat-detection/55-VERIFICATION.md
+.planning/phases/55-advanced-threat-detection/COVERAGE.md
+.planning/phases/55-advanced-threat-detection/deferred-items.md
+.planning/phases/56-catalog-foundation/56-01-PLAN.md
+.planning/phases/56-catalog-foundation/56-01-SUMMARY.md
+.planning/phases/56-catalog-foundation/56-02-PLAN.md
+.planning/phases/56-catalog-foundation/56-02-SUMMARY.md
+.planning/phases/56-catalog-foundation/56-VERIFICATION.md
+.planning/phases/56-catalog-foundation/COVERAGE.md
+.planning/phases/57-lifecycle-check-in-out/57-01-PLAN.md
+.planning/phases/57-lifecycle-check-in-out/57-01-SUMMARY.md
+.planning/phases/57-lifecycle-check-in-out/57-02-PLAN.md
+.planning/phases/57-lifecycle-check-in-out/57-02-SUMMARY.md
+.planning/phases/57-lifecycle-check-in-out/57-03-PLAN.md
+.planning/phases/57-lifecycle-check-in-out/57-03-SUMMARY.md
+.planning/phases/57-lifecycle-check-in-out/57-CONTEXT.md
+.planning/phases/57-lifecycle-check-in-out/57-DISCUSSION-LOG.md
+.planning/phases/57-lifecycle-check-in-out/57-PATTERNS.md
+.planning/phases/57-lifecycle-check-in-out/57-RESEARCH.md
+.planning/phases/57-lifecycle-check-in-out/57-REVIEW-FIX.md
+.planning/phases/57-lifecycle-check-in-out/57-REVIEW.md
+.planning/phases/57-lifecycle-check-in-out/57-VALIDATION.md
+.planning/phases/57-lifecycle-check-in-out/57-VERIFICATION.md
+.planning/phases/58-asset-tags-offline-labels/58-01-PLAN.md
+.planning/phases/58-asset-tags-offline-labels/58-01-SUMMARY.md
+.planning/phases/58-asset-tags-offline-labels/58-02-PLAN.md
+.planning/phases/58-asset-tags-offline-labels/58-02-SUMMARY.md
+.planning/phases/58-asset-tags-offline-labels/58-03-PLAN.md
+.planning/phases/58-asset-tags-offline-labels/58-03-SUMMARY.md
+.planning/phases/58-asset-tags-offline-labels/58-04-PLAN.md
+.planning/phases/58-asset-tags-offline-labels/58-04-SUMMARY.md
+.planning/phases/58-asset-tags-offline-labels/58-CONTEXT.md
+.planning/phases/58-asset-tags-offline-labels/58-DISCUSSION-LOG.md
+.planning/phases/58-asset-tags-offline-labels/58-PATTERNS.md
+.planning/phases/58-asset-tags-offline-labels/58-RESEARCH.md
+.planning/phases/58-asset-tags-offline-labels/58-VALIDATION.md
+.planning/phases/58-asset-tags-offline-labels/58-VERIFICATION.md
+.planning/phases/58-asset-tags-offline-labels/COVERAGE.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-01-PLAN.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-01-SUMMARY.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-02-PLAN.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-02-SUMMARY.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-03-PLAN.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-03-SUMMARY.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-04-PLAN.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-04-SUMMARY.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-CONTEXT.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-DISCUSSION-LOG.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-RESEARCH.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-REVIEW.md
+.planning/phases/59-procurement-finance-warranty-depreciation/59-VERIFICATION.md
+.planning/phases/60-licenses-consumables/.continue-here.md
+.planning/phases/60-licenses-consumables/60-01-PLAN.md
+.planning/phases/60-licenses-consumables/60-01-SUMMARY.md
+.planning/phases/60-licenses-consumables/60-02-PLAN.md
+.planning/phases/60-licenses-consumables/60-02-SUMMARY.md
+.planning/phases/60-licenses-consumables/60-03-PLAN.md
+.planning/phases/60-licenses-consumables/60-03-SUMMARY.md
+.planning/phases/60-licenses-consumables/60-CONTEXT.md
+.planning/phases/60-licenses-consumables/60-DISCUSSION-LOG.md
+.planning/phases/60-licenses-consumables/60-RESEARCH.md
+.planning/phases/60-licenses-consumables/60-VALIDATION.md
+.planning/phases/60-licenses-consumables/60-VERIFICATION.md
+.planning/phases/61-frontend-itam-console/61-01-PLAN.md
+.planning/phases/61-frontend-itam-console/61-01-SUMMARY.md
+.planning/phases/61-frontend-itam-console/61-CONTEXT.md
+.planning/phases/61-frontend-itam-console/61-RESEARCH.md
+.planning/phases/61-frontend-itam-console/61-UI-SPEC.md
+.planning/phases/61-frontend-itam-console/61-VALIDATION.md
+.planning/phases/61-frontend-itam-console/61-VERIFICATION.md
+.planning/phases/62-remediation-sla-settings-ui/62-01-PLAN.md
+.planning/phases/62-remediation-sla-settings-ui/62-01-SUMMARY.md
+.planning/phases/62-remediation-sla-settings-ui/62-CONTEXT.md
+.planning/phases/62-remediation-sla-settings-ui/62-DISCUSSION-LOG.md
+.planning/phases/62-remediation-sla-settings-ui/62-PATTERNS.md
+.planning/phases/62-remediation-sla-settings-ui/62-RESEARCH.md
+.planning/phases/62-remediation-sla-settings-ui/62-REVIEW-FIX.iter2.md
+.planning/phases/62-remediation-sla-settings-ui/62-REVIEW-FIX.iter3.md
+.planning/phases/62-remediation-sla-settings-ui/62-REVIEW-FIX.md
+.planning/phases/62-remediation-sla-settings-ui/62-REVIEW.iter2.md
+.planning/phases/62-remediation-sla-settings-ui/62-REVIEW.iter3.md
+.planning/phases/62-remediation-sla-settings-ui/62-REVIEW.md
+.planning/phases/62-remediation-sla-settings-ui/62-SECURITY.md
+.planning/phases/62-remediation-sla-settings-ui/62-UI-SPEC.md
+.planning/phases/62-remediation-sla-settings-ui/62-VALIDATION.md
+.planning/phases/62-remediation-sla-settings-ui/62-VERIFICATION.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/.gitkeep
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-01-PLAN.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-01-SUMMARY.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-02-PLAN.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-02-SUMMARY.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-CONTEXT.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-COVERAGE.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-DISCUSSION-LOG.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-PATTERNS.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-RESEARCH.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-REVIEW.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-SECURITY.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-UAT.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-VALIDATION.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/63-VERIFICATION.md
+.planning/phases/63-close-gap-itam-lic-02-03-rbac-itam-cat-05-label-ui/deferred-items.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/.gitkeep
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-01-PLAN.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-01-SUMMARY.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-02-PLAN.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-02-SUMMARY.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-03-PLAN.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-03-SUMMARY.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-04-PLAN.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-04-SUMMARY.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-CONTEXT.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-DISCUSSION-LOG.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-PATTERNS.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-RESEARCH.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-VALIDATION.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/64-VERIFICATION.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/RESEARCH.md
+.planning/phases/64-rotate-key-autonomous-remediation-action/deferred-items.md
+.planning/phases/65-fim-process-attribution-via-fanotify/.gitkeep
+.planning/phases/65-fim-process-attribution-via-fanotify/65-01-PLAN.md
+.planning/phases/65-fim-process-attribution-via-fanotify/65-01-SUMMARY.md
+.planning/phases/65-fim-process-attribution-via-fanotify/65-RESEARCH.md
+.planning/phases/65-fim-process-attribution-via-fanotify/65-VALIDATION.md
+.planning/phases/65-fim-process-attribution-via-fanotify/65-VERIFICATION.md
+.planning/phases/65-fim-process-attribution-via-fanotify/CHECKPOINT.md
+.planning/phases/65-fim-process-attribution-via-fanotify/CHECKPOINT_ELEVATED.md
+.planning/phases/65-fim-process-attribution-via-fanotify/PLAN.md
+.planning/phases/66-UAT.md
+.planning/phases/66-full-yara-rule-engine-for-native-scan/.gitkeep
+.planning/phases/66-full-yara-rule-engine-for-native-scan/66-01-PLAN.md
+.planning/phases/66-full-yara-rule-engine-for-native-scan/66-01-SUMMARY.md
+.planning/phases/66-full-yara-rule-engine-for-native-scan/66-02-PLAN.md
+.planning/phases/66-full-yara-rule-engine-for-native-scan/66-02-SUMMARY.md
+.planning/phases/66-full-yara-rule-engine-for-native-scan/66-LIVE-TEST-RUNBOOK.md
+.planning/phases/66-full-yara-rule-engine-for-native-scan/66-VERIFICATION.md
+.planning/phases/66-full-yara-rule-engine-for-native-scan/RESEARCH.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/.gitkeep
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-01-PLAN.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-02-PLAN.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-03-PLAN.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-04-PLAN.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-05-PLAN.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-06-PLAN.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-CONTEXT.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-DISCUSSION-LOG.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-PATTERNS.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-RESEARCH.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-UI-SPEC.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/74-VALIDATION.md
+.planning/phases/74-interactive-remote-desktop-control-for-tenant-admins-upgrade/COVERAGE.md
+.planning/phases/_superseded-64-key-rotation-draft/64-01-PLAN.md
+.planning/phases/_superseded-64-key-rotation-draft/64-02-PLAN.md
+.planning/phases/_superseded-64-key-rotation-draft/64-03-PLAN.md
+.planning/phases/_superseded-64-key-rotation-draft/64-VERIFICATION.md
+.planning/phases/_superseded-64-key-rotation-draft/RESEARCH.md
+.planning/phases/_superseded-64-key-rotation-draft/SUPERSEDED.md
+.planning/phases/_superseded-64-key-rotation-draft/VERIFICATION.md
+.planning/phases/_superseded-64-vault-legacy-rust-track/64-01-PLAN.md
+.planning/phases/_superseded-64-vault-legacy-rust-track/64-03-SUMMARY.md
+.planning/phases/_superseded-64-vault-legacy-rust-track/SUPERSEDED.md
+.planning/phases/_superseded-65-fim-fanotify-early-draft/65-01-PLAN.md
+.planning/phases/_superseded-65-fim-fanotify-early-draft/RESEARCH.md
+.planning/phases/_superseded-65-fim-fanotify-early-draft/SUPERSEDED.md
+.planning/reports/20260801-session-report.md
+.planning/research/.cache/00a7df16b331ece65f85fc9c964c1cf70460afb27357f254a92cde63a1e5e8cd.json
+.planning/research/.cache/04bcce98723b50f24355db12a54a0b6169e2b0e0ae2719049971129b4758a946.json
+.planning/research/.cache/0de53e7c208f2869d6898acaf3cba1d480aeef0603d53422c70e5012b2fa9f67.json
+.planning/research/.cache/0e1328b6c6309184543277540f2dbe3c3cc9f5607ccf0d7fbf0a811d9f263e47.json
+.planning/research/.cache/1276833ebfe12201da74a64a37e65df8f19c32f0ec250a767677b790898327ca.json
+.planning/research/.cache/2212252a4bc1f309a2ff67a019dec6041329bdf04f75f45d059a098032524578.json
+.planning/research/.cache/28b4c804642a425ae345f65dbbabc80d1ac6231b844d22014d12d8f34abaeafb.json
+.planning/research/.cache/2f7a4d69904be4d9725cb886b9351043d662d9fcab0bc575128e0aa9adccf012.json
+.planning/research/.cache/31fcc14664887e465339e849debef4d4c9544d5fde3bf7d2ce08f739875b14dd.json
+.planning/research/.cache/321540c583c3a99d7533227c489a9f0378469e76c0d825b71140c7218dc9d10c.json
+.planning/research/.cache/344a4b3a3389df9afea20bfe94afff11882cd0ecc88494806262a3338d9baa00.json
+.planning/research/.cache/3c47b1f05e8be90849c98da487746c20e3c7ded91f79e233228ac0407f5ceaf1.json
+.planning/research/.cache/3f54ac7aa9122189b2f31b8ec87fb0b567a5a349f47374d169551052b161d68a.json
+.planning/research/.cache/4472c160dd63976eb3103fe463a5effc95d8e683f286b0118a8663cace9f3fa8.json
+.planning/research/.cache/468f35a598cb48f270519d4e55e2a15a6fdf7e4fe2986e872a20725a98f3c813.json
+.planning/research/.cache/4e22d2d7f157f7bf9a5c00415e550e7b1bf52aef18086fa9a186d8cf3c8661ee.json
+.planning/research/.cache/52596baca774e9d728c40eefc16f7a1c323283020e2f0dc5365356c9092ae7e7.json
+.planning/research/.cache/53b94788660e8a08ab0779ab75e8110fff8aafd696c9a70715818eb5f1a97d7d.json
+.planning/research/.cache/6565dccc1ec74c707251f89fc23bca8b660c17732485b807ad27a95277b44b31.json
+.planning/research/.cache/6e55c5c096656090f21ab785fe18f2ef927e2f37561950b53adf8fe08875b3c7.json
+.planning/research/.cache/7afc6c5b58a14da994492332183d21f2052648f6cc309c306d3cc663cbb7a08c.json
+.planning/research/.cache/7e4204dba068a4935624aa7e780f636376b8d1ca9d1dc101a9f4d0dd09e82dfb.json
+.planning/research/.cache/7e4ba0001b8d2b43b2c847adef721b32fb4a56a023265ea10c268c984ad05e9c.json
+.planning/research/.cache/7ef97da3e9c65b63f2a7761f2f11b8384dc741a7a1e51e41b3146532ff98b3bd.json
+.planning/research/.cache/9950829efbb1d86a48de2ff6873b82671411a8b385f20bd98f785e9b05d2a629.json
+.planning/research/.cache/9a295f14d5cd278138dc4db66a0f149a4a18dc9e230844684a20e3a60206d318.json
+.planning/research/.cache/9ffb170b0453318b964cbc7f54e7f300e1c7076fb70c6f153ca7add80416e1f0.json
+.planning/research/.cache/a2d0f06c14bd351563fd34ba910e570b0f81b644189fcf8b329b2032d1bfce8a.json
+.planning/research/.cache/a64f61783f8f50b6bdd37a28f62b536e7c86449efc29236b4b2c728ec784750c.json
+.planning/research/.cache/a9097f8ca46c87f16185be3a226c3fcb8bd42f3cd5bfd115382efd53878ae31b.json
+.planning/research/.cache/a9b0aff41297cec34e0ab415632af6086a648f251665e98967f8be5102df5731.json
+.planning/research/.cache/aa488e8fc9ecd2e4a60d3c456618aae4da1fb4bf2feb7aea1622b7c1d99f7413.json
+.planning/research/.cache/ae57697b41006351e3f747409bfb2ee08b18f4164f4bb7d8bf17b95c8ef4485d.json
+.planning/research/.cache/b2d9d2c2d89196e8c9eb30e80479db69c54238cc61ad995ad90626f67a3db1d7.json
+.planning/research/.cache/b758e13188f0b938edd6d4f761741a22c70cbee3085401ce0d427441d90b26c6.json
+.planning/research/.cache/b8c2863e77b2ee60b142e953573228172be44cc0b8ec3c3420d6d9898209811a.json
+.planning/research/.cache/b8ee79f16dbf3390986c88ffef934e5797b3621eaaaaf4ae58b3785482d23472.json
+.planning/research/.cache/bc3e328b0be9fe0a86b04b7a295c4fe67d3e8f6fef8cf0a99f54bd0282f824bd.json
+.planning/research/.cache/bd3aa60f95bdde0bedb9462b3e34e38ed84315156e3fa301eb58726328e36a0a.json
+.planning/research/.cache/c7df7184c18fcdf496f492d8ac090a7684134390eae2302ffa0a4877b45b9c61.json
+.planning/research/.cache/c990183c79741a05fd93eaeb5b887910ee34777da0e813aea5a7fde5386d3bfd.json
+.planning/research/.cache/cd3c511363775095c31e50e131246f87ec2cbbb0c8fd0158f45efafe176a13ee.json
+.planning/research/.cache/ce8874c85cfb8328d8ecb2fddd25c7bd29df69284d17cac04e02dc24444cb4b7.json
+.planning/research/.cache/d24fad2ba327d86905186dbeed45832a444c725c675dd1dcf0d1b82aa89fa674.json
+.planning/research/.cache/d36fec79cba97f553b865d7e7127e66106b9af15968f53cc875897bf45985e0b.json
+.planning/research/.cache/d51ce32919fc7ac94081a936905d62048a70fa2187350b605eb62467e08cad96.json
+.planning/research/.cache/d5de215252da182263fcd02cd7e56671f4e3b70fcacec7a14435802f8692a7e3.json
+.planning/research/.cache/dbb6671f9aa3a4dfd6bd7d952b18dfe77be55c537d934391a392c263b51821de.json
+.planning/research/.cache/e069e69ce975fd1b55b66f7e0bbec80366bdd611a3c127db3a0e293aa497cc4a.json
+.planning/research/.cache/e363940bf41b71e5af99845843b23e0bdbb542d9a31b566c4a6ae4c7df6a09d3.json
+.planning/research/.cache/e8e78a0996d28c7de8f1a91109246df9cb074cf6b1c5a424751e8563783678b2.json
+.planning/research/.cache/f80f1c60f143613998b713e6ed56f721cad8f172a8dd287225be3bfbe84cfe99.json
+.planning/research/.cache/fa077276e7180558acc01b625a8d8781fcd72ea9be06c92e9c456e9ab6591da7.json
+.planning/research/.cache/fcf5c6fda23c1fb332ec8dcae28d99df82097c3bd9b22fa2a992f678c2a292ea.json
+.planning/research/ARCHITECTURE.md
+.planning/research/FEATURES.md
+.planning/research/PITFALLS.md
+.planning/research/STACK.md
+.planning/research/SUMMARY.md
+.planning/todos/pending/2026-08-17-fix-stale-capability-count-assertions-in-integration-rs.md
+.planning/ui-reviews/.gitignore
+
+===== ROADMAP =====
+# Roadmap: Enterprise OmniAgent — Security & Compliance Portal
+
+## Milestones
+
+- ✅ **[v1.0](milestones/v1.0-ROADMAP.md)** — Security & Compliance Portal: Rust agent evidence parity, manual evidence uploads, audit-ready PDF/Excel export, remediation workflow. 5 phases, 11 plans, 16/16 requirements. Shipped 2026-06-18.
+- ✅ **v1.1** — Evidence Quality & Compliance Scoring: compliance status wiring, staleness detection, bulk upload, chain-of-custody audit trail, tenant compliance score. 4 phases, 11 plans, SCORE-01/02/03 + STATUS-01/02 + STALE-01/02 + COC-01/02 + BULK-01/02/03 + UI-01. Shipped 2026-06-22.
+- ✅ **v1.2** — Reporting Automation: scheduled compliance report generation and email delivery. 1 phase, SCHED-01/02.
+- ✅ **v1.3** — Security Hardening: zip-bomb metadata bypass, bulk-upload DB rollback, ContextVar tenant-context leak. 1 phase, SEC-01/02/03.
+- ✅ **v1.4** — Agentic AI Integration: Claude tool-calling wired into the agentic decision loop for autonomous security-finding reasoning and remediation. 1 phase, AI-01/02/03/04.
+- ✅ **v1.5** — AI Compliance Narratives: LLM-generated executive summaries, findings narratives, and remediation priorities in scheduled PDF reports. 1 phase, AI-05/06.
+- ✅ **v2.0** — GRC Feature Parity: 9 phases (14–22) closing competitive gaps vs Comp AI, Probo, OpenLane, Prowler. Complete — verified 2026-07-05.
+- ✅ **v2.1** — Windows PowerShell Evidence + IaC/Container Security: full PowerShell evidence collection for all 28 Windows compliance checks, rebuilt installers (PS1, EXE/Inno Setup), dedicated ingestion API, evidence display updates (Phase 23); IaC (Terraform/CloudFormation/K8s) and container image scanning (Phase 24). Complete — verified 2026-07-05.
+- ✅ **v3.0** — Competitive Feature Closure: 14 phases (25–38) closing the 25 gaps from the 2026-07-06 feature-parity audit against Comp AI, Probo, OpenLane Core, and Prowler — cloud-check execution gaps, vendor/risk data completeness, OSCAL/SBOM export, governance documents, a real public Trust Center, AI questionnaire auto-answer, FAIR risk quantification, provider expansion, workflow connectors, passkeys, GraphQL, ReBAC, a spec-compliant MCP server, and an interactive AI security assistant. Complete 2026-07-14.
+- ✅ **v3.1** — AI Orchestration Layer: unified LangChain 1.x orchestration (`create_agent` + `init_chat_model`) across the AI compliance auditor, chat assistant, questionnaire auto-answer, and narrative generation surfaces, with citation-required structured outputs, tenant-scoped tools, and an evaluation harness (8 dimensions, Phoenix tracing). 1 phase (39), 12 plans. Complete — UAT 2026-07-19: 7 passed, 0 issues, 2 blocked on live gateway (nightly judged run, 9router passthrough re-test).
+- ✅ **[v3.2](milestones/v3.2-ROADMAP.md)** — Agent Modernization & Remediation Ops: Rust agent 2.1.x dependency modernization + intermittent-401 root-cause fix, Jira/ServiceNow ticketing bridge, SLA/escalation on overdue remediation tasks, comment threads on compliance controls, and real CSPM checks for OCI/Alibaba/Cloudflare. 7 phases (40–45), 19 plans, 10/10 requirements. Shipped 2026-07-29. Gap-closure Phase 62 (Settings UI) promoted from backlog 2026-08-10, tracked below.
+- ✅ **[v3.3](milestones/v3.3-ROADMAP.md)** — Agent Geo & Fleet Observability: fleet geo map (air-gapped bundled-SVG, clustering, tenant/status filters), location-based security (agent-scoped impossible-travel, alert-only geo-fencing, heuristic VPN/hosting flag), fleet observability (metrics-history charts, uptime timeline, offline + version-drift view), and an immutable per-agent location-history audit trail. 4 phases (46–49), 23 plans, 11/11 requirements. Audit passed. Shipped 2026-07-30.
+- ✅ **[v3.4](milestones/v3.4-ROADMAP.md)** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 6 phases (50–55), 19 requirements. Shipped 2026-08-04. Gap-closure phases 63–66 (RBAC/label UI, rotate_key remediation, FIM process attribution, full YARA engine) promoted from backlog 2026-08-11 through 2026-08-23, tracked below.
+- ✅ **[v4.0](milestones/v4.0-ROADMAP.md)** — ITAM (IT Asset Management Lifecycle): Snipe-IT-parity asset lifecycle on top of the existing security CMDB — catalog & manual asset cataloging, check-out/check-in with append-only assignment history, offline QR/barcode labels, procurement/warranty/depreciation, software licenses & consumables, and an admin-gated ITAM console. 6 phases (56–61), 17 plans, 17/17 requirements. Shipped 2026-08-10.
+- ✅ **[v4.1](milestones/v4.1-ROADMAP.md)** — ITAM-Backlog: closed the gap between the ITAM console and Snipe-IT — user management (LDAP/SAML/2FA/API tokens), custom fields/audit trail/CSV import-export/global settings, procurement & asset workflow, reporting & dashboards, REST API & integrations. 5 phases (69–73), 26 plans, 24/24 requirements. Shipped 2026-08-26. Phases 69/70/72/73 closed `human_needed` (live-environment-only checks, accepted as override); Phase 71 fully `passed`.
+
+## Phases
+
+<details>
+<summary>✅ v1.1 — Evidence Quality & Compliance Scoring (Phases 6–9) — SHIPPED 2026-06-22</summary>
+
+- [x] Phase 6: Asset Compliance Status + UI Fix
+- [x] Phase 7: Evidence Lifecycle (Staleness + Chain-of-Custody)
+- [x] Phase 8: Bulk Evidence Upload
+- [x] Phase 9: Compliance Score Dashboard
+
+</details>
+
+<details>
+<summary>✅ v1.2 — Reporting Automation (Phase 10)</summary>
+
+- [x] Phase 10: Scheduled Compliance Reports
+
+</details>
+
+<details>
+<summary>✅ v1.3 — Security Hardening (Phase 11)</summary>
+
+- [x] Phase 11: Security Hardening
+
+</details>
+
+<details>
+<summary>✅ v1.4 — Agentic AI Integration (Phase 12)</summary>
+
+- [x] Phase 12: Agentic AI Integration
+
+</details>
+
+<details>
+<summary>✅ v1.5 — AI Compliance Narratives (Phase 13)</summary>
+
+- [x] Phase 13: AI Compliance Report Narratives
+
+</details>
+
+<details>
+<summary>✅ v2.0 — GRC Feature Parity (Phases 14–22) — verified 2026-07-05</summary>
+
+- [x] Phase 14: SaaS Evidence Integration
+- [x] Phase 15: Evidence Review Workflow
+- [x] Phase 16: Program Control Grouping
+- [x] Phase 17: Cloud Checks Expansion
+- [x] Phase 18: Privacy & Legal Modules
+- [x] Phase 19: Additional Compliance Frameworks
+- [x] Phase 20: Multi-Account Cloud Scanning
+- [x] Phase 21: Notification Routing & Domain Scanner
+- [x] Phase 22: API Extensions
+
+</details>
+
+<details>
+<summary>✅ v2.1 — Windows PowerShell Evidence + IaC/Container Security (Phases 23–24) — verified 2026-07-05</summary>
+
+- [x] Phase 23: Windows PowerShell Evidence Collection
+- [x] Phase 24: IaC & Container Security
+
+</details>
+
+<details>
+<summary>✅ v3.0 — Competitive Feature Closure (Phases 25–38) — complete 2026-07-14</summary>
+
+- [x] Phase 25: Cloud Checks Execution Gaps
+- [x] Phase 26: Vendor and Risk Data Completeness
+- [x] Phase 27: Compliance Export Formats (OSCAL and SBOM)
+- [x] Phase 28: Governance Document Management
+- [x] Phase 29: Public Trust Center
+- [x] Phase 30: AI Questionnaire Auto-Answer
+- [x] Phase 31: FAIR Risk Quantification
+- [x] Phase 32: Cloud and SaaS Provider Expansion
+- [x] Phase 33: Workflow Automation Connectors
+- [x] Phase 34: Passkey and WebAuthn Authentication
+- [x] Phase 35: GraphQL API
+- [x] Phase 36: Fine-Grained Relationship-Based Authorization
+- [x] Phase 37: Spec-Compliant MCP Server
+- [x] Phase 38: Interactive AI Security Assistant
+
+</details>
+
+<details>
+<summary>✅ v3.1 — AI Orchestration Layer (Phase 39) — UAT 2026-07-19</summary>
+
+- [x] Phase 39: LangChain AI Integration
+
+</details>
+
+<details>
+<summary>✅ v3.4 gap-closure backlog (Phases 62–66) — promoted 2026-08-10 through 2026-08-23</summary>
+
+- [x] Phase 62: Remediation SLA Settings UI
+- [x] Phase 63: Close gap: ITAM-LIC-02/03 RBAC + ITAM-CAT-05 label UI
+- [x] Phase 64: rotate_key autonomous-remediation action
+- [x] Phase 65: FIM process attribution via fanotify
+- [x] Phase 66: Full YARA-rule engine for native scan
+
+</details>
+
+<details>
+<summary>✅ v4.1 — ITAM-Backlog (Phases 69–73) — SHIPPED 2026-08-26</summary>
+
+- [x] Phase 69: User Management
+- [x] Phase 70: Core Data, Audit & Customization
+- [x] Phase 71: Procurement & Asset Workflow
+- [x] Phase 72: Reporting & Dashboards
+- [x] Phase 73: API & Integrations
+
+Full detail archived to `milestones/v4.1-ROADMAP.md`.
+
+</details>
+
+### Phase 74: Interactive Remote Desktop Control (Zoho Assist parity)
+
+**Goal:** Upgrade the existing view-only remote-desktop stream (`components/RemoteDesktop.tsx`, `agent-install/omni-agent-rs/src/capabilities/remote_access.rs`) to full attended interactive control: mouse/keyboard input relay from viewer to agent over the existing WebSocket tunnel, Win32 `SendInput`-based replay on the Windows agent, an on-endpoint consent/accept prompt before control is granted, a new `control:remote_access` RBAC permission distinct from the existing `view:remote_access`, and session audit logging. Faster/continuous screen capture (replacing the periodic PowerShell screenshot loop) is in scope as a stretch goal if time allows.
+**Requirements**: TBD
+**Depends on:** Phase 73
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 74-01-PLAN.md — Tracer: one mousemove end-to-end from canvas through the `/user` tunnel to `SendInput`, behind the new `control:remote_access` gate (wave 1)
+- [ ] 74-02-PLAN.md — Backend: append-only control-session audit trail, real `close_session` kill switch, disconnect/force-kill, agent-authenticated consent reporting, capability probe (wave 2)
+- [ ] 74-03-PLAN.md — Rust agent: Session-0 consent dialog, persistent stop-control bar, consent-gated full input replay (wave 3)
+- [ ] 74-04-PLAN.md — Python legacy agent: pywin32 session injection, ctypes `SendInput` relay, closing the dropped-receive gap (wave 3)
+- [ ] 74-05-PLAN.md — Frontend: four-state control canvas, permission-gated View/Control toggle, disconnect and force-end affordances (wave 3)

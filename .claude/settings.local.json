@@ -287,7 +287,59 @@
       "Skill(gsd-stats)",
       "Bash(timeout 60 venv/bin/python -c \"from app import socket_app; print\\('OK socket_app importable'\\)\")",
       "Bash(/home/user/enterprise-omni-agent-ai-platform/backend/venv/bin/pip install *)",
-      "Bash(/home/user/enterprise-omni-agent-ai-platform/backend/venv/bin/python *)"
+      "Bash(/home/user/enterprise-omni-agent-ai-platform/backend/venv/bin/python *)",
+      "Bash(/home/user/enterprise-omni-agent-ai-platform/.venv/bin/python *)",
+      "Bash(/home/user/enterprise-omni-agent-ai-platform/.venv/bin/pytest *)",
+      "Bash(uvicorn backend.main:app *)",
+      "Bash(PYTHONPATH=backend /home/user/enterprise-omni-agent-ai-platform/.venv/bin/python *)",
+      "Skill(gsd-milestone-summary)",
+      "Workflow(deep-research)",
+      "Skill(claude-api)",
+      "WebFetch(domain:anthropic.com)",
+      "Bash(awk '{print $NF}')",
+      "WebFetch(domain:www.anyscale.com)",
+      "WebFetch(domain:lilianweng.github.io)",
+      "WebFetch(domain:a16z.com)",
+      "WebFetch(domain:www.latent.space)",
+      "WebFetch(domain:cookbook.openai.com)",
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:duckduckgo.com)",
+      "WebFetch(domain:www.google.com)",
+      "Bash(npm audit *)",
+      "mcp__ruflo__metaharness_threat_model",
+      "mcp__ruflo__metaharness_score",
+      "mcp__ruflo__metaharness_genome",
+      "mcp__ruflo__metaharness_security_bench",
+      "mcp__ruflo__metaharness_oia_audit",
+      "Bash(sudo npm install rollup-plugin-visualizer --save-dev)",
+      "Bash(npx ruflo *)",
+      "Bash(npm list *)",
+      "Bash(npm view *)",
+      "Skill(gsd-config)",
+      "Skill(gsd-audit-milestone)",
+      "Bash(tee pytest_traceback.log)",
+      "Bash(backend/venv/bin/pip show *)",
+      "Skill(gsd-update)",
+      "mcp__plugin_serena_serena__initial_instructions",
+      "mcp__ruflo__browser_open",
+      "mcp__ruflo__browser_snapshot",
+      "mcp__ruflo__browser_fill",
+      "mcp__ruflo__browser_click",
+      "mcp__ruflo__browser_wait",
+      "mcp__ruflo__browser_get-url",
+      "mcp__ruflo__browser_eval",
+      "mcp__ruflo__browser_screenshot",
+      "mcp__ruflo__browser_reload",
+      "mcp__ruflo__browser_session-list",
+      "mcp__ruflo__browser_close",
+      "Bash(kill 335755)",
+      "Bash(nohup venv/bin/python -m uvicorn app:socket_app --host 0.0.0.0 --port 5000 --log-level warning)",
+      "Bash(cat)",
+      "Bash(/tmp/restart_backend.sh)",
+      "Bash(agent/venv/bin/python -c ' *)",
+      "Bash(agent/venv/bin/python -c \"import sys; sys.path.insert\\(0,'agent'\\); import capabilities.win_input\")",
+      "Bash(../venv/bin/python -m pytest ../agent/test_compliance.py ../agent/test_comp.py ../agent/test_self_healing.py ../agent/test_update_capability.py -q)",
+      "mcp__ruflo__agent_list"
     ],
     "deny": [
       "Read(.env)",
@@ -407,6 +459,26 @@
           {
             "type": "command",
             "command": "\"/usr/bin/node\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-worktree-path-guard.js",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-agent-isolation-guard.js",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/node\" \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gsd-write-guard.js",
             "timeout": 5
           }
         ]

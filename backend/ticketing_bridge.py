@@ -222,10 +222,6 @@ async def create_ticket_for_itam_event(
     the wrapper's fail-closed dummy filter and silently returns nothing —
     meaning every automatic trigger would silently never create a ticket,
     with no error anywhere.
-
-    Never re-raises: like its remediation sibling, this function is
-    non-fatal and returns None on any failure so a sweep or a button press
-    cannot cascade.
     """
     if entity.get("ticket_ref"):
         return None  # dedup guard — an entity with a ticket never gets a second one

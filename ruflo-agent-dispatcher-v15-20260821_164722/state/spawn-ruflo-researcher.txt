@@ -1,0 +1,14 @@
+[INFO] Spawning researcher agent: ruflo-researcher
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787311053113-45t7xb               |
+| Type         | researcher                               |
+| Name         | ruflo-researcher                         |
+| Status       | registered                               |
+| Created      | 2026-08-21T11:17:33.113Z                 |
+| Capabilities | web-search, data-analysis, summarizat... |
++--------------+------------------------------------------+
+
+[OK] Agent ruflo-researcher spawned successfully

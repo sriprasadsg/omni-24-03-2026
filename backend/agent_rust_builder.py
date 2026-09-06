@@ -15,6 +15,16 @@ logger = logging.getLogger(__name__)
 _RUST_TARGET = "x86_64-pc-windows-gnu"
 _CARGO_BIN   = Path.home() / ".cargo" / "bin" / "cargo"
 
+# Serializes rebuilds so concurrent download requests (e.g. two admins
+# clicking "Download" close together, or a source edit landing right before
+# a burst of clicks) don't each spawn their own `cargo build`. Cargo's own
+# lock would make the second process just sit there burning most of its own
+# 600s subprocess timeout waiting on the first — this makes it instead wait
+# on the lock and then hit the warm-cache fast path once the first finishes.
+# One lock per target dir; the two builds don't contend with each other.
+_windows_build_lock = asyncio.Lock()
+_native_build_lock  = asyncio.Lock()
+
 
 def _sources_newer_than(exe: Path, rust_src: Path) -> bool:
     """True if any .rs source or Cargo.toml is newer than the cached exe."""
@@ -25,44 +35,83 @@ def _sources_newer_than(exe: Path, rust_src: Path) -> bool:
 
 async def _ensure_rust_binary(rust_src: Path) -> Path:
     """Return path to compiled omni-agent.exe, building it if necessary."""
-    exe = rust_src / "target" / _RUST_TARGET / "release" / "omni-agent.exe"
-    if exe.exists():
-        if _sources_newer_than(exe, rust_src):
-            if not shutil.which("x86_64-w64-mingw32-gcc"):
-                logger.warning("Toolchain missing, reusing old binary despite source changes")
+    async with _windows_build_lock:
+        exe = rust_src / "target" / _RUST_TARGET / "release" / "omni-agent.exe"
+        if exe.exists():
+            if _sources_newer_than(exe, rust_src):
+                if not shutil.which("x86_64-w64-mingw32-gcc"):
+                    logger.warning("Toolchain missing, reusing old binary despite source changes")
+                    return exe
+                logger.info("Cached Rust binary is older than sources — rebuilding")
+            else:
+                logger.info("Reusing cached Rust binary (%s KB)", exe.stat().st_size // 1024)
                 return exe
-            logger.info("Cached Rust binary is older than sources — rebuilding")
-        else:
-            logger.info("Reusing cached Rust binary (%s KB)", exe.stat().st_size // 1024)
-            return exe
 
-    cargo = str(_CARGO_BIN) if _CARGO_BIN.exists() else shutil.which("cargo") or ""
-    if not cargo:
-        raise HTTPException(status_code=503, detail="cargo not found; install Rust via https://rustup.rs")
-    mingw = shutil.which("x86_64-w64-mingw32-gcc")
-    if not mingw:
-        raise HTTPException(status_code=503, detail="x86_64-w64-mingw32-gcc not found; install gcc-mingw-w64-x86-64")
+        cargo = str(_CARGO_BIN) if _CARGO_BIN.exists() else shutil.which("cargo") or ""
+        if not cargo:
+            raise HTTPException(status_code=503, detail="cargo not found; install Rust via https://rustup.rs")
+        mingw = shutil.which("x86_64-w64-mingw32-gcc")
+        if not mingw:
+            raise HTTPException(status_code=503, detail="x86_64-w64-mingw32-gcc not found; install gcc-mingw-w64-x86-64")
 
-    env = os.environ.copy()
-    env["CC_x86_64_pc_windows_gnu"] = mingw
-    env["AR_x86_64_pc_windows_gnu"] = shutil.which("x86_64-w64-mingw32-ar") or "x86_64-w64-mingw32-ar"
+        env = os.environ.copy()
+        env["CC_x86_64_pc_windows_gnu"] = mingw
+        env["AR_x86_64_pc_windows_gnu"] = shutil.which("x86_64-w64-mingw32-ar") or "x86_64-w64-mingw32-ar"
 
-    logger.info("Compiling Rust agent for %s — first build ~2 min…", _RUST_TARGET)
-    proc = await asyncio.create_subprocess_exec(
-        cargo, "build", "--release", "--target", _RUST_TARGET,
-        cwd=str(rust_src), env=env,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-    except (asyncio.TimeoutError, TimeoutError):
-        raise HTTPException(status_code=503, detail="cargo build timed out after 600 s")
-    if proc.returncode != 0:
-        raise HTTPException(status_code=503, detail=f"cargo build failed: {(stderr or b'').decode(errors='replace')[-500:]}")
-    if not exe.exists():
-        raise HTTPException(status_code=503, detail="cargo build succeeded but exe not found")
-    logger.info("Rust binary compiled (%s KB)", exe.stat().st_size // 1024)
-    return exe
+        logger.info("Compiling Rust agent for %s — first build ~2 min…", _RUST_TARGET)
+        proc = await asyncio.create_subprocess_exec(
+            cargo, "build", "--release", "--target", _RUST_TARGET,
+            cwd=str(rust_src), env=env,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(status_code=503, detail="cargo build timed out after 600 s")
+        if proc.returncode != 0:
+            raise HTTPException(status_code=503, detail=f"cargo build failed: {(stderr or b'').decode(errors='replace')[-500:]}")
+        if not exe.exists():
+            raise HTTPException(status_code=503, detail="cargo build succeeded but exe not found")
+        logger.info("Rust binary compiled (%s KB)", exe.stat().st_size // 1024)
+        return exe
+
+
+async def _ensure_rust_binary_native(rust_src: Path) -> Path:
+    """Return path to the native-Linux-compiled omni-agent binary, building if
+    needed. A plain host build (no --target, no mingw) — the fat-LTO crash that
+    .cargo/config.toml works around for x86_64-pc-windows-gnu is specific to
+    that cross-linker and doesn't reproduce here; a native release build with
+    the crate's default full LTO completes in well under a minute from a warm
+    dependency cache."""
+    async with _native_build_lock:
+        exe = rust_src / "target" / "release" / "omni-agent"
+        if exe.exists():
+            if _sources_newer_than(exe, rust_src):
+                logger.info("Cached native Linux binary is older than sources — rebuilding")
+            else:
+                logger.info("Reusing cached native Linux binary (%s KB)", exe.stat().st_size // 1024)
+                return exe
+
+        cargo = str(_CARGO_BIN) if _CARGO_BIN.exists() else shutil.which("cargo") or ""
+        if not cargo:
+            raise HTTPException(status_code=503, detail="cargo not found; install Rust via https://rustup.rs")
+
+        logger.info("Compiling Rust agent for native Linux — first build ~1-2 min…")
+        proc = await asyncio.create_subprocess_exec(
+            cargo, "build", "--release",
+            cwd=str(rust_src),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise HTTPException(status_code=503, detail="cargo build timed out after 600 s")
+        if proc.returncode != 0:
+            raise HTTPException(status_code=503, detail=f"cargo build failed: {(stderr or b'').decode(errors='replace')[-500:]}")
+        if not exe.exists():
+            raise HTTPException(status_code=503, detail="cargo build succeeded but binary not found")
+        logger.info("Native Linux binary compiled (%s KB)", exe.stat().st_size // 1024)
+        return exe
 
 
 def _rust_agent_version(rust_src: Path) -> str:
@@ -275,6 +324,73 @@ SectionEnd
 """
 
 
+def _setup_svc_rust_systemd(version: str) -> str:
+    """Linux installer script — registers the Rust agent as a systemd service.
+    Mirrors _setup_svc_rust_ps1's shape (stop+replace on upgrade, write the
+    unit, enable, start, verify) but via systemctl instead of sc.exe; on Linux
+    the binary just runs in the foreground (main.rs has no service-dispatcher
+    branch outside #[cfg(windows)]) and systemd handles daemonizing/restart."""
+    return f"""\
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "This installer must be run as root (sudo ./install.sh)." >&2
+    exit 1
+fi
+
+D="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+INSTALL_DIR="/opt/omni-agent-rust"
+SVC_NAME="omni-agent-rust"
+
+mkdir -p "$INSTALL_DIR"
+
+# Upgrade path: a running service holds an exclusive lock on its own binary,
+# so File-copy-in-place would fail (or silently keep the agent on the old
+# binary) if it's still running. Stop it first, same as the Windows installer
+# does for OmniAgentRust before overwriting omni-agent.exe.
+if systemctl is-active --quiet "$SVC_NAME" 2>/dev/null; then
+    echo "Stopping existing $SVC_NAME service..."
+    systemctl stop "$SVC_NAME"
+fi
+
+cp "$D/omni-agent" "$INSTALL_DIR/omni-agent"
+chmod 755 "$INSTALL_DIR/omni-agent"
+cp "$D/config.yaml" "$INSTALL_DIR/config.yaml"
+chmod 600 "$INSTALL_DIR/config.yaml"
+
+cat > /etc/systemd/system/$SVC_NAME.service <<UNIT
+[Unit]
+Description=Enterprise OmniAgent (Rust edition v{version})
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$INSTALL_DIR/omni-agent
+WorkingDirectory=$INSTALL_DIR
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+echo "Creating systemd service: $SVC_NAME"
+systemctl daemon-reload
+systemctl enable "$SVC_NAME"
+systemctl restart "$SVC_NAME"
+
+sleep 2
+if systemctl is-active --quiet "$SVC_NAME"; then
+    echo "SUCCESS: $SVC_NAME is running. Manage via: systemctl status $SVC_NAME"
+else
+    echo "WARNING: service registered but may not be running — check: journalctl -u $SVC_NAME -n 50" >&2
+fi
+"""
+
+
 def _rust_src(base_dir: Path) -> Path:
     """The single source of truth for the endpoint agent binary — the
     omni-agent-rs tree, which has the tray + chat/ticket UI. (The legacy
@@ -302,6 +418,62 @@ async def prepare_rust_pkg(pkg_dir: Path, base_dir: Path, api_url: str, registra
     # any non-ASCII byte in the script.
     (pkg_dir / "setup_svc.ps1").write_text(
         _setup_svc_rust_ps1(api_url, registration_key, version), encoding="utf-8-sig")
+
+
+async def prepare_rust_linux_pkg(pkg_dir: Path, base_dir: Path, api_url: str, registration_key: str) -> None:
+    """Populate pkg_dir with the standalone rust agent for native Linux:
+    omni-agent + config.yaml + install.sh. install.sh registers the systemd
+    service — no Python, no manual unit-file authoring post-install."""
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+    rust_src = _rust_src(base_dir)
+    binary = await _ensure_rust_binary_native(rust_src)
+    version = _rust_agent_version(rust_src)
+    shutil.copy2(binary, pkg_dir / "omni-agent")
+    (pkg_dir / "omni-agent").chmod(0o755)
+    with open(pkg_dir / "config.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(_config_yaml(api_url, registration_key), f, default_flow_style=False, sort_keys=True)
+    install_sh = pkg_dir / "install.sh"
+    install_sh.write_text(_setup_svc_rust_systemd(version), encoding="utf-8")
+    install_sh.chmod(0o755)
+
+
+async def build_rust_linux_pkg(
+    tenant_id: str, tenant_name: str, registration_key: str,
+    api_url: str, background_tasks: BackgroundTasks, base_dir: Path,
+) -> Response:
+    """Build a tar.gz containing the native Rust Linux agent + config +
+    install.sh. Additive alongside the existing Python agent ZIP (platform=
+    linux, still the default) — not a replacement. The Rust agent currently
+    covers a smaller capability set on Linux than the Python agent (no eBPF
+    tracing, K8s monitor, EDR realtime, UEBA, threat intel, etc.), so this is
+    opt-in for users who want the lighter native binary today, while the
+    Python agent remains the full-capability default."""
+    tenant_safe = tenant_name.replace(" ", "-").lower()
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"omni_rust_linux_{tenant_id}_"))
+    try:
+        pkg_dir = temp_dir / f"omni-agent-rust-{tenant_safe}"
+        await prepare_rust_linux_pkg(pkg_dir, base_dir, api_url, registration_key)
+
+        import tarfile
+        tar_out = temp_dir / f"OmniAgent-Rust-{tenant_safe}.tar.gz"
+        with tarfile.open(tar_out, "w:gz") as tar:
+            tar.add(pkg_dir, arcname=pkg_dir.name)
+
+        content = tar_out.read_bytes()
+        logger.info("Rust Linux tarball built: %d KB for tenant %s", len(content) // 1024, tenant_id)
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        return Response(
+            content=content,
+            media_type="application/gzip",
+            headers={"Content-Disposition": f'attachment; filename="OmniAgent-Rust-{tenant_safe}.tar.gz"'},
+        )
+    except HTTPException:
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise
+    except Exception as exc:
+        logger.error("Rust Linux tarball build failed for %s: %s", tenant_id, exc)
+        background_tasks.add_task(cleanup_temp_dir, str(temp_dir))
+        raise HTTPException(status_code=500, detail="Failed to build Rust Linux package")
 
 
 async def build_rust_exe(

@@ -1,0 +1,4 @@
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2       787G  334G  420G  45% /
+Filesystem     Inodes IUsed IFree IUse% Mounted on
+/dev/sda2         50M  2.6M   48M    6% /

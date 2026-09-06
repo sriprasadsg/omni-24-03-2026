@@ -1,0 +1,11 @@
+{
+  "version": "v19",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "run_directory": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-v19-20260822_022816",
+  "workers": 8,
+  "completed": 2,
+  "failed": 5,
+  "timeout": 1,
+  "execution_model": "direct-claude-code",
+  "ruflo_execution_required": false
+}

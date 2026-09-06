@@ -1,3 +1,5 @@
+@/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/response-language-directive.md
+
 <purpose>
 Review source files changed during a phase for bugs, security issues, and code quality problems. Computes file scope (--files override > SUMMARY.md > git diff fallback), checks config gate, spawns gsd-code-reviewer agent, commits REVIEW.md, and presents results to user. When --fix is passed, delegates to code-review-fix.md after review to auto-apply findings via gsd-code-fixer.
 </purpose>
@@ -17,9 +19,35 @@ Read all files referenced by the invoking prompt's execution_context before star
 Parse arguments and load project state:
 
 ```bash
-_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; if [ -f "$GSD_TOOLS" ]; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif command -v gsd-tools >/dev/null 2>&1; then GSD_TOOLS="$(command -v gsd-tools)"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif [ -f "${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd-tools is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
+_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; _gsd_at() { for _p; do if [ -f "$_p" ]; then GSD_TOOLS="$_p"; return 0; fi; done; return 1; }; if _gsd_at "${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}" "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif unset -f gsd_run; _G="$(command -v gsd_run)"; then GSD_TOOLS="$_G"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif _gsd_at "${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; then gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd_run is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; GSD_IDENTITY_STATUS=unverified; case "$(gsd_run runtime-identity --raw 2>/dev/null || true)" in '{"packageName":"@opengsd/gsd-core"'*'}') GSD_IDENTITY_STATUS=ok;; esac; export GSD_IDENTITY_STATUS; [ "$GSD_IDENTITY_STATUS" = ok ] || echo "WARNING: \"$GSD_TOOLS\" did not prove it is @opengsd/gsd-core - it is either a different package or an @opengsd/gsd-core older than the runtime-identity verb. See docs/how-to/diagnose-a-foreign-gsd-tools.md" >&2; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
 PHASE_ARG="${1}"
-INIT=$(gsd_run query init.phase-op "${PHASE_ARG}")
+
+# Parse all code-review flags into a structured IR via code-review-flags.cjs.
+# This is the canonical flag-parsing surface — do not replicate inline bash parsing
+# for --fix/--all/--auto here; the module handles all flag extraction and implication
+# logic (e.g., --all and --auto imply --fix). Resolved BEFORE the init call below so
+# the section-manifest gate forwards the RESOLVED (post-implication) fix decision, not
+# just a literal --fix token check.
+FLAGS_JSON=$(node -e "
+  const { parseCodeReviewFlags } = require('./gsd-core/bin/lib/code-review-flags.cjs');
+  const flags = parseCodeReviewFlags(process.argv.slice(1));
+  process.stdout.write(JSON.stringify(flags));
+" -- "$@" 2>/dev/null)
+
+# Extract individual flag values from the IR
+FIX_FLAG=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).fix))")
+FIX_ALL=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).all))")
+FIX_AUTO=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).auto))")
+DEPTH_OVERRIDE=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).depth)")
+FILES_OVERRIDE=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).files)")
+
+# Forward the resolved fix decision (--fix itself, or --all/--auto implying it) to
+# init.code-review so section_manifest's flag:--fix gating (dispatch-fix section)
+# matches code-review-flags.cjs's own implication logic rather than a raw token scan.
+FIX_PARAM=""
+if [ "$FIX_FLAG" = "true" ]; then FIX_PARAM="--fix"; fi
+
+INIT=$(gsd_run query init.code-review "${PHASE_ARG}" $FIX_PARAM)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 AGENT_SKILLS_REVIEWER=$(gsd_run query agent-skills gsd-code-reviewer)
 # #2072: resolve the routed model so model_overrides / models.verification are honored
@@ -27,7 +55,7 @@ AGENT_SKILLS_REVIEWER=$(gsd_run query agent-skills gsd-code-reviewer)
 REVIEWER_MODEL=$(gsd_run query resolve-model gsd-code-reviewer --raw)
 ```
 
-Parse from init JSON: `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `padded_phase`, `commit_docs`.
+Parse from init JSON: `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `padded_phase`, `commit_docs`, `fallow_enabled`, `fallow_scope`, `fallow_profile`, `fallow_mcp`, `fallow_max_crap`.
 
 **Input sanitization (defense-in-depth):**
 ```bash
@@ -46,27 +74,6 @@ Error: Phase ${PHASE_ARG} not found. Run /gsd-progress to see available phases.
 
 This runs BEFORE config gate check so user errors are surfaced immediately regardless of config state.
 
-Parse optional flags from $ARGUMENTS using the typed flag parser:
-
-```bash
-# Parse all code-review flags into a structured IR via code-review-flags.cjs.
-# This is the canonical flag-parsing surface — do not replicate inline bash parsing
-# for --fix/--all/--auto here; the module handles all flag extraction and implication
-# logic (e.g., --all and --auto imply --fix).
-FLAGS_JSON=$(node -e "
-  const { parseCodeReviewFlags } = require('./gsd-core/bin/lib/code-review-flags.cjs');
-  const flags = parseCodeReviewFlags(process.argv.slice(1));
-  process.stdout.write(JSON.stringify(flags));
-" -- "$@" 2>/dev/null)
-
-# Extract individual flag values from the IR
-FIX_FLAG=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).fix))")
-FIX_ALL=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).all))")
-FIX_AUTO=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).auto))")
-DEPTH_OVERRIDE=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).depth)")
-FILES_OVERRIDE=$(echo "$FLAGS_JSON" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).files)")
-```
-
 If FILES_OVERRIDE is set, split by comma into array:
 ```bash
 if [ -n "$FILES_OVERRIDE" ]; then
@@ -76,55 +83,35 @@ fi
 </step>
 
 <step name="check_config_gate">
-Check if code review is active via the capability registry:
+Check if code review is active via `workflow.code_review` (the capability's on/off toggle — independent of `workflow.code_review_point`, the loop-point selector; a manual invocation must work regardless of which automatic point is currently configured):
 
 ```bash
-EXECUTE_POST_HOOKS_JSON=$(gsd_run loop render-hooks execute:post --raw)
+CODE_REVIEW_ENABLED=$(gsd_run query config-get workflow.code_review --raw 2>/dev/null || echo "true")
 ```
 
-Resolve active step hooks from `EXECUTE_POST_HOOKS_JSON` where `kind == "step"` and `ref.skill == "code-review"`.
-
-If no active code-review step hook exists:
+If `CODE_REVIEW_ENABLED` is not `"true"`:
 ```
 Code review skipped (code-review capability inactive)
 ```
 Exit workflow.
 
-Default is active through the Capability Registry schema — only skip when the registry resolves no active code-review step hook. This check runs AFTER phase validation so invalid phase errors are shown first.
-</step>
-
-<step name="resolve_depth">
-Determine review depth with priority order:
-
-1. DEPTH_OVERRIDE from --depth flag (highest priority)
-2. Config value: `gsd-tools.cjs query config-get workflow.code_review_depth 2>/dev/null`
-3. Default: "standard"
-
-```bash
-if [ -n "$DEPTH_OVERRIDE" ]; then
-  REVIEW_DEPTH="$DEPTH_OVERRIDE"
-else
-  CONFIG_DEPTH=$(gsd_run query config-get workflow.code_review_depth 2>/dev/null || echo "")
-  REVIEW_DEPTH="${CONFIG_DEPTH:-standard}"
-fi
-```
-
-**Validate depth value:**
-```bash
-case "$REVIEW_DEPTH" in
-  quick|standard|deep)
-    # Valid
-    ;;
-  *)
-    echo "Warning: Invalid depth '${REVIEW_DEPTH}'. Valid values: quick, standard, deep. Using 'standard'."
-    REVIEW_DEPTH="standard"
-    ;;
-esac
-```
+Default is active (`workflow.code_review` schema default is `true`) — only skip when explicitly disabled. This check runs AFTER phase validation so invalid phase errors are shown first.
 </step>
 
 <step name="compute_file_scope">
 Three-tier scoping with explicit precedence:
+
+Compute the phase's last review commit, if any. This narrows Tiers 2 and 3 below to what
+changed since that review (wave-scoped reviews under `workflow.code_review_point=execute:wave:post`):
+
+```bash
+# #3661: incremental scoping — when this phase has a prior review, later tiers
+# narrow to what changed since it (wave-scoped reviews under
+# workflow.code_review_point=execute:wave:post). Empty on a phase's first review
+# (the entire execute:post-default path), in which case Tiers 2 and 3 below are
+# unchanged from today.
+LAST_REVIEW_COMMIT=$(git log --format=%H -1 -- "${PHASE_DIR}/${PADDED_PHASE}-REVIEW.md" 2>/dev/null)
+```
 
 **Tier 1 — --files override (highest precedence per D-08):**
 
@@ -165,13 +152,24 @@ if [ -z "$FILES_OVERRIDE" ]; then
   REVIEW_FILES=()
   
   if [ -n "$SUMMARIES" ]; then
-    for summary in $SUMMARIES; do
+    # Rewrapped through unquoted command substitution (gsd-core#4109): a bare
+    # `$VAR` word-splits under bash but not zsh, collapsing every element onto
+    # one iteration there.
+    for summary in $(printf '%s' "$SUMMARIES"); do
+      # #3661: skip a SUMMARY.md unchanged since the phase's last review — this
+      # summary's plan was already reviewed. No-op (every summary is "changed") when
+      # LAST_REVIEW_COMMIT is empty. Fails OPEN on any git error (file stays in scope)
+      # — never silently drop a file because a git command errored.
+      if [ -n "$LAST_REVIEW_COMMIT" ] && git diff --quiet "${LAST_REVIEW_COMMIT}" HEAD -- "$summary" 2>/dev/null; then
+        continue
+      fi
+
       # Extract key_files.created and key_files.modified using node for reliable YAML parsing
       # This avoids fragile awk parsing that breaks on indentation differences
       EXTRACTED=$(node -e "
         const fs = require('fs');
         const content = fs.readFileSync('$summary', 'utf-8');
-        const match = content.match(/^---\n([\s\S]*?)\n---/);
+        const match = content.replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---/);
         if (!match) { process.exit(0); }
         const yaml = match[1];
         const files = [];
@@ -185,7 +183,21 @@ if [ -z "$FILES_OVERRIDE" ]; then
             raw = raw.replace(/^['"]|['"]$/g, '');
             raw = raw.replace(/\s+\([^)]*\)\s*$/, '');
             raw = raw.split(/\s+—\s/)[0].trim();
-            if (/\//.test(raw) && /\.[A-Za-z0-9]+$/.test(raw)) {
+            // #2666: accept root-level paths (no `/`) and known extensionless build
+            // files, not only nested paths with a trailing extension. The pre-fix
+            // guard required BOTH a directory separator AND a trailing dot-extension,
+            // which silently dropped every repository-root file (Dockerfile,
+            // renovate.json, AGENTS.md, package.json, .gitlab-ci.yml, …) and every
+            // extensionless build file anywhere in the tree (**/Dockerfile, **/Makefile).
+            // Prose bullets are rejected by the known-filename / has-extension
+            // distinction, with the post-processing existence check (`[ -f ]`) as a
+            // backstop — a prose string is never a real file on disk.
+            const KNOWN_EXTENSIONLESS_BUILD_FILES = new Set([
+              'dockerfile', 'containerfile', 'makefile', 'justfile', 'procfile',
+            ]);
+            const hasExtension = /\.[A-Za-z0-9]+$/.test(raw);
+            const basename = raw.split('/').pop().toLowerCase();
+            if (hasExtension || KNOWN_EXTENSIONLESS_BUILD_FILES.has(basename)) {
               files.push(raw);
             }
           }
@@ -210,44 +222,112 @@ if [ -z "$FILES_OVERRIDE" ]; then
 fi
 ```
 
-**Tier 3 — Git diff fallback (per D-02):**
+**Tier 3 — Git diff fallback (per D-02) and SUMMARY/diff cross-check (per #2666):**
 
-If no SUMMARY.md files found OR no files extracted from them:
+If no SUMMARY.md files found OR no files extracted from them, fall back to the git diff.
+Additionally, whenever a reliable diff base is available, cross-check the SUMMARY scope
+against the diff and warn about (then add) any changed files the SUMMARY extractor did not
+surface — so a partial SUMMARY result can no longer silently mask the rest of the phase.
 ```bash
+# Compute diff base from phase commits — fail closed if no reliable base found.
+# #3503: anchor the grep to GSD's own conventional-commit phase scopes — the
+# subject-line formats this system itself emits (docs(phase-N): from
+# execute-phase.md, plan scopes feat(N-MM):/test(N-MM): from references/tdd.md,
+# bare phase scopes docs(N):). The #2989/#3191 prose anchor "[Pp]hase N"
+# matched free prose in ANY commit body — planning commits forward-reference
+# later phases ("deferred to Phase N per D-09"), doc commits use "### Phase N"
+# as a format example — and tail -1 (oldest match) turned each false positive
+# into a base unboundedly before the phase, while GSD's own scope commits
+# never contain the literal "Phase N" at all. The ^ anchor makes this a
+# subject-line match, so commit-body prose can never capture the base.
+# Workflows emit the UNPADDED roadmap phase number (docs(phase-6):) while
+# PADDED_PHASE is zero-padded ("06") — accept both spellings.
+# #3191: stay POSIX-ERE portable — the boundary is the closing paren + colon,
+# never \b (not a POSIX ERE token; under --extended-regexp it silently matches
+# nothing on macOS regex(3), making this fallback dead on Apple platforms).
+# #3995: a phase number is unique within a MILESTONE, not a repository. The
+# former message grep had no milestone bound, and its tail -1 deliberately
+# selected the OLDEST matching subject — dragging in previous milestones'
+# same-numbered phases and taking a 7-file phase to a 3388-file scope (plus
+# the >50 depth downgrade). The phase's own directory is the unique identity:
+# base = the parent of the first commit that added anything under PHASE_DIR
+# (the same anchor class git-base-branch's phaseStartCommit uses for
+# complexity triggering). Message subjects demonstrably do not carry enough
+# information to identify a phase — this was the grep's fifth failure.
+# KNOWN RESIDUAL: git log -- <dir> does not follow renames, so a LATER
+# milestone that reuses BOTH number and slug re-creates the same literal
+# path and the oldest A-commit is the previous occupant's. Number+slug
+# reuse is the narrow trigger; the reported archived-milestone case (dirs
+# move under milestones/ on archive) is closed.
+PHASE_START=$(git log --format="%H" --diff-filter=A -- "${PHASE_DIR}" 2>/dev/null | tail -1)
+DIFF_BASE=""
+if [ -n "$LAST_REVIEW_COMMIT" ]; then
+  # #3661: a prior review exists — narrow the diff base to since that review
+  # (wave-scoped) instead of the whole phase.
+  DIFF_BASE="$LAST_REVIEW_COMMIT"
+elif [ -n "$PHASE_START" ]; then
+  if git rev-parse "${PHASE_START}^" >/dev/null 2>&1; then
+    DIFF_BASE="${PHASE_START}^"
+  else
+    DIFF_BASE="${PHASE_START}"
+  fi
+fi
+
 if [ ${#REVIEW_FILES[@]} -eq 0 ]; then
-  # Compute diff base from phase commits — fail closed if no reliable base found
-  PHASE_COMMITS=$(git log --oneline --all --grep="${PADDED_PHASE}" --format="%H" 2>/dev/null)
-  
-  if [ -n "$PHASE_COMMITS" ]; then
-    DIFF_BASE=$(echo "$PHASE_COMMITS" | tail -1)^
-    
-    # Verify the parent commit exists (first commit in repo has no parent)
-    if ! git rev-parse "${DIFF_BASE}" >/dev/null 2>&1; then
-      DIFF_BASE=$(echo "$PHASE_COMMITS" | tail -1)
-    fi
-    
+  # Full git-diff fallback (per D-02): SUMMARY scoping yielded nothing.
+  if [ -n "$DIFF_BASE" ]; then
     # Run git diff with specific exclusions (per D-03)
     DIFF_FILES=$(git diff --name-only "${DIFF_BASE}..HEAD" -- . \
       ':!.planning/' ':!ROADMAP.md' ':!STATE.md' \
       ':!*-SUMMARY.md' ':!*-VERIFICATION.md' ':!*-PLAN.md' \
       ':!package-lock.json' ':!yarn.lock' ':!Gemfile.lock' ':!poetry.lock' 2>/dev/null)
-    
+
     while IFS= read -r file; do
       [ -n "$file" ] && REVIEW_FILES+=("$file")
     done <<< "$DIFF_FILES"
-    
+
     echo "File scope: ${#REVIEW_FILES[@]} files from git diff (base: ${DIFF_BASE})"
   else
     # Fail closed — no reliable diff base found. Do not use arbitrary HEAD~N.
     echo "Warning: No phase commits found for '${PADDED_PHASE}'. Cannot determine reliable diff scope."
     echo "Use --files flag to specify files explicitly: /gsd-code-review ${PHASE_ARG} --files=file1,file2,..."
   fi
+elif [ -n "$DIFF_BASE" ]; then
+  # #2666 cross-check: SUMMARY yielded a non-empty (possibly partial) scope.
+  # Warn about — and add — any changed files the SUMMARY extractor did not surface,
+  # so a partial result can no longer silently ship an incomplete review scope.
+  DIFF_FILES=$(git diff --name-only "${DIFF_BASE}..HEAD" -- . \
+    ':!.planning/' ':!ROADMAP.md' ':!STATE.md' \
+    ':!*-SUMMARY.md' ':!*-VERIFICATION.md' ':!*-PLAN.md' \
+    ':!package-lock.json' ':!yarn.lock' ':!Gemfile.lock' ':!poetry.lock' 2>/dev/null)
+
+  # Build a newline-delimited list of already-scoped files for exact membership
+  # testing (portable — bash 3.2 on macOS has no associative arrays). grep -Fxq
+  # matches the WHOLE line exactly, so a short basename (e.g. root `Dockerfile`)
+  # does NOT substring-match a longer scoped path (e.g. `docker/Dockerfile`).
+  IN_SCOPE=$(printf '%s\n' "${REVIEW_FILES[@]}")
+
+  MISSING_FROM_SUMMARY=()
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    # Exact whole-line match; grep nonzero-exit => not in scope.
+    if printf '%s\n' "${REVIEW_FILES[@]}" | grep -Fxq -- "$file" 2>/dev/null; then
+      : # already scoped
+    else
+      MISSING_FROM_SUMMARY+=("$file"); REVIEW_FILES+=("$file")
+    fi
+  done <<< "$DIFF_FILES"
+
+  if [ ${#MISSING_FROM_SUMMARY[@]} -gt 0 ]; then
+    echo "Warning: SUMMARY scope was missing ${#MISSING_FROM_SUMMARY[@]} changed file(s) the git diff surfaced; adding them to the review scope:"
+    printf '  - %s\n' "${MISSING_FROM_SUMMARY[@]}"
+  fi
 fi
 ```
 
 **Post-processing (all tiers):**
 
-1. **Expand tilde paths:** SUMMARY.md `key-files` entries may record a `~/...`-prefixed path (e.g. `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/workflows/verify-phase.md`). Bash only tilde-expands a literal `~` written in source text, never one arriving as the value of an already-expanded variable, so every later `[ -f "$file" ]` check must see a real, expanded path or it misclassifies the file as deleted.
+1. **Expand tilde paths:** SUMMARY.md `key-files` entries may record a `~/...`-prefixed path (e.g. `/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/workflows/verify-work.md`). Bash only tilde-expands a literal `~` written in source text, never one arriving as the value of an already-expanded variable, so every later `[ -f "$file" ]` check must see a real, expanded path or it misclassifies the file as deleted.
 ```bash
 EXPANDED_FILES=()
 for file in "${REVIEW_FILES[@]}"; do
@@ -321,12 +401,122 @@ echo "File scope: ${#REVIEW_FILES[@]} files from ${TIER}"
 if [ ${#REVIEW_FILES[@]} -gt 50 ]; then
   echo "Warning: ${#REVIEW_FILES[@]} files is a large review scope."
   echo "Consider using --files to narrow scope, or --depth=quick for a faster pass."
-  if [ "$REVIEW_DEPTH" = "deep" ]; then
-    echo "Switching from deep to standard depth for large file count."
-    REVIEW_DEPTH="standard"
-  fi
 fi
 ```
+</step>
+
+<step name="resolve_depth">
+Determine review depth via the path-scoped depth resolver (`code-review-depth.cjs`). This step runs after `compute_file_scope` because rule matching needs the final `REVIEW_FILES` set.
+
+```bash
+CONFIG_DEPTH=$(gsd_run query config-get workflow.code_review_depth --raw 2>/dev/null || echo "")
+DEPTH_OVERRIDES=$(gsd_run query config-get workflow.code_review_depth_overrides --default '[]' 2>/dev/null || echo '[]')
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+
+# Files travel on stdin, never argv — a 50+-file scope with long paths approaches the
+# Windows execFileSync 32,767-char argv ceiling; stdin has no such bound.
+DEPTH_PAYLOAD=$(printf '%s\n' "${REVIEW_FILES[@]}" | FLAG_DEPTH="$DEPTH_OVERRIDE" CONFIG_DEPTH="$CONFIG_DEPTH" DEPTH_OVERRIDES="$DEPTH_OVERRIDES" REPO_ROOT="$REPO_ROOT" node -e "
+  const files = require('fs').readFileSync('/dev/stdin', 'utf-8').split('\n').filter(Boolean);
+  process.stdout.write(JSON.stringify({
+    flagDepth: process.env.FLAG_DEPTH || '',
+    configDepth: process.env.CONFIG_DEPTH || '',
+    overrides: JSON.parse(process.env.DEPTH_OVERRIDES || '[]'),
+    files,
+    repoRoot: process.env.REPO_ROOT || '',
+  }));
+")
+
+DEPTH_JSON=$(echo "$DEPTH_PAYLOAD" | node -e "
+  const { resolveCodeReviewDepth } = require('./gsd-core/bin/lib/code-review-depth.cjs');
+  const input = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
+  process.stdout.write(JSON.stringify(resolveCodeReviewDepth(input)));
+")
+
+DEPTH_OK=$(echo "$DEPTH_JSON" | node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).ok))")
+```
+
+The guard and the extraction it protects must run as one shell control-flow decision — a prose sentence between two fenced blocks is not a guard, since fenced blocks do not share shell state. Anything other than the literal string `true` (including an empty `DEPTH_OK`, which is what a crashed or missing resolver produces) is treated as failure, and the failure branch exits before any extraction can run:
+
+```bash
+if [ "$DEPTH_OK" = "true" ]; then
+  # Single spawn: emit all seven fields as Unit-Separator-delimited (U+001F) values,
+  # fixed order. Field '\x1f' (not '\n') is deliberate: bash's `read` treats '\n' as
+  # "IFS whitespace" and collapses runs of it, silently dropping an empty field (e.g.
+  # DEPTH_MATCHED_RULE_PATH when matchedRule is null) — '\x1f' is not IFS-whitespace,
+  # so each empty field survives as its own zero-length token. This is safe only
+  # because validateRulePath (src/code-review-depth.cts) rejects any rule path
+  # carrying an interior control character, including U+001F itself — so
+  # DEPTH_MATCHED_RULE_PATH below can never collide with the delimiter. Do not
+  # remove that validation without revisiting this split.
+  DEPTH_FIELDS=$(echo "$DEPTH_JSON" | node -e "
+    const d = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
+    const r = d.matchedRule;
+    process.stdout.write([
+      d.depth,
+      d.source,
+      r ? String(r.index) : '',
+      r ? r.path : '',
+      String(!!d.invalidFlagDepth),
+      String(!!d.invalidConfigDepth),
+      String(!!d.downgraded),
+    ].join('\x1f'));
+  ")
+  IFS=$'\x1f' read -r -d '' REVIEW_DEPTH DEPTH_SOURCE DEPTH_MATCHED_RULE_INDEX DEPTH_MATCHED_RULE_PATH \
+    DEPTH_INVALID_FLAG DEPTH_INVALID_CONFIG DEPTH_DOWNGRADED <<< "$DEPTH_FIELDS" || true
+  # <<< always appends a trailing newline to its input; strip it from the last field.
+  DEPTH_DOWNGRADED="${DEPTH_DOWNGRADED%$'\n'}"
+
+  case "$DEPTH_SOURCE" in
+    flag) DEPTH_PROVENANCE="from --depth flag" ;;
+    rule) DEPTH_PROVENANCE="matched rule ${DEPTH_MATCHED_RULE_INDEX}: ${DEPTH_MATCHED_RULE_PATH}" ;;
+    config) DEPTH_PROVENANCE="from workflow.code_review_depth" ;;
+    *) DEPTH_PROVENANCE="default" ;;
+  esac
+  echo "Review depth: ${REVIEW_DEPTH} (${DEPTH_PROVENANCE})"
+
+  if [ "$DEPTH_INVALID_FLAG" = "true" ]; then
+    echo "Warning: Invalid depth '${DEPTH_OVERRIDE}'. Valid values: quick, standard, deep. Using 'standard'."
+  fi
+  if [ "$DEPTH_INVALID_CONFIG" = "true" ]; then
+    echo "Warning: Invalid depth '${CONFIG_DEPTH}'. Valid values: quick, standard, deep. Using 'standard'."
+  fi
+
+  if [ "$DEPTH_DOWNGRADED" = "true" ]; then
+    if [ -n "$DEPTH_MATCHED_RULE_INDEX" ]; then
+      echo "Switching from deep to standard depth for large file count (overrides matched rule ${DEPTH_MATCHED_RULE_INDEX}: ${DEPTH_MATCHED_RULE_PATH})."
+    else
+      echo "Switching from deep to standard depth for large file count."
+    fi
+  fi
+else
+  # DEPTH_OK is anything but the literal string "true" — including empty, which is
+  # what a crashed or missing resolver produces. workflow.code_review_depth_overrides
+  # is misconfigured. Print every collected error — never fall back to a default
+  # depth, since silently reviewing a misconfigured sensitive-path policy at
+  # `standard` is the exact hole this feature closes — then hard-stop before
+  # REVIEW_DEPTH can be read by any later step.
+  echo "$DEPTH_JSON" | node -e "
+    let parsed;
+    try {
+      parsed = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf-8'));
+    } catch {
+      parsed = {};
+    }
+    const errors = Array.isArray(parsed.errors) ? parsed.errors : [];
+    for (const err of errors) {
+      const parts = [];
+      if (err.ruleIndex !== undefined) parts.push('rule ' + err.ruleIndex);
+      if (err.path !== undefined) parts.push('path \"' + err.path + '\"');
+      if (err.value !== undefined) parts.push('depth \"' + err.value + '\"');
+      console.error('Error: workflow.code_review_depth_overrides' + (parts.length ? ' (' + parts.join(', ') + ')' : '') + ': ' + err.reason);
+    }
+  "
+  echo "Error: Fix workflow.code_review_depth_overrides and retry."
+  echo "Error: Depth resolution failed (DEPTH_OK=\"${DEPTH_OK}\"). Halting before agent spawn."
+  exit 1
+fi
+```
+This `if`/`else`/`fi` is the entire guard: when `DEPTH_OK` is not the literal string `true`, execution never reaches the `DEPTH_FIELDS`/`REVIEW_DEPTH` extraction — the `else` branch prints the errors, prints the final `Error:` line above, and `exit 1`s out of the fenced block, so `REVIEW_DEPTH` is never set. Exit workflow. Do NOT spawn agent or create REVIEW.md.
 </step>
 
 <step name="check_empty_scope">
@@ -340,20 +530,7 @@ Exit workflow. Do NOT spawn agent or create REVIEW.md.
 <step name="structural_pre_pass">
 Optional structural cross-module pass powered by fallow.
 
-Read fallow config gates:
-```bash
-FALLOW_ENABLED=$(gsd_run query config-get code_quality.fallow.enabled 2>/dev/null || echo "false")
-FALLOW_SCOPE=$(gsd_run query config-get code_quality.fallow.scope 2>/dev/null || echo "phase")
-FALLOW_PROFILE=$(gsd_run query config-get code_quality.fallow.profile 2>/dev/null || echo "standard")
-FALLOW_MCP=$(gsd_run query config-get code_quality.fallow.mcp 2>/dev/null || echo "false")
-# profile maps to a --max-crap threshold since fallow has no native profile concept.
-# minimal=50 (more lenient), standard=30 (default), strict=15 (tighter).
-case "$FALLOW_PROFILE" in
-  minimal) FALLOW_MAX_CRAP=50 ;;
-  strict)  FALLOW_MAX_CRAP=15 ;;
-  *)       FALLOW_MAX_CRAP=30 ;;  # standard (default)
-esac
-```
+Parse `fallow_enabled`, `fallow_scope`, `fallow_profile`, `fallow_mcp`, `fallow_max_crap` from the init JSON as `FALLOW_ENABLED`, `FALLOW_SCOPE`, `FALLOW_PROFILE`, `FALLOW_MCP`, `FALLOW_MAX_CRAP`. These are resolved once by `init.code-review` at init time — consuming the pre-resolved values here (instead of a `config-get` call inside this step) avoids gating this section's own inclusion on a fact its own body would otherwise compute (see `state:fallow-enabled` in docs/reference/workflow-fragments.md).
 
 Defaults are fail-closed and opt-in:
 - `enabled=false` (skip entirely)
@@ -361,73 +538,7 @@ Defaults are fail-closed and opt-in:
 - `profile=standard` (maps to `--max-crap 30`; minimal=50, standard=30, strict=15 — fallow has no native profile concept)
 - `mcp=false`
 
-When `FALLOW_ENABLED=true`:
-
-1) Resolve binary via PATH first, then `node_modules/.bin/fallow`.
-```bash
-FALLOW_BIN=$(FALLOW_CWD="$(pwd)" node -e "
-const { resolveFallowBinary } = require('./gsd-core/bin/lib/fallow-runner.cjs');
-const resolved = resolveFallowBinary({ cwd: process.env.FALLOW_CWD });
-if (resolved) process.stdout.write(resolved);
-")
-```
-
-2) If binary is missing, fail with actionable message:
-```bash
-if [ -z \"$FALLOW_BIN\" ]; then
-  echo \"Error: fallow is enabled but no binary was found.\"
-  echo \"Install fallow via \`npm install -D fallow\` or \`cargo install fallow\`.\"
-  # Exit workflow
-fi
-```
-
-3) Execute structural pass and persist JSON (bounded at 120s). Note: `fallow audit` exits 0 when clean and 1 when issues are found — BOTH are successful runs. Only a timeout (124), usage error (2), or crash yields no usable JSON; success is decided by whether the output parses as a valid fallow report, not by exit code:
-```bash
-FALLOW_JSON_PATH="${PHASE_DIR}/FALLOW.json"
-FALLOW_STDERR_TMP=$(mktemp)
-
-# Phase scope uses fallow's native changed-files scoping (--changed-since <base>).
-# Derive the phase base commit; if none is found, fall back to repo scope (fallow
-# auto-detects the base branch).
-FALLOW_SCOPE_ARGS=()
-if [ \"$FALLOW_SCOPE\" = \"phase\" ]; then
-  FALLOW_PHASE_COMMITS=$(git log --oneline --all --grep=\"${PADDED_PHASE}\" --format=\"%H\" 2>/dev/null)
-  if [ -n \"$FALLOW_PHASE_COMMITS\" ]; then
-    FALLOW_BASE=$(echo \"$FALLOW_PHASE_COMMITS\" | tail -1)^
-    FALLOW_SCOPE_ARGS=(--changed-since \"$FALLOW_BASE\")
-  fi
-fi
-
-gsd_run run-with-timeout 120 -- \"$FALLOW_BIN\" audit --format json --quiet --max-crap \"$FALLOW_MAX_CRAP\" \"${FALLOW_SCOPE_ARGS[@]+\"${FALLOW_SCOPE_ARGS[@]}\"}\" > \"${FALLOW_JSON_PATH}.tmp\" 2>\"$FALLOW_STDERR_TMP\"
-FALLOW_EXIT=$?
-
-# fallow exits 0 (clean) or 1 (issues found) — BOTH are successful runs that produce a
-# valid JSON report. Only a timeout (124), usage error (2), or crash yields no usable JSON.
-# Decide success by whether the output parses as a fallow report, not by exit code.
-FALLOW_OK=$(FALLOW_TMP=\"${FALLOW_JSON_PATH}.tmp\" node -e \"
-  try {
-    const fs = require('fs');
-    const txt = fs.readFileSync(process.env.FALLOW_TMP, 'utf8');
-    const o = JSON.parse(txt);
-    process.stdout.write(o && typeof o === 'object' && 'verdict' in o ? '1' : '0');
-  } catch { process.stdout.write('0'); }
-\")
-if [ \"$FALLOW_OK\" != \"1\" ]; then
-  FALLOW_STDERR_SUMMARY=$(head -5 \"$FALLOW_STDERR_TMP\")
-  rm -f \"${FALLOW_JSON_PATH}.tmp\" \"$FALLOW_STDERR_TMP\"
-  echo \"WARNING: fallow structural pre-pass failed (exit ${FALLOW_EXIT}): ${FALLOW_STDERR_SUMMARY}\"
-  FALLOW_JSON_PATH=\"\"
-else
-  mv \"${FALLOW_JSON_PATH}.tmp\" \"$FALLOW_JSON_PATH\"
-  rm -f \"$FALLOW_STDERR_TMP\"
-fi
-```
-
-On any failure of the structural pre-pass (binary missing, timeout, empty output, or unparseable JSON), the workflow continues with no `<structural_findings>` injection; the reviewer agent receives a normal review request.
-
-4) Optional MCP bridge path (runtime-dependent):
-- If `FALLOW_MCP=true`, set reviewer input mode to MCP-backed structural findings.
-- Otherwise pass static JSON findings from `FALLOW.json`.
+If `section_manifest` is `null` or `"structural-pre-pass"` is in its `included` list: read and execute `gsd-core/workflows/code-review/steps/structural-pre-pass.md`. Otherwise skip — do not read the file.
 
 When disabled, set:
 ```bash
@@ -441,17 +552,34 @@ Compute the review output path:
 REVIEW_PATH="${PHASE_DIR}/${PADDED_PHASE}-REVIEW.md"
 ```
 
-Compute DIFF_BASE for agent context (in case agent needs it):
+Compute DIFF_BASE for agent context (in case agent needs it). #3191/#3995: this
+must be the SAME phase-directory-anchor derivation the Tier-3 scope step uses —
+the reviewer agent consumes `diff_base` exactly
+when `files:` is empty, i.e. the same fail-closed scenario Tier 3 protects, so
+a divergent recomputation here re-arms the mis-scoping one tier down:
 ```bash
-PHASE_COMMITS=$(git log --oneline --all --grep="${PADDED_PHASE}" --format="%H" 2>/dev/null)
-if [ -n "$PHASE_COMMITS" ]; then
-  DIFF_BASE=$(echo "$PHASE_COMMITS" | tail -1)^
+# #3995: a phase number is unique within a MILESTONE, not a repository. The
+# former message grep had no milestone bound, and its tail -1 deliberately
+# selected the OLDEST matching subject — dragging in previous milestones'
+# same-numbered phases and taking a 7-file phase to a 3388-file scope (plus
+# the >50 depth downgrade). The phase's own directory is the unique identity:
+# base = the parent of the first commit that added anything under PHASE_DIR
+# (the same anchor class git-base-branch's phaseStartCommit uses for
+# complexity triggering). Message subjects demonstrably do not carry enough
+# information to identify a phase — this was the grep's fifth failure.
+PHASE_START=$(git log --format="%H" --diff-filter=A -- "${PHASE_DIR}" 2>/dev/null | tail -1)
+if [ -n "$PHASE_START" ]; then
+  if git rev-parse "${PHASE_START}^" >/dev/null 2>&1; then
+    DIFF_BASE="${PHASE_START}^"
+  else
+    DIFF_BASE="${PHASE_START}"
+  fi
 else
   DIFF_BASE=""
 fi
 ```
 
-Build files_to_read block for agent:
+Build required_reading block for agent:
 ```bash
 FILES_TO_READ=""
 for file in "${REVIEW_FILES[@]}"; do
@@ -496,11 +624,19 @@ Spawn the gsd-code-reviewer agent:
 
 Print: `◆ Spawning code reviewer... (runs in a subagent — no output until it returns, ~1–5 min; expected, not a freeze)`
 
+<!-- #2508 runtime-aware-dispatch -->
+
+> **Runtime-aware dispatch (#2508 Phase 4).** GSD workflows dispatch specialized subagents by role. Before dispatching on a built-in-only runtime (kimi-code — three built-ins only), resolve the role to a built-in via `gsd_run query resolve-dispatch-type --requested <role> --raw`. On named-dispatch runtimes (Claude/OpenCode/…) the role is returned unchanged; on kimi-code it maps to `coder`/`explore`/`plan` by role-suffix. The persona rides `${AGENT_SKILLS_<ROLE>}` (Phase 3) regardless. See @gsd-core/references/runtime-aware-dispatch.md.
+
+<!-- #2517 model-omit-on-inherit -->
+
+> **Model omission (#2517).** Omit the `model` parameter entirely when the value it would carry (`REVIEWER_MODEL`) is `"inherit"` or empty. An empty value 404s on runtimes without native tier aliases — the default on non-Claude runtimes. Omitting it inherits the orchestrator's model. See @gsd-core/references/model-profile-resolution.md.
+
 ```
 Agent(subagent_type="gsd-code-reviewer", model="{REVIEWER_MODEL}", prompt="
-<files_to_read>
+<required_reading>
 ${FILES_TO_READ}
-</files_to_read>
+</required_reading>
 
 ${STRUCTURAL_FINDINGS_BLOCK}
 
@@ -541,7 +677,7 @@ if [ -f "${REVIEW_PATH}" ]; then
   HAS_STATUS=$(REVIEW_PATH="${REVIEW_PATH}" node -e "
     const fs = require('fs');
     const content = fs.readFileSync(process.env.REVIEW_PATH, 'utf-8');
-    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    const match = content.replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---/);
     if (match && /status:/.test(match[1])) { console.log('valid'); } else { console.log('invalid'); }
   " 2>/dev/null)
   
@@ -564,45 +700,7 @@ fi
 ```
 </step>
 
-<step name="dispatch_fix">
-If the `--fix` flag was passed (`FIX_FLAG=true`), delegate to the `code-review-fix.md` workflow
-to auto-apply findings from the REVIEW.md that was just written (or that already existed).
-
-This step runs AFTER `commit_review` so REVIEW.md is guaranteed to be on disk before the fixer
-is invoked. If REVIEW.md was not created (agent failed, scope was empty, etc.), the `code-review-fix.md`
-workflow handles the missing-review error and exits cleanly.
-
-```bash
-if [ "$FIX_FLAG" = "true" ]; then
-  echo ""
-  echo "─────────────────────────────────────────────────────────────────"
-  echo "  --fix: delegating to code-review-fix.md"
-  echo "─────────────────────────────────────────────────────────────────"
-  echo ""
-
-  # Build the fix sub-arguments: pass phase arg plus any --all/--auto flags
-  FIX_ARGS="${PHASE_ARG}"
-  if [ "$FIX_ALL" = "true" ]; then
-    FIX_ARGS="${FIX_ARGS} --all"
-  fi
-  if [ "$FIX_AUTO" = "true" ]; then
-    FIX_ARGS="${FIX_ARGS} --auto"
-  fi
-
-  # Load and execute the code-review-fix workflow.
-  # The fix workflow is the canonical implementation for all fix logic:
-  # gsd-code-fixer agent dispatch, --auto iteration loop, REVIEW-FIX.md commit,
-  # and result presentation. Do not duplicate that logic here.
-  Workflow(workflow="gsd-core/workflows/code-review-fix.md", args="${FIX_ARGS}")
-
-  # Exit after fix workflow completes — present_results is for review-only output.
-  # The fix workflow has its own present_results step.
-  # Exit workflow.
-fi
-```
-
-If `FIX_FLAG` is false, skip this step entirely and proceed to `present_results`.
-</step>
+If `section_manifest` is `null` or `"dispatch-fix"` is in its `included` list: read and execute `gsd-core/workflows/code-review/steps/dispatch-fix.md`. Otherwise skip — do not read the file; proceed to `present_results`.
 
 <step name="present_results">
 Read the REVIEW.md YAML frontmatter to extract finding counts.
@@ -614,7 +712,7 @@ Extract frontmatter between `---` delimiters first to avoid matching values in t
 FRONTMATTER=$(REVIEW_PATH="${REVIEW_PATH}" node -e "
   const fs = require('fs');
   const content = fs.readFileSync(process.env.REVIEW_PATH, 'utf-8');
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  const match = content.replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---/);
   if (match) process.stdout.write(match[1]);
 " 2>/dev/null)
 
@@ -630,23 +728,24 @@ TOTAL=$(echo "$FRONTMATTER" | grep "total:" | head -1 | cut -d: -f2 | xargs)
 Display inline summary to user:
 
 ```
-═══════════════════════════════════════════════════════════════
+---
 
   Code Review Complete: Phase ${PHASE_NUMBER} (${PHASE_NAME})
 
-───────────────────────────────────────────────────────────────
+---
 
-  Depth:           ${REVIEW_DEPTH}
+  Depth:           ${REVIEW_DEPTH} (${DEPTH_PROVENANCE})
   Files Reviewed:  ${FILES_REVIEWED}
   
   Findings:
     Critical:  ${CRITICAL}
     Warning:   ${WARNING}
     Info:      ${INFO}
-    ──────────
+
+---
     Total:     ${TOTAL}
 
-───────────────────────────────────────────────────────────────
+---
 ```
 
 If status is "clean":
@@ -675,7 +774,7 @@ grep -A 3 "^### CR-\|^### BL-\|^### WR-" "${REVIEW_PATH}" | head -n 12
 
 **Note on tests:** Automated tests for this command and workflow are planned for Phase 4 (Pipeline Integration & Testing, requirement INFR-03). Phase 2 focuses on correct implementation; Phase 4 adds regression coverage across platforms.
 
-═══════════════════════════════════════════════════════════════
+---
 </step>
 
 </process>
@@ -695,7 +794,7 @@ If `--files` validation fails unexpectedly on macOS, install coreutils or use ab
 
 <success_criteria>
 - [ ] Phase validated before config gate check
-- [ ] Capability gate checked (execute:post code-review hook)
+- [ ] Capability gate checked (`workflow.code_review` config key)
 - [ ] --fix/--all/--auto flags parsed via code-review-flags.cjs typed IR (not ad-hoc bash)
 - [ ] Depth resolved with validation (quick|standard|deep)
 - [ ] File scope computed with 3 tiers: --files > SUMMARY.md > git diff

@@ -1,0 +1,64 @@
+RUFLO ENTERPRISE TEST v3 SUMMARY
+
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri Aug 21 03:40:01 IST 2026
+Host: security-test-vm
+
+============================================================
+COMPONENT STATUS
+============================================================
+
+Ruflo              : FAIL
+Environment        : PASS
+Project            : WARN
+Test Collection    : WARN
+Dependencies       : PASS
+Storage            : WARN
+
+============================================================
+COUNTS
+============================================================
+
+PASS: 27
+WARN: 6
+FAIL: 0
+
+============================================================
+RUFLO VERSION
+============================================================
+
+unknown
+
+============================================================
+REPORT FILES
+============================================================
+
+Main report:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/ruflo-enterprise-test-v3.log
+
+Summary:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/summary.txt
+
+Ruflo CLI:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/ruflo-cli.txt
+
+Python:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/python-validation.txt
+
+Pytest:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/pytest-collection.txt
+
+Dependencies:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/dependency-health.txt
+
+Configuration:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/configuration.txt
+
+Storage:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/storage.txt
+
+Large files:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/large-files.txt
+
+Large logs:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-v3_20260821_033855/large-logs.txt

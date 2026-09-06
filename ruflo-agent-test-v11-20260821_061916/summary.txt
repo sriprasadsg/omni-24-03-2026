@@ -1,0 +1,12 @@
+RUFLO AGENT ENTERPRISE TEST v11
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri Aug 21 06:20:28 IST 2026
+Host: security-test-vm
+Ruflo: unavailable
+Health Score: 13 / 100
+PASS: 40
+WARN: 16
+FAIL: 1
+Agents: 0 / 8
+Result: FAILED
+Report: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v11-20260821_061916

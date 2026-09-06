@@ -1,0 +1,4 @@
+[PASS] .mcp.json
+[PASS] .claude.json
+[PASS] .claude/settings.json
+[PASS] .claude/settings.local.json

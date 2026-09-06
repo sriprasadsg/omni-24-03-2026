@@ -17,10 +17,10 @@ class AIProvider(ABC):
         pass
 
     @abstractmethod
-    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
+    async def generate(self, prompt: str | list[dict], temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
         pass
 
-    async def generate_stream(self, prompt: str) -> AsyncIterator[str]:
+    async def generate_stream(self, prompt: str | list[dict]) -> AsyncIterator[str]:
         """Stream response tokens. Default: yield full response as one chunk."""
         yield await self.generate(prompt)
 
@@ -98,11 +98,17 @@ class OllamaProvider(AIProvider):
                 models = resp.json().get("models", [])
                 model_names = [m.get("name", "") for m in models]
                 if not any(self.model_name in n or n.startswith(self.model_name.split(":")[0]) for n in model_names):
-                    logger.warning(
-                        "Ollama running but model '%s' not found. Available: %s",
-                        self.model_name, model_names,
-                    )
-                    return False
+                    # Model not pulled — fall back to first available instead of failing
+                    if model_names:
+                        fallback = model_names[0]
+                        logger.warning(
+                            "Ollama model '%s' not found. Auto-selecting '%s'. Available: %s",
+                            self.model_name, fallback, model_names,
+                        )
+                        self.model_name = fallback
+                    else:
+                        logger.warning("Ollama running but no models available.")
+                        return False
                 # Quick generation test to verify model actually runs
                 test_resp = await client.post(
                     f"{self.base_url}/api/generate",
@@ -251,6 +257,9 @@ class OpenAICompatProvider(AIProvider):
         import os
         self.base_url = (settings.get("baseUrl") or settings.get("routerUrl")
                          or os.getenv("AI_ROUTER_URL") or "").rstrip("/")
+        # Ensure base_url does not already end with /v1 (we append it in generate())
+        if self.base_url.endswith("/v1"):
+            self.base_url = self.base_url[:-3]
         self.api_key = (settings.get("apiKey") or os.getenv("AI_ROUTER_KEY") or "")
         self.model_name = (settings.get("model") or os.getenv("AI_ROUTER_MODEL") or "")
         if not (self.base_url and self.api_key and self.model_name):
@@ -258,11 +267,12 @@ class OpenAICompatProvider(AIProvider):
             return False
         return True
 
-    def _payload(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> dict:
+    def _payload(self, prompt: str | list[dict], temperature: Optional[float] = None, max_tokens: int = 1024) -> dict:
+        messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
         body = {
             "model": self.model_name,
             "stream": False,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": max_tokens,
         }
         # Claude 5 models reject temperature; only send it for others.
@@ -270,7 +280,7 @@ class OpenAICompatProvider(AIProvider):
             body["temperature"] = temperature if temperature is not None else 0.1
         return body
 
-    async def generate(self, prompt: str, temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
+    async def generate(self, prompt: str | list[dict], temperature: Optional[float] = None, max_tokens: int = 1024) -> str:
         url = f"{self.base_url}/v1/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -278,6 +288,41 @@ class OpenAICompatProvider(AIProvider):
             resp.raise_for_status()
             data = resp.json()
         return data["choices"][0]["message"]["content"]
+
+    async def generate_stream(self, prompt: str | list[dict]) -> AsyncIterator[str]:
+        """Stream tokens from an OpenAI-compatible chat-completions endpoint."""
+        import json as _json
+        url = f"{self.base_url}/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
+        body = {
+            "model": self.model_name,
+            "stream": True,
+            "messages": messages,
+            "max_tokens": 1024,
+        }
+        if "claude" not in self.model_name.lower():
+            body["temperature"] = 0.1
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream("POST", url, json=body, headers=headers) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        raw = line[6:].strip()
+                        if not raw or raw == "[DONE]":
+                            break
+                        try:
+                            data = _json.loads(raw)
+                            delta = data.get("choices", [{}])[0].get("delta", {})
+                            chunk = delta.get("content", "")
+                            if chunk:
+                                yield chunk
+                        except _json.JSONDecodeError:
+                            continue
+        except Exception:
+            yield await self.generate(prompt)
 
 
 class MockProvider(AIProvider):

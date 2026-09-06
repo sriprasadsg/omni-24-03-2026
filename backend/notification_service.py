@@ -272,7 +272,7 @@ class NotificationService:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    config["webhook_url"],
+                    webhook_url,
                     json=slack_payload,
                     timeout=aiohttp.ClientTimeout(total=10)
                 ) as response:
@@ -280,7 +280,7 @@ class NotificationService:
                         return {
                             "success": True,
                             "provider": "slack",
-                            "webhook_url": config["webhook_url"]
+                            "webhook_url": webhook_url
                         }
                     else:
                         return {

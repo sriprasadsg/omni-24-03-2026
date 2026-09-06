@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-04T02:15:40.998Z",
+  "timestamp": "2026-09-01T10:57:00.674Z",
   "distillationEnabled": true,
   "patternsConsolidated": 0,
   "memoryCleaned": 0,
@@ -13,5 +13,5 @@
   "namespaces": [],
   "dryRun": false,
   "corrupt": false,
-  "skipped": "target table episodes missing (agentdb schema not initialised)"
+  "skipped": "error: Module did not self-register: '/home/user/.npm/_npx/85fb20e3e7e3a233/node_modules/@claude-flow/cli/node_modules/better-sqlite3/build/Release/better_sqlite3.node'."
 }

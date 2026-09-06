@@ -1,0 +1,9 @@
+agent_name	type	task_type	task_id	state
+v13-architect	architect	analysis	UNKNOWN	CREATE_FAILED
+v13-frontend	frontend	analysis	UNKNOWN	CREATE_FAILED
+v13-backend	backend	analysis	UNKNOWN	CREATE_FAILED
+v13-coordinator	coordinator	coordination	UNKNOWN	CREATE_FAILED
+v13-reviewer	reviewer	review	task-1787277684555-s2nvmt	ASSIGNED
+v13-tester	tester	testing	task-1787277684636-hf6eme	ASSIGNED
+v13-security	security-architect	security	task-1787277684593-gkpemr	ASSIGNED
+v13-researcher	researcher	research	task-1787277684681-bjibat	ASSIGNED

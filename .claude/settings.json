@@ -1,11 +1,18 @@
 {
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://192.168.10.70:20128/v1"
+  },
   "permissions": {
     "allow": [
       "Bash(npx gsd-core *)",
       "Read(.planning/*)",
-      "Write(.planning/*)",
+      "Edit(.planning/*)",
       "Read(STATE.md)",
-      "Write(STATE.md)"
+      "Edit(STATE.md)",
+      "Bash(npx @claude-flow*)",
+      "Bash(npx claude-flow*)",
+      "Bash(node .claude/*)",
+      "mcp__claude-flow__*"
     ],
     "deny": [
       "Read(.env)",
@@ -14,37 +21,13 @@
     ],
     "defaultMode": "auto"
   },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"/home/user/.claude/hooks/gsd-graphify-update.sh\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"/usr/bin/node\" \"/home/user/.claude/hooks/gsd-worktree-path-guard.js\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  },
   "worktree": {
     "baseRef": "head"
   },
   "enabledPlugins": {
-    "caveman@caveman": true
+    "caveman@caveman": true,
+    "frontend-design@claude-plugins-official": true,
+    "ruflo-adr@ruflo": true
   },
   "extraKnownMarketplaces": {
     "caveman": {

@@ -191,6 +191,8 @@ Every task has four required fields:
 
 **Nyquist Rule:** Every `<verify>` includes `<automated>`. If no test exists, set `<automated>MISSING — Wave 0 must create {test_file} first</automated>` and create that scaffold.
 
+**Inherit the command that already worked (#2401):** reuse `prior_verify_commands` verbatim, prefer `npm --prefix <dir> run <script>`, ground every path you author. @gsd-core/references/planner-verify-command-grounding.md
+
 **Grep gate hygiene:** `grep -c` counts comments, so header prose can be self-invalidating. Use `grep -v '^#' | grep -c token`. Bare `== 0` gates on unfiltered files are forbidden.
 
 <comment_text_discipline>
@@ -264,7 +266,7 @@ Exceptions where `tdd="true"` is not needed: `type="checkpoint:*"` tasks, config
   <name>End-to-end "[capability]" — one path only</name>
   <files>[one file per layer the phase touches]</files>
   <action>Wire ONE entry point through every layer to the far end of the stack. No other call sites, no batching. Real error handling on the single path.</action>
-  <verify>[a real, runnable END-TO-END check of the one path — not a per-layer unit test]</verify>
+  <verify><automated>[a real END-TO-END check of the one path — not a per-layer unit test]</automated></verify>
   <done>The single happy path works end-to-end and is committed.</done>
 </task>
 ```
@@ -289,30 +291,15 @@ See @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/pl
 
 <scope_estimation>
 
-## Context Budget Rules
+## Sizing and the Estimate Block
 
-Plans should complete within ~50% context (not 80%). No context anxiety, quality maintained start to finish, room for unexpected complexity.
+Full rules: @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/context-budget.md (Phase Sizing). Read before sizing.
 
-**Each plan: 2-3 tasks maximum.**
-
-| Context Weight | Tasks/Plan | Context/Task | Total |
-|----------------|------------|--------------|-------|
-| Light (CRUD, config) | 3 | ~10-15% | ~30-45% |
-| Medium (auth, payments) | 2 | ~20-30% | ~40-50% |
-| Heavy (migrations, multi-subsystem) | 1-2 | ~30-40% | ~30-50% |
-
-## Split Signals
-
-**ALWAYS split if:**
-- More than 3 tasks
-- Multiple subsystems (DB + API + UI = separate plans)
-- Any task with >5 file modifications
-- Checkpoint + implementation in same plan
-- Discovery + implementation in same plan
-
-**CONSIDER splitting:** >5 files total, natural semantic boundaries, context cost estimate exceeds 40% for a single plan. See `<planner_authority_limits>` for prohibited split reasons.
-
-See @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/planner-guidance.md for Granularity Calibration table (Coarse/Standard/Fine plans-per-phase).
+- **2-3 tasks per plan.** **ALWAYS split if:** >3 tasks, multiple subsystems, or any task touching >5 files.
+- **Emit `estimate`**: run `estimate-calibration`; `tokens` = raw projection x factor, `raw_tokens` = that
+  projection before the factor (calibration measures actual/raw), `confidence` verbatim — derived from
+  sample count, never self-rated.
+- **Over the smart-zone budget?** Re-slice: tracer + expansion slices. Advisory, never a block.
 
 </scope_estimation>
 
@@ -331,6 +318,12 @@ files_modified: []          # Files this plan touches
 autonomous: true            # false if plan has checkpoints
 requirements: []            # REQUIRED — Requirement IDs from ROADMAP this plan addresses. MUST NOT be empty.
 user_setup: []              # Human-required setup (omit if empty)
+
+estimate:                   # Projected execution cost (see Estimate Emission)
+  tokens: 60000             # calibrated projection
+  raw_tokens: 30000         # pre-factor projection
+  tasks: 3                  # task count the projection assumes
+  confidence: low           # low | med | high — DERIVED from sample count, never self-rated
 
 must_haves:
   truths: []                # Observable behaviors
@@ -384,7 +377,7 @@ Output: [Artifacts created]
 |-----------|----------|-----------|----------|-------------|-----------------|
 | T-{phase}-01 | {S/T/R/I/D/E} | {function/endpoint/file} | {critical\|high\|medium\|low} | mitigate | {specific mitigation action} |
 | T-{phase}-02 | {category} | {component} | low | accept | {rationale for acceptance} |
-| T-{phase}-SC | Tampering | npm/pip/cargo installs | high | mitigate | slopcheck + blocking human checkpoint for [ASSUMED]/[SUS] |
+| T-{phase}-SC | Tampering | npm/pip/cargo installs | high | mitigate | package-legitimacy gate + blocking human checkpoint for [ASSUMED]/[SUS] |
 </threat_model>
 
 <verification>
@@ -413,6 +406,7 @@ Create `.planning/phases/XX-name/{padded_phase}-{plan}-SUMMARY.md` when done
 | `autonomous` | Yes | `true` if no checkpoints |
 | `requirements` | Yes | **MUST** list requirement IDs from ROADMAP. Every roadmap requirement ID MUST appear in at least one plan. |
 | `user_setup` | No | Human-required setup items |
+| `estimate` | No | Projected cost `{tokens, tasks, confidence}`. See Estimate Emission. |
 | `must_haves` | Yes | Goal-backward verification criteria |
 
 Wave numbers are pre-computed during planning. Execute-phase reads `wave` directly from frontmatter.
@@ -494,47 +488,7 @@ See @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/pl
 
 ## Checkpoint Types
 
-**checkpoint:human-verify (90% of checkpoints)**
-Human confirms Claude's automated work works correctly.
-
-Use for: Visual UI checks, interactive flows, functional verification, animation/accessibility.
-
-```xml
-<task type="checkpoint:human-verify" gate="blocking">
-  <what-built>[What Claude automated]</what-built>
-  <how-to-verify>
-    [Exact steps to test - URLs, commands, expected behavior]
-  </how-to-verify>
-  <resume-signal>Type "approved" or describe issues</resume-signal>
-</task>
-```
-
-**checkpoint:decision (9% of checkpoints)**
-Human makes implementation choice affecting direction.
-
-Use for: Technology selection, architecture decisions, design choices.
-
-```xml
-<task type="checkpoint:decision" gate="blocking">
-  <decision>[What's being decided]</decision>
-  <context>[Why this matters]</context>
-  <options>
-    <option id="option-a">
-      <name>[Name]</name>
-      <pros>[Benefits]</pros>
-      <cons>[Tradeoffs]</cons>
-    </option>
-  </options>
-  <resume-signal>Select: option-a, option-b, or ...</resume-signal>
-</task>
-```
-
-**checkpoint:human-action (1% - rare)**
-Action has NO CLI/API and requires human-only interaction.
-
-Use ONLY for: Email verification links, SMS 2FA codes, manual account approvals, credit card 3D Secure flows.
-
-Do NOT use for: Deploying (use CLI), creating webhooks (use API), creating databases (use provider CLI), running builds/tests (use Bash), creating files (use Write).
+Three types: **checkpoint:human-verify (90%)**, **checkpoint:decision (9%)**, **checkpoint:human-action (1% - rare)**. Full "use for" criteria and XML templates for each: @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/checkpoints.md
 
 ## Authentication Gates
 
@@ -614,7 +568,7 @@ start of execution when `--reviews` flag is present or reviews mode is active.
 Load planning context:
 
 ```bash
-_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; if [ -f "$GSD_TOOLS" ]; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif command -v gsd-tools >/dev/null 2>&1; then GSD_TOOLS="$(command -v gsd-tools)"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif [ -f "${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; elif [ -f "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}" ]; then GSD_TOOLS="${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd-tools is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
+_GSD_SHIM_NAME="gsd-tools.cjs"; _GSD_RUNTIME_ROOT="${RUNTIME_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"; GSD_TOOLS="${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}"; _gsd_at() { for _p; do if [ -f "$_p" ]; then GSD_TOOLS="$_p"; return 0; fi; done; return 1; }; if _gsd_at "${_GSD_RUNTIME_ROOT}/gsd-core/bin/${_GSD_SHIM_NAME}" "${_GSD_RUNTIME_ROOT}/.claude/gsd-core/bin/${_GSD_SHIM_NAME}" "${_GSD_RUNTIME_ROOT}/.codex/gsd-core/bin/${_GSD_SHIM_NAME}"; then gsd_run() { node "$GSD_TOOLS" "$@"; }; elif unset -f gsd_run; _G="$(command -v gsd_run)"; then GSD_TOOLS="$_G"; gsd_run() { "$GSD_TOOLS" "$@"; }; elif _gsd_at "${CLAUDE_CONFIG_DIR:-/home/user/enterprise-omni-agent-ai-platform/.claude}/gsd-core/bin/${_GSD_SHIM_NAME}" "${HERMES_HOME:-$HOME/.hermes}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CURSOR_CONFIG_DIR:-$HOME/.cursor}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CODEX_HOME:-$HOME/.codex}/gsd-core/bin/${_GSD_SHIM_NAME}" "${GEMINI_CONFIG_DIR:-$HOME/.gemini}/gsd-core/bin/${_GSD_SHIM_NAME}" "${COPILOT_CONFIG_DIR:-$HOME/.copilot}/gsd-core/bin/${_GSD_SHIM_NAME}" "${WINDSURF_CONFIG_DIR:-$HOME/.codeium/windsurf}/gsd-core/bin/${_GSD_SHIM_NAME}" "${AUGMENT_CONFIG_DIR:-$HOME/.augment}/gsd-core/bin/${_GSD_SHIM_NAME}" "${TRAE_CONFIG_DIR:-$HOME/.trae}/gsd-core/bin/${_GSD_SHIM_NAME}" "${QWEN_CONFIG_DIR:-$HOME/.qwen}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CODEBUDDY_CONFIG_DIR:-$HOME/.codebuddy}/gsd-core/bin/${_GSD_SHIM_NAME}" "${CLINE_CONFIG_DIR:-$HOME/.cline}/gsd-core/bin/${_GSD_SHIM_NAME}" "${GROK_AGENTS_HOME:-$HOME/.agents}/gsd-core/bin/${_GSD_SHIM_NAME}" "${ANTIGRAVITY_CONFIG_DIR:-$HOME/.gemini/antigravity}/gsd-core/bin/${_GSD_SHIM_NAME}" "${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/opencode}/gsd-core/bin/${_GSD_SHIM_NAME}" "${KILO_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/kilo}/gsd-core/bin/${_GSD_SHIM_NAME}"; then gsd_run() { node "$GSD_TOOLS" "$@"; }; else echo "ERROR: gsd-tools.cjs not found at $GSD_TOOLS and gsd_run is not on PATH. Run: npx -y @opengsd/gsd-core@latest --claude --local" >&2; exit 1; fi; GSD_IDENTITY_STATUS=unverified; case "$(gsd_run runtime-identity --raw 2>/dev/null || true)" in '{"packageName":"@opengsd/gsd-core"'*'}') GSD_IDENTITY_STATUS=ok;; esac; export GSD_IDENTITY_STATUS; [ "$GSD_IDENTITY_STATUS" = ok ] || echo "WARNING: \"$GSD_TOOLS\" did not prove it is @opengsd/gsd-core - it is either a different package or an @opengsd/gsd-core older than the runtime-identity verb. See docs/how-to/diagnose-a-foreign-gsd-tools.md" >&2; if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -n "${GSD_TOOLS:-}" ]; then printf "export PATH='%s':\"\$PATH\"\n" "${GSD_TOOLS%/*}" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true; fi
 INIT=$(gsd_run query init.plan-phase "${PHASE}")
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 ```
@@ -634,6 +588,7 @@ Check the invocation mode and load the relevant reference file:
 - If `--gaps` flag or gap_closure context present: Read `gsd-core/references/planner-gap-closure.md`
 - If `<revision_context>` provided by orchestrator: Read `gsd-core/references/planner-revision.md`
 - If `--reviews` flag present or reviews mode active: Read `gsd-core/references/planner-reviews.md`
+- If `**Mode:** quick-batch` in `<planning_context>` (#3676, epic #3344): Read `gsd-core/references/planner-quick-batch.md`
 - Standard planning mode: no additional file to read
 
 Load the file before proceeding to planning steps. The reference file contains the full
@@ -705,7 +660,8 @@ Select top 2-4 phases. Skip phases with no relevance signal.
 
 **Step 3 — Read full SUMMARYs for selected phases:**
 ```bash
-cat .planning/phases/{selected-phase}/*-SUMMARY.md
+_SUMMARIES=( .planning/phases/{selected-phase}/*-SUMMARY.md )
+if [ -e "${_SUMMARIES[0]}" ]; then cat "${_SUMMARIES[@]}"; fi
 ```
 
 From full SUMMARYs extract:
@@ -735,16 +691,19 @@ Read the most recent milestone retrospective and cross-milestone trends. Extract
 </step>
 
 <step name="inject_global_learnings">
-If `features.global_learnings` is `true`: run `gsd-tools query learnings.query --tag <tag> --limit 5` once per tag from PLAN.md frontmatter `tags` (or use the single most specific keyword). The handler matches one `--tag` at a time. Prefix matches with `[Prior learning from <project>]` as weak priors. Project-local decisions take precedence. Skip silently if disabled or no matches.
+If `features.global_learnings` is `true`: run `gsd_run query learnings.query --tag <tag> --limit 5` once per tag from PLAN.md frontmatter `tags` (or use the single most specific keyword). The handler matches one `--tag` at a time. Prefix matches with `[Prior learning from <project>]` as weak priors. Project-local decisions take precedence. Skip silently if disabled or no matches.
 </step>
 
 <step name="gather_phase_context">
 Use `phase_dir` from init context (already loaded in load_project_state).
 
 ```bash
-cat "$phase_dir"/*-CONTEXT.md 2>/dev/null   # From /gsd-discuss-phase
-cat "$phase_dir"/*-RESEARCH.md 2>/dev/null   # Research output
-cat "$phase_dir"/*-DISCOVERY.md 2>/dev/null  # From mandatory discovery
+_CTX=( "$phase_dir"/*-CONTEXT.md )
+if [ -e "${_CTX[0]}" ]; then cat "${_CTX[@]}"; fi   # From /gsd-discuss-phase
+_RESEARCH=( "$phase_dir"/*-RESEARCH.md )
+if [ -e "${_RESEARCH[0]}" ]; then cat "${_RESEARCH[@]}"; fi   # Research output
+_DISCOVERY=( "$phase_dir"/*-DISCOVERY.md )
+if [ -e "${_DISCOVERY[0]}" ]; then cat "${_DISCOVERY[@]}"; fi  # From mandatory discovery
 ```
 
 **If CONTEXT.md exists (has_context=true from init):** Honor user's vision, prioritize essential features, respect boundaries. Locked decisions — do not revisit.
@@ -791,12 +750,16 @@ for each plan in plan_order:
 # Implicit dependency: files_modified overlap forces a later wave.
 for each plan B in plan_order:
   for each earlier plan A where A != B:
-    if any file in B.files_modified is also in A.files_modified:
+    if any file in (B.files_modified + B.files_deleted) is also in (A.files_modified + A.files_deleted):
       B.wave = max(B.wave, A.wave + 1)
       waves[B.id] = B.wave
 ```
 
-**Rule:** Same-wave plans must have zero `files_modified` overlap. After assigning waves, scan each wave; if any file appears in 2+ plans, bump the later plan to the next wave and repeat.
+**Rule:** Same-wave plans must have zero `files_modified`/`files_deleted` overlap. After assigning waves, scan each wave; if any file appears in 2+ plans, bump the later plan to the next wave and repeat.
+
+**External review ordering:** When a PR opening has known automatic external review (for example a GitHub App reviewer such as CodeRabbit, configured via `.coderabbit.yaml`, which reviews automatically on PR open) and the plan includes internal review lanes, run internal review and apply the accepted internal-review fixes before the final open. If an open-time property exists (for example a not-behind-base check that must legitimately be measured at PR-open instant), re-check it immediately before opening, with nothing intervening; post-open CI, review, and tracking may follow. Examples: @gsd-core/references/planner-antipatterns.md ("External Review Before PR Open (#4107)").
+
+Non-file coupling: @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/planner-coupling.md
 </step>
 
 <step name="group_into_plans">
@@ -878,18 +841,15 @@ Include all frontmatter fields.
 </step>
 
 <step name="validate_plan">
-Validate each created PLAN.md using `gsd-tools query`:
+`$SCHEMA`: `plan-gap-closure` in gap_closure mode, else `plan`. `gap_closure` must be literal lowercase `true`.
 
 ```bash
-VALID=$(gsd_run query frontmatter.validate "$PLAN_PATH" --schema plan)
+VALID=$(gsd_run query frontmatter.validate "$PLAN_PATH" --schema "$SCHEMA")
 ```
 
-Returns JSON: `{ valid, missing, present, schema }`
+Returns JSON: `{ valid, missing, present, invalidValue, schema }`
 
-**If `valid=false`:** Fix missing required fields before proceeding.
-
-Required plan frontmatter fields:
-- `phase`, `plan`, `type`, `wave`, `depends_on`, `files_modified`, `autonomous`, `must_haves`
+**If `valid=false`:** `missing` = absent fields, `invalidValue` = present but wrong-valued. Fix either before proceeding.
 
 Also validate plan structure:
 
@@ -946,7 +906,7 @@ Return structured planning outcome to orchestrator.
 
 <structured_returns>
 
-See @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/planner-guidance.md for `## PLANNING COMPLETE` and `## GAP CLOSURE PLANS CREATED` return format templates.
+See @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/planner-guidance.md for return formats; gap-closure returns are artifact-based (#3440).
 
 See @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/planner-chunked.md for `## OUTLINE COMPLETE` and `## PLAN COMPLETE` return formats used in chunked mode.
 
@@ -962,6 +922,49 @@ See @/home/user/enterprise-omni-agent-ai-platform/.claude/gsd-core/references/pl
 </critical_rules>
 
 <success_criteria>
+
+## Return Markers
+
+Your orchestrator dispatches on exact marker strings in your final output. Emit exactly one of:
+
+```markdown
+## PLANNING COMPLETE
+```
+(final plans committed, ready for verification)
+
+```markdown
+## OUTLINE COMPLETE
+```
+(outline produced, awaiting confirmation — chunked planning mode)
+
+```markdown
+## PHASE SPLIT RECOMMENDED
+```
+(phase too large to plan as one unit, include the proposed split)
+
+```markdown
+## ⚠ Source Audit
+```
+(unplanned items found in the requirements, include the options)
+
+```markdown
+## CHECKPOINT REACHED
+```
+(paused at a user checkpoint, include resume instructions)
+
+```markdown
+## PLANNING INCONCLUSIVE
+```
+(cannot produce a plan, include exactly what is missing)
+
+```markdown
+## REVISION_CONFLICT
+```
+(revision mode only — a checker `fix_hint` contradicts a locked decision, capability guidance, or
+an existing plan constraint, OR the `required_property` is unreachable without breaking one of
+those. Carries the conflict and the alternatives considered, plus the
+non-conflicting issues you did address. Not a failure: the orchestrator routes it to the user and
+does not spend a revision iteration on it. Shape: `gsd-core/references/planner-revision.md` Step 7b)
 
 ## Standard Mode
 

@@ -119,6 +119,11 @@ async def create_ticket(
     body:         CreateTicketRequest,
     current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
 ) -> Dict[str, Any]:
+    tenant_id = _effective_tenant(current_user)
+    _is_super = (current_user.role or "") in {"Super Admin", "superadmin", "super_admin", "platform-admin"}
+    if not tenant_id and not _is_super:
+        raise HTTPException(status_code=400, detail="No tenant context — please log out and back in to refresh your session.")
+
     data = body.model_dump(exclude_none=False)
 
     if body.template_id:

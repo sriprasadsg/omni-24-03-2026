@@ -1,0 +1,4 @@
+[PASS] Valid JSON: .mcp.json
+[PASS] Valid JSON: .claude.json
+[PASS] Valid JSON: .claude/settings.json
+[PASS] Valid JSON: .claude/settings.local.json

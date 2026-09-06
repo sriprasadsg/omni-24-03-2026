@@ -1,0 +1,50 @@
+RUFLO ENTERPRISE TEST v5 SUMMARY
+
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri 21 Aug 2026 05:31:04 IST
+Host: security-test-vm
+
+Ruflo: unknown
+Claude Flow: ruflo v3.38.12
+
+PASS: 48
+WARN: 11
+FAIL: 0
+
+RESULT: DEGRADED
+
+Main report:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/ruflo-enterprise-test-v5.log
+
+Ruflo CLI:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/ruflo-cli.txt
+
+Python validation:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/python-validation.txt
+
+Core tests:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/core-tests.txt
+
+Full project tests:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/full-project-tests.txt
+
+NPM validation:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/npm-validation.txt
+
+Config validation:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/config-validation.txt
+
+State validation:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/state-validation.txt
+
+Source blockers:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/source-blockers.txt
+
+Large files:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/large-files.txt
+
+Large logs:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/large-logs.txt
+
+External services:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_053104/external-services.txt

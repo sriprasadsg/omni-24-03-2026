@@ -1,0 +1,27 @@
+RUFLO AGENT ENTERPRISE TEST v10 SUMMARY
+
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri Aug 21 05:53:24 IST 2026
+Host: security-test-vm
+
+Ruflo: unknown
+
+Health Score: 32 / 100
+
+PASS: 34
+WARN: 22
+FAIL: 2
+
+Result: FAILED
+
+Spawned Agents: 0 / 4
+
+Reports:
+  Main Log       : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/ruflo-agent-test-v10.log
+  Agent Log      : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/agents.log
+  Swarm Log      : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/swarm.log
+  Task Log       : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/tasks.log
+  Memory Log     : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/memory.log
+  MCP Log        : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/mcp.log
+  Pytest Log     : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/pytest.log
+  NPM Log        : /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/npm.log

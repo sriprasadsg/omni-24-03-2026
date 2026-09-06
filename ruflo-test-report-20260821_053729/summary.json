@@ -1,0 +1,11 @@
+{
+  "schema": "ruflo-enterprise-test-v6",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "ruflo": "unknown",
+  "claude_flow": "ruflo v3.38.12",
+  "health_score": 74,
+  "pass": 48,
+  "warn": 14,
+  "fail": 0,
+  "result": "AT_RISK"
+}

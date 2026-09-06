@@ -1,0 +1,8 @@
+ruflo-architect	architect	research	agent-1787311050917-qpwfp9	Analyze architecture, components, dependencies, design risks and major technical boundaries.
+ruflo-researcher	researcher	research	agent-1787311053113-45t7xb	Inspect repository structure, documentation, configuration and implementation patterns; identify important findings.
+ruflo-coder	coder	implementation	agent-1787311055301-jv792r	Inspect backend and frontend implementation, code organization, defects and maintainability. Do not modify files.
+ruflo-security	security-auditor	security	agent-1787311057466-12w9c8	Audit authentication, authorization, secrets, MCP, APIs, dependencies and security configuration.
+ruflo-tester	tester	testing	agent-1787311059591-5wq3u5	Analyze tests, testability, coverage gaps, failures and reproducibility; run safe bounded tests where practical.
+ruflo-reviewer	reviewer	review	agent-1787311061760-loi9qy	Perform independent code-quality, correctness and maintainability review.
+ruflo-performance	performance-engineer	optimization	agent-1787311063864-w52rb0	Inspect CPU, memory, disk, large artifacts, bottlenecks and scalability risks.
+ruflo-qa	tester	testing	agent-1787311065983-ywk0s3	Perform QA validation of configuration, startup contracts and regression risks.

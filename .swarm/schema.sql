@@ -29,6 +29,13 @@ CREATE TABLE IF NOT EXISTS memory_entries (
   metadata TEXT, -- JSON object
   owner_id TEXT,
 
+  -- ADR-323: who/what produced this entry — lets shared-namespace retrieval
+  -- filter by trust level instead of conflating a user's stated claim with
+  -- an agent's own output or a raw tool/system observation.
+  provenance_type TEXT DEFAULT 'unknown' CHECK(provenance_type IN (
+    'user_claim', 'agent_output', 'system_observation', 'tool_result', 'unknown'
+  )),
+
   -- Timestamps
   created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
   updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
@@ -322,7 +329,7 @@ CREATE TABLE IF NOT EXISTS metadata (
 INSERT OR REPLACE INTO metadata (key, value) VALUES
   ('schema_version', '3.0.0'),
   ('backend', 'hybrid'),
-  ('created_at', '2026-07-19T15:57:09.120Z'),
+  ('created_at', '2026-08-20T21:40:19.541Z'),
   ('sql_js', 'true'),
   ('vector_embeddings', 'enabled'),
   ('pattern_learning', 'enabled'),

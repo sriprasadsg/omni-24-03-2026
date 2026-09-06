@@ -1,0 +1,47 @@
+
+Agent Health
+
++---------------------------------- Overall Status -----------------------------------+
+| Healthy: 36  |  Degraded: 0  |  Unhealthy: 0  |  Avg CPU: 0.0%  |  Avg Memory: 0.0% |
++-------------------------------------------------------------------------------------+
+
++--------------------+--------------+---------+-------+--------+-------+
+| Agent ID           | Type         | Health  | CPU % | Memory | Tasks |
++--------------------+--------------+---------+-------+--------+-------+
+| agent-178727144... | coordinator  | healthy |  0.0% |     0% |   0/0 |
+| agent-178727144... | tester       | healthy |  0.0% |     0% |   0/0 |
+| agent-178727145... | reviewer     | healthy |  0.0% |     0% |   0/0 |
+| agent-178727147... | coordinator  | healthy |  0.0% |     0% |   0/0 |
+| agent-178727147... | architect    | healthy |  0.0% |     0% |   0/0 |
+| agent-178727147... | tester       | healthy |  0.0% |     0% |   0/0 |
+| agent-178727148... | security-... | healthy |  0.0% |     0% |   0/0 |
+| agent-178727148... | reviewer     | healthy |  0.0% |     0% |   0/0 |
+| agent-178727408... | coder        | healthy |  0.0% |     0% |   0/0 |
+| agent-178727500... | researcher   | healthy |  0.0% |     0% |   0/0 |
+| agent-178727542... | coordinator  | healthy |  0.0% |     0% |   0/0 |
+| agent-178727542... | architect    | healthy |  0.0% |     0% |   0/0 |
+| agent-178727542... | researcher   | healthy |  0.0% |     0% |   0/0 |
+| agent-178727543... | tester       | healthy |  0.0% |     0% |   0/0 |
+| agent-178727543... | reviewer     | healthy |  0.0% |     0% |   0/0 |
+| agent-178727591... | coder        | healthy |  0.0% |     0% |   0/0 |
+| agent-178727600... | coordinator  | healthy |  0.0% |     0% |   0/0 |
+| agent-178727600... | architect    | healthy |  0.0% |     0% |   0/0 |
+| agent-178727600... | researcher   | healthy |  0.0% |     0% |   0/0 |
+| agent-178727600... | coder        | healthy |  0.0% |     0% |   0/0 |
+| agent-178727600... | security-... | healthy |  0.0% |     0% |   0/0 |
+| agent-178727601... | tester       | healthy |  0.0% |     0% |   0/0 |
+| agent-178727601... | reviewer     | healthy |  0.0% |     0% |   0/0 |
+| agent-178727601... | performan... | healthy |  0.0% |     0% |   0/0 |
+| agent-178727766... | coordinator  | healthy |  0.0% |     0% |   0/0 |
+| agent-178727766... | architect    | healthy |  0.0% |     0% |   0/0 |
+| agent-178727767... | researcher   | healthy |  0.0% |     0% |   0/0 |
+| agent-178727767... | security-... | healthy |  0.0% |     0% |   0/0 |
+| agent-178727767... | tester       | healthy |  0.0% |     0% |   0/0 |
+| agent-178727768... | reviewer     | healthy |  0.0% |     0% |   0/0 |
+| agent-178730164... | coordinator  | healthy |  0.0% |     0% |   0/0 |
+| agent-178730164... | architect    | healthy |  0.0% |     0% |   0/0 |
+| agent-178730164... | researcher   | healthy |  0.0% |     0% |   0/0 |
+| agent-178730165... | security-... | healthy |  0.0% |     0% |   0/0 |
+| agent-178730165... | tester       | healthy |  0.0% |     0% |   0/0 |
+| agent-178730165... | reviewer     | healthy |  0.0% |     0% |   0/0 |
++--------------------+--------------+---------+-------+--------+-------+

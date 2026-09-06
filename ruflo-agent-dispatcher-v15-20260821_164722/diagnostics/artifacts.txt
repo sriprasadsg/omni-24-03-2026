@@ -1,0 +1,5 @@
+=== >500M ===
+741392384 ./agent/buffer.db
+
+=== logs >50M ===
+198079618 ./agent/agent.log

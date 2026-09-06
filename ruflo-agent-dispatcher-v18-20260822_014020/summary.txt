@@ -1,0 +1,18 @@
+# Ruflo Multi-Agent Dispatcher v18
+
+Project: /home/user/enterprise-omni-agent-ai-platform
+Run: 20260822_014020
+Ruflo: ruflo v3.38.12
+Configured: 8
+Completed: 2
+Failed: 6
+
+## Workers
+- architect: exit=1, agent=none, task=task-1787343022335-xxwb9p
+- researcher: exit=1, agent=none, task=task-1787343023508-q1n20w
+- code-analyzer: exit=0, agent=none, task=task-1787343024657-so0rxl
+- security: exit=1, agent=none, task=task-1787343025822-y0ght2
+- tester: exit=0, agent=none, task=task-1787343026978-17uz53
+- reviewer: exit=1, agent=none, task=task-1787343028192-doo8bd
+- performance: exit=1, agent=none, task=task-1787343029382-r7c93c
+- qa: exit=1, agent=none, task=task-1787343030528-sn8uys

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { socketService } from '../services/socketService';
 import {
     BellIcon,
     XIcon,
@@ -21,6 +22,7 @@ import {
     updateNotificationConfig
 } from '../services/apiService';
 import { useUser } from '../contexts/UserContext';
+import { showToast } from '../utils/toast';
 
 interface Notification {
     alert_id: string;
@@ -105,6 +107,19 @@ const NotificationCenter: React.FC = () => {
     useEffect(() => {
         const token = sessionStorage.getItem('token');
         if (!token) return;
+
+        // Socket subscription for real-time popups
+        const handleNotification = (data: any) => {
+            console.log('[NotificationCenter] New notification:', data);
+            setNotifications(prev => [data, ...prev]);
+            // Real-time toast popup — transient on-screen alert, deduped from the bell list
+            const text = data?.title ? `${data.title}: ${data.message ?? ''}` : (data?.message ?? String(data ?? ''));
+            if (text) {
+                showToast(text, ['critical', 'warning'].includes(data?.severity) ? (data.severity === 'critical' ? 'error' : 'warning') : 'info');
+            }
+        };
+        socketService.on('notification', handleNotification);
+
         const poll = async () => {
             try {
                 const notifs = await getNotifications();
@@ -113,7 +128,11 @@ const NotificationCenter: React.FC = () => {
         };
         poll(); // initial fetch on mount
         const timer = setInterval(poll, 60_000);
-        return () => clearInterval(timer);
+
+        return () => {
+            clearInterval(timer);
+            socketService.off('notification', handleNotification);
+        };
     }, []);
 
     useEffect(() => {

@@ -1,0 +1,8 @@
+user      227045  226124  0 Aug20 pts/4    00:00:00 node /home/user/.claude/plugins/cache/ruflo/ruflo-core/0.2.6/scripts/mcp-launch.cjs
+user      227059  227045  0 Aug20 pts/4    00:00:02 npm exec @claude-flow/cli@latest mcp start
+user      227163  226124  0 Aug20 pts/4    00:00:02 npm exec ruflo@latest mcp start
+user      227195  227163  0 Aug20 pts/4    00:00:00 sh -c ruflo mcp start
+user      227196  227195  0 Aug20 pts/4    00:00:00 node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/.bin/ruflo mcp start
+user      388886       1  0 02:35 ?        00:00:00 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+user      418320  357120  0 03:25 pts/0    00:00:00 bash ./test-ruflo-enterprise-v2.sh
+user      419416  418320  0 03:25 pts/0    00:00:00 tee /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_032501/processes.txt

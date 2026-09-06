@@ -1,0 +1,68 @@
+{
+  "version": "v20",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "run": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatcher-v20-20260822_031152",
+  "completed": 7,
+  "failed": 1,
+  "timeouts": 0,
+  "prompt_too_long": 0,
+  "gateway_errors": 0,
+  "workers": [
+    {
+      "role": "architect",
+      "status": "SUCCESS",
+      "attempt": 1,
+      "exit_code": 1,
+      "bytes": 390475
+    },
+    {
+      "role": "researcher",
+      "status": "INVALID_RESULT",
+      "attempt": 3,
+      "exit_code": 0,
+      "bytes": 35886
+    },
+    {
+      "role": "code-analyzer",
+      "status": "SUCCESS",
+      "attempt": 1,
+      "exit_code": 1,
+      "bytes": 57468
+    },
+    {
+      "role": "security",
+      "status": "SUCCESS",
+      "attempt": 1,
+      "exit_code": 1,
+      "bytes": 58856
+    },
+    {
+      "role": "tester",
+      "status": "SUCCESS",
+      "attempt": 2,
+      "exit_code": 1,
+      "bytes": 62101
+    },
+    {
+      "role": "reviewer",
+      "status": "SUCCESS",
+      "attempt": 1,
+      "exit_code": 1,
+      "bytes": 51868
+    },
+    {
+      "role": "performance",
+      "status": "SUCCESS",
+      "attempt": 1,
+      "exit_code": 1,
+      "bytes": 59969
+    },
+    {
+      "role": "qa",
+      "status": "SUCCESS",
+      "attempt": 1,
+      "exit_code": 1,
+      "bytes": 46554
+    }
+  ]
+}

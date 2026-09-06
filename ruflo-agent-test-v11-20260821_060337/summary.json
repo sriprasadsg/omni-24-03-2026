@@ -1,0 +1,14 @@
+{
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "timestamp": "2026-08-21T06:04:56+05:30",
+  "ruflo_command": "npx --no-install claude-flow",
+  "cli_type": "npx-claude-flow",
+  "ruflo_version": "ruflo v3.38.12",
+  "health_score": 60,
+  "pass": 37,
+  "warn": 10,
+  "fail": 0,
+  "result": "AT_RISK",
+  "agent_inventory": 0,
+  "spawn_capability": 0
+}

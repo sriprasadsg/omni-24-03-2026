@@ -1,0 +1,12 @@
+226124 claude
+226958 /home/user/.claude/plugins/cache/claude-plugins-official/semgrep/2.1.4/scripts/hook-linux-amd64 claude mcp
+227045 node /home/user/.claude/plugins/cache/ruflo/ruflo-core/0.2.6/scripts/mcp-launch.cjs
+227059 npm exec @claude-flow/cli@latest mcp start
+227163 npm exec ruflo@latest mcp start
+227195 sh -c ruflo mcp start
+227196 node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/.bin/ruflo mcp start
+388886 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+431592 bash ./test-ruflo-enterprise-v3.sh
+.claude-flow: 13 files
+.agents: 5908 files
+.swarm: 5 files

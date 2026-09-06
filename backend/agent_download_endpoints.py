@@ -14,7 +14,7 @@ import yaml
 from agent_installer_builders import (
     build_exe, build_windows_zip, cleanup_temp_dir,
 )
-from agent_rust_builder import build_rust_exe
+from agent_rust_builder import build_rust_exe, build_rust_linux_pkg
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agent", tags=["Agent Management"])
@@ -140,7 +140,9 @@ async def download_agent(
 ):
     """
     Download agent package.
-    - platform=linux  (default): Python agent ZIP
+    - platform=linux  (default): Python agent ZIP — full capability set
+    - platform=linux-rust: native Rust agent tar.gz + systemd install.sh —
+      lighter binary, smaller capability set (opt-in, not the Linux default)
     - platform=windows: Windows EXE installer (requires makensis on server)
     """
     if download_token:
@@ -174,6 +176,11 @@ async def download_agent(
         logger.warning("makensis not found; falling back to Windows ZIP for tenant %s", tenant_id)
         return await build_windows_zip(tenant_id, tenant_name, reg_key, resolved_url,
                                        background_tasks, base_dir)
+
+    if (platform or "linux").lower() == "linux-rust":
+        base_dir = Path(__file__).parent.parent
+        return await build_rust_linux_pkg(tenant_id, tenant_name, reg_key, resolved_url,
+                                          background_tasks, base_dir)
 
     # Linux: Python agent ZIP
     base_dir = Path(__file__).parent.parent

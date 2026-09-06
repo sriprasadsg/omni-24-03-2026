@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, Body, HTTPException, Depends, Request
 from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
@@ -75,8 +75,14 @@ async def get_active_sessions(
 
 def _resolve_backend_ws_base(request: Request) -> str:
     """Return the ws:// base URL agents should connect back to.
-    Priority: PLATFORM_URL env → BACKEND_HOST env (if not 0.0.0.0/localhost) →
-              auto-detect LAN IP → fallback to request host."""
+    Priority: BACKEND_WS_HOST env → PLATFORM_URL env → BACKEND_HOST env (if not 0.0.0.0/localhost) →
+              auto-detect LAN IP → fallback to request host.
+    BACKEND_WS_HOST is independent WS override for cross-subnet agent reachability."""
+    ws_host = os.getenv("BACKEND_WS_HOST", "").strip()
+    ws_port = os.getenv("BACKEND_WS_PORT", "5000").strip()
+    if ws_host:
+        return f"ws://{ws_host}:{ws_port}"
+
     platform_url = os.getenv("PLATFORM_URL", "").rstrip("/")
     if platform_url:
         return platform_url.replace("https://", "wss://").replace("http://", "ws://")
@@ -105,7 +111,7 @@ def _resolve_backend_ws_base(request: Request) -> str:
 
 
 @router.post("/session/start")
-async def start_remote_session(request: Request, payload: dict, current_user: User = Depends(get_current_user)):
+async def start_remote_session(request: Request, payload: dict = Body(...), current_user: User = Depends(get_current_user)):
     """
     Start a remote session with an agent.
     Payload: {"agent_id": "uuid", "protocol": "ssh", "type": "shell"}

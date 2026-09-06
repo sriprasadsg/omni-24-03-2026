@@ -1,0 +1,165 @@
+{
+    "compliance_checks": [
+        {
+            "check": "UFW Firewall Enabled",
+            "status": "Fail",
+            "details": "UFW is not active",
+            "evidence_content": ""
+        },
+        {
+            "check": "SSH Root Login Disabled",
+            "status": "Pass",
+            "details": "Root login is disabled",
+            "evidence_content": "\n# This is the sshd server system-wide configuration file.  See\n# sshd_config(5) for more information.\n\n# This sshd was compiled with PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\n\n# The strategy used for options in the default sshd_config shipped with\n# OpenSSH is to specify options with their default value where\n# possible, but leave them commented.  Uncommented options override the\n# default value.\n\nInclude /etc/ssh/sshd_config.d/*.conf\n\n# When systemd socket activation is used (the default), the socket\n# configuration must be re-generated after changing Port, AddressFamily, or\n# ListenAddress.\n#\n# For changes to take effect, run:\n#\n#   systemctl daemon-reload\n#   systemctl restart ssh.socket\n#\n#Port 22\n#AddressFamily any\n#ListenAddress 0.0.0.0\n#ListenAddress ::\n\n#HostKey /etc/ssh/ssh_host_rsa_key\n#HostKey /etc/ssh/ssh_host_ecdsa_key\n#HostKey /etc/ssh/ssh_host_ed25519_key\n\n# Ciphers and keying\n#RekeyLimit default none\n\n# Logging\n#SyslogFacility AUTH\n#LogLevel INFO\n\n# Authentication:\n\n#LoginGraceTime 2m\n#PermitRootLogin no\n#StrictModes yes\n#MaxAuthTries 6\n#MaxSessions 10\n\n#PubkeyAuthentication yes\n\n# Expect .ssh/authorized_keys2 to be disregarded by default in future.\n#AuthorizedKeysFile\t.ssh/authorized_keys .ssh/authorized_keys2\n\n#AuthorizedPrincipalsFile none\n\n#AuthorizedKeysCommand none\n#AuthorizedKeysCommandUser nobody\n\n# For this to work you will also need host keys in /etc/ssh/ssh_known_hosts\n#HostbasedAuthentication no\n# Change to yes if you don't trust ~/.ssh/known_hosts for\n# HostbasedAuthentication\n#IgnoreUserKnownHosts no\n# Don't read the user's ~/.rhosts and ~/.shosts files\n#IgnoreRhosts yes\n\n# To disable tunneled clear text passwords, change to no here!\n#PasswordAuthentication no\n#PermitEmptyPasswords no\n\n# Change to yes to enable challenge-response passwords (beware issues with\n# some PAM modules and threads)\n#KbdInteractiveAuthentication no\n\n# Kerberos options\n#KerberosAuthentication no\n#KerberosOrLocalPasswd yes\n#KerberosTicketCleanup yes\n#KerberosGetAFSToken no\n\n# GSSAPI options\n#GSSAPIAuthentication no\n#GSSAPICleanupCredentials yes\n#GSSAPIStrictAcceptorCheck yes\n#GSSAPIKeyExchange no\n\n# Set this to 'yes' to enable PAM authentication, account processing,\n# and session processing. If this is enabled, PAM authentication will\n# be allowed through the KbdInteractiveAuthentication and\n# PasswordAuthentication.  Depending on your PAM configuration,\n# PAM authentication via KbdInteractiveAuthentication may bypass\n# the setting of \"PermitRootLogin prohibit-password\".\n# If you just want the PAM account and session checks to run without\n# PAM authentication, then enable this but set PasswordAuthentication\n# and KbdInteractiveAuthentication to 'no'.\n#UsePAM yes\n\n#AllowAgentForwarding yes\n#AllowTcpForwarding yes\n#GatewayPorts no\nX11Forwarding yes\n#X11DisplayOffset 10\n#X11UseLocalhost yes\n#PermitTTY yes\nPrintMotd no\n#PrintLastLog yes\n#TCPKeepAlive yes\n#PermitUserEnvironment no\n#Compression delayed\n#ClientAliveInterval 0\n#ClientAliveCountMax 3\n#UseDNS no\n#PidFile /run/sshd.pid\n#MaxStartups 10:30:100\n#PermitTunnel no\n#ChrootDirectory none\n#VersionAddendum none\n\n# no default banner path\n#Banner none\n\n# Allow client to pass locale environment variables\nAcceptEnv LANG LC_*\n\n# override default of no subsystems\nSubsystem\tsftp\t/usr/lib/openssh/sftp-server\n\n# Example of overriding settings on a per-user basis\n#Match User anoncvs\n#\tX11Forwarding no\n#\tAllowTcpForwarding no\n#\tPermitTTY no\n#\tForceCommand cvs server\nMACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-256,hmac-sha2-512\nCiphers aes192-ctr,aes128-ctr,aes128-gcm@openssh.com,aes256-ctr,aes256-gcm@openssh.com,chacha20-poly1305@openssh.com\nKexAlgorithms diffie-hellman-group-exchange-sha256,ecdh-sha2-nistp384,diffie-hellman-group14-sha256,curve25519-sha256,curve25519-sha256@libssh.org,sntrup761x25519-sha512@openssh.com,ecdh-sha2-nistp256,ecdh-sha2-nistp521,diffie-hellman-group18-sha512,diffie-hellman-group16-sha512\n",
+            "content_hash": "31932271a88e9d1535b0940bb74cec5478599d0f81303e268a26fc10369253d0"
+        },
+        {
+            "check": "Automatic Security Updates",
+            "status": "Pass",
+            "details": "Unattended upgrades enabled",
+            "evidence_content": "enabled\n",
+            "content_hash": "e056a35db086947e2f5969d747f0a7517bff00c7ffff1f9e7b47b72bfac9d948"
+        },
+        {
+            "check": "MAC Status",
+            "status": "Warning",
+            "details": "[Errno 2] No such file or directory: 'getenforce'",
+            "evidence_content": "[Errno 2] No such file or directory: 'getenforce'",
+            "content_hash": "901009a1de042143557b625df0439fcc02a162136e36ed38dad70c5af4b70b0a"
+        },
+        {
+            "check": "Sudo Configuration",
+            "status": "Error",
+            "details": "[Errno 13] Permission denied: '/etc/sudoers'",
+            "evidence_content": "[Errno 13] Permission denied: '/etc/sudoers'",
+            "content_hash": "2c9475fe929df4904de482d69e8a18b8125fa2f203f2f2b4f8a45c9c15e8fcc7"
+        },
+        {
+            "check": "Cron Security",
+            "status": "Pass",
+            "details": "Cron permissions secure",
+            "evidence_content": "/etc/cron.d: 0o755\n/etc/cron.daily: 0o755\n/etc/cron.hourly: 0o755\n/etc/cron.monthly: 0o755\n/etc/cron.weekly: 0o755",
+            "content_hash": "abd6385ba3623365962ddb2c62595cee67b31d2617eafd9e960a5c4bcde124d5"
+        },
+        {
+            "check": "SSHD Hardening",
+            "status": "Fail",
+            "details": "Issues: X11 forwarding enabled, MaxAuthTries too high (6)",
+            "evidence_content": "\n# This is the sshd server system-wide configuration file.  See\n# sshd_config(5) for more information.\n\n# This sshd was compiled with PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games\n\n# The strategy used for options in the default sshd_config shipped with\n# OpenSSH is to specify options with their default value where\n# possible, but leave them commented.  Uncommented options override the\n# default value.\n\nInclude /etc/ssh/sshd_config.d/*.conf\n\n# When systemd socket activation is used (the default), the socket\n# configuration must be re-generated after changing Port, AddressFamily, or\n# ListenAddress.\n#\n# For changes to take effect, run:\n#\n#   systemctl daemon-reload\n#   systemctl restart ssh.socket\n#\n#Port 22\n#AddressFamily any\n#ListenAddress 0.0.0.0\n#ListenAddress ::\n\n#HostKey /etc/ssh/ssh_host_rsa_key\n#HostKey /etc/ssh/ssh_host_ecdsa_key\n#HostKey /etc/ssh/ssh_host_ed25519_key\n\n# Ciphers and keying\n#RekeyLimit default none\n\n# Logging\n#SyslogFacility AUTH\n#LogLevel INFO\n\n# Authentication:\n\n#LoginGraceTime 2m\n#PermitRootLogin no\n#StrictModes yes\n#MaxAuthTries 6\n#MaxSessions 10\n\n#PubkeyAuthentication yes\n\n# Expect .ssh/authorized_keys2 to be disregarded by default in future.\n#AuthorizedKeysFile\t.ssh/authorized_keys .ssh/authorized_keys2\n\n#AuthorizedPrincipalsFile none\n\n#AuthorizedKeysCommand none\n#AuthorizedKeysCommandUser nobody\n\n# For this to work you will also need host keys in /etc/ssh/ssh_known_hosts\n#HostbasedAuthentication no\n# Change to yes if you don't trust ~/.ssh/known_hosts for\n# HostbasedAuthentication\n#IgnoreUserKnownHosts no\n# Don't read the user's ~/.rhosts and ~/.shosts files\n#IgnoreRhosts yes\n\n# To disable tunneled clear text passwords, change to no here!\n#PasswordAuthentication no\n#PermitEmptyPasswords no\n\n# Change to yes to enable challenge-response passwords (beware issues with\n# some PAM modules and threads)\n#KbdInteractiveAuthentication no\n\n# Kerberos options\n#KerberosAuthentication no\n#KerberosOrLocalPasswd yes\n#KerberosTicketCleanup yes\n#KerberosGetAFSToken no\n\n# GSSAPI options\n#GSSAPIAuthentication no\n#GSSAPICleanupCredentials yes\n#GSSAPIStrictAcceptorCheck yes\n#GSSAPIKeyExchange no\n\n# Set this to 'yes' to enable PAM authentication, account processing,\n# and session processing. If this is enabled, PAM authentication will\n# be allowed through the KbdInteractiveAuthentication and\n# PasswordAuthentication.  Depending on your PAM configuration,\n# PAM authentication via KbdInteractiveAuthentication may bypass\n# the setting of \"PermitRootLogin prohibit-password\".\n# If you just want the PAM account and session checks to run without\n# PAM authentication, then enable this but set PasswordAuthentication\n# and KbdInteractiveAuthentication to 'no'.\n#UsePAM yes\n\n#AllowAgentForwarding yes\n#AllowTcpForwarding yes\n#GatewayPorts no\nX11Forwarding yes\n#X11DisplayOffset 10\n#X11UseLocalhost yes\n#PermitTTY yes\nPrintMotd no\n#PrintLastLog yes\n#TCPKeepAlive yes\n#PermitUserEnvironment no\n#Compression delayed\n#ClientAliveInterval 0\n#ClientAliveCountMax 3\n#UseDNS no\n#PidFile /run/sshd.pid\n#MaxStartups 10:30:100\n#PermitTunnel no\n#ChrootDirectory none\n#VersionAddendum none\n\n# no default banner path\n#Banner none\n\n# Allow client to pass locale environment variables\nAcceptEnv LANG LC_*\n\n# override default of no subsystems\nSubsystem\tsftp\t/usr/lib/openssh/sftp-server\n\n# Example of overriding settings on a per-user basis\n#Match User anoncvs\n#\tX11Forwarding no\n#\tAllowTcpForwarding no\n#\tPermitTTY no\n#\tForceCommand cvs server\nMACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-256,hmac-sha2-512\nCiphers aes192-ctr,aes128-ctr,aes128-gcm@openssh.com,aes256-ctr,aes256-gcm@openssh.com,chacha20-poly1305@openssh.com\nKexAlgorithms diffie-hellman-group-exchange-sha256,ecdh-sha2-nistp384,diffie-hellman-group14-sha256,curve25519-sha256,curve25519-sha256@libssh.org,sntrup761x25519-sha512@openssh.com,ecdh-sha2-nistp256,ecdh-sha2-nistp521,diffie-hellman-group18-sha512,diffie-hellman-group16-sha512\n",
+            "content_hash": "31932271a88e9d1535b0940bb74cec5478599d0f81303e268a26fc10369253d0"
+        },
+        {
+            "check": "Filesystem Permissions",
+            "status": "Pass",
+            "details": "Critical file permissions correct",
+            "evidence_content": "/etc/passwd: Expected 0o644, Found 0o644\n/etc/shadow: Expected 0o640, Found 0o640\n/etc/group: Expected 0o644, Found 0o644\n/etc/gshadow: Expected 0o640, Found 0o640",
+            "content_hash": "41693d42d775399865d285ff948b8f325847d472ffc253d6dfd28c1b9bccccfe"
+        },
+        {
+            "check": "DPDP-5.1 Consent Artifacts",
+            "status": "Fail",
+            "details": "Consent log directory not found",
+            "evidence_content": "Missing: /var/lib/omniagent/consent_logs"
+        },
+        {
+            "check": "DPDP-8.4 Data Retention Policy",
+            "status": "Manual Review Required",
+            "details": "Retention policy file not found. Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated check not applicable \u2014 no retention_policy.json at expected path."
+        },
+        {
+            "check": "DPDP-8.5 Breach Notification",
+            "status": "Warning",
+            "details": "Breach notification email not set in ENV",
+            "evidence_content": "Missing OMNI_ADMIN_EMAIL"
+        },
+        {
+            "check": "DPDP-9.1 Child Data Age-Gating",
+            "status": "Manual Review Required",
+            "details": "Age-gating implementation requires review of application config and data flow diagrams.",
+            "evidence_content": "[INFO] Endpoint agent cannot verify application-layer age-gating. Review app config manually."
+        },
+        {
+            "check": "DPDP-10.1 SDF Audit Status",
+            "status": "Fail",
+            "details": "No recent independent audit found",
+            "evidence_content": "Last Audit: None"
+        },
+        {
+            "check": "Cloud Instance Metadata",
+            "status": "Pass",
+            "details": "On-Premise / No Cloud Metadata detected",
+            "evidence_content": "No IMDS response"
+        },
+        {
+            "check": "PII Data Discovery",
+            "status": "Pass",
+            "details": "No PII patterns found in scanned set (0 files)",
+            "evidence_content": "Clean scan"
+        },
+        {
+            "check": "Secure Development & Coding",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Change Management",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Network Security & Segregation",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Web Filtering & Security",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Secure Configuration",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Vulnerability Management Extension",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Audit Logging Extension",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Utility Programs & Audit Tools",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Data Leakage Prevention",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        },
+        {
+            "check": "Universal Non-Tech Controls",
+            "status": "Manual Review Required",
+            "details": "Process/organizational control \u2014 requires human verification.",
+            "evidence_content": "[INFO] Automated endpoint check not applicable. Review policy documentation and HR/IT records."
+        }
+    ],
+    "total_checks": 25,
+    "passed": 6,
+    "failed": 19,
+    "compliance_score": 24.0
+}

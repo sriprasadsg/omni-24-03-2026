@@ -1,0 +1,2 @@
+user      388886  0.0  0.1 1044140 76664 ?       Ssl  02:35   0:01 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+user      469736  2.7  0.0   4460  3360 pts/3    S+   05:18   0:00 bash ./test-ruflo-enterprise-v4.sh

@@ -267,6 +267,35 @@ async def test_llm_connection(
         except Exception as exc:
             return {"success": False, "message": f"Anthropic test failed: {exc}"}
 
+    if provider in ("openai-compatible", "9router", "openai_compat", "router"):
+        base_url = (settings.get("baseUrl") or settings.get("routerUrl") or "").rstrip("/")
+        if base_url.endswith("/v1"):
+            base_url = base_url[:-3]
+        api_key = settings.get("apiKey", "")
+        model_name = settings.get("model", "")
+        if not (base_url and api_key and model_name):
+            return {"success": False, "message": "OpenAI-Compatible: baseUrl/routerUrl, apiKey, and model are required"}
+        if not _is_safe_host(urlparse(base_url).hostname or ""):
+            raise HTTPException(status_code=400, detail="Connections to this host are not permitted")
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    f"{base_url}/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": model_name,
+                        "max_tokens": 16,
+                        "stream": False,
+                        "messages": [{"role": "user", "content": 'Say "test successful"'}],
+                    },
+                )
+                if resp.status_code == 200:
+                    return {"success": True, "message": f"OpenAI-Compatible connection successful (model: {model_name})"}
+                return {"success": False, "message": f"OpenAI-Compatible returned status {resp.status_code}: {resp.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "message": f"OpenAI-Compatible test failed: {exc}"}
+
     return {"success": False, "message": f"Unknown provider: {provider}"}
 
 

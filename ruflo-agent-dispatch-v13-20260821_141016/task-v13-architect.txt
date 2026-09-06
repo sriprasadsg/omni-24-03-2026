@@ -1,0 +1,5 @@
+===== v13-architect =====
+TYPE=architect
+TASK_TYPE=analysis
+DESCRIPTION=Analyze complete project architecture, modules, data flow, configuration, and architectural risks. Do not modify files.
+[ERROR] Invalid value for --type: analysis. Must be one of: implementation, bug-fix, refactoring, testing, documentation, research, review, optimization, security, custom

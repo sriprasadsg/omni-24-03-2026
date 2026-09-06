@@ -1,0 +1,18 @@
+RUFLO MULTI-AGENT ENTERPRISE TEST v13
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri Aug 21 06:29:22 IST 2026
+Host: security-test-vm
+
+Ruflo Mode: embedded
+Health Score: 60 / 100
+PASS: 42
+WARN: 20
+FAIL: 0
+Agents Completed: 0 / 8
+Result: AT_RISK
+
+Primary Log: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812/ruflo-agent-test-v13.log
+Summary: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812/summary.txt
+JSON: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812/summary.json
+Agent Logs: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812/agents/
+Diagnostics: /home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v13-20260821_062812/diagnostics/

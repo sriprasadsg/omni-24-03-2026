@@ -1,0 +1,29 @@
+RUFLO ENTERPRISE TEST v2 SUMMARY
+
+Project: /home/user/enterprise-omni-agent-ai-platform
+Date: Fri Aug 21 03:26:16 IST 2026
+Host: security-test-vm
+
+Ruflo: ruflo v3.38.12
+
+PASS: 50
+WARN: 4
+FAIL: 0
+
+Main report:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_032501/ruflo-enterprise-test-v2.log
+
+Ruflo CLI:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_032501/ruflo-cli.txt
+
+Python validation:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_032501/python-validation.txt
+
+Pytest:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_032501/pytest-collection.txt
+
+Large files:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_032501/large-files.txt
+
+Large logs:
+/home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_032501/large-logs.txt

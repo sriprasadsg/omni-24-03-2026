@@ -1,0 +1,5 @@
+===== v13-coordinator =====
+TYPE=coordinator
+TASK_TYPE=coordination
+DESCRIPTION=Coordinate this validation run. Inspect the project and identify the highest-risk findings. Do not modify files.
+[ERROR] Invalid value for --type: coordination. Must be one of: implementation, bug-fix, refactoring, testing, documentation, research, review, optimization, security, custom

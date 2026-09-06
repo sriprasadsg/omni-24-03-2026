@@ -1,0 +1,25 @@
+{
+  "test": "Ruflo Agent Enterprise Test v10",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "timestamp": "2026-08-21T05:53:24+05:30",
+  "host": "security-test-vm",
+  "ruflo": "unknown",
+  "health_score": 32,
+  "pass": 34,
+  "warn": 22,
+  "fail": 2,
+  "result": "FAILED",
+  "agents_spawned": 0,
+  "agents_requested": 4,
+  "reports": {
+    "summary": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/summary.txt",
+    "main_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/ruflo-agent-test-v10.log",
+    "agent_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/agents.log",
+    "swarm_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/swarm.log",
+    "task_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/tasks.log",
+    "memory_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/memory.log",
+    "mcp_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/mcp.log",
+    "pytest_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/pytest.log",
+    "npm_log": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-test-v10-20260821_055139/npm.log"
+  }
+}

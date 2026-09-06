@@ -1,0 +1,14 @@
+[INFO] Spawning reviewer agent: v14-reviewer
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787305222677-tn6m8m               |
+| Type         | reviewer                                 |
+| Name         | v14-reviewer                             |
+| Status       | registered                               |
+| Created      | 2026-08-21T09:40:22.677Z                 |
+| Capabilities | code-review, security-audit, quality-... |
++--------------+------------------------------------------+
+
+[OK] Agent v14-reviewer spawned successfully

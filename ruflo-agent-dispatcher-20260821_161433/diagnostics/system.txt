@@ -1,0 +1,98 @@
+===== DATE =====
+Fri Aug 21 16:26:13 IST 2026
+
+===== UPTIME =====
+ 16:26:13 up 1 day,  3:39,  1 user,  load average: 0.69, 1.30, 1.18
+
+===== MEMORY =====
+               total        used        free      shared  buff/cache   available
+Mem:            61Gi       2.0Gi        17Gi        15Mi        42Gi        59Gi
+Swap:          4.0Gi       253Mi       3.8Gi
+
+===== DISK =====
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2       787G  333G  420G  45% /
+
+===== CPU =====
+32
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           40 bits physical, 48 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  32
+On-line CPU(s) list:                     0-31
+Vendor ID:                               GenuineIntel
+Model name:                              Common KVM processor
+CPU family:                              15
+Model:                                   6
+Thread(s) per core:                      1
+Core(s) per socket:                      8
+Socket(s):                               4
+Stepping:                                1
+BogoMIPS:                                4788.74
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx lm constant_tsc rep_good nopl xtopology cpuid tsc_known_freq pni cx16 sse4_1 sse4_2 x2apic popcnt aes xsave avx hypervisor lahf_lm cpuid_fault pti
+Hypervisor vendor:                       KVM
+Virtualization type:                     full
+L1d cache:                               1 MiB (32 instances)
+L1i cache:                               1 MiB (32 instances)
+L2 cache:                                128 MiB (32 instances)
+L3 cache:                                64 MiB (4 instances)
+NUMA node(s):                            1
+NUMA node0 CPU(s):                       0-31
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Ghostwrite:                Not affected
+Vulnerability Indirect target selection: Mitigation; Aligned branch/return thunks
+Vulnerability Itlb multihit:             KVM: Mitigation: VMX unsupported
+Vulnerability L1tf:                      Mitigation; PTE Inversion
+Vulnerability Mds:                       Vulnerable: Clear CPU buffers attempted, no microcode; SMT Host state unknown
+
+===== PROCESSES =====
+    PID    PPID STAT %CPU %MEM     ELAPSED CMD
+ 701740  657124 R+    100  0.0       00:00 ps -eo pid,ppid,stat,%cpu,%mem,etime,cmd --sort=-%cpu
+ 687748  552656 S+    6.0  0.0       05:53 htop
+   1675       1 Ssl   0.9  0.1  1-03:38:54 /usr/bin/mongod --config /etc/mongod.conf
+   1671       1 Ssl   0.4  0.0  1-03:38:54 /usr/bin/cloudflared --no-autoupdate tunnel run --token eyJhIjoiM2U2YTk0ZjU3MDRiZDYwNmE1M2RjM2NhNDYwY2Q0YjEiLCJ0IjoiOWZhMGQ4ZTAtZDk5YS00OWMxLTg1NGMtMTM0OGM2Mzg0Nzc3IiwicyI6IlkyUmhObVUyT1dNdE9EQTRNeTAwWTJWaExUaGlPR1l0TjJZeE9XWTVOMlF4TURRNSJ9
+   1580       1 Ssl   0.3  0.2  1-03:38:54 next-server (v16.2.1)
+   2222    2046 Sl+   0.2  0.2  1-03:38:49 /usr/bin/gnome-shell
+   1586       1 Ssl   0.2  0.0  1-03:38:54 /usr/bin/redis-server 127.0.0.1:6379
+   1632       1 Ssl   0.1  0.0  1-03:38:54 /usr/bin/containerd
+   1584       1 Ssl   0.1  0.0  1-03:38:54 /usr/bin/python3 /usr/bin/fail2ban-server -xf start
+ 552650  552648 S     0.1  0.0    02:36:00 sshd: user@pts/0
+    242       2 S     0.0  0.0  1-03:39:09 [kswapd0]
+   1262       1 Ss    0.0  0.0  1-03:38:58 /usr/lib/systemd/systemd-oomd
+     15       2 I     0.0  0.0  1-03:39:09 [rcu_preempt]
+ 657124  589678 S+    0.0  0.0       11:40 bash ./ruflo-agent-dispatcher-v14.sh
+    223       2 S     0.0  0.0  1-03:39:09 [kcompactd0]
+   1399       1 Ssl   0.0  0.0  1-03:38:56 /usr/sbin/NetworkManager --no-daemon
+ 582623       1 Ssl   0.0  0.1    01:50:30 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+   1309       1 Ssl   0.0  0.0  1-03:38:57 /snap/snapd/current/usr/lib/snapd/snapd
+ 695749       2 I     0.0  0.0       03:06 [kworker/u132:4-events_unbound]
+ 657025       2 I     0.0  0.0       15:40 [kworker/u132:0-flush-8:0]
+      1       0 Ss    0.0  0.0  1-03:39:09 /sbin/init splash
+ 345625       2 I     0.0  0.0    15:42:28 [kworker/0:0-events]
+ 552636       2 I     0.0  0.0    02:38:25 [kworker/7:0-events]
+    597       2 S     0.0  0.0  1-03:39:07 [jbd2/sda2-8]
+ 585965       2 I     0.0  0.0    01:25:39 [kworker/u130:0-flush-8:0]
+ 629807       2 I     0.0  0.0       59:51 [kworker/u131:2-events_unbound]
+ 589678  589672 Ss    0.0  0.0    01:19:24 -bash
+   1677       1 Ssl   0.0  0.0  1-03:38:54 /usr/local/bin/ollama serve
+ 654259       2 I     0.0  0.0       22:30 [kworker/16:2-events]
+  17117       1 Ssl   0.0  0.0  1-02:45:10 /usr/libexec/fwupd/fwupd
+ 336192       2 I     0.0  0.0    16:01:23 [kworker/u129:2-flush-8:0]
+   1263       1 Ss    0.0  0.0  1-03:38:58 /usr/lib/systemd/systemd-resolved
+ 645716       2 I     0.0  0.0       40:41 [kworker/u132:3-flush-8:0]
+ 670920       2 I     0.0  0.0       09:31 [kworker/9:1-events]
+ 649694       2 I     0.0  0.0       32:13 [kworker/21:0-mm_percpu_wq]
+ 695242       2 I     0.0  0.0       03:16 [kworker/10:1-events]
+ 652538       2 I     0.0  0.0       26:10 [kworker/27:1-events]
+ 633806       2 I     0.0  0.0       58:14 [kworker/17:1-events]
+ 631486       2 I     0.0  0.0       59:15 [kworker/u130:3-flush-8:0]
+
+===== NODE =====
+v20.20.2
+
+===== CLAUDE =====
+2.1.228 (Claude Code)
+
+===== RUFLO =====
+ruflo v3.38.12

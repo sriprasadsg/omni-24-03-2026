@@ -1,0 +1,1 @@
+Perform a READ-ONLY security audit. Inspect authentication, authorization, secrets, command execution, injection risks, network exposure, dependency risks, filesystem access, logging, data protection, MCP/tool boundaries and insecure defaults. Do not exploit or modify anything. Return severity and evidence.

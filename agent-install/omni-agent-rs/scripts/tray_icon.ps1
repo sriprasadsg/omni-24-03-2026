@@ -54,6 +54,19 @@ if (-not $Token) { $Token = $cfg.agent_token }
 $Headers  = @{ Authorization = "Bearer $Token" }
 $ChatUi   = if ($cfg.chat_ui) { $cfg.chat_ui } else { "$env:ProgramData\OmniAgent\chat_ui.ps1" }
 
+# This server's default deployment terminates TLS with a self-signed cert
+# (see certs/server.crt) — the Rust agent's own HTTP client already trusts it
+# via config.yaml's accept_invalid_certs, but Invoke-RestMethod here is a
+# separate .NET TLS stack that knows nothing about that config. Without this,
+# every call below fails with a generic "trust relationship" error that the
+# catch blocks turn into "Could not reach the server." / "check connection.",
+# even though the server is perfectly reachable. Only bypass validation when
+# the agent config explicitly says the target uses that self-signed cert.
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
+if ($cfg.accept_invalid_certs) {
+    try { [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true } } catch { }
+}
+
 $Templates = @(
     @{ Name='Install Software'; Type='task';     Priority='medium'; Prefix='Software Install Request: ' },
     @{ Name='Access Request';   Type='task';     Priority='medium'; Prefix='Access Request: ' },
@@ -145,6 +158,7 @@ function Start-ChatWithIT {
             $sessCfg = @{
                 session_id = $sess.id; backend_url = $Base; token = $Token
                 subject = $subj.Text.Trim(); initial = ''; sender = ''
+                accept_invalid_certs = [bool]$cfg.accept_invalid_certs
             } | ConvertTo-Json
             $sessPath = "$env:ProgramData\OmniAgent\chat_$($sess.id).json"
             Set-Content -Path $sessPath -Value $sessCfg -Encoding UTF8

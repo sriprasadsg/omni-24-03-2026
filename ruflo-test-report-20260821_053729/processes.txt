@@ -1,0 +1,2 @@
+user      388886       1  0 02:35 ?        00:00:01 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+user      480791  434715  2 05:37 pts/3    00:00:00 bash ./test-ruflo-enterprise-v6.sh

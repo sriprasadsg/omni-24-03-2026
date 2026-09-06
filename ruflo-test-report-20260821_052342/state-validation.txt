@@ -1,0 +1,24 @@
+=== Processes ===
+user      388886       1  0 02:35 ?        00:00:01 /usr/bin/node /home/user/.npm/_npx/2ed56890c96f58f7/node_modules/@claude-flow/cli/bin/cli.js daemon start --foreground --quiet --workspace /home/user/enterprise-omni-agent-ai-platform
+user      472999  434715  1 05:23 pts/3    00:00:00 bash ./test-ruflo-enterprise-v5.sh
+user      473005  472999  0 05:23 pts/3    00:00:00 tee -a /home/user/enterprise-omni-agent-ai-platform/ruflo-test-report-20260821_052342/ruflo-enterprise-test-v5.log
+
+=== State files ===
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/daemon.pid
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/harness-active-policy.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/memory-package.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/codebase-map.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/backup.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/performance.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/consolidation.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/harness-loop.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/test-gaps.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/metrics/security-audit.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/policy/state.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/daemon-state.json
+/home/user/enterprise-omni-agent-ai-platform/.claude-flow/logs/daemon.log
+/home/user/enterprise-omni-agent-ai-platform/.swarm/agentdb-memory.db-shm
+/home/user/enterprise-omni-agent-ai-platform/.swarm/agentdb-memory.db-wal
+/home/user/enterprise-omni-agent-ai-platform/.swarm/memory.db
+/home/user/enterprise-omni-agent-ai-platform/.swarm/agentdb-memory.db
+/home/user/enterprise-omni-agent-ai-platform/.swarm/schema.sql

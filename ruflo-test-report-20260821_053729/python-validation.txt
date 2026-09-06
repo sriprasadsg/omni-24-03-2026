@@ -1,0 +1,12 @@
+Python 3.12.3
+No broken requirements found.
+[OK] numpy
+[OK] scipy
+[OK] pandas
+[OK] sklearn
+[OK] chromadb
+[OK] onnxruntime
+[OK] cpuinfo
+[OK] watchdog
+[OK] websockets
+[OK] langgraph

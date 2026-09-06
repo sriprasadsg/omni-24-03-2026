@@ -258,6 +258,27 @@ async def admin_send_message(
     except Exception as e:
         logger.debug("Agent chat WS broadcast failed: %s", e)
 
+    # Notification rule dispatch for agent_chat_message (email/webhook + in-app)
+    try:
+        from notification_service import get_notification_service, send_notification
+        _tenant_for_notif = session.get("tenant_id") or ""
+        svc2 = get_notification_service(get_database())
+        await svc2.send_alert(
+            title=f"Agent chat: {session.get('subject', session_id)}",
+            message=body.content[:200],
+            severity="info",
+            recipients=[],
+            tenant_id=_tenant_for_notif,
+            channels=[],
+            metadata={"event": "agent_chat_message", "session_id": session_id},
+        )
+        await send_notification(
+            get_database(), _tenant_for_notif, "agent_chat_message",
+            {"message": body.content[:200], "severity": "info", "session_id": session_id},
+        )
+    except Exception as e:
+        logger.debug("Agent chat notification dispatch failed (non-fatal): %s", e)
+
     return msg
 
 
@@ -316,6 +337,26 @@ async def user_send_message(
                 await sio.emit("agent_chat", data, room=sid)
     except Exception as e:
         logger.debug("Agent chat WS broadcast failed: %s", e)
+
+    # Notification rule dispatch for endpoint -> admin reply
+    try:
+        from notification_service import get_notification_service, send_notification
+        svc3 = get_notification_service(get_database())
+        await svc3.send_alert(
+            title=f"Endpoint reply: {session.get('subject', session_id)}",
+            message=body.content[:200],
+            severity="info",
+            recipients=[],
+            tenant_id=session.get("tenant_id") or tenant_id,
+            channels=[],
+            metadata={"event": "agent_chat_message", "session_id": session_id},
+        )
+        await send_notification(
+            get_database(), session.get("tenant_id") or tenant_id, "agent_chat_message",
+            {"message": body.content[:200], "severity": "info", "session_id": session_id},
+        )
+    except Exception as e:
+        logger.debug("Agent chat (endpoint->admin) notification failed (non-fatal): %s", e)
 
     return msg
 
@@ -445,6 +486,27 @@ async def initiate_session(
                 await sio.emit("agent_chat", payload, room=sid)
     except Exception as e:
         logger.debug("Endpoint-initiated chat broadcast failed: %s", e)
+
+    # Notification rule dispatch (email/webhook) — non-fatal, mirrors send paths
+    try:
+        from notification_service import get_notification_service, send_notification
+        svc = get_notification_service(get_database())
+        await svc.send_alert(
+            title=f"Agent chat initiated — {body.subject or session_id}",
+            message=body.message[:200],
+            severity="info",
+            recipients=[],
+            tenant_id=tenant_id,
+            channels=[],
+            metadata={"event": "agent_chat_message", "session_id": session_id, "agent_id": body.agent_id},
+        )
+        await send_notification(
+            get_database(), tenant_id, "agent_chat_message",
+            {"message": f"Endpoint {session['agent_hostname']} started a chat: {body.message[:200]}",
+             "severity": "info", "session_id": session_id, "agent_id": body.agent_id},
+        )
+    except Exception as e:
+        logger.debug("Endpoint-initiated chat notification failed: %s", e)
 
     return session
 

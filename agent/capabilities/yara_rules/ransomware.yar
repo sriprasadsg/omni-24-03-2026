@@ -1,7 +1,7 @@
-"""
+/*
 YARA Rule: Ransomware Families
 Detects file-header patterns and behavioral signatures of common ransomware.
-"""
+*/
 
 rule RansomwareGeneric {
     meta:

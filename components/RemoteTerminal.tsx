@@ -26,7 +26,7 @@ export const RemoteTerminal: React.FC<RemoteTerminalProps> = ({ agent, onClose }
     const [connected, setConnected] = useState(false);
 
     // Linux credential prompt state
-    const isLinux = agent.platform === 'Linux' || agent.platform === 'linux';
+    const isLinux = agent.platform === 'Linux';
     const [showCreds, setShowCreds] = useState(isLinux);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');

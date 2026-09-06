@@ -259,7 +259,9 @@ export const InteractiveVoiceBot: React.FC<InteractiveVoiceBotProps> = ({ curren
                 if (textToProcess !== '') {
                     setDisplayText("Thinking...");
                     try {
-                        const context = { currentView };
+                        const context: any = { currentView };
+                        // Tenant override — avoids extra fetch inside apiService
+                        if (voiceBotSettings?.defaultResponse?.trim()) context.defaultResponse = voiceBotSettings.defaultResponse.trim();
                         const response = await getChatAssistantResponse(textToProcess, context);
                         setAiResponse(response);
                         setBotState('speaking');

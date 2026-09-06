@@ -1,0 +1,14 @@
+{
+  "test": "ruflo-agent-dispatcher-v13",
+  "project": "/home/user/enterprise-omni-agent-ai-platform",
+  "runtime": "project-claude-flow",
+  "ruflo_version": "ruflo v3.38.12",
+  "configured_roles": 8,
+  "agents_spawned_this_run": 6,
+  "tasks_created": 4,
+  "tasks_assigned": 4,
+  "task_log_error_lines": 4,
+  "report_directory": "/home/user/enterprise-omni-agent-ai-platform/ruflo-agent-dispatch-v13-20260821_073042",
+  "idle_after_completion_is_normal": true,
+  "actual_worker_execution_requires_connected_worker_runtime": true
+}

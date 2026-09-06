@@ -43,7 +43,7 @@ This ensures project-specific patterns, conventions, and best practices are appl
 - Apply goal-backward thinking at phase level
 - Create success criteria (2-5 observable behaviors per phase)
 - Initialize STATE.md (project memory)
-- Return structured draft for user approval
+- Write ROADMAP.md and STATE.md immediately (durability — artifacts persist even if context is lost), then return a structured summary for the orchestrator to present; approval is the orchestrator's gate, revision is a re-run (#3797)
 </role>
 
 <downstream_consumer>
@@ -447,12 +447,18 @@ Key sections:
 - Accumulated Context (decisions, todos, blockers)
 - Session Continuity
 
-## Draft Presentation Format
+## Summary Preview Format
 
-When presenting to user for approval:
+The post-write `## ROADMAP CREATED` return carries this preview block (renamed from the pre-#3797 draft format — the orchestrator branches only on `ROADMAP CREATED`/`ROADMAP BLOCKED`, presents the roadmap, and owns the approval gate):
 
 ```markdown
-## ROADMAP DRAFT
+## ROADMAP CREATED
+
+**Files written:**
+- .planning/ROADMAP.md
+- .planning/STATE.md
+
+### Roadmap Preview
 
 **Phases:** [N]
 **Granularity:** [from config]
@@ -484,10 +490,9 @@ When presenting to user for approval:
 ✓ All [X] v1 requirements mapped
 ✓ No orphaned requirements
 
-### Awaiting
-
-Approve roadmap or provide feedback for revision.
 ```
+
+The orchestrator presents this roadmap and collects approval or feedback; revisions are applied on re-run (Step 9).
 
 </output_formats>
 
@@ -561,9 +566,27 @@ If gaps found, include in draft for user decision.
 
 Write files first, then return. This ensures artifacts persist even if context is lost.
 
-1. **Write ROADMAP.md** using output format
+**Arm the write-guard sentinel before each curated write, when the target already exists.** On a
+`/gsd-new-milestone` run `.planning/ROADMAP.md` and `.planning/STATE.md` still hold the *outgoing*
+milestone's content, and the replacement carries only the new milestone's phases — a legitimate,
+intentional shrink that the `gsd-write-guard` PreToolUse hook (#2255) hard-blocks on curated
+`.planning/` artifacts. A hook inherits the *runtime's* environment, so no per-step env var can reach
+it; the hatch is a **single-use sentinel file the guard itself consumes**. It is path-bound and
+single-use, so arm it immediately before each Write — one arming can never cover both files. On a
+`/gsd-new-project` run neither target exists, the guard exempts the write (ENOENT), and the `[ -f ]`
+test skips the arming so no unconsumed token is left on disk.
 
-2. **Write STATE.md** using output format
+1. **Write ROADMAP.md** using output format — arm first, then Write:
+
+   ```bash
+   [ -f .planning/ROADMAP.md ] && printf '.planning/ROADMAP.md\n' > .planning/.gsd-allow-shrink
+   ```
+
+2. **Write STATE.md** using output format — arm first, then Write:
+
+   ```bash
+   [ -f .planning/STATE.md ] && printf '.planning/STATE.md\n' > .planning/.gsd-allow-shrink
+   ```
 
 3. **Update REQUIREMENTS.md traceability section**
 
@@ -734,10 +757,9 @@ Roadmap is complete when:
 - [ ] ROADMAP.md structure complete
 - [ ] STATE.md structure complete
 - [ ] REQUIREMENTS.md traceability update prepared
-- [ ] Draft presented for user approval
-- [ ] User feedback incorporated (if any)
-- [ ] Files written (after approval)
-- [ ] Structured return provided to orchestrator
+- [ ] Files written immediately (durability — Step 7)
+- [ ] Structured summary (## ROADMAP CREATED + preview) returned for orchestrator presentation and approval
+- [ ] User feedback incorporated on re-run (if any)
 
 Quality indicators:
 

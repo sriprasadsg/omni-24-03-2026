@@ -1,8 +1,8 @@
-"""
+/*
 YARA Rule: Lateral Movement Techniques
 Detects PsExec, WMI remote execution, Pass-the-Hash, remote service creation,
 DCOM abuse, and other lateral movement indicators.
-"""
+*/
 
 rule PsExecLateralMovement {
     meta:
@@ -21,7 +21,7 @@ rule PsExecLateralMovement {
         $admin_share1 = "ADMIN$" nocase
         $admin_share2 = "C$" nocase
     condition:
-        any of ($psexec*) or ($sysinternals and ($remote_svc or $admin_share1 or $admin_share2))
+        any of ($psexec*) or ($sysinternals and ($remote_svc or $admin_share1 or $admin_share2 or $ipc_share))
 }
 
 rule WMIRemoteExecution {

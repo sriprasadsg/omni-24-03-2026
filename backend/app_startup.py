@@ -180,40 +180,40 @@ async def seed_database():
     try:
         raw_users = db._db.users
 
-        _super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD")
-        if not _super_admin_password:
-            _super_admin_password = secrets.token_urlsafe(32)
-            logger.warning(
-                "SUPER_ADMIN_PASSWORD env var not set — generated a random password. "
-                "Set the variable explicitly for a stable super admin login."
-            )
-
-        super_admin_data = {
-            "tenantId": "platform-admin",
-            "tenantName": "Platform",
-            "name": "Super Admin",
-            "email": "super@omni.ai",
-            "password": hash_password(_super_admin_password),
-            "role": "Super Admin",
-            "avatar": "https://i.pravatar.cc/150?u=super-admin",
-            "status": "Active",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-
         super_admin = await raw_users.find_one({"email": "super@omni.ai"})
         if not super_admin:
+            # Password is set only at first creation, from SUPER_ADMIN_PASSWORD
+            # (or a random fallback, logged so the operator can retrieve it).
+            # Mongo is the sole source of truth after this: no later restart,
+            # env change, or re-seed ever touches this field again — rotate
+            # the password via the login/reset flow, not by restarting.
+            _super_admin_password = os.getenv("SUPER_ADMIN_PASSWORD")
+            if not _super_admin_password:
+                _super_admin_password = secrets.token_urlsafe(32)
+                logger.warning(
+                    "SUPER_ADMIN_PASSWORD env var not set — generated a random "
+                    "password for the one-time super admin account creation: %s",
+                    _super_admin_password,
+                )
+
             logger.info("Creating new super admin user...")
-            super_admin_data["id"] = f"user-{uuid.uuid4()}"
-            await raw_users.insert_one(super_admin_data)
+            await raw_users.insert_one({
+                "id": f"user-{uuid.uuid4()}",
+                "tenantId": "platform-admin",
+                "tenantName": "Platform",
+                "name": "Super Admin",
+                "email": "super@omni.ai",
+                "password": hash_password(_super_admin_password),
+                "role": "Super Admin",
+                "avatar": "https://i.pravatar.cc/150?u=super-admin",
+                "status": "Active",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
         else:
-            logger.info("Updating existing super admin credentials...")
+            logger.info("Verifying existing super admin account status/role...")
             await raw_users.update_one(
                 {"email": "super@omni.ai"},
-                {"$set": {
-                    "password": super_admin_data["password"],
-                    "status": "Active",
-                    "role": "Super Admin",
-                }},
+                {"$set": {"status": "Active", "role": "Super Admin"}},
             )
 
         logger.info("Super admin account verified.")
@@ -568,6 +568,13 @@ def init_agentic_tracing() -> None:
 async def run_startup_services() -> None:
     """Launch all background tasks and periodic services."""
     db = get_database()
+
+    # Initialize AI provider from DB config (seeded or configured)
+    try:
+        from ai_service import ai_service
+        await ai_service.initialize()
+    except Exception as _e:
+        logger.warning("[AI] Provider initialization failed: %s", _e)
 
     try:
         from database_migrations import (

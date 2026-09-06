@@ -1,0 +1,14 @@
+[INFO] Spawning reviewer agent: v13-reviewer
+
++--------------+------------------------------------------+
+| Property     | Value                                    |
++--------------+------------------------------------------+
+| ID           | agent-1787301654713-j5vmch               |
+| Type         | reviewer                                 |
+| Name         | v13-reviewer                             |
+| Status       | registered                               |
+| Created      | 2026-08-21T08:40:54.713Z                 |
+| Capabilities | code-review, security-audit, quality-... |
++--------------+------------------------------------------+
+
+[OK] Agent v13-reviewer spawned successfully

@@ -189,6 +189,10 @@ async def record_location_change(
     # Branch 3: candidate matches the current pending candidate.
     if pending and _candidate_matches(public_ip, geo, pending):
         first_seen = pending.get("firstSeenAt")
+        if isinstance(first_seen, datetime) and first_seen.tzinfo is None:
+            # Motor/BSON round-trips datetimes as naive UTC — reattach the
+            # tzinfo `now` already carries so the subtraction below is valid.
+            first_seen = first_seen.replace(tzinfo=timezone.utc)
         elapsed_enough = isinstance(first_seen, datetime) and (now - first_seen) >= DEBOUNCE_WINDOW
         if elapsed_enough:
             await _promote(raw, agent_id, tenant_id, public_ip, geo, asn_enrichment, now)

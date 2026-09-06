@@ -1,0 +1,6 @@
+=== PROJECT SNAPSHOT ===
+Files: 461014
+package.json: present
+frontend/: present
+backend/: present
+src/: present
