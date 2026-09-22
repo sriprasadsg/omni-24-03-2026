@@ -174,6 +174,22 @@ npx @claude-flow/cli@latest doctor --fix
 ```
 
 **Agent tool** handles execution (agents, files, code, git). **MCP tools** handle coordination (swarm, memory, hooks). **CLI** is the same via Bash.
+
+## Skill routing
+
+| Situation | Skill |
+|-----------|-------|
+| Lock in an architecture or plan before coding | `/plan-eng-review` |
+| Rethink scope, ambition, or product direction | `/plan-ceo-review` |
+| UI/UX design review | `design-review` / `/plan-design-review` |
+| Developer-experience review | `/plan-devex-review` |
+| Tune the plan/review questions | `/plan-tune` |
+| Verify a completed piece of work | `/qa` · `/qa-only` |
+| Release or land a finished change | `land-and-deploy` / `/ship` |
+| Recurring conversation / unblocking | `/office-hours` |
+| Harvest decisions & shortcuts into a debt ledger | `/retro` |
+| Update gstack itself | `/gstack-upgrade` |
+
 ## Compact Instructions
 
 When compacting context, preserve:
