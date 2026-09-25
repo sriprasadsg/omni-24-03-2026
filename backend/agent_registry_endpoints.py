@@ -102,7 +102,18 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
                 geo = {**(geo or {}), "asn": asn_enrichment.get("asn"), "vpn_heuristic": asn_enrichment.get("vpn_heuristic")}
                 agent_data["geo"] = geo
 
-    await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
+    # D9: the (tenantId, hostname) compound unique index is the authoritative
+    # backstop for the find_one-then-upsert registration race below — when two
+    # concurrent /register calls for the same hostname both miss the check,
+    # the second upsert hits E11000 and we degrade to a non-upsert update on
+    # the winner's id instead of minting a duplicate agent doc.
+    try:
+        await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
+    except Exception as e:
+        if "E11000 duplicate key error" in str(e):
+            await db.agents.update_one({"id": agent_id}, {"$set": agent_data})
+        else:
+            raise e
 
     # Record location history (Phase 46, GAUD-01) — reuses the existing_agent
     # doc already fetched above (D-05, zero extra reads); None on first-ever
@@ -161,6 +172,12 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
             raise e
 
     await db.agents.update_one({"id": agent_id}, {"$set": {"assetId": asset_id}})
+
+    # D9: /register writes new agent state but never invalidated the agents
+    # cache — matching delete/move/update which all call invalidate_cache.
+    # A stale cached get_agent_instructions response can point at a pre-race
+    # doc id. Invalidate so the next poll resolves fresh.
+    invalidate_cache("agents:*")
 
     try:
         from finops_service import finops_service

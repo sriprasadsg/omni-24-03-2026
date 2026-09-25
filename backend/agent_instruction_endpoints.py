@@ -36,7 +36,11 @@ async def get_agent_instructions(
     if user_role not in _INSTR_SUPER_ROLES and tenant_id:
         agent_filter["tenantId"] = tenant_id
 
-    agent = await db.agents.find_one(agent_filter)
+    # Sort by newest registration first: when dup agent docs exist for the same
+    # hostname (registration race / legacy pre-dedupe docs), an unsorted
+    # find_one lets MongoDB return an arbitrary match — delivering instructions
+    # to the wrong doc. Newest-wins keeps resolution deterministic.
+    agent = await db.agents.find_one(agent_filter, sort=[("_id", -1)])
     if agent:
         actual_agent_id = agent["id"]
     else:
