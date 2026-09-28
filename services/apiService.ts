@@ -3720,7 +3720,7 @@ export const triggerProcessInjectionSimulation = async (agentId: string, techniq
 
 export const fetchSimulationHistory = async () => {
     try {
-        const res = await fetch(`${API_BASE}/simulation/history`);
+        const res = await authFetch(`${API_BASE}/simulation/history`);
         if (res.ok) return await res.json();
         return [];
     } catch (e) {
