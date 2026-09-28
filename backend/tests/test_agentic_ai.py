@@ -61,12 +61,13 @@ class TestToolRegistryComplete:
 
 
 # ===========================================================================
-# Test 2 — AI-01: run() calls AsyncAnthropic with tool_choice={"type": "any"}
+# Test 2 — AI-01: run() calls AsyncAnthropic with tool_choice={"type": "any",
+# "disable_parallel_tool_use": True}
 # ===========================================================================
 
 class TestRunCallsAnthropicWithToolChoiceAny:
     """AgenticService.run() must call messages.create twice (Turn 1 + Turn 2)
-    with tool_choice={"type": "any"} on Turn 1."""
+    with tool_choice={"type": "any", "disable_parallel_tool_use": True} on Turn 1."""
 
     def test_run_calls_anthropic_with_tool_choice_any(self):
         # Build Turn 1 mock response
@@ -118,10 +119,12 @@ class TestRunCallsAnthropicWithToolChoiceAny:
             f"Expected 2 calls to messages.create, got {mock_create.call_count}"
         )
 
-        # First call had tool_choice={"type": "any"}
+        # First call had tool_choice={"type": "any", "disable_parallel_tool_use": True}
+        # (c4c3401: force serial tool use in decide_and_execute)
         first_call_kwargs = mock_create.call_args_list[0].kwargs
-        assert first_call_kwargs.get("tool_choice") == {"type": "any"}, (
-            f"Expected tool_choice={{'type': 'any'}}, got {first_call_kwargs.get('tool_choice')}"
+        expected_tool_choice = {"type": "any", "disable_parallel_tool_use": True}
+        assert first_call_kwargs.get("tool_choice") == expected_tool_choice, (
+            f"Expected tool_choice={expected_tool_choice}, got {first_call_kwargs.get('tool_choice')}"
         )
 
         # Result has correct tool_name
