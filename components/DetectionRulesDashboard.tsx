@@ -52,7 +52,10 @@ export default function DetectionRulesDashboard() {
       if (filterEnabled !== '') params.set('enabled', filterEnabled);
       const r = await fetch(`${API}/api/detection-rules/?${params}`, { headers: authHeader() });
       const d = await r.json();
-      setRules(d.rules || d || []);
+      if (!r.ok) { setRules([]); }
+      else if (Array.isArray(d.rules)) { setRules(d.rules); }
+      else if (Array.isArray(d)) { setRules(d); }
+      else { setRules([]); }
     } catch { setRules([]); }
     setLoading(false);
   };
