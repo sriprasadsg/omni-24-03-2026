@@ -36,26 +36,36 @@ export const DataUtilizationDashboard: React.FC = () => {
     const [data, setData] = useState<UtilizationData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const isMountedRef = React.useRef(true);
 
     const fetchUtilizationData = async () => {
+        if (!isMountedRef.current) return;
         setLoading(true);
         setError(null);
         try {
             const response = await authFetch('/api/agents/network-utilization');
             if (!response.ok) throw new Error('Failed to fetch data');
             const result = await response.json();
-            setData(result);
+            // Component may have unmounted (e.g. user navigated away) while this
+            // fetch was in flight — applying state after that races with
+            // ResponsiveContainer's ResizeObserver teardown and throws
+            // "Cannot read properties of null (reading 'notify')".
+            if (isMountedRef.current) setData(result);
         } catch (err: any) {
-            setError(err.message);
+            if (isMountedRef.current) setError(err.message);
         } finally {
-            setLoading(false);
+            if (isMountedRef.current) setLoading(false);
         }
     };
 
     useEffect(() => {
+        isMountedRef.current = true;
         fetchUtilizationData();
         const interval = setInterval(fetchUtilizationData, 60000); // refresh every minute
-        return () => clearInterval(interval);
+        return () => {
+            isMountedRef.current = false;
+            clearInterval(interval);
+        };
     }, []);
 
     if (loading && !data) {

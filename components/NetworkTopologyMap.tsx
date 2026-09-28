@@ -47,6 +47,12 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const socketRef = useRef<Socket | null>(null);
     const requestRef = useRef<number | undefined>(undefined);
+    // Tracks true component mount lifetime (unlike cyRef, which react-cytoscapejs
+    // may destroy internally before React clears our own reference to it).
+    const isMountedRef = useRef(true);
+    useEffect(() => {
+        return () => { isMountedRef.current = false; };
+    }, []);
 
     // Fetch Topology Data
     useEffect(() => {
@@ -62,6 +68,8 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
 
                 const data = await response.json();
                 console.log("Fetched Topology Data:", data);
+
+                if (!isMountedRef.current) return;
 
                 if (!data.elements || !data.elements.nodes) {
                     console.warn("No nodes found in topology data");
@@ -90,11 +98,15 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
 
                 const allElements = [...parentNodes, ...nodesWithParents, ...data.elements.edges];
                 console.log("FINAL ELEMENTS JSON:", JSON.stringify(allElements));
+                // Guarded because the fetch may resolve after this component has
+                // unmounted (e.g. user navigated away) — applying it then races
+                // with Cytoscape's own teardown and throws
+                // "Cannot read properties of null (reading 'notify')".
                 setElements(allElements);
             } catch (error) {
                 console.error("Error loading topology:", error);
             } finally {
-                setLoading(false);
+                if (isMountedRef.current) setLoading(false);
             }
         };
         fetchTopology();
@@ -129,7 +141,11 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
 
         socket.on('network_traffic', (event: any) => {
             // event: { source_ip: "...", target_ip: "...", protocol: "HTTPS", status: "allowed" }
-            if (!cyRef.current) return;
+            // isMountedRef guards against react-cytoscapejs having already destroyed
+            // the Cytoscape instance on unmount — cyRef.current itself stays
+            // non-null (nothing nulls it), so calling into the destroyed core
+            // throws "Cannot read properties of null (reading 'notify')".
+            if (!isMountedRef.current || !cyRef.current) return;
             const cy = cyRef.current;
 
             // Selector: node[ip = "x.x.x.x"]
