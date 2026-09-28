@@ -88,6 +88,8 @@ export default defineConfig(({ mode }) => {
         '**/node_modules/**',
         '**/dist/**',
         'code-review-graph-main/**',
+        '.claude/**',
+        'integrations/**',
       ],
     }
   };
