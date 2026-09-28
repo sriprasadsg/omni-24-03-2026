@@ -1,2 +1,5 @@
 # ── WebAuthn / Passkeys (test-only) ───────────────────────────────────────────
 soft-webauthn>=0.1.3,<0.2.0
+
+# ── Cache (test-only) ─────────────────────────────────────────────────────────
+fakeredis>=2.20.0    # cache_service.py's designed fallback when no real Redis is reachable; without it caching silently disables and cache-behavior tests fail
