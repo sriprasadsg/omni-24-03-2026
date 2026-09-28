@@ -242,6 +242,7 @@ export type Permission =
   | 'view:developer_hub'
   | 'view:insights'
   | 'view:tracing'
+  | 'view:system'
   // 2030 Vision Permissions
   | 'view:dspm'
   | 'view:attack_path'

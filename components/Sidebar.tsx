@@ -225,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             title: "Observability",
             items: [
                 { view: 'distributedTracing', label: 'Distributed Tracing', icon: <GitMergeIcon size={20} />, permission: 'view:tracing' },
-                { view: 'apm', label: 'APM', icon: <GaugeIcon size={20} />, permission: 'view:tracing' },
+                { view: 'apm', label: 'APM', icon: <GaugeIcon size={20} />, permission: 'view:system' },
                 { view: 'logExplorer', label: 'Log Explorer', icon: <FileTextIcon size={20} />, permission: 'view:logs' },
                 { view: 'networkObservability', label: 'Network Observability', icon: <NetworkIcon size={20} />, permission: 'view:network' },
                 { view: 'networkTopology', label: 'Network Topology Map', icon: <NetworkIcon size={20} />, permission: 'view:network' },
