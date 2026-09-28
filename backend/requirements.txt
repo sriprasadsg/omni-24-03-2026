@@ -138,5 +138,5 @@ webauthn>=2.5.0,<3.0.0    # 3.x requires cryptography>=49, conflicts with alibab
 maxminddb>=2.5.0    # Pure-Python reader for a MaxMind GeoLite2-City .mmdb (DB file supplied out-of-band; lookups degrade gracefully when absent)
 
 # ── Code Review Graph ─────────────────────────────────────────────────────────
-mcp
+mcp<2.0.0    # 2.x renamed FastMCP to MCPServer and changed other APIs; mcp_server.py imports mcp.server.fastmcp.FastMCP (v1 API) — pin until migrated
 # code-review-graph>=2.3.0           # Optional: code knowledge graph (install separately if needed)
