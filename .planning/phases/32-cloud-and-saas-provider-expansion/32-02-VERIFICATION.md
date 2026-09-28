@@ -1,44 +1,36 @@
 ---
 phase: 32-cloud-and-saas-provider-expansion
 plan: 02
-verified: 2026-07-10T00:00:00Z
-status: gaps_found
-score: 0/7 truths verified
+verified: 2026-09-28T00:00:00Z
+status: passed
+score: 5/5 truths verified
 behavior_unverified: 0
 overrides_applied: 0
-re_verification: false
-gaps:
-  - truth: "run_checks() evaluates microsoft365 and mongodb_atlas checks unmodified once their catalogs exist and their provider strings are in RUNNABLE_PROVIDERS (PROV-02)"
-    status: failed
-    reason: Missing catalog files; RUNNABLE_PROVIDERS tuple in cloud_checks_service.py still only has aws/azure/gcp/kubernetes/digitalocean
-  - truth: "All four CSPM gates accept microsoft365 and mongodb_atlas: _VALID_PROVIDERS (registration), cloud_checks_endpoints.py run tuple, mcp_server_endpoints.py tuples, and RUNNABLE_PROVIDERS — no gate accepts a provider another rejects (PROV-02, Phase 25 lockstep)"
-    status: failed
-    reason: RUNNABLE_PROVIDERS in cloud_checks_service.py missing microsoft365/mongodb_atlas; _VALID_PROVIDERS missing these providers; cloud_checks_endpoints.py tuple missing these providers; mcp_server_endpoints.py tuple missing these providers
-  - truth: "The three CSPM registration/validation gates (_VALID_PROVIDERS, cloud_checks_endpoints.py, mcp_server_endpoints.py) also accept oci, alibaba, cloudflare so AddCloudAccountModal submissions for those three stop returning 400 (PROV-01 lockstep fix)"
-    status: failed
-    reason: _VALID_PROVIDERS missing oci/alibaba/cloudflare; cloud_checks_endpoints.py missing oci/alibaba/cloudflare; mcp_server_endpoints.py missing oci/alibaba/cloudflare
-  - truth: "run_checks() results carry an additive simulated flag: true when db.cloud_findings had no entries for the account (catalog-only evaluation), false when real findings were present — distinguishing real-findings evaluations from empty-collection ones (PROV-02, Phase 25 simulated-flag convention)"
-    status: failed
-    reason: run_checks() does not have simulated flag in path 63-110; no simulated field added to cloud_check_results docs; Plan 32-05 not yet implemented for M365/Atlas providers
-  - truth: "Existing catalog-only providers (aws/azure/gcp/kubernetes/digitalocean) keep identical PASS/FAIL behavior and ran counts — the simulated field is purely additive, no fail-closed change, no regression"
-    status: uncertain
-    reason: Hard to determine without full test suite verification; the current cloud_checks_service.py does not include simulated flag at all
-  artifacts:
-    - path: "backend/cloud_checks_m365.py"
-      issue: "Missing - should expose M365_CHECKS: List[Dict[str, Any]] with provider == microsoft365"
-    - path: "backend/cloud_checks_mongodb_atlas.py"
-      issue: "Missing - should expose MONGODB_ATLAS_CHECKS: List[Dict[str, Any]] with provider == mongodb_atlas"
-    - path: "backend/cloud_checks_service.py"
-      issue: "RUNNABLE_PROVIDERS tuple missing microsoft365/mongodb_atlas; _VALID_PROVIDERS (in cloud_account_endpoints.py) missing all new providers; cloud_checks_endpoints.py tuple missing all new providers; mcp_server_endpoints.py provider lists missing all new providers"
-  missing:
-    - "Create backend/cloud_checks_m365.py with M365 checks and provider string 'microsoft365'"
-    - "Create backend/cloud_checks_mongodb_atlas.py with Atlas checks and provider string 'mongodb_atlas'"
-    - "Widen cloud_checks_service.py RUNNABLE_PROVIDERS tuple with 'microsoft365' and 'mongodb_atlas'"
-    - "Widen cloud_account_endpoints.py _VALID_PROVIDERS with 'microsoft365', 'mongodb_atlas', 'oci', 'alibaba', 'cloudflare'"
-    - "Widen cloud_checks_endpoints.py /run route tuple with 'microsoft365', 'mongodb_atlas', 'oci', 'alibaba', 'cloudflare'"
-    - "Widen mcp_server_endpoints.py provider lists with 'microsoft365', 'mongodb_atlas', 'oci', 'alibaba', 'cloudflare'"
-    - "Add simulated provenance flag to run_checks() logic (before line 110)"
-  key_links: []
+re_verification: true
+previous_status: gaps_found
+previous_score: 0/7 truths
+gaps_closed:
+  - "M365 + MongoDB Atlas check catalogs created (backend/cloud_checks_m365.py, backend/cloud_checks_mongodb_atlas.py) — 6 checks each, real content (MFA/conditional-access/mailbox-audit/external-sharing for M365; IP-allowlist/encryption-at-rest/auditing/network-isolation for Atlas)"
+  - "RUNNABLE_PROVIDERS (cloud_checks_service.py:40) widened to include microsoft365, mongodb_atlas, oci, alibaba, cloudflare"
+  - "_VALID_PROVIDERS (cloud_account_endpoints.py:13) widened to the same 10 providers"
+  - "cloud_checks_endpoints.py /run route tuple (line 73) widened to the same 10 providers"
+  - "Fourth gate (formerly mcp_server_endpoints.py's own tuple) now lives in mcp_server.py:62-64, which imports RUNNABLE_PROVIDERS directly from cloud_checks_service as its single source of truth — stronger than the originally planned duplicated tuple, since it cannot drift out of lockstep"
+  - "simulated provenance flag added at cloud_checks_service.py:108 (\"simulated\": not has_real_findings)"
+gaps_remaining: []
+regressions: []
+key_links:
+  - from: "cloud_checks_service.py:13-14"
+    to: "cloud_checks_m365.py / cloud_checks_mongodb_atlas.py"
+    via: "from cloud_checks_m365 import M365_CHECKS / from cloud_checks_mongodb_atlas import MONGODB_ATLAS_CHECKS"
+    status: WIRED
+  - from: "cloud_checks_service.py:34"
+    to: "CLOUD_CHECKS"
+    via: "AWS_CHECKS + ... + M365_CHECKS + MONGODB_ATLAS_CHECKS + OCI_CHECKS + ALIBABA_CHECKS + CLOUDFLARE_CHECKS"
+    status: WIRED
+  - from: "mcp_server.py:62"
+    to: "cloud_checks_service.RUNNABLE_PROVIDERS"
+    via: "from cloud_checks_service import RUNNABLE_PROVIDERS (runtime import, single source of truth)"
+    status: WIRED
 ---
 
 # Phase 32 Plan 02 Verification Report
@@ -47,119 +39,64 @@ gaps:
 
 **Objective:** Make M365 and MongoDB Atlas first-class runnable CSPM providers and set up the provenance flag Plan 32-05 flips to false when it writes real findings.
 
-**Verified:** 2026-07-10T00:00:00Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-09-28T00:00:00Z
+**Status:** passed
+**Re-verification:** Yes — the 2026-07-10 report (`status: gaps_found`, 0/7 truths) predates commits `7c37c94f` and `a418d553` ("feat(phase-32-02): M365 + MongoDB Atlas catalogs, wire into CLOUD_CHECKS + RUNNABLE_PROVIDERS"), which closed every gap it listed. This report re-verifies against current code and the current test suite rather than assuming the prior report was still accurate — it was not; it had gone stale.
 
 ## Goal Achievement
 
 ### Observable Truths
-| #   | Truth | Status | Evidence |
-|-----|-------|--------|----------|
-| 1   | run_checks() evaluates microsoft365 and mongodb_atlas checks unmodified once their catalogs exist and their provider strings are in RUNNABLE_PROVIDERS (PROV-02) | ✗ FAILED | Missing M365/Atlas check catalog files; RUNNABLE_PROVIDERS tuple in cloud_checks_service.py only has aws/azure/gcp/kubernetes/digitalocean |
-| 2   | All four CSPM gates accept microsoft365 and mongodb_atlas: _VALID_PROVIDERS (registration), cloud_checks_endpoints.py run tuple, mcp_server_endpoints.py tuples, and RUNNABLE_PROVIDERS — no gate accepts a provider another rejects (PROV-02, Phase 25 lockstep) | ✗ FAILED | RUNNABLE_PROVIDERS missing M365/Atlas; _VALID_PROVIDERS missing all new providers (M365/Atlas/OCI/Alibaba/Cloudflare); cloud_checks_endpoints.py tuple missing all new providers; mcp_server_endpoints.py missing all new providers |
-| 3   | The three CSPM registration/validation gates (_VALID_PROVIDERS, cloud_checks_endpoints.py, mcp_server_endpoints.py) also accept oci, alibaba, cloudflare so AddCloudAccountModal submissions for those three stop returning 400 (PROV-01 lockstep fix) | ✗ FAILED | _VALID_PROVIDERS missing oci/alibaba/cloudflare; cloud_checks_endpoints.py missing oci/alibaba/cloudflare; mcp_server_endpoints.py missing oci/alibaba/cloudflare |
-| 4   | run_checks() results carry an additive simulated flag: true when db.cloud_findings had no entries for the account (catalog-only evaluation), false when real findings were present — distinguishing real-findings evaluations from empty-collection ones (PROV-02, Phase 25 simulated-flag convention) | ✗ FAILED | run_checks() in cloud_checks_service.py does not have simulated flag in its result doc building (lines 63-110 do not include "simulated") |
-| 5   | Existing catalog-only providers (aws/azure/gcp/kubernetes/digitalocean) keep identical PASS/FAIL behavior and ran counts — the simulated field is purely additive, no fail-closed change, no regression | ⚠️ UNCERTAIN | The simulated field is missing entirely; unable to determine behavior without full test suite verification |
 
-**Score:** 0/7 truths verified
+| # | Truth | Status | Evidence |
+|---|-------|--------|----------|
+| 1 | run_checks() evaluates microsoft365 and mongodb_atlas checks unmodified once their catalogs exist and their provider strings are in RUNNABLE_PROVIDERS (PROV-02) | ✓ VERIFIED | `cloud_checks_m365.py` (64 lines, `M365_CHECKS`, 6 entries) and `cloud_checks_mongodb_atlas.py` (64 lines, `MONGODB_ATLAS_CHECKS`, 6 entries) both exist with real check content; imported and concatenated into `CLOUD_CHECKS` at `cloud_checks_service.py:13-14,34`; both provider strings present in `RUNNABLE_PROVIDERS` (line 40). `test_run_checks_evaluates_microsoft365` and `test_run_checks_evaluates_mongodb_atlas` (`tests/test_cloud_checks_expansion.py:56,65`) call `run_checks()` directly and assert `result["ran"] == 6` for each — both pass. |
+| 2 | All four CSPM gates accept microsoft365 and mongodb_atlas: `_VALID_PROVIDERS` (registration), `cloud_checks_endpoints.py` run tuple, the MCP provider gate, and `RUNNABLE_PROVIDERS` — no gate accepts a provider another rejects (PROV-02, Phase 25 lockstep) | ✓ VERIFIED | `cloud_account_endpoints.py:13` `_VALID_PROVIDERS` includes both; `cloud_checks_endpoints.py:73` run-route tuple includes both; `RUNNABLE_PROVIDERS` includes both (above). The MCP gate is no longer a duplicated tuple in `mcp_server_endpoints.py` (that file is now a 6-line legacy stub with no provider logic — superseded by a refactor) — it moved to `mcp_server.py:56-66`'s `run_cloud_check()`, which imports `RUNNABLE_PROVIDERS` from `cloud_checks_service` at call time (line 62) as "the single source of truth," per its own docstring. This is stronger than the originally-planned fourth duplicated tuple: it cannot drift out of lockstep by construction. `test_all_gates_accept_microsoft365_and_mongodb_atlas` (`tests/test_cloud_checks_expansion.py:139`) passes. |
+| 3 | The CSPM registration/validation gates also accept oci, alibaba, cloudflare so AddCloudAccountModal submissions for those three stop returning 400 (PROV-01 lockstep fix) | ✓ VERIFIED | All three present in `_VALID_PROVIDERS`, the `/run` route tuple, and `RUNNABLE_PROVIDERS` (same lines as above). `test_registration_gates_accept_oci_alibaba_cloudflare_now_runnable` (`tests/test_cloud_checks_expansion.py:149`) passes. |
+| 4 | run_checks() results carry an additive simulated flag: true when db.cloud_findings had no entries for the account (catalog-only evaluation), false when real findings were present | ✓ VERIFIED | `cloud_checks_service.py:108`: `"simulated": not has_real_findings,`. `test_simulated_flag_true_when_no_findings` and `test_simulated_flag_false_when_findings_present` (`tests/test_cloud_checks_expansion.py:74,86`) both pass. |
+| 5 | Existing catalog-only providers (aws/azure/gcp/kubernetes/digitalocean) keep identical PASS/FAIL behavior and ran counts — the simulated field is purely additive, no regression | ✓ VERIFIED | `test_no_regression_for_existing_providers` and `test_coverage_denominator_includes_new_providers` (`tests/test_cloud_checks_expansion.py:98,161`) pass; `test_run_checks_evaluates_kubernetes`/`_digitalocean` (lines 38,47) unaffected. |
 
-## Required Artifacts
+**Score:** 5/5 truths verified
+
+### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `backend/cloud_checks_m365.py` | M365_CHECKS: List[Dict] (provider == microsoft365) | ✗ MISSING | Artifact missing as of plan completion check |
-| `backend/cloud_checks_mongodb_atlas.py` | MONGODB_ATLAS_CHECKS: List[Dict] (provider == mongodb_atlas) | ✗ MISSING | Artifact missing as of plan completion check |
-| `backend/cloud_checks_service.py` | Imports both catalogs, appends to CLOUD_CHECKS, adds microsoft365/mongodb_atlas to RUNNABLE_PROVIDERS, additive simulated flag | ⚠️ PARTIAL | CLOUD_CHECKS exists but MISSING M365/Atlas import and RUNNABLE_PROVIDERS widening; no simulated flag exists |
-| `backend/cloud_account_endpoints.py` | _VALID_PROVIDERS widened with M365/Atlas + OCI/Alibaba/Cloudflare | ✗ MISSING | _VALID_PROVIDERS only has aws/azure/gcp/kubernetes/digitalocean; should also include M365/Atlas/OCI/Alibaba/Cloudflare |
-| `backend/cloud_checks_endpoints.py` | /run provider tuple widened (same five) + 400 message update | ✗ MISSING | Tuple only has aws/azure/gcp/kubernetes/digitalocean; should also include M365/Atlas/OCI/Alibaba/Cloudflare |
-| `backend/mcp_server_endpoints.py` | Provider doc-string + validation tuple widened | ✗ MISSING | Provider lists only have existing providers; should also include M365/Atlas/OCI/Alibaba/Cloudflare |
-
-## Key Link Verification
-| From | To | Via | Status | Details |
-|------|----|----|--------|--------|
-
-## Data-Flow Trace (Level 4)
-| Artifact | Data Variable | Source | Produces Real Data | Status |
-|----------|---------------|--------|-------------------|--------|
+| `backend/cloud_checks_m365.py` | `M365_CHECKS: List[Dict[str, Any]]`, provider == `microsoft365` | ✓ VERIFIED | 64 lines, 6 checks (MFA enforcement, conditional access coverage, mailbox audit logging, external sharing restriction, and 2 more), each with id/name/description/provider/service/severity/frameworks/remediation |
+| `backend/cloud_checks_mongodb_atlas.py` | `MONGODB_ATLAS_CHECKS: List[Dict[str, Any]]`, provider == `mongodb_atlas` | ✓ VERIFIED | 64 lines, 6 checks (no 0.0.0.0/0 access, encryption at rest, database auditing, private network access, and 2 more) |
+| `backend/cloud_checks_service.py` | Imports both catalogs, appends to CLOUD_CHECKS, widens RUNNABLE_PROVIDERS, additive simulated flag | ✓ VERIFIED | Lines 13-14 (imports), 34 (concatenation), 40 (RUNNABLE_PROVIDERS), 108 (simulated flag) |
+| `backend/cloud_account_endpoints.py` | `_VALID_PROVIDERS` widened with all 5 new providers | ✓ VERIFIED | Line 13 — set literal includes all 10 providers |
+| `backend/cloud_checks_endpoints.py` | `/run` provider tuple widened + 400 message updated | ✓ VERIFIED | Lines 73-74 — tuple and error-detail string both list all 10 providers |
+| MCP provider gate | Validation tuple widened | ✓ VERIFIED (refactored) | `mcp_server_endpoints.py` is now a superseded 6-line stub; the real gate is `mcp_server.py:62-64`, which imports `RUNNABLE_PROVIDERS` live instead of duplicating it |
 
 ## Behavioral Spot-Checks
+
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-
-## Probe Execution
-| Probe | Command | Result | Status |
-|-------|---------|--------|--------|
+| Full expansion + ingest + integration suite | `PYTHONPATH=. venv/bin/python3.12 -m pytest tests/test_cloud_checks_expansion.py tests/test_cloud_findings_ingest.py tests/test_cloud_integrations.py -q` | `43 passed in 0.97s` | PASS |
+| `run_checks("acct-1", "microsoft365", "tenant-a")` | direct call in `test_run_checks_evaluates_microsoft365` | `result["ran"] == 6`, no error | PASS |
+| `run_checks("acct-1", "mongodb_atlas", "tenant-a")` | direct call in `test_run_checks_evaluates_mongodb_atlas` | `result["ran"] == 6`, no error | PASS |
 
 ## Requirements Coverage
+
 | Requirement | Source Plan | Description | Status | Evidence |
-|-------------|------------|------------|--------|----------|
-| PROV-01 | 32-01-PLAN.md | OCI/Alibaba/Cloudflare real polling ingest modules + dispatch/secret-set wiring + package-legitimacy checkpoint | ⚠️ PARTIAL | Phase 01 completed; test_cloud_integrations.py likely tests some providers but missing M365/Atlas catalog files |
-| PROV-02 | 32-02-PLAN.md | M365 + MongoDB Atlas check catalogs (cloud_checks_m365.py, cloud_checks_mongodb_atlas.py) + cloud_checks_service.py widening + additive simulated provenance flag + four-gate lockstep widening | ✗ FAILED | Catalog files missing; gates not widened; simulated flag missing |
-| PROV-03 | 32-03-PLAN.md | SaaS posture checks (saas_posture_checks_service.py, saas_posture_checks_endpoints.py, router_registry.py registration) + test_saas_posture_checks.py | ⚠️ PARTIAL | Backend files exist; unclear if endpoints wired into actual route registration |
-| PROV-04 | 32-04-PLAN.md | Attack-path rewire to real service + simulated flag + edge-field fix + SIMULATED badge + test_attack_path.py | ⚠️ PARTIAL | Most components exist; actual endpoint wiring unclear |
+|-------------|-------------|-------------|--------|----------|
+| PROV-02 | 32-02-PLAN.md | M365 + MongoDB Atlas check catalogs + cloud_checks_service.py widening + additive simulated provenance flag + four-gate lockstep widening | ✓ SATISFIED | All 5 truths verified above; 43/43 relevant tests pass |
 
 ## Anti-Patterns Found
-| File | Line | Pattern | Severity | Impact |
-|------|----|--------|--------|--------|
 
-## Human Verification Required
-
-### 1. Awaiting Package Legitimacy (Phase 32-01)
-**Test:** Complete human approval of oci/aliyun-python-sdk-core-v3/cloudflare packages via PyPI verification
-**Expected:** All three packages are legitimate vendor packages; requirements.txt includes them with versions pinned
-**Why human:** This is a blocking-human checkpoint for supply chain security; artifact existence alone cannot verify vendor legitimacy
-
-### 2. Final Verification of Phase 32 Completion
-**Test:** Manually open the Risk Register (RiskRegister.tsx) and create a new risk via UI, verify UI updates (toast, sidebar, undo).
-**Expected:** New risk appears immediately in all UI sections: undo toast, sidebar loading, sidebar scrolling, branch crafting input, RiskRegister list both cell and skeleton, plus toast text content
-**Why human:** UI behavior cannot be confirmed via artifact-level checks alone; toast rendering is a UI-layer interaction that requires human observation or e2e test runner
+None. No TBD/FIXME/XXX/HACK markers in `cloud_checks_m365.py` or `cloud_checks_mongodb_atlas.py`.
 
 ## Gaps Summary
 
-**Phase 32 Goal Status:** NOT ACHIEVED
+**Plan 32-02 Goal Status:** ACHIEVED
 
-**Analysis:**
+None of the 7 originally-reported gaps remain. The 2026-07-10 report was accurate for the code as it stood on that date, but commits `7c37c94f` and `a418d553` closed every item shortly after (catalogs created, all providers wired into every gate, simulated flag added) — that work was simply never reflected back into this file, so it kept reporting a stale blocker. This re-verification confirms the current code and test suite directly rather than trusting either the old report or the newer `32-VERIFICATION.md` summary at face value.
 
-Phase 32 has partial completion but major blockers remain, specifically:
+Note: the phase-level `32-VERIFICATION.md` (2026-07-14 re-verification) already recorded this same gap closure in its `gaps_closed` list. This plan-level report was the one still out of sync; it's now consistent with the phase-level record.
 
-1. **M365/Atlas Catalog Files (PROV-02)** — The core task for Phase 32-02 missing: `cloud_checks_m365.py` and `cloud_checks_mongodb_atlas.py` do not exist. Without these catalog files, the entire scanned provider chain fails because `cloud_checks_service.py` has no M365/Atlas lists to import and include.
-
-2. **Provider Gate Lockstep (PROV-02/01)** — All four CSPM gates still only accept the original 5 providers (`aws/azure/gcp/kubernetes/digitalocean`). The required widening to accept `microsoft365`, `mongodb_atlas`, `oci`, `alibaba`, and `cloudflare` has not been performed anywhere in the codebase.
-
-3. **Simulated Provenance Flag (PROV-02)** — The `run_checks()` method lacks the simulated flag; the provider chain cannot distinguish catalog-only evaluations from real findings when those are added later in Phase 32-05.
-
-4. **Phase Dependencies Failed** — Phase 32-03 and 32-04 appear to have completed artifact creation but their actual endpoint wiring and integration into the live application is unclear. The `requirements: [PROV-03]` from `32-03-PLAN.md` suggests at least some integration must have occurred for that plan.
-
-**What is implemented in Phase 32:**
-
-✓ PROV-01: OCI/Alibaba/Cloudflare ingest modules (Phase 32-01) complete with test coverage via `test_cloud_integrations.py`
-
-**What is NOT implemented:**
-
-❌ Phase 32-02: M365/Atlas catalogs (core half of PROV-02)
-❌ Phase 32-02: Four-gate lockstep widening (entire gate-parity fix for PROV-01 and PROV-02)
-❌ Phase 32-02: Additive simulated provenance flag (no way to distinguish catalog vs real findings later)
-❌ Phase 32-03: SaaS posture check wiring (endpoints appear not integrated)
-❌ Phase 32-04: Attack-path endpoint wiring (unclear if rewiring occurred)
-
-**Recovery Path:**
-
-The primary blocker is the missing `cloud_checks_m365.py` and `cloud_checks_mongodb_atlas.py`. These must be created with proper catalog shapes and provider strings (`microsoft365` and `mongodb_atlas`). Without them, no other task in the provider expansion (gates, simulated flag, posture checks, attack paths) can function because the higher-level components depend on the existence of these M365/Atlas catalogs.
-
-All gate-widenings also must be performed in lockstep (one commit) to maintain parity across the four CSPM provider gates.
-
-The phase is not ready for live production; the plan to make M365 and MongoDB Atlas "first-class runnable CSPM providers" (PLAN goal) is incomplete.
-
-**Next Steps:**
-
-Immediate focus: Recover Phase 32-02 by creating the missing catalog files, wiring the provider gates, adding the simulated flag, and then verifying everything works before proceeding to Phase 32-03/04/05.
-
-This is a BLOCKER; further verification or dependency flows cannot proceed until Phase 32-02 is resolved.
+**What remains open in Phase 32 overall** (tracked separately, not part of PROV-02 / this plan): `PROV-03` (SaaS posture checks) and `PROV-04` (attack-path SIMULATED badge + edge labels) — both flagged `human_needed` in `32-VERIFICATION.md`, i.e. wired in code but pending live-browser confirmation, not known defects.
 
 ---
 
-_Verified: 2026-07-10T00:00:00Z_
-_Verifier: Claude (gsd-verifier)_
-
----
+_Verified: 2026-09-28T00:00:00Z_
+_Verifier: Claude (re-verification against live code + test suite, prompted by a stale-report correction during a production-readiness audit)_
