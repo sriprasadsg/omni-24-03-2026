@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, ShieldAlert, Plus, Edit2, Trash2, Play, ToggleLeft, ToggleRight, AlertTriangle, CheckCircle, BarChart2, RefreshCw } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('auth_token')}` });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}` });
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-red-500/20 text-red-400 border-red-500/30',
