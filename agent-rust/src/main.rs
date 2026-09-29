@@ -23,6 +23,8 @@ mod agentic;
 mod agent;
 mod remediation_actions;
 mod log;
+#[cfg(target_os = "linux")]
+mod fim_linux;
 
 use std::sync::{Arc, atomic::AtomicBool};
 

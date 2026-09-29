@@ -148,6 +148,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 59 | Procurement & Finance (Warranty & Depreciation) | Complete (v4.0) — verified 2026-08-06, all 3 requirements (ITAM-FIN-01/02/03) delivered. See 59-VERIFICATION.md |
 | 60 | Licenses & Consumables | Complete (v4.0) — verified 2026-08-09, all 3 requirements (ITAM-LIC-01/02/03) delivered; see 60-VERIFICATION.md |
 | 61 | Frontend ITAM Console | Complete (v4.0) — verified 2026-08-09, ITAM-UI-01 delivered; see 61-VERIFICATION.md |
+| 62 | Remediation SLA Settings UI | Complete (v4.1) — promoted from backlog 999.1 2026-09-29; live-verified end-to-end |
+| 63 | Agent Self-Credential Rotation | Complete (v4.1) — promoted from backlog 999.2 2026-09-29, scoped to agent's own token only; live-verified end-to-end; also fixed a real pre-existing bug (execute_plan missing tenantId on dispatched instructions, affecting all playbook actions) |
+| 64 | Linux FIM Process Attribution (fanotify) | Complete (v4.1) — promoted from backlog 999.3 2026-09-29 after discovering its premise was false (no Linux FIM watcher existed to enhance); written without a Rust toolchain available — needs cargo build/test verification on a real Linux host before production use |
+| 65 | Cross-Platform YARA-Equivalent Scanner | Complete (v4.1) — promoted from backlog 999.4 2026-09-29 after its research pass found the documented aho-corasick fallback didn't exist (real code was PowerShell-only); same uncompiled-code caveat as Phase 64 |
 
 ## Decisions
 
@@ -511,10 +515,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 60 — Licenses & Consumables
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-06 — Phase 59 complete, transitioned to Phase 60
+Phase: 64 — Linux FIM Process Attribution (fanotify)
+Plan: Complete (uncompiled — see caveat in ROADMAP.md Phase 64 and REQUIREMENTS.md FIM-03)
+Status: v4.1 (Phases 62-64) shipped 2026-09-29; 999.4 remains in backlog (research only)
+Last activity: 2026-09-29 — 999.1/999.2/999.3 promoted and shipped as Phases 62-64; a real pre-existing bug found and fixed in autonomous_remediation_service.execute_plan (missing tenantId) while verifying Phase 63 live
+
+**Note:** this section and the one below ("Operator Next Steps") had been stale since around Phase 56/60 (pointing at "Phase 60, ready to plan" despite the Phases table above showing 56-61 all complete) — this is the second time this exact drift has been caught in this file's history (see the 2026-08-09 Phase 59 session note above for the first). Corrected here; the Phases table is the source of truth if this drifts again.
 
 ## Deferred Items
 
@@ -569,4 +575,5 @@ Items acknowledged and deferred at v3.4 milestone close on 2026-08-04 (20 total,
 
 ## Operator Next Steps
 
-- Plan the first v4.0 phase with /gsd-plan-phase 56
+- v4.1 (Phases 62-64) is shipped. Before trusting Phase 63/64 in production: `cd agent-rust && cargo check && cargo build && cargo test` on a real Linux host (no Rust toolchain was available in the environment that wrote them), and manually trigger a real fanotify event (e.g. `touch /etc/crontab` as root) to confirm a FIM event with a populated `process` field reaches the backend.
+- Backlog 999.4 (full YARA engine) has a research finding but was not promoted — see ROADMAP.md's Backlog section for the revised recommendation (replace `yara_scan.rs`'s PowerShell-only implementation with a real cross-platform `aho-corasick` matcher) before attempting it as its own phase.

@@ -975,32 +975,111 @@ Plans:
 
 ---
 
+## v4.1 — Backlog Closure
+
+**Goal:** Close out three of the four 999.x backlog items (999.1, 999.2, 999.3), each promoted after a user decision on scope (999.2 was explicitly under-specified; 999.3's premise was found false during promotion — see its entry). 999.4 stays in the backlog (research only this round).
+
+**Status:** Shipped 2026-09-29 — continues phase numbering from Phase 61.
+
+**Phases:**
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 62 | Remediation SLA Settings UI | Complete |
+| 63 | Agent Self-Credential Rotation | Complete |
+| 64 | Linux FIM Process Attribution (fanotify) | Complete — written without a Rust toolchain available; needs `cargo build`/`cargo test` verification on a real Linux host before trusting in production |
+| 65 | Cross-Platform YARA-Equivalent Scanner | Complete — same toolchain caveat as 64; needs `cargo build`/`cargo test` on both Linux and Windows before trusting in production |
+
+---
+
+## Phase 62: Remediation SLA Settings UI
+
+**Milestone:** v4.1
+
+**Goal:** Build the Remediation SLA settings surface (At-Risk Window field) that Phase 44 deliberately deferred. Backend `GET/PATCH /api/settings/remediation-sla` has been live since 44-03 with no UI consumer, flagged twice by UI audits (44-UI-REVIEW.md).
+
+**Requirements:** SLA-UI-01 (admin can view and edit the remediation at-risk window (1-365 days) from Settings, cloned verbatim from `EvidenceSettings.tsx` per 44-UI-SPEC.md's exact copy)
+
+**Success Criteria:**
+
+1. A "Remediation SLA" tab exists in Settings, visible to the same audience as the existing Evidence tab.
+2. Admin can view the current at-risk window and save a new value in [1, 365]; out-of-range values are rejected client-side with the spec's exact copy.
+3. Saving calls the real `PATCH /api/settings/remediation-sla` endpoint and shows the spec's exact success/error toast copy.
+
+**Depends on:** Phase 44 (backend endpoint)
+
+**Plans:** 1 plan (no formal PLAN.md written — small enough to execute directly per the promotion decision)
+
+**Status:** Complete 2026-09-29 — `components/RemediationSlaSettings.tsx` cloned from `EvidenceSettings.tsx` per 44-UI-SPEC.md's exact field/copy spec (section label "Remediation SLA", field label "At-Risk Window", button "Save SLA Window", toasts "SLA window updated" / "Failed to save threshold — please try again"), wired into `SettingsDashboard.tsx` as a new `remediationSla` tab (AlertTriangleIcon, already imported — no new icon import). New `apiService.ts` client functions `fetchRemediationSlaWindow`/`saveRemediationSlaWindow`. `npx tsc --noEmit` clean; live end-to-end smoke test against the running backend confirmed GET/PATCH round-trip. No backend changes — the endpoint was already correct.
+
+---
+
+## Phase 63: Agent Self-Credential Rotation
+
+**Milestone:** v4.1
+
+**Goal:** Add a `rotate_key` autonomous-remediation action (backlog 999.2), scoped — per an explicit user decision at promotion time, since the original backlog framing was "under-specified + dangerous + hard to make reversible" — to an agent's own bearer token only. Never broader managed-secret rotation (cloud/SaaS credentials).
+
+**Requirements:** ROT-01 (operator can trigger rotation of a specific agent's own auth token through the existing approval-gated remediation pipeline; the agent atomically exchanges its old token for a new one with no window where it is locked out)
+
+**Success Criteria:**
+
+1. `POST /api/agents/{agent_id}/rotate-key` (admin-only) queues a `pending_approval` remediation through the same `select_playbook`/`ACTION_MAP` pipeline as kill_process/restore_file/block_ip (Phase 53) — no bespoke dispatch path.
+2. Approving via the existing `POST /api/remediation/{id}/approve` dispatches a `rotate_key` instruction to the target agent.
+3. The agent exchanges its current token for a new one via `POST /api/agents/{hostname}/rotate-key/confirm`, which mints the replacement and revokes the old token's jti in one atomic request — verified live: the old token is rejected (403) and the new one authenticates (200) immediately after.
+
+**Depends on:** Phase 53 (autonomous remediation engine, playbook pipeline), Phase 44/Phase 34-adjacent token infrastructure (`authentication_service.create_access_token`, `revoked_tokens` jti blocklist)
+
+**Plans:** 1 plan (executed directly per the promotion decision)
+
+**Status:** Complete 2026-09-29. New `backend/agent_key_rotation_endpoints.py` (two endpoints, described above); `rotate_key` added to `remediation_playbook_service.ACTION_MAP` and `select_playbook` (new `agent_credential` finding_type, never auto-selected by the scan loop — only reachable via the explicit trigger endpoint); new `backend/playbooks/rotate_key.yaml` (`destructive: true`, `rollback: []`). Rust agent (`agent-rust/src/poll.rs`): `rotate_key` instructions are intercepted in `instruction_poller` (not `dispatch_instruction`, since this is the one instruction type that must swap the token every subsequent call in the same loop iteration uses) — calls the confirm endpoint and persists the replacement to `config.yaml`. **Found and fixed a real pre-existing bug while verifying this live**: `autonomous_remediation_service.execute_plan` never set `tenantId` on the dispatched `agent_instructions` doc, so the tenant-scoped `GET /api/agents/{hostname}/instructions` query could never find ANY playbook-dispatched instruction (kill_process/restore_file/block_ip included, not just rotate_key) — every real playbook dispatch was silently timing out against a real polling agent. Fixed with a one-line addition plus a regression test (`test_dispatched_instruction_carries_tenant_id`). Full end-to-end flow (trigger → approve → agent polls → confirms → reports success → old token 403s, new token 200s) verified live against the running app, not just mocked. 5 new hermetic tests in `test_remediation_playbook.py`, 1 in `test_autonomous_remediation_loop.py`; full backend suite 1847 passed / 35 skipped / 2 pre-existing unrelated failures (`test_e2e_integration`, `test_rust_heartbeat_parity`), no regressions. Rust-side changes could not be compiled in this environment (no cargo/rustc available) — logic was reasoned through carefully against existing patterns but needs `cargo check` on a real host.
+
+---
+
+## Phase 64: Linux FIM Process Attribution (fanotify)
+
+**Milestone:** v4.1
+
+**Goal:** Backlog 999.3 as originally framed ("the notify-based watcher provides process attribution only best-effort — add real Linux PID→process-tree attribution via fanotify") assumed a working Linux FIM watcher existed to enhance. **That premise is false** — discovered during this phase's promotion: `agent-rust` has no `notify`/`fanotify`/`inotify` crate dependency at all, no Linux dependency section in Cargo.toml, and its actual FIM code (`agentic::realtime_fim_poller`) is a 60-second poll-and-diff loop over 9 hardcoded Windows paths (`C:\Windows\...`) — there was nothing Linux-specific to attribute anything to. The user, informed of this, chose to have a real Linux fanotify watcher with attribution built from scratch rather than defer further.
+
+**Requirements:** FIM-03 (completes FIM-02's process-tree clause for Linux: a real event-driven watcher on Linux critical files, reporting the triggering process's pid/name/ancestry chain on every change)
+
+**Success Criteria:**
+
+1. A Linux-only, fanotify-based watcher monitors a critical-file set (`/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, `/etc/ssh/sshd_config`, `/etc/crontab`, `/bin/bash`, `/usr/bin/sudo`, `/usr/bin/su`) and is never compiled or spawned on Windows.
+2. Each detected change is reported to the existing `POST /api/agents/{agent_id}/fim-events` endpoint (same one the Windows poller already uses) with a real, non-null `process` field: `{pid, name, ancestry: [...]}`, resolved from `/proc` at the moment of the fanotify event — not a post-hoc heuristic.
+3. The watcher degrades gracefully (logs and exits, does not crash the agent) on an unsupported CPU architecture or a fanotify permission failure (missing `CAP_SYS_ADMIN`), consistent with this codebase's existing graceful-degradation conventions.
+
+**Depends on:** Nothing in this codebase (net-new; Phase 52 does not exist as a reusable foundation despite the backlog's framing — see Goal above)
+
+**Plans:** 1 plan (executed directly per the promotion decision)
+
+**Status:** Complete 2026-09-29, **with a load-bearing caveat: written and reasoned through carefully, but never compiled** — this sandbox has no Rust toolchain (no cargo/rustc) at all, unlike Phase 62/63 where the risky logic lived in Python and could be verified live. New `agent-rust/src/fim_linux.rs` (Linux-only via `#[cfg(target_os = "linux")]` on its `mod` declaration in `main.rs` and its `supervise(...)` call site in `agent.rs`, mirroring the existing ETW Windows-gating pattern exactly): raw `libc::syscall`-based `fanotify_init`/`fanotify_mark` (classic event format, not the newer FID-based one, for kernel-version simplicity), a blocking read loop on a dedicated `spawn_blocking` OS thread handing events to an async reporter task over an `mpsc` channel, and a pure-`/proc`-reads process-ancestry walker (no unsafe code needed for that part). New Linux-gated `libc = "0.2"` dependency in Cargo.toml. **Before trusting this**: run `cargo check`/`cargo build`/`cargo test` on a real Linux host, and manually verify against a live fanotify event (e.g. `touch /etc/crontab` as root) that an event actually reaches the backend with a populated `process` field.
+
+---
+
+## Phase 65: Cross-Platform YARA-Equivalent Scanner
+
+**Milestone:** v4.1
+
+**Goal:** Promoted 2026-09-29 from backlog 999.4 after its research pass found the documented fallback ("SHA256 hash-signature DB + aho-corasick literal-pattern matching") didn't exist — the real `yara_scan.rs` was a 6-rule hardcoded-substring scanner that only worked via shelling out to PowerShell, Windows-only end to end, no `aho-corasick` dependency anywhere. This phase delivers that originally-promised fallback for real, and makes it cross-platform in the process.
+
+**Requirements:** completes NSCAN-01 (full YARA rules, revised scope: Aho-Corasick literal matching, not a full YARA grammar — `yara-x` remains rejected per Phase 50's bloat/cross-compile finding)
+
+**Success Criteria:**
+
+1. Process and file-content scanning both run via native Rust (`sysinfo`, `walkdir`) on Linux and Windows — no PowerShell shell-out anywhere in `yara_scan.rs`.
+2. All 6 rules' string patterns are matched in a single pass per haystack via one `AhoCorasick` automaton, not a nested `.contains()` loop.
+3. Output JSON shape is unchanged (`status`/`threats_found`/`match_count`/`rules_applied`/`matches`/`scan_paths`, each match carrying `rule`/`category`/`target`/`match_type`/`sha256`) so `vt::enrich_matches` and the backend's `POST /{agent_id}/malware-scan` ingest endpoint need no changes.
+
+**Depends on:** Nothing (net-new implementation of `yara_scan.rs`; Phase 50's rejection of `yara-x` stands)
+
+**Plans:** 1 plan (executed directly per the promotion decision)
+
+**Status:** Complete 2026-09-29, **same toolchain caveat as Phase 64**: written without cargo/rustc available in the authoring environment, never compiled. New `aho-corasick = "1"` dependency (unconditional, both platforms). Process name is round-tripped through `serde_json::to_value` rather than assumed `&str`/`&OsStr` (sidesteps a real sysinfo-version ambiguity by reusing exactly the serialization path `caps::collect_processes` already relies on working). Default scan directories are platform-`cfg`'d (`C:\Temp`/etc. on Windows, `/tmp`, `/var/tmp`, `/dev/shm` on Linux). **Before trusting this**: `cargo check`/`cargo build`/`cargo test` on both a Linux and a Windows host, and confirm a planted EICAR-style string in a scanned temp dir actually produces a hit with a real sha256.
+
+---
+
 ## Backlog
 
-### Phase 999.1: Remediation SLA Settings UI (BACKLOG)
-
-**Goal:** [Captured for future planning] Build the Remediation SLA settings surface (At-Risk Window field). Backend `GET/PATCH /api/settings/remediation-sla` has been live since 44-03 but has no UI consumer — deliberately deferred during Phase 44, flagged twice by UI audits (44-UI-REVIEW.md).
-**Requirements:** TBD
-**Plans:** 0 plans
-
-Plans:
-
-- [ ] TBD (promote with /gsd-review-backlog when ready)
-
-### Phase 999.2: `rotate_key` remediation action (BACKLOG)
-
-**Goal:** [Deferred from Phase 53 by review] Add a `rotate_key` autonomous-remediation action (agent command + playbook) with a concrete, tested, reversible allowlisted target set. Deferred because the original scope was under-specified + dangerous + hard to make reversible. Ship after the four reversible actions (kill/restore/block/disable) are proven.
-**Requirements:** extends AUTO-02
-**Plans:** 0 plans
-
-### Phase 999.3: FIM process attribution via fanotify (BACKLOG)
-
-**Goal:** [Deferred from Phase 52 by review] Add Linux fanotify-based PID → real process-tree attribution to FIM change events, fully satisfying FIM-02's "process tree" clause (the `notify`-based watcher provides it only best-effort). Windows USN Journal equivalent optional.
-**Requirements:** completes FIM-02
-**Plans:** 0 plans
-
-### Phase 999.4: Full YARA-rule engine for native scan (BACKLOG)
-
-**Goal:** [Deferred from Phase 50 at execution] Add real YARA-rule evaluation to the agent's native file scanner. Phase 50 rejected `yara-x` because it pulls `wasmtime` + `cranelift` (a JIT engine — unacceptable bloat + cross-compile risk for the lean agent) and shipped a fallback (SHA256 hash-signature DB + `aho-corasick` literal-pattern matching over the feed's rule string literals). A future engine could revisit yara-x with a leaner backend, a WASM-free YARA interpreter, or a compiled-rule subset — only if it cross-compiles to `x86_64-pc-windows-gnu` cleanly and stays reasonably sized.
-**Requirements:** completes NSCAN-01 (full YARA rules)
-**Plans:** 0 plans
+Empty — all four 999.x items (999.1-999.4) have been promoted and shipped as Phases 62-65.

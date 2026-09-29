@@ -411,6 +411,15 @@ pub async fn agent_loop(running: Arc<AtomicBool>) {
         let (c, cl, r, sp) = (shared_cfg.clone(), client.clone(), running.clone(), spool.clone());
         move || crate::etw::start_engine(c.clone(), cl.clone(), r.clone(), sp.clone())
     });
+    // Linux fanotify FIM watcher with process attribution (Phase 63/999.3).
+    // Windows keeps using agentic::realtime_fim_poller above — this is additive,
+    // Linux-only, and never compiled into a Windows build (see the `#[cfg]` on
+    // `mod fim_linux` in main.rs).
+    #[cfg(target_os = "linux")]
+    supervise("linux_fim_watcher", running.clone(), {
+        let (c, cl, r) = (shared_cfg.clone(), client.clone(), running.clone());
+        move || crate::fim_linux::linux_fim_watcher(c.clone(), cl.clone(), r.clone())
+    });
 
     let mut sys = System::new_all();
     let mut tick: u64 = 0;

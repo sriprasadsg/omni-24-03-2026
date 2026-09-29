@@ -104,6 +104,26 @@ class TestRemediateLoop:
         assert db.agent_instructions.insert_one.called
         assert result["status"] == "resolved"
 
+    async def test_dispatched_instruction_carries_tenant_id(self):
+        """Regression: execute_plan's inserted agent_instructions doc must
+        carry tenantId, or GET /api/agents/{hostname}/instructions' tenant-
+        scoped query can never find it — the dispatch would silently time
+        out against a real polling agent even though insert_one.called is
+        True (Phase 63 discovered this exercising rotate_key live)."""
+        db = _mock_db()
+        db.agent_instructions.insert_one = AsyncMock()
+        db.agent_instructions.find_one = AsyncMock(return_value={"status": "SUCCESS"})
+        db.vulnerabilities.find_one = AsyncMock(return_value={"id": "f-1", "status": "Patched"})
+
+        with patch("autonomous_remediation_service.get_database", return_value=db), \
+             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
+            svc = AutonomousRemediationService()
+            await svc.remediate(self._finding(tenant_id="t1"))
+
+        inserted = db.agent_instructions.insert_one.call_args[0][0]
+        assert inserted["tenantId"] == "t1"
+
     async def test_verify_still_present_returns_failed(self):
         db = _mock_db()
         db.agent_instructions.insert_one = AsyncMock()

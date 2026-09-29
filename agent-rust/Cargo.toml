@@ -24,6 +24,7 @@ tokio-tungstenite = { version = "0.29.0", features = ["native-tls"] }
 futures-util = "0.3.32"
 once_cell = "1.19"
 thiserror = "1.0"
+aho-corasick = "1"
 
 
 # Windows-only dependencies — gated so the crate can `cargo check` on other hosts.
@@ -32,6 +33,13 @@ windows-service = "0.7"
 winreg = "0.52"
 windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
 ferrisetw = { version = "1.2.0", features = ["time_rs"] }
+
+# Linux-only dependencies (Phase 63/999.3: fanotify FIM watcher). fanotify_init/
+# fanotify_mark have no safe wrapper here — fim_linux.rs calls them via
+# libc::syscall with locally-defined syscall numbers, so only libc::syscall
+# and a handful of stable C-ABI constants/types are actually required.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
 
 [profile.release]
 opt-level    = "z"

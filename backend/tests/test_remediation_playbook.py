@@ -126,3 +126,41 @@ def test_validate_rejects_missing_required_fields():
 def test_validate_accepts_default_playbooks():
     for p in load_default_playbooks():
         validate(p)  # must not raise
+
+
+# ── rotate_key (Phase 63, promoted from backlog 999.2) ─────────────────────
+
+
+def test_load_default_playbooks_includes_rotate_key():
+    playbooks = load_default_playbooks()
+    names = {p["name"] for p in playbooks}
+    assert "rotate_key" in names
+
+
+def test_select_playbook_for_agent_credential_finding():
+    finding = _Finding("agent_credential", resource_id="agent-1")
+    playbook = select_playbook(finding)
+    assert playbook is not None
+    assert playbook["name"] == "rotate_key"
+
+
+def test_rotate_key_is_destructive_and_irreversible():
+    playbooks = {p["name"]: p for p in load_default_playbooks()}
+    rotate_key = playbooks["rotate_key"]
+    assert rotate_key["steps"][0]["destructive"] is True
+    assert rotate_key["steps"][0]["action"] == "rotate_key"
+    assert rotate_key.get("rollback") == []
+
+
+def test_rotate_key_in_action_map():
+    assert ACTION_MAP["rotate_key"] == "rotate_key"
+
+
+def test_select_playbook_never_auto_selects_rotate_key_for_other_finding_types():
+    """rotate_key must only be reachable via an explicit agent_credential
+    finding (hand-built by POST /api/agents/{agent_id}/rotate-key) — never
+    as a side effect of vuln/fim/nscan/anomaly scanning."""
+    for finding_type in ("vuln", "fim", "nscan", "anomaly", "compliance"):
+        finding = _Finding(finding_type, resource_id="x", details={}, agent_id="agent-1")
+        playbook = select_playbook(finding)
+        assert playbook is None or playbook["name"] != "rotate_key"

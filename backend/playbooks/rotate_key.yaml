@@ -1,0 +1,13 @@
+name: rotate_key
+finding_class: agent_credential
+match: {}
+steps:
+  - action: rotate_key
+    params:
+      target: "{{finding.resource_id}}"
+    destructive: true
+# Irreversible by design — rotating back to a since-revoked token would defeat
+# the point of rotation (if the old credential was suspected compromised,
+# un-revoking it is never correct). A failed verify escalates to a human,
+# same as kill_process/restore_file.
+rollback: []

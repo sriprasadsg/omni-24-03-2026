@@ -21,7 +21,11 @@ PLAYBOOKS_DIR = os.path.join(os.path.dirname(__file__), "playbooks")
 
 # Fixed action allowlist: action name -> agent instruction command. Every
 # playbook step/rollback action MUST resolve here or validate() rejects it.
-# rotate_key is intentionally absent (deferred to backlog 999.2).
+# rotate_key (Phase 63, promoted from backlog 999.2) is scoped to an agent's
+# own bearer token only — see agent_key_rotation_endpoints.py. It is never
+# auto-selected by select_playbook() below; there is no detector that
+# produces an "agent_credential" finding, so this action only ever runs via
+# the operator-triggered POST /api/agents/{agent_id}/rotate-key endpoint.
 ACTION_MAP: Dict[str, str] = {
     "patch_package": "upgrade_software",
     "kill_process": "kill_process",
@@ -30,6 +34,7 @@ ACTION_MAP: Dict[str, str] = {
     "unblock_ip": "unblock_ip",
     "disable_service": "disable_service",
     "enable_service": "enable_service",
+    "rotate_key": "rotate_key",
 }
 
 _REQUIRED_PLAYBOOK_FIELDS = ("name", "finding_class", "steps")
@@ -101,6 +106,9 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
         (reuses the existing agent-dispatch playbook verbatim, AUT-03); every
         other anomaly (no agent_id, or a different anomaly_rule) honestly
         returns None -> no_playbook. Pure deterministic lookup, no LLM (D-02).
+      - agent_credential -> rotate_key. Never reached by scan_for_remediable_findings
+        (no detector produces this finding_type) — only a hand-built finding from
+        POST /api/agents/{agent_id}/rotate-key resolves here (Phase 63).
     """
     if playbooks is None:
         playbooks = load_default_playbooks()
@@ -130,6 +138,9 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
         if anomaly_details.get("anomaly_rule") == "shadow_ai_detected" and agent_id:
             return by_name.get("kill_process")
         return None
+
+    if finding_type == "agent_credential":
+        return by_name.get("rotate_key")
 
     return None
 

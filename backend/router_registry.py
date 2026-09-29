@@ -375,6 +375,7 @@ def register_all_routers(app: FastAPI) -> None:
         ("native_security_ops_endpoints",      {}),
         ("remediation_playbook_endpoints",     {}),
         ("remediation_control_endpoints",      {}),
+        ("agent_key_rotation_endpoints",       {}),  # Phase 63 (999.2): agent self-credential rotation
     ]
 
     seen: set[str] = set()

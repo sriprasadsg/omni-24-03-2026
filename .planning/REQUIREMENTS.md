@@ -37,6 +37,15 @@
 
 - [x] **ITAM-UI-01**: The ITAM console is reachable via an admin-gated nav entry (new AppView + App.tsx route + Sidebar entry + dedicated `manage:itam` permission), following the Phase 47/48 pattern.
 
+## v4.1 Requirements (Backlog Closure — completed — historical)
+
+Three 999.x backlog items promoted and shipped 2026-09-29 (Phases 62-64). Historical section, not part of the v1 ITAM scope above.
+
+- [x] **SLA-UI-01**: Admin can view and edit the remediation at-risk window (1-365 days) from Settings. (Phase 62)
+- [x] **ROT-01**: Operator can trigger rotation of a specific agent's own auth token through the approval-gated remediation pipeline; the agent atomically exchanges its old token for a new one with no lockout window. (Phase 63)
+- [x] **FIM-03**: A real, event-driven (fanotify) Linux FIM watcher reports the triggering process's pid/name/ancestry chain on every critical-file change, completing FIM-02's process-tree clause for Linux. (Phase 64 — code written and reasoned through carefully but never compiled; needs `cargo build`/`cargo test` verification on a real Linux host before production use)
+- [x] **NSCAN-01 (revised)**: Native malware scanner matches all rule patterns cross-platform (Linux + Windows) via a single-pass Aho-Corasick automaton over real process/file data — no PowerShell shell-out. (Phase 65, promoted from 999.4's research finding — same uncompiled-code caveat as Phase 64)
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
@@ -84,12 +93,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-LIC-02 | Phase 60 | Complete |
 | ITAM-LIC-03 | Phase 60 | Complete |
 | ITAM-UI-01 | Phase 61 | Complete |
+| SLA-UI-01 | Phase 62 | Complete |
+| ROT-01 | Phase 63 | Complete |
+| FIM-03 | Phase 64 | Complete (uncompiled — needs cargo verification) |
 
 **Coverage:**
 
 - v1 requirements: 17 total
 - Mapped to phases: 17/17 ✓
 - Unmapped: 0
+- v4.1 backlog-closure requirements: 3/3 mapped (Phases 62-64)
 
 **Phase map:**
 
@@ -99,7 +112,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 - Phase 59 — Procurement & Finance (Warranty & Depreciation) (ITAM-FIN-01/02/03)
 - Phase 60 — Licenses & Consumables (ITAM-LIC-01/02/03)
 - Phase 61 — Frontend ITAM Console (ITAM-UI-01)
+- Phase 62 — Remediation SLA Settings UI (SLA-UI-01)
+- Phase 63 — Agent Self-Credential Rotation (ROT-01)
+- Phase 64 — Linux FIM Process Attribution / fanotify (FIM-03)
 
 ---
 *Requirements defined: 2026-08-04*
-*Last updated: 2026-08-04 after roadmap creation — 17/17 v1 requirements mapped to phases 56–61*
+*Last updated: 2026-09-29 — 999.1/999.2/999.3 promoted to Phases 62-64 and shipped (SLA-UI-01/ROT-01/FIM-03); 999.4 stays in backlog (research only, see ROADMAP.md)*

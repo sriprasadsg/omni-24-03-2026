@@ -494,6 +494,13 @@ class AutonomousRemediationService:
                 "id": task_id,
                 "type": plan.action,
                 "agent_id": plan.finding.agent_id or "auto",
+                # Required: GET /api/agents/{hostname}/instructions filters on
+                # tenantId (tenant isolation). Without it, every playbook-dispatched
+                # instruction is invisible to the agent's own poll query and the
+                # dispatch silently times out — this was never previously observed
+                # because no playbook action had been exercised against a real
+                # polling agent before Phase 63 (rotate_key)'s verification.
+                "tenantId": plan.finding.tenant_id,
                 "payload": _step_payload,
                 "parameters": _step_payload,
                 "status": "pending",

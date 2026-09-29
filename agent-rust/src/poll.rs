@@ -13,7 +13,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use tokio::sync::RwLock;
 
-use crate::{buffer::Spool, caps, caps2, cissp, config::Config, remediation_actions, yara_scan};
+use crate::{buffer::Spool, caps, caps2, cissp, config::{self, Config}, remediation_actions, yara_scan};
 
 // ── Instruction polling ────────────────────────────────────────────────────────
 
@@ -54,7 +54,23 @@ pub async fn instruction_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, r
                 .cloned().unwrap_or(json!({}));
 
             eprintln!("[OmniAgent] Instruction: {} ({})", instr_type, instr_id);
-            let mut result = dispatch_instruction(&instr_type, &payload, &client, &base, &agent_id, &token).await;
+
+            // rotate_key is handled here, not in dispatch_instruction: it's the one
+            // instruction type that changes the token every subsequent call in this
+            // same loop iteration must use, so it needs direct access to `cfg` (to
+            // persist the replacement) and to the local `token`/`report_token`
+            // variables below (to stop using the now-revoked one immediately).
+            let (mut result, report_token) = if instr_type == "rotate_key" {
+                let r = rotate_agent_key(&cfg, &client, &base, &agent_id, &token).await;
+                let fresh = {
+                    let c = cfg.read().await;
+                    c.agent_token.clone().unwrap_or_else(|| token.clone())
+                };
+                (r, fresh)
+            } else {
+                let r = dispatch_instruction(&instr_type, &payload, &client, &base, &agent_id, &token).await;
+                (r, token.clone())
+            };
 
             // Option B: enrich YARA hits against VirusTotal locally when a key is configured.
             if let Some(key) = &vt_key {
@@ -75,15 +91,46 @@ pub async fn instruction_poller(cfg: Arc<RwLock<Config>>, client: Arc<Client>, r
             });
             // Spool the result if the post fails so a command's outcome isn't lost to a
             // transient outage — it retries on the next successful heartbeat.
-            match client.post(&result_url).bearer_auth(&token).json(&result_body).send().await {
+            match client.post(&result_url).bearer_auth(&report_token).json(&result_body).send().await {
                 Ok(r) if r.status().is_success() => {}
                 _ => spool.enqueue(&result_url, &result_body),
             }
 
             // Post to capability-specific endpoint if applicable
-            post_capability_result(&base, &agent_id, &token, &instr_type, &result, &client).await;
+            post_capability_result(&base, &agent_id, &report_token, &instr_type, &result, &client).await;
         }
     }
+}
+
+/// Handles the "rotate_key" instruction: exchanges the agent's current token
+/// for a new one via /rotate-key/confirm (an atomic mint+revoke on the
+/// backend — see agent_key_rotation_endpoints.py) and persists the
+/// replacement to config.yaml. Never called for anything but this one
+/// instruction type.
+async fn rotate_agent_key(cfg: &Arc<RwLock<Config>>, client: &Client, base: &str, agent_id: &str, current_token: &str) -> Value {
+    let url = format!("{}/api/agents/{}/rotate-key/confirm", base, agent_id);
+    let resp = match client.post(&url).bearer_auth(current_token).send().await {
+        Ok(r) if r.status().is_success() => r,
+        Ok(r) => return json!({"status": "error", "error": format!("rotate-key/confirm returned HTTP {}", r.status())}),
+        Err(e) => return json!({"status": "error", "error": e.to_string()}),
+    };
+    let body: Value = match resp.json().await {
+        Ok(v) => v,
+        Err(e) => return json!({"status": "error", "error": format!("bad rotate-key/confirm response: {}", e)}),
+    };
+    let new_token = match body.get("token").and_then(|v| v.as_str()) {
+        Some(t) => t.to_string(),
+        None => return json!({"status": "error", "error": "rotate-key/confirm response missing token"}),
+    };
+
+    {
+        let mut c = cfg.write().await;
+        c.agent_token = Some(new_token);
+        config::save_config(&config::config_path(), &c);
+    }
+
+    eprintln!("[OmniAgent] Credential rotated successfully");
+    json!({"status": "success", "message": "Agent credential rotated"})
 }
 
 async fn post_capability_result(base: &str, id: &str, token: &str, instr: &str, result: &Value, client: &Client) {
