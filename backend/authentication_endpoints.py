@@ -304,7 +304,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         'manage:rbac', 'manage:api_keys', 'view:logs', 'view:profile',
         'view:automation', 'manage:automation', 'view:devsecops', 'manage:devsecops',
         'view:sbom', 'manage:sbom', 'view:insights', 'view:software_updates',
-        'view:threat_hunting', 'view:tracing', 'view:dspm', 'view:attack_path',
+        'view:threat_hunting', 'view:tracing', 'view:system', 'view:dspm', 'view:attack_path',
         'view:service_catalog', 'view:dora_metrics', 'view:chaos', 'view:network',
         'view:zero_trust', 'view:developer_hub', 'manage:security_playbooks',
         'view:cxo_dashboard', 'view:unified_ops', 'view:advanced_bi',

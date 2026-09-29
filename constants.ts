@@ -37,6 +37,7 @@ export const ALL_PERMISSIONS: Permission[] = [
     'view:developer_hub',
     'view:insights',
     'view:tracing',
+    'view:system',
     'view:dspm',
     'view:attack_path',
     'view:service_catalog',

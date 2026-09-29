@@ -43,7 +43,6 @@ async def autonomous_remediation_loop():
 async def monitor_agent_status():
     """Background task to mark agents as Offline if inactive > 5 min (10× missed 30 s heartbeat)."""
     import websocket_manager
-    from database import get_database
     from tenant_context import set_tenant_id, reset_tenant_id
 
     while True:
@@ -102,7 +101,6 @@ async def _start_xdr_correlation_scanner() -> None:
     while True:
         try:
             from correlation_engine import get_correlation_engine
-            from database import get_database
             db = get_database()
             # INTENTIONAL: platform-admin task — passes raw db to engine
             tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
@@ -130,7 +128,6 @@ async def compliance_evidence_sweep_loop():
 
 async def snapshot_compliance_scores_loop():
     """Daily snapshot: write overall + ThreatScore to compliance_score_history for trend charts."""
-    from database import get_database
     from tenant_context import set_tenant_id, reset_tenant_id
     from compliance_score_endpoints import (
         _weighted_score, _score_status, _CATEGORY_SEVERITY, SEVERITY_WEIGHTS,
@@ -310,8 +307,6 @@ async def agent_uptime_rollup_loop():
     after first deploy is expected (it fills in one row per agent per day
     going forward), not a bug.
     """
-    from database import get_database
-
     _log = logging.getLogger(__name__ + ".uptime_rollup")
     _log.info("Agent uptime rollup loop started (interval=86400s)")
 
