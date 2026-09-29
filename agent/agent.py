@@ -173,21 +173,38 @@ def load_config():
         # Parse known args so we don't conflict with Windows service args
         args, _ = parser.parse_known_args()
         
-        api_base_url = args.url
-        registration_key = args.key
-        
+        api_base_url = args.url or os.environ.get("OMNI_AGENT_API_URL")
+        registration_key = args.key or os.environ.get("OMNI_AGENT_REGISTRATION_KEY")
+
+        # No config on disk, no CLI/env values, and no TTY to prompt on (e.g.
+        # launched by start-all-services.sh with stdin redirected) — input()
+        # would raise EOFError and take the whole process down. Fail fast
+        # with a clear message instead of a bare traceback.
+        interactive = sys.stdin.isatty()
+        if not interactive and not registration_key:
+            print(
+                "\n--- OmniAgent Setup ---\n"
+                "No config.yaml and no TTY to prompt on. Set OMNI_AGENT_API_URL and "
+                "OMNI_AGENT_REGISTRATION_KEY (or pass --url/--key), or run this agent "
+                "interactively once to complete setup.\n"
+                "-----------------------\n",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
         print("\n--- OmniAgent Setup ---")
         if not api_base_url:
-            api_base_url = input("Enter API Base URL [http://localhost:5000]: ").strip()
+            if interactive:
+                api_base_url = input("Enter API Base URL [http://localhost:5000]: ").strip()
             if not api_base_url:
                 api_base_url = "http://localhost:5000"
-                
+
         if not registration_key:
             while not registration_key:
                 registration_key = input("Enter Tenant Registration Key: ").strip()
                 if not registration_key:
                     print("Registration Key is required.")
-                    
+
         print("-----------------------\n")
 
         config = {

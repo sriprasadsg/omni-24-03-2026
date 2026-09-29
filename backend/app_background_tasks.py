@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 # New imports for autonomous remediation
 from autonomous_remediation_service import AutonomousRemediationService, AUTONOMOUS_REMEDIATION_INTERVAL_SEC
+from database import get_database
 from tenant_context import set_tenant_id, reset_tenant_id # Import set_tenant_id, reset_tenant_id
 
 
@@ -20,8 +21,9 @@ async def autonomous_remediation_loop():
 
     while True:
         _tenant_ctx_token = None
+        tid = None
         try:
-            db = get_database() # Ensure get_database is imported or globally available
+            db = get_database()
             # Scan all tenants
             tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
             for tenant in tenants:
@@ -324,9 +326,14 @@ async def agent_uptime_rollup_loop():
 
 
 async def refresh_mitre_heatmap_loop():
-    """Nightly rebuild of the MITRE ATT&CK heatmap cache."""
-    from mitre_heatmap_service import MitreHeatmapService
-    from database import get_database
+    """Nightly rebuild of the MITRE ATT&CK heatmap, pushed to connected clients.
+
+    There is no separate heatmap cache/service — `mitre_service.get_coverage_heatmap()`
+    computes it live from alert data (see mitre_endpoints.py's own manual
+    "/coverage/refresh" route, which does the same compute-then-broadcast).
+    """
+    import mitre_service
+    from websocket_manager import broadcast_mitre_heatmap
     from tenant_context import set_tenant_id, reset_tenant_id
 
     _log = logging.getLogger(__name__ + ".mitre_heatmap")
@@ -340,14 +347,14 @@ async def refresh_mitre_heatmap_loop():
             _tenant_ctx_token = set_tenant_id("platform-admin") # Admin context for tenant enumeration
 
             tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
-            heatmap_service = MitreHeatmapService(db)
 
             for tenant in tenants:
                 tid = tenant.get("id")
                 if tid:
                     try:
                         set_tenant_id(tid) # Switch to tenant context for heatmap generation
-                        await heatmap_service.rebuild_heatmap_cache(tid)
+                        heatmap = await mitre_service.get_coverage_heatmap(tid)
+                        await broadcast_mitre_heatmap(tid, heatmap)
                         _log.info("MITRE heatmap refreshed for tenant %s", tid)
                     except Exception as _te:
                         _log.error("MITRE heatmap refresh error for tenant %s: %s", tid, _te)

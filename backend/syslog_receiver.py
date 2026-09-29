@@ -65,9 +65,14 @@ class SyslogProtocol(asyncio.DatagramProtocol):
 async def start_syslog_server(host="0.0.0.0", port=5140, tenant_id="default"):
     loop = asyncio.get_running_loop()
     logger.info(f"Starting UDP Syslog Server on {host}:{port}")
+    # Bind first, log success only once it actually holds the port — the
+    # caller schedules this coroutine as a fire-and-forget task, so a
+    # premature "started" log here would print even when the bind below
+    # fails (e.g. a stale process from a previous run still on this port).
     transport, protocol = await loop.create_datagram_endpoint(
         lambda: SyslogProtocol(tenant_id=tenant_id),
         local_addr=(host, port)
     )
+    logger.info(f"[SIEM] UDP Syslog server started on port {port}")
     return transport
 

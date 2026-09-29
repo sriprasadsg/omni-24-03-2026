@@ -50,6 +50,34 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
+# ── Port-conflict guard ──────────────────────────────────────────────────────
+# A previous run whose parent shell died (kill -9, closed terminal, crashed
+# sudo session) leaves its backend/frontend children running as orphans. They
+# keep answering health checks — masking the real problem — while the NEW
+# process launched below fails its OWN bind() once it reaches that point in
+# startup, minutes into the log, with no clue a stale process is to blame.
+# Free each port up front instead of discovering the conflict deep in async
+# startup.
+free_port() {
+    local port="$1" label="$2"
+    local pids
+    pids=$(lsof -ti ":${port}" 2>/dev/null || true)
+    [ -z "$pids" ] && return 0
+    print_warning "Port ${port} (${label}) already in use by PID(s) ${pids} — stopping stale process from a previous run"
+    kill $pids 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        pids=$(lsof -ti ":${port}" 2>/dev/null || true)
+        [ -z "$pids" ] && return 0
+        sleep 0.5
+    done
+    pids=$(lsof -ti ":${port}" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        print_warning "PID(s) ${pids} still holding port ${port} — forcing kill"
+        kill -9 $pids 2>/dev/null || true
+        sleep 1
+    fi
+}
+
 echo "============================================="
 echo "Enterprise Omni-Agent Platform — Launcher"
 echo "============================================="
@@ -70,6 +98,8 @@ resolve_python() {
 
 # ── 1. Backend ────────────────────────────────────────────────────────────────
 print_info "[1/3] Starting Backend (port 5000)..."
+free_port 5000 "backend"
+free_port "${SYSLOG_UDP_PORT:-5140}" "SIEM syslog UDP — started inside the backend process"
 BACKEND_PYTHON=$(resolve_python "$PROJECT_ROOT/backend/venv")
 
 if [ "$BACKEND_PYTHON" = "python3" ]; then
@@ -110,6 +140,8 @@ done
 # Serves HTTPS on :443 when certs/ exist (see vite.config.ts). Binding :443
 # requires root — run this launcher with sudo, or set VITE_PORT for a high port.
 print_info "[2/3] Starting Frontend (HTTPS on port 443)..."
+free_port "${VITE_PORT:-443}" "frontend"
+free_port 24678 "Vite HMR websocket"
 (
     cd "$PROJECT_ROOT"
     npm run dev

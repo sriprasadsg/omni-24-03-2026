@@ -636,8 +636,14 @@ async def run_startup_services() -> None:
     try:
         from syslog_receiver import start_syslog_server
         _syslog_port = int(os.getenv("SYSLOG_UDP_PORT", "5140"))
-        asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port))
-        logger.info("[SIEM] UDP Syslog server started on port %d", _syslog_port)
+        # start_syslog_server logs its own "started" line once the socket is
+        # actually bound. _safe_bg_task (not a bare fire-and-forget task) so
+        # a bind failure — e.g. port already held by a stale prior run — is
+        # logged with context instead of surfacing as an untracked
+        # "Task exception was never retrieved" asyncio warning.
+        asyncio.create_task(_safe_bg_task(
+            start_syslog_server(host="0.0.0.0", port=_syslog_port), "syslog_udp_server"
+        ))
     except Exception as _e:
         logger.warning("[SIEM] Syslog server not started: %s", _e)
 

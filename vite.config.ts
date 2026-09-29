@@ -9,8 +9,8 @@ export default defineConfig(({ mode }) => {
   // Self-hosted TLS: if certs/server.{key,crt} exist, serve HTTPS. Generated via
   // openssl with SubjectAltName IP:192.168.10.70 (see certs/). Disable by setting
   // VITE_HTTPS=false or removing the cert files.
-  const certKey = path.resolve(__dirname, 'certs/server.key');
-  const certCrt = path.resolve(__dirname, 'certs/server.crt');
+  const certKey = path.resolve(import.meta.dirname, 'certs/server.key');
+  const certCrt = path.resolve(import.meta.dirname, 'certs/server.crt');
   const httpsEnabled = env.VITE_HTTPS !== 'false' && fs.existsSync(certKey) && fs.existsSync(certCrt);
   const httpsOpts = httpsEnabled
     ? { key: fs.readFileSync(certKey), cert: fs.readFileSync(certCrt) }
@@ -27,7 +27,10 @@ export default defineConfig(({ mode }) => {
       watch: {
         // Exclude Rust build artifacts — Windows locks .exe files during compilation
         // and chokidar throws EBUSY trying to watch them.
-        ignored: ['**/agent-install/omni-agent-rs/target/**'],
+        // Exclude the Python backend venv — 100k+ files with nothing to do with
+        // frontend HMR; watching it blows past inotify's max_user_watches (ENOSPC)
+        // on Linux dev boxes/sandboxes with a default watch limit.
+        ignored: ['**/agent-install/omni-agent-rs/target/**', '**/backend/venv/**'],
       },
       hmr: {
         overlay: true,
@@ -73,13 +76,14 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
       }
     },
     build: {
       chunkSizeWarningLimit: 1500,
       outDir: 'dist-new',       // bypass permission-locked dist/
     },
+    cacheDir: 'node_modules/.vite-cache', // bypass permission-locked node_modules/.vite/ (root-owned in some sandboxes)
     test: {
       environment: 'jsdom',
       globals: true,
