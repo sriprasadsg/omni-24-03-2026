@@ -150,8 +150,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 61 | Frontend ITAM Console | Complete (v4.0) — verified 2026-08-09, ITAM-UI-01 delivered; see 61-VERIFICATION.md |
 | 62 | Remediation SLA Settings UI | Complete (v4.1) — promoted from backlog 999.1 2026-09-29; live-verified end-to-end |
 | 63 | Agent Self-Credential Rotation | Complete (v4.1) — promoted from backlog 999.2 2026-09-29, scoped to agent's own token only; live-verified end-to-end; also fixed a real pre-existing bug (execute_plan missing tenantId on dispatched instructions, affecting all playbook actions) |
-| 64 | Linux FIM Process Attribution (fanotify) | Complete (v4.1) — promoted from backlog 999.3 2026-09-29 after discovering its premise was false (no Linux FIM watcher existed to enhance); written without a Rust toolchain available — needs cargo build/test verification on a real Linux host before production use |
-| 65 | Cross-Platform YARA-Equivalent Scanner | Complete (v4.1) — promoted from backlog 999.4 2026-09-29 after its research pass found the documented aho-corasick fallback didn't exist (real code was PowerShell-only); same uncompiled-code caveat as Phase 64 |
+| 64 | Linux FIM Process Attribution (fanotify) | Complete (v4.1) — promoted from backlog 999.3 2026-09-29 after discovering its premise was false (no Linux FIM watcher existed to enhance); built, tested, and live fanotify-verified with a real toolchain the same day (see ROADMAP.md Phase 64) |
+| 65 | Cross-Platform YARA-Equivalent Scanner | Complete (v4.1) — promoted from backlog 999.4 2026-09-29 after its research pass found the documented aho-corasick fallback didn't exist (real code was PowerShell-only); built and tested with a real toolchain the same day, 10/10 tests pass (see ROADMAP.md Phase 65) |
 
 ## Decisions
 
@@ -516,7 +516,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 64 — Linux FIM Process Attribution (fanotify)
-Plan: Complete (uncompiled — see caveat in ROADMAP.md Phase 64 and REQUIREMENTS.md FIM-03)
+Plan: Complete — built, tested (10/10 Rust tests pass), and fanotify mechanism live-verified as root; see ROADMAP.md Phase 64/65
 Status: v4.1 (Phases 62-64) shipped 2026-09-29; 999.4 remains in backlog (research only)
 Last activity: 2026-09-29 — 999.1/999.2/999.3 promoted and shipped as Phases 62-64; a real pre-existing bug found and fixed in autonomous_remediation_service.execute_plan (missing tenantId) while verifying Phase 63 live
 
@@ -575,5 +575,5 @@ Items acknowledged and deferred at v3.4 milestone close on 2026-08-04 (20 total,
 
 ## Operator Next Steps
 
-- v4.1 (Phases 62-64) is shipped. Before trusting Phase 63/64 in production: `cd agent-rust && cargo check && cargo build && cargo test` on a real Linux host (no Rust toolchain was available in the environment that wrote them), and manually trigger a real fanotify event (e.g. `touch /etc/crontab` as root) to confirm a FIM event with a populated `process` field reaches the backend.
+- v4.1 (Phases 62-65) is shipped and verified: Rust toolchain installed via rustup 2026-09-29, `cargo check/build/test` all pass (10/10 tests), and the raw fanotify_init/mark/read cycle was live-tested as root with correct PID attribution. Still outstanding: an end-to-end run of the full agent binary (registration + linux_fim_watcher + real backend POST), and a Windows build/test pass for Phase 65.
 - Backlog 999.4 (full YARA engine) has a research finding but was not promoted — see ROADMAP.md's Backlog section for the revised recommendation (replace `yara_scan.rs`'s PowerShell-only implementation with a real cross-platform `aho-corasick` matcher) before attempting it as its own phase.

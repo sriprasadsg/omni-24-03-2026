@@ -187,6 +187,76 @@ fn scan_files(ac: &AhoCorasick, owner: &[usize], extra_paths: &[&str]) -> (Vec<V
     (hits, dirs.into_iter().map(String::from).collect())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matcher_finds_planted_signature_and_correct_sha256() {
+        let dir = std::env::temp_dir().join(format!("yara_scan_test_{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("dropper.txt");
+        let content = b"harmless preamble mimikatz sekurlsa::logonpasswords trailer";
+        fs::write(&file_path, content).unwrap();
+
+        let (ac, owner) = build_matcher();
+        let dir_str = dir.to_str().unwrap();
+        let (hits, scan_dirs) = scan_files(&ac, &owner, &[dir_str]);
+
+        assert_eq!(scan_dirs, vec![dir_str.to_string()]);
+        assert!(!hits.is_empty(), "expected at least one hit on planted Mimikatz strings");
+
+        let rule_names: Vec<&str> = hits.iter().map(|h| h["rule"].as_str().unwrap()).collect();
+        assert!(rule_names.contains(&"MimikatzSignatures"));
+
+        let mut expected_hasher = Sha256::new();
+        expected_hasher.update(content);
+        let expected_sha = hex::encode(expected_hasher.finalize());
+        assert_eq!(hits[0]["sha256"].as_str().unwrap(), expected_sha);
+        assert_eq!(hits[0]["match_type"].as_str().unwrap(), "file_content");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn matcher_ignores_clean_file() {
+        let dir = std::env::temp_dir().join(format!("yara_scan_clean_{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("readme.txt");
+        fs::write(&file_path, b"just a normal readme with no bad strings").unwrap();
+
+        let (ac, owner) = build_matcher();
+        let (hits, _) = scan_files(&ac, &owner, &[dir.to_str().unwrap()]);
+        assert!(hits.is_empty());
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn scan_processes_runs_without_panicking_and_returns_valid_json_shape() {
+        let (ac, owner) = build_matcher();
+        // Real process table on whatever machine runs this test — just asserts
+        // it doesn't panic and every hit (if any) has the required fields.
+        let hits = scan_processes(&ac, &owner);
+        for hit in &hits {
+            assert!(hit["rule"].is_string());
+            assert!(hit["sha256"].is_string());
+            assert_eq!(hit["match_type"], "process_name");
+        }
+    }
+
+    #[tokio::test]
+    async fn run_yara_scan_returns_expected_top_level_shape() {
+        let result = run_yara_scan(&[]).await;
+        assert_eq!(result["status"], "success");
+        assert!(result["threats_found"].is_boolean());
+        assert!(result["match_count"].is_number());
+        assert_eq!(result["rules_applied"], RULES.len());
+        assert!(result["matches"].is_array());
+        assert!(result["scan_paths"].is_array());
+    }
+}
+
 pub async fn run_yara_scan(extra_paths: &[&str]) -> Value {
     let (ac, owner) = build_matcher();
 

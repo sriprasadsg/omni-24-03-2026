@@ -43,8 +43,8 @@ Three 999.x backlog items promoted and shipped 2026-09-29 (Phases 62-64). Histor
 
 - [x] **SLA-UI-01**: Admin can view and edit the remediation at-risk window (1-365 days) from Settings. (Phase 62)
 - [x] **ROT-01**: Operator can trigger rotation of a specific agent's own auth token through the approval-gated remediation pipeline; the agent atomically exchanges its old token for a new one with no lockout window. (Phase 63)
-- [x] **FIM-03**: A real, event-driven (fanotify) Linux FIM watcher reports the triggering process's pid/name/ancestry chain on every critical-file change, completing FIM-02's process-tree clause for Linux. (Phase 64 — code written and reasoned through carefully but never compiled; needs `cargo build`/`cargo test` verification on a real Linux host before production use)
-- [x] **NSCAN-01 (revised)**: Native malware scanner matches all rule patterns cross-platform (Linux + Windows) via a single-pass Aho-Corasick automaton over real process/file data — no PowerShell shell-out. (Phase 65, promoted from 999.4's research finding — same uncompiled-code caveat as Phase 64)
+- [x] **FIM-03**: A real, event-driven (fanotify) Linux FIM watcher reports the triggering process's pid/name/ancestry chain on every critical-file change, completing FIM-02's process-tree clause for Linux. (Phase 64 — built, tested, and fanotify mechanism live-verified as root with correct PID attribution 2026-09-29)
+- [x] **NSCAN-01 (revised)**: Native malware scanner matches all rule patterns cross-platform (Linux + Windows) via a single-pass Aho-Corasick automaton over real process/file data — no PowerShell shell-out. (Phase 65, promoted from 999.4's research finding — built and tested 2026-09-29, 10/10 tests pass)
 
 ## v2 Requirements
 
@@ -95,14 +95,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ITAM-UI-01 | Phase 61 | Complete |
 | SLA-UI-01 | Phase 62 | Complete |
 | ROT-01 | Phase 63 | Complete |
-| FIM-03 | Phase 64 | Complete (uncompiled — needs cargo verification) |
+| FIM-03 | Phase 64 | Complete (built, tested, fanotify live-verified) |
+| NSCAN-01 (revised) | Phase 65 | Complete (built, tested, 10/10 tests pass) |
 
 **Coverage:**
 
 - v1 requirements: 17 total
 - Mapped to phases: 17/17 ✓
 - Unmapped: 0
-- v4.1 backlog-closure requirements: 3/3 mapped (Phases 62-64)
+- v4.1 backlog-closure requirements: 4/4 mapped (Phases 62-65)
 
 **Phase map:**
 
@@ -115,6 +116,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 - Phase 62 — Remediation SLA Settings UI (SLA-UI-01)
 - Phase 63 — Agent Self-Credential Rotation (ROT-01)
 - Phase 64 — Linux FIM Process Attribution / fanotify (FIM-03)
+- Phase 65 — Cross-Platform YARA-Equivalent Scanner (NSCAN-01 revised)
 
 ---
 *Requirements defined: 2026-08-04*
