@@ -15,13 +15,15 @@ rule C2BeaconCobaltStrike {
         $cs1 = "cobaltstrike" nocase
         $cs2 = "beacon.dll" nocase
         $cs3 = "beacon.x64.dll" nocase
-        $cs4 = { 4D 5A 90 00 03 00 00 00 04 00 00 00 FF FF }  // MZ header in shellcode
+        // A standard MZ/PE header (in every EFI tool and PE) and Chrome's "\\.\pipe\mojo"
+        // IPC pipe were removed; these are Cobalt Strike's default named pipes.
         $ua1 = "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)" nocase
         $ua2 = "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; .NET CLR)" nocase
         $sleep = "sleep_mask"
         $jitter = "jitter"
-        $pipe1 = "\\\\.\\pipe\\mojo" nocase
+        $pipe1 = "\\\\.\\pipe\\MSSE-" nocase
         $pipe2 = "\\\\.\\pipe\\msagent_" nocase
+        $pipe3 = "\\\\.\\pipe\\postex_" nocase
     condition:
         any of ($cs*) or (any of ($ua*) and ($sleep or $jitter)) or any of ($pipe*)
 }
@@ -38,7 +40,7 @@ rule C2BeaconMetasploit {
         $msf3 = "metasploit" nocase
         $shell1 = { 6A 00 68 63 6D 64 00 }  // push cmd shellcode
         $stager = "EXITFUNC=thread" nocase
-        $rc4key = "rc4_key"
+        // "rc4_key" (an OpenSSL struct/field name) was removed as a standalone trigger.
     condition:
         any of them
 }
@@ -49,14 +51,16 @@ rule DNSTunnelingPatterns {
         severity = "high"
         mitre = "T1071.004 - Application Layer Protocol: DNS"
     strings:
-        $iodine = "iodine" nocase
+        // "AAAAAAAA" (8 x 0x41) and 50+ char "word.tld" runs occur in any large binary,
+        // and a bare "iodine" matches NetworkManager's iodine VPN plugin name — match the
+        // tunnel tools' own artifacts instead.
+        $iodine1 = "iodined" fullword
+        $iodine2 = "iodine IP over DNS" nocase
         $dnscat = "dnscat" nocase
         $dnsexfil = "DNSExfiltrator" nocase
-        $dns_b32 = { 41 41 41 41 41 41 41 41 }  // base32 padding pattern
         $tunnel1 = "tunnel.domain" nocase
-        $subdomain_len = /[a-z0-9]{50,}\.[a-z]{2,6}/  // abnormally long subdomain
     condition:
-        any of ($iodine, $dnscat, $dnsexfil) or $subdomain_len or $tunnel1 or $dns_b32
+        any of them
 }
 
 rule SuspiciousUserAgents {
@@ -65,19 +69,17 @@ rule SuspiciousUserAgents {
         severity = "medium"
         mitre = "T1071.001 - Web Protocols"
     strings:
-        $ua_python = "python-requests" nocase
-        $ua_curl = "curl/" nocase
-        $ua_wget = "Wget/" nocase
-        $ua_go = "Go-http-client" nocase
-        $ua_java = "Java/" nocase
+        // The default UAs of curl, Go, Java, wget and python-requests are compiled into
+        // every program that uses those HTTP clients, and "Empire" is an ordinary word —
+        // keep only offensive-tool markers.
         $ua_evil1 = "EvilGrade" nocase
-        $ua_evil2 = "Empire" nocase
+        $ua_evil2 = "Invoke-Empire" nocase
         $ua_evil3 = "PoshC2" nocase
         $ua_evil4 = "Koadic" nocase
         $ua_empty = "User-Agent: \r\n"
         $ua_empty2 = "User-Agent:  \r\n"
     condition:
-        any of ($ua_evil*) or $ua_empty or $ua_empty2 or any of ($ua_python, $ua_curl, $ua_wget, $ua_go, $ua_java)
+        any of them
 }
 
 rule ICMPTunneling {
@@ -86,13 +88,13 @@ rule ICMPTunneling {
         severity = "high"
         mitre = "T1095 - Non-Application Layer Protocol"
     strings:
-        $ptunnel = "ptunnel" nocase
-        $icmpsh = "icmpsh" nocase
-        $icmp_magic = { 08 00 }  // ICMP echo type
+        // "08 00" + a 16-byte zero run is present in essentially every file (it matched
+        // 75% of binaries on a stock VM); "ptunnel" also hit "httpTunnel" without fullword.
+        $ptunnel = "ptunnel" nocase fullword
+        $icmpsh = "icmpsh" nocase fullword
         $data_in_icmp = "ICMP_EXFIL" nocase
-        $large_payload = { 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 }  // 16-byte zero padding typical of tunnel tools
     condition:
-        any of ($ptunnel, $icmpsh, $data_in_icmp) or ($icmp_magic and $large_payload)
+        any of them
 }
 
 rule ReverseShellNetcat {
@@ -107,10 +109,12 @@ rule ReverseShellNetcat {
         $nc4 = "ncat --exec" nocase
         $nc5 = "nc.exe -lvp" nocase
         $nc6 = "bash -i >& /dev/tcp" nocase
-        $nc7 = "0>&1" nocase
+        // "0>&1" and "mkfifo /tmp/" are everyday shell idioms; together they form the
+        // classic named-pipe reverse shell, so they only count in combination.
+        $redir = "0>&1" nocase
         $mkfifo = "mkfifo /tmp/" nocase
     condition:
-        any of them
+        any of ($nc*) or ($mkfifo and $redir)
 }
 
 rule TorC2Communication {
@@ -119,11 +123,13 @@ rule TorC2Communication {
         severity = "high"
         mitre = "T1090.003 - Proxy: Multi-hop Proxy"
     strings:
-        $onion = ".onion" nocase
+        // ".onion" alone is a special-use TLD known to every HTTP/DNS library (Go, Node,
+        // curl) and "torsocks"/"torproject.org" appear in docs — match concrete onion
+        // service addresses (v2/v3) and Tor proxy wiring instead.
+        $onion_v3 = /[a-z2-7]{56}\.onion/
+        $onion_v2 = /[^a-z2-7][a-z2-7]{16}\.onion/
         $tor1 = "tor2web" nocase
-        $tor2 = "torproject.org" nocase
         $socks_tor = "SOCKS5 127.0.0.1:9050" nocase
-        $torsocks = "torsocks" nocase
     condition:
         any of them
 }

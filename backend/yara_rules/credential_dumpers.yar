@@ -31,12 +31,16 @@ rule LaZagneCredentialDumper {
         tool = "LaZagne"
         mitre = "T1555 - Credentials from Password Stores"
     strings:
+        // "CredentialManager" is a Windows API name and pyaes ships AESModeOfOperationCBC,
+        // so those only corroborate the LaZagne name; its module paths are distinctive alone.
         $lazagne1 = "lazagne" nocase
-        $lazagne2 = "AESModeOfOperationCBC" nocase
-        $lazagne3 = "credentialmanager" nocase
-        $lazagne4 = "passwordmgr" nocase
+        $lazagne_mod1 = "lazagne.softwares" nocase
+        $lazagne_mod2 = "lazagne.config" nocase
+        $support1 = "AESModeOfOperationCBC" nocase
+        $support2 = "credentialmanager" nocase
+        $support3 = "passwordmgr" nocase
     condition:
-        any of them
+        any of ($lazagne_mod*) or ($lazagne1 and any of ($support*))
 }
 
 rule LSASSMemoryAccess {

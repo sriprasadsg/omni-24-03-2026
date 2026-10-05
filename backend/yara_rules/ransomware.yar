@@ -7,19 +7,20 @@ rule RansomwareGeneric {
         severity = "critical"
         family = "ransomware"
     strings:
+        // Extensions and "bitcoin" occur in almost every crypto/network binary, so
+        // they only corroborate a ransom-note phrase — they never match alone.
         $ext1 = ".locked" nocase
         $ext2 = ".crypted" nocase
         $ext3 = ".encrypted" nocase
         $ext4 = ".crypt" nocase
         $ext5 = ".enc" nocase
-        $ransom1 = "bitcoin" nocase
-        $ransom2 = "decrypt" nocase
-        $ransom3 = "readme_decrypt" nocase
-        $ransom4 = "how_to_decrypt" nocase
-        $ransom5 = "your files have been encrypted" nocase
-        $ransom6 = "send bitcoin" nocase
+        $btc = "bitcoin" nocase
+        $note1 = "readme_decrypt" nocase
+        $note2 = "how_to_decrypt" nocase
+        $note3 = "your files have been encrypted" nocase
+        $note4 = "send bitcoin" nocase
     condition:
-        (any of ($ext*)) or (2 of ($ransom*))
+        2 of ($note*) or (1 of ($note*) and (any of ($ext*) or $btc))
 }
 
 rule WannaCryIndicators {
@@ -46,11 +47,16 @@ rule LockerRansomware {
         severity = "critical"
         family = "Locker"
     strings:
+        // Crypto APIs are in every TLS library and a bare base58 regex matches C++
+        // mangled symbols, so require crypto use plus a lock note or a payment address.
         $locker1 = "CryptEncrypt" nocase
         $locker2 = "CryptoAPI" nocase
         $locker3 = "AES_set_encrypt_key" nocase
         $locker4 = "EVP_aes_256_cbc" nocase
-        $bitcoin_addr = /[13][a-km-zA-HJ-NP-Z1-9]{25,34}/
+        $lock_note1 = "your computer has been locked" nocase
+        $lock_note2 = "your files are locked" nocase
+        $lock_note3 = "pay the ransom" nocase
+        $btc_payment = /([Bb]itcoin|BTC)[^\x00]{0,64}[13][a-km-zA-HJ-NP-Z1-9]{25,34}/
     condition:
-        (2 of ($locker*)) or $bitcoin_addr
+        any of ($locker*) and (any of ($lock_note*) or $btc_payment)
 }

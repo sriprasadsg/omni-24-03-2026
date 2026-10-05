@@ -11,17 +11,18 @@ rule PsExecLateralMovement {
         mitre = "T1021.002 - Remote Services: SMB/Windows Admin Shares"
         author = "Open Threat Research"
     strings:
-        $psexec1 = "psexec" nocase
+        // A bare "psexec" substring hits identifiers like "mapsExec"/"PSExecution", and
+        // "\\" and "C$" occur in nearly every binary — require PsExec-specific artifacts.
+        $psexec1 = "psexec.exe" nocase
         $psexec2 = "PsExec Service" nocase
         $psexec3 = "PSEXESVC" nocase
         $psexec4 = "psexesvc.exe" nocase
+        $psexec_word = "psexec" nocase fullword
         $sysinternals = "Sysinternals" nocase
-        $remote_svc = "\\\\" nocase
         $ipc_share = "IPC$" nocase
         $admin_share1 = "ADMIN$" nocase
-        $admin_share2 = "C$" nocase
     condition:
-        any of ($psexec*) or ($sysinternals and ($remote_svc or $admin_share1 or $admin_share2 or $ipc_share))
+        any of ($psexec1, $psexec2, $psexec3, $psexec4) or ($psexec_word and $sysinternals and ($ipc_share or $admin_share1))
 }
 
 rule WMIRemoteExecution {
@@ -30,16 +31,18 @@ rule WMIRemoteExecution {
         severity = "high"
         mitre = "T1021.006 - Remote Services: Windows Remote Management"
     strings:
-        $wmi1 = "wmic /node:" nocase
-        $wmi2 = "Win32_Process.Create" nocase
-        $wmi3 = "wmic process call create" nocase
-        $wmi4 = "Invoke-WmiMethod" nocase
-        $wmi5 = "Get-WmiObject" nocase
-        $wmi6 = "New-Object System.Management.ManagementObject" nocase
-        $wmiprvse = "wmiprvse.exe" nocase
-        $wmi_remote = "winmgmt" nocase
+        // Admin tooling and bundled PowerShell docs mention these cmdlets/classes, so a
+        // cmdlet + class pair must also target a remote host to count as lateral movement.
+        $wmic_node = "wmic /node:" nocase
+        $wmic_create = "wmic process call create" nocase
+        $wmi_create = "Win32_Process.Create" nocase
+        $ps_invoke = "Invoke-WmiMethod" nocase
+        $ps_object = "New-Object System.Management.ManagementObject" nocase
+        $remote = "-ComputerName" nocase
     condition:
-        2 of them
+        // Size cap: the only benign hits were 200+ MB runtimes bundling PowerShell docs
+        // (e.g. Claude Code); WMI lateral-movement scripts and tools are small.
+        filesize < 20MB and (any of ($wmic_*) or ($wmi_create and any of ($ps_*) and $remote))
 }
 
 rule PassTheHashPatterns {
@@ -48,16 +51,17 @@ rule PassTheHashPatterns {
         severity = "critical"
         mitre = "T1550.002 - Use Alternate Authentication Material: Pass the Hash"
     strings:
-        $pth1 = "Pass-the-Hash" nocase
-        $pth2 = "pth-winexe" nocase
-        $pth3 = "pth-smbclient" nocase
-        $pth4 = "sekurlsa::pth" nocase
-        $pth5 = "/pth" nocase
-        $ntlm_hash = /[0-9a-fA-F]{32}:[0-9a-fA-F]{32}/  // LM:NTLM hash format
-        $overpass = "Overpass-the-Hash" nocase
-        $pass_ticket = "Pass-the-Ticket" nocase
+        // "/pth" is a common path fragment and any "32hex:32hex" pair (checksums) matched
+        // the old hash regex; require PtH tooling or a full pwdump/secretsdump line.
+        $pth_tool1 = "pth-winexe" nocase
+        $pth_tool2 = "pth-smbclient" nocase
+        $pth_tool3 = "sekurlsa::pth" nocase
+        $pwdump_line = /:[0-9a-fA-F]{32}:[0-9a-fA-F]{32}:::/  // user:rid:LM:NT::: dump format
+        $term1 = "Pass-the-Hash" nocase
+        $term2 = "Overpass-the-Hash" nocase
+        $term3 = "Pass-the-Ticket" nocase
     condition:
-        any of ($pth*) or $ntlm_hash or $overpass or $pass_ticket
+        any of ($pth_tool*) or $pwdump_line or 2 of ($term*)
 }
 
 rule RemoteServiceCreation {
@@ -66,17 +70,14 @@ rule RemoteServiceCreation {
         severity = "high"
         mitre = "T1021.002 - Remote Services"
     strings:
-        $svc1 = "sc \\\\.*create" nocase
-        $svc2 = "sc.exe \\\\.*create" nocase
-        $svc3 = "CreateService" nocase
-        $svc4 = "OpenSCManager" nocase
-        $svc5 = "StartService" nocase
-        $svc6 = "SERVICE_DEMAND_START" nocase
-        $impacket = "impacket" nocase
+        // The old "sc \\\\.*create" text strings were literal (".*" never matched); the
+        // service-control APIs alone are used by every Windows service/updater (e.g. Chrome).
+        $sc_remote = /sc(\.exe)?\s+\\\\[^\s\\]+\s+create/ nocase  // sc \\HOST create
+        $impacket = "impacket" nocase fullword  // not "MbimPacketService" (libmbim)
         $atexec = "atexec.py" nocase
         $smbexec = "smbexec.py" nocase
     condition:
-        any of ($impacket, $atexec, $smbexec) or (2 of ($svc*))
+        any of them
 }
 
 rule DCOMAbuse {
@@ -93,7 +94,9 @@ rule DCOMAbuse {
         $dcom6 = "Activator.CreateInstance" nocase
         $dcom7 = "[activator]::CreateInstance" nocase
     condition:
-        any of them
+        // Activator.CreateInstance is in nearly every .NET assembly and ShellWindows/Excel
+        // automation is common in Office tooling — require a DCOM target plus instantiation.
+        any of ($dcom1, $dcom5) or (any of ($dcom2, $dcom3, $dcom4) and any of ($dcom6, $dcom7))
 }
 
 rule KerberostingAndASREP {
@@ -109,7 +112,7 @@ rule KerberostingAndASREP {
         $asrep1 = "ASREPRoasting" nocase
         $asrep2 = "Get-ASREPHash" nocase
         $asrep3 = "Rubeus asreproast" nocase
-        $rubeus = "Rubeus" nocase
+        $rubeus = "Rubeus.exe" nocase  // bare "Rubeus" also appears in word/name lists (e.g. Node ICU data)
         $impacket_kerb = "GetUserSPNs.py" nocase
     condition:
         any of them

@@ -29,7 +29,9 @@ _INLINE_RULES: List[Dict[str, Any]] = [
         "severity": "critical",
         "family": "credential_dumper",
         "mitre": "T1555",
-        "patterns": ["lazagne", "aesmodeofoperationcbc", "credentialmanager", "passwordmgr"],
+        # Module paths only: "credentialmanager" is a Windows API name and pyaes ships
+        # AESModeOfOperationCBC, so those flagged ordinary binaries (mirrors the .yar rule).
+        "patterns": ["lazagne.softwares", "lazagne.config"],
         "match_any": True,
     },
     {
@@ -37,10 +39,11 @@ _INLINE_RULES: List[Dict[str, Any]] = [
         "severity": "critical",
         "family": "ransomware",
         "mitre": "T1486",
-        "patterns": [".locked", ".crypted", ".encrypted", ".crypt",
-                     "bitcoin", "your files have been encrypted", "send bitcoin",
+        # Ransom-note phrases only — extensions and "bitcoin" are in every crypto binary.
+        # match_any must be False for match_count to apply (it was silently 1 before).
+        "patterns": ["your files have been encrypted", "send bitcoin",
                      "readme_decrypt", "how_to_decrypt"],
-        "match_any": True,
+        "match_any": False,
         "match_count": 2,
     },
     {

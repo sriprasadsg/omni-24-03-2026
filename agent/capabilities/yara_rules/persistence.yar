@@ -16,8 +16,9 @@ rule RegistryRunKeyPersistence {
         $run3 = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" nocase
         $run4 = "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" nocase
         $run5 = "CurrentVersion\\Run\\" nocase
-        $runkey_ps = "Set-ItemProperty -Path.*Run" nocase
-        $runkey_reg = "reg add.*\\\\Run\\" nocase
+        // Were literal text strings (".*" never matched); now real regexes.
+        $runkey_ps = /Set-ItemProperty\s+-Path\s+\S*\\Run/ nocase
+        $runkey_reg = /reg(\.exe)?\s+add\s+\S*\\Run/ nocase
     condition:
         any of them
 }
@@ -28,18 +29,19 @@ rule ScheduledTaskPersistence {
         severity = "high"
         mitre = "T1053.005 - Scheduled Task/Job: Scheduled Task"
     strings:
-        $schtask1 = "schtasks /create" nocase
-        $schtask2 = "SchTasks.exe" nocase
-        $schtask3 = "New-ScheduledTask" nocase
-        $schtask4 = "Register-ScheduledTask" nocase
-        $schtask5 = "ITaskService" nocase
-        $schtask6 = "TaskScheduler" nocase
+        // "TaskScheduler"/"ITaskService" are ordinary class/COM names (Chrome, Node) and a
+        // single cmdlet name appears in bundled PowerShell docs — require task creation.
+        $create1 = "schtasks /create" nocase
+        $create2 = "schtasks.exe /create" nocase
+        $ps_register = "Register-ScheduledTask" nocase
+        $ps_action = "New-ScheduledTaskAction" nocase
+        $ps_trigger = "New-ScheduledTaskTrigger" nocase
         $xml_task = "<Task version=\"1.2\"" nocase
-        $xml_exec = "<Exec><Command>" nocase
+        $xml_exec = /<Exec>\s*<Command>/ nocase
         $trigger_logon = "<LogonTrigger>" nocase
         $trigger_boot = "<BootTrigger>" nocase
     condition:
-        any of ($schtask*) or ($xml_task and ($xml_exec or $trigger_logon or $trigger_boot))
+        any of ($create*) or ($ps_register and $ps_action and $ps_trigger) or ($xml_task and ($xml_exec or $trigger_logon or $trigger_boot))
 }
 
 rule StartupFolderAbuse {
@@ -54,7 +56,7 @@ rule StartupFolderAbuse {
         $startup4 = "shell:common startup" nocase
         $lnk_header = { 4C 00 00 00 01 14 02 00 }  // .lnk file magic
     condition:
-        any of ($startup*) or $lnk_header
+        any of ($startup*) or $lnk_header at 0  // a shortcut file itself, not LNK bytes embedded anywhere
 }
 
 rule WMIEventSubscriptionPersistence {
@@ -88,11 +90,10 @@ rule DLLSearchOrderHijacking {
         $phantom2 = "ualapi.dll" nocase
         $phantom3 = "TSMSISrv.dll" nocase
         $phantom4 = "RpcEptMapper.dll" nocase
-        $phantom5 = "CRYPTBASE.dll" nocase
-        $side_load = "DllMain" nocase
-        $dll_export = "GetProcAddress" nocase
+        // CRYPTBASE.dll (a normal import) and DllMain + GetProcAddress (present in every
+        // Windows DLL) were dropped — they matched essentially all PE files.
     condition:
-        any of ($dll_hijack*) or (2 of ($phantom*)) or ($side_load and $dll_export)
+        any of ($dll_hijack*) or (2 of ($phantom*))
 }
 
 rule BootkitAndMBRInfection {
@@ -101,16 +102,15 @@ rule BootkitAndMBRInfection {
         severity = "critical"
         mitre = "T1542.003 - Pre-OS Boot: Bootkit"
     strings:
-        $mbr1 = { 55 AA }  // MBR signature at offset 510
-        $uefi1 = "EFI_SYSTEM_TABLE" nocase
-        $bootkit1 = "ZeroAccess" nocase
-        $bootkit2 = "TDL4" nocase
-        $bootkit3 = "Mebroot" nocase
-        $bootkit4 = "Petya" nocase
-        $vbr = "BOOTMGR" nocase
+        // "55 AA" anywhere + EFI_SYSTEM_TABLE matched every EFI tool, BOOTMGR is the
+        // legitimate Windows boot manager, and "TDL4" is an Intel GPU counter name in
+        // Mesa's Vulkan driver — keep only distinctive family names, as whole words.
+        $bootkit1 = "ZeroAccess" fullword
+        $bootkit3 = "Mebroot" fullword
+        $bootkit4 = "Petya" fullword
         $grub_evil = "Evil GRUB" nocase
     condition:
-        any of ($bootkit*) or $grub_evil or $vbr or ($mbr1 and $uefi1)
+        any of ($bootkit*) or $grub_evil
 }
 
 rule ServicePersistence {
@@ -123,10 +123,10 @@ rule ServicePersistence {
         $svc2 = "CreateService" nocase
         $svc3 = "ChangeServiceConfig" nocase
         $svc_key = "SYSTEM\\CurrentControlSet\\Services\\" nocase
-        $image_path = "ImagePath" nocase
         $service_dll = "ServiceDll" nocase
-        $malicious_svc1 = "VSSMini" nocase
-        $malicious_svc2 = "NetMan" nocase
+        $malicious_svc1 = "VSSMini" fullword
+        // "NetMan" is the legitimate Network Connections service (and matched "NETMAN" in
+        // libLLVM); service APIs / ImagePath alone are used by every service installer.
     condition:
-        (2 of ($svc1, $svc2, $svc3)) or ($svc_key and ($image_path or $service_dll)) or $malicious_svc1 or $malicious_svc2
+        ((2 of ($svc1, $svc2, $svc3)) and $service_dll) or ($svc_key and $service_dll) or $malicious_svc1
 }

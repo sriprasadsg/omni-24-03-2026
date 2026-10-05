@@ -96,7 +96,14 @@ async def _seed_yara_rules(raw_db) -> None:
     Parse every .yar file in agent/capabilities/yara_rules/ and upsert each
     individual rule block into the custom_yara_rules collection as a built-in
     read-only sample visible to all tenants.
+
+    Runs on every startup so rule fixes in the source files reach the DB. A
+    built-in is only refreshed while its stored content still equals what was
+    last seeded (``seedHash``), so a platform admin's edit is never overwritten.
+    Docs seeded before ``seedHash`` existed are refreshed once — the old parser
+    truncated any rule containing a hex string or regex quantifier.
     """
+    import hashlib
     import re
     from pathlib import Path
 
@@ -105,19 +112,19 @@ async def _seed_yara_rules(raw_db) -> None:
         logger.debug("[YARA] yara_rules directory not found at %s — skipping seed", yara_dir)
         return
 
-    # Only seed if the collection has no built-in rules yet (idempotent)
-    existing = await raw_db.custom_yara_rules.count_documents({"source": "builtin"})
-    if existing > 0:
-        logger.debug("[YARA] %d built-in rules already present — skipping re-seed", existing)
-        return
-
+    # The closing brace must start a line: a non-greedy "\{(.*?)\}" stopped at the
+    # first "}" inside a hex string ({ FC E8 ... }) or regex quantifier ({25,34}).
     rule_pattern = re.compile(
-        r'rule\s+(\w+)\s*(?::\s*[\w\s]+)?\{(.*?)\}',
-        re.DOTALL,
+        r'^rule\s+(\w+)\s*(?::\s*[\w\s]+)?\{(.*?)^\}',
+        re.DOTALL | re.MULTILINE,
     )
     meta_field = re.compile(r'(\w+)\s*=\s*"([^"]*)"')
 
+    def _content_hash(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
     seeded = 0
+    refreshed = 0
     for yar_file in sorted(yara_dir.glob("*.yar")):
         category = yar_file.stem  # e.g. "ransomware", "web_shells"
         content = yar_file.read_text(encoding="utf-8", errors="replace")
@@ -132,29 +139,53 @@ async def _seed_yara_rules(raw_db) -> None:
                     meta[kv.group(1)] = kv.group(2)
 
             doc_id = f"builtin_{category}_{rule_name}".lower()
-            await raw_db.custom_yara_rules.update_one(
-                {"id": doc_id},
-                {"$setOnInsert": {
-                    "id":            doc_id,
-                    "name":          rule_name,
-                    "content":       rule_body.strip(),
-                    "description":   meta.get("description", f"Built-in {category} detection rule"),
-                    "severity":      meta.get("severity", "medium"),
-                    "mitre":         meta.get("mitre", ""),
-                    "family":        meta.get("family", ""),
-                    "category":      category,
-                    "source":        "builtin",
-                    "enabled":       True,
-                    "tenantId":      "platform-admin",
-                    "createdBy":     "system",
-                    "createdAt":     datetime.now(timezone.utc).isoformat(),
-                }},
-                upsert=True,
-            )
-            seeded += 1
+            content = rule_body.strip()
+            rule_fields = {
+                "name":        rule_name,
+                "content":     content,
+                "description": meta.get("description", f"Built-in {category} detection rule"),
+                "severity":    meta.get("severity", "medium"),
+                "mitre":       meta.get("mitre", ""),
+                "family":      meta.get("family", ""),
+                "category":    category,
+                "seedHash":    _content_hash(content),
+            }
 
-    if seeded:
-        logger.info("[YARA] Seeded %d built-in detection rules from %s", seeded, yara_dir)
+            existing = await raw_db.custom_yara_rules.find_one(
+                {"id": doc_id}, {"_id": 0, "content": 1, "seedHash": 1}
+            )
+            if existing is None:
+                await raw_db.custom_yara_rules.update_one(
+                    {"id": doc_id},
+                    {"$setOnInsert": {
+                        **rule_fields,
+                        "id":        doc_id,
+                        "source":    "builtin",
+                        "enabled":   True,
+                        "tenantId":  "platform-admin",
+                        "createdBy": "system",
+                        "createdAt": datetime.now(timezone.utc).isoformat(),
+                    }},
+                    upsert=True,
+                )
+                seeded += 1
+                continue
+
+            stored = existing.get("content", "")
+            unmodified = (
+                existing.get("seedHash") is None  # legacy (possibly truncated) seed
+                or _content_hash(stored) == existing["seedHash"]
+            )
+            # Also stamp seedHash on legacy docs so later admin edits are recognised.
+            if unmodified and (stored != content or existing.get("seedHash") is None):
+                await raw_db.custom_yara_rules.update_one({"id": doc_id}, {"$set": rule_fields})
+                refreshed += 1
+
+    if seeded or refreshed:
+        logger.info(
+            "[YARA] Built-in detection rules from %s: %d seeded, %d refreshed",
+            yara_dir, seeded, refreshed,
+        )
 
 
 async def seed_database():
