@@ -9,6 +9,7 @@ from ai_guardrails import scan_text
 from ai_providers import AIProvider, GeminiProvider, OllamaProvider, AnthropicProvider, MockProvider, OpenAICompatProvider
 from ai_service_data import PROJECT_DETAILS, DEMO_STEPS
 from ai_services.omni_local_provider import OmniLocalProvider, OmniLowConfidenceError
+from ai_services.omni_scratch_provider import with_own_model
 from local_ip import ollama_default_url
 from circuit_breaker import ai_breaker, CircuitBreakerOpen
 
@@ -33,7 +34,7 @@ async def _create_provider_from_settings(settings: dict) -> Optional[AIProvider]
             "ollamaModel": settings.get("ollamaModel") or settings.get("model") or
                            os.getenv("OLLAMA_MODEL", os.getenv("LLM_MODEL", "llama3.2:3b")),
         }):
-            return ollama
+            return with_own_model(ollama)
     elif configured_provider in ("9router", "OpenAI-Compatible", "openai_compat", "router"):
         router = OpenAICompatProvider()
         if await router.configure(settings):
@@ -111,7 +112,7 @@ class IncidentAnalyzer:
                 "ollamaUrl": os.getenv("OLLAMA_URL") or ollama_default_url(),
                 "ollamaModel": os.getenv("LLM_MODEL", "llama3.2:3b"),
             }):
-                self.provider = ollama
+                self.provider = with_own_model(ollama)
                 self.is_configured = True
                 return
         elif env_provider == "gemini":
@@ -183,7 +184,7 @@ class IncidentAnalyzer:
                 "ollamaModel": settings.get("ollamaModel") or settings.get("model") or
                                os.getenv("OLLAMA_MODEL", os.getenv("LLM_MODEL", "llama3.2:3b")),
             }):
-                self.provider = ollama
+                self.provider = with_own_model(ollama)
                 self.is_configured = True
                 return
 
@@ -199,7 +200,7 @@ class IncidentAnalyzer:
 
         ollama = OllamaProvider()
         if await ollama.configure(settings):
-            self.provider = ollama
+            self.provider = with_own_model(ollama)
             self.is_configured = True
             return
 
@@ -451,6 +452,14 @@ class IncidentAnalyzer:
                 self.demo_sessions[user_id]["state"] = "awaiting_satisfaction"
                 self.demo_sessions[user_id]["last_question"] = message
                 return f"{answer} Does that answer satisfy you? If so, should we continue the platform tour?"
+
+        # The platform's own from-scratch model answers plain questions it is confident
+        # about; otherwise the teacher (Ollama) gets the full prompt below.
+        active = provider or self.provider
+        if hasattr(active, "answer_question"):
+            own_answer = await active.answer_question(message)
+            if own_answer:
+                return f"{own_answer} [NAVIGATE:{context.get('currentView') or 'dashboard'}]"
 
         feedback_guidance = await self._get_feedback_guidance()
         prompt = (
