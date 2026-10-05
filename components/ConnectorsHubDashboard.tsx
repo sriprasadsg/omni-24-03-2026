@@ -58,7 +58,9 @@ export default function ConnectorsHubDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(API, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
+      // Trailing slash matches the backend route; without it FastAPI 307-redirects to
+      // an absolute backend URL and the browser drops the Authorization header.
+      const r = await fetch(`${API}/`, { headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` } });
       if (r.ok) {
         const data = await r.json();
         if (Array.isArray(data) && data.length > 0) setConnectors(data);

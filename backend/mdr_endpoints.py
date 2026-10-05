@@ -32,11 +32,27 @@ router = APIRouter(prefix="/api/mdr", tags=["MDR"])
 _SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 
 
-def _tenant_filter(user: dict) -> dict:
-    if user.get("role") in _SUPER_ADMIN_ROLES:
+def _user_attr(user, *names: str) -> str:
+    """First non-empty field from a TokenData (attributes) or a dict-shaped user."""
+    for name in names:
+        value = user.get(name) if isinstance(user, dict) else getattr(user, name, None)
+        if value:
+            return value
+    return ""
+
+
+def _tenant_filter(user) -> dict:
+    if _user_attr(user, "role") in _SUPER_ADMIN_ROLES:
         return {}
-    tenant = user.get("tenantId") or user.get("tenant_id") or ""
-    return {"tenantId": tenant} if tenant else {}
+    tenant = _user_attr(user, "tenantId", "tenant_id")
+    if not tenant:
+        # Fail closed: an empty filter would expose every tenant's MDR data.
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return {"tenantId": tenant}
+
+
+def _actor(user) -> str:
+    return _user_attr(user, "email", "username") or "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +133,7 @@ async def create_hunt(
     return await svc.create_hunt(
         body.model_dump(),
         tenant_filter=tf,
-        created_by=current_user.get("email") or current_user.get("username") or "unknown",
+        created_by=_actor(current_user),
     )
 
 
@@ -152,7 +168,7 @@ async def create_escalation(
     return await svc.create_escalation(
         body.model_dump(),
         tenant_filter=tf,
-        escalated_by=current_user.get("email") or current_user.get("username") or "unknown",
+        escalated_by=_actor(current_user),
     )
 
 

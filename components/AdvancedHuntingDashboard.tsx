@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Play, Save, Trash2, Code, Shield, Clock, Database } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
-const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('auth_token')}`, 'Content-Type': 'application/json' });
+const authHeaders = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 
 type Tab = 'hunt' | 'saved' | 'ioc' | 'templates';
 

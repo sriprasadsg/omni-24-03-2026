@@ -185,13 +185,13 @@ async def get_apm_traces(
     if not spans:
         # Return APM endpoint data as trace proxies if no dedicated spans exist
         service = get_apm_service(db)
-        endpoints = await service.get_endpoints()
+        endpoints = await service.get_endpoint_metrics()
         spans = [
             {
                 "traceId": f"trace-{i:04d}",
                 "spanId": f"span-{i:04d}",
-                "operation": ep.get("endpoint", "unknown"),
-                "duration_ms": ep.get("avg_response_time", 0),
+                "operation": ep.get("endpoint") or "unknown",
+                "duration_ms": ep.get("latency", {}).get("avg", 0),
                 "status": "ok" if ep.get("error_rate", 0) < 5 else "error",
                 "service": "backend",
                 "startTime": ep.get("last_called", ""),

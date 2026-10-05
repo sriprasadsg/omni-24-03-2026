@@ -452,7 +452,8 @@ class APMService:
         }
         
         await self.db.apm_alerts.insert_one(alert)
-        
+        alert["id"] = str(alert.pop("_id"))  # insert_one adds an ObjectId "_id"; JSON-safe id like GET /alerts
+
         return alert
     
     async def check_sla_violations(self) -> List[Dict[str, Any]]:

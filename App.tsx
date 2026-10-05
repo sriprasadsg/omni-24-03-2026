@@ -2031,7 +2031,9 @@ const App: React.FC = () => {
                   currentView={currentView}
                 />
                 <main className={`flex-1 overflow-x-hidden ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6'}`}>
-                  <ErrorBoundary name="MainContent">
+                  {/* Keyed by view: otherwise React reuses the same boundary instances
+                      across views and one crash leaves every later view showing the error. */}
+                  <ErrorBoundary name="MainContent" key={currentView}>
                     <Suspense fallback={<SkeletonDashboard />}>
                       {renderView()}
                     </Suspense>

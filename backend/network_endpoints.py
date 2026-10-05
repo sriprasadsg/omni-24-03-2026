@@ -1,6 +1,12 @@
 from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
+import asyncio
 import logging
+import os
+import tempfile
 from typing import Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
@@ -224,27 +230,54 @@ async def trigger_server_scan(
         logger.exception("Unhandled exception")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+def _topology_tenant(current_user: Any) -> str:
+    """Tenant whose topology the caller may see (shared by /topology and /topology-image)."""
+    tenant_id = getattr(current_user, "tenant_id", None) or None
+    role = getattr(current_user, "role", "") or ""
+    # Super-admins without a tenant context see the platform-admin topology
+    if not tenant_id:
+        if role in {"Super Admin", "super_admin", "platform-admin"}:
+            return "platform-admin"
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return tenant_id
+
+
+# pyplot keeps global state, so renders must not overlap.
+_TOPOLOGY_RENDER_LOCK = asyncio.Lock()
+
+
 @router.get("/topology-image")
 async def get_network_topology_image(
     current_user: Any = Depends(get_current_user)
 ):
     """
-    Generate and return the network topology image.
+    Generate and return the network topology image for the caller's tenant.
     """
+    tenant_id = _topology_tenant(current_user)
     try:
-        from fastapi.responses import FileResponse
-        # Import dynamically to avoid circular deps or startup issues
+        # Import dynamically: matplotlib/networkx are optional, heavy dependencies
         try:
             from .visualize_network import generate_network_graph
         except ImportError:
             from visualize_network import generate_network_graph
-            
-        # Generate the graph
-        image_path = generate_network_graph()
-        
-        return FileResponse(image_path)
+    except ImportError:
+        logger.warning("Topology image unavailable: matplotlib/networkx not installed", exc_info=True)
+        raise HTTPException(status_code=503, detail="Topology image rendering is not available on this server")
+
+    image_path = None
+    try:
+        db = get_database()
+        devices = await db.network_devices.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=1000)
+        fd, image_path = tempfile.mkstemp(prefix="topology-", suffix=".png")
+        os.close(fd)
+        async with _TOPOLOGY_RENDER_LOCK:
+            await run_in_threadpool(generate_network_graph, devices, image_path)
+        return FileResponse(image_path, media_type="image/png",
+                            background=BackgroundTask(os.remove, image_path))
     except Exception:
         logger.exception("Unhandled exception")
+        if image_path and os.path.exists(image_path):
+            os.remove(image_path)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/topology")
@@ -254,6 +287,7 @@ async def get_network_topology(
     """
     Get network topology data (JSON) for interactive map.
     """
+    tenant_id = _topology_tenant(current_user)
     try:
         # Import dynamically
         try:
@@ -261,15 +295,6 @@ async def get_network_topology(
         except ImportError:
             from network_topology_service import NetworkTopologyService
             
-        tenant_id = getattr(current_user, "tenant_id", None) or None
-        role = getattr(current_user, "role", "") or ""
-        _super_roles = {"Super Admin", "super_admin", "platform-admin"}
-        # Super-admins without a tenant context see the platform-admin topology
-        if not tenant_id:
-            if role in _super_roles:
-                tenant_id = "platform-admin"
-            else:
-                raise HTTPException(status_code=403, detail="Tenant context required")
         topology_data = await NetworkTopologyService.get_topology_data(tenant_id)
 
         return topology_data

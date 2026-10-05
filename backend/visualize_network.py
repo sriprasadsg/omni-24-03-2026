@@ -18,30 +18,16 @@ except ImportError:
 
 logging.basicConfig(level=logging.INFO)
 
-def generate_network_graph():
-    print("Generating Network Graph from Database...")
-    
-    # Connect to DB to get devices
-    # Note: verify_network_image.py or similar callers must ensure specific event loop handling if async
-    # But since this is a heavy blocking visualization function, we might need to run it in a way that allows async DB access
-    # OR, for simplicity in this script, we can use a synchronous pymongo connection if available, 
-    # but the project uses motor (async).
-    #
-    # To fix this properly within the constraints of the existing async app:
-    # We will make this function async and await the DB call.
-    
-    # However, changing the signature might break the route. 
-    # Let's check network_endpoints.py... it calls it synchronously: image_path = generate_network_graph()
-    # So we need to wrap the async call or use a sync connection.
-    
-    # OPTION: Use a synchronous MongoClient here for the visualization script to keep it simple and blocking
-    # as matplotlib is blocking anyway.
+def _load_all_devices_sync():
+    """Standalone CLI path only: read every device with a blocking pymongo client.
+
+    The API never uses this — it passes a tenant-scoped device list instead.
+    """
     from pymongo import MongoClient
-    
-    # We need to get the MONGO_URI. It's usually in os.environ or we default to localhost.
-    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+
+    MONGO_URI = os.getenv("MONGODB_URL") or os.getenv("MONGO_URI", "mongodb://localhost:27017")
     MONGO_DB_NAME = os.getenv("MONGODB_DB_NAME", "omni_platform")
-    
+
     try:
         client = MongoClient(MONGO_URI)
         db = client[MONGO_DB_NAME]
@@ -50,8 +36,20 @@ def generate_network_graph():
     except Exception as e:
         print(f"Error connecting to DB: {e}")
         devices = []
+    return devices
 
-    print(f"Found {len(devices)} devices in database.")
+
+def generate_network_graph(devices=None, output_file="network_topology.png"):
+    """Render devices as a topology PNG at output_file; return its absolute path.
+
+    Blocking (matplotlib) — async callers must run it in a worker thread and
+    serialize calls, since pyplot keeps global state.
+    """
+    print("Generating Network Graph...")
+    if devices is None:
+        devices = _load_all_devices_sync()
+
+    print(f"Found {len(devices)} devices.")
 
     # Create Graph
     G = nx.Graph()
@@ -119,8 +117,8 @@ def generate_network_graph():
                 ip = device.get("ip") or device.get("ipAddress")
                 if ip:
                     pos[ip] = (x, y)
-    else:
-        # Multiple subnets - group in sectors
+    elif num_subnets > 1:
+        # Multiple subnets - group in sectors (no devices: only the server node is drawn)
         sector_angle = 2 * math.pi / num_subnets
         subnet_colors_bg = ['lightblue', 'lightgreen', 'lightyellow', 'lightcoral', 'lightpink', 'lightgray']
         
@@ -260,7 +258,6 @@ def generate_network_graph():
     plt.ylim(-2.5, 2.5)
     
     # Save Image
-    output_file = "network_topology.png"
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
     

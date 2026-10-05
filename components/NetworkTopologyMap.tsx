@@ -345,7 +345,11 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                 elements={elements}
                 style={{ width: '100%', height: '100%' }}
                 stylesheet={stylesheet}
-                layout={{ name: 'cose', animate: true, fit: true, padding: 50 }}
+                // animate: 'end' computes the layout synchronously and animates via the
+                // core loop, which cy.destroy() stops. animate: true keeps scheduling
+                // frames that touch the destroyed renderer when this instance is
+                // remounted (key change) or unmounted mid-layout.
+                layout={{ name: 'cose', animate: 'end', fit: true, padding: 50 }}
                 cy={(cy) => {
                     cyRef.current = cy;
 

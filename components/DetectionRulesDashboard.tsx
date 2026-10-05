@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, ShieldAlert, Plus, Edit2, Trash2, Play, ToggleLeft, ToggleRight, AlertTriangle, CheckCircle, BarChart2, RefreshCw } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
-const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('auth_token')}` });
+const authHeader = () => ({ Authorization: `Bearer ${sessionStorage.getItem('token')}` });
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -52,7 +52,9 @@ export default function DetectionRulesDashboard() {
       if (filterEnabled !== '') params.set('enabled', filterEnabled);
       const r = await fetch(`${API}/api/detection-rules/?${params}`, { headers: authHeader() });
       const d = await r.json();
-      setRules(d.rules || d || []);
+      // Error responses are objects ({ detail }); only ever store an array.
+      const list = Array.isArray(d) ? d : d?.rules;
+      setRules(r.ok && Array.isArray(list) ? list : []);
     } catch { setRules([]); }
     setLoading(false);
   };
@@ -60,7 +62,7 @@ export default function DetectionRulesDashboard() {
   const loadStats = async () => {
     try {
       const r = await fetch(`${API}/api/detection-rules/stats`, { headers: authHeader() });
-      setStats(await r.json());
+      setStats(r.ok ? await r.json() : null);
     } catch { setStats(null); }
   };
 
