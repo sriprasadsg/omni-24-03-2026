@@ -271,9 +271,6 @@ async def get_backup_status(
     }
 
 
-@router.get("/health")
-
-
 @router.post("/test-dr")
 async def test_disaster_recovery(
     db: AsyncIOMotorDatabase = Depends(get_database),
@@ -290,7 +287,9 @@ async def test_disaster_recovery(
     This is a dry-run test that doesn't modify production data.
     """
     hadr_service = get_hadr_service(db)
-    
+    if hadr_service is None:
+        raise HTTPException(status_code=503, detail="HA/DR service is not initialized (check its encryption key)")
+
     try:
         result = await hadr_service.test_disaster_recovery()
         return result

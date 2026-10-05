@@ -33,16 +33,32 @@ class LoginVerifyRequest(BaseModel):
     credential: dict
     challenge_key: str
 
+async def _current_user_id(current_user: TokenData) -> str:
+    """Resolve the caller's users.id — passkeys belong to a user, not a tenant.
+
+    These endpoints used current_user.tenant_id as the user id, so credentials were
+    stored on (and listed/deleted from) a non-existent user whose id is the tenant id.
+    """
+    if not current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    user_doc = await mongodb.db.users.find_one(
+        {"email": current_user.username, "tenantId": current_user.tenant_id},
+        {"id": 1, "_id": 0},
+    )
+    if not user_doc or not user_doc.get("id"):
+        raise HTTPException(status_code=404, detail="User not found")
+    return user_doc["id"]
+
+
 @router.post("/register/options")
 async def passkey_register_options(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Generate registration options for a new passkey."""
-    if not current_user.tenant_id:
-        raise HTTPException(status_code=403, detail="Tenant context required")
+    user_id = await _current_user_id(current_user)
 
     options = await build_registration_options(
-        user_id=current_user.tenant_id,
+        user_id=user_id,
         username=current_user.username,
         display_name=current_user.username
     )
@@ -55,13 +71,12 @@ async def passkey_register_verify(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Verify and store a new passkey registration."""
-    if not current_user.tenant_id:
-        raise HTTPException(status_code=403, detail="Tenant context required")
+    user_id = await _current_user_id(current_user)
 
     from passkey_service import verify_and_store_registration
     try:
         cred = await verify_and_store_registration(
-            user_id=current_user.tenant_id,
+            user_id=user_id,
             credential_response=data.credential,
             db=None,
             users_collection=None,
@@ -143,11 +158,10 @@ async def passkey_login_verify(
 @router.get("/credentials")
 async def list_passkeys(current_user: TokenData = Depends(get_current_user)):
     """List user's registered passkeys."""
-    if not current_user.tenant_id:
-        raise HTTPException(status_code=403, detail="Tenant context required")
+    user_id = await _current_user_id(current_user)
 
     user_doc = await mongodb.db.users.find_one(
-        {"id": current_user.tenant_id},
+        {"id": user_id},
         {"webauthn_credentials": 1, "_id": 0}
     )
     if not user_doc:
@@ -168,12 +182,10 @@ async def delete_passkey(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Delete a registered passkey."""
-    if not current_user.tenant_id:
-        raise HTTPException(status_code=403, detail="Tenant context required")
+    user_id = await _current_user_id(current_user)
 
-    from database import mongodb
     result = await mongodb.db.users.update_one(
-        {"id": current_user.tenant_id},
+        {"id": user_id},
         {"$pull": {"webauthn_credentials": {"credential_id": credential_id}}}
     )
     if result.modified_count == 0:

@@ -2,7 +2,7 @@ import logging
 import re
 from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends, Query, Response
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user
@@ -138,6 +138,66 @@ async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
     return _to_response(user_doc)
+
+
+# --- Notification preferences (per user, not admin-gated) ---------------------
+_NOTIFICATION_CHANNELS = {"email", "slack", "msteams"}
+_EVENT_KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+
+class NotificationPreferences(BaseModel):
+    channels: Dict[str, bool]
+    events: Dict[str, Dict[str, bool]]
+
+
+def _validate_notification_preferences(prefs: NotificationPreferences) -> None:
+    unknown = set(prefs.channels) - _NOTIFICATION_CHANNELS
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown channel(s): {sorted(unknown)}")
+    if len(prefs.events) > 100:
+        raise HTTPException(status_code=422, detail="Too many event types")
+    for event, per_channel in prefs.events.items():
+        if not _EVENT_KEY_RE.match(event):
+            raise HTTPException(status_code=422, detail=f"Invalid event key: {event[:64]!r}")
+        if set(per_channel) - _NOTIFICATION_CHANNELS:
+            raise HTTPException(status_code=422, detail=f"Unknown channel for event {event!r}")
+
+
+def _own_user_filter(current_user: TokenData) -> dict:
+    return {"$or": [{"email": current_user.username}, {"username": current_user.username}]}
+
+
+@router.get("/me/notification-preferences", response_model=NotificationPreferences)
+async def get_my_notification_preferences(current_user: TokenData = Depends(get_current_user)):
+    """The caller's saved notification preferences; 404 until first saved (UI uses defaults)."""
+    db = get_database()
+    user_doc = await db.users.find_one(_own_user_filter(current_user), {"notificationPreferences": 1})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    prefs = user_doc.get("notificationPreferences")
+    if not prefs:
+        raise HTTPException(status_code=404, detail="Notification preferences not set")
+    return prefs
+
+
+@router.put("/me/notification-preferences", response_model=NotificationPreferences)
+async def update_my_notification_preferences(
+    prefs: NotificationPreferences,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Save the caller's own notification preferences."""
+    _validate_notification_preferences(prefs)
+    db = get_database()
+    result = await db.users.update_one(
+        _own_user_filter(current_user),
+        {"$set": {
+            "notificationPreferences": prefs.model_dump(),
+            "updatedAt": datetime.datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return prefs
 
 
 @router.get("", response_model=List[UserResponse])
