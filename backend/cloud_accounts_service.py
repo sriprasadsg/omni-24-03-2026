@@ -12,6 +12,7 @@ without also removing the manual "tenantId" filters and confirming context
 injection is active on every call path.
 """
 import uuid, os, logging
+from app_env import is_production
 from datetime import datetime, timezone
 from typing import Optional
 from cryptography.fernet import Fernet
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 _FERNET_KEY = os.environ.get("CLOUD_CREDENTIALS_KEY", "")
 if not _FERNET_KEY:
-    if os.environ.get("APP_ENV", "development").lower() == "production":
+    if is_production():
         raise RuntimeError(
             "CLOUD_CREDENTIALS_KEY is not set. Refusing to start in production "
             "without a stable encryption key for cloud account credentials. "

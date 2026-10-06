@@ -3050,9 +3050,8 @@ export const deleteIntegrationConfig = async (id: string): Promise<{ success: bo
 
 export const testSiemConnection = async (platform: string, config: any): Promise<{ success: boolean; error?: string; message?: string }> => {
     try {
-        const response = await fetch(`${API_BASE}/integrations/siem/test`, {
+        const response = await authFetch(`${API_BASE}/integrations/siem/test`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ platform, config })
         });
         if (!response.ok) throw new Error('Failed to test SIEM connection');

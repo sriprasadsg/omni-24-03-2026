@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 from database import get_database
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from auth_types import TokenData
 from response_orchestrator import ResponseOrchestrator, seed_builtin_policies
 
@@ -189,7 +189,7 @@ async def execute_response_action(
 @router.get("/tasks/{agent_id}")
 async def get_pending_tasks(
     agent_id: str,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user_or_agent)
 ):
     """Agent polling endpoint — returns queued response tasks for this agent."""
     tenant_id = getattr(current_user, "tenant_id", None)
@@ -204,7 +204,7 @@ async def get_pending_tasks(
 async def submit_task_result(
     task_id: str,
     result: TaskResult,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user_or_agent)
 ):
     """Agent submits the result of a completed response task."""
     tenant_id = getattr(current_user, "tenant_id", None)
@@ -222,7 +222,7 @@ async def submit_task_result(
 async def submit_task_feedback(
     task_id: str,
     feedback: TaskFeedback,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user_or_agent)
 ):
     """Submit execution feedback for a completed task."""
     caller_tenant = getattr(current_user, "tenant_id", None)

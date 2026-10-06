@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_service import rbac_service
 from database import get_database
 from datetime import datetime, timezone
 from typing import Optional, List, Any
@@ -60,6 +61,12 @@ class ExecuteRequest(BaseModel):
     reason: str = ""
 
 
+# Rules and manual executions kill processes and isolate/quarantine hosts, so
+# changing them needs manage:active_response (admins by default); reading them
+# stays open to any tenant user.
+_require_manage = rbac_service.has_permission("manage:active_response")
+
+
 def _strip_id(doc: dict) -> dict:
     doc.pop("_id", None)
     return doc
@@ -104,7 +111,7 @@ async def list_rules(
 @router.post("/rules", status_code=201)
 async def create_rule(
     body: RuleCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_manage),
 ):
     """Create a new active response rule."""
     _validate_rule(body.trigger, body.actions, body.mode)
@@ -141,7 +148,7 @@ async def create_rule(
 async def update_rule(
     rule_id: str,
     body: RuleUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_manage),
 ):
     """Update an active response rule."""
     db = get_database()
@@ -169,7 +176,7 @@ async def update_rule(
 
 
 @router.delete("/rules/{rule_id}", status_code=204)
-async def delete_rule(rule_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_rule(rule_id: str, current_user: TokenData = Depends(_require_manage)):
     """Delete an active response rule."""
     db = get_database()
     result = await db.active_response_rules.delete_one(
@@ -183,7 +190,7 @@ async def delete_rule(rule_id: str, current_user: TokenData = Depends(get_curren
 @router.post("/execute", status_code=202)
 async def execute_action(
     body: ExecuteRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_manage),
 ):
     """Manually execute an active response action against a specific agent."""
     if body.action not in VALID_ACTIONS:

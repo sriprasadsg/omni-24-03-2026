@@ -67,6 +67,36 @@ spec:
                 secretKeyRef:
                   name: {{ include "omni-platform.secretName" . }}
                   key: encryption-key
+            - name: CLOUD_CREDENTIALS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "omni-platform.secretName" . }}
+                  key: cloud-credentials-key
+            - name: INTEGRATION_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "omni-platform.secretName" . }}
+                  key: integration-encryption-key
+            - name: VECTOR_DB_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "omni-platform.secretName" . }}
+                  key: vector-db-encryption-key
+            - name: PAYMENT_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "omni-platform.secretName" . }}
+                  key: payment-encryption-key
+            - name: EMAIL_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "omni-platform.secretName" . }}
+                  key: email-encryption-key
+            - name: SECRETS_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "omni-platform.secretName" . }}
+                  key: secrets-master-key
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
           readinessProbe:

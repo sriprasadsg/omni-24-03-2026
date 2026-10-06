@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from app_env import is_production
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -26,8 +27,7 @@ _PLACEHOLDER_PATTERNS = ("changeme_set_", "change_this_", "your_password", "pass
 
 def _check_placeholder_secrets():
     """Refuse to start in production if placeholder secrets are detected."""
-    env = os.environ.get("APP_ENV", "development").lower()
-    if env in ("development", "dev", "test", "ci"):
+    if not is_production():
         return  # Allow placeholders in non-production
 
     dangerous = []
@@ -51,6 +51,12 @@ def _validate_startup_config() -> None:
     issues: list[str] = []
 
     jwt_key = os.getenv("JWT_SECRET_KEY", "")
+    if is_production() and (jwt_key.lower() in _KNOWN_WEAK_JWT_VALUES or len(jwt_key) < 32):
+        raise RuntimeError(
+            "Refusing to start: JWT_SECRET_KEY is unset, a known-weak default or shorter than 32 "
+            "characters. Remove it from the environment to use the provisioned platform key, or set "
+            "a strong one. For local development set ENVIRONMENT=development."
+        )
     if jwt_key.lower() in _KNOWN_WEAK_JWT_VALUES:
         issues.append(
             "JWT_SECRET_KEY is unset or uses a known-weak default. "

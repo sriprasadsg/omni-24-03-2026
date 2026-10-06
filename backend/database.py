@@ -1,6 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Optional, Any, Dict, List
 import os
+from app_env import environment, is_production
 from dotenv import load_dotenv
 from tenant_context import get_tenant_id
 
@@ -238,9 +239,8 @@ async def connect_to_mongo():
             "All data written this session will be LOST on restart.",
             max_attempts, mongodb_url,
         )
-        _env = os.getenv("ENVIRONMENT", "development").lower()
-        _prod_envs = {"production", "prod", "staging"}
-        if _env in _prod_envs:
+        _env = environment()
+        if is_production():
             _logging.getLogger(__name__).critical(
                 "[DATABASE] ALLOW_MOCK_DB is ignored outside development "
                 "(ENVIRONMENT=%r) — refusing to silently start against an "

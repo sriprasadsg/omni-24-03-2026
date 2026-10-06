@@ -24,6 +24,7 @@ volume layer (encrypt the ChromaDB persistence directory), not per-field.
 import hashlib
 import logging
 import os
+from app_env import is_production
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -40,8 +41,7 @@ def _load_vector_db_cipher() -> Fernet:
     """Fail-closed Fernet key loading, mirroring encryption_service.py's pattern."""
     key = os.getenv("VECTOR_DB_ENCRYPTION_KEY")
     if not key:
-        env = os.getenv("ENVIRONMENT", "development").lower()
-        if env == "production":
+        if is_production():
             raise RuntimeError(
                 "VECTOR_DB_ENCRYPTION_KEY is not set. Refusing to start in "
                 "production without a stable encryption key for customer "

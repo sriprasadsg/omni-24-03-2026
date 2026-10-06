@@ -19,6 +19,11 @@ pub struct Config {
     pub agent_token: String,
     #[serde(default, deserialize_with = "deser_nullable_str")]
     pub registration_key: String,
+    /// Per-agent enrollment secret issued by /api/agents/register. The backend
+    /// requires it to re-enroll this hostname, so the shared registration key
+    /// alone cannot take over an enrolled agent.
+    #[serde(default, deserialize_with = "deser_nullable_str")]
+    pub agent_secret: String,
     #[serde(default = "default_interval")]
     pub interval_seconds: u64,
     #[serde(default = "default_max_cpu")]

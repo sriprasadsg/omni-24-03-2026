@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request, Response
 from typing import Dict, Any
 from database import get_database
-from authentication_service import get_current_user, create_access_token
+from authentication_service import get_current_user, create_access_token, SECRET_KEY, ALGORITHM, is_agent_payload
 from datetime import datetime, timezone, timedelta
+import hashlib
+import hmac
+import secrets
 import uuid
+import jwt
 from cache_service import invalidate_cache
 from rate_limiter import limiter
 import geoip_service
@@ -13,6 +17,43 @@ from agent_location_history_service import record_location_change, get_track_age
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_registry_endpoints")
+
+
+def _hash_agent_secret(secret: str) -> str:
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
+async def _proves_agent_identity(db, existing_agent: dict, tenant_id: str, data: dict, request: Request) -> bool:
+    """Whether a re-registration for an already-enrolled hostname comes from
+    that agent. The tenant registration key ships in every installer, so it
+    alone must never hand out a token for an existing agent id.
+
+    Agents enrolled with a per-agent secret must present it. Agents enrolled
+    before secrets existed may upgrade once by presenting a token the server
+    issued to that exact agent (expiry ignored, revocation honoured).
+    """
+    stored = existing_agent.get("agentSecretHash")
+    if stored:
+        supplied = data.get("agentSecret")
+        return isinstance(supplied, str) and hmac.compare_digest(_hash_agent_secret(supplied), stored)
+
+    token = data.get("previousToken")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else ""
+    if not token:
+        return False
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+    except jwt.PyJWTError:
+        return False
+    if not is_agent_payload(payload) or payload.get("sub") != existing_agent.get("id") or payload.get("tenant_id") != tenant_id:
+        return False
+    jti = payload.get("jti")
+    raw = getattr(db, "_db", db)  # revoked_tokens is not tenant-scoped
+    if jti and await raw.revoked_tokens.find_one({"jti": jti}, {"_id": 1}):
+        return False
+    return True
 
 
 @router.post("/register")
@@ -41,8 +82,23 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
 
     agent_id = f"agent-{uuid.uuid4().hex}"
     existing_agent = await db.agents.find_one({"hostname": hostname, "tenantId": tenant["id"]})
+    agent_secret = None  # issued to new agents and to legacy agents upgrading
     if existing_agent:
+        if not await _proves_agent_identity(db, existing_agent, tenant["id"], data, request):
+            logger.warning(
+                "Rejected re-registration of enrolled agent %s (hostname %s) without proof of identity",
+                existing_agent.get("id"), hostname,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail="This hostname is already enrolled. Re-enrollment requires the agent's secret; "
+                       "an administrator can delete the agent to enroll it again.",
+            )
         agent_id = existing_agent["id"]
+        if not existing_agent.get("agentSecretHash"):
+            agent_secret = secrets.token_urlsafe(32)
+    else:
+        agent_secret = secrets.token_urlsafe(32)
 
     agent_limit = tenant.get("maxAgents", 5)
     if not existing_agent:
@@ -73,6 +129,9 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
             ]
         }
     }
+
+    if agent_secret:
+        agent_data["agentSecretHash"] = _hash_agent_secret(agent_secret)
 
     reg_meta = data.get("meta", {})
     available_caps = reg_meta.get("availableCapabilities") or reg_meta.get("capabilities") or []
@@ -111,6 +170,10 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
     except Exception as e:
         if "E11000 duplicate key error" in str(e):
+            if not existing_agent:
+                # Lost a concurrent first-enrollment race for this hostname: the
+                # winner owns the agent record, so this caller gets no token.
+                raise HTTPException(status_code=409, detail="Concurrent enrollment for this hostname; retry")
             await db.agents.update_one({"id": agent_id}, {"$set": agent_data})
         else:
             raise e
@@ -195,9 +258,13 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     except Exception as e:
         logger.warning("Evidence collection dispatch failed for host %s: %s", hostname, e)
 
-    token_data = {"sub": agent_id, "role": "agent", "tenant_id": tenant["id"], "jti": str(uuid.uuid4())}
+    token_data = {"sub": agent_id, "role": "agent", "typ": "agent", "tenant_id": tenant["id"], "jti": str(uuid.uuid4())}
     access_token = create_access_token(data=token_data, expires_delta=timedelta(days=90))
-    return {"success": True, "agentId": agent_id, "token": access_token}
+    result = {"success": True, "agentId": agent_id, "token": access_token}
+    if agent_secret:
+        # Returned once; the agent stores it and presents it to re-enroll.
+        result["agentSecret"] = agent_secret
+    return result
 
 
 @router.put("/{agent_id}/link")

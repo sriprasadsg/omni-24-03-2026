@@ -145,6 +145,23 @@ def _detect_local_ips() -> set:
     return ips
 
 
+def allowed_cors_origins() -> list[str]:
+    """Browser origins allowed to call the API: CORS_ORIGINS when set, else
+    localhost plus the exact IPs this host listens on (not a subnet wildcard).
+    Shared with the Socket.IO server so both channels accept the same origins."""
+    cors_env = os.getenv("CORS_ORIGINS", "")
+    if cors_env:
+        return [o.strip() for o in cors_env.split(",") if o.strip()]
+    origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    for _ip in _detect_local_ips():
+        if _ip not in ("127.0.0.1",):
+            origins.append(f"https://{_ip}")  # default-port TLS (nginx/reverse-proxy)
+            for _port in ("3000", "4173", "5173"):
+                origins.append(f"http://{_ip}:{_port}")
+                origins.append(f"https://{_ip}:{_port}")
+    return list(dict.fromkeys(origins))  # dedup, preserve order
+
+
 def register_middleware(app: FastAPI, rate_limiter) -> None:
     """Attach all middleware to the FastAPI application.
 
@@ -171,19 +188,7 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
     # CORS — explicit allowlist only; no wildcard subnet regex.
     # The previous regex allowed *any* device on the local LAN to make credentialed
     # cross-origin requests, which is a session-hijack risk on shared networks.
-    cors_env = os.getenv("CORS_ORIGINS", "")
-    if cors_env:
-        allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
-    else:
-        # Auto-detect the exact IPs the server listens on — not a subnet wildcard.
-        allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
-        for _ip in _detect_local_ips():
-            if _ip not in ("127.0.0.1",):
-                allowed_origins.append(f"https://{_ip}")  # default-port TLS (nginx/reverse-proxy)
-                for _port in ("3000", "4173", "5173"):
-                    allowed_origins.append(f"http://{_ip}:{_port}")
-                    allowed_origins.append(f"https://{_ip}:{_port}")
-        allowed_origins = list(dict.fromkeys(allowed_origins))  # dedup, preserve order
+    allowed_origins = allowed_cors_origins()
 
     logger.info("CORS allowed origins (%d): %s", len(allowed_origins), allowed_origins)
 

@@ -5,8 +5,29 @@ from typing import Optional, Dict, Any
 from database import get_database
 from integration_service import get_integration_service
 from authentication_service import get_current_user
+from rbac_service import rbac_service
+from outbound_url_guard import UnsafeOutboundURL, avalidate_outbound_url
 
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
+
+# Reading stored integration configs, changing them, and triggering outbound
+# test/connector calls are admin operations: the test routes accept an
+# arbitrary endpoint and the connectors act on external systems.
+_require_manage_settings = rbac_service.has_permission("manage:settings")
+
+# Connector config keys that carry an outbound destination.
+_URL_CONFIG_KEYS = ("webhook_url", "api_url", "url", "base_url", "endpoint", "instance_url")
+
+
+async def _validate_connector_urls(config: Dict[str, Any]) -> None:
+    """Reject connector configs that point at internal/non-permitted hosts."""
+    for key in _URL_CONFIG_KEYS:
+        value = config.get(key)
+        if value:
+            try:
+                await avalidate_outbound_url(value)
+            except UnsafeOutboundURL as exc:
+                raise HTTPException(status_code=400, detail=f"{key}: {exc}")
 
 _SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 
@@ -50,10 +71,10 @@ class TestSiemRequest(BaseModel):
 @router.get("/configs")
 async def get_integration_configs(
     tenant_id: Optional[str] = None,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database)
 ):
-    """Get all integration configs for tenant"""
+    """Get all integration configs for tenant (secret fields are masked)"""
     resolved = _resolve_tenant(current_user, tenant_id)
     service = get_integration_service(db)
     return await service.get_all_configs(resolved)
@@ -62,7 +83,7 @@ async def get_integration_configs(
 async def save_integration_config(
     config: IntegrationConfig,
     tenant_id: Optional[str] = None,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database)
 ):
     """Save integration config"""
@@ -74,7 +95,7 @@ async def save_integration_config(
 @router.post("/test")
 async def test_integration(
     request: TestIntegrationRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database)
 ):
     """Test integration connection"""
@@ -96,7 +117,7 @@ async def test_integration(
 @router.post("/siem/test")
 async def test_siem_integration(
     request: TestSiemRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database),
 ):
     """Test a SIEM connection with an unsaved config (platform + config).
@@ -145,7 +166,7 @@ class ConnectorExecuteRequest(BaseModel):
 async def test_connector(
     connector_name: str,
     config: Optional[Dict[str, Any]] = None,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database),
 ):
     """Test connectivity for a named SOAR connector (slack, jira, edr, firewall, etc.)"""
@@ -158,6 +179,7 @@ async def test_connector(
         for k, v in config.items():
             if k not in _SENSITIVE_CONFIG_FIELDS:
                 merged[k] = v
+    await _validate_connector_urls(merged)
 
     try:
         connector = _build_connector(connector_name, merged)
@@ -173,7 +195,7 @@ async def test_connector(
 async def execute_connector_action(
     connector_name: str,
     body: ConnectorExecuteRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database),
 ):
     """Execute an action on a named SOAR connector."""
@@ -181,6 +203,7 @@ async def execute_connector_action(
         {"connector": connector_name.lower()}, {"_id": 0}
     ) or {}
     merged = {**saved.get("config", {}), **(body.config or {})}
+    await _validate_connector_urls(merged)
 
     try:
         connector = _build_connector(connector_name, merged)
@@ -207,10 +230,11 @@ async def execute_connector_action(
 async def save_connector_config(
     connector_name: str,
     config: Dict[str, Any],
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database),
 ):
     """Persist a connector's configuration in the database."""
+    await _validate_connector_urls(config)
     await db.soar_connector_configs.update_one(
         {"connector": connector_name.lower()},
         {"$set": {"connector": connector_name.lower(), "config": config,
@@ -223,7 +247,7 @@ async def save_connector_config(
 @router.get("/connectors/{connector_name}/config")
 async def get_connector_config(
     connector_name: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(_require_manage_settings),
     db=Depends(get_database),
 ):
     """Get saved config for a connector (secrets are redacted)."""

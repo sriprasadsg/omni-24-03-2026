@@ -52,6 +52,9 @@ services:
       # name the app documents as primary so the two never drift again.
       - MONGODB_URL=mongodb://${MONGO_ROOT_USER:-omniagent}:${MONGO_ROOT_PASSWORD}@mongo:27017/omniagent
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      # Fail closed: production hardening unless .env/shell says otherwise
+      # (set ENVIRONMENT=development for local work).
+      - ENVIRONMENT=${ENVIRONMENT:-production}
     ports:
       - "5000:5000"
     depends_on:

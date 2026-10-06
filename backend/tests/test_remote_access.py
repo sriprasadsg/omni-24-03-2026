@@ -373,7 +373,8 @@ class TestTunnelWebSocket:
                     with c.websocket_connect(f"/api/tunnel/{sid}/user?token=mytoken"):
                         pass
 
-        verify_mock.assert_called_once_with("mytoken")
+        # The browser side of a tunnel is user-only: agent tokens are refused.
+        verify_mock.assert_called_once_with("mytoken", allow_agent=False)
 
     # ── IDOR guard (fix #2) ───────────────────────────────────────────────────
 

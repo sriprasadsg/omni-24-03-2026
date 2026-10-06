@@ -281,6 +281,6 @@ async def get_current_user_or_api_key(
         set_tenant_id(tenant_doc["id"])
         return TokenData(tenant_id=tenant_doc["id"], role="api-integration", username="api-key")
     elif token:
-        return await verify_token_async(token)
+        return await verify_token_async(token, allow_agent=False)
     else:
         raise HTTPException(status_code=401, detail="Authentication required")

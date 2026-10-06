@@ -3,6 +3,7 @@ SSO Endpoints — Google OAuth2 + SAML / OIDC
 Phase 4: Real SSO integration using authlib
 """
 import os
+from app_env import is_production
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -42,9 +43,7 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.getenv("SSO_REDIRECT_URI", "http://localhost:5000/api/sso/google/callback")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-_env = os.getenv("ENVIRONMENT", "development").lower()
-_dev_envs = {"development", "dev", "local", "test"}
-if _env not in _dev_envs and GOOGLE_REDIRECT_URI.startswith("http://"):
+if is_production() and GOOGLE_REDIRECT_URI.startswith("http://"):
     logger.warning(
         "SSO_REDIRECT_URI is set to a plain HTTP URL (%r). "
         "OAuth authorisation codes must be delivered over HTTPS in production. "

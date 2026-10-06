@@ -123,7 +123,7 @@ def register_tunnel_routes(app: FastAPI) -> None:
         if not token:
             token = websocket.query_params.get("token", "")
         try:
-            user = await verify_token_async(token)
+            user = await verify_token_async(token, allow_agent=False)
         except Exception:
             await websocket.close(code=4401)
             return
@@ -231,7 +231,7 @@ def register_tunnel_routes(app: FastAPI) -> None:
         if not token:
             token = websocket.query_params.get("token", "")
         try:
-            user = await verify_token_async(token)
+            user = await verify_token_async(token, allow_agent=False)
         except Exception:
             await websocket.close(code=4401)
             return

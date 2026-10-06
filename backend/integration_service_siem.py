@@ -1,5 +1,11 @@
 """
 IntegrationService SIEM mixin: Splunk, ELK, Wazuh, QRadar.
+
+Every endpoint here comes from a user-editable integration config, so each
+sender validates it with outbound_url_guard, connects through a guarded
+session with redirects disabled, and never relays the remote response body
+or raw exception text back to the caller (that turned the connection test
+into a read-anything SSRF).
 """
 
 import aiohttp
@@ -7,8 +13,18 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 import logging
 
+from outbound_url_guard import UnsafeOutboundURL, avalidate_outbound_url, guarded_session
+
 _SSL_VERIFY = True
 _log = logging.getLogger(__name__)
+
+
+def _delivery_error(platform: str, exc: Exception) -> Dict[str, Any]:
+    """Caller-safe error: guard rejections are explained, anything else is generic."""
+    if isinstance(exc, UnsafeOutboundURL):
+        return {"success": False, "platform": platform, "error": str(exc)}
+    _log.warning("%s delivery failed: %s", platform, exc)
+    return {"success": False, "platform": platform, "error": "Connection failed"}
 
 
 class IntegrationServiceSiemMixin:
@@ -64,22 +80,25 @@ class IntegrationServiceSiemMixin:
         config: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Send event to Splunk HEC (HTTP Event Collector)."""
-        url = f"{config['endpoint']}/services/collector/event"
         payload = {
             "time": datetime.now(timezone.utc).timestamp(),
             "sourcetype": "patch_management",
             "event": {"event_type": event_type, "severity": severity, **details},
         }
-        headers = {"Authorization": f"Splunk {config['token']}", "Content-Type": "application/json"}
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, headers=headers, ssl=_SSL_VERIFY) as resp:
+            base = await avalidate_outbound_url(config.get("endpoint", ""))
+            url = f"{base.rstrip('/')}/services/collector/event"
+            headers = {"Authorization": f"Splunk {config.get('token', '')}", "Content-Type": "application/json"}
+            async with guarded_session(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                async with session.post(
+                    url, json=payload, headers=headers, ssl=_SSL_VERIFY, allow_redirects=False
+                ) as resp:
                     if resp.status == 200:
-                        return {"success": True, "details": await resp.json()}
-                    return {"success": False, "error": f"Splunk returned {resp.status}",
-                            "details": await resp.text()}
+                        return {"success": True, "platform": "splunk", "status_code": resp.status}
+                    return {"success": False, "platform": "splunk", "status_code": resp.status,
+                            "error": f"Splunk returned {resp.status}"}
         except Exception as exc:
-            return {"success": False, "error": str(exc)}
+            return _delivery_error("splunk", exc)
 
     async def _send_to_elk(
         self,
@@ -89,7 +108,6 @@ class IntegrationServiceSiemMixin:
         config: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Send event to Elasticsearch/Logstash."""
-        url = f"{config['endpoint']}/{config.get('index', 'security-events')}/_doc"
         payload = {"@timestamp": datetime.now(timezone.utc).isoformat(),
                    "event_type": event_type, "severity": severity, **details}
         headers: Dict[str, str] = {"Content-Type": "application/json"}
@@ -100,14 +118,16 @@ class IntegrationServiceSiemMixin:
                 config["username"], config["password"]
             ).encode()
         try:
-            async with aiohttp.ClientSession() as session:
+            base = await avalidate_outbound_url(config.get("endpoint", ""))
+            url = f"{base.rstrip('/')}/{config.get('index', 'security-events')}/_doc"
+            async with guarded_session(timeout=aiohttp.ClientTimeout(total=10)) as session:
                 async with session.post(
-                    url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+                    url, json=payload, headers=headers, ssl=_SSL_VERIFY, allow_redirects=False
                 ) as resp:
                     return {"success": resp.status in (200, 201), "platform": "elk",
                             "status_code": resp.status}
         except Exception as exc:
-            return {"success": False, "error": str(exc)}
+            return _delivery_error("elk", exc)
 
     async def _send_to_wazuh(
         self,
@@ -117,16 +137,15 @@ class IntegrationServiceSiemMixin:
         config: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Send event to Wazuh manager via REST API (Wazuh 4.4+)."""
-        base = config.get("endpoint", "").rstrip("/")
         username = config.get("username", "wazuh")
         password = config.get("password", "")
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            base = (await avalidate_outbound_url(config.get("endpoint", ""))).rstrip("/")
+            async with guarded_session(timeout=aiohttp.ClientTimeout(total=10)) as session:
                 auth_resp = await session.post(
                     f"{base}/security/user/authenticate",
                     auth=aiohttp.BasicAuth(username, password),
-                    ssl=_SSL_VERIFY,
+                    ssl=_SSL_VERIFY, allow_redirects=False,
                 )
                 if auth_resp.status != 200:
                     return {"success": False, "platform": "wazuh",
@@ -146,12 +165,12 @@ class IntegrationServiceSiemMixin:
                     f"{base}/events",
                     json=payload,
                     headers={"Authorization": f"Bearer {token}"},
-                    ssl=_SSL_VERIFY,
+                    ssl=_SSL_VERIFY, allow_redirects=False,
                 )
                 return {"success": resp.status in (200, 201), "platform": "wazuh",
-                        "status_code": resp.status, "details": await resp.json()}
+                        "status_code": resp.status}
         except Exception as exc:
-            return {"success": False, "platform": "wazuh", "error": str(exc)}
+            return _delivery_error("wazuh", exc)
 
     async def _send_to_qradar(
         self,
@@ -161,7 +180,6 @@ class IntegrationServiceSiemMixin:
         config: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Send event to IBM QRadar via REST API using a reference-data set."""
-        base = config.get("endpoint", "").rstrip("/")
         api_token = config.get("api_token", "")
         set_name = config.get("ref_set", "omni_agent_events")
         payload = {
@@ -173,19 +191,19 @@ class IntegrationServiceSiemMixin:
         headers = {"SEC": api_token, "Content-Type": "application/json",
                    "Accept": "application/json", "Version": "17.0"}
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            base = (await avalidate_outbound_url(config.get("endpoint", ""))).rstrip("/")
+            async with guarded_session(timeout=aiohttp.ClientTimeout(total=10)) as session:
                 await session.post(
                     f"{base}/api/reference_data/sets",
                     params={"name": set_name, "element_type": "ALN"},
-                    headers=headers, ssl=_SSL_VERIFY,
+                    headers=headers, ssl=_SSL_VERIFY, allow_redirects=False,
                 )
                 resp = await session.post(
                     f"{base}/api/reference_data/sets/{set_name}",
                     params={"value": str(payload)},
-                    headers=headers, ssl=_SSL_VERIFY,
+                    headers=headers, ssl=_SSL_VERIFY, allow_redirects=False,
                 )
                 return {"success": resp.status in (200, 201), "platform": "qradar",
                         "status_code": resp.status, "ref_set": set_name}
         except Exception as exc:
-            return {"success": False, "platform": "qradar", "error": str(exc)}
+            return _delivery_error("qradar", exc)

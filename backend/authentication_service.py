@@ -1,6 +1,7 @@
 import jwt
 import logging
 import os
+from app_env import environment, is_production
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -15,9 +16,8 @@ logger = logging.getLogger(__name__)
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
 if not SECRET_KEY:
     import logging as _logging
-    _env = os.getenv("ENVIRONMENT", "development").lower()
-    _dev_envs = {"development", "dev", "local", "test"}
-    if _env not in _dev_envs:
+    _env = environment()
+    if is_production():
         # Block startup for production, staging, or any unrecognised environment
         raise RuntimeError(
             f"JWT_SECRET_KEY is not set (ENVIRONMENT={_env!r}). "
@@ -65,7 +65,31 @@ def create_refresh_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def verify_token(token: str) -> TokenData:
+AGENT_ROLE = "agent"
+
+
+def is_agent_payload(payload: dict) -> bool:
+    """True for endpoint-agent JWTs (issued by POST /api/agents/register)."""
+    return payload.get("role") == AGENT_ROLE or payload.get("typ") == AGENT_ROLE
+
+
+def _reject_agent_token(payload: dict, allow_agent: bool) -> None:
+    # Agent tokens are handed to every endpoint that installs the agent (and
+    # the Windows tray copies them into a user-readable file), so they must
+    # not double as user sessions. Routes agents call opt in explicitly via
+    # get_current_user_or_agent; everything else gets a 401.
+    if not allow_agent and is_agent_payload(payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Agent credentials are not valid for this endpoint",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+def verify_token(token: str, allow_agent: bool = True) -> TokenData:
+    """Decode an access token. Direct callers that serve agents (WebSocket
+    registry, deployment results) keep the default; user-only paths pass
+    allow_agent=False."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         # CRIT-01: refresh tokens carry no tenant_id/role claim by design (see
@@ -78,6 +102,7 @@ def verify_token(token: str) -> TokenData:
                 detail="Could not validate credentials - refresh token used as access token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        _reject_agent_token(payload, allow_agent)
         username: str = payload.get("sub")
         role: str = payload.get("role", "user")
         tenant_id: str = payload.get("tenant_id")
@@ -125,8 +150,9 @@ def verify_token(token: str) -> TokenData:
         )
 
 
-async def verify_token_async(token: str) -> TokenData:
-    """Async version of verify_token — performs DB revocation check properly."""
+async def verify_token_async(token: str, allow_agent: bool = True) -> TokenData:
+    """Async version of verify_token — performs DB revocation check properly.
+    ``allow_agent`` as in verify_token."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         # CRIT-01: reject a refresh token presented as an access token — see
@@ -137,6 +163,7 @@ async def verify_token_async(token: str) -> TokenData:
                 detail="Could not validate credentials - refresh token used as access token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        _reject_agent_token(payload, allow_agent)
         username: str = payload.get("sub")
         role: str = payload.get("role", "user")
         tenant_id: str = payload.get("tenant_id")
@@ -205,8 +232,15 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 _oauth2_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    """Dependency to get the current user; performs async revocation check."""
-    return await verify_token_async(token)
+    """Dependency to get the current user; performs async revocation check.
+    Endpoint-agent tokens are rejected — see get_current_user_or_agent."""
+    return await verify_token_async(token, allow_agent=False)
+
+
+async def get_current_user_or_agent(token: str = Depends(oauth2_scheme)):
+    """Like get_current_user, but also accepts endpoint-agent tokens
+    (role="agent", username=agent id). Only for routes the agent itself calls."""
+    return await verify_token_async(token, allow_agent=True)
 
 async def get_optional_user(token: Optional[str] = Depends(_oauth2_optional)):
     """Like get_current_user but returns None instead of raising 401 when no token is provided.
@@ -214,7 +248,7 @@ async def get_optional_user(token: Optional[str] = Depends(_oauth2_optional)):
     if not token:
         return None
     try:
-        return await verify_token_async(token)
+        return await verify_token_async(token, allow_agent=False)
     except HTTPException:
         return None
 

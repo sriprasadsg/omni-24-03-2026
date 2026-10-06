@@ -11,6 +11,7 @@ import hashlib
 import logging
 from cryptography.fernet import Fernet
 import os
+from app_env import is_production
 import base64
 
 logger = logging.getLogger(__name__)
@@ -47,9 +48,7 @@ class EmailService:
                 return f.read()
 
         # No key found — fail-closed in production; ephemeral only in development
-        _env = os.environ.get("ENVIRONMENT", "development").lower()
-        _dev_envs = {"development", "dev", "local", "test"}
-        if _env not in _dev_envs:
+        if is_production():
             raise RuntimeError(
                 "EMAIL_ENCRYPTION_KEY must be set in non-development environments. "
                 "Run: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "

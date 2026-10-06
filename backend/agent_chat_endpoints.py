@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from auth_types import TokenData
 from database import get_database
 from agent_auth import verify_agent_key
@@ -98,7 +98,7 @@ class SendMessageRequest(BaseModel):
 @router.post("/sessions")
 async def start_session(
     body: StartSessionRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user_or_agent),
 ) -> Dict[str, Any]:
     """Admin initiates a chat with an online agent/asset."""
     if not _is_admin(current_user.role or ""):
@@ -169,7 +169,7 @@ async def start_session(
 @router.get("/sessions")
 async def list_sessions(
     status: Optional[str] = Query(None),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(get_current_user_or_agent),
 ) -> List[Dict[str, Any]]:
     if not _is_admin(current_user.role or ""):
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -583,7 +583,7 @@ async def escalate_session(
 @router.patch("/sessions/{session_id}/close")
 async def close_session(
     session_id: str,
-    current_user: TokenData = Depends(get_current_user),  # required — no Optional
+    current_user: TokenData = Depends(get_current_user_or_agent),  # required — no Optional
 ) -> Dict[str, Any]:
     if not _is_admin(current_user.role or ""):
         raise HTTPException(status_code=403, detail="Admin access required")

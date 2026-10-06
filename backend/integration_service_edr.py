@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Any
 import logging
 
+from outbound_url_guard import UnsafeOutboundURL, avalidate_outbound_url, guarded_session
+
 _SSL_VERIFY = True
 _log = logging.getLogger(__name__)
 
@@ -169,12 +171,19 @@ class IntegrationServiceEdrMixin:
             }]
         }
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            # webhook_url is user-configured: validate it and pin the connection
+            # (outbound_url_guard) so a ChatOps test cannot reach internal hosts.
+            await avalidate_outbound_url(url)
+            async with guarded_session() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10),
+                                        allow_redirects=False) as resp:
                     return {"success": resp.status == 200, "platform": "slack",
                             "status_code": resp.status}
+        except UnsafeOutboundURL as exc:
+            return {"success": False, "platform": "slack", "error": str(exc)}
         except Exception as exc:
-            return {"success": False, "error": str(exc)}
+            _log.warning("slack delivery failed: %s", exc)
+            return {"success": False, "platform": "slack", "error": "Connection failed"}
 
     async def _send_to_teams(
         self, title: str, message: str, severity: str, config: Dict[str, Any]
@@ -193,12 +202,19 @@ class IntegrationServiceEdrMixin:
             }],
         }
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            # webhook_url is user-configured: validate it and pin the connection
+            # (outbound_url_guard) so a ChatOps test cannot reach internal hosts.
+            await avalidate_outbound_url(url)
+            async with guarded_session() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10),
+                                        allow_redirects=False) as resp:
                     return {"success": resp.status == 200, "platform": "teams",
                             "status_code": resp.status}
+        except UnsafeOutboundURL as exc:
+            return {"success": False, "platform": "teams", "error": str(exc)}
         except Exception as exc:
-            return {"success": False, "error": str(exc)}
+            _log.warning("teams delivery failed: %s", exc)
+            return {"success": False, "platform": "teams", "error": "Connection failed"}
 
     # ------------------------------------------------------------------
     # Identity Providers

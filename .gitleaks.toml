@@ -19,3 +19,22 @@ paths = [
     '''backend/.env.example''',
     '''CHANGELOG.md''',
 ]
+
+# Leaks the default ruleset (v8.18) missed in this repo's history.
+[[rules]]
+id = "anthropic-api-key-or-oauth-token"
+description = "Anthropic API key or Claude OAuth access/refresh token"
+regex = '''sk-ant-[a-z0-9]{2,10}-[A-Za-z0-9_\-]{40,}'''
+keywords = ["sk-ant-"]
+
+[[rules]]
+id = "claude-credentials-file"
+description = "Claude Code credentials file committed"
+path = '''(^|/)\.claude/\.credentials\.json$'''
+
+[[rules]]
+id = "omni-tenant-registration-key"
+description = "Tenant agent registration key (e.g. in a database dump)"
+regex = '''["']?registrationKey["']?\s*[:=]\s*["']([A-Za-z0-9_\-]{16,})["']'''
+secretGroup = 1
+keywords = ["registrationkey"]

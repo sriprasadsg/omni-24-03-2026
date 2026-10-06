@@ -15,7 +15,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from auth_types import TokenData
 
 
@@ -54,6 +54,9 @@ def _app(router, user):
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_current_user] = lambda: user
+    # POST /api/alerts is also called by agents, so it authenticates with
+    # get_current_user_or_agent.
+    app.dependency_overrides[get_current_user_or_agent] = lambda: user
     return app
 
 

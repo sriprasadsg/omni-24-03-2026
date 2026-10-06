@@ -1,33 +1,32 @@
-import ipaddress
 import logging
-import socket
-from urllib.parse import urlparse as _urlparse
 from fastapi import APIRouter, Depends, Query
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
+from integration_service import _keep_stored_secrets, redact_config
+from rbac_service import rbac_service
+from outbound_url_guard import UnsafeOutboundURL, validate_outbound_url
 
 logger = logging.getLogger(__name__)
 
 
 def _validate_external_url(url: str) -> bool:
     """Return True only if url resolves exclusively to public IPs. Blocks SSRF to internal targets."""
-    if not url or not url.startswith(("http://", "https://")):
-        return False
     try:
-        hostname = _urlparse(url).hostname
-        if not hostname:
-            return False
-        for info in socket.getaddrinfo(hostname, None):
-            addr = ipaddress.ip_address(info[4][0])
-            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-                return False
+        validate_outbound_url(url)
         return True
-    except Exception:
+    except UnsafeOutboundURL:
         return False
 
 logger.debug("Loading integration_endpoints...")
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
+
+# These routes shadow integration_endpoints' identical paths (registered
+# first). Stored configs hold third-party credentials and /test makes
+# outbound calls, so reading/changing them is an admin operation; /action
+# files tickets/incidents in external systems on a case's behalf.
+_require_manage_settings = rbac_service.has_permission("manage:settings")
+_require_manage_cases = rbac_service.has_permission("manage:security_cases")
 
 # Static list of supported integrations (Catalog)
 SUPPORTED_INTEGRATIONS = [
@@ -47,19 +46,19 @@ SUPPORTED_INTEGRATIONS = [
 async def list_integration_configs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_manage_settings),
 ):
-    """List all integration configurations"""
+    """List all integration configurations (secret fields are masked)"""
     db = get_database()
     configs = await db.integrations.find(
         {"tenantId": current_user.tenant_id}, {"_id": 0}
     ).skip(skip).limit(limit).to_list(length=limit)
-    return configs
+    return [redact_config(c) for c in configs]
 
 @router.post("/config")
 async def save_integration_config(
     config: dict,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(_require_manage_settings)
 ):
     """Save integration configuration"""
     db = get_database()
@@ -67,6 +66,8 @@ async def save_integration_config(
     
     # Check if config exists, update it
     existing = await db.integrations.find_one({"tenantId": current_user.tenant_id, "id": config.get("id")})
+    # A masked secret round-tripped from GET /configs keeps the stored value.
+    config = _keep_stored_secrets(config, existing or {})
     
     if existing:
         await db.integrations.update_one(
@@ -110,7 +111,7 @@ async def list_integrations(
             # Update fields from DB
             merged_integration["isEnabled"] = db_config.get("isEnabled", False)
             if "config" in db_config:
-                 merged_integration["config"] = db_config["config"]
+                 merged_integration["config"] = redact_config(db_config["config"])
     
         results.append(merged_integration)
         
@@ -118,14 +119,14 @@ async def list_integrations(
     for db_config in db_configs:
         if db_config.get("id") not in supported_ids:
             # This is a custom integration
-            results.append(db_config)
+            results.append(redact_config(db_config))
         
     return results
 
 @router.delete("/config/{integration_id}")
 async def delete_integration_config(
     integration_id: str,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(_require_manage_settings)
 ):
     """Delete an integration configuration"""
     db = get_database()
@@ -140,7 +141,7 @@ async def delete_integration_config(
 @router.post("/test")
 async def test_integration(
     request: dict,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(_require_manage_settings)
 ):
     """Test integration by sending a real test event to the configured endpoint."""
     platform = request.get("platform", "unknown")
@@ -225,7 +226,7 @@ _SEVERITY_PD = {"critical": "critical", "high": "error", "medium": "warning", "l
 @router.post("/action")
 async def dispatch_integration_action(
     request: dict,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(_require_manage_cases),
 ):
     """
     Dispatch a create_ticket or create_incident action to a configured integration.

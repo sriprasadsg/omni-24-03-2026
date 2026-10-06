@@ -5,7 +5,7 @@ import uuid
 import time
 import asyncio
 from database import get_database
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
@@ -257,7 +257,7 @@ async def get_swarm_topology(db=Depends(get_database), _current_user: TokenData 
 async def get_swarm_peers(
     agent_id: str = Query(..., description="Requesting agent's ID"),
     db=Depends(get_database),
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(get_current_user_or_agent),
 ):
     """
     Return other online agents in the same tenant so the SwarmCoordinator
@@ -297,7 +297,7 @@ async def get_swarm_peers(
 async def report_swarm_topology(
     payload: Dict[str, Any] = Body(...),
     db=Depends(get_database),
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(get_current_user_or_agent),
 ):
     """
     Agent SwarmCoordinator reports its gossip endpoint and current peer list.

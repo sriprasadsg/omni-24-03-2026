@@ -448,7 +448,10 @@ class TestSiemIntegration:
         resp = _ctx_resp(200, json_data={"text": "Success"})
         sess = _ctx_session(resp)
         svc = _SiemSvc(cfg={"enabled": True, "endpoint": "https://splunk:8088", "token": "tok"})
-        with patch("integration_service_siem.aiohttp.ClientSession", return_value=sess):
+        # The endpoint passes the SSRF guard (patched: "splunk" does not resolve
+        # here); delivery goes through the guarded session.
+        with patch("integration_service_siem.avalidate_outbound_url", new=AsyncMock(side_effect=lambda u: u)), \
+             patch("integration_service_siem.guarded_session", return_value=sess):
             result = await svc.send_to_siem("alert", "high", {"host": "srv1"}, "splunk")
         assert result["success"] is True
 
@@ -456,10 +459,12 @@ class TestSiemIntegration:
         resp = _ctx_resp(400, text_data="Bad request")
         sess = _ctx_session(resp)
         svc = _SiemSvc(cfg={"enabled": True, "endpoint": "https://splunk:8088", "token": "tok"})
-        with patch("integration_service_siem.aiohttp.ClientSession", return_value=sess):
+        with patch("integration_service_siem.avalidate_outbound_url", new=AsyncMock(side_effect=lambda u: u)), \
+             patch("integration_service_siem.guarded_session", return_value=sess):
             result = await svc.send_to_siem("alert", "high", {}, "splunk")
         assert result["success"] is False
         assert "400" in result["error"]
+        assert "details" not in result  # the remote body is never relayed
 
     async def test_test_connection_unknown_platform_returns_error(self):
         result = await _SiemSvc(cfg={"enabled": True}).test_siem_connection("arcsight", {})

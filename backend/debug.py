@@ -1,4 +1,14 @@
+"""Dump one agent, tenant and user to debug.json for troubleshooting.
+
+Usage: DEBUG_AGENT_ID=... DEBUG_TENANT_ID=... DEBUG_USER_EMAIL=... python debug.py
+
+The output holds tenant secrets (registration key, API keys), so it is
+gitignored and the user's password hash is never included. Identifiers come
+from the environment — a hardcoded registration key here was committed once.
+"""
 import json
+import os
+
 from pymongo import MongoClient
 from bson import ObjectId
 
@@ -10,9 +20,9 @@ class JSONEncoder(json.JSONEncoder):
 
 db = MongoClient('mongodb://127.0.0.1:27017')['omni_platform']
 data = {
-    'Agents': list(db.agents.find({'id': 'agent-81e24d3d'})),
-    'Tenant': list(db.tenants.find({'registrationKey': 'reg_86bac8a732a24020'})),
-    'User': list(db.users.find({'email': 'admin@acmecorp.com'}))
+    'Agents': list(db.agents.find({'id': os.environ['DEBUG_AGENT_ID']}, {'agentSecretHash': 0})),
+    'Tenant': list(db.tenants.find({'id': os.environ['DEBUG_TENANT_ID']})),
+    'User': list(db.users.find({'email': os.environ['DEBUG_USER_EMAIL']}, {'password': 0})),
 }
 
 with open('debug.json', 'w', encoding='utf-8') as f:

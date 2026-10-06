@@ -51,14 +51,15 @@ def _connect_rate_limited(ip: str) -> bool:
     return False
 
 
-def _build_socketio_cors() -> list | str:
+def _build_socketio_cors():
     """
     Build the Socket.IO CORS allowed-origins list.
 
     Priority:
       1. SOCKETIO_CORS_ORIGINS env var (comma-separated, or '*')
-      2. Development (default): '*' — avoids LAN IP detection failures
-      3. Production: localhost only (frontend is co-hosted behind a proxy)
+      2. Development (ENVIRONMENT=development): '*' — avoids LAN IP detection failures
+      3. Production (the default): the REST API's CORS allowlist (CORS_ORIGINS,
+         else localhost + this host's own IPs) plus same-host pages
     """
     env_val = os.getenv("SOCKETIO_CORS_ORIGINS", "").strip()
     if env_val:
@@ -70,16 +71,35 @@ def _build_socketio_cors() -> list | str:
             return "*"
         return [o.strip() for o in env_val.split(",") if o.strip()]
 
-    is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
-    if not is_production:
+    from app_env import is_production
+    if not is_production():
         return "*"
 
-    return [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ]
+    from app_middleware import allowed_cors_origins
+    return _listed_or_same_host(allowed_cors_origins())
+
+
+def _listed_or_same_host(allowed: list):
+    """engineio origin check: an explicitly allowed origin, or a page served
+    from the same host the request came in on. The host comparison (not
+    scheme+host) is deliberate: behind a TLS-terminating proxy that forwards
+    Host but not X-Forwarded-Proto the browser's https origin would otherwise
+    never match. Cross-site pages still fail — their host differs."""
+    from urllib.parse import urlsplit
+
+    allowed_set = set(allowed)
+
+    def check(origin, environ=None):
+        if origin in allowed_set:
+            return True
+        env = environ or {}
+        host = (env.get("HTTP_X_FORWARDED_HOST") or env.get("HTTP_HOST") or "").split(",")[0].strip().lower()
+        try:
+            return bool(host) and urlsplit(origin).netloc.lower() == host
+        except ValueError:
+            return False
+
+    return check
 
 
 # Create Socket.IO server with Redis pub/sub when REDIS_URL is set.

@@ -5,6 +5,7 @@ key generation, and access audit logging.
 
 import base64
 import os
+from app_env import is_production
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
@@ -25,8 +26,7 @@ class SecretsManagementBackendsMixin:
         key = os.getenv("SECRETS_MASTER_KEY")
         if key:
             return base64.urlsafe_b64decode(key)
-        env = os.getenv("ENVIRONMENT", "development").lower()
-        if env == "production":
+        if is_production():
             raise RuntimeError(
                 "SECRETS_MASTER_KEY is not set. "
                 "Refusing to start in production without a stable master key. "

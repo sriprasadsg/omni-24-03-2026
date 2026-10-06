@@ -22,24 +22,24 @@ from unittest.mock import patch
 # Helpers
 # ===========================================================================
 
-def _public_dns_mock(host, _port):
+def _public_dns_mock(host, _port, *_args, **_kwargs):
     """Simulate a DNS response that resolves to a public (non-private) IP."""
     return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("52.1.2.3", 0))]
 
 
-def _loopback_dns_mock(host, _port):
+def _loopback_dns_mock(host, _port, *_args, **_kwargs):
     return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", 0))]
 
 
-def _private_10_dns_mock(host, _port):
+def _private_10_dns_mock(host, _port, *_args, **_kwargs):
     return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("10.0.0.1", 0))]
 
 
-def _private_192_dns_mock(host, _port):
+def _private_192_dns_mock(host, _port, *_args, **_kwargs):
     return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("192.168.1.1", 0))]
 
 
-def _private_172_dns_mock(host, _port):
+def _private_172_dns_mock(host, _port, *_args, **_kwargs):
     return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", ("172.16.0.1", 0))]
 
 
@@ -48,11 +48,11 @@ def _private_172_dns_mock(host, _port):
 # ===========================================================================
 
 class TestValidateExternalUrl:
-    """Tests for the SSRF guard in integrations_v2."""
+    """Tests for the SSRF guard in integrations_v2 (delegates to outbound_url_guard)."""
 
     def test_blocks_localhost_by_name(self):
         from integrations_v2 import _validate_external_url
-        with patch("integrations_v2.socket.getaddrinfo", _loopback_dns_mock):
+        with patch("outbound_url_guard.socket.getaddrinfo", _loopback_dns_mock):
             assert _validate_external_url("http://localhost/evil") is False
 
     def test_blocks_loopback_ip_127_0_0_1(self):
@@ -95,38 +95,38 @@ class TestValidateExternalUrl:
     def test_blocks_hostname_that_resolves_to_loopback(self):
         """A hostname resolving to 127.0.0.1 must be rejected even if name looks public."""
         from integrations_v2 import _validate_external_url
-        with patch("integrations_v2.socket.getaddrinfo", _loopback_dns_mock):
+        with patch("outbound_url_guard.socket.getaddrinfo", _loopback_dns_mock):
             assert _validate_external_url("https://internal.example.com/hook") is False
 
     def test_blocks_hostname_resolving_to_rfc1918_10(self):
         from integrations_v2 import _validate_external_url
-        with patch("integrations_v2.socket.getaddrinfo", _private_10_dns_mock):
+        with patch("outbound_url_guard.socket.getaddrinfo", _private_10_dns_mock):
             assert _validate_external_url("https://corp.internal/api") is False
 
     def test_blocks_hostname_resolving_to_rfc1918_192_168(self):
         from integrations_v2 import _validate_external_url
-        with patch("integrations_v2.socket.getaddrinfo", _private_192_dns_mock):
+        with patch("outbound_url_guard.socket.getaddrinfo", _private_192_dns_mock):
             assert _validate_external_url("https://internal.corp.lan/api") is False
 
     def test_allows_public_https_url(self):
         """A URL that resolves to a public IP must be allowed."""
         from integrations_v2 import _validate_external_url
-        with patch("integrations_v2.socket.getaddrinfo", _public_dns_mock):
+        with patch("outbound_url_guard.socket.getaddrinfo", _public_dns_mock):
             assert _validate_external_url("https://hooks.slack.com/services/T000/B000/xxx") is True
 
     def test_allows_public_http_url(self):
         from integrations_v2 import _validate_external_url
-        with patch("integrations_v2.socket.getaddrinfo", _public_dns_mock):
+        with patch("outbound_url_guard.socket.getaddrinfo", _public_dns_mock):
             assert _validate_external_url("http://api.example.com/webhook") is True
 
     def test_blocks_dns_lookup_failure(self):
         """If DNS resolution fails entirely, the URL must be rejected (fail-closed)."""
         from integrations_v2 import _validate_external_url
 
-        def _fail_dns(host, _port):
+        def _fail_dns(host, _port, *_args, **_kwargs):
             raise socket.gaierror("Name or service not known")
 
-        with patch("integrations_v2.socket.getaddrinfo", _fail_dns):
+        with patch("outbound_url_guard.socket.getaddrinfo", _fail_dns):
             assert _validate_external_url("https://nonexistent.invalid/hook") is False
 
 

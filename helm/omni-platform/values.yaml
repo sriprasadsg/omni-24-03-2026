@@ -37,6 +37,9 @@ backend:
   env:
     PYTHONUNBUFFERED: "1"
     DATABASE_NAME: "omni_platform"
+    # Production hardening (docs/schema hidden, placeholder secrets refused,
+    # Socket.IO origins restricted). The backend also treats unset as production.
+    ENVIRONMENT: "production"
   livenessProbe:
     httpGet:
       path: /health
@@ -140,8 +143,21 @@ secrets:
   # Set these via --set or a values override file — never commit plaintext secrets
   jwtSecret: ""
   mongoPassword: ""
+  # Platform encryption keys: leave empty to generate on install; existing
+  # values in the cluster Secret are kept on upgrade. Back them up with the
+  # database — losing a key makes the data it encrypted unreadable.
   encryptionKey: ""
-  existingSecret: ""  # Use an existing Kubernetes secret instead
+  cloudCredentialsKey: ""
+  integrationEncryptionKey: ""
+  vectorDbEncryptionKey: ""
+  paymentEncryptionKey: ""
+  emailEncryptionKey: ""
+  secretsMasterKey: ""
+  # Use an existing Kubernetes secret instead. It must provide: jwt-secret,
+  # mongo-password, encryption-key, cloud-credentials-key,
+  # integration-encryption-key, vector-db-encryption-key,
+  # payment-encryption-key, email-encryption-key, secrets-master-key.
+  existingSecret: ""
 
 # ── Network Policies ──────────────────────────────────────────────────────────
 networkPolicy:

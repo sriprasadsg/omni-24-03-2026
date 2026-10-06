@@ -1,5 +1,6 @@
 import logging
 import os
+from app_env import is_production
 from cryptography.fernet import Fernet
 
 _logger = logging.getLogger(__name__)
@@ -12,8 +13,7 @@ class EncryptionService:
         key = os.getenv("PAYMENT_ENCRYPTION_KEY")
 
         if not key:
-            env = os.getenv("ENVIRONMENT", "development").lower()
-            if env == "production":
+            if is_production():
                 raise RuntimeError(
                     "PAYMENT_ENCRYPTION_KEY is not set. "
                     "Refusing to start in production without a stable encryption key. "

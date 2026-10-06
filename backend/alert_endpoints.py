@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from typing import List, Any, Optional
 from pydantic import BaseModel, Field
 from database import get_database
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from auth_types import TokenData
 from rbac_utils import require_permission
 from datetime import datetime, timezone
@@ -87,7 +87,7 @@ class AlertCreate(BaseModel):
 @router.post("")
 async def create_alert(
     alert_in: AlertCreate,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(get_current_user_or_agent),
 ):
     """Create a new alert and broadcast it to real-time subscribers."""
     if alert_in.severity not in _VALID_ALERT_SEVERITIES:

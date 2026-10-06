@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 from database import get_database, mongodb
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from datetime import datetime, timezone
 import uuid
 from agent_auth import verify_agent_key
@@ -302,7 +302,7 @@ class RaiseTicketRequest(BaseModel):
 async def raise_ticket_via_agent(
     agent_id: str,
     body: RaiseTicketRequest,
-    current_user: Any = Depends(get_current_user),
+    current_user: Any = Depends(get_current_user_or_agent),
 ):
     """
     Create a ticket immediately in the tickets collection, then optionally

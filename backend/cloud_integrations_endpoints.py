@@ -4,6 +4,7 @@ CRUD for Azure Defender, Microsoft Sentinel, GCP SCC, and GCP Chronicle integrat
 """
 
 import os
+from app_env import is_production
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import Any, Dict
 from datetime import datetime, timezone
@@ -23,9 +24,8 @@ _logger = logging.getLogger(__name__)
 
 def _get_cipher():
     key = os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
-    env = os.getenv("ENVIRONMENT", "development").lower()
     if not key:
-        if env == "production":
+        if is_production():
             raise RuntimeError(
                 "INTEGRATION_ENCRYPTION_KEY is not set. "
                 "Cloud integration secrets cannot be stored without encryption in production."
@@ -39,7 +39,7 @@ def _get_cipher():
         from cryptography.fernet import Fernet
         return Fernet(key.encode() if isinstance(key, str) else key)
     except Exception as exc:
-        if env == "production":
+        if is_production():
             raise RuntimeError(f"Invalid INTEGRATION_ENCRYPTION_KEY: {exc}") from exc
         _logger.error("Invalid INTEGRATION_ENCRYPTION_KEY: %s", exc)
         return None

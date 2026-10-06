@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from database import get_database
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents", tags=["Agent Metrics"])
@@ -36,7 +36,7 @@ class SystemMetrics(BaseModel):
 async def record_agent_metrics(
     agent_id: str,
     metrics: SystemMetrics,
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user_or_agent)
 ):
     """
     Record real-time system metrics from an agent.

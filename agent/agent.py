@@ -231,17 +231,29 @@ def get_ip_address():
 # ---------------------------------------------
 # Fix 3: Agent Registration Flow
 # ---------------------------------------------
-def register_agent(cfg) -> bool:
+def register_agent(cfg, previous_token=None) -> bool:
     """
     Exchange registration_key for a permanent agent_token + agent_id.
     Persists the result back to config.yaml so subsequent runs skip this step.
     Returns True if (already registered) or (registration succeeded).
+
+    The backend binds an enrolled hostname to a per-agent secret (returned
+    once as agentSecret and kept in config.yaml as agent_secret); re-enrolling
+    an existing hostname requires it. Agents enrolled before secrets existed
+    prove identity once with their previous token and receive a secret.
     """
     # Already registered
     if cfg.get("agent_token") and cfg.get("agent_id"):
         logger.info(f"[SUCCESS] Agent already registered - ID: {cfg['agent_id']}")
+        if not cfg.get("agent_secret"):
+            # One-time upgrade for agents enrolled before per-agent secrets.
+            _enroll(cfg, previous_token=cfg["agent_token"])
         return True
+    return _enroll(cfg, previous_token=previous_token)
 
+
+def _enroll(cfg, previous_token=None) -> bool:
+    """POST /api/agents/register and persist the returned token, id and secret."""
     base_url = cfg.get("api_base_url", "http://localhost:5000").rstrip("/")
     reg_key  = cfg.get("registration_key", "")
     hostname = socket.gethostname()
@@ -258,6 +270,8 @@ def register_agent(cfg) -> bool:
                 "platform":        platform.system(),
                 "version":         AGENT_VERSION,
                 "ipAddress":      get_ip_address(),
+                "agentSecret":    cfg.get("agent_secret"),
+                "previousToken":  previous_token,
             },
             timeout=10,
         )
@@ -270,6 +284,8 @@ def register_agent(cfg) -> bool:
             if agent_token and agent_id:
                 cfg["agent_token"] = agent_token
                 cfg["agent_id"]    = agent_id
+                if data.get("agentSecret"):
+                    cfg["agent_secret"] = data["agentSecret"]
                 save_config(cfg)
                 logger.info(f"[SUCCESS] Registration successful - Agent ID: {agent_id}")
                 return True
@@ -1451,9 +1467,10 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
                     auth_error = ""
                 if auth_error in ("Invalid Agent Token", "Agent token has been revoked", "Invalid Tenant Key"):
                     logger.warning(f"Agent token rejected ({auth_error}) — re-registering")
+                    previous_token = cfg.get("agent_token")
                     cfg["agent_token"] = None
                     save_config(cfg)
-                    register_agent(cfg)
+                    register_agent(cfg, previous_token=previous_token)
             return False
 
     except Exception as e:

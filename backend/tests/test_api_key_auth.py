@@ -152,7 +152,8 @@ async def test_dependency_jwt_path_delegates_to_verify_token():
     with patch.object(api_key_auth, "verify_token_async", AsyncMock(return_value=jwt_user)) as vta:
         user = await get_current_user_or_api_key(api_key=None, token="a.jwt.token")
     assert user is jwt_user
-    vta.assert_awaited_once_with("a.jwt.token")
+    # The user/API-key dependency never accepts endpoint-agent tokens.
+    vta.assert_awaited_once_with("a.jwt.token", allow_agent=False)
 
 
 def test_dependency_api_integration_role_is_not_super():

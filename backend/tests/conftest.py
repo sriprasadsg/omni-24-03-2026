@@ -7,6 +7,10 @@ from unittest.mock import MagicMock, AsyncMock
 # Ensure backend/ is importable regardless of which directory pytest is invoked from
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# app_env treats an unset ENVIRONMENT as production (fail closed); the suite
+# runs as "test" unless a test deliberately overrides it.
+os.environ.setdefault("ENVIRONMENT", "test")
+
 # Process-global sentinel recording whether AI_ROUTER_URL was set in the REAL
 # shell environment when pytest started. Several Phase 39 eval test modules
 # transitively import `database.py`, whose module-level `load_dotenv()` leaks

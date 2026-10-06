@@ -146,10 +146,14 @@ class TestToggleOn:
         assert set_doc["geo"]["city"] == _GEO["city"]
 
     def test_register_toggle_on_invokes_asn_and_history(self):
+        from agent_registry_endpoints import _hash_agent_secret
         tenant_doc = {"id": "t1", "registrationKey": "regkey-1", "maxAgents": 5}
-        db = _mock_reg_db(existing_agent={"id": "agent-9", "hostname": "host9", "tenantId": "t1"},
+        # Re-registering an enrolled hostname must prove it is that agent.
+        db = _mock_reg_db(existing_agent={"id": "agent-9", "hostname": "host9", "tenantId": "t1",
+                                          "agentSecretHash": _hash_agent_secret("agent-9-secret")},
                            tenant_doc=tenant_doc)
-        payload = {"registrationKey": "regkey-1", "hostname": "host9", "publicIp": "8.8.8.8"}
+        payload = {"registrationKey": "regkey-1", "hostname": "host9", "publicIp": "8.8.8.8",
+                   "agentSecret": "agent-9-secret"}
 
         with patch("agent_registry_endpoints.get_database", return_value=db), \
              patch("agent_registry_endpoints.get_track_agent_location", new_callable=AsyncMock, return_value=True), \

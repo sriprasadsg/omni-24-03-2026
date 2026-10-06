@@ -8,7 +8,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from datetime import datetime
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from database import get_database
 from rate_limiter import limiter
 
@@ -109,7 +109,7 @@ async def list_repository_files(current_user=Depends(get_current_user)):
 
 
 @router.get("/download/{filename}")
-async def download_software(filename: str, current_user=Depends(get_current_user)):
+async def download_software(filename: str, current_user=Depends(get_current_user_or_agent)):
     """Download a file from the repository."""
     safe_name = _safe_filename(filename)
     file_path = UPLOAD_DIR / safe_name

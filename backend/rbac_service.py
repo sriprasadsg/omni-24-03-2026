@@ -66,7 +66,8 @@ class RBACService:
                 "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
                 "view:chaos", "view:network", "manage:pricing", "manage:playbooks",
                 "view:software_updates", "view:sbom", "manage:sbom",
-                "view:mdr", "view:xdr"
+                "view:mdr", "view:xdr",
+                "view:active_response", "manage:active_response",
             ],
             "Tenant Admin": [
                 "manage:assets", # Added for ITAM Phase 56-01
@@ -85,7 +86,8 @@ class RBACService:
                 "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
                 "view:chaos", "view:network", "manage:pricing", "manage:playbooks",
                 "view:software_updates", "view:sbom", "manage:sbom",
-                "view:mdr", "view:xdr"
+                "view:mdr", "view:xdr",
+                "view:active_response", "manage:active_response",
             ],
             "user": [
                 "view:dashboard", "view:reporting", "view:agents", "view:agent_capabilities", "view:assets",
@@ -93,7 +95,7 @@ class RBACService:
                 "view:cloud_security", "view:finops", "view:audit_log", "view:logs",
                 "view:threat_hunting", "view:profile", "view:automation", "view:devsecops",
                 "view:developer_hub", "view:insights", "view:tracing",
-                "view:mdr", "view:xdr"
+                "view:mdr", "view:xdr",
             ],
             "viewer": [
                 "view:dashboard", "view:reporting", "view:assets", "view:compliance",

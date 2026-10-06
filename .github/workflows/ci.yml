@@ -72,6 +72,38 @@ jobs:
         ports:
           - 27017:27017
 
+  # ── Secret scan ────────────────────────────────────────────────────────────
+  # Fails the build when a push/PR introduces a credential. Only the new
+  # commits are scanned: older history already contains leaked credentials
+  # that were rotated, so a full-history scan would fail on every run.
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          V=8.18.4
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_checksums.txt"
+          grep " gitleaks_${V}_linux_x64.tar.gz\$" "gitleaks_${V}_checksums.txt" | sha256sum -c -
+          tar xzf "gitleaks_${V}_linux_x64.tar.gz" gitleaks
+
+      - name: Scan new commits
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="HEAD~1..HEAD"
+          else
+            RANGE="$BASE_SHA..HEAD"
+          fi
+          ./gitleaks detect --source . --config .gitleaks.toml --redact --no-banner --log-opts="$RANGE"
+
   # ── Frontend ───────────────────────────────────────────────────────────────
   frontend:
     name: Frontend lint, type-check & build
