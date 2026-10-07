@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -49,7 +50,7 @@ async def list_groups(current_user: TokenData = Depends(get_current_user)):
 
 
 @router.post("/", status_code=201)
-async def create_group(body: GroupCreate, current_user: TokenData = Depends(get_current_user)):
+async def create_group(body: GroupCreate, current_user: TokenData = Depends(require_permission("manage:agents"))):
     """Create a new agent group."""
     db = get_database()
     exists = await db.agent_groups.find_one(
@@ -79,7 +80,7 @@ async def create_group(body: GroupCreate, current_user: TokenData = Depends(get_
 async def update_group(
     group_id: str,
     body: GroupUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     """Update an agent group's metadata."""
     db = get_database()
@@ -103,7 +104,7 @@ async def update_group(
 
 
 @router.delete("/{group_id}", status_code=204)
-async def delete_group(group_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_group(group_id: str, current_user: TokenData = Depends(require_permission("manage:agents"))):
     """Delete a group and its memberships."""
     db = get_database()
     existing = await db.agent_groups.find_one(
@@ -149,7 +150,7 @@ async def list_members(group_id: str, current_user: TokenData = Depends(get_curr
 async def add_members(
     group_id: str,
     body: MembersUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     """Add agents to a group (idempotent)."""
     db = get_database()
@@ -181,7 +182,7 @@ async def add_members(
 async def remove_member(
     group_id: str,
     agent_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     """Remove an agent from a group."""
     db = get_database()

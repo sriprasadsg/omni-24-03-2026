@@ -150,9 +150,10 @@ async def test_login_verify_consumes_the_options_challenge(monkeypatch):
 
     user_doc = {
         "id": "user-1",
-        "username": "test@user.com",
+        "email": "test@user.com",  # real user docs have email, not username
         "role": "user",
         "tenantId": "tenant-a",
+        "status": "Active",
         "webauthn_credentials": [
             {"credential_id": "cred-1", "public_key": "0304", "sign_count": 0}
         ],
@@ -163,6 +164,7 @@ async def test_login_verify_consumes_the_options_challenge(monkeypatch):
 
     verification = MagicMock()
     verification.new_sign_count = 1
+    verification.user_verified = True  # PIN/biometric checked: counts as MFA
 
     with patch.object(database.mongodb, "db", mongo_db), \
          patch.object(svc.webauthn, "verify_authentication_response",
@@ -174,7 +176,13 @@ async def test_login_verify_consumes_the_options_challenge(monkeypatch):
 
     assert res.status_code == 200
     tokens = res.json()
-    assert tokens["access_token"] and tokens["refresh_token"]
+    assert tokens["access_token"] and "refresh_token" not in tokens
+    assert res.cookies.get("omni_refresh")  # httpOnly cookie, never in the body
+    import jwt as _jwt
+    from authentication_service import SECRET_KEY, ALGORITHM
+    claims = _jwt.decode(tokens["access_token"], SECRET_KEY, algorithms=[ALGORITHM])
+    assert claims["sub"] == "test@user.com"
+    assert claims["mfa_verified"] is True
     # challenge is one-shot: replaying the same verify fails
     with patch.object(database.mongodb, "db", mongo_db), \
          patch.object(svc.webauthn, "verify_authentication_response",

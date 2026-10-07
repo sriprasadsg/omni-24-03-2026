@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import Dict, Any
-from database import get_database
+from typing import Dict, Any, Optional
+from database import get_database, mongodb
 from authentication_service import get_current_user
+from rbac_utils import require_permission, verify_permission
 from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
 from datetime import datetime, timezone
@@ -12,24 +13,21 @@ import httpx
 from intent_parser_service import intent_parser_service
 from integration_service import get_integration_service
 from webhook_security import is_safe_webhook_url as _is_safe_webhook_url
+from tenant_context import set_tenant_id
 
 from auth_roles import SUPER_ROLES as _WEBHOOK_SUPER_ROLES
 
 router = APIRouter(prefix="/api/webhooks", tags=["Webhooks"])
 
 
-async def _verify_inbound_signature(request: Request, provider: str, db) -> bool:
-    """Validate HMAC-SHA256 signature on inbound webhook. Fail-closed when secret is configured."""
-    cfg = await db.integration_config.find_one({"type": provider}, {"_id": 0}) or {}
-    secret = cfg.get("webhook_secret") or cfg.get("webhookSecret", "")
-    if not secret:
-        import logging as _l
-        _l.getLogger(__name__).warning(
-            "No webhook_secret configured for %s inbound webhooks — accepting unauthenticated", provider
-        )
-        return True
-    body = await request.body()
-    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+async def _verify_inbound_signature(request: Request, provider: str) -> Optional[str]:
+    """Validate the HMAC-SHA256 signature on an inbound webhook (fail closed).
+
+    Inbound calls carry no tenant context, so the tenant-isolated DB can't see any
+    integration config. Check the signature against every configured secret for
+    this provider and return the tenant whose secret signed the body; None means
+    reject (no signature, no configured secret, or no match).
+    """
     sig_header = (
         request.headers.get("X-Hub-Signature-256")
         or request.headers.get("X-Hub-Signature")
@@ -37,8 +35,25 @@ async def _verify_inbound_signature(request: Request, provider: str, db) -> bool
         or ""
     )
     if not sig_header:
-        return False
-    return hmac.compare_digest(expected, sig_header)
+        return None
+    body = await request.body()
+    # Every tenant's config for this provider (raw DB: the matching secret is
+    # what identifies the tenant). Set through the admin-only integration
+    # settings, stored sealed.
+    from integration_service import unseal_config
+    cursor = mongodb.db.integration_configs.find(
+        {"platform": provider}, {"_id": 0, "tenantId": 1, "webhook_secret": 1, "webhookSecret": 1}
+    )
+    async for cfg in cursor:
+        cfg = unseal_config(cfg)
+        secret = cfg.get("webhook_secret") or cfg.get("webhookSecret") or ""
+        tenant_id = cfg.get("tenantId")
+        if not secret or not tenant_id:
+            continue
+        expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(expected, sig_header):
+            return tenant_id
+    return None
 
 @router.post("/jira/inbound")
 async def handle_jira_webhook(request: Request, payload: Dict[str, Any]):
@@ -46,9 +61,11 @@ async def handle_jira_webhook(request: Request, payload: Dict[str, Any]):
     Handle inbound Jira webhook events.
     Parses 'issue_created' or 'issue_updated' and dispatches tasks.
     """
-    db = get_database()
-    if not await _verify_inbound_signature(request, "jira", db):
+    tenant_id = await _verify_inbound_signature(request, "jira")
+    if not tenant_id:
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    set_tenant_id(tenant_id)  # run the rest as the tenant whose secret signed the event
+    db = get_database()
     integration_svc = get_integration_service(db)
     
     result = await intent_parser_service.parse_and_dispatch(payload, "jira")
@@ -56,7 +73,7 @@ async def handle_jira_webhook(request: Request, payload: Dict[str, Any]):
     if result.get("success") and result.get("task_id"):
         # Post a comment back to Jira (optional/configurable)
         ticket_id = result.get("ticket_id")
-        comment = f"Omni-Agent: Intent detected as '{result['intent']['action']}'. Automated task dispatched (ID: {result['task_id']})."
+        comment = f"Omni-Agent: Intent detected as '{result['intent']['action']}'. Proposed task {result['task_id']} is awaiting operator approval."
         await integration_svc.comment_on_ticket(ticket_id, comment, "jira")
     
     return result
@@ -66,16 +83,18 @@ async def handle_zoho_webhook(request: Request, payload: Dict[str, Any]):
     """
     Handle inbound Zoho Desk webhook events.
     """
-    db = get_database()
-    if not await _verify_inbound_signature(request, "zohodesk", db):
+    tenant_id = await _verify_inbound_signature(request, "zohodesk")
+    if not tenant_id:
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    set_tenant_id(tenant_id)  # run the rest as the tenant whose secret signed the event
+    db = get_database()
     integration_svc = get_integration_service(db)
     
     result = await intent_parser_service.parse_and_dispatch(payload, "zohodesk")
     
     if result.get("success") and result.get("task_id"):
         ticket_id = result.get("ticket_id")
-        comment = f"Omni-Agent: Automated task dispatched for '{result['intent']['action']}'."
+        comment = f"Omni-Agent: Proposed task for '{result['intent']['action']}' is awaiting operator approval."
         await integration_svc.comment_on_ticket(ticket_id, comment, "zohodesk")
         
     return result
@@ -96,6 +115,9 @@ async def create_webhook(
     current_user: TokenData = Depends(get_current_user_or_api_key)
 ):
     """Create a new webhook"""
+    # Tenant integration keys (role api-integration) are issued by tenant admins for this
+    if getattr(current_user, "role", "") != "api-integration" and not await verify_permission(current_user, "manage:settings"):
+        raise HTTPException(status_code=403, detail="Missing required permission: manage:settings")
     db = get_database()
     
     webhook_id = f"wh-{uuid.uuid4().hex[:12]}"
@@ -125,6 +147,9 @@ async def create_webhook(
 @router.delete("/{webhook_id}")
 async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user_or_api_key)):
     """Delete a webhook"""
+    # Tenant integration keys (role api-integration) are issued by tenant admins for this
+    if getattr(current_user, "role", "") != "api-integration" and not await verify_permission(current_user, "manage:settings"):
+        raise HTTPException(status_code=403, detail="Missing required permission: manage:settings")
     db = get_database()
     query: dict = {"id": webhook_id}
     if getattr(current_user, "role", "") not in _WEBHOOK_SUPER_ROLES:
@@ -138,7 +163,7 @@ async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_
 async def update_webhook(
     webhook_id: str, 
     data: Dict[str, Any], 
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:settings"))
 ):
     """Update webhook status or details"""
     db = get_database()

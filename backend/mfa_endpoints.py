@@ -5,8 +5,9 @@ MFA Endpoints — /api/mfa/*
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from typing import Optional
-from authentication_service import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from authentication_endpoints import _SENSITIVE_USER_FIELDS, _record_login_failure, _clear_login_failures
+from authentication_service import get_current_user, create_access_token, create_refresh_token, set_refresh_cookie, ACCESS_TOKEN_EXPIRE_MINUTES, account_is_active
+from authentication_service import get_current_user_mfa_pending
+from authentication_endpoints import _SENSITIVE_USER_FIELDS, _record_login_failure, _clear_login_failures, _check_login_lockout
 from database import get_database
 from rate_limiter import limiter
 from datetime import timedelta
@@ -32,6 +33,10 @@ class MFAVerifyLoginRequest(BaseModel):
     code: str = Field(..., max_length=16)
     use_backup_code: bool = False
 
+class MFAStepUpRequest(BaseModel):
+    code: str = Field(..., max_length=16)
+    use_backup_code: bool = False
+
 class MFADisableRequest(BaseModel):
     password: str = Field(..., max_length=1024)
 
@@ -41,8 +46,26 @@ class MFABackupCodesRegenerateRequest(BaseModel):
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
+def _issue_mfa_verified_session(request: Request, response: Response, user: dict) -> str:
+    """Mint an MFA-verified access token (and refresh cookie) for ``user``."""
+    email = user["email"]
+    set_refresh_cookie(response, request, create_refresh_token(data={"sub": email, "mfa_verified": True}))
+    return create_access_token(
+        data={"sub": email, "role": user.get("role", "user"), "tenant_id": user.get("tenantId") or None,
+              "mfa_verified": True},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
+
+def _refuse_unverified_reenrollment(user: dict, current_user) -> None:
+    # A session that never passed MFA (password-only LDAP/SSO sign-in) must
+    # not be able to swap the authenticator out: it has to step up first.
+    if user.get("mfa", {}).get("enabled") and not getattr(current_user, "mfa_verified", False):
+        raise HTTPException(status_code=403, detail="Confirm a code from your current authenticator before re-enrolling")
+
+
 @router.post("/setup")
-async def setup_mfa(req: Optional[MFASetupRequest] = None, current_user=Depends(get_current_user)):
+async def setup_mfa(req: Optional[MFASetupRequest] = None, current_user=Depends(get_current_user_mfa_pending)):
     """
     Generate a TOTP secret and return it alongside a QR code for enrollment.
     Does NOT enable MFA yet — call /mfa/verify-setup with the first code to activate.
@@ -58,6 +81,7 @@ async def setup_mfa(req: Optional[MFASetupRequest] = None, current_user=Depends(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    _refuse_unverified_reenrollment(user, current_user)
     if user.get("mfa", {}).get("enabled"):
         stored_hash = user.get("password") or user.get("hashed_password")
         password = req.password if req else None
@@ -90,15 +114,51 @@ async def setup_mfa(req: Optional[MFASetupRequest] = None, current_user=Depends(
 
 
 @router.post("/verify-setup")
-async def verify_mfa_setup(req: MFAVerifySetupRequest, current_user=Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def verify_mfa_setup(request: Request, response: Response, req: MFAVerifySetupRequest,
+                           current_user=Depends(get_current_user_mfa_pending)):
     """
     Confirm the first TOTP code from the authenticator app.
-    Activates MFA on the account and returns 8 one-time backup codes.
+    Activates MFA on the account and returns 8 one-time backup codes, plus an
+    MFA-verified access token: the code just proved the second factor.
     """
+    db = get_database()
+    user = await db.users.find_one({"email": current_user.username})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    _refuse_unverified_reenrollment(user, current_user)
     result = await mfa_service.enroll_mfa(current_user.username, req.totp_code, req.password)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
+    result["access_token"] = _issue_mfa_verified_session(request, response, user)
     return result
+
+
+@router.post("/step-up")
+@limiter.limit("5/minute")
+async def step_up_session(request: Request, response: Response, req: MFAStepUpRequest,
+                          current_user=Depends(get_current_user_mfa_pending)):
+    """Confirm a TOTP (or backup) code for a session that signed in without
+    one (passkey, LDAP, SSO) and get an MFA-verified access token. Uses the
+    login MFA step's single-use session and anti-replay checks."""
+    db = get_database()
+    email = current_user.username
+    await _check_login_lockout(db, email)
+    if req.use_backup_code:
+        ok = await mfa_service.use_backup_code(email, req.code)
+    else:
+        session_token = await mfa_service.create_mfa_session(email)
+        ok = (await mfa_service.verify_mfa_token(session_token, req.code))["success"]
+    if not ok:
+        await _record_login_failure(db, email)
+        # 400, not 401: the session itself is fine, and a 401 makes the
+        # client refresh and resubmit the same wrong code.
+        raise HTTPException(status_code=400, detail="Invalid or already-used code")
+    await _clear_login_failures(db, email)
+    user = await db.users.find_one({"email": email})
+    if not account_is_active(user):
+        raise HTTPException(status_code=403, detail="This account is disabled. Contact your administrator.")
+    return {"success": True, "token_type": "bearer", "access_token": _issue_mfa_verified_session(request, response, user)}
 
 
 @router.post("/verify")
@@ -145,6 +205,8 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
     user = await db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if not account_is_active(user):  # disabled between the password and MFA steps
+        raise HTTPException(status_code=403, detail="This account is disabled. Contact your administrator.")
 
     role = user.get("role", "user")
     tenant_id = user.get("tenantId") or None
@@ -158,6 +220,9 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
     )
     user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
     user_data["id"] = str(user.get("_id", ""))
+    # Refreshes keep the session MFA-verified (and MFA users no longer drop
+    # back to the login page when the first access token expires).
+    set_refresh_cookie(response, request, create_refresh_token(data={"sub": email, "mfa_verified": True}))
 
     return {
         "access_token": access_token,
@@ -189,6 +254,6 @@ async def regenerate_backup_codes(request: Request, response: Response, req: MFA
 
 
 @router.get("/status")
-async def get_mfa_status(current_user=Depends(get_current_user)):
+async def get_mfa_status(current_user=Depends(get_current_user_mfa_pending)):
     """Return MFA enrollment status for the current user."""
     return await mfa_service.get_mfa_status(current_user.username)

@@ -126,6 +126,10 @@ async def start_remote_session(request: Request, payload: dict = Body(...), curr
         # or instruction is written (T-74-01). No permission implication: a
         # control gate never checks view, and view never grants control.
         raise HTTPException(status_code=403, detail="Missing required permission: control:remote_access")
+    if session_type != "control" and not await rbac_utils.verify_permission(current_user, "view:remote_access"):
+        # Shell/desktop/vnc sessions need view:remote_access — the same permission
+        # that gates listing sessions.
+        raise HTTPException(status_code=403, detail="Missing required permission: view:remote_access")
 
     if not agent_id:
         raise HTTPException(status_code=400, detail="Agent ID is required")
@@ -266,30 +270,25 @@ async def disconnect_session(
 async def report_consent(
     session_id: str,
     payload: dict,
-    current_user=Depends(get_current_user),  # Agent auth via token or X-Tenant-Key
+    current_user=Depends(get_current_user),
 ):
-    """Agent reports consent decision (accept/decline/timeout). Writes audit."""
+    """Agent reports consent decision (accept/decline/timeout). Writes audit.
+
+    Only the endpoint agent may report its user's decision: the body must carry
+    an agent JWT from the session's tenant. A user token (including the
+    requester's own) or a tenant registration key is refused, so nobody can
+    record consent on the endpoint user's behalf.
+    """
     from authentication_service import verify_token_async
 
-    # Verify agent identity via JWT or X-Tenant-Key header
+    agent = None
     token = payload.get("token", "")
-    tenant_key = payload.get("tenant_key", "")
-
-    agent_verified = False
     if token:
         try:
-            await verify_token_async(token)
-            agent_verified = True
+            agent = await verify_token_async(token)
         except Exception:
-            pass
-
-    if not agent_verified and tenant_key:
-        db = get_database()
-        tenant = await db.tenants.find_one({"registrationKey": tenant_key})
-        if tenant:
-            agent_verified = True
-
-    if not agent_verified:
+            agent = None
+    if agent is None or getattr(agent, "role", "") != "agent":
         raise HTTPException(status_code=401, detail="Agent authentication required")
 
     decision = payload.get("decision")
@@ -306,10 +305,8 @@ async def report_consent(
 
     # Tenant scope check
     session_tenant = session.get("tenantId")
-    if session_tenant and session_tenant != "platform-admin":
-        agent_tenant = tenant.get("id") if tenant_key and (tenant := await db.tenants.find_one({"registrationKey": tenant_key})) else None
-        if agent_tenant and agent_tenant != session_tenant:
-            raise HTTPException(status_code=403, detail="Agent tenant mismatch")
+    if session_tenant and session_tenant != "platform-admin" and agent.tenant_id != session_tenant:
+        raise HTTPException(status_code=403, detail="Agent tenant mismatch")
 
     tenant_id = session_tenant
     disconnect_reason = {

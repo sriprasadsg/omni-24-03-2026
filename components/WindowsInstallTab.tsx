@@ -1,5 +1,6 @@
 import React from 'react';
 import { DownloadIcon, ChevronDownIcon } from './icons';
+import { authFetch } from '../services/apiService';
 
 interface CodeBlockProps {
     command: string;
@@ -61,27 +62,17 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
     // ── Build & Download handler ────────────────────────────────────────
     // POST /build → poll /build/{task_id} until done → download
     //
-    // WR-07 (23-REVIEW.md): unlike AgentInstallation.tsx's three download handlers
-    // (_getDownloadToken → tenant-scoped one-time token → /api/agent/download/...),
-    // this flow calls /api/agent-updates/build and /api/agent-updates/download/... with
-    // no Authorization header and no download token. This is intentional, not an
-    // oversight: /api/agent-updates/* (backend/update_endpoints.py, outside this
-    // phase's reviewed file set) currently performs NO authentication or tenant
-    // scoping on ANY request — trigger_build()/get_build_status()/download_agent_binary()
-    // accept no credentials at all, and the built OmniAgent-Setup.exe has no
-    // registration key embedded (the wizard collects it interactively, see
-    // agent/installer/OmniAgent-Setup.iss). Threading a per-tenant download token
-    // through this call would be cosmetic only, since the server has nothing to
-    // validate it against. Fixing this properly requires adding real
-    // authentication/tenant-scoping to /api/agent-updates/* itself, which is a
-    // backend change outside this review's file set — tracked as a follow-up, not
-    // silently threaded through here.
+    // The build trigger and status poll require a signed-in user (manage:agents to
+    // trigger), so they go through authFetch on the UI origin. The installer
+    // download stays public: the built OmniAgent-Setup.exe has no registration key
+    // embedded (the wizard collects it interactively, see
+    // agent/installer/OmniAgent-Setup.iss).
     const handleBuildAndDownload = async () => {
         setBuildState('building');
         setBuildError('');
         try {
             // 1. Trigger the async build (runs Spyglass evidence collection + installer build)
-            const triggerRes = await fetch(`${backendUrl}/api/agent-updates/build`, { method: 'POST' });
+            const triggerRes = await authFetch('/api/agent-updates/build', { method: 'POST' });
             if (!triggerRes.ok) {
                 const err = await triggerRes.json().catch(() => ({}));
                 setBuildError(err.detail || `HTTP ${triggerRes.status}`);
@@ -99,7 +90,7 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
                 await new Promise(r => setTimeout(r, 500));
                 attempts++;
 
-                const pollRes = await fetch(`${backendUrl}${poll_url}`);
+                const pollRes = await authFetch(poll_url);
                 const state = await pollRes.json();
 
                 if (state.status === 'done') {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Query, Body, Depends
+from fastapi import APIRouter, BackgroundTasks, Query, Body, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any
 import uuid
@@ -6,6 +6,7 @@ import time
 import asyncio
 from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
+from rbac_utils import verify_permission
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
@@ -303,6 +304,8 @@ async def report_swarm_topology(
     Agent SwarmCoordinator reports its gossip endpoint and current peer list.
     Stored on the agent document so /peers can return live addresses.
     """
+    if getattr(_current_user, "role", "") != "agent" and not await verify_permission(_current_user, "manage:agents"):
+        raise HTTPException(status_code=403, detail="Missing required permission: manage:agents")
     agent_id   = payload.get("agent_id")
     ip_address = payload.get("ip_address")
     gossip_port = payload.get("gossip_port")

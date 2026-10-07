@@ -1,6 +1,7 @@
 """Windows Autopilot REST endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Body
+from rbac_utils import require_permission
 from typing import Any, Dict, List, Optional
 import logging
 
@@ -40,7 +41,7 @@ async def list_devices(
 @router.post("/devices")
 async def register_device(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         device = await svc.register_device(_tenant(current_user), payload)
@@ -52,7 +53,7 @@ async def register_device(
 @router.post("/devices/import")
 async def import_devices_csv(
     file: UploadFile = File(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     content = await file.read()
     try:
@@ -74,7 +75,7 @@ async def get_device(device_id: str, current_user: TokenData = Depends(get_curre
 async def update_device(
     device_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         device = await svc.update_device(device_id, _tenant(current_user), payload)
@@ -86,7 +87,7 @@ async def update_device(
 
 
 @router.delete("/devices/{device_id}")
-async def delete_device(device_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_device(device_id: str, current_user: TokenData = Depends(require_permission("manage:assets"))):
     deleted = await svc.delete_device(device_id, _tenant(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -104,7 +105,7 @@ async def list_profiles(current_user: TokenData = Depends(get_current_user)):
 @router.post("/profiles")
 async def create_profile(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         payload["created_by"] = current_user.username or ""
@@ -126,7 +127,7 @@ async def get_profile(profile_id: str, current_user: TokenData = Depends(get_cur
 async def update_profile(
     profile_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         profile = await svc.update_profile(profile_id, _tenant(current_user), payload)
@@ -138,7 +139,7 @@ async def update_profile(
 
 
 @router.delete("/profiles/{profile_id}")
-async def delete_profile(profile_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_profile(profile_id: str, current_user: TokenData = Depends(require_permission("manage:assets"))):
     try:
         deleted = await svc.delete_profile(profile_id, _tenant(current_user))
         if not deleted:
@@ -152,7 +153,7 @@ async def delete_profile(profile_id: str, current_user: TokenData = Depends(get_
 async def assign_profile_to_devices(
     profile_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     device_ids: List[str] = payload.get("device_ids", [])
     if not device_ids or not isinstance(device_ids, list):
@@ -179,7 +180,7 @@ async def list_esp_events(
 async def update_esp_status(
     device_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         device = await svc.update_esp_status(

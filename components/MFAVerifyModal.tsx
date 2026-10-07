@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 
 interface MFAVerifyModalProps {
-    mfaSessionToken: string;
+    /** From /auth/login's mfa_required answer; not used with stepUp. */
+    mfaSessionToken?: string;
+    /** Confirm a code for the already signed-in session (/mfa/step-up). */
+    stepUp?: boolean;
     onSuccess: (accessToken: string, user: any) => void;
     onCancel: () => void;
 }
 
-export default function MFAVerifyModal({ mfaSessionToken, onSuccess, onCancel }: MFAVerifyModalProps) {
+export default function MFAVerifyModal({ mfaSessionToken, stepUp = false, onSuccess, onCancel }: MFAVerifyModalProps) {
     const [code, setCode] = useState('');
     const [useBackup, setUseBackup] = useState(false);
     const [error, setError] = useState('');
@@ -29,13 +32,10 @@ export default function MFAVerifyModal({ mfaSessionToken, onSuccess, onCancel }:
         if (!code) return;
         setLoading(true); setError('');
         try {
-            const r = await authFetch('/api/mfa/verify', {
+            const submitted = { code: code.replace(/\s/g, ''), use_backup_code: useBackup };
+            const r = await authFetch(stepUp ? '/api/mfa/step-up' : '/api/mfa/verify', {
                 method: 'POST',
-                body: JSON.stringify({
-                    session_token: mfaSessionToken,
-                    code: code.replace(/\s/g, ''),
-                    use_backup_code: useBackup,
-                }),
+                body: JSON.stringify(stepUp ? submitted : { session_token: mfaSessionToken, ...submitted }),
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.detail || 'Verification failed');

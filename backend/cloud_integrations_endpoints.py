@@ -4,6 +4,7 @@ CRUD for Azure Defender, Microsoft Sentinel, GCP SCC, and GCP Chronicle integrat
 """
 
 import os
+from rbac_utils import require_permission
 from app_env import is_production
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import Any, Dict
@@ -211,7 +212,7 @@ async def list_integrations(current_user: dict = Depends(get_current_user)):
 @router.post("")
 async def create_integration(
     payload: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("manage:settings")),
 ):
     provider = payload.get("provider", "")
     if provider not in SUPPORTED_PROVIDERS:
@@ -371,7 +372,7 @@ async def test_integration(
 @router.post("/discover")
 async def trigger_cloud_discovery(
     payload: Dict[str, Any] = Body(default={}),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("manage:settings")),
 ):
     """
     Run auto-discovery across all enabled integrations for the tenant.

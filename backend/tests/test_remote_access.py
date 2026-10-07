@@ -270,12 +270,28 @@ class TestControlSessionPermission:
 
     def test_desktop_never_consults_control_permission(self):
         """desktop is independent of control:remote_access — denied control still gets 200 (D-06)."""
+        async def _perm(_user, permission):
+            return permission != "control:remote_access"
         with patch("remote_endpoints.get_database", return_value=self.db):
-            with patch("rbac_utils.verify_permission", AsyncMock(return_value=False)):
+            with patch("rbac_utils.verify_permission", AsyncMock(side_effect=_perm)):
                 with TestClient(self.app) as c:
                     r = c.post("/api/remote/session/start",
                                json={"agent_id": "agent-abc", "protocol": "vnc", "type": "desktop"})
         assert r.status_code == 200
+
+    @pytest.mark.parametrize("session_type", ["shell", "desktop"])
+    def test_non_control_session_requires_view_permission(self, session_type):
+        """shell/desktop sessions need view:remote_access — 403 and no instruction without it."""
+        async def _perm(_user, permission):
+            return permission != "view:remote_access"
+        with patch("remote_endpoints.get_database", return_value=self.db):
+            with patch("rbac_utils.verify_permission", AsyncMock(side_effect=_perm)):
+                with TestClient(self.app) as c:
+                    r = c.post("/api/remote/session/start",
+                               json={"agent_id": "agent-abc", "protocol": "ssh", "type": session_type})
+        assert r.status_code == 403
+        assert r.json()["detail"] == "Missing required permission: view:remote_access"
+        assert self.db.agent_instructions.insert_one.call_count == 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -773,6 +789,22 @@ class TestConsentReporting:
                     r = c.post("/api/remote/session/s1/consent",
                                json={"decision": "accept", "token": "bad", "tenant_key": "bad"})
         assert r.status_code == 401
+
+    @pytest.mark.parametrize("token_user,status", [
+        (TokenData(username="op@tenant-1", role="Tenant Admin", tenant_id="tenant-1", mfa_verified=True), 401),
+        (TokenData(username="agent@tenant-2", role="agent", tenant_id="tenant-2", mfa_verified=True), 403),
+    ])
+    def test_consent_refuses_user_tokens_and_other_tenants_agents(self, token_user, status):
+        """Only the session tenant's agent can record consent — not the requester, not another tenant."""
+        self.db.remote_sessions.find_one = AsyncMock(return_value={
+            "session_id": "s1", "type": "control", "tenantId": "tenant-1", "agent_id": "a1"
+        })
+        with patch("remote_endpoints.get_database", return_value=self.db):
+            with patch("authentication_service.verify_token_async", AsyncMock(return_value=token_user)):
+                with TestClient(self.app) as c:
+                    r = c.post("/api/remote/session/s1/consent", json={"decision": "accept", "token": "t"})
+        assert r.status_code == status
+        self.db.remote_sessions.update_one.assert_not_called()
 
     def test_consent_accept_activates_session(self):
         self.db.remote_sessions.find_one = AsyncMock(return_value={

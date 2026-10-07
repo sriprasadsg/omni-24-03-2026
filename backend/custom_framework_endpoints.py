@@ -3,6 +3,7 @@ Custom Compliance Framework Builder Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Body
+from rbac_utils import require_permission
 from typing import Any, Dict
 import logging
 
@@ -31,7 +32,7 @@ async def list_frameworks(current_user: TokenData = Depends(get_current_user)):
 @router.post("")
 async def create_framework(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     if not payload.get("name"):
         raise HTTPException(status_code=400, detail="Framework name is required")
@@ -59,7 +60,7 @@ async def get_framework(framework_id: str, current_user: TokenData = Depends(get
 async def update_framework(
     framework_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     success = await svc.update_framework(framework_id, current_user.tenant_id or None, current_user.role or "", payload)
     if not success:
@@ -70,7 +71,7 @@ async def update_framework(
 @router.delete("/{framework_id}")
 async def delete_framework(
     framework_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     success = await svc.delete_framework(framework_id, current_user.tenant_id or None, current_user.role or "")
     if not success:
@@ -82,7 +83,7 @@ async def delete_framework(
 async def add_domain(
     framework_id: str,
     domain: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     result = await svc.add_domain(framework_id, current_user.tenant_id or None, current_user.role or "", domain)
     if result is None:
@@ -95,7 +96,7 @@ async def add_control(
     framework_id: str,
     domain_id: str,
     control: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     result = await svc.add_control(framework_id, domain_id, current_user.tenant_id or None, current_user.role or "", control)
     if result is None:
@@ -106,7 +107,7 @@ async def add_control(
 @router.post("/{framework_id}/evaluate")
 async def evaluate_framework(
     framework_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     result = await svc.evaluate_framework_compliance(framework_id, current_user.tenant_id or None, current_user.role or "")
     if not result:
@@ -117,7 +118,7 @@ async def evaluate_framework(
 @router.post("/{framework_id}/publish")
 async def publish_framework(
     framework_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     success = await svc.update_framework(framework_id, current_user.tenant_id or None, current_user.role or "", {"status": "published"})
     if not success:

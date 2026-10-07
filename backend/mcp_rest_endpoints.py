@@ -11,9 +11,13 @@ from typing import Any, Dict
 from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import set_tenant_id
+from rbac_utils import verify_permission
 import mcp_server
 
 router = APIRouter(prefix="/api/mcp", tags=["MCP"])
+
+# Tools that act rather than read, and the permission each needs.
+_TOOL_PERMISSIONS = {"run_cloud_check": "manage:compliance"}
 
 # Only tools the UI is allowed to invoke over REST. Maps tool name → coroutine.
 _ALLOWED_TOOLS = {
@@ -35,6 +39,9 @@ async def execute_mcp_tool(
     func = _ALLOWED_TOOLS.get(tool_name)
     if func is None:
         raise HTTPException(status_code=404, detail=f"Unknown or unsupported tool '{tool_name}'")
+    needed = _TOOL_PERMISSIONS.get(tool_name)
+    if needed and not await verify_permission(current_user, needed):
+        raise HTTPException(status_code=403, detail=f"Missing required permission: {needed}")
 
     # MCP tool coroutines read tenant from the context var, not an argument.
     tenant_id = getattr(current_user, "tenant_id", None)

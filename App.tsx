@@ -12,6 +12,8 @@ import { ThemeProvider } from './contexts/ThemeProvider';
 import { Header } from './components/Header';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './components/LoginPage';
+import MFASetupWizard from './components/MFASetupWizard';
+import MFAVerifyModal from './components/MFAVerifyModal';
 import { Dashboard } from './components/Dashboard';
 import { Sidebar } from './components/Sidebar';
 import { SkeletonDashboard } from './components/ui/skeleton';
@@ -395,7 +397,7 @@ const viewPermissionMap: Record<AppView, Permission> = {
   fim: 'view:security',
   runtimeSecurity: 'view:security',
   sast: 'view:security',
-  remoteAccess: 'view:agents',
+  remoteAccess: 'view:remote_access',
   agentChat: 'manage:agents',
   chat: 'manage:agents',
   aiRemediation: 'view:ai_governance',
@@ -473,6 +475,9 @@ const App: React.FC = () => {
   // Global App State
   // Global App State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Admin-tier sessions that haven't passed MFA see only the MFA screen:
+  // 'enroll' to set it up, 'verify' to confirm a code for this session.
+  const [mfaGate, setMfaGate] = useState<'enroll' | 'verify' | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
   // Ref so WebSocket handlers can read the latest view without being re-registered on every navigation
   const currentViewRef = useRef<AppView>('dashboard');
@@ -788,7 +793,11 @@ const App: React.FC = () => {
       if (data.success && data.user) {
         // Store authentication tokens
         if (data.access_token) sessionStorage.setItem('token', data.access_token);
-        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
+        if (data.user.mfa_action) {
+          api.holdForMfa();
+          setMfaGate(data.user.mfa_action);
+          return true;
+        }
 
         // Merge subscriptionTier from tenant into user object so badge can read it across all roles
         setCurrentUser({ ...data.user, subscriptionTier: data.tenant?.subscriptionTier || 'Free' });
@@ -829,7 +838,11 @@ const App: React.FC = () => {
       if (data.success && data.user) {
         // Store authentication tokens
         if (data.access_token) sessionStorage.setItem('token', data.access_token);
-        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
+        if (data.user.mfa_action) {
+          api.holdForMfa();
+          setMfaGate(data.user.mfa_action);
+          return true;
+        }
 
         // Merge subscriptionTier from tenant into user object
         setCurrentUser({ 
@@ -856,12 +869,10 @@ const App: React.FC = () => {
 
 
   const handleLogout = () => {
-    api.stopTokenRefreshCycle();
     setCurrentUser(null);
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('refresh_token');
-    // Reload to the login page — clearing React state and any cached data
-    window.location.href = '/';
+    // Revoke the session server-side (the refresh cookie is httpOnly), then
+    // reload to the login page — clearing React state and any cached data
+    api.logoutSession().finally(() => { window.location.href = '/'; });
   };
 
   const handleRegisterTenant = async (payload: NewTenantPayload): Promise<boolean> => {
@@ -915,6 +926,11 @@ const App: React.FC = () => {
   useEffect(() => {
     const restoreSession = async () => {
       const user = await api.fetchCurrentUser();
+      if (user?.mfa_action) {
+        api.holdForMfa();
+        setMfaGate(user.mfa_action);
+        return;
+      }
       if (user) {
         setCurrentUser(user);
         setViewingTenantId((user.role === 'Super Admin' || user.role === 'superadmin' || user.role === 'super_admin') ? null : user.tenantId);
@@ -936,6 +952,16 @@ const App: React.FC = () => {
       loadAllData();
     }
   }, [currentUser, loadAllData]);
+
+  // A request was refused because this session must pass MFA first
+  // (e.g. a session from before admin MFA was required): show the MFA screen.
+  useEffect(() => {
+    const onMfaRequired = () => {
+      api.fetchCurrentUser().then(u => setMfaGate(u?.mfa_action || 'verify')).catch(() => {});
+    };
+    window.addEventListener('omni:mfa-required', onMfaRequired);
+    return () => window.removeEventListener('omni:mfa-required', onMfaRequired);
+  }, []);
 
   // Health Check & Auto-Reconnect
   useEffect(() => {
@@ -1327,14 +1353,11 @@ const App: React.FC = () => {
   }, []);
 
   const logout = useCallback(() => {
-    // Must clear stored tokens — omitting these leaves the refresh token active
-    // allowing a new access token to be silently obtained after "logout".
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('refresh_token');
-    api.stopTokenRefreshCycle();
+    // Must revoke server-side — the refresh cookie would otherwise let a new
+    // access token be silently obtained after "logout".
     setCurrentUser(null);
     setViewingTenantId(null);
-    window.location.href = '/';
+    api.logoutSession().finally(() => { window.location.href = '/'; });
   }, []);
 
   const handleSetCurrentView = useCallback((view: AppView) => {
@@ -1718,6 +1741,18 @@ const App: React.FC = () => {
           <p className="mt-2 text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{error}</p>
         </div>
       </div>
+    );
+  }
+
+  if (mfaGate) {
+    return (
+      <ThemeProvider>
+        {mfaGate === 'enroll' ? (
+          <MFASetupWizard required onClose={handleLogout} onEnabled={() => window.location.reload()} />
+        ) : (
+          <MFAVerifyModal stepUp onSuccess={() => window.location.reload()} onCancel={handleLogout} />
+        )}
+      </ThemeProvider>
     );
   }
 

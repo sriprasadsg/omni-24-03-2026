@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from tenant_context import get_tenant_id
 
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
@@ -262,7 +263,7 @@ async def get_paypal_config(current_user=Depends(get_current_user)):
 @router.post("/paypal/order")
 async def create_paypal_order(
     plan: str,
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_permission("manage:settings"))
 ):
     """Create a PayPal order for a plan upgrade. Returns approval URL for redirect."""
     client_id = os.getenv("PAYPAL_CLIENT_ID", "")
@@ -318,7 +319,7 @@ async def create_paypal_order(
 @router.post("/stripe/checkout")
 async def create_stripe_checkout(
     price_id: str,
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_permission("manage:settings"))
 ):
     """Create a Stripe Checkout session for subscription upgrade."""
     from payment_gateways.stripe_gateway import stripe_gateway

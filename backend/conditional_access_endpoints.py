@@ -1,6 +1,7 @@
 """Conditional Access Policy REST endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Body
+from rbac_utils import require_permission
 from typing import Any, Dict
 import logging
 
@@ -32,7 +33,7 @@ async def list_policies(current_user: TokenData = Depends(get_current_user)):
 @router.post("/policies")
 async def create_policy(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     try:
         payload["created_by"] = current_user.username or ""
@@ -54,7 +55,7 @@ async def get_policy(policy_id: str, current_user: TokenData = Depends(get_curre
 async def update_policy(
     policy_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     try:
         policy = await svc.update_policy(policy_id, _tenant(current_user), payload)
@@ -66,7 +67,7 @@ async def update_policy(
 
 
 @router.delete("/policies/{policy_id}")
-async def delete_policy(policy_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_policy(policy_id: str, current_user: TokenData = Depends(require_permission("manage:settings"))):
     deleted = await svc.delete_policy(policy_id, _tenant(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Policy not found")
@@ -76,7 +77,7 @@ async def delete_policy(policy_id: str, current_user: TokenData = Depends(get_cu
 @router.post("/evaluate")
 async def evaluate(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Evaluate conditional access policies against a device/session context."""
     result = await svc.evaluate(_tenant(current_user), payload)

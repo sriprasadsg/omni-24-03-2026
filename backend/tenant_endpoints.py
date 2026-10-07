@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from typing import List, Any, Dict, Optional
 from pydantic import BaseModel
 from database import get_database, mongodb
-from authentication_service import get_current_user
+from authentication_service import get_current_user, revoke_user_sessions
+from rbac_utils import require_permission
 from rbac_utils import is_super_admin
 from rate_limiter import limiter
 from datetime import datetime, timezone
@@ -248,7 +249,10 @@ async def delete_tenant(tenant_id: str, current_user = Depends(get_current_user)
     
     # Delete all users associated with this tenant
     # Using raw db to be safe and explicit
+    emails = [u["email"] async for u in mongodb.db.users.find({"tenantId": tenant_id}, {"email": 1}) if u.get("email")]
     await mongodb.db.users.delete_many({"tenantId": tenant_id})
+    for email in emails:  # their tokens would otherwise outlive the tenant
+        await revoke_user_sessions(email, "tenant deleted")
     
     # Delete all agents associated with this tenant
     await mongodb.db.agents.delete_many({"tenantId": tenant_id})
@@ -292,9 +296,8 @@ class BrandingConfig(BaseModel):
 
 @router.get("/{tenant_id}/branding")
 async def get_tenant_branding(tenant_id: str, current_user=Depends(get_current_user)):
-    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
     caller_tenant = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
-    if not is_admin and caller_tenant != tenant_id:
+    if not is_super_admin(getattr(current_user, "role", "")) and caller_tenant != tenant_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"branding": 1, "_id": 0})
     if not tenant:
@@ -451,7 +454,7 @@ def _encrypt_smtp_password(plaintext: str) -> str:
 
 
 @router.post("/{tenant_id}/email/config")
-async def save_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(get_current_user)):
+async def save_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(require_permission("manage:settings"))):
     _assert_tenant_access(current_user, tenant_id)
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
@@ -470,7 +473,7 @@ async def save_email_config(tenant_id: str, data: Dict[str, Any], current_user=D
 
 
 @router.post("/{tenant_id}/email/test")
-async def test_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(get_current_user)):
+async def test_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(require_permission("manage:settings"))):
     _assert_tenant_access(current_user, tenant_id)
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
@@ -520,7 +523,7 @@ async def get_email_preferences(tenant_id: str, current_user=Depends(get_current
 
 
 @router.put("/{tenant_id}/email/preferences")
-async def save_email_preferences(tenant_id: str, data: Dict[str, Any], current_user=Depends(get_current_user)):
+async def save_email_preferences(tenant_id: str, data: Dict[str, Any], current_user=Depends(require_permission("manage:settings"))):
     _assert_tenant_access(current_user, tenant_id)
     result = await mongodb.db.tenants.update_one(
         {"id": tenant_id},

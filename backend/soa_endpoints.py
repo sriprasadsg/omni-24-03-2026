@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from soa_service import soa_service
 
@@ -38,7 +39,7 @@ async def get_soa(framework_id: str, current_user: TokenData = Depends(get_curre
 
 
 @router.post("/{framework_id}/generate")
-async def generate_soa(framework_id: str, current_user: TokenData = Depends(get_current_user)):
+async def generate_soa(framework_id: str, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     created = await soa_service.generate_soa(framework_id, _tenant(current_user))
     existing = await soa_service.get_soa(framework_id, _tenant(current_user), _role(current_user))
     return {"generated": len(created), "total": len(existing), "entries": existing}
@@ -63,7 +64,7 @@ async def export_soa_csv(framework_id: str, current_user: TokenData = Depends(ge
 async def bulk_update_soa(
     framework_id: str,
     payload: BulkUpdatePayload,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     updated = await soa_service.bulk_update(
         framework_id, payload.updates, _tenant(current_user), _role(current_user)
@@ -75,7 +76,7 @@ async def bulk_update_soa(
 async def update_soa_entry(
     entry_id: str,
     data: EntryUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     entry = await soa_service.update_entry(
         entry_id, data.model_dump(exclude_none=True), _tenant(current_user), _role(current_user)

@@ -3,11 +3,29 @@ from typing import Dict, Any
 from datetime import datetime, timezone
 import uuid
 from database import get_database
-from tasks import run_agent_task_async
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/persistence", tags=["Persistence"])
+
+
+async def _queue_agent_instruction(db, agent_ref: str, instruction: str, payload: Dict[str, Any], requested_by: str):
+    """Queue an instruction for an agent in the caller's tenant (agents poll agent_instructions)."""
+    agent = await db.agents.find_one({"$or": [{"id": agent_ref}, {"hostname": agent_ref}]}, {"id": 1})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    instruction_id = uuid.uuid4().hex
+    await db.agent_instructions.insert_one({
+        "id": instruction_id,
+        "agent_id": agent["id"],
+        "instruction": instruction,
+        "payload": payload,
+        "status": "pending",
+        "triggered_by": requested_by,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return agent["id"], instruction_id
 
 @router.get("/")
 async def list_persistence_scans(
@@ -31,7 +49,7 @@ async def list_persistence_scans(
 @router.post("/scan")
 async def trigger_persistence_scan(
     data: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """
     Trigger a persistence scan on an agent.
@@ -47,16 +65,16 @@ async def trigger_persistence_scan(
     
     db = get_database()
     
-    # 1. Dispatch task to agent
-    instruction = "Scan for Persistence"
-    task = run_agent_task_async.delay(instruction, agent_id)
+    # 1. Queue the scan for the agent (runs on the endpoint, not this server)
+    agent_id, task_id = await _queue_agent_instruction(
+        db, agent_id, "Scan for Persistence", {}, getattr(current_user, "username", "unknown"))
     
     # 2. Log scan request
     scan_record = {
         "id": uuid.uuid4().hex,
         "tenantId": tenant_id,
         "agentId": agent_id,
-        "taskId": task.id,
+        "taskId": task_id,
         "status": "Pending",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
@@ -65,7 +83,7 @@ async def trigger_persistence_scan(
     return {
         "success": True,
         "message": "Persistence scan dispatched to agent",
-        "taskId": task.id
+        "taskId": task_id
     }
 
 @router.get("/results/{agent_id}")
@@ -91,7 +109,7 @@ async def get_persistence_results(
 @router.post("/report")
 async def report_persistence_results(
     data: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """Endpoint for agents to report persistence scan results"""
     tenant_id = getattr(current_user, "tenant_id", None) or None

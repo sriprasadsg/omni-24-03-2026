@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from database import get_database
 from security_service import get_security_service
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/api/patches", tags=["Patch Management"])
 async def verify_patch_integrity(
     patch_id: str,
     data: dict,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Verify patch file integrity using checksums."""
     try:
@@ -46,7 +47,7 @@ async def verify_patch_integrity(
 async def generate_patch_checksums(
     patch_id: str,
     data: dict,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Generate checksums for a patch file."""
     try:
@@ -64,7 +65,7 @@ async def generate_patch_checksums(
 async def verify_patch_signature(
     patch_id: str,
     data: dict,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Verify digital signature of a patch."""
     try:

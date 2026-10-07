@@ -59,6 +59,10 @@ class SAMLProvisionError(Exception):
     """A validated assertion could not be provisioned into a local user."""
 
 
+class SAMLAccountDisabledError(SAMLProvisionError):
+    """The assertion is valid but the local account is disabled."""
+
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 
 def _maybe_b64_decode(value: Optional[str]) -> Optional[str]:
@@ -406,7 +410,9 @@ async def authenticate_saml(request_data: dict, tenant_id: Optional[str] = None)
     except SAMLMappingError as exc:
         raise SAMLProvisionError(str(exc))
 
-    from authentication_service import create_access_token, create_refresh_token
+    from authentication_service import create_access_token, create_refresh_token, account_is_active
+    if not account_is_active(user_doc):
+        raise SAMLAccountDisabledError("This account is disabled. Contact your administrator.")
     token_payload = {
         "sub": user_doc["email"],
         "role": user_doc.get("role", "itam_viewer"),

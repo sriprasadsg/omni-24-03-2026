@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
-from integration_service import _keep_stored_secrets, redact_config
+from integration_service import _keep_stored_secrets, redact_config, seal_config, unseal_config
 from rbac_service import rbac_service
 from outbound_url_guard import UnsafeOutboundURL, validate_outbound_url
 
@@ -67,7 +67,7 @@ async def save_integration_config(
     # Check if config exists, update it
     existing = await db.integrations.find_one({"tenantId": current_user.tenant_id, "id": config.get("id")})
     # A masked secret round-tripped from GET /configs keeps the stored value.
-    config = _keep_stored_secrets(config, existing or {})
+    config = seal_config(_keep_stored_secrets(config, existing or {}))
     
     if existing:
         await db.integrations.update_one(
@@ -148,9 +148,9 @@ async def test_integration(
     db = get_database()
 
     # Load persisted config for this integration
-    config_doc = await db.integrations.find_one(
+    config_doc = unseal_config(await db.integrations.find_one(
         {"tenantId": current_user.tenant_id, "id": platform}, {"_id": 0}
-    ) or {}
+    ) or {})
     config = config_doc.get("config", {})
 
     try:
@@ -246,9 +246,9 @@ async def dispatch_integration_action(
     case_id = request.get("case_id", "")
 
     db = get_database()
-    config_doc = await db.integrations.find_one(
+    config_doc = unseal_config(await db.integrations.find_one(
         {"tenantId": current_user.tenant_id, "id": platform}, {"_id": 0}
-    ) or {}
+    ) or {})
     config = config_doc.get("config", {})
 
     try:

@@ -2,6 +2,7 @@ from ai_service import ai_service
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone
 import uuid
@@ -15,7 +16,7 @@ class RemediationRequest(BaseModel):
 
 
 @router.post("/run")
-async def run_ai_remediation(body: RemediationRequest, current_user=Depends(get_current_user)):
+async def run_ai_remediation(body: RemediationRequest, current_user=Depends(require_permission("remediate:agents"))):
     """
     Trigger autonomous remediation for a given AI system + risk pair.
     Generates a remediation plan via the AI service and records execution steps.

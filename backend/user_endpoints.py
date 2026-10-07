@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Response
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 from database import get_database
-from authentication_service import get_current_user
+from authentication_service import get_current_user, revoke_user_sessions
 from auth_utils import hash_password as get_password_hash, validate_password_complexity
 from rbac_utils import is_super_admin
 # Deliberately excluded from the D-02 API-key swap (Phase 73): user-management
@@ -356,7 +356,12 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
                 detail=f"Password changes for {target_source.upper()}-sourced users must be made "
                         f"in the {'directory' if target_source == 'ldap' else 'identity provider'}, not via this API",
             )
-        update_data["hashed_password"] = get_password_hash(updates.password)
+        pwd_error = validate_password_complexity(updates.password)
+        if pwd_error:
+            raise HTTPException(status_code=400, detail=pwd_error)
+        # Login reads `password` before `hashed_password`, so writing only
+        # the latter left the old password working for most accounts.
+        update_data["password"] = get_password_hash(updates.password)
     if updates.status is not None:
         update_data["status"] = _normalize_status(updates.status)
     if updates.tenantId is not None:
@@ -371,7 +376,22 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
         return _to_response(target_user)
 
     update_data["updatedAt"] = datetime.datetime.now(timezone.utc).isoformat()
-    await db.users.update_one({"_id": obj_id}, {"$set": update_data})
+    update_op = {"$set": update_data}
+    if "password" in update_data:
+        update_op["$unset"] = {"hashed_password": ""}
+    await db.users.update_one({"_id": obj_id}, update_op)
+    # Existing sessions carry the old role/tenant and outlive a disable or a
+    # password reset, so end them whenever one of those changes.
+    revoke_reasons = [
+        name for name, changed in (
+            ("role", "role" in update_data and update_data["role"] != target_user.get("role")),
+            ("tenant", "tenantId" in update_data and update_data["tenantId"] != target_user.get("tenantId")),
+            ("password", "password" in update_data),
+            ("status", "status" in update_data and update_data["status"] != "Active"),
+        ) if changed
+    ]
+    if revoke_reasons and target_user.get("email"):
+        await revoke_user_sessions(target_user["email"], "user updated: " + ", ".join(revoke_reasons))
     await _audit(db, "user.updated", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     # Reload and return
@@ -408,6 +428,8 @@ async def delete_user(user_id: str, current_user: TokenData = Depends(_require_i
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
     await db.users.delete_one({"_id": obj_id})
+    if target_user.get("email"):
+        await revoke_user_sessions(target_user["email"], "user deleted")
     await _audit(db, "user.deleted", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     return {"message": "User deleted successfully"}

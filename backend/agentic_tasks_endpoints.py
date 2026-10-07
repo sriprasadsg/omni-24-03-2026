@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Body, HTTPException
 
 from agent_auth import verify_agent_key
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from database import get_database
 
 logger = logging.getLogger(__name__)
@@ -140,7 +141,7 @@ async def get_agentic_decisions(
 @router.post("/{agent_id}/agentic-tasks/trigger")
 async def trigger_agentic_task(
     agent_id: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("remediate:agents")),
 ):
     """Manually trigger an agentic decision cycle for the given agent."""
     try:

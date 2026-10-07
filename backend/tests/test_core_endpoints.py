@@ -142,7 +142,9 @@ class TestPatchEndpoints:
                 resp = client.get("/api/patches")
         assert resp.status_code == 403
 
-    def test_deploy_patches_returns_job(self):
+    def test_deploy_patches_returns_job(self, admin_user):
+        import patch_endpoints as mod
+        self.app = _app(mod.router, admin_user)  # deploying needs manage:patches
         with patch("patch_core_endpoints.get_database", return_value=self.db), \
              patch("patch_core_endpoints.asyncio.create_task"):
             with TestClient(self.app) as client:
@@ -158,6 +160,17 @@ class TestPatchEndpoints:
         assert resp.status_code == 200
         body = resp.json()
         assert "id" in body or "job_id" in body or "success" in body
+
+    def test_viewer_cannot_deploy_patches(self):
+        with patch("patch_core_endpoints.get_database", return_value=self.db), \
+             patch("patch_core_endpoints.asyncio.create_task"):
+            with TestClient(self.app) as client:
+                resp = client.post(
+                    "/api/patches/deploy",
+                    json={"patch_ids": ["p1"], "asset_ids": ["a1"],
+                          "deployment_type": "Immediate", "tenantId": "t1"},
+                )
+        assert resp.status_code == 403
 
     def test_cve_lookup_not_found_returns_404(self):
         from unittest.mock import MagicMock
@@ -300,8 +313,10 @@ class TestPatchInstructionFixes:
                     raise StopAsyncIteration
         return _AsyncIter(items)
 
-    def test_deploy_instruction_has_tenant_id_and_correct_format(self):
+    def test_deploy_instruction_has_tenant_id_and_correct_format(self, admin_user):
         """create_deployment_job must store tenantId and instruction='install_patches' in every doc."""
+        import patch_endpoints as mod
+        self.app = _app(mod.router, admin_user)  # deploying needs manage:patches
         captured: list[dict] = []
 
         async def _insert_many(docs, **kw):

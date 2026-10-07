@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import uuid
 from soar_engine import soar_engine
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from auth_roles import SUPER_ROLES as _SOAR_SUPER_ROLES
@@ -34,7 +35,7 @@ class PlaybookDef(BaseModel):
 @router.post("/playbooks")
 async def create_playbook(
     playbook: PlaybookDef,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:playbooks")),
 ):
     db = get_database()
     tenant_id = get_tenant_id()

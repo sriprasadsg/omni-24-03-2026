@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from database import get_database
 from auth_utils import hash_password, validate_password_complexity
+from authentication_service import revoke_user_sessions
 from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,9 @@ async def confirm_password_reset(request: Request, response: Response, body: Pas
     hashed = hash_password(body.new_password)
     await db._db.users.update_one(
         {"email": entry["email"]},
-        {"$set": {"password": hashed}},
+        {"$set": {"password": hashed}, "$unset": {"hashed_password": ""}},
     )
+    # A reset usually means the old password was lost or stolen: end the
+    # sessions it opened.
+    await revoke_user_sessions(entry["email"], "password reset")
     return {"success": True, "message": "Password updated successfully"}

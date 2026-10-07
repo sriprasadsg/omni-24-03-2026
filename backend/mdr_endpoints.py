@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import mdr_service as svc
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ async def list_hunts(
 @router.post("/hunts", status_code=201)
 async def create_hunt(
     body: HuntCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("investigate:security")),
 ):
     tf = _tenant_filter(current_user)
     return await svc.create_hunt(
@@ -141,7 +142,7 @@ async def create_hunt(
 async def update_hunt(
     hunt_id: str,
     body: HuntUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("investigate:security")),
 ):
     tf = _tenant_filter(current_user)
     result = await svc.update_hunt(hunt_id, body.model_dump(exclude_none=True), tf)
@@ -162,7 +163,7 @@ async def list_escalations(
 @router.post("/escalations", status_code=201)
 async def create_escalation(
     body: EscalationCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("investigate:security")),
 ):
     tf = _tenant_filter(current_user)
     return await svc.create_escalation(
@@ -176,7 +177,7 @@ async def create_escalation(
 async def update_escalation(
     esc_id: str,
     body: EscalationUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("investigate:security")),
 ):
     tf = _tenant_filter(current_user)
     result = await svc.update_escalation(esc_id, body.model_dump(), tf)

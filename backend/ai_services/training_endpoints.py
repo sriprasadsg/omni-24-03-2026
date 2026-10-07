@@ -2,6 +2,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 from .training_service import get_training_service
 from authentication_service import get_current_user
+from rbac_utils import require_super_admin
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/ai/train", tags=["AI Training"])
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/api/ai/train", tags=["AI Training"])
 @router.post("/start")
 async def start_training(
     model_name: str = "Omni-Local-V1",
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_super_admin),
 ):
     """Start QLoRA fine-tuning. Builds dataset automatically if missing."""
     service = get_training_service()
@@ -21,7 +22,7 @@ async def start_training(
 
 
 @router.post("/build-dataset")
-async def build_dataset(current_user: TokenData = Depends(get_current_user)):
+async def build_dataset(current_user: TokenData = Depends(require_super_admin)):
     """Pull data from MongoDB and write the JSONL training dataset."""
     service = get_training_service()
     result = await service.build_dataset()
@@ -45,7 +46,7 @@ async def get_model_info(current_user: TokenData = Depends(get_current_user)):
 
 
 @router.post("/activate")
-async def activate_model(current_user: TokenData = Depends(get_current_user)):
+async def activate_model(current_user: TokenData = Depends(require_super_admin)):
     """
     Set OMNI_LOCAL_ENABLED=true so the next AI call uses the fine-tuned model.
     Also re-initialises the IncidentAnalyzer provider chain.
@@ -79,7 +80,7 @@ async def activate_model(current_user: TokenData = Depends(get_current_user)):
 
 
 @router.post("/deactivate")
-async def deactivate_model(current_user: TokenData = Depends(get_current_user)):
+async def deactivate_model(current_user: TokenData = Depends(require_super_admin)):
     """
     Disable the local model so the system falls back to external LLMs.
     """

@@ -4,6 +4,7 @@ Allows creating high-level objectives, viewing decomposed task plans, and tracki
 """
 
 from __future__ import annotations
+from rbac_utils import require_permission
 
 import uuid
 from datetime import datetime, timezone
@@ -265,7 +266,7 @@ async def list_goals(status: Optional[str] = None, current_user: Dict[str, Any] 
 
 
 @router.post("")
-async def create_goal(data: GoalCreate, current_user: Dict[str, Any] = Depends(get_current_user)):
+async def create_goal(data: GoalCreate, current_user: Dict[str, Any] = Depends(require_permission("manage:automation"))):
     """Create a new goal and decompose it into tasks."""
     tasks = _decompose_goal(data.objective, data.category)
     goal_id = str(uuid.uuid4())
@@ -302,7 +303,7 @@ async def get_goal(goal_id: str, current_user: Dict[str, Any] = Depends(get_curr
 
 
 @router.post("/{goal_id}/approve")
-async def approve_goal(goal_id: str, body: GoalApprove, current_user: Dict[str, Any] = Depends(get_current_user)):
+async def approve_goal(goal_id: str, body: GoalApprove, current_user: Dict[str, Any] = Depends(require_permission("manage:automation"))):
     """Approve or reject the decomposed task plan for a goal."""
     db = get_database()
     goal = await db.agent_goals.find_one({"id": goal_id, **_tenant_filter(current_user)})
@@ -326,7 +327,7 @@ async def approve_goal(goal_id: str, body: GoalApprove, current_user: Dict[str, 
 
 
 @router.post("/{goal_id}/tasks/{task_id}/complete")
-async def complete_task(goal_id: str, task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+async def complete_task(goal_id: str, task_id: str, current_user: Dict[str, Any] = Depends(require_permission("manage:automation"))):
     """Mark a specific task within a goal as completed."""
     db = get_database()
     goal = await db.agent_goals.find_one({"id": goal_id, **_tenant_filter(current_user)})
@@ -362,7 +363,7 @@ async def complete_task(goal_id: str, task_id: str, current_user: Dict[str, Any]
 
 
 @router.delete("/{goal_id}")
-async def delete_goal(goal_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+async def delete_goal(goal_id: str, current_user: Dict[str, Any] = Depends(require_permission("manage:automation"))):
     """Delete a goal."""
     db = get_database()
     result = await db.agent_goals.delete_one({"id": goal_id, **_tenant_filter(current_user)})

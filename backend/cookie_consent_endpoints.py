@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from cookie_consent_service import cookie_consent_service
 
@@ -42,7 +43,7 @@ async def get_config(tenant_id: str, current_user: TokenData = Depends(get_curre
 
 
 @router.put("/config")
-async def update_config(payload: ConfigUpdate, current_user: TokenData = Depends(get_current_user)):
+async def update_config(payload: ConfigUpdate, current_user: TokenData = Depends(require_permission("manage:settings"))):
     return await cookie_consent_service.update_config(
         _tenant(current_user), payload.model_dump(exclude_none=True)
     )

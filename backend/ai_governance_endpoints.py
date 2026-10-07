@@ -4,6 +4,7 @@ from typing import Dict, Any
 from ai_governance_service import get_ai_governance_service
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from models import AiPolicy, AiModel
 from rate_limiter import limiter
@@ -27,7 +28,7 @@ async def list_policies(current_user: TokenData = Depends(get_current_user)):
 
 @router.post("/policies")
 @limiter.limit("10/minute")
-async def create_policy(request: Request, response: Response, policy: AiPolicy, current_user: TokenData = Depends(get_current_user)):
+async def create_policy(request: Request, response: Response, policy: AiPolicy, current_user: TokenData = Depends(require_permission("manage:ai_risks"))):
     db = get_database()
     service = get_ai_governance_service(db)
     policy.tenantId = get_tid(current_user)
@@ -39,7 +40,7 @@ async def evaluate_policy_action(
     request: Request,
     response: Response,
     body: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:ai_risks")),
 ):
     """
     Evaluate whether an action is allowed for a model under active AI governance policies.
@@ -125,7 +126,7 @@ async def evaluate_policy_action(
 
 @router.post("/evaluate/{model_id}")
 @limiter.limit("20/minute")
-async def evaluate_model(request: Request, response: Response, model_id: str, current_user: TokenData = Depends(get_current_user)):
+async def evaluate_model(request: Request, response: Response, model_id: str, current_user: TokenData = Depends(require_permission("manage:ai_risks"))):
     db = get_database()
     service = get_ai_governance_service(db)
     report = await service.evaluate_model_compliance(model_id, get_tid(current_user))
@@ -135,7 +136,7 @@ async def evaluate_model(request: Request, response: Response, model_id: str, cu
 
 @router.post("/expert-evaluate/{model_id}")
 @limiter.limit("5/minute")
-async def expert_evaluate_model(request: Request, response: Response, model_id: str, current_user: TokenData = Depends(get_current_user)):
+async def expert_evaluate_model(request: Request, response: Response, model_id: str, current_user: TokenData = Depends(require_permission("manage:ai_risks"))):
     db = get_database()
     service = get_ai_governance_service(db)
     tid = get_tid(current_user)
@@ -160,7 +161,7 @@ async def governance_dashboard(current_user: TokenData = Depends(get_current_use
 
 @router.post("/register-model")
 @limiter.limit("10/minute")
-async def register_model(request: Request, response: Response, model_data: Dict[str, Any] = Body(...), current_user: TokenData = Depends(get_current_user)):
+async def register_model(request: Request, response: Response, model_data: Dict[str, Any] = Body(...), current_user: TokenData = Depends(require_permission("manage:ai_risks"))):
     db = get_database()
     service = get_ai_governance_service(db)
     model_data["tenantId"] = get_tid(current_user)
@@ -188,7 +189,7 @@ async def receive_shadow_ai_event(
     request: Request,
     response: Response,
     event_data: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:ai_risks"))
 ):
     """Receive Shadow AI blocked events from agents"""
     import uuid

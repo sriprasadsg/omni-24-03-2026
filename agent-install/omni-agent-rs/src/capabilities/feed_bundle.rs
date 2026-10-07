@@ -63,7 +63,9 @@ pub fn update(api_base: &str, agent_token: &str) -> Result<bool, String> {
         api_base.trim_end_matches('/'),
         local_version()
     );
-    let client = reqwest::blocking::Client::new();
+    let client = crate::tls::platform_blocking_client()
+        .build()
+        .map_err(|e| format!("feed client: {e}"))?;
     let resp = client
         .get(&url)
         .bearer_auth(agent_token)

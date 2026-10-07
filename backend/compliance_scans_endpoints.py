@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ router = APIRouter()
 async def trigger_framework_scan(
     framework_id: str,
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     """
     Broadcast 'Run Compliance Scan' instruction to all online agents AND
@@ -63,7 +64,7 @@ async def trigger_framework_scan(
 
 
 @router.post("/api/agents/{agent_id}/compliance/scan")
-async def trigger_agent_scan(agent_id: str, current_user=Depends(get_current_user)):
+async def trigger_agent_scan(agent_id: str, current_user=Depends(require_permission("manage:compliance"))):
     """Send 'Run Compliance Scan' instruction to a single agent."""
     db = get_database()
     instruction = {
@@ -87,7 +88,7 @@ async def trigger_agent_scan(agent_id: str, current_user=Depends(get_current_use
 async def trigger_compliance_fix(
     agent_id: str,
     check_name: str = Form(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("remediate:agents")),
 ):
     """Send a 'Fix Compliance' instruction to a specific agent."""
     db = get_database()

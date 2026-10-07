@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authFetch } from '../services/apiService';
 import { 
     Activity, 
     Database, 
@@ -27,10 +28,11 @@ interface SystemHealth {
     };
     database: {
         connected: boolean;
-        collections: number;
-        data_size_mb: number;
-        storage_size_mb: number;
-        indexes: number;
+        // Size details are only returned to super-admins (shared database)
+        collections?: number;
+        data_size_mb?: number;
+        storage_size_mb?: number;
+        indexes?: number;
     };
     queues: {
         alert_queue: number;
@@ -59,7 +61,7 @@ export const SystemHealthDashboard: React.FC = () => {
     const fetchHealth = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/system/health');
+            const res = await authFetch('/api/system/health');
             const data = await res.json();
             setHealth(data);
         } catch (error) {
@@ -165,11 +167,11 @@ export const SystemHealthDashboard: React.FC = () => {
                         </div>
                         <div className="flex justify-between py-1">
                             <span className="text-sm text-slate-600 dark:text-slate-400">Storage Used</span>
-                            <span className="font-bold text-slate-900 dark:text-white">{health?.database.data_size_mb} MB</span>
+                            <span className="font-bold text-slate-900 dark:text-white">{health?.database.data_size_mb != null ? `${health.database.data_size_mb} MB` : '—'}</span>
                         </div>
                         <div className="flex justify-between py-1">
                             <span className="text-sm text-slate-600 dark:text-slate-400">Collections</span>
-                            <span className="font-bold text-slate-900 dark:text-white">{health?.database.collections}</span>
+                            <span className="font-bold text-slate-900 dark:text-white">{health?.database.collections ?? '—'}</span>
                         </div>
                     </div>
                 </div>

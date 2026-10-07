@@ -328,12 +328,14 @@ class TestLDAPUserSyncer:
         existing = {"_id": "abc123", "email": "jdoe@example.com", "role": "itam_viewer"}
         db.users.find_one = AsyncMock(return_value=existing)
         db.users.update_one = AsyncMock()
-        with patch("ldap_service.get_database", return_value=db):
+        with patch("ldap_service.get_database", return_value=db), \
+             patch("authentication_service.revoke_user_sessions", new_callable=AsyncMock) as revoke:
             syncer = LDAPUserSyncer(_config())
             mapped = {"ldap_dn": "cn=jdoe", "ldap_user_id": "jdoe",
                       "email": "jdoe@example.com", "full_name": "Jane Doe", "groups": []}
             doc = _run(syncer.sync_user(mapped, tenant_id="t1", role="itam_admin"))
         assert doc["role"] == "itam_admin"
+        revoke.assert_awaited_once()  # sessions minted with the old role end
 
     def test_sync_all_summarizes_results(self):
         syncer = LDAPUserSyncer(_config())

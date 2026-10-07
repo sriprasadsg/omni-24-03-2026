@@ -4,9 +4,11 @@ import { authFetch } from '../services/apiService';
 interface MFASetupWizardProps {
     onClose: () => void;
     onEnabled: () => void;
+    /** Shown at sign-in when the user's role requires MFA: closing signs out. */
+    required?: boolean;
 }
 
-export default function MFASetupWizard({ onClose, onEnabled }: MFASetupWizardProps) {
+export default function MFASetupWizard({ onClose, onEnabled, required = false }: MFASetupWizardProps) {
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [secret, setSecret] = useState('');
     const [qrBase64, setQrBase64] = useState('');
@@ -40,6 +42,8 @@ export default function MFASetupWizard({ onClose, onEnabled }: MFASetupWizardPro
             });
             const d = await r.json();
             if (!r.ok) throw new Error(d.detail || 'Verification failed');
+            // The confirmed code upgrades this session to an MFA-verified one.
+            if (d.access_token) sessionStorage.setItem('token', d.access_token);
             setBackupCodes(d.backup_codes || []);
             setStep(3);
         } catch (e: any) { setError(e.message); }
@@ -58,7 +62,11 @@ export default function MFASetupWizard({ onClose, onEnabled }: MFASetupWizardPro
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                     <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#7c3aed' }}>🔐 Set Up Two-Factor Authentication</h2>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 20 }}>✕</button>
+                    {required ? (
+                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14 }}>Sign out</button>
+                    ) : (
+                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 20 }}>✕</button>
+                    )}
                 </div>
 
                 {/* Steps indicator */}
@@ -73,6 +81,11 @@ export default function MFASetupWizard({ onClose, onEnabled }: MFASetupWizardPro
                     <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: 64, marginBottom: 16 }}>📱</div>
                         <h3 style={{ margin: '0 0 12px', color: '#e2e8f0' }}>Authenticator App Required</h3>
+                        {required && (
+                            <p style={{ color: '#fbbf24', marginBottom: 12 }}>
+                                Your role requires two-factor authentication. Set it up to continue.
+                            </p>
+                        )}
                         <p style={{ color: '#94a3b8', marginBottom: 24 }}>
                             You'll need <strong>Google Authenticator</strong>, <strong>Authy</strong>, or <strong>Microsoft Authenticator</strong> installed on your phone.
                         </p>
@@ -133,7 +146,7 @@ export default function MFASetupWizard({ onClose, onEnabled }: MFASetupWizardPro
                                 style={{ flex: 1, background: '#1e293b', color: '#a78bfa', border: '1px solid #7c3aed', borderRadius: 8, padding: 12, cursor: 'pointer', fontWeight: 600 }}>
                                 💾 Download Codes
                             </button>
-                            <button onClick={() => { onEnabled(); onClose(); }}
+                            <button onClick={() => { onEnabled(); if (!required) onClose(); }}
                                 style={{ flex: 1, background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, padding: 12, cursor: 'pointer', fontWeight: 600 }}>
                                 Done ✓
                             </button>

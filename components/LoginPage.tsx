@@ -107,6 +107,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
         if (e === 'sso_not_registered') return 'This email is not registered. Please sign up first.';
         if (e === 'sso_failed') return 'Google sign-in failed. Please try again.';
         if (e === 'invalid_state') return 'Authentication session expired. Please try again.';
+        if (e === 'account_disabled') return 'This account is disabled. Contact your administrator.';
         return '';
     });
     const [isLoading, setIsLoading] = useState(false);
@@ -177,7 +178,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
 
         } catch (err) {
             console.error('Login error:', err);
-            setError('Invalid email or password.');
+            setError(err instanceof api.LoginError ? err.message : 'Invalid email or password.');
         } finally {
             setIsLoading(false);
         }

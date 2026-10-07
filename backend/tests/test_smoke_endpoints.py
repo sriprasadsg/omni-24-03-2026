@@ -55,9 +55,9 @@ def _db(*collection_names):
 class TestSecurityCasesEndpoints:
 
     @pytest.fixture(autouse=True)
-    def setup(self, tenant_user):
+    def setup(self, admin_user):  # writes need a permission; Admin holds them
         import security_cases_endpoints as mod
-        self.app = _app(mod.router, tenant_user)
+        self.app = _app(mod.router, admin_user)
         self.db = _db(
             "security_cases", "security_events", "vulnerability_scans",
             "assets",
@@ -133,16 +133,16 @@ class TestSecurityCasesEndpoints:
 class TestSecurityScansEndpoints:
 
     @pytest.fixture(autouse=True)
-    def setup(self, tenant_user):
+    def setup(self, admin_user):  # writes need a permission; Admin holds them
         import security_scans_endpoints as mod
         import attack_path_endpoints as ap_mod
         from fastapi import FastAPI
         app = FastAPI()
         app.include_router(mod.router)
         app.include_router(ap_mod.router)
-        app.dependency_overrides[get_current_user] = lambda: tenant_user
+        app.dependency_overrides[get_current_user] = lambda: admin_user
         self.app = app
-        self._user = tenant_user
+        self._user = admin_user
         self.db = _db("vulnerability_scan_jobs", "assets", "attack_paths", "patches", "alerts",
                       "vulnerabilities", "cspm_findings")
 
@@ -191,9 +191,9 @@ class TestSecurityScansEndpoints:
 class TestSecurityOpsEndpoints:
 
     @pytest.fixture(autouse=True)
-    def setup(self, tenant_user):
+    def setup(self, admin_user):  # writes need a permission; Admin holds them
         import security_ops_endpoints as mod
-        self.app = _app(mod.router, tenant_user)
+        self.app = _app(mod.router, admin_user)
         self.db = _db("security_audit_log", "agent_versions", "agents")
 
     def test_encrypt_data_returns_ciphertext(self):
@@ -242,9 +242,9 @@ class TestSecurityOpsEndpoints:
 class TestComplianceScanEndpoints:
 
     @pytest.fixture(autouse=True)
-    def setup(self, tenant_user):
+    def setup(self, admin_user):  # writes need a permission; Admin holds them
         import compliance_scans_endpoints as mod
-        self.app = _app(mod.router, tenant_user)
+        self.app = _app(mod.router, admin_user)
         self.db = _db("agents", "agent_instructions", "assets")
 
     def test_broadcast_scan_returns_success(self):
@@ -296,13 +296,17 @@ class TestComplianceFrameworkMgmtEndpoints:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
-    def test_add_control_missing_fields_returns_400(self):
+    def test_add_control_missing_fields_returns_400(self, admin_user):
+        import compliance_framework_mgmt_endpoints as mod
+        self.app = _app(mod.router, admin_user)  # adding controls needs manage:compliance
         with patch("compliance_framework_mgmt_endpoints.get_database", return_value=self.db):
             with TestClient(self.app) as client:
                 resp = client.post("/api/compliance/iso27001/controls", json={"description": "no id or name"})
         assert resp.status_code == 400
 
-    def test_add_control_framework_not_found_returns_404(self):
+    def test_add_control_framework_not_found_returns_404(self, admin_user):
+        import compliance_framework_mgmt_endpoints as mod
+        self.app = _app(mod.router, admin_user)
         self.db.compliance_frameworks.update_one = AsyncMock(
             return_value=MagicMock(matched_count=0)
         )
@@ -313,3 +317,12 @@ class TestComplianceFrameworkMgmtEndpoints:
                     json={"id": "A.1.1", "name": "Access Control"},
                 )
         assert resp.status_code == 404
+
+    def test_viewer_cannot_add_control(self):
+        with patch("compliance_framework_mgmt_endpoints.get_database", return_value=self.db):
+            with TestClient(self.app) as client:
+                resp = client.post(
+                    "/api/compliance/iso27001/controls",
+                    json={"id": "A.1.1", "name": "Access Control"},
+                )
+        assert resp.status_code == 403

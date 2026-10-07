@@ -7,6 +7,7 @@ from typing import Dict, Any
 import uuid
 from datetime import datetime, timezone
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
 
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
 async def propagate_antibody(
     threat_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("remediate:agents")),
 ):
     """
     Digital Immune System: Dispatches a block rule (antibody) to all online agents

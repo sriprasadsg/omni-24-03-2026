@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 from feature_flags import get_enabled_features, FEATURE_TIERS, TIER_ORDER
@@ -105,7 +106,7 @@ async def list_alert_rules(
 @router.post("/alert-rules")
 async def create_alert_rule(
     rule: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     db = get_database()
     rule["id"] = rule.get("id") or str(uuid.uuid4())
@@ -120,7 +121,7 @@ async def create_alert_rule(
 async def update_alert_rule(
     rule_id: str,
     rule: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     db = get_database()
     is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
@@ -140,7 +141,7 @@ async def update_alert_rule(
 @router.delete("/alert-rules/{rule_id}")
 async def delete_alert_rule(
     rule_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     db = get_database()
     is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
@@ -175,7 +176,7 @@ async def list_data_sources(
 @router.post("/data-sources")
 async def create_data_source(
     source: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     source["id"] = source.get("id") or str(uuid.uuid4())
@@ -191,7 +192,7 @@ async def create_data_source(
 async def update_data_source(
     source_id: str,
     source: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
@@ -211,7 +212,7 @@ async def update_data_source(
 @router.delete("/data-sources/{source_id}")
 async def delete_data_source(
     source_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     is_admin = getattr(current_user, "role", "") in _PLATFORM_SUPER_ROLES
@@ -226,7 +227,7 @@ async def delete_data_source(
 @router.post("/data-sources/{source_id}/test")
 async def test_data_source(
     source_id: str,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Attempt a lightweight connectivity check against the data source."""
     db = get_database()
@@ -355,7 +356,7 @@ async def list_provisioned_services(
 @router.post("/service-catalog/provisioned")
 async def provision_service(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:automation")),
 ):
     db = get_database()
     payload.setdefault("id", str(uuid.uuid4()))

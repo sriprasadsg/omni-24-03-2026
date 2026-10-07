@@ -1,5 +1,6 @@
 """CI/CD Pipeline Security endpoints."""
 from __future__ import annotations
+from rbac_utils import require_permission
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from auth_utils import get_current_user
@@ -44,7 +45,7 @@ async def get_scan(scan_id: str, db=Depends(_db), current_user=Depends(get_curre
 
 
 @router.post("/scans")
-async def trigger_scan(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def trigger_scan(payload: dict, db=Depends(_db), current_user=Depends(require_permission("investigate:security"))):
     """Trigger a pipeline security scan for a repository."""
     tenant_id = _tenant(current_user)
     scan = {
@@ -75,7 +76,7 @@ async def list_policies(db=Depends(_db), current_user=Depends(get_current_user))
 
 
 @router.post("/policies")
-async def create_policy(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def create_policy(payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:security_cases"))):
     tenant_id = _tenant(current_user)
     payload.setdefault("id", f"policy-{int(time.time())}")
     payload.setdefault("created_at", time.time())

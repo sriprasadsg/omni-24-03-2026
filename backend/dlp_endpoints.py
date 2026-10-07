@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from database import get_database
 import dlp_service
 from typing import Optional
@@ -18,7 +19,7 @@ class ResolveRequest(BaseModel):
     scan_id: str
 
 @router.post("/scan")
-async def scan_file(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+async def scan_file(file: UploadFile = File(...), current_user=Depends(require_permission("investigate:security"))):
     if file.size and file.size > 50 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large (max 50 MB)")
     content = await file.read()

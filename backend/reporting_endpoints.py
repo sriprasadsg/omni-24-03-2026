@@ -8,19 +8,23 @@ from datetime import datetime, timezone
 
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from reporting_service import get_reporting_service
 from notification_service import get_notification_service
 from tenant_context import set_tenant_id
+from auth_roles import SUPER_ROLES
 
 router = APIRouter(tags=["Reporting & Notifications"])
 
-_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+# Cross-tenant elevation is for platform super-admins only: "admin" is a
+# tenant-scoped role that tenant admins can assign to their own users.
+_SUPER_ROLES = SUPER_ROLES
 
 
 def _elevate_if_admin(user: TokenData) -> None:
-    """Allow admins to query across all tenants by bypassing tenant isolation."""
-    if getattr(user, "role", "") in _ADMIN_ROLES:
+    """Allow super-admins to query across all tenants by bypassing tenant isolation."""
+    if getattr(user, "role", "") in _SUPER_ROLES:
         set_tenant_id("platform-admin")
 
 
@@ -31,7 +35,7 @@ def _resolve_tenant_id(user: TokenData, requested_tenant_id: str | None) -> str 
     Non-admins are always scoped to their own tenant regardless of what was requested.
     """
     caller_tenant = getattr(user, "tenant_id", None)
-    if getattr(user, "role", "") in _ADMIN_ROLES:
+    if getattr(user, "role", "") in _SUPER_ROLES:
         return requested_tenant_id
     return caller_tenant
 
@@ -125,7 +129,7 @@ async def get_executive_summary(
 @router.post("/api/reports/schedule")
 async def schedule_report(
     data: dict,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("export:reports")),
 ):
     """Schedule a recurring compliance report."""
     try:
@@ -157,9 +161,9 @@ async def get_report_schedules(
         db = get_database()
         _rep_role = getattr(current_user, "role", None)
         tenant_id = getattr(current_user, "tenant_id", None) or None
-        if not tenant_id and _rep_role not in _ADMIN_ROLES:
+        if not tenant_id and _rep_role not in _SUPER_ROLES:
             raise HTTPException(status_code=403, detail="Tenant context required")
-        _rep_query: dict = {} if _rep_role in _ADMIN_ROLES else {"tenant_id": tenant_id}
+        _rep_query: dict = {} if _rep_role in _SUPER_ROLES else {"tenant_id": tenant_id}
         schedules = await db.report_schedules.find(_rep_query).to_list(length=100)
         for s in schedules:
             s["id"] = str(s.pop("_id"))
@@ -172,7 +176,7 @@ async def get_report_schedules(
 @router.post("/api/notifications/send")
 async def send_notification(
     data: dict,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """
     Send multi-channel notification.

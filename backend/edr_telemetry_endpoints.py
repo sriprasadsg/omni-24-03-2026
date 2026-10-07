@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from response_orchestrator import ResponseOrchestrator
 from enhanced_playbook_engine import PlaybookExecutionEngine
@@ -229,7 +230,7 @@ async def get_edr_alerts(
 @router.patch("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(
     alert_id: str,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("investigate:security"))
 ):
     """Mark an EDR alert as acknowledged."""
     db = get_database()
@@ -304,7 +305,7 @@ async def get_telemetry_summary(
 @router.post("/ioc")
 async def add_ioc(
     ioc: IOCEntry,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:security_cases"))
 ):
     """Add a new Indicator of Compromise to the blocklist."""
     db = get_database()

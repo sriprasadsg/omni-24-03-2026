@@ -7,6 +7,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from binary_analysis_service import binary_analysis_service
 import asyncio
@@ -27,7 +28,7 @@ async def analyze_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     run_sandbox: bool = Query(default=False, description="Run lightweight subprocess sandbox"),
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("investigate:security"))
 ):
     """
     Submit a file for binary analysis.
@@ -341,7 +342,7 @@ async def delete_yara_rule(
 @router.post("/yara-rules/validate")
 async def validate_yara_rule(
     payload: dict = Body(...),
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     content = (payload.get("content") or "").strip()
     err = _validate_yara_syntax(content)

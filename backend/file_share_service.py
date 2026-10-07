@@ -10,6 +10,7 @@ class SharedFile(BaseModel):
     file_name: str
     file_url: str
     created_by: str
+    tenant_id: Optional[str] = None
     created_at: str
     expires_at: Optional[str]
     access_token: str
@@ -38,8 +39,9 @@ class FileShareService:
             )
         ]
 
-    def get_my_shares(self, user_email: str) -> List[SharedFile]:
-        return self.shares
+    def get_my_shares(self, user_email: str, tenant_id: Optional[str]) -> List[SharedFile]:
+        """Shares the caller created in their own tenant (tokens are bearer credentials)."""
+        return [s for s in self.shares if s.created_by == user_email and s.tenant_id == tenant_id]
 
     def create_share(self, share_data: Dict[str, Any]) -> SharedFile:
         token = secrets.token_urlsafe(16)
@@ -64,9 +66,9 @@ class FileShareService:
         self.shares.append(new_share)
         return new_share
 
-    def revoke_share(self, share_id: str) -> bool:
+    def revoke_share(self, share_id: str, user_email: str, tenant_id: Optional[str]) -> bool:
         for share in self.shares:
-            if share.id == share_id:
+            if share.id == share_id and share.created_by == user_email and share.tenant_id == tenant_id:
                 share.is_active = False
                 return True
         return False

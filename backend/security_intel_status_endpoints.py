@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from database import get_database
 from rate_limiter import limiter
 from tenant_context import set_tenant_id, get_tenant_id
@@ -177,7 +178,7 @@ async def save_intel_config(
     request: Request,
     response: Response,
     body: ConfigUpdate,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     if body.provider not in _PROVIDERS_WITH_KEYS:
         raise HTTPException(status_code=400, detail=f"'{body.provider}' does not accept API key config via this endpoint.")
@@ -210,7 +211,7 @@ async def save_intel_config(
 async def push_config_to_agents(
     request: Request,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     """
     Distribute the server-side VirusTotal API key to all registered agents.
@@ -264,7 +265,7 @@ async def test_intel_connection(
     request: Request,
     response: Response,
     provider: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     setting = await db._db.security_intel_config.find_one({"provider": provider})
@@ -351,7 +352,7 @@ async def trigger_sync(
     request: Request,
     response: Response,
     provider: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()

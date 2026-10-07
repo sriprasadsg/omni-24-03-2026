@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 from risk_service import risk_service
 from risk_fair_service import run_fair_simulation
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/risks", tags=["Risk Management"])
@@ -39,7 +40,7 @@ class FairInputs(BaseModel):
 async def run_risk_fair_simulation(
     risk_id: str,
     inputs: FairInputs,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     """Run a FAIR Monte Carlo simulation for a risk and persist the outcome."""
     role = getattr(current_user, "role", "")

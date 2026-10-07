@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -44,7 +45,7 @@ DEFAULT_MONITORED_KEYS = [
 async def capture_baseline(
     agent_id: str,
     body: BaselineCapture,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("remediate:agents")),
 ):
     """Capture a configuration baseline snapshot for an agent."""
     db = get_database()
@@ -165,7 +166,7 @@ async def agent_drift_detail(
 async def mark_remediated(
     agent_id: str,
     body: RemediateRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("remediate:agents")),
 ):
     """Mark all open drift events for an agent as remediated."""
     db = get_database()

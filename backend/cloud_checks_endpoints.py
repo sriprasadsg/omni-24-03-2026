@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from cloud_checks_service import cloud_checks_service
 
@@ -68,7 +69,7 @@ async def get_account_results(
 
 
 @router.post("/run")
-async def run_checks(payload: RunChecksPayload, current_user: TokenData = Depends(get_current_user)):
+async def run_checks(payload: RunChecksPayload, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     """Trigger check evaluation against a connected cloud account."""
     if payload.provider not in ("aws", "azure", "gcp", "kubernetes", "digitalocean", "microsoft365", "mongodb_atlas", "oci", "alibaba", "cloudflare"):
         raise HTTPException(status_code=400, detail="provider must be aws, azure, gcp, kubernetes, digitalocean, microsoft365, mongodb_atlas, oci, alibaba, or cloudflare")

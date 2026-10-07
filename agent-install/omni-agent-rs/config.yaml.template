@@ -6,3 +6,9 @@ interval_seconds: 30
 max_cpu_percent: 20
 registration_key: YOUR_REGISTRATION_KEY
 tenant_id: YOUR_TENANT_ID
+# For an https:// api_base_url the installer adds the platform's certificate,
+# and the agent then trusts that certificate and nothing else:
+# server_ca_cert: |
+#   -----BEGIN CERTIFICATE-----
+#   ...
+#   -----END CERTIFICATE-----

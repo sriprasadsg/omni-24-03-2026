@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, Header
 from pydantic import BaseModel, Field
 from typing import Optional
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 from encryption_service import get_encryption_service
@@ -34,7 +35,7 @@ class ChargeCreate(BaseModel):
 @router.post("/subscribe")
 async def create_subscription(
     subscription: SubscriptionCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Create a subscription for the tenant."""
     db = get_database()
@@ -78,7 +79,7 @@ async def create_subscription(
 @router.post("/charge")
 async def create_charge(
     charge: ChargeCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Create a one-time charge."""
     db = get_database()
@@ -149,7 +150,7 @@ async def download_invoice_pdf(
 
 
 @router.post("/cancel-subscription")
-async def cancel_subscription(current_user: TokenData = Depends(get_current_user)):
+async def cancel_subscription(current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Cancel active subscription — atomic claim prevents double-cancellation."""
     db = get_database()
     tenant_id = current_user.tenant_id
@@ -277,7 +278,7 @@ async def get_usage(
 @router.post("/generate-invoice")
 async def generate_invoice(
     billing_period: Optional[str] = None,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Generate invoice for a billing period."""
     tenant_id = current_user.tenant_id

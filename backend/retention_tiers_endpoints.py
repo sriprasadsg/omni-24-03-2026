@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone
 from typing import Optional
@@ -69,7 +70,7 @@ async def list_policies(current_user: TokenData = Depends(get_current_user)):
 @router.post("/", status_code=201)
 async def create_policy(
     body: PolicyCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Create a new retention policy."""
     if body.tier not in VALID_TIERS:
@@ -98,7 +99,7 @@ async def create_policy(
 async def update_policy(
     policy_id: str,
     body: PolicyUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Update a retention policy."""
     db = get_database()
@@ -123,7 +124,7 @@ async def update_policy(
 @router.delete("/{policy_id}", status_code=204)
 async def delete_policy(
     policy_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Delete a retention policy (blocked if legal hold is active)."""
     db = get_database()
@@ -143,7 +144,7 @@ async def delete_policy(
 @router.post("/{policy_id}/legal-hold")
 async def toggle_legal_hold(
     policy_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Toggle legal hold on a retention policy."""
     db = get_database()

@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import ot_ics_service as ot
 
 router = APIRouter(prefix="/api/ot-ics", tags=["OT/ICS Security"])
@@ -21,7 +22,7 @@ async def reference(current_user=Depends(get_current_user)):
 
 
 @router.post("/assess")
-async def assess(body: dict[str, Any], current_user=Depends(get_current_user)):
+async def assess(body: dict[str, Any], current_user=Depends(require_permission("investigate:security"))):
     """Assess an OT asset descriptor into IEC 62443 / NIST CSF findings.
 
     Body: {

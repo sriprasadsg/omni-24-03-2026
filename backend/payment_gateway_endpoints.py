@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Optional
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 from payment_gateway_service import PaymentGatewayFactory, PaymentGatewayType
@@ -44,7 +45,7 @@ async def get_tenant_gateway(db, tenant_id: str):
 @router.post("/setup")
 async def setup_payment_gateway(
     setup: PaymentGatewaySetup,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Configure payment gateway for tenant."""
     db = get_database()
@@ -106,7 +107,7 @@ async def get_configured_gateways(current_user: TokenData = Depends(get_current_
 @router.post("/gateways/{gateway_type}/activate")
 async def activate_gateway(
     gateway_type: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Set a specific gateway as the active one."""
     db = get_database()
@@ -124,7 +125,7 @@ async def activate_gateway(
 @router.delete("/gateways/{gateway_type}")
 async def delete_gateway(
     gateway_type: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Remove a payment gateway configuration."""
     db = get_database()
@@ -154,7 +155,7 @@ async def get_payment_methods(current_user: TokenData = Depends(get_current_user
 @router.post("/methods")
 async def add_payment_method(
     method: PaymentMethodCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Add a payment method."""
     db = get_database()
@@ -180,7 +181,7 @@ async def add_payment_method(
 @router.delete("/methods/{method_id}")
 async def delete_payment_method(
     method_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Delete a payment method."""
     db = get_database()

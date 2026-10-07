@@ -1,5 +1,6 @@
 """Privileged Access Management (PAM) endpoints."""
 from __future__ import annotations
+from rbac_utils import require_permission
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from auth_utils import get_current_user
@@ -34,7 +35,7 @@ async def list_privileged_accounts(db=Depends(_db), current_user=Depends(get_cur
 
 
 @router.post("/accounts")
-async def create_account(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def create_account(payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:settings"))):
     payload.setdefault("id", f"pam-{int(time.time())}")
     payload.setdefault("created_at", time.time())
     payload.setdefault("created_by", current_user.get("sub"))
@@ -60,7 +61,7 @@ async def list_sessions(db=Depends(_db), current_user=Depends(get_current_user))
 
 
 @router.post("/sessions")
-async def start_session(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def start_session(payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:settings"))):
     tenant_id = _tenant(current_user)
     # Verify the requested account belongs to this tenant
     acct_filter: dict = {"id": payload.get("account_id")}
@@ -94,7 +95,7 @@ async def start_session(payload: dict, db=Depends(_db), current_user=Depends(get
 
 
 @router.post("/sessions/{session_id}/end")
-async def end_session(session_id: str, db=Depends(_db), current_user=Depends(get_current_user)):
+async def end_session(session_id: str, db=Depends(_db), current_user=Depends(require_permission("manage:settings"))):
     tenant_id = _tenant(current_user)
     sess_filter: dict = {"id": session_id}
     if tenant_id and _role(current_user) not in _PAM_SUPER_ROLES:
@@ -125,7 +126,7 @@ async def list_vault_entries(db=Depends(_db), current_user=Depends(get_current_u
 
 
 @router.post("/vault/{entry_id}/rotate")
-async def rotate_credential(entry_id: str, db=Depends(_db), current_user=Depends(get_current_user)):
+async def rotate_credential(entry_id: str, db=Depends(_db), current_user=Depends(require_permission("manage:settings"))):
     tenant_id = _tenant(current_user)
     entry_filter: dict = {"id": entry_id}
     if tenant_id and _role(current_user) not in _PAM_SUPER_ROLES:

@@ -258,7 +258,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 { view: 'firmwareDriverUpdates', label: 'Firmware & Drivers', icon: <ZapIcon size={20} />, permission: 'view:firmware_drivers' },
                 { view: 'serviceCatalog', label: 'Service Catalog (IDP)', icon: <PuzzleIcon size={20} />, permission: 'view:service_catalog' },
                 { view: 'jobs', label: 'Jobs', icon: <ClipboardListIcon size={20} />, permission: 'view:jobs' },
-                { view: 'remoteAccess', label: 'Remote Access', icon: <ActivityIcon size={20} />, permission: 'view:agents' },
+                { view: 'remoteAccess', label: 'Remote Access', icon: <ActivityIcon size={20} />, permission: 'view:remote_access' },
                 { view: 'chat', label: 'Chat', icon: <MessageSquareQuoteIcon size={20} />, permission: 'manage:agents' },
                 { view: 'certificates', label: 'Certificates / TLS', icon: <ShieldCheckIcon size={20} />, permission: 'view:assets' },
             ]

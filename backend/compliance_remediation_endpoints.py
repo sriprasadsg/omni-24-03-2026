@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from database import get_database
 import compliance_remediation_service as svc
 import ticketing_bridge
@@ -77,7 +78,7 @@ class CreateTicketRequest(BaseModel):
 @router.post("/tasks", status_code=201)
 async def create_task(
     body: TaskCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("manage:compliance")),
 ):
     """REM-01: Create a new compliance remediation task (tenant-scoped)."""
     tf = _tenant_filter(current_user)
@@ -100,7 +101,7 @@ async def list_tasks(
 async def update_task(
     task_id: str,
     body: TaskUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("manage:compliance")),
 ):
     """REM-03: Update task status/fields; dispatches rescan when status becomes 'resolved'."""
     tf = _tenant_filter(current_user)
@@ -133,7 +134,7 @@ async def update_task(
 @router.post("/tasks/{task_id}/suggest")
 async def suggest_remediation(
     task_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("manage:compliance")),
 ):
     """REM-01 AI assist: Generate AI-suggested remediation steps for a task."""
     tf = _tenant_filter(current_user)
@@ -180,7 +181,7 @@ async def suggest_remediation(
 async def create_ticket(
     task_id: str,
     body: CreateTicketRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("manage:compliance")),
 ):
     """REM-01: Manually create a Jira/ServiceNow ticket for a remediation task
     (tenant-scoped). ticket_provider/ticket_ref/ticket_url are written by the

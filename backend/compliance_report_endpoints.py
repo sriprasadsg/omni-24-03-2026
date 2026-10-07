@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import FileResponse
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from compliance_reporting_service import compliance_reporting_service
 from database import get_database
@@ -29,7 +30,7 @@ def _ensure_reports_dir():
 @router.post("/generate")
 async def generate_csv_report(
     framework_id: str = Form(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("export:reports")),
 ):
     """Generate a CSV compliance report for the given framework."""
     _ensure_reports_dir()
@@ -47,7 +48,7 @@ async def generate_csv_report(
 @router.post("/generate/excel")
 async def generate_excel_report(
     framework_id: str = Form(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("export:reports")),
 ):
     """Generate an Excel compliance report for the given framework."""
     _ensure_reports_dir()
@@ -65,7 +66,7 @@ async def generate_excel_report(
 @router.post("/generate/pdf")
 async def generate_pdf_report(
     framework_id: str = Form(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("export:reports")),
 ):
     """Generate a PDF compliance report for the given framework."""
     _ensure_reports_dir()
@@ -84,7 +85,7 @@ async def generate_pdf_report(
 
 @router.post("/generate/all/csv")
 async def generate_all_csv_report(
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("export:reports")),
 ):
     """Generate a combined CSV report covering all compliance frameworks."""
     _ensure_reports_dir()
@@ -101,7 +102,7 @@ async def generate_all_csv_report(
 
 @router.post("/generate/all/excel")
 async def generate_all_excel_report(
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("export:reports")),
 ):
     """Generate a combined Excel report covering all compliance frameworks."""
     _ensure_reports_dir()

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from rbac_utils import require_permission
 from typing import Optional
 from pydantic import BaseModel, Field
 from auth_utils import require_auth
@@ -30,7 +31,7 @@ async def list_clusters(user=Depends(require_auth), svc: K8sSecurityService = De
     return {"clusters": clusters}
 
 
-@router.post("/clusters")
+@router.post("/clusters", dependencies=[Depends(require_permission("manage:settings"))])
 async def register_cluster(body: ClusterRegistration, user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     cluster = await svc.register_cluster(tenant_id, body.model_dump())
@@ -38,7 +39,7 @@ async def register_cluster(body: ClusterRegistration, user=Depends(require_auth)
     return cluster
 
 
-@router.post("/clusters/{cluster_id}/scan")
+@router.post("/clusters/{cluster_id}/scan", dependencies=[Depends(require_permission("investigate:security"))])
 async def scan_cluster(cluster_id: str, user=Depends(require_auth), svc: K8sSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     result = await svc.scan_cluster(cluster_id, tenant_id)

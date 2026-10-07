@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from database import get_database
 from authentication_service import get_current_user
+from auth_roles import SUPER_ROLES
 from evidence_staleness import get_staleness_threshold
 import logging
 
@@ -24,7 +25,8 @@ _SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"
 # Kept in sync with compliance_evidence_endpoints._SUPER_ROLES (WR-02): both
 # files must treat the same set of roles as super/admin so a caller isn't
 # granted a tenant bypass in one endpoint file but denied in the other.
-_SUPER_ROLES = {"Super Admin", "superadmin", "super_admin", "admin", "platform-admin"}
+# "admin" is a tenant-scoped role, so it never bypasses tenant isolation.
+_SUPER_ROLES = SUPER_ROLES
 
 
 def _require_admin(user) -> None:

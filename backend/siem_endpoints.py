@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ingest_service import ingest_service
 from tenant_context import get_tenant_id
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 from datetime import datetime, timezone, timedelta
@@ -12,9 +13,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/siem", tags=["SIEM"])
+router = APIRouter(prefix="/api/siem", tags=["SIEM"], dependencies=[Depends(get_current_user)])
 
-@router.post("/ingest")
+@router.post("/ingest", dependencies=[Depends(require_permission("manage:settings"))])
 async def ingest_log(source: str, payload: Dict[str, Any], tenant_id: str = Depends(get_tenant_id)):
     """
     Ingests a raw log from a security source and normalizes it to OCSF.
@@ -68,7 +69,7 @@ _SIEM_CONFIG_FIELDS = {
 async def upsert_siem_config(
     provider: str,
     data: Dict[str, Any],
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """
@@ -100,7 +101,7 @@ async def upsert_siem_config(
 @router.delete("/configs/{provider}")
 async def delete_siem_config(
     provider: str,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:settings")),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Remove a SIEM integration config."""
@@ -641,7 +642,7 @@ async def list_siem_rules(
 @router.post("/rules")
 async def create_siem_rule(
     data: Dict[str, Any],
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Create a new SIEM correlation rule."""
     try:
@@ -671,7 +672,7 @@ async def create_siem_rule(
 async def update_siem_rule(
     rule_id: str,
     data: Dict[str, Any],
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Update an existing SIEM correlation rule."""
     try:
@@ -696,7 +697,7 @@ async def update_siem_rule(
 @router.patch("/rules/{rule_id}/toggle")
 async def toggle_siem_rule(
     rule_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Toggle a SIEM correlation rule's enabled state."""
     try:
@@ -720,7 +721,7 @@ async def toggle_siem_rule(
 @router.delete("/rules/{rule_id}")
 async def delete_siem_rule(
     rule_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Delete a SIEM correlation rule."""
     try:

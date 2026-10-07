@@ -3,6 +3,7 @@ GDPR / CCPA Privacy Module Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from rbac_utils import require_permission
 from typing import Any, Dict, Optional
 import logging
 
@@ -57,7 +58,7 @@ async def list_dsrs(
 @router.post("/dsr")
 async def create_dsr(
     payload: Dict[str, Any] = Body(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     if not payload.get("subject_email") and not payload.get("subject_identifier"):
         raise HTTPException(status_code=400, detail="Subject email or identifier is required")
@@ -74,7 +75,7 @@ async def create_dsr(
 async def update_dsr_status(
     dsr_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     new_status = payload.get("status", "")
     if new_status not in svc.DSR_STATUSES:
@@ -98,7 +99,7 @@ async def update_dsr_status(
 @router.post("/consent")
 async def record_consent(
     payload: Dict[str, Any] = Body(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     consent = await svc.record_consent(_tid(current_user), payload)
     consent.pop("_id", None)
@@ -106,7 +107,7 @@ async def record_consent(
 
 
 @router.delete("/consent/{consent_id}")
-async def withdraw_consent(consent_id: str, current_user=Depends(get_current_user)):
+async def withdraw_consent(consent_id: str, current_user=Depends(require_permission("manage:compliance"))):
     success = await svc.withdraw_consent(consent_id, _tid(current_user), _role(current_user))
     if not success:
         raise HTTPException(status_code=404, detail="Consent record not found")
@@ -124,7 +125,7 @@ async def list_processing_activities(current_user=Depends(get_current_user)):
 @router.post("/processing-activities")
 async def create_processing_activity(
     payload: Dict[str, Any] = Body(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     if not payload.get("name"):
         raise HTTPException(status_code=400, detail="Activity name is required")
@@ -151,7 +152,7 @@ async def list_breaches(current_user=Depends(get_current_user)):
 @router.post("/breaches")
 async def report_breach(
     payload: Dict[str, Any] = Body(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     if not payload.get("description"):
         raise HTTPException(status_code=400, detail="Breach description is required")
@@ -169,7 +170,7 @@ async def report_breach(
 
 
 @router.post("/tia")
-async def create_tia(payload: dict = Body(...), current_user=Depends(get_current_user)):
+async def create_tia(payload: dict = Body(...), current_user=Depends(require_permission("manage:compliance"))):
     db = get_database()
     try:
         tia = await svc.create_tia(db, _tid(current_user), payload)
@@ -189,7 +190,7 @@ async def list_tia(current_user=Depends(get_current_user)):
 
 
 @router.post("/lia")
-async def create_lia(payload: dict = Body(...), current_user=Depends(get_current_user)):
+async def create_lia(payload: dict = Body(...), current_user=Depends(require_permission("manage:compliance"))):
     if not payload.get("purpose"):
         raise HTTPException(status_code=400, detail="LIA purpose is required")
     db = get_database()
@@ -208,7 +209,7 @@ async def list_lia(current_user=Depends(get_current_user)):
 
 
 @router.post("/notices")
-async def create_notice(payload: dict = Body(...), current_user=Depends(get_current_user)):
+async def create_notice(payload: dict = Body(...), current_user=Depends(require_permission("manage:compliance"))):
     if not payload.get("title"):
         raise HTTPException(status_code=400, detail="Notice title is required")
     db = get_database()
@@ -234,7 +235,7 @@ async def get_notice_versions(notice_id: str, current_user=Depends(get_current_u
 
 
 @router.post("/contracts")
-async def create_contract(payload: dict = Body(...), current_user=Depends(get_current_user)):
+async def create_contract(payload: dict = Body(...), current_user=Depends(require_permission("manage:compliance"))):
     db = get_database()
     try:
         contract = await svc.create_contract(db, _tid(current_user), payload)

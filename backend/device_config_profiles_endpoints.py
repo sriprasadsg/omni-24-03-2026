@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict, Optional
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import device_config_profiles_service as svc
 
 router = APIRouter(prefix="/api/device-config-profiles", tags=["Device Config Profiles"])
@@ -28,7 +29,7 @@ async def list_profiles(
 
 
 @router.post("")
-async def create_profile(body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def create_profile(body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.create_profile(tenant_id, body)
@@ -46,7 +47,7 @@ async def get_profile(profile_id: str, current_user=Depends(get_current_user)) -
 
 
 @router.put("/{profile_id}")
-async def update_profile(profile_id: str, body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def update_profile(profile_id: str, body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.update_profile(tenant_id, profile_id, body)
@@ -55,14 +56,14 @@ async def update_profile(profile_id: str, body: Dict[str, Any], current_user=Dep
 
 
 @router.delete("/{profile_id}")
-async def delete_profile(profile_id: str, current_user=Depends(get_current_user)) -> Any:
+async def delete_profile(profile_id: str, current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     await svc.delete_profile(tenant_id, profile_id)
     return {"deleted": profile_id}
 
 
 @router.post("/{profile_id}/assign")
-async def assign_profile(profile_id: str, body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def assign_profile(profile_id: str, body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.assign_profile(tenant_id, profile_id, body)

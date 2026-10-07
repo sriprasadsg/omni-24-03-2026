@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from audit_program_service import audit_program_service
 
@@ -71,7 +72,7 @@ async def list_programs(current_user: TokenData = Depends(get_current_user)):
 
 
 @router.post("")
-async def create_program(payload: ProgramCreate, current_user: TokenData = Depends(get_current_user)):
+async def create_program(payload: ProgramCreate, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     created_by = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
     return await audit_program_service.create_program(
         payload.model_dump(exclude_none=True), _tenant(current_user), created_by
@@ -87,7 +88,7 @@ async def get_program(program_id: str, current_user: TokenData = Depends(get_cur
 
 
 @router.put("/{program_id}")
-async def update_program(program_id: str, payload: ProgramUpdate, current_user: TokenData = Depends(get_current_user)):
+async def update_program(program_id: str, payload: ProgramUpdate, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     p = await audit_program_service.update_program(
         program_id, payload.model_dump(exclude_none=True), _tenant(current_user), _role(current_user)
     )
@@ -97,7 +98,7 @@ async def update_program(program_id: str, payload: ProgramUpdate, current_user: 
 
 
 @router.put("/{program_id}/status")
-async def transition_status(program_id: str, payload: StatusTransition, current_user: TokenData = Depends(get_current_user)):
+async def transition_status(program_id: str, payload: StatusTransition, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     try:
         p = await audit_program_service.transition_status(
             program_id, payload.status, _tenant(current_user), _role(current_user)
@@ -110,7 +111,7 @@ async def transition_status(program_id: str, payload: StatusTransition, current_
 
 
 @router.post("/{program_id}/findings")
-async def add_finding(program_id: str, payload: FindingCreate, current_user: TokenData = Depends(get_current_user)):
+async def add_finding(program_id: str, payload: FindingCreate, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     p = await audit_program_service.add_finding(
         program_id, payload.model_dump(exclude_none=True), _tenant(current_user), _role(current_user)
     )
@@ -124,7 +125,7 @@ async def update_finding(
     program_id: str,
     finding_id: str,
     payload: FindingUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     p = await audit_program_service.update_finding(
         program_id, finding_id, payload.model_dump(exclude_none=True), _tenant(current_user), _role(current_user)
@@ -140,7 +141,7 @@ async def get_report(program_id: str, current_user: TokenData = Depends(get_curr
 
 
 @router.delete("/{program_id}")
-async def delete_program(program_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_program(program_id: str, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     deleted = await audit_program_service.delete_program(program_id, _tenant(current_user), _role(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Audit program not found")

@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Any
 from data_lake_service import data_lake_service
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 import uuid
 
@@ -16,7 +17,7 @@ async def ingest_data(
     category: str = "general",
     zone: str = "raw",
     background_tasks: BackgroundTasks = None,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Ingest data into the Data Lake."""
     file_id = str(uuid.uuid4())

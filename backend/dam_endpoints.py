@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from rbac_utils import require_permission
 from typing import Optional
 from pydantic import BaseModel, Field
 from auth_utils import require_auth
@@ -47,7 +48,7 @@ async def get_alerts(severity: str = Query(None), limit: int = Query(50),
     return {"alerts": alerts}
 
 
-@router.post("/queries")
+@router.post("/queries", dependencies=[Depends(require_permission("investigate:security"))])
 async def log_query(body: DAMQueryLog, user=Depends(require_auth), svc: DAMService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     doc = await svc.log_query(tenant_id, body.model_dump(exclude_none=True))
@@ -61,14 +62,14 @@ async def get_summary(user=Depends(require_auth), svc: DAMService = Depends(get_
     return await svc.get_summary(tenant_id)
 
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(require_permission("manage:settings"))])
 async def seed_demo(user=Depends(require_auth), svc: DAMService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     await svc.seed_demo_data(tenant_id)
     return {"message": "Demo DAM data seeded"}
 
 
-@router.put("/alerts/{alert_id}")
+@router.put("/alerts/{alert_id}", dependencies=[Depends(require_permission("investigate:security"))])
 async def update_alert(alert_id: str, body: DAMAlertUpdate, user=Depends(require_auth), svc: DAMService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     result = await svc.col_alerts.update_one(

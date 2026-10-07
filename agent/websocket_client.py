@@ -36,7 +36,10 @@ class AgentWebSocketClient:
         
         while True:
             try:
-                async with websockets.connect(ws_url) as websocket:
+                from tls_pinning import ssl_context_for
+                ssl_ctx = ssl_context_for(ws_url)
+                connect_kwargs = {"ssl": ssl_ctx} if ssl_ctx else {}
+                async with websockets.connect(ws_url, **connect_kwargs) as websocket:
                     self.websocket = websocket
                     self.is_connected = True
                     logger.info(f"[WebSocket] Connected to {ws_url}")

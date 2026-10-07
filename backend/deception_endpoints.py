@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 import logging
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from rate_limiter import limiter
 import deception_service as svc
@@ -33,7 +34,7 @@ async def list_honeytokens(current_user: TokenData = Depends(get_current_user)):
 @router.post("/honeytokens")
 async def create_honeytoken(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     token_type = payload.get("type", "api_key")
     if token_type not in svc.HONEYTOKEN_TYPES:
@@ -51,7 +52,7 @@ async def create_honeytoken(
 
 
 @router.delete("/honeytokens/{token_id}")
-async def delete_honeytoken(token_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_honeytoken(token_id: str, current_user: TokenData = Depends(require_permission("manage:security_cases"))):
     success = await svc.delete_honeytoken(token_id, current_user.tenant_id or "", current_user.role or "")
     if not success:
         raise HTTPException(status_code=404, detail="Honeytoken not found")
@@ -59,7 +60,7 @@ async def delete_honeytoken(token_id: str, current_user: TokenData = Depends(get
 
 
 @router.post("/honeytokens/{token_id}/deactivate")
-async def deactivate_honeytoken(token_id: str, current_user: TokenData = Depends(get_current_user)):
+async def deactivate_honeytoken(token_id: str, current_user: TokenData = Depends(require_permission("manage:security_cases"))):
     success = await svc.deactivate_honeytoken(token_id, current_user.tenant_id or "", current_user.role or "")
     if not success:
         raise HTTPException(status_code=404, detail="Honeytoken not found")

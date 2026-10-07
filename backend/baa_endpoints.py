@@ -1,5 +1,6 @@
 """Business Associate Agreement (BAA) management endpoints (HIPAA §164.308(b))."""
 from __future__ import annotations
+from rbac_utils import require_permission
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from auth_utils import get_current_user
@@ -92,7 +93,7 @@ async def get_baa(baa_id: str, db=Depends(_db), current_user=Depends(get_current
 
 
 @router.post("")
-async def create_baa(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def create_baa(payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:compliance"))):
     tenant_id = _tenant(current_user)
     baa = {
         "id": f"baa-{int(time.time())}",
@@ -119,7 +120,7 @@ async def create_baa(payload: dict, db=Depends(_db), current_user=Depends(get_cu
 
 
 @router.patch("/{baa_id}")
-async def update_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def update_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:compliance"))):
     payload.pop("id", None)
     payload.pop("_id", None)
     payload["updated_by"] = _sub(current_user)
@@ -135,7 +136,7 @@ async def update_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=D
 
 
 @router.post("/{baa_id}/sign")
-async def sign_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def sign_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:compliance"))):
     tenant_id = _tenant(current_user)
     baa_filter: dict = {"id": baa_id}
     if _role(current_user) not in _BAA_SUPER_ROLES:
@@ -155,7 +156,7 @@ async def sign_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Dep
 
 
 @router.post("/{baa_id}/terminate")
-async def terminate_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def terminate_baa(baa_id: str, payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:compliance"))):
     tenant_id = _tenant(current_user)
     baa_filter: dict = {"id": baa_id}
     if _role(current_user) not in _BAA_SUPER_ROLES:

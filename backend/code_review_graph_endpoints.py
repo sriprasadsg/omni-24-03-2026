@@ -15,6 +15,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_super_admin
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ async def get_graph_stats(
 
 
 @router.post("/graph/build")
-async def build_graph(req: BuildRequest, current_user=Depends(get_current_user)):
+async def build_graph(req: BuildRequest, current_user=Depends(require_super_admin)):
     """Build or incrementally update the code review graph for a repository."""
     try:
         from code_review_graph.tools import build_or_update_graph
@@ -72,7 +73,7 @@ async def build_graph(req: BuildRequest, current_user=Depends(get_current_user))
 
 
 @router.post("/graph/analyze")
-async def analyze_changes(req: AnalyzeRequest, current_user=Depends(get_current_user)):
+async def analyze_changes(req: AnalyzeRequest, current_user=Depends(require_super_admin)):
     """Risk-score the impact of changed files using the code review graph."""
     try:
         from code_review_graph.tools import detect_changes_func

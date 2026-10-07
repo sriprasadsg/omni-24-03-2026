@@ -3,6 +3,7 @@ from typing import Optional
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from datetime import datetime, timezone
 import uuid
@@ -38,7 +39,7 @@ async def get_logs(current_user: TokenData = Depends(get_current_user)):
     return logs
 
 @router.post("")
-async def ingest_log(log: LogEntry, background_tasks: BackgroundTasks, current_user: TokenData = Depends(get_current_user)):
+async def ingest_log(log: LogEntry, background_tasks: BackgroundTasks, current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Ingest a new log entry"""
     db = get_database()
     

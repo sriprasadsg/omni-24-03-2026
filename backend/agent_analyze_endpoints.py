@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 
@@ -33,7 +34,7 @@ def _scoped_filter(current_user: TokenData, entity_id: str) -> dict:
 @router.post("/analyze")
 async def analyze_incident(
     body: AnalyzeRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     if body.type not in ("alert", "case"):
         raise HTTPException(status_code=422, detail="type must be 'alert' or 'case'")

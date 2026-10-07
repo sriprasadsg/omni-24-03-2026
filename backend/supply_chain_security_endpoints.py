@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from rbac_utils import require_permission
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from auth_utils import require_auth
@@ -83,7 +84,7 @@ async def get_summary(user=Depends(require_auth), svc: SupplyChainSecurityServic
 
 # ── Artifact registration + scanning ─────────────────────────────────────────
 
-@router.post("/artifacts")
+@router.post("/artifacts", dependencies=[Depends(require_permission("manage:sbom"))])
 async def register_artifact(body: ArtifactCreate, user=Depends(require_auth),
                             svc: SupplyChainSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
@@ -94,7 +95,7 @@ async def register_artifact(body: ArtifactCreate, user=Depends(require_auth),
     return artifact
 
 
-@router.post("/artifacts/{artifact_id}/scan")
+@router.post("/artifacts/{artifact_id}/scan", dependencies=[Depends(require_permission("manage:sbom"))])
 async def scan_artifact_deps(artifact_id: str, body: ScanRequest, user=Depends(require_auth),
                              svc: SupplyChainSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
@@ -105,7 +106,7 @@ async def scan_artifact_deps(artifact_id: str, body: ScanRequest, user=Depends(r
 
 # ── Provenance ────────────────────────────────────────────────────────────────
 
-@router.post("/artifacts/{artifact_id}/provenance")
+@router.post("/artifacts/{artifact_id}/provenance", dependencies=[Depends(require_permission("manage:sbom"))])
 async def generate_provenance(artifact_id: str, body: BuildInfo, user=Depends(require_auth),
                               svc: SupplyChainSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
@@ -125,7 +126,7 @@ async def get_provenance(artifact_id: str, user=Depends(require_auth),
 
 # ── SLSA assessment + policy ──────────────────────────────────────────────────
 
-@router.post("/slsa/assess")
+@router.post("/slsa/assess", dependencies=[Depends(require_permission("manage:sbom"))])
 async def assess_slsa(body: BuildInfo, user=Depends(require_auth)):
     return SupplyChainSecurityService.assess_slsa_level(body.model_dump())
 
@@ -145,7 +146,7 @@ async def get_slsa_policy(user=Depends(require_auth), svc: SupplyChainSecuritySe
     return await svc.get_slsa_policy(tenant_id)
 
 
-@router.put("/slsa/policy")
+@router.put("/slsa/policy", dependencies=[Depends(require_permission("manage:sbom"))])
 async def set_slsa_policy(body: PolicyUpdate, user=Depends(require_auth),
                           svc: SupplyChainSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
@@ -154,7 +155,7 @@ async def set_slsa_policy(body: PolicyUpdate, user=Depends(require_auth),
 
 # ── Demo seed ─────────────────────────────────────────────────────────────────
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(require_permission("manage:settings"))])
 async def seed(user=Depends(require_auth), svc: SupplyChainSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     await svc.seed_demo(tenant_id)

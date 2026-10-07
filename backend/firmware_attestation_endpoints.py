@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import firmware_attestation_service as fa
 
 router = APIRouter(prefix="/api/firmware-attestation", tags=["Firmware Attestation"])
@@ -21,7 +22,7 @@ async def checks(current_user=Depends(get_current_user)):
 
 
 @router.post("/assess")
-async def assess(body: dict[str, Any], current_user=Depends(get_current_user)):
+async def assess(body: dict[str, Any], current_user=Depends(require_permission("investigate:security"))):
     """Assess a firmware/hardware descriptor against the attestation checks.
 
     Body: {"descriptor": {"secure_boot": true, "tpm_present": true,

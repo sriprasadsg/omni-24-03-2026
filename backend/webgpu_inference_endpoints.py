@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from webgpu_inference.webgpu_model_loader import webgpu_model_loader, ModelSpec, CompilationResult
 from webgpu_inference.webgpu_runtime import webgpu_runtime, InferenceRequest
 from webgpu_inference.performance_monitor import performance_monitor, InferenceMetrics, GPUMetrics
@@ -46,7 +47,7 @@ class GPUMetricsRecord(BaseModel):
 @router.post("/models/compile")
 async def compile_model(
     request: CompileModelRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     """Compile an ONNX model for WebGPU execution."""
     result = webgpu_model_loader.compile_model(request.onnx_path, request.name)
@@ -81,7 +82,7 @@ async def get_webgpu_model(
 @router.delete("/models/{model_id}")
 async def unload_webgpu_model(
     model_id: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     """Unload a WebGPU model from memory."""
     success = webgpu_model_loader.unload_model(model_id)
@@ -94,7 +95,7 @@ async def unload_webgpu_model(
 @router.post("/inference")
 async def run_inference(
     request: InferenceRequestModel,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     """Run WebGPU accelerated inference."""
     model_spec = webgpu_model_loader.get_model(request.model_id)
@@ -147,7 +148,7 @@ async def run_inference(
 @router.post("/metrics/gpu")
 async def record_gpu_metrics(
     metrics: GPUMetricsRecord,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:settings")),
 ):
     """Record GPU device metrics."""
     performance_monitor.record_gpu_metrics(GPUMetrics(**metrics.dict()))

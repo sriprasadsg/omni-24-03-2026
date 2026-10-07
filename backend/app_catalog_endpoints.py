@@ -1,6 +1,7 @@
 """Third-Party Application Catalog REST endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from rbac_utils import require_permission
 from typing import Any, Dict, Optional
 import logging
 
@@ -44,7 +45,7 @@ async def list_apps(
 @router.post("/apps")
 async def add_custom_app(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         payload["created_by"] = current_user.username or ""
@@ -55,7 +56,7 @@ async def add_custom_app(
 
 
 @router.delete("/apps/{app_id}")
-async def delete_custom_app(app_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_custom_app(app_id: str, current_user: TokenData = Depends(require_permission("manage:assets"))):
     deleted = await svc.delete_custom_app(app_id, _tenant(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="App not found or is a built-in app")

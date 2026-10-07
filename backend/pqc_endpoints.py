@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from pqc_service import pqc_engine
 
 router = APIRouter(prefix="/api/pqc", tags=["PQC"])
@@ -46,7 +47,7 @@ async def pqc_status(current_user=Depends(get_current_user)):
 
 
 @router.post("/keypair")
-async def generate_keypair(current_user=Depends(get_current_user)):
+async def generate_keypair(current_user=Depends(require_permission("manage:settings"))):
     public_key, private_key = pqc_engine.generate_hybrid_keypair()
     return {
         "public_key": public_key,
@@ -56,13 +57,13 @@ async def generate_keypair(current_user=Depends(get_current_user)):
 
 
 @router.post("/handshake")
-async def perform_handshake(body: HandshakeRequest, current_user=Depends(get_current_user)):
+async def perform_handshake(body: HandshakeRequest, current_user=Depends(require_permission("manage:settings"))):
     result = pqc_engine.perform_hybrid_handshake(body.agent_id, body.agent_public_key)
     return result
 
 
 @router.post("/encrypt")
-async def encrypt_payload(body: EncryptRequest, current_user=Depends(get_current_user)):
+async def encrypt_payload(body: EncryptRequest, current_user=Depends(require_permission("manage:settings"))):
     try:
         ciphertext = pqc_engine.encrypt_payload(body.session_id, body.data)
         return {"session_id": body.session_id, "ciphertext": ciphertext}

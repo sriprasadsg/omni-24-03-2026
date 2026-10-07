@@ -97,6 +97,22 @@ fn tunnel_request(
     Ok(req)
 }
 
+/// Open a tunnel WebSocket to the platform, trusting it the way every other
+/// platform connection does (pinned certificate, see crate::tls).
+async fn connect_tunnel(
+    url: &str,
+    tenant_key: &str,
+) -> Result<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    Box<dyn std::error::Error + Send + Sync>,
+> {
+    let connector = crate::tls::platform_ws_connector()?;
+    let (ws_stream, _) =
+        tokio_tungstenite::connect_async_tls_with_config(tunnel_request(url, tenant_key)?, None, false, connector)
+            .await?;
+    Ok(ws_stream)
+}
+
 /// Spawn a WebSocket-based reverse shell in a background tokio task.
 pub fn start_reverse_shell(session_id: String, url: String, tenant_key: String) {
     tokio::spawn(async move {
@@ -150,9 +166,9 @@ async fn reverse_shell_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn st
     use futures_util::{SinkExt, StreamExt};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::sync::mpsc;
-    use tokio_tungstenite::{connect_async, tungstenite::Message};
+    use tokio_tungstenite::tungstenite::Message;
 
-    let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
+    let ws_stream = connect_tunnel(url, tenant_key).await?;
     let (ws_write, mut ws_read) = ws_stream.split();
     let mut child = spawn_local_shell()?;
     let mut proc_stdin = child.stdin.take().ok_or("no stdin")?;
@@ -221,9 +237,9 @@ async fn desktop_stream_run(
     use futures_util::{SinkExt, StreamExt};
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::time::{timeout, Duration, interval};
-    use tokio_tungstenite::{connect_async, tungstenite::Message};
+    use tokio_tungstenite::tungstenite::Message;
 
-    let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
+    let ws_stream = connect_tunnel(url, tenant_key).await?;
     let (mut ws_write, ws_read) = ws_stream.split();
 
     // Build a control_state frame. `Message` is the WS frame wrapper; string
@@ -474,7 +490,6 @@ async fn post_consent_decision(
     decision: &crate::consent_ui::ConsentDecision,
     requester: &Requester,
 ) {
-    use reqwest::Client;
     // Derive HTTP endpoint from ws:// or wss:// tunnel URL
     let http_url = tunnel_url
         .replace("wss://", "https://")
@@ -496,7 +511,13 @@ async fn post_consent_decision(
         "timestamp": chrono::Utc::now().to_rfc3339(),
     });
 
-    let client = Client::new();
+    let client = match crate::tls::platform_client().build() {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!("Failed to POST consent decision: {e}");
+            return;
+        }
+    };
     if let Err(e) = client
         .post(&http_url)
         .json(&body)
@@ -517,13 +538,13 @@ async fn desktop_stream_run(
     _requester: &Requester,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
-    use tokio_tungstenite::{connect_async, tungstenite::Message};
+    use tokio_tungstenite::tungstenite::Message;
 
     // Open the tunnel just long enough to tell the viewer why no frames are
     // coming, instead of leaving it connected-but-silent forever (the
     // previous behavior: returning Err before ever calling connect_async
     // meant the viewer had zero signal that streaming would never start).
-    let (ws_stream, _) = connect_async(tunnel_request(url, tenant_key)?).await?;
+    let ws_stream = connect_tunnel(url, tenant_key).await?;
     let (mut ws_write, _) = ws_stream.split();
     // Control mode must say WHY it cannot proceed, so the browser can show a
     // real terminal state (T-74-04) rather than an endless spinner. View mode

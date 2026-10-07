@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Depends
 from typing import Dict, Any
 import logging
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 # Setup Logging
@@ -27,7 +28,7 @@ async def get_routes(request: Request, current_user: TokenData = Depends(get_cur
     return routes
 
 @router.post("/remediate")
-async def remediate_route(data: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
+async def remediate_route(data: Dict[str, Any], current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Analyze a failed route and suggest a fix using AI."""
     route = data.get("route", "unknown")
     error = data.get("error", "Unknown Error")

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 from datetime import datetime, timezone
@@ -218,7 +219,7 @@ def _mitre_for_indicator(indicator_type: str) -> list:
 @router.post("/summarize-incident")
 async def summarize_incident(
     body: SummarizeIncidentRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     db = get_database()
     tenant_filter = {"tenantId": current_user.tenant_id}
@@ -316,7 +317,7 @@ async def summarize_incident(
 @router.post("/generate-kql")
 async def generate_kql(
     body: GenerateKQLRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     question = body.question.strip()
     kql_query, explanation, sources, confidence = _rule_based_kql(question)
@@ -355,7 +356,7 @@ async def generate_kql(
 @router.post("/chat")
 async def chat(
     body: ChatRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     db = get_database()
     tenant_filter = {"tenantId": current_user.tenant_id}
@@ -424,7 +425,7 @@ async def chat(
 @router.post("/analyze-threat")
 async def analyze_threat(
     body: AnalyzeThreatRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     valid_types = {"ip", "domain", "url", "hash", "email"}
     if body.indicator_type not in valid_types:

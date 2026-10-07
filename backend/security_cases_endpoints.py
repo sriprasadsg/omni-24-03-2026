@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from rbac_utils import is_super_admin
 
@@ -40,7 +41,7 @@ async def list_security_cases(
 @router.post("/security-cases")
 async def create_security_case(
     case: dict,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """Create a new security case from a security event."""
     db = get_database()
@@ -94,7 +95,7 @@ async def list_security_events(
 @router.post("/security-events")
 async def create_security_event(
     event: dict,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """Create a new security event."""
     db = get_database()

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from rbac_utils import require_permission
 import time
 
 from auth_utils import get_current_user
@@ -36,7 +37,7 @@ async def get_checkpoint(checkpoint_id: str, db=Depends(_db), current_user=Depen
 async def restore_checkpoint(
     checkpoint_id: str,
     db=Depends(_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("remediate:agents")),
 ):
     """Queue a restore command for the owning agent."""
     _restore_tid = getattr(current_user, "tenant_id", None) or None
@@ -85,7 +86,7 @@ async def get_restore_status(checkpoint_id: str, db=Depends(_db), current_user=D
 
 @router.post("/checkpoints/{checkpoint_id}/status")
 async def update_restore_status(checkpoint_id: str, payload: dict, db=Depends(_db),
-                                current_user=Depends(get_current_user)):
+                                current_user=Depends(require_permission("remediate:agents"))):
     """Called by the agent to update restore progress (restoring / restored / failed)."""
     allowed = {"restoring", "restored", "failed", "available"}
     status = payload.get("status", "")
@@ -110,7 +111,7 @@ async def update_restore_status(checkpoint_id: str, payload: dict, db=Depends(_d
 
 
 @router.post("/checkpoints")
-async def register_checkpoint(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def register_checkpoint(payload: dict, db=Depends(_db), current_user=Depends(require_permission("remediate:agents"))):
     """Called by the agent after creating a checkpoint to register it."""
     tenant_id = getattr(current_user, "tenant_id", None)
     payload.setdefault("status", "available")

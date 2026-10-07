@@ -11,6 +11,7 @@ shared config helper.
 """
 import asyncio, logging, os, shutil, tempfile, uuid
 from pathlib import Path
+from typing import Optional
 import yaml
 from fastapi import BackgroundTasks, HTTPException
 from fastapi.responses import Response
@@ -21,36 +22,56 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
-def _accept_invalid_certs(api_url: str) -> bool:
-    """Whether a generated agent config.yaml should set accept_invalid_certs.
+def agent_ca_cert_pem() -> Optional[str]:
+    """The certificate agents pin for the platform (PEM), read from
+    AGENT_CA_CERT_FILE: the public certificate the platform serves agents
+    (on this VM, nginx's /etc/nginx/ssl/omni.crt).
 
-    This server generates its own self-signed cert by default (see
-    start-all-services.sh, which checks for the same certs/server.{key,crt}
-    pair and prints "accept the one-time browser warning, or trust
-    certs/server.crt"). A human clicking through that browser warning has no
-    headless equivalent for the agent's own TLS client — reqwest rejects the
-    handshake, every registration POST fails, and the agent (by design) never
-    persists a partial/failed registration, so it stays stuck retrying
-    forever with agent_id/agent_token permanently null. Only default this on
-    when we can see this exact self-signed pair present locally and the
-    target URL is https — never for an arbitrary customer-supplied https://
-    URL, which may be a real CA-signed endpoint the agent should keep
-    verifying normally.
+    Installers used to set accept_invalid_certs for self-signed deployments,
+    which turned certificate checks off and let anyone on the path pose as the
+    server. They now ship this certificate and agents trust it and nothing
+    else. Unset: nothing is pinned, and https:// agent URLs are checked against
+    the endpoint's OS trust store (right for a CA-signed deployment). A
+    misconfigured file fails the build rather than shipping an unpinned agent.
     """
-    return (
-        api_url.strip().lower().startswith("https://")
-        and os.path.exists(os.path.join(_PROJECT_ROOT, "certs", "server.crt"))
-        and os.path.exists(os.path.join(_PROJECT_ROOT, "certs", "server.key"))
-    )
+    path = os.getenv("AGENT_CA_CERT_FILE", "").strip()
+    if not path:
+        return None
+    try:
+        pem = Path(path).read_text(encoding="ascii").strip()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=503, detail=f"AGENT_CA_CERT_FILE could not be read: {exc}")
+    if not pem.startswith("-----BEGIN CERTIFICATE-----") or "PRIVATE KEY" in pem:
+        raise HTTPException(status_code=503, detail="AGENT_CA_CERT_FILE must contain only a PEM certificate")
+    return pem
 
 
 def _config_yaml(api_url: str, registration_key: str, api_key: str = "", is_legacy: bool = False) -> dict:
-    return {
+    cfg = {
         "agent_id": None, "agent_token": None, "api_base_url": api_url,
         "interval_seconds": 30, "max_cpu_percent": 20,
         "agentic_mode_enabled": False, "registration_key": registration_key,
-        "accept_invalid_certs": _accept_invalid_certs(api_url),
+        "accept_invalid_certs": False,
     }
+    pem = agent_ca_cert_pem() if api_url.strip().lower().startswith("https://") else None
+    if pem:
+        cfg["server_ca_cert"] = pem + "\n"
+    return cfg
+
+
+class _ConfigDumper(yaml.SafeDumper):
+    """Writes multi-line strings (the pinned certificate) as literal blocks."""
+
+
+_ConfigDumper.add_representer(
+    str, lambda dumper, data: dumper.represent_scalar(
+        "tag:yaml.org,2002:str", data, style="|" if "\n" in data else None))
+
+
+def config_yaml_text(api_url: str, registration_key: str) -> str:
+    """The agent config.yaml every installer ships."""
+    return yaml.dump(_config_yaml(api_url, registration_key), Dumper=_ConfigDumper,
+                     default_flow_style=False, sort_keys=True)
 
 
 def cleanup_temp_dir(path: str) -> None:

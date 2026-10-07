@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any, List, Optional
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from local_ip import ollama_default_url
 import asyncio
@@ -152,7 +153,7 @@ async def save_llm_settings(settings: Dict[str, Any], current_user: TokenData = 
 @router.post("/test-db-connection")
 async def test_db_connection(
     settings: Dict[str, Any],
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """
     Test connectivity to the specified database host/port.
@@ -205,7 +206,7 @@ async def test_db_connection(
 @router.post("/test-llm-connection")
 async def test_llm_connection(
     settings: Dict[str, Any],
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Test connectivity to the configured LLM provider (Ollama or Gemini)."""
     provider = settings.get("provider", "").lower()

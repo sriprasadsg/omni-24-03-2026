@@ -33,7 +33,9 @@ export function StreamingDashboard() {
                 ? `ws://localhost:${import.meta.env.VITE_BACKEND_PORT ?? 5000}/api/stream/live`
                 : wsUrl);
 
-        const ws = new WebSocket(finalUrl);
+        // The live feed requires a signed-in user; browsers can't set headers on WebSockets
+        const token = sessionStorage.getItem('token') || '';
+        const ws = new WebSocket(`${finalUrl}?token=${encodeURIComponent(token)}`);
         wsRef.current = ws;
 
         ws.onopen = () => {

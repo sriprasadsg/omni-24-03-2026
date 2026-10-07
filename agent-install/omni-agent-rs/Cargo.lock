@@ -2082,6 +2082,7 @@ dependencies = [
  "hostname",
  "libc",
  "log",
+ "native-tls",
  "naughtyfy",
  "notify",
  "once_cell",

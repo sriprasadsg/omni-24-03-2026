@@ -98,7 +98,8 @@ def test_explicit_platform_admin_tenant_id_still_accepted():
     # verbatim) — this must keep working. Only an ABSENT tenant_id claim
     # should be rejected, not an explicit "platform-admin" value.
     token = create_access_token(
-        data={"sub": "admin@example.com", "role": "Super Admin", "tenant_id": "platform-admin"}
+        data={"sub": "admin@example.com", "role": "Super Admin", "tenant_id": "platform-admin",
+              "mfa_verified": True}  # admin sessions must have passed MFA
     )
     token_data = verify_token(token)
     assert token_data.tenant_id == "platform-admin"

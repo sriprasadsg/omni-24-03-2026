@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from database import get_database
 from patch_service import get_patch_service
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from patch_core_endpoints import _PATCH_ADMIN_ROLES
 
@@ -64,7 +65,7 @@ async def enrich_patch(
 @router.post("/enrich-all")
 async def enrich_all_patches(
     tenant_id: str = None,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Batch enrich all pending patches with CVE intelligence."""
     try:

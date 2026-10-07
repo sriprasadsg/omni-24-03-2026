@@ -317,6 +317,7 @@ export type Permission =
   | 'view:config_drift' | 'manage:config_drift'
   | 'view:fim' | 'manage:fim'
   | 'view:active_response' | 'manage:active_response'
+  | 'view:remote_access' | 'control:remote_access'
   | 'view:itam' | 'manage:itam'
   | 'view:vector_db' | 'view:federated_learning' | 'view:webgpu_inference'
   | 'admin:*';

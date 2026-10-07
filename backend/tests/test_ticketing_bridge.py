@@ -391,8 +391,8 @@ from auth_types import TokenData
 
 import compliance_remediation_endpoints as endpoints_mod
 
-_ENDPOINT_USER = TokenData(
-    username="v@test.com", role="user", tenant_id="tenant-a", mfa_verified=True,
+_ENDPOINT_USER = TokenData(  # creating tickets from remediation tasks needs manage:compliance
+    username="v@test.com", role="Tenant Admin", tenant_id="tenant-a", mfa_verified=True,
 )
 
 

@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 from typing import List, Optional
 from fastapi import HTTPException, status, Depends
@@ -5,6 +6,8 @@ from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
 from rbac_service import rbac_service as _rbac_service
+
+logger = logging.getLogger(__name__)
 
 
 def is_super_admin(role: Optional[str]) -> bool:
@@ -57,21 +60,17 @@ class Permission(str, Enum):
 
 # Helper function to avoid RBACService class instantiation loops
 async def verify_permission(user: TokenData, required_permission: str) -> bool:
+    if isinstance(user, dict):  # some callers still pass the decoded-claims dict
+        user = TokenData(username=user.get("username") or user.get("sub"), role=user.get("role"),
+                         tenant_id=user.get("tenant_id") or user.get("tenantId"))
     # Super Admin bypass
     if is_super_admin(user.role):
         return True
-        
-    db = get_database()
-    
-    # 1. Check DB Roles first
-    if user.role:
-        role_doc = await db.roles.find_one({"name": user.role, "tenantId": user.tenant_id})
-        if role_doc:
-            perms = role_doc.get("permissions", [])
-            if "*" in perms or required_permission in perms:
-                return True
 
-    # 2. Fallback to hardcoded defaults — kept in sync with rbac_service.default_roles
+    # A permission is granted by the role's built-in defaults OR by the tenant's
+    # custom role document. Defaults are checked first (no DB round-trip for the
+    # common case); the DB lookup only runs when the defaults don't grant it.
+    # Built-in defaults — kept in sync with rbac_service.default_roles
     DEFAULT_PERMISSIONS: dict[str, list[str]] = {
         # Super-admin tier (all variants) — wildcard bypass
         "Super Admin":    ["*"],
@@ -200,7 +199,19 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
         effective_role = normalized_role
 
     perms = DEFAULT_PERMISSIONS.get(effective_role, [])
-    return "*" in perms or required_permission in perms
+    if "*" in perms or required_permission in perms:
+        return True
+
+    # Tenant-defined role documents can grant more
+    if not user.role:
+        return False
+    try:
+        role_doc = await get_database().roles.find_one({"name": user.role, "tenantId": user.tenant_id})
+    except Exception as exc:  # fail closed: no grant if the role store is unreachable
+        logger.warning("Role lookup failed for %s (denying %s): %s", user.role, required_permission, exc)
+        return False
+    role_perms = (role_doc or {}).get("permissions", [])
+    return "*" in role_perms or required_permission in role_perms
 
 # Dependency Injection Helper
 def require_permission(permission: str):
@@ -213,6 +224,15 @@ def require_permission(permission: str):
             )
         return user
     return dependency
+
+async def require_super_admin(user: TokenData = Depends(get_current_user)):
+    """Platform-wide operations (shared models, server-side tooling) — super-admins only."""
+    if not is_super_admin(user.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform super-admin access required"
+        )
+    return user
 
 def require_role(allowed_roles: List[str]):
     async def dependency(user: TokenData = Depends(get_current_user)):

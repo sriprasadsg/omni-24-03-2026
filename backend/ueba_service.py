@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 import logging
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 
 from ueba_analysis import (  # noqa: F401 — re-exported for external/test imports
     _RULES,
@@ -35,7 +36,7 @@ from ueba_analysis import (  # noqa: F401 — re-exported for external/test impo
 )
 from ueba_alert_persistence_service import _persist_alert, persist_security_alert  # noqa: F401
 
-router = APIRouter(prefix="/api/ueba", tags=["UEBA"])
+router = APIRouter(prefix="/api/ueba", tags=["UEBA"], dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 
@@ -120,7 +121,7 @@ async def _dispatch_anomaly_remediation(
     await AutonomousRemediationService().remediate(finding)
 
 
-@router.post("/shadow-ai")
+@router.post("/shadow-ai", dependencies=[Depends(require_permission("investigate:security"))])
 async def report_shadow_ai(event: ShadowAIEvent, background_tasks: BackgroundTasks, db=Depends(get_database)):
     """Ingest Shadow AI detection events from agents."""
     logger.warning("Shadow AI Detected: %s -> %s on %s", event.process, event.remote_host, event.agent_id)
@@ -157,7 +158,7 @@ async def analyze_event(
     body: Dict[str, Any],
     background_tasks: BackgroundTasks,
     db=Depends(get_database),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("investigate:security")),
 ):
     """
     Unified UEBA analyze endpoint.
@@ -245,7 +246,7 @@ async def analyze_event(
     }
 
 
-@router.post("/analyze-login")
+@router.post("/analyze-login", dependencies=[Depends(require_permission("investigate:security"))])
 async def analyze_login_behavior(event: LoginEvent, background_tasks: BackgroundTasks, db=Depends(get_database)):
     """Multi-rule behavioral analysis of a login event."""
     result = await analyze_login(db, event)
@@ -266,7 +267,7 @@ async def analyze_login_behavior(event: LoginEvent, background_tasks: Background
     return result
 
 
-@router.post("/analyze-data-access")
+@router.post("/analyze-data-access", dependencies=[Depends(require_permission("investigate:security"))])
 async def analyze_data_access_endpoint(event: DataAccessEvent, background_tasks: BackgroundTasks, db=Depends(get_database)):
     """Analyze a data access event for exfiltration patterns."""
     result = await analyze_data_access(db, event)

@@ -3,6 +3,7 @@ Compliance Framework Evaluation Endpoints.
 Runs NIST CSF, CIS Controls v8, and ISO 27001:2022 automated checks.
 """
 from __future__ import annotations
+from rbac_utils import require_permission
 import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
@@ -162,7 +163,7 @@ async def evaluate_framework(
 @router.post("/{framework_id}/auto-evidence")
 async def collect_auto_evidence(
     framework_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("manage:compliance_evidence")),
 ):
     """
     Auto-collect evidence for a compliance framework by running all controls and

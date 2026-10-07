@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -447,7 +448,7 @@ async def list_connectors(
 async def configure_connector(
     connector_id: str,
     body: ConfigureRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Save or update connector configuration."""
     catalog_entry = _CATALOG_MAP.get(connector_id)
@@ -494,7 +495,7 @@ async def configure_connector(
 @router.post("/{connector_id}/test")
 async def test_connector(
     connector_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Mock connection test — checks for presence of an api_key or api_token."""
     if connector_id not in _CATALOG_MAP:
@@ -533,7 +534,7 @@ async def test_connector(
 @router.post("/{connector_id}/enable")
 async def enable_connector(
     connector_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Enable a connector and mark it connected."""
     if connector_id not in _CATALOG_MAP:
@@ -552,7 +553,7 @@ async def enable_connector(
 @router.post("/{connector_id}/disable")
 async def disable_connector(
     connector_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Disable a connector."""
     if connector_id not in _CATALOG_MAP:
@@ -571,7 +572,7 @@ async def disable_connector(
 @router.post("/{connector_id}/sync")
 async def sync_connector(
     connector_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """Mock data pull — increments sync count and updates last_sync timestamp."""
     if connector_id not in _CATALOG_MAP:

@@ -1,5 +1,6 @@
 """Data Processing Agreement (DPA) management endpoints (GDPR Article 28)."""
 from __future__ import annotations
+from rbac_utils import require_permission
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from auth_utils import get_current_user
@@ -123,7 +124,7 @@ async def create_dpa(payload: dict, db=Depends(_db), current_user=Depends(get_cu
 
 
 @router.patch("/{dpa_id}")
-async def update_dpa(dpa_id: str, payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def update_dpa(dpa_id: str, payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:compliance"))):
     payload.pop("id", None)
     payload.pop("_id", None)
     payload["updated_by"] = _sub(current_user)

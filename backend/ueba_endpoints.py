@@ -4,6 +4,7 @@ from ueba_engine import ueba_engine
 from database import get_database
 from tenant_context import get_tenant_id
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ async def get_user_risk_history(user_id: str, tenant_id: str = Depends(get_tenan
         
     return {"history": chart_data}
 
-@router.post("/calculate-all", dependencies=[Depends(get_current_user)])
+@router.post("/calculate-all", dependencies=[Depends(get_current_user), Depends(require_permission("investigate:security"))])
 @limiter.limit("2/hour")
 async def calculate_all_scores(request: Request, response: Response, background_tasks: BackgroundTasks, tenant_id: str = Depends(get_tenant_id)):
     """

@@ -31,14 +31,13 @@ fn fetch_update_info(cfg: &crate::config::Config) -> Result<UpdateInfo, String> 
         "{}/api/agent-updates/latest?platform=windows",
         cfg.api_base_url.trim_end_matches('/')
     );
-    // Must match the main app client (lib.rs): this platform serves its own
-    // self-signed cert by default, and without accept_invalid_certs every
-    // request here fails the TLS handshake and gets reported as the generic
-    // "could not reach" — indistinguishable from the server actually being
-    // down.
-    let client = reqwest::blocking::Client::builder()
+    // Must trust the platform the same way the main app client (lib.rs)
+    // does: the pinned certificate, or the legacy accept_invalid_certs flag.
+    // Otherwise every request here fails the TLS handshake and gets reported
+    // as the generic "could not reach" — indistinguishable from the server
+    // actually being down.
+    let client = crate::tls::platform_blocking_client()
         .timeout(std::time::Duration::from_secs(10))
-        .danger_accept_invalid_certs(cfg.accept_invalid_certs)
         .build()
         .map_err(|e| format!("Could not build HTTP client: {e}"))?;
     let resp: serde_json::Value = client
@@ -72,9 +71,8 @@ pub fn apply_update(cfg: &crate::config::Config) -> Result<String, String> {
     log::info!("Update available: {} -> {}", CURRENT_VERSION, info.version);
 
     // Download new binary
-    let client = reqwest::blocking::Client::builder()
+    let client = crate::tls::platform_blocking_client()
         .timeout(std::time::Duration::from_secs(300))
-        .danger_accept_invalid_certs(cfg.accept_invalid_certs)
         .build()
         .map_err(|e| e.to_string())?;
 

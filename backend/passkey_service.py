@@ -172,4 +172,7 @@ async def verify_authentication(user_key: str, credential_response: dict, db, us
             }
         },
     )
-    return {"user_id": user_doc["id"], "tenant_id": user_doc.get("tenantId")}
+    # user_verified: the authenticator checked a PIN or biometric, so this
+    # sign-in was two-factor (possession + knowledge/inherence).
+    return {"user_id": user_doc["id"], "tenant_id": user_doc.get("tenantId"),
+            "user_verified": bool(verification.user_verified)}

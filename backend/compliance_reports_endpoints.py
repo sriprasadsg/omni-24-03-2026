@@ -4,6 +4,7 @@ import logging
 import os
 from datetime import datetime
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from compliance_reporting_service import compliance_reporting_service
 from database import get_database
 from auth_roles import SUPER_ROLES as _SUPER_ADMIN_ROLES
@@ -18,7 +19,7 @@ _REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"
 @router.post("/api/compliance/reports/generate")
 async def generate_compliance_report(
     framework_id: str = Form(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("export:reports")),
 ):
     """Generate CSV compliance report."""
     tenant_id = getattr(current_user, "tenant_id", None) or None
@@ -35,7 +36,7 @@ async def generate_compliance_report(
 @router.post("/api/compliance/reports/generate/excel")
 async def generate_excel_compliance_report(
     framework_id: str = Form(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("export:reports")),
 ):
     """Generate Excel compliance report with professional formatting."""
     tenant_id = getattr(current_user, "tenant_id", None) or None
@@ -52,7 +53,7 @@ async def generate_excel_compliance_report(
 @router.post("/api/compliance/reports/generate/pdf")
 async def generate_pdf_compliance_report(
     framework_id: str = Form(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("export:reports")),
 ):
     """Generate PDF compliance report."""
     tenant_id = getattr(current_user, "tenant_id", None) or None
@@ -69,7 +70,7 @@ async def generate_pdf_compliance_report(
 @router.post("/api/compliance/reports/generate/all")
 async def generate_all_compliance_report(
     format: str = Form(..., description="csv or excel"),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("export:reports")),
 ):
     """Generate a combined report for all frameworks."""
     tenant_id = getattr(current_user, "tenant_id", None) or None

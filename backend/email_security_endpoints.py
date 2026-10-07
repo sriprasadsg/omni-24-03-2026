@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from rbac_utils import require_permission
 from auth_utils import require_auth
 from database import get_db
 from email_security_service import EmailSecurityService
@@ -39,7 +40,7 @@ async def get_quarantine(limit: int = Query(50), user=Depends(require_auth),
     return {"items": items}
 
 
-@router.post("/quarantine/{email_id}/release")
+@router.post("/quarantine/{email_id}/release", dependencies=[Depends(require_permission("manage:security_cases"))])
 async def release(email_id: str, user=Depends(require_auth), svc: EmailSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     await svc.release_quarantine(email_id, tenant_id)
@@ -52,7 +53,7 @@ async def get_summary(user=Depends(require_auth), svc: EmailSecurityService = De
     return await svc.get_summary(tenant_id)
 
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(require_permission("manage:settings"))])
 async def seed(user=Depends(require_auth), svc: EmailSecurityService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     await svc.seed_demo(tenant_id)

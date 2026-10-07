@@ -8,9 +8,11 @@ Priority chain:
 """
 import asyncio
 import os
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import List
+from authentication_service import get_current_user
+from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/compliance_oracle", tags=["Compliance Oracle"])
 
@@ -216,7 +218,7 @@ def _rule_based_analyze(policy_text: str) -> AnalysisResult:
 
 
 @router.post("/analyze")
-async def analyze_policy(request: PolicyAnalysisRequest):
+async def analyze_policy(request: PolicyAnalysisRequest, current_user=Depends(require_permission("manage:compliance"))):
     """
     Analyzes unstructured policy text and generates technical compliance rules.
     Uses platform LLM when configured; otherwise applies deterministic rule matching.

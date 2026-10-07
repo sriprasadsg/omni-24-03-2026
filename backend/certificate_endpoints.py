@@ -8,6 +8,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from typing import Any, Dict, List, Optional
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 
@@ -50,7 +51,7 @@ async def list_certificates(
 @router.post("")
 async def create_certificate(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     now = datetime.now(timezone.utc).isoformat()
@@ -105,7 +106,7 @@ async def create_certificate(
 async def update_certificate(
     cert_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     filt = {"id": cert_id, **_tq(current_user)}
@@ -123,7 +124,7 @@ async def update_certificate(
 @router.delete("/{cert_id}")
 async def delete_certificate(
     cert_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     db = get_database()
     await db.certificates.delete_one({"id": cert_id, **_tq(current_user)})

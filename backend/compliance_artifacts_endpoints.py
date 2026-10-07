@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from auth_roles import SUPER_ROLES
 from rbac_utils import require_permission
 from rate_limiter import limiter
 
@@ -46,9 +47,9 @@ _ALLOWED_UPLOAD_MIME_PREFIXES: tuple[str, ...] = (
 
 # Single source of truth for elevated-admin role variants (WR-02) — imported by
 # compliance_evidence_endpoints.py rather than each module keeping its own list.
-_SUPER_ROLES: frozenset[str] = frozenset({
-    "Super Admin", "super_admin", "superadmin", "admin", "platform-admin"
-})
+# "admin" is a tenant-scoped role (tenant admins can assign it), so it never
+# bypasses tenant isolation — only platform super-admins do.
+_SUPER_ROLES: frozenset[str] = SUPER_ROLES
 
 
 MANUAL_ARTIFACT_CATEGORIES = [

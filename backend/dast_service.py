@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 _SSL_VERIFY = _os.getenv("DISABLE_SSL_VERIFY", "").lower() not in ("1", "true", "yes")
@@ -309,7 +310,7 @@ async def get_scans(_current_user: TokenData = Depends(get_current_user)):
 
 
 @router.post("/scans", response_model=DastScan)
-async def start_scan(target: ScanTarget, _current_user: TokenData = Depends(get_current_user)):
+async def start_scan(target: ScanTarget, _current_user: TokenData = Depends(require_permission("investigate:security"))):
     _validate_scan_target(target.url)
     from database import get_database
     db = get_database()

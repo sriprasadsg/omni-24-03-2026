@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from database import get_database
 from security_service import get_security_service
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from rbac_utils import is_super_admin
 
@@ -86,7 +87,7 @@ async def verify_agent_integrity(
 @router.post("/security/encrypt")
 async def encrypt_data(
     data: dict,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:settings")),
 ):
     """
     Encrypt sensitive data using a server-managed AES-256-GCM key.

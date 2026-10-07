@@ -10,6 +10,7 @@ import tempfile
 from typing import Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission, require_super_admin
 import datetime
 import uuid
 
@@ -43,7 +44,7 @@ async def get_network_devices(
 @router.post("")
 async def add_network_device(
     device_data: Dict[str, Any] = Body(...),
-    current_user: Any = Depends(get_current_user)
+    current_user: Any = Depends(require_permission("manage:assets"))
 ):
     """
     Manually add a network device.
@@ -102,7 +103,7 @@ async def get_network_subnets(
 async def trigger_server_scan(
     scan_all_networks: bool = Query(True, description="Scan all network interfaces"),
     subnet: Optional[str] = Query(None, description="Specific subnet to scan (e.g. 192.168.1.0/24)"),
-    current_user: Any = Depends(get_current_user)
+    current_user: Any = Depends(require_super_admin)
 ):
     """
     Trigger a network scan from the server side.

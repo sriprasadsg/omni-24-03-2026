@@ -1,5 +1,6 @@
 """Infrastructure as Code (IaC) Security scanning endpoints."""
 from __future__ import annotations
+from rbac_utils import require_permission
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from auth_utils import get_current_user
@@ -22,7 +23,7 @@ async def list_scans(db=Depends(_db), current_user=Depends(get_current_user)):
 
 
 @router.post("/scans")
-async def trigger_scan(payload: dict, db=Depends(_db), current_user=Depends(get_current_user)):
+async def trigger_scan(payload: dict, db=Depends(_db), current_user=Depends(require_permission("investigate:security"))):
     tenant_id = getattr(current_user, "tenant_id", None)
     scan = {
         "id": f"iac-{int(time.time())}",
@@ -51,7 +52,7 @@ async def list_violations(db=Depends(_db), current_user=Depends(get_current_user
 
 @router.post("/violations/{violation_id}/suppress")
 async def suppress_violation(violation_id: str, payload: dict, db=Depends(_db),
-                              current_user=Depends(get_current_user)):
+                              current_user=Depends(require_permission("manage:security_cases"))):
     tenant_id = getattr(current_user, "tenant_id", None)
     viol_filter: dict = {"id": violation_id}
     if tenant_id:

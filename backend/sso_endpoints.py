@@ -6,13 +6,15 @@ import os
 from app_env import is_production
 import logging
 import secrets
+
+import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, Field
 from database import get_database
-from authentication_service import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from authentication_service import create_access_token, create_refresh_token, set_refresh_cookie, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, account_is_active
 from rate_limiter import limiter
 import httpx
 
@@ -27,6 +29,7 @@ from tenant_context import get_tenant_id
 from saml_service import (
     SAMLConfigError,
     SAMLProvisionError,
+    SAMLAccountDisabledError,
     SAMLValidationError,
     SAMLAuthenticator,
     authenticate_saml,
@@ -180,6 +183,9 @@ async def google_callback(code: str, state: str = ""):
     if not user:
         logger.warning("SSO login rejected for unregistered email: %s", email)
         return RedirectResponse(url=_safe_frontend_url("/login?error=sso_not_registered"))
+    if not account_is_active(user):
+        logger.warning("SSO login rejected for a disabled account")
+        return RedirectResponse(url=_safe_frontend_url("/login?error=account_disabled"))
 
     jwt_token = create_access_token(
         data={"sub": email, "role": user.get("role", "Viewer"), "tenant_id": user.get("tenantId") or None},
@@ -197,11 +203,14 @@ class SSOExchangeRequest(BaseModel):
 
 @router.post("/exchange")
 @limiter.limit("10/minute")
-async def exchange_sso_code(request: Request, body: SSOExchangeRequest):
-    """Redeem a one-time SSO exchange code for a JWT access token."""
+async def exchange_sso_code(request: Request, response: Response, body: SSOExchangeRequest):
+    """Redeem a one-time SSO exchange code for a JWT access token, plus the
+    refresh cookie every other sign-in path sets."""
     token = await _consume_sso_state(f"tok:{body.code}")
     if not token:
         raise HTTPException(status_code=401, detail="Invalid or expired SSO exchange code")
+    sub = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])["sub"]
+    set_refresh_cookie(response, request, create_refresh_token(data={"sub": sub}))
     return {"access_token": token, "token_type": "bearer"}
 
 
@@ -431,6 +440,9 @@ async def saml_acs(request: Request):
     except SAMLValidationError as exc:
         logger.warning("SAML ACS validation failed: %s", exc)
         return RedirectResponse(url=_safe_frontend_url("/login?error=saml_failed"))
+    except SAMLAccountDisabledError:
+        logger.warning("SAML login rejected for a disabled account")
+        return RedirectResponse(url=_safe_frontend_url("/login?error=account_disabled"))
     except SAMLProvisionError as exc:
         logger.warning("SAML ACS provisioning failed: %s", exc)
         return RedirectResponse(url=_safe_frontend_url("/login?error=saml_not_registered"))

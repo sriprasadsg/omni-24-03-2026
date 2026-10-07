@@ -1,0 +1,29 @@
+accept_invalid_certs: false
+agent_id: null
+agent_token: null
+agentic_mode_enabled: false
+api_base_url: https://10.0.0.5
+interval_seconds: 30
+max_cpu_percent: 20
+registration_key: reg_x
+server_ca_cert: |
+  -----BEGIN CERTIFICATE-----
+  MIIDBzCCAe+gAwIBAgIULmHPnYu8BgFnsqPifDwjp4eXV4owDQYJKoZIhvcNAQEL
+  BQAwEzERMA8GA1UEAwwIMTAuMC4wLjUwHhcNMjYxMDA3MDgxNDI1WhcNMjYxMDA4
+  MDgxNDI1WjATMREwDwYDVQQDDAgxMC4wLjAuNTCCASIwDQYJKoZIhvcNAQEBBQAD
+  ggEPADCCAQoCggEBANDfo5ZzhRsBVGbjcFyQsIoN7KtYoOTNNt4Ae9UcWugrFiyf
+  PsVXcQEIQgYLsuSQ1gOXgHd3/f520wYba7Y76VK3bkjX6SIl0I33chgtXfSN2Ni6
+  6yBjW9JFCzW04iL0ktT6/l4unZ8L4LAekL9yZt5pXqja488dtaf599lWeCYnysj/
+  XzeE+Ug/Az8sN0pEwCMn59y4k5hhp6yCWuF8e22IcnhwZ6E4j5TqyGcRwdFYg2b/
+  FhgZv6WS8OAV80P0L5EEVSAvkO4eTFf+S3Lh+W8KkemrNIa3CV0jT1+fzWoI05X3
+  3ho8vqsq1tCGQ+5Rt5/+Y7vFWYGJigP+WBJiyiUCAwEAAaNTMFEwHQYDVR0OBBYE
+  FFmVxIy3RUSBdawm1A93FkXC8KVmMB8GA1UdIwQYMBaAFFmVxIy3RUSBdawm1A93
+  FkXC8KVmMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAHYtb0Tt
+  C8p5WJSKUa/V/mB0DU5vrDOqXf7nhthjFm5iJyjZ86jZyQrnu2LzpNdSrM0LGJaD
+  COpQWugDk1bF2j38VnX+y3Q0PNQ68a2a0V6rxSSZvSjzTlx4WhqPpNt4gPd8Qy2j
+  bi0I+CUCJa/DMClNEPuHE2+p0Oxv7vFHZKtT//nZ/qnlAKQw/rgjMnYFNyJGtzlO
+  RMZNNZyZma18a5/64CXozLfFgx4hixZ3APrNOaF4bLIwKqEiZxkuVVI3gjrpSDnK
+  ucN7PzISWBpLCZPt9MdRWKdX4S6wEjp48mXwij9HMkicEZP9Lwisbc6CR29W8zKB
+  UW/coXmfSLJ1BeM=
+  -----END CERTIFICATE-----
+

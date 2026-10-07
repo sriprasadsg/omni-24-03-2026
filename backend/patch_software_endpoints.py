@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from patch_core_endpoints import (
     _PATCH_ADMIN_ROLES,
@@ -146,7 +147,7 @@ async def apply_os_patches(
 @router.post("/scan")
 async def trigger_live_software_scan(
     tenant_id: str = None,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Trigger a live software inventory scan on all online agents for a tenant."""
     try:

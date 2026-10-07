@@ -17,7 +17,7 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 
 
-def _user(role="security_analyst", tenant_id="t1"):
+def _user(role="Tenant Admin", tenant_id="t1"):  # risk writes need manage:compliance
     return TokenData(username="test@example.com", role=role, tenant_id=tenant_id, mfa_verified=True)
 
 
@@ -126,3 +126,9 @@ def test_attach_preserves_existing_fields(mock_db):
     assert merged["owner"] == "alice"
     assert merged["fair_inputs"] == _VALID_INPUTS
     assert merged["fair_results"] == {"mean": 1.0}
+
+
+def test_security_analyst_cannot_run_simulation():
+    """Risk register writes are a GRC permission (manage:compliance)."""
+    resp = _client(_user(role="security_analyst")).post("/api/risks/r1/fair-simulation", json=_VALID_INPUTS)
+    assert resp.status_code == 403

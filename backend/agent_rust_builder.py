@@ -7,8 +7,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, HTTPException
 from fastapi.responses import Response
 
-from agent_installer_builders import cleanup_temp_dir, _config_yaml, _accept_invalid_certs
-import yaml
+from agent_installer_builders import cleanup_temp_dir, config_yaml_text
 
 logger = logging.getLogger(__name__)
 
@@ -140,15 +139,9 @@ New-Item -ItemType Directory -Force -Path "$D\\logs" | Out-Null
 # NSIS runs this hidden via nsExec — keep a transcript so failed installs are diagnosable
 Start-Transcript -Path "$D\\logs\\install.log" -Force | Out-Null
 
-# Write agent config
-[IO.File]::WriteAllText("$D\\config.yaml", @"
-api_base_url: {api_url}
-registration_key: {reg_key}
-agent_id: null
-agent_token: null
-interval_seconds: 30
-accept_invalid_certs: {str(_accept_invalid_certs(api_url)).lower()}
-"@)
+# Write agent config (literal here-string: nothing in it is expanded)
+[IO.File]::WriteAllText("$D\\config.yaml", @'
+{config_yaml_text(api_url, reg_key)}'@)
 
 $agentExe = "$D\\omni-agent.exe"
 $svcName   = "OmniAgentRust"
@@ -412,8 +405,7 @@ async def prepare_rust_pkg(pkg_dir: Path, base_dir: Path, api_url: str, registra
     binary = await _ensure_rust_binary(rust_src)
     version = _rust_agent_version(rust_src)
     shutil.copy2(binary, pkg_dir / "omni-agent.exe")
-    with open(pkg_dir / "config.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(_config_yaml(api_url, registration_key), f, default_flow_style=False, sort_keys=True)
+    (pkg_dir / "config.yaml").write_text(config_yaml_text(api_url, registration_key), encoding="utf-8")
     # utf-8-sig: Windows PowerShell 5.1 assumes ANSI without a BOM, which mangles
     # any non-ASCII byte in the script.
     (pkg_dir / "setup_svc.ps1").write_text(
@@ -430,8 +422,7 @@ async def prepare_rust_linux_pkg(pkg_dir: Path, base_dir: Path, api_url: str, re
     version = _rust_agent_version(rust_src)
     shutil.copy2(binary, pkg_dir / "omni-agent")
     (pkg_dir / "omni-agent").chmod(0o755)
-    with open(pkg_dir / "config.yaml", "w", encoding="utf-8") as f:
-        yaml.dump(_config_yaml(api_url, registration_key), f, default_flow_style=False, sort_keys=True)
+    (pkg_dir / "config.yaml").write_text(config_yaml_text(api_url, registration_key), encoding="utf-8")
     install_sh = pkg_dir / "install.sh"
     install_sh.write_text(_setup_svc_rust_systemd(version), encoding="utf-8")
     install_sh.chmod(0o755)

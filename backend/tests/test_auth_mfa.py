@@ -305,7 +305,9 @@ class TestMFAVerifyLogin:
         )
 
         app = _make_mfa_app()
+        from authentication_service import get_current_user_mfa_pending
         app.dependency_overrides[get_current_user] = lambda: mock_token_data
+        app.dependency_overrides[get_current_user_mfa_pending] = lambda: mock_token_data
 
         return app
 
@@ -328,6 +330,11 @@ class TestMFAVerifyLogin:
         assert body["success"] is True
         assert "access_token" in body
         assert body["token_type"] == "bearer"
+        # MFA logins get a refresh cookie too, and it keeps the MFA claim
+        import jwt as _jwt
+        from authentication_service import SECRET_KEY, ALGORITHM
+        refresh = resp.cookies.get("omni_refresh")
+        assert _jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])["mfa_verified"] is True
 
     def test_verify_mfa_login_wrong_code(self):
         db = _make_db_mock()

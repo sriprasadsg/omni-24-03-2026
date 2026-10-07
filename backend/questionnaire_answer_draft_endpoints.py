@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from models import User
 from questionnaire_answer_draft_service import (
     draft_answer_for_question,
@@ -20,7 +21,7 @@ async def _tenant(user: User = Depends(get_current_user)) -> str:
 async def generate_draft_endpoint(
     question_id: str,
     question_text: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("manage:compliance")),
     tenant_id: str = Depends(_tenant),
     question_set_id: Optional[str] = None,
 ) -> Dict[str, Any]:

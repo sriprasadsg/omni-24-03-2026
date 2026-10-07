@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 import datetime
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import mitre_service
 
 router = APIRouter(prefix="/api/mitre", tags=["MITRE ATT&CK"])
@@ -23,7 +24,7 @@ async def get_coverage(current_user=Depends(get_current_user)):
 
 
 @router.post("/coverage/refresh")
-async def force_refresh_coverage(current_user=Depends(get_current_user)):
+async def force_refresh_coverage(current_user=Depends(require_permission("investigate:security"))):
     """Recompute heatmap and push to all connected clients via WebSocket."""
     tenant_id = current_user.tenant_id or None
     heatmap = await mitre_service.get_coverage_heatmap(tenant_id)

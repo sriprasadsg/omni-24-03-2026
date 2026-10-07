@@ -3,6 +3,7 @@ Scheduled Report Delivery Endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Body
+from rbac_utils import require_permission
 from typing import Any, Dict
 import logging
 
@@ -54,7 +55,7 @@ async def list_schedules(current_user=Depends(get_current_user)):
 @router.post("")
 async def create_schedule(
     payload: Dict[str, Any] = Body(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("export:reports")),
 ):
     try:
         schedule = await svc.create_schedule(_tid(current_user), _actor(current_user), payload)
@@ -68,7 +69,7 @@ async def create_schedule(
 async def update_schedule(
     schedule_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("export:reports")),
 ):
     success = await svc.update_schedule(schedule_id, _tid(current_user), _role(current_user), payload)
     if not success:
@@ -79,7 +80,7 @@ async def update_schedule(
 @router.delete("/{schedule_id}")
 async def delete_schedule(
     schedule_id: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("export:reports")),
 ):
     success = await svc.delete_schedule(schedule_id, _tid(current_user), _role(current_user))
     if not success:
@@ -95,7 +96,7 @@ async def get_delivery_history(schedule_id: str, current_user=Depends(get_curren
 
 # Canonical route: POST /{schedule_id}/run-now — frontend must call /run-now not /run
 @router.post("/{schedule_id}/run-now")
-async def run_now(schedule_id: str, current_user=Depends(get_current_user)):
+async def run_now(schedule_id: str, current_user=Depends(require_permission("export:reports"))):
     try:
         result = await svc.run_report_now(schedule_id, _tid(current_user), _role(current_user))
         return result

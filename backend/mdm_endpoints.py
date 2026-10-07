@@ -1,6 +1,7 @@
 """Mobile Device Management REST endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from rbac_utils import require_permission
 from typing import Any, Dict, Optional
 import logging
 
@@ -47,7 +48,7 @@ async def list_devices(
 @router.post("/devices")
 async def enroll_device(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         device = await svc.enroll_device(_tenant(current_user), payload)
@@ -68,7 +69,7 @@ async def get_device(device_id: str, current_user: TokenData = Depends(get_curre
 async def update_device(
     device_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         device = await svc.update_device(device_id, _tenant(current_user), payload)
@@ -80,7 +81,7 @@ async def update_device(
 
 
 @router.post("/devices/{device_id}/unenroll")
-async def unenroll_device(device_id: str, current_user: TokenData = Depends(get_current_user)):
+async def unenroll_device(device_id: str, current_user: TokenData = Depends(require_permission("manage:assets"))):
     success = await svc.unenroll_device(device_id, _tenant(current_user))
     if not success:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -91,7 +92,7 @@ async def unenroll_device(device_id: str, current_user: TokenData = Depends(get_
 async def remote_action(
     device_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     action = payload.get("action", "")
     try:
@@ -112,7 +113,7 @@ async def list_policies(current_user: TokenData = Depends(get_current_user)):
 @router.post("/policies")
 async def create_policy(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:assets")),
 ):
     try:
         payload["created_by"] = current_user.username or ""
@@ -131,7 +132,7 @@ async def get_policy(policy_id: str, current_user: TokenData = Depends(get_curre
 
 
 @router.delete("/policies/{policy_id}")
-async def delete_policy(policy_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_policy(policy_id: str, current_user: TokenData = Depends(require_permission("manage:assets"))):
     deleted = await svc.delete_policy(policy_id, _tenant(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Policy not found")

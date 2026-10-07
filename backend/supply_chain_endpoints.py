@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import supply_chain_service
 
 router = APIRouter(prefix="/api/supply-chain", tags=["Supply Chain"])
@@ -10,7 +11,7 @@ class ScanRequest(BaseModel):
     packages: list[dict]
 
 @router.post("/scan")
-async def scan_packages(req: ScanRequest, current_user=Depends(get_current_user)):
+async def scan_packages(req: ScanRequest, current_user=Depends(require_permission("investigate:security"))):
     tenant_id = current_user.tenant_id or None
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")

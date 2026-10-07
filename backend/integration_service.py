@@ -28,8 +28,58 @@ SECRET_FIELDS = frozenset({
     # camelCase spellings used by the integrations_v2 catalog configs
     "apiKey", "apiToken", "secretKey", "accessKey", "accessToken",
     "clientSecret", "authToken", "webhookUrl",
+    # HMAC secret that signs inbound Jira/Zoho webhooks (webhook_endpoints)
+    "webhook_secret", "webhookSecret",
 })
 SECRET_MASK = "********"
+ENC_PREFIX = "enc:"
+
+
+def _transform_secrets(doc: Dict[str, Any], fn) -> Dict[str, Any]:
+    out = dict(doc)
+    for key in SECRET_FIELDS:
+        value = out.get(key)
+        if isinstance(value, str) and value and value != SECRET_MASK:
+            out[key] = fn(value)
+    nested = out.get("config")
+    if isinstance(nested, dict):
+        out["config"] = _transform_secrets(nested, fn)
+    return out
+
+
+def _cipher():
+    # The same INTEGRATION_ENCRYPTION_KEY Fernet that seals cloud integrations;
+    # in production a missing key raises rather than storing plaintext.
+    from cloud_integrations_endpoints import _get_cipher
+    return _get_cipher()
+
+
+def seal_config(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Copy of an integration config with secret values (top level and nested
+    ``config``) encrypted for storage. Already-sealed values are kept."""
+    cipher = _cipher()
+    if cipher is None:
+        return dict(doc)
+    return _transform_secrets(
+        doc, lambda v: v if v.startswith(ENC_PREFIX) else ENC_PREFIX + cipher.encrypt(v.encode()).decode())
+
+
+def unseal_config(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Copy of a stored integration config with secrets decrypted, for the code
+    that calls the external system. Plaintext from before sealing passes through."""
+    cipher = _cipher()
+    if cipher is None:
+        return dict(doc)
+
+    def _open(value: str) -> str:
+        if not value.startswith(ENC_PREFIX):
+            return value
+        try:
+            return cipher.decrypt(value[len(ENC_PREFIX):].encode()).decode()
+        except Exception:
+            _log.error("An integration secret could not be decrypted (was INTEGRATION_ENCRYPTION_KEY changed?)")
+            return ""
+    return _transform_secrets(doc, _open)
 
 
 def redact_config(doc: Dict[str, Any]) -> Dict[str, Any]:
@@ -77,10 +127,11 @@ class IntegrationService(
     async def _get_integration_config(
         self, integration_type: str, platform: str
     ) -> Optional[Dict[str, Any]]:
-        """Fetch integration configuration from the database."""
-        return await self.db.integration_configs.find_one(
+        """Fetch integration configuration from the database (secrets decrypted)."""
+        doc = await self.db.integration_configs.find_one(
             {"type": integration_type, "platform": platform}, {"_id": 0}
         )
+        return unseal_config(doc) if doc else doc
 
     async def get_all_configs(self, tenant_id: str) -> List[Dict[str, Any]]:
         """Get all integration configurations for a tenant (secrets masked)."""
@@ -99,7 +150,7 @@ class IntegrationService(
             return {"success": False, "error": "Missing type or platform"}
         key = {"tenantId": tenant_id, "type": integration_type, "platform": platform}
         stored = await self.db.integration_configs.find_one(key, {"_id": 0}) or {}
-        config_data = _keep_stored_secrets(config_data, stored)
+        config_data = seal_config(_keep_stored_secrets(config_data, stored))
         await self.db.integration_configs.update_one(
             key,
             {"$set": {**config_data, "tenantId": tenant_id,

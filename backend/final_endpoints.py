@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from integration_service import get_integration_service
 from ml_service import get_ml_service
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class RecommendActionRequest(BaseModel):
 @router.post("/api/integrations/siem/send")
 async def send_to_siem(
     data: SIEMEvent,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:settings"))
 ):
     """Send event to SIEM platform."""
     try:
@@ -85,7 +86,7 @@ async def send_to_siem(
 @router.post("/api/integrations/cmdb/sync")
 async def sync_to_cmdb(
     data: CMDBSync,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:settings"))
 ):
     """Sync tenant assets to CMDB. Tenant scope is derived from the auth token."""
     try:
@@ -105,7 +106,7 @@ async def sync_to_cmdb(
 @router.post("/api/integrations/ticketing/create")
 async def create_ticket(
     data: TicketCreate,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:settings"))
 ):
     """Create ticket in ticketing system."""
     try:
@@ -145,9 +146,10 @@ async def configure_integration(
             "auth_token": data.auth_token,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
+        from integration_service import seal_config
         await db.integration_configs.update_one(
             {"type": data.type, "platform": data.platform},
-            {"$set": integration_config},
+            {"$set": seal_config(integration_config)},
             upsert=True,
         )
         return {"success": True, "message": f"{data.type} integration for {data.platform} configured"}
@@ -161,7 +163,7 @@ async def configure_integration(
 @router.post("/api/ml/predict-failure")
 async def predict_patch_failure(
     data: PatchFailureRequest,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:patches"))
 ):
     """Predict patch deployment failure probability."""
     try:
@@ -200,7 +202,7 @@ async def detect_anomalies(
 @router.post("/api/ml/recommend-action")
 async def recommend_autonomous_action(
     data: RecommendActionRequest,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:automation"))
 ):
     """Recommend autonomous deployment action."""
     try:

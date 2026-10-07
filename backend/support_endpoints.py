@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user
 from auth_types import TokenData
+from auth_roles import SUPER_ROLES
 from database import get_database
 import logging
 
@@ -23,8 +24,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/support", tags=["Support Chat"])
 
-_SUPER_ROLES  = {"Super Admin", "super_admin", "admin", "platform-admin"}
-_ADMIN_ROLES  = {"Tenant Admin", "tenant_admin"} | _SUPER_ROLES
+_SUPER_ROLES = SUPER_ROLES
+# "admin" is a tenant-scoped role (tenant admins can assign it), so it is an
+# in-tenant admin here, never a cross-tenant super role.
+_ADMIN_ROLES  = {"Tenant Admin", "tenant_admin", "admin"} | _SUPER_ROLES
 
 
 def _now() -> str:

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from rbac_utils import require_permission
 from typing import Optional
 from pydantic import BaseModel, Field
 from auth_utils import require_auth
@@ -40,7 +41,7 @@ async def get_anomalies(severity: str = Query(None), limit: int = Query(50),
     return {"anomalies": anomalies}
 
 
-@router.post("/detect")
+@router.post("/detect", dependencies=[Depends(require_permission("investigate:security"))])
 async def run_detection(user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     detected = await svc.run_detection(tenant_id)
@@ -49,7 +50,7 @@ async def run_detection(user=Depends(require_auth), svc: NDRService = Depends(ge
     return {"detected": len(detected), "anomalies": detected}
 
 
-@router.post("/flows")
+@router.post("/flows", dependencies=[Depends(require_permission("manage:settings"))])
 async def ingest_flow(body: NetworkFlow, user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     doc = await svc.ingest_flow(tenant_id, body.model_dump(exclude_none=True))
@@ -63,14 +64,14 @@ async def get_summary(user=Depends(require_auth), svc: NDRService = Depends(get_
     return await svc.get_traffic_summary(tenant_id)
 
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(require_permission("manage:settings"))])
 async def seed(user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     await svc.seed_demo(tenant_id)
     return {"message": "NDR demo data seeded"}
 
 
-@router.put("/anomalies/{anomaly_id}")
+@router.put("/anomalies/{anomaly_id}", dependencies=[Depends(require_permission("investigate:security"))])
 async def update_anomaly(anomaly_id: str, body: AnomalyUpdate, user=Depends(require_auth), svc: NDRService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     filtered = body.model_dump(exclude_none=True)

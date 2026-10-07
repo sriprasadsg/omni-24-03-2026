@@ -5,6 +5,7 @@ Ticketing Endpoints — /api/ticketing/*
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import ticketing_service
 
 router = APIRouter(prefix="/api/ticketing", tags=["Ticketing"])
@@ -72,7 +73,7 @@ async def save_config(req: TicketingConfigRequest, current_user=Depends(get_curr
 
 
 @router.post("/test")
-async def test_connection(req: TestConnectionRequest, current_user=Depends(get_current_user)):
+async def test_connection(req: TestConnectionRequest, current_user=Depends(require_permission("manage:settings"))):
     config = await ticketing_service.get_ticketing_config(current_user.tenant_id or None)
     if not config:
         return {"success": False, "error": "No ticketing config found"}
@@ -99,7 +100,7 @@ async def test_connection(req: TestConnectionRequest, current_user=Depends(get_c
 
 
 @router.post("/create")
-async def create_ticket(req: ManualTicketRequest, current_user=Depends(get_current_user)):
+async def create_ticket(req: ManualTicketRequest, current_user=Depends(require_permission("investigate:security"))):
     """Manually create a ticket from an alert ID."""
     from database import get_database
     db = get_database()

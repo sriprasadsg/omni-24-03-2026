@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 from database import get_database, mongodb
 from authentication_service import get_current_user, get_current_user_or_agent
+from rbac_utils import require_permission
 from datetime import datetime, timezone
 import uuid
 from agent_auth import verify_agent_key
@@ -144,7 +145,7 @@ async def report_instruction_result(
 @router.post("/dispatch")
 async def dispatch_agent_task(
     task: Dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("manage:agents"))
 ):
     """Dispatch a task to an agent."""
     db = get_database()

@@ -45,7 +45,7 @@ def _agent_token(agent_id="agent-1", tenant="tenant-a", expires=timedelta(days=9
 
 
 def _user_token():
-    return create_access_token(data={"sub": "u@example.com", "role": "admin", "tenant_id": "tenant-a"})
+    return create_access_token(data={"sub": "u@example.com", "role": "admin", "tenant_id": "tenant-a", "mfa_verified": True})
 
 
 # ── 1. agent tokens vs user sessions ────────────────────────────────────────

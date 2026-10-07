@@ -3,6 +3,7 @@ from typing import List, Any, Optional
 from pydantic import BaseModel, Field
 from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
+from rbac_utils import verify_permission
 from auth_types import TokenData
 from rbac_utils import require_permission
 from datetime import datetime, timezone
@@ -90,6 +91,8 @@ async def create_alert(
     _current_user: TokenData = Depends(get_current_user_or_agent),
 ):
     """Create a new alert and broadcast it to real-time subscribers."""
+    if getattr(_current_user, "role", "") != "agent" and not await verify_permission(_current_user, "investigate:security"):
+        raise HTTPException(status_code=403, detail="Missing required permission: investigate:security")
     if alert_in.severity not in _VALID_ALERT_SEVERITIES:
         raise HTTPException(status_code=400, detail=f"severity must be one of: {sorted(_VALID_ALERT_SEVERITIES)}")
     db = get_database()

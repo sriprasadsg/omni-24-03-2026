@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import logging
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 import incident_warroom_service as svc
 
@@ -47,7 +48,7 @@ async def list_incidents(
 @router.post("")
 async def create_incident(
     payload: CreateIncidentRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     if payload.severity and payload.severity not in svc.INCIDENT_SEVERITIES:
         raise HTTPException(status_code=400, detail=f"Invalid severity. Choose from: {svc.INCIDENT_SEVERITIES}")
@@ -75,7 +76,7 @@ async def get_incident(incident_id: str, current_user: TokenData = Depends(get_c
 async def update_status(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     new_status = payload.get("status", "")
     if new_status not in svc.INCIDENT_STATUSES:
@@ -98,7 +99,7 @@ async def update_status(
 async def add_timeline_event(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     entry = await svc.add_timeline_event(
         incident_id, current_user.username or "", current_user.tenant_id or "", current_user.role or "", payload
@@ -112,7 +113,7 @@ async def add_timeline_event(
 async def add_task(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     task = await svc.add_task(
         incident_id, current_user.username or "", current_user.tenant_id or "", current_user.role or "", payload
@@ -126,7 +127,7 @@ async def add_task(
 async def post_chat(
     incident_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     message = payload.get("message", "").strip()
     if not message:

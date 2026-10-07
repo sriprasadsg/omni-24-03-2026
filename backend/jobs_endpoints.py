@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any, Optional
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from datetime import datetime, timezone
 import uuid
@@ -44,7 +45,7 @@ async def get_job(job_id: str, current_user: TokenData = Depends(get_current_use
 
 
 @router.post("")
-async def create_job(job_data: Dict[str, Any], current_user: TokenData = Depends(get_current_user)):
+async def create_job(job_data: Dict[str, Any], current_user: TokenData = Depends(require_permission("manage:automation"))):
     username = "unknown"
     if hasattr(current_user, "username"):
         username = current_user.username

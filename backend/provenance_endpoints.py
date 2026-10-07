@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from typing import List, Any, Dict, Optional
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from provenance_verifier import provenance_engine
 
 router = APIRouter(prefix="/api/provenance", tags=["Provenance"])
@@ -37,7 +38,7 @@ class VerifyRequest(BaseModel):
 
 
 @router.post("/sign")
-async def sign_block(body: SignRequest, current_user=Depends(get_current_user)):
+async def sign_block(body: SignRequest, current_user=Depends(require_permission("manage:compliance_evidence"))):
     raw_logs = [e.model_dump() for e in body.logs]
     record = provenance_engine.sign_block(raw_logs)
     return {**record, "entries_signed": len(body.logs)}

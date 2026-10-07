@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from rebac_service import get_reback_service, ReBACService
 
 logger = logging.getLogger(__name__)
@@ -114,7 +115,7 @@ def _parse_controls_from_text(text: str) -> List[Dict[str, Any]]:
 @router.post("/api/compliance")
 async def create_compliance_framework(
     body: Dict[str, Any],
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     """Create a new (custom or catalog) compliance framework for this tenant."""
     db = get_database()
@@ -183,7 +184,7 @@ async def get_compliance_frameworks(
 async def add_compliance_control(
     framework_id: str,
     control: dict,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     """Add a new control to a framework."""
     db = get_database()
@@ -225,7 +226,7 @@ async def add_compliance_control(
 async def import_compliance_controls(
     framework_id: str,
     file: UploadFile = File(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     """
     Import controls from CSV, Excel (.xlsx), PDF, or Word (.docx).

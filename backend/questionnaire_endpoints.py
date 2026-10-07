@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, EmailStr
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from questionnaire_service import questionnaire_service
 
@@ -59,7 +60,7 @@ async def list_questionnaires(current_user: TokenData = Depends(get_current_user
 
 
 @router.post("")
-async def create_questionnaire(payload: QuestionnaireCreate, current_user: TokenData = Depends(get_current_user)):
+async def create_questionnaire(payload: QuestionnaireCreate, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     created_by = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
     return await questionnaire_service.create_questionnaire(
         payload.model_dump(exclude_none=True), _tenant(current_user), created_by
@@ -75,7 +76,7 @@ async def get_questionnaire(qid: str, current_user: TokenData = Depends(get_curr
 
 
 @router.put("/{qid}")
-async def update_questionnaire(qid: str, payload: QuestionnaireUpdate, current_user: TokenData = Depends(get_current_user)):
+async def update_questionnaire(qid: str, payload: QuestionnaireUpdate, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     q = await questionnaire_service.update_questionnaire(
         qid, payload.model_dump(exclude_none=True), _tenant(current_user), _role(current_user)
     )
@@ -85,7 +86,7 @@ async def update_questionnaire(qid: str, payload: QuestionnaireUpdate, current_u
 
 
 @router.delete("/{qid}")
-async def delete_questionnaire(qid: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_questionnaire(qid: str, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     deleted = await questionnaire_service.delete_questionnaire(qid, _tenant(current_user), _role(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Questionnaire not found")
@@ -93,7 +94,7 @@ async def delete_questionnaire(qid: str, current_user: TokenData = Depends(get_c
 
 
 @router.post("/{qid}/send")
-async def send_questionnaire(qid: str, payload: SendPayload, current_user: TokenData = Depends(get_current_user)):
+async def send_questionnaire(qid: str, payload: SendPayload, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     if not payload.emails:
         raise HTTPException(status_code=400, detail="At least one email required")
     return await questionnaire_service.send_questionnaire(

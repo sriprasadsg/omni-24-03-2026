@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import android_enterprise_service as svc
 
 router = APIRouter(prefix="/api/android-enterprise", tags=["Android Enterprise"])
@@ -21,7 +22,7 @@ async def list_profiles(current_user=Depends(get_current_user)) -> Any:
 
 
 @router.post("/profiles")
-async def create_profile(body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def create_profile(body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.create_profile(tenant_id, body)
@@ -39,7 +40,7 @@ async def get_profile(profile_id: str, current_user=Depends(get_current_user)) -
 
 
 @router.put("/profiles/{profile_id}")
-async def update_profile(profile_id: str, body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def update_profile(profile_id: str, body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.update_profile(tenant_id, profile_id, body)
@@ -48,7 +49,7 @@ async def update_profile(profile_id: str, body: Dict[str, Any], current_user=Dep
 
 
 @router.delete("/profiles/{profile_id}")
-async def delete_profile(profile_id: str, current_user=Depends(get_current_user)) -> Any:
+async def delete_profile(profile_id: str, current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     await svc.delete_profile(tenant_id, profile_id)
     return {"deleted": profile_id}
@@ -66,7 +67,7 @@ async def get_enrollment_url(profile_id: str, current_user=Depends(get_current_u
 # â”€â”€ Samsung Knox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post("/knox/license")
-async def set_knox_license(body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def set_knox_license(body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.set_knox_license(tenant_id, body)
@@ -83,7 +84,7 @@ async def get_knox_status(current_user=Depends(get_current_user)) -> Any:
 # â”€â”€ Dedicated Devices (Kiosk) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.post("/dedicated-device/configure")
-async def configure_dedicated_device(body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def configure_dedicated_device(body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.configure_dedicated_device(tenant_id, body)

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from risk_service import risk_service
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/risks", tags=["Risk Management"])
@@ -54,7 +55,7 @@ async def get_risks(current_user: TokenData = Depends(get_current_user)):
 @router.post("")
 async def create_risk(
     risk: RiskCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     return await risk_service.create_risk(risk.dict(exclude_unset=True), tenant_id=_risk_tenant(current_user))
 
@@ -62,7 +63,7 @@ async def create_risk(
 async def update_risk(
     risk_id: str,
     risk: RiskUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     role = getattr(current_user, "role", "")
     tenant_id = getattr(current_user, "tenant_id", None) or None
@@ -74,7 +75,7 @@ async def update_risk(
 @router.delete("/{risk_id}")
 async def delete_risk(
     risk_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance")),
 ):
     role = getattr(current_user, "role", "")
     tenant_id = getattr(current_user, "tenant_id", None) or None

@@ -12,12 +12,15 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
 from tenant_context import set_tenant_id
+from auth_roles import SUPER_ROLES
 
 router = APIRouter(prefix="/api/insights", tags=["Proactive Insights"])
 
 logger = logging.getLogger(__name__)
 
-_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+# Cross-tenant elevation is for platform super-admins only: "admin" is a
+# tenant-scoped role that tenant admins can assign to their own users.
+_SUPER_ROLES = SUPER_ROLES
 
 
 @router.get("/proactive")
@@ -31,9 +34,9 @@ async def get_proactive_insights(
     """
     caller_role = getattr(current_user, "role", "")
     caller_tenant = getattr(current_user, "tenant_id", None)
-    if caller_role in _ADMIN_ROLES:
+    if caller_role in _SUPER_ROLES:
         set_tenant_id("platform-admin")
-        effective_tenant = tenantId  # admins may scope to a specific tenant or None for all
+        effective_tenant = tenantId  # super-admins may scope to a specific tenant or None for all
     else:
         effective_tenant = caller_tenant  # non-admins always use their own JWT tenant
 

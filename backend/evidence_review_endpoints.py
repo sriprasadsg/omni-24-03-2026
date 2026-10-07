@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 from rate_limiter import limiter
@@ -66,7 +67,7 @@ async def submit_evidence_for_review(
     request: Request,
     response: Response,
     evidence_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance_evidence")),
 ):
     """Set evidence status to pending_review."""
     tenant_id = current_user.tenant_id
@@ -87,7 +88,7 @@ async def create_evidence_review(
     response: Response,
     evidence_id: str,
     body: CreateReviewRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:compliance_evidence")),
 ):
     """Create a review record for an evidence item."""
     tenant_id = current_user.tenant_id

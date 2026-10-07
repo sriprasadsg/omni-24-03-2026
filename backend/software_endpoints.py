@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from datetime import datetime
 from authentication_service import get_current_user, get_current_user_or_agent
+from rbac_utils import require_permission
 from database import get_database
 from rate_limiter import limiter
 
@@ -58,7 +59,7 @@ async def upload_software(
     request: Request,
     response: Response,
     file: UploadFile = File(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:patches")),
 ):
     """Upload a software installer to the repository."""
     try:
@@ -134,7 +135,7 @@ class DeployRequest(BaseModel):
 @router.post("/deploy")
 async def deploy_software(
     payload: DeployRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:patches")),
 ):
     """Dispatch a software action to one or more agents."""
     valid_actions = {"install", "upgrade", "uninstall", "install_from_repo", "install_from_url"}
@@ -293,7 +294,7 @@ async def get_software_inventory(current_user=Depends(get_current_user)):
 @router.post("/updates/deploy")
 async def deploy_software_updates(
     data: dict,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:patches")),
 ):
     """Schedule deployment of software updates across multiple assets."""
     try:

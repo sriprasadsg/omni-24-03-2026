@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -81,7 +82,7 @@ async def list_monitored_paths(
 @router.post("/paths", status_code=201)
 async def create_monitored_path(
     body: PathCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     """Add a path to FIM monitoring."""
     db = get_database()
@@ -119,7 +120,7 @@ async def create_monitored_path(
 async def update_monitored_path(
     path_id: str,
     body: PathUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     """Update FIM path configuration."""
     db = get_database()
@@ -146,7 +147,7 @@ async def update_monitored_path(
 @router.delete("/paths/{path_id}", status_code=204)
 async def delete_monitored_path(
     path_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     """Remove a path from FIM monitoring."""
     db = get_database()
@@ -161,7 +162,7 @@ async def delete_monitored_path(
 @router.post("/paths/seed-defaults")
 async def seed_default_paths(
     platform: str = Query(..., description="linux|windows|macos"),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     """Seed default CIS-recommended paths for a platform."""
     db = get_database()

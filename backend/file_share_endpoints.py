@@ -18,21 +18,23 @@ class ShareCreate(BaseModel):
 class ShareAccess(BaseModel):
     password: Optional[str] = Field(None, max_length=128)
 
-@router.get("/shares", response_model=List[SharedFile])
+@router.get("/shares", response_model=List[SharedFile], response_model_exclude={"password_hash"})
 def get_shares(current_user=Depends(get_current_user)):
     user_email = getattr(current_user, "username", None) or getattr(current_user, "email", "")
-    return file_share_service.get_my_shares(user_email)
+    return file_share_service.get_my_shares(user_email, getattr(current_user, "tenant_id", None))
 
-@router.post("/shares", response_model=SharedFile)
+@router.post("/shares", response_model=SharedFile, response_model_exclude={"password_hash"})
 def create_share(share: ShareCreate, current_user=Depends(get_current_user)):
     user_email = getattr(current_user, "username", None) or getattr(current_user, "email", "")
     data = share.dict()
     data["created_by"] = user_email
+    data["tenant_id"] = getattr(current_user, "tenant_id", None)
     return file_share_service.create_share(data)
 
 @router.delete("/shares/{share_id}")
 def revoke_share(share_id: str, current_user=Depends(get_current_user)):
-    success = file_share_service.revoke_share(share_id)
+    user_email = getattr(current_user, "username", None) or getattr(current_user, "email", "")
+    success = file_share_service.revoke_share(share_id, user_email, getattr(current_user, "tenant_id", None))
     if not success:
         raise HTTPException(status_code=404, detail="Share not found")
     return {"message": "Share revoked"}

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from access_review_service import access_review_service
 
@@ -60,7 +61,7 @@ async def list_reviews(
 
 
 @router.post("")
-async def create_review(payload: ReviewCreate, current_user: TokenData = Depends(get_current_user)):
+async def create_review(payload: ReviewCreate, current_user: TokenData = Depends(require_permission("manage:rbac"))):
     created_by = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
     return await access_review_service.create_review(
         payload.model_dump(exclude_none=True), _tenant(current_user), created_by
@@ -76,7 +77,7 @@ async def get_review(review_id: str, current_user: TokenData = Depends(get_curre
 
 
 @router.post("/{review_id}/start")
-async def start_review(review_id: str, current_user: TokenData = Depends(get_current_user)):
+async def start_review(review_id: str, current_user: TokenData = Depends(require_permission("manage:rbac"))):
     r = await access_review_service.start_review(review_id, _tenant(current_user), _role(current_user))
     if not r:
         raise HTTPException(status_code=404, detail="Access review not found or not in Scheduled/Overdue state")
@@ -87,7 +88,7 @@ async def start_review(review_id: str, current_user: TokenData = Depends(get_cur
 async def submit_decisions(
     review_id: str,
     payload: DecisionsPayload,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:rbac")),
 ):
     r = await access_review_service.submit_decisions(
         review_id,
@@ -101,7 +102,7 @@ async def submit_decisions(
 
 
 @router.put("/{review_id}/complete")
-async def complete_review(review_id: str, current_user: TokenData = Depends(get_current_user)):
+async def complete_review(review_id: str, current_user: TokenData = Depends(require_permission("manage:rbac"))):
     r = await access_review_service.complete_review(review_id, _tenant(current_user), _role(current_user))
     if not r:
         raise HTTPException(status_code=404, detail="Access review not found")
@@ -109,7 +110,7 @@ async def complete_review(review_id: str, current_user: TokenData = Depends(get_
 
 
 @router.delete("/{review_id}")
-async def delete_review(review_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_review(review_id: str, current_user: TokenData = Depends(require_permission("manage:rbac"))):
     deleted = await access_review_service.delete_review(review_id, _tenant(current_user), _role(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Access review not found")

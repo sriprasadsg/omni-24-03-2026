@@ -30,8 +30,14 @@ pub struct Config {
     pub max_cpu_percent: f32,
     #[serde(default)]
     pub agentic_mode_enabled: bool,
+    /// Legacy: skip certificate checks for the platform. Ignored when
+    /// server_ca_cert is set; installers no longer write `true`.
     #[serde(default)]
     pub accept_invalid_certs: bool,
+    /// The platform's TLS certificate (PEM), shipped by the installer. When
+    /// set, platform connections trust this certificate only (see tls.rs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_ca_cert: Option<String>,
     #[serde(default = "default_fim_paths")]
     pub fim_paths: Vec<String>,
 }
@@ -90,6 +96,7 @@ pub fn write_tray_config(cfg: &Config) -> Result<(), Box<dyn std::error::Error>>
         "agent_token": cfg.agent_token,
         "chat_ui": chat_ui.to_string_lossy(),
         "accept_invalid_certs": cfg.accept_invalid_certs,
+        "server_cert_der_b64": crate::tls::pinned_der_base64(),
     });
     std::fs::write(dir.join("tray-config.json"), serde_json::to_vec_pretty(&tray)?)?;
     Ok(())

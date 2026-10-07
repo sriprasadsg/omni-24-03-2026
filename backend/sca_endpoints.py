@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -120,7 +121,7 @@ async def trigger_scan(
     agent_id: str,
     body: ScanTrigger,
     background_tasks: BackgroundTasks,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """Queue an SCA scan for the specified agent."""
     db = get_database()

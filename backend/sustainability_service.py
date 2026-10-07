@@ -6,7 +6,8 @@ daily snapshots in MongoDB so the 30-day trend graph reflects actual data.
 Carbon intensity constants (gCO2/kWh) are static regional averages per the
 IEA 2023 Electricity Maps dataset — good enough without a cloud-provider API.
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from authentication_service import get_current_user
 from pydantic import BaseModel
 from typing import List, Dict
 import datetime
@@ -17,7 +18,7 @@ try:
 except ImportError:
     _HAS_PSUTIL = False
 
-router = APIRouter(prefix="/api/sustainability", tags=["Sustainability & GreenOps"])
+router = APIRouter(prefix="/api/sustainability", tags=["Sustainability & GreenOps"], dependencies=[Depends(get_current_user)])
 
 # ── Regional carbon intensity (gCO2/kWh, IEA 2023 averages) ──────────────────
 _CARBON_INTENSITY: Dict[str, float] = {

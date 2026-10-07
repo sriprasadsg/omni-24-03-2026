@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from datetime import datetime, timezone
 import uuid
 from agent_auth import verify_agent_key
@@ -278,7 +279,7 @@ async def approve_agentic_decision(
     decision_id: str,
     payload: Dict[str, Any] = Body(...),
     db=Depends(get_database),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_permission("remediate:agents")),
 ):
     """Operator approves or rejects a pending agentic decision."""
     approved = bool(payload.get("approved", False))

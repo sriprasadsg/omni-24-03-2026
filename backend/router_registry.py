@@ -341,7 +341,8 @@ def register_all_routers(app: FastAPI) -> None:
         ("file_share_endpoints",            {}),
         ("integration_endpoints",           {}),
         ("maintenance_endpoints",           {}),
-        ("new_playbook_api",                {}),
+        # new_playbook_api is not registered: playbook_endpoints owns /api/playbooks
+        # (same paths, loaded earlier) and the duplicate had no auth or tenant checks.
         ("remote_endpoints",                {}),
         ("agent_chat_endpoints",            {}),
         ("service_mesh_service",            {}),

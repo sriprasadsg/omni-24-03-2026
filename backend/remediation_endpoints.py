@@ -5,6 +5,7 @@ from remediation_service import RemediationService
 from tenant_context import get_tenant_id
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 
@@ -16,7 +17,7 @@ async def generate_remediation(
     asset_id: str,
     vulnerability_id: str,
     cve_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("remediate:agents")),
     tenant_id: str = Depends(get_tenant_id)
 ):
     """Ask the AI to generate a fix for a specific vulnerability."""
@@ -36,7 +37,7 @@ async def generate_remediation(
 @router.post("/{request_id}/execute", response_model=RemediationRequest)
 async def execute_remediation(
     request_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("remediate:agents")),
     tenant_id: str = Depends(get_tenant_id)
 ):
     """Approve and execute a pending remediation request."""

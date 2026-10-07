@@ -54,16 +54,26 @@ if (-not $Token) { $Token = $cfg.agent_token }
 $Headers  = @{ Authorization = "Bearer $Token" }
 $ChatUi   = if ($cfg.chat_ui) { $cfg.chat_ui } else { "$env:ProgramData\OmniAgent\chat_ui.ps1" }
 
-# This server's default deployment terminates TLS with a self-signed cert
-# (see certs/server.crt) — the Rust agent's own HTTP client already trusts it
-# via config.yaml's accept_invalid_certs, but Invoke-RestMethod here is a
-# separate .NET TLS stack that knows nothing about that config. Without this,
-# every call below fails with a generic "trust relationship" error that the
-# catch blocks turn into "Could not reach the server." / "check connection.",
-# even though the server is perfectly reachable. Only bypass validation when
-# the agent config explicitly says the target uses that self-signed cert.
+# This server's default deployment terminates TLS with a self-signed cert.
+# The Rust agent's own HTTP client trusts it because the installer pinned it
+# (server_ca_cert in config.yaml, passed here as server_cert_der_b64), but
+# Invoke-RestMethod here is a separate .NET TLS stack that knows nothing about
+# that config. Without this, every call below fails with a generic "trust
+# relationship" error that the catch blocks turn into "Could not reach the
+# server." / "check connection.", even though the server is perfectly
+# reachable. Agents installed before pinning still use accept_invalid_certs.
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
-if ($cfg.accept_invalid_certs) {
+if ($cfg.server_cert_der_b64) {
+    # Pinned: accept the server only if it presents exactly the certificate the
+    # installer shipped (same rule as the Rust agent's own connections).
+    $Pinned = [string]$cfg.server_cert_der_b64
+    try {
+        [Net.ServicePointManager]::ServerCertificateValidationCallback = {
+            param($sender, $cert, $chain, $errors)
+            $cert -ne $null -and [Convert]::ToBase64String($cert.GetRawCertData()) -eq $Pinned
+        }.GetNewClosure()
+    } catch { }
+} elseif ($cfg.accept_invalid_certs) {
     try { [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true } } catch { }
 }
 
@@ -159,6 +169,7 @@ function Start-ChatWithIT {
                 session_id = $sess.id; backend_url = $Base; token = $Token
                 subject = $subj.Text.Trim(); initial = ''; sender = ''
                 accept_invalid_certs = [bool]$cfg.accept_invalid_certs
+                server_cert_der_b64 = $cfg.server_cert_der_b64
             } | ConvertTo-Json
             $sessPath = "$env:ProgramData\OmniAgent\chat_$($sess.id).json"
             Set-Content -Path $sessPath -Value $sessCfg -Encoding UTF8

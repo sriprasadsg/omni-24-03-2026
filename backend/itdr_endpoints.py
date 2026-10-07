@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from itdr_service import itdr_service
 from integration_service import get_integration_service
@@ -27,7 +28,7 @@ async def get_itdr_alerts(
 @router.patch("/alerts/{alert_id}/acknowledge")
 async def acknowledge_itdr_alert(
     alert_id: str,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("investigate:security"))
 ):
     """Acknowledge an ITDR alert."""
     success = await itdr_service.acknowledge_alert(alert_id, by=current_user.username)

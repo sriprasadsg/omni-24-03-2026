@@ -269,11 +269,33 @@ def test_delete_other_user_evidence():
     assert exc_info.value.status_code == 403
 
 
+def test_tenant_admin_role_cannot_delete_other_tenants_evidence():
+    """"admin" is a tenant role, not a super role — another tenant's evidence is refused."""
+    from compliance_evidence_endpoints import delete_compliance_evidence
+    from fastapi.exceptions import HTTPException
+
+    admin = _make_user(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+    agg_result = _manual_ev_doc(uploaded_by="somebody@other.com", tenant_id="tenant-b")
+    db = _make_db(aggregate_result=agg_result)
+
+    async def _run():
+        with patch("compliance_evidence_endpoints.get_database", return_value=db):
+            return await delete_compliance_evidence(
+                asset_id="asset-1",
+                evidence_id="ev-manual-abc",
+                current_user=admin,
+            )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(_run())
+    assert exc_info.value.status_code == 403
+
+
 def test_admin_delete_any_evidence():
-    """EVID-04: Admin (_SUPER_ROLES) can delete any tenant's manual evidence."""
+    """EVID-04: Super-admins (_SUPER_ROLES) can delete any tenant's manual evidence."""
     from compliance_evidence_endpoints import delete_compliance_evidence
 
-    admin = _make_user(username="admin@platform.com", role="admin", tenant_id="platform-admin")
+    admin = _make_user(username="root@platform.com", role="Super Admin", tenant_id="platform-admin")
     # Evidence belongs to a completely different tenant
     agg_result = _manual_ev_doc(uploaded_by="somebody@other.com", tenant_id="tenant-b")
     db = _make_db(aggregate_result=agg_result)

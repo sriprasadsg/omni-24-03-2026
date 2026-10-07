@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ async def list_patches(
 @router.post("/deploy")
 async def create_deployment_job(
     request: PatchDeploymentRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Schedule a patch deployment job."""
     try:

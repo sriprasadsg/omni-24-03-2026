@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
@@ -249,7 +250,7 @@ async def list_rules(
 @router.post("/", status_code=201)
 async def create_rule(
     body: DetectionRuleCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Create a new detection rule."""
     if body.severity not in VALID_SEVERITIES:
@@ -268,7 +269,7 @@ async def create_rule(
 async def update_rule(
     rule_id: str,
     body: DetectionRuleUpdate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Update an existing detection rule."""
     db = get_database()
@@ -302,7 +303,7 @@ async def update_rule(
 @router.delete("/{rule_id}", status_code=204)
 async def delete_rule(
     rule_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Delete a detection rule."""
     db = get_database()
@@ -317,7 +318,7 @@ async def delete_rule(
 @router.post("/{rule_id}/enable")
 async def enable_rule(
     rule_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Enable a detection rule."""
     db = get_database()
@@ -333,7 +334,7 @@ async def enable_rule(
 @router.post("/{rule_id}/disable")
 async def disable_rule(
     rule_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Disable a detection rule."""
     db = get_database()
@@ -349,7 +350,7 @@ async def disable_rule(
 @router.post("/{rule_id}/test")
 async def test_rule(
     rule_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:security_cases")),
 ):
     """Run the rule against the last 1 hour of security events."""
     db = get_database()

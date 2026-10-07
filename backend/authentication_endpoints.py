@@ -7,7 +7,9 @@ _SENSITIVE_USER_FIELDS = frozenset({
     '_id', 'mfa',
     'reset_token', 'invite_token', 'api_key', 'secret',
 })
-from authentication_service import create_access_token, create_refresh_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, oauth2_scheme, SECRET_KEY
+from authentication_service import create_access_token, create_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY, account_is_active, refresh_token_cut_off
+from authentication_service import REFRESH_COOKIE, set_refresh_cookie, clear_refresh_cookie, _oauth2_optional, _revoked_jti_cache
+from authentication_service import get_current_user_mfa_pending, mfa_action_for
 from database import get_database
 from rbac_service import find_role_doc
 
@@ -154,6 +156,11 @@ async def login_for_access_token(request: Request, response: Response, login_req
         )
     await _clear_login_failures(db, identifier)
 
+    # A disabled account gets no session (and no MFA step). Only reachable
+    # with the right password, so naming the reason leaks nothing new.
+    if not account_is_active(user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is disabled. Contact your administrator.")
+
     # 3. If MFA is enabled — return short-lived session token instead of full JWT
     mfa = user.get("mfa", {})
     if mfa.get("enabled"):
@@ -210,22 +217,25 @@ async def login_for_access_token(request: Request, response: Response, login_req
     else:
         user_data['permissions'] = []
 
+    # Admin-tier accounts without MFA may only enroll until they do
+    user_data['mfa_action'] = mfa_action_for(role, mfa_verified=False, mfa_enabled=False)
+
     # UEBA behavioral analysis (non-blocking)
     import asyncio as _asyncio
     client_ip = request.client.host if request.client else "unknown"
     client_ua = request.headers.get("user-agent", "")
     _asyncio.create_task(_run_ueba_analysis(db._db, user["email"], client_ip, client_ua))
 
+    set_refresh_cookie(response, request, refresh_token)
     return {
         "access_token": access_token,
-        "refresh_token": refresh_token,
         "token_type": "bearer",
         "success": True,
         "user": user_data
     }
 
 @router.get("/me")
-async def read_users_me(current_user: dict = Depends(get_current_user)):
+async def read_users_me(current_user: dict = Depends(get_current_user_mfa_pending)):
     """
     Get the current authenticated user's full profile including role permissions.
     
@@ -259,6 +269,8 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
     
     # Expose MFA enabled flag (not the secret)
     user_data['mfa_enabled'] = user.get('mfa', {}).get('enabled', False)
+    user_data['mfa_action'] = mfa_action_for(
+        current_user.role, bool(getattr(current_user, "mfa_verified", False)), user_data['mfa_enabled'])
     
     return user_data
 
@@ -382,11 +394,12 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     user_data = {k: v for k, v in user_doc.items() if k not in _SENSITIVE_USER_FIELDS}
     if 'id' not in user_data:
         user_data['id'] = user_id
+    user_data['mfa_action'] = mfa_action_for("Tenant Admin", mfa_verified=False, mfa_enabled=False)
         
+    set_refresh_cookie(response, request, refresh_token)
     return {
         "success": True, 
         "access_token": access_token,
-        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": user_data,
         "tenant": {
@@ -401,9 +414,11 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
 
 @router.post("/refresh")
 @limiter.limit("20/minute")
-async def refresh_access_token(request: Request, response: Response, data: dict[str, Any] = Body(...)):
-    """Exchange a valid refresh token for a new access token and a rotated refresh token."""
-    refresh_token = data.get("refresh_token", "")
+async def refresh_access_token(request: Request, response: Response, data: dict[str, Any] | None = Body(None)):
+    """Exchange the refresh cookie for a new access token and a rotated cookie.
+    A refresh token in the body is still accepted, so tabs opened before the
+    cookie existed move over on their next refresh."""
+    refresh_token = request.cookies.get(REFRESH_COOKIE) or (data or {}).get("refresh_token", "")
     if not refresh_token:
         raise HTTPException(status_code=400, detail="Refresh token is required")
 
@@ -429,7 +444,10 @@ async def refresh_access_token(request: Request, response: Response, data: dict[
 
     # Refresh token only contains email (no tenant_id), so bypass isolation for lookup
     user = await db._db.users.find_one({"email": email})
-    if not user or user.get("status") != "Active":
+    if not account_is_active(user):
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    # Disabling, re-roling or a password change ends refresh tokens too.
+    if await refresh_token_cut_off(db, email, float(payload.get("iat") or 0)):
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
     # Atomically consume this refresh token's JTI — prevents double-use under concurrency.
@@ -460,40 +478,62 @@ async def refresh_access_token(request: Request, response: Response, data: dict[
     # Fall back to the original token's tenant_id so Tenant Admins aren't locked out
     # if their document was created before tenantId was indexed.
     tenant_id_for_token = user.get("tenantId") or payload.get("tenant_id") or None
+    # A session that passed MFA stays MFA-verified across refreshes.
+    mfa_verified = bool(payload.get("mfa_verified"))
     token_data = {
         "sub": email,
         "role": user.get("role", "user"),
         "tenant_id": tenant_id_for_token,
+        "mfa_verified": mfa_verified,
     }
     new_access_token = create_access_token(data=token_data)
-    new_refresh_token = create_refresh_token(data={"sub": email})
-    return {"success": True, "access_token": new_access_token, "refresh_token": new_refresh_token}
+    new_refresh_token = create_refresh_token(data={"sub": email, "mfa_verified": mfa_verified})
+    set_refresh_cookie(response, request, new_refresh_token)
+    return {"success": True, "access_token": new_access_token}
+
+
+async def _revoke_presented_token(db, token: str, want_refresh: bool) -> None:
+    """Blocklist the jti of a token the caller holds. Expired or forged
+    tokens have nothing left to revoke."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        return
+    jti = payload.get("jti")
+    if not jti or (payload.get("type") == "refresh") != want_refresh:
+        return
+    _revoked_jti_cache.add(jti)  # block in-process immediately, even if the DB write fails
+    try:
+        await db._db.revoked_tokens.update_one(
+            {"jti": jti},
+            {"$setOnInsert": {
+                "jti": jti,
+                "type": "refresh" if want_refresh else "access",
+                "exp": payload.get("exp"),
+                "revoked_at": datetime.datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
+    except Exception as db_err:
+        logger.warning("Token revocation DB write failed — token blocked in-process cache only: %s", db_err)
 
 
 @router.post("/logout")
 async def logout(
-    _current_user=Depends(get_current_user),
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    response: Response,
+    token: str | None = Depends(_oauth2_optional),
 ):
-    """Revoke the current access token by storing its jti in the blocklist."""
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        jti = payload.get("jti")
-        if jti:
-            from authentication_service import _revoked_jti_cache
-            _revoked_jti_cache.add(jti)  # block in-process immediately, even if DB write fails
-            try:
-                db = get_database()
-                exp = payload.get("exp")
-                await db.revoked_tokens.insert_one({
-                    "jti": jti,
-                    "exp": exp,
-                    "revoked_at": datetime.datetime.now(timezone.utc).isoformat(),
-                })
-            except Exception as db_err:
-                logger.warning("Token revocation DB write failed — token blocked in-process cache only: %s", db_err)
-    except Exception as e:
-        logger.warning("Token revocation failed (token will expire naturally): %s", e)
+    """End this browser session: revoke the access token and the refresh
+    cookie, then clear the cookie. Needs no valid access token, so a session
+    whose access token already expired can still sign out."""
+    db = get_database()
+    if token:
+        await _revoke_presented_token(db, token, want_refresh=False)
+    refresh_token = request.cookies.get(REFRESH_COOKIE)
+    if refresh_token:
+        await _revoke_presented_token(db, refresh_token, want_refresh=True)
+    clear_refresh_cookie(response, request)
     return {"success": True, "message": "Logged out successfully"}
 
 

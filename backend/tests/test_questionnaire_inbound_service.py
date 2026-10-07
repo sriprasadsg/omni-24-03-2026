@@ -56,6 +56,7 @@ def _make_client():
     app.include_router(ep_mod.router)
     user = MagicMock()
     user.username = "testuser"
+    user.role = "Tenant Admin"  # questionnaire writes need manage:compliance
     user.tenant_id = TENANT
     app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app)

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from pydantic import BaseModel
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
 from maturity_service import maturity_service
 
@@ -30,7 +31,7 @@ class AssessmentPayload(BaseModel):
 
 
 @router.get("/domains")
-async def get_domains():
+async def get_domains(current_user=Depends(get_current_user)):
     return {"domains": await maturity_service.get_domains()}
 
 
@@ -59,7 +60,7 @@ async def list_assessments(
 
 
 @router.post("")
-async def upsert_assessment(payload: AssessmentPayload, current_user: TokenData = Depends(get_current_user)):
+async def upsert_assessment(payload: AssessmentPayload, current_user: TokenData = Depends(require_permission("manage:compliance"))):
     assessed_by = getattr(current_user, "username", getattr(current_user, "email", "unknown"))
     return await maturity_service.upsert_assessment(
         payload.model_dump(exclude_none=True), _tenant(current_user), assessed_by

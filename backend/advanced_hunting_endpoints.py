@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from authentication_service import get_current_user, TokenData
+from rbac_utils import require_permission
 from database import get_database
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
@@ -142,7 +143,7 @@ async def list_saved_queries(
 @router.post("/queries", status_code=201)
 async def save_query(
     body: SaveQueryRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """Save a new hunt query."""
     db = get_database()
@@ -166,7 +167,7 @@ async def save_query(
 @router.delete("/queries/{query_id}", status_code=204)
 async def delete_query(
     query_id: str,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """Delete a saved hunt query."""
     db = get_database()
@@ -181,7 +182,7 @@ async def delete_query(
 @router.post("/run")
 async def run_query(
     body: RunQueryRequest,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("investigate:security")),
 ):
     """Execute a KQL-like hunt query against the appropriate collection."""
     db = get_database()

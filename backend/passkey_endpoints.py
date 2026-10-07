@@ -8,7 +8,7 @@ from slowapi.util import get_remote_address
 from pydantic import BaseModel
 from webauthn import options_to_json
 from auth_types import TokenData
-from authentication_service import get_current_user, create_access_token, create_refresh_token
+from authentication_service import get_current_user, create_access_token, create_refresh_token, account_is_active, set_refresh_cookie
 from passkey_service import (
     build_registration_options,
     verify_and_store_registration,
@@ -108,6 +108,7 @@ async def passkey_login_options(
 @limiter.limit("10/minute")
 async def passkey_login_verify(
     request: Request,
+    response: Response,
     data: LoginVerifyRequest
 ):
     """Verify passkey authentication and return JWT tokens."""
@@ -120,10 +121,12 @@ async def passkey_login_verify(
     # Look up user by credential ID
     user_doc = await mongodb.db.users.find_one(
         {"webauthn_credentials.credential_id": {"$in": credential_id_candidates(cred_id_raw)}},
-        {"id": 1, "webauthn_credentials": 1, "tenantId": 1, "username": 1, "role": 1}
+        {"id": 1, "webauthn_credentials": 1, "tenantId": 1, "email": 1, "role": 1, "status": 1, "is_active": 1}
     )
     if not user_doc:
         raise HTTPException(status_code=401, detail="Invalid credential")
+    if not account_is_active(user_doc):
+        raise HTTPException(status_code=403, detail="This account is disabled. Contact your administrator.")
 
     from passkey_service import verify_authentication
     try:
@@ -137,21 +140,26 @@ async def passkey_login_verify(
         # expired/replayed challenge, unknown credential, or failed verification
         raise HTTPException(status_code=401, detail="Passkey authentication failed")
 
-    # Create tokens
+    # Create tokens. The subject is the email, as on every other login path
+    # (user docs have no `username`, so this used to fail with a KeyError).
+    # A user-verified passkey (PIN/biometric) counts as MFA.
+    mfa_verified = bool(auth_result.get("user_verified"))
     access_token = create_access_token({
-        "sub": user_doc["username"],
+        "sub": user_doc["email"],
         "role": user_doc.get("role", "user"),
-        "tenant_id": user_doc.get("tenantId")
+        "tenant_id": user_doc.get("tenantId"),
+        "mfa_verified": mfa_verified,
     })
     refresh_token = create_refresh_token({
-        "sub": user_doc["username"],
+        "sub": user_doc["email"],
         "role": user_doc.get("role", "user"),
-        "tenant_id": user_doc.get("tenantId")
+        "tenant_id": user_doc.get("tenantId"),
+        "mfa_verified": mfa_verified,
     })
 
+    set_refresh_cookie(response, request, refresh_token)
     return {
         "access_token": access_token,
-        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
 

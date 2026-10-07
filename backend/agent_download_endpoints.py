@@ -9,7 +9,6 @@ from fastapi.responses import Response
 from database import mongodb
 from authentication_service import get_current_user, get_optional_user
 from typing import Optional, Dict, Any
-import yaml
 
 from agent_installer_builders import (
     build_exe, build_windows_zip, cleanup_temp_dir,
@@ -77,6 +76,9 @@ async def _resolve_url(request: Request, api_url: Optional[str]) -> str:
             status_code=400,
             detail="Set PLATFORM_URL to the public backend address before downloading agents.",
         )
+    if os.getenv("AGENT_CA_CERT_FILE"):
+        # Agents pin the certificate the TLS front end (nginx, :443) serves.
+        return f"https://{hostname}"
     return f"http://{hostname}:5000"
 
 
@@ -196,9 +198,8 @@ async def download_agent(
             "__pycache__", "*.pyc", "config.yaml", "*.key", "*.db", "*.log",
             "venv", ".venv", "node_modules", "buffer.db",
         ))
-        from agent_installer_builders import _config_yaml
-        with open(agent_dest / "config.yaml", "w", encoding="utf-8") as f:
-            yaml.dump(_config_yaml(resolved_url, reg_key), f, default_flow_style=False, sort_keys=True)
+        from agent_installer_builders import config_yaml_text
+        (agent_dest / "config.yaml").write_text(config_yaml_text(resolved_url, reg_key), encoding="utf-8")
 
         readme = (
             f"# OmniAgent — {tenant_name}\n\n"

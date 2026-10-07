@@ -19,7 +19,7 @@ import re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from bson import ObjectId
@@ -355,9 +355,11 @@ class TestUpdateUser:
         admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
         _override_user(app, admin)
 
-        async with await _client(app) as ac:
-            r = await ac.put(f"/api/users/{user_id}", json={"role": "analyst", "status": "inactive"})
+        with patch("user_endpoints.revoke_user_sessions", new_callable=AsyncMock) as revoke:
+            async with await _client(app) as ac:
+                r = await ac.put(f"/api/users/{user_id}", json={"role": "analyst", "status": "inactive"})
         assert r.status_code == 200, r.text
+        assert revoke.await_args.args[0] == "carol@tenant-a.com"
         body = r.json()
         assert body["role"] == "analyst"
         assert body["status"] == "Disabled"  # inactive collapses to the two-value display contract
@@ -477,10 +479,12 @@ class TestDeleteUser:
         admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
         _override_user(app, admin)
 
-        async with await _client(app) as ac:
-            r = await ac.delete(f"/api/users/{user_id}")
+        with patch("user_endpoints.revoke_user_sessions", new_callable=AsyncMock) as revoke:
+            async with await _client(app) as ac:
+                r = await ac.delete(f"/api/users/{user_id}")
         assert r.status_code == 200, r.text
         assert len(fake_db.users.docs) == 0
+        revoke.assert_awaited_once()
 
 
 # ── Task 2: Pagination / filtering / search ──────────────────────────────────

@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Query
 from database import get_database
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import logging
 
 
@@ -227,7 +228,7 @@ async def model_accuracy(current_user=Depends(get_current_user)):
 
 
 @router.post("/hosts/{host_id}/acknowledge")
-async def acknowledge_prediction(host_id: str):
+async def acknowledge_prediction(host_id: str, current_user=Depends(require_permission("investigate:security"))):
     """Mark a high-risk prediction as acknowledged (suppresses repeat alerts)."""
     db = get_database()
     await db.predictive_acks.update_one(

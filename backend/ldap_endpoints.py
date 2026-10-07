@@ -209,4 +209,6 @@ async def ldap_login(request: Request, response: Response, body: LDAPLoginReques
         raise HTTPException(status_code=502, detail=str(exc))
     except (LDAPConfigError, LDAPSyncError) as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+    from authentication_service import set_refresh_cookie
+    set_refresh_cookie(response, request, result.pop("refresh_token"))
     return result

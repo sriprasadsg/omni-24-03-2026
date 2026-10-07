@@ -2083,6 +2083,12 @@ def main(service_instance=None):
 
     cfg          = load_config()
     security_mgr = cfg.get('_security_mgr')
+
+    # Pin the platform certificate (when the installer shipped one) before any
+    # request leaves this process. A broken pin stops the agent rather than
+    # letting it talk to the platform unverified.
+    import tls_pinning
+    tls_pinning.configure(cfg, Path(cfg['_cfg_path']).parent)
     interval     = int(cfg.get("interval_seconds", 30))
 
     logger.info(f"Starting Omni Agent v{AGENT_VERSION} — interval={interval}s")

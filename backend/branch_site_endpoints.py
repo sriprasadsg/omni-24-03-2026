@@ -1,6 +1,7 @@
 """Branch Site / Remote Office REST endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Body
+from rbac_utils import require_permission
 from typing import Any, Dict, List
 import logging
 
@@ -32,7 +33,7 @@ async def list_sites(current_user: TokenData = Depends(get_current_user)):
 @router.post("")
 async def create_site(
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     try:
         site = await svc.create_site(_tenant(current_user), payload)
@@ -54,7 +55,7 @@ async def get_site(site_id: str, current_user: TokenData = Depends(get_current_u
 async def update_site(
     site_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     try:
         site = await svc.update_site(site_id, _tenant(current_user), payload)
@@ -66,7 +67,7 @@ async def update_site(
 
 
 @router.delete("/{site_id}")
-async def delete_site(site_id: str, current_user: TokenData = Depends(get_current_user)):
+async def delete_site(site_id: str, current_user: TokenData = Depends(require_permission("manage:agents"))):
     try:
         deleted = await svc.delete_site(site_id, _tenant(current_user))
         if not deleted:
@@ -80,7 +81,7 @@ async def delete_site(site_id: str, current_user: TokenData = Depends(get_curren
 async def assign_agents(
     site_id: str,
     payload: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:agents")),
 ):
     agent_ids: List[str] = payload.get("agent_ids", [])
     if not agent_ids:

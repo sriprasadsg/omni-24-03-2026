@@ -6,6 +6,8 @@ from collections import defaultdict, deque
 from typing import Dict, Set
 from datetime import datetime, timezone
 
+from auth_roles import SUPER_ROLES
+
 logger = logging.getLogger(__name__)
 
 _REDIS_URL = os.getenv("REDIS_URL", "").strip()
@@ -525,8 +527,10 @@ async def get_connected_agents() -> list:
     return list(agent_sessions.keys())
 
 
-_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
-_ADMIN_ROLES = {"Tenant Admin", "tenant_admin"} | _SUPER_ROLES
+_SUPER_ROLES = SUPER_ROLES
+# "admin" is a tenant-scoped role (tenant admins can assign it), so it is an
+# in-tenant admin here, never a cross-tenant super role.
+_ADMIN_ROLES = {"Tenant Admin", "tenant_admin", "admin"} | _SUPER_ROLES
 
 
 async def broadcast_support_event(
@@ -552,9 +556,12 @@ async def broadcast_support_event(
         sent.add(sid)
 
     if chat_type == "user_to_admin":
-        # Deliver to all tenant admins and super-admins (access scoping is done at HTTP layer)
+        # Deliver to the conversation tenant's admins and to super-admins
         for uname, sid in user_sessions.items():
-            if user_roles.get(uname) in _ADMIN_ROLES and sid not in sent:
+            role = user_roles.get(uname)
+            if role not in _ADMIN_ROLES or sid in sent:
+                continue
+            if role in _SUPER_ROLES or user_tenants.get(uname, "") == tenant_id:
                 await sio.emit("support_message", data, room=sid)
                 sent.add(sid)
 

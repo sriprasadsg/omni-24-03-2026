@@ -91,6 +91,7 @@ pub fn launch_interactive(
         "initial": initial,
         "sender": sender,
         "accept_invalid_certs": accept_invalid_certs,
+        "server_cert_der_b64": crate::tls::pinned_der_base64(),
     });
     let cfg_path = dir.join(format!("chat_{session_id}.json"));
     std::fs::write(&cfg_path, serde_json::to_vec(&cfg).unwrap_or_default())
@@ -156,10 +157,20 @@ $MsgUrl   = "$Base/api/agent-chat/sessions/$Session/user-message"
 $PollUrl  = "$Base/api/agent-chat/sessions/$Session/messages"
 
 # See tray_icon.ps1 for why this is needed: Invoke-RestMethod uses its own
-# .NET TLS stack, unrelated to the Rust agent's accept_invalid_certs config,
-# so it rejects this server's self-signed cert unless told to trust it here too.
+# .NET TLS stack, unrelated to the Rust agent's TLS settings, so it must be
+# told about the pinned server certificate here too.
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
-if ($cfg.accept_invalid_certs) {
+if ($cfg.server_cert_der_b64) {
+    # Pinned: accept the server only if it presents exactly the certificate the
+    # installer shipped (same rule as the Rust agent's own connections).
+    $Pinned = [string]$cfg.server_cert_der_b64
+    try {
+        [Net.ServicePointManager]::ServerCertificateValidationCallback = {
+            param($sender, $cert, $chain, $errors)
+            $cert -ne $null -and [Convert]::ToBase64String($cert.GetRawCertData()) -eq $Pinned
+        }.GetNewClosure()
+    } catch { }
+} elseif ($cfg.accept_invalid_certs) {
     try { [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true } } catch { }
 }
 # The agent drops this file when the admin closes the session, for prompt teardown.

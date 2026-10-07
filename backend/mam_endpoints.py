@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import mam_service as svc
 
 router = APIRouter(prefix="/api/mam", tags=["MAM"])
@@ -24,7 +25,7 @@ async def list_protection_policies(current_user=Depends(get_current_user)) -> An
 
 
 @router.post("/protection-policies")
-async def create_protection_policy(body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def create_protection_policy(body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     try:
         return await svc.create_protection_policy(_tenant(current_user), body)
     except ValueError as exc:
@@ -40,7 +41,7 @@ async def get_protection_policy(policy_id: str, current_user=Depends(get_current
 
 
 @router.put("/protection-policies/{policy_id}")
-async def update_protection_policy(policy_id: str, body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def update_protection_policy(policy_id: str, body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     try:
         return await svc.update_protection_policy(_tenant(current_user), policy_id, body)
     except ValueError as exc:
@@ -48,13 +49,13 @@ async def update_protection_policy(policy_id: str, body: Dict[str, Any], current
 
 
 @router.delete("/protection-policies/{policy_id}")
-async def delete_protection_policy(policy_id: str, current_user=Depends(get_current_user)) -> Any:
+async def delete_protection_policy(policy_id: str, current_user=Depends(require_permission("manage:assets"))) -> Any:
     await svc.delete_protection_policy(_tenant(current_user), policy_id)
     return {"deleted": policy_id}
 
 
 @router.post("/protection-policies/{policy_id}/assign")
-async def assign_protection_policy(policy_id: str, body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def assign_protection_policy(policy_id: str, body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     try:
         return await svc.update_protection_policy(_tenant(current_user), policy_id, {
             "assigned_groups": body.get("groups", []),
@@ -72,7 +73,7 @@ async def list_config_policies(current_user=Depends(get_current_user)) -> Any:
 
 
 @router.post("/config-policies")
-async def create_config_policy(body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def create_config_policy(body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     try:
         return await svc.create_config_policy(_tenant(current_user), body)
     except ValueError as exc:
@@ -88,7 +89,7 @@ async def get_config_policy(policy_id: str, current_user=Depends(get_current_use
 
 
 @router.put("/config-policies/{policy_id}")
-async def update_config_policy(policy_id: str, body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def update_config_policy(policy_id: str, body: Dict[str, Any], current_user=Depends(require_permission("manage:assets"))) -> Any:
     try:
         return await svc.update_config_policy(_tenant(current_user), policy_id, body)
     except ValueError as exc:
@@ -96,7 +97,7 @@ async def update_config_policy(policy_id: str, body: Dict[str, Any], current_use
 
 
 @router.delete("/config-policies/{policy_id}")
-async def delete_config_policy(policy_id: str, current_user=Depends(get_current_user)) -> Any:
+async def delete_config_policy(policy_id: str, current_user=Depends(require_permission("manage:assets"))) -> Any:
     await svc.delete_config_policy(_tenant(current_user), policy_id)
     return {"deleted": policy_id}
 
@@ -109,5 +110,5 @@ async def list_managed_apps(current_user=Depends(get_current_user)) -> Any:
 
 
 @router.post("/managed-apps/{app_id}/wipe-data")
-async def wipe_app_data(app_id: str, current_user=Depends(get_current_user)) -> Any:
+async def wipe_app_data(app_id: str, current_user=Depends(require_permission("manage:assets"))) -> Any:
     return await svc.selective_wipe(_tenant(current_user), app_id)

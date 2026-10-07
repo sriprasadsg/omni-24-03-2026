@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 import logging
 from fastapi.responses import FileResponse, JSONResponse
 import os
@@ -10,6 +10,8 @@ import uuid
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from authentication_service import get_current_user
+from rbac_utils import require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -308,7 +310,7 @@ async def get_agent_checksum(filename: str):
 
 
 @router.post("/build")
-async def trigger_build(capabilities: list[str] = None):
+async def trigger_build(capabilities: list[str] = None, current_user=Depends(require_permission("manage:agents"))):
     """
     Trigger an async installer build with Spyglass evidence collection.
     Returns a task_id for polling build status.
@@ -323,7 +325,7 @@ async def trigger_build(capabilities: list[str] = None):
 
 
 @router.get("/build/{task_id}")
-async def get_build_status(task_id: str):
+async def get_build_status(task_id: str, current_user=Depends(get_current_user)):
     """Poll the status of an async build."""
     state = BUILD_STATE.get(task_id)
     if not state:

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict, Optional
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import firmware_driver_service as svc
 
 router = APIRouter(prefix="/api/firmware-drivers", tags=["Firmware & Drivers"])
@@ -34,7 +35,7 @@ async def get_available_updates(
 
 
 @router.post("/updates/deploy")
-async def deploy_updates(body: Dict[str, Any], current_user=Depends(get_current_user)) -> Any:
+async def deploy_updates(body: Dict[str, Any], current_user=Depends(require_permission("manage:patches"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.create_deployment_job(tenant_id, body)

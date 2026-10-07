@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from models import User
 from questionnaire_answer_review_service import (
     create_review,
@@ -38,7 +39,7 @@ def _require_reviewer(user: User) -> None:
 @router.post("/{draft_id}/review", response_model=Dict[str, Any])
 async def create_review_endpoint(
     draft_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("manage:compliance")),
     tenant_id: str = Depends(_tenant),
 ) -> Dict[str, Any]:
     review = await create_review(draft_id, get_database(), tenant_id)

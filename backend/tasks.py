@@ -2,20 +2,7 @@ import sys
 import os
 from pathlib import Path
 
-# Add 'agent' directory to sys.path
-agent_dir = str(Path(__file__).parent.parent / "agent")
-if agent_dir not in sys.path:
-    sys.path.append(agent_dir)
-
 from celery_app import celery_app
-
-# Import Agent Components (Lazy import inside task to avoid import errors during worker startup if path issues)
-# But here we try top-level
-try:
-    from agent import AgentCapabilityManager, load_config
-except ImportError:
-    # If running from backend dir, agent might not be found without sys.path
-    pass
 
 @celery_app.task(name='tasks.add')
 def add(x, y):
@@ -27,33 +14,16 @@ def add(x, y):
 @celery_app.task(name='tasks.run_agent_task_async')
 def run_agent_task_async(task_description: str, agent_id: str = "default"):
     """
-    Executes the actual Agent Logic in a background process.
+    Retired: this used to run agent capabilities on the worker host itself, so
+    instructions meant for an endpoint (some derived from ticket text) would run
+    on the platform server. Instructions now go to the target agent through
+    agent_instructions. Messages already queued drain here without executing.
     """
-    print(f"[Worker] Starting Agent Task: {task_description}")
-    
-    try:
-        from agent import AgentCapabilityManager, load_config
-        
-        # 1. Load Config
-        cfg = load_config()
-        
-        # 2. Initialize Agent
-        print("... Initializing Agent Manager ...")
-        manager = AgentCapabilityManager(cfg)
-        manager.fetch_configuration() # Hydrate from backend if needed
-        
-        # 3. Execute Instruction
-        print("... Executing Instruction ...")
-        result = manager.execute_single_instruction(task_description)
-        
-        return result
-        
-    except Exception as e:
-        print(f"[Worker] Task Failed: {e}")
-        return {
-            "status": "failed",
-            "error": str(e)
-        }
+    print(f"[Worker] Refusing local agent task for {agent_id!r}: {task_description[:80]!r}")
+    return {
+        "status": "refused",
+        "error": "Agent instructions are delivered to the endpoint agent, never run on the worker",
+    }
 
 @celery_app.task(name='tasks.execute_remediation_script')
 def execute_remediation_script(script_content: str, language: str = "powershell", agent_id: str = None, tenant_id: str = None):

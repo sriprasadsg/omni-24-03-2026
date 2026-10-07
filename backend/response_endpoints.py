@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
+from rbac_utils import require_permission, verify_permission
 from auth_types import TokenData
 from response_orchestrator import ResponseOrchestrator, seed_builtin_policies
 
@@ -116,7 +117,7 @@ async def create_policy(
 @router.patch("/policies/{policy_id}/toggle")
 async def toggle_policy(
     policy_id: str,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:active_response"))
 ):
     """Enable or disable a response policy."""
     db = get_database()
@@ -136,7 +137,7 @@ async def toggle_policy(
 @router.delete("/policies/{policy_id}")
 async def delete_policy(
     policy_id: str,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(require_permission("manage:active_response"))
 ):
     """Delete a custom response policy (cannot delete built-ins)."""
     db = get_database()
@@ -207,6 +208,8 @@ async def submit_task_result(
     current_user: TokenData = Depends(get_current_user_or_agent)
 ):
     """Agent submits the result of a completed response task."""
+    if getattr(current_user, "role", "") != "agent" and not await verify_permission(current_user, "remediate:agents"):
+        raise HTTPException(status_code=403, detail="Missing required permission: remediate:agents")
     tenant_id = getattr(current_user, "tenant_id", None)
     db = get_database()
     task = await db.response_tasks.find_one({"task_id": task_id, "tenantId": tenant_id}, {"_id": 1})

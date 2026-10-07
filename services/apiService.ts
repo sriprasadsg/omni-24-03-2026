@@ -114,6 +114,16 @@ function jwtSecondsUntilExpiry(token: string): number {
     }
 }
 
+// Set once the server says this admin session must set up or confirm MFA
+// first. Until the MFA screen finishes, only MFA and who-am-I calls are sent.
+let _mfaRequired = false;
+const _MFA_ALLOWED = /\/api\/(mfa\/|auth\/me\b)/;
+
+/** App calls this when it shows the MFA screen from a login or /auth/me answer. */
+export function holdForMfa(): void {
+    _mfaRequired = true;
+}
+
 function _canAttemptRefresh(): boolean {
     return !_sessionEnding && (Date.now() - _lastRefreshFailTime > _REFRESH_BACKOFF_MS);
 }
@@ -134,16 +144,15 @@ async function refreshAccessToken(): Promise<string> {
 
     refreshPromise = (async () => {
         try {
-            const refreshToken = sessionStorage.getItem('refresh_token');
-            if (!refreshToken) {
-                _lastRefreshFailTime = Date.now();
-                throw new Error('No refresh token available');
-            }
-
+            // The refresh token lives in an httpOnly cookie the browser sends
+            // itself. Tabs signed in before that still hold one in
+            // sessionStorage: send it once, the response moves it to the cookie.
+            const legacyRefreshToken = sessionStorage.getItem('refresh_token');
             const response = await fetch(`${API_BASE}/auth/refresh`, {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh_token: refreshToken })
+                body: JSON.stringify(legacyRefreshToken ? { refresh_token: legacyRefreshToken } : {})
             });
 
             if (!response.ok) {
@@ -159,9 +168,7 @@ async function refreshAccessToken(): Promise<string> {
             if (data.success && data.access_token) {
                 _lastRefreshFailTime = 0; // reset backoff on success
                 sessionStorage.setItem('token', data.access_token);
-                if (data.refresh_token) {
-                    sessionStorage.setItem('refresh_token', data.refresh_token);
-                }
+                sessionStorage.removeItem('refresh_token');
                 return data.access_token;
             }
 
@@ -188,7 +195,7 @@ export function startTokenRefreshCycle(): void {
         _refreshTimer = null;
     }
     const token = sessionStorage.getItem('token');
-    if (!token || !sessionStorage.getItem('refresh_token')) return;
+    if (!token) return;
 
     const secondsUntilExpiry = jwtSecondsUntilExpiry(token);
     const delayMs = Math.max((secondsUntilExpiry - 300) * 1000, 5000);
@@ -211,9 +218,32 @@ export function stopTokenRefreshCycle(): void {
     }
 }
 
+/** End the server-side session: revokes the access token and the httpOnly
+ *  refresh cookie (which page scripts can't clear), then drops local tokens. */
+export async function logoutSession(): Promise<void> {
+    stopTokenRefreshCycle();
+    const token = sessionStorage.getItem('token');
+    try {
+        await fetch(`${API_BASE}/auth/logout`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+    } catch {
+        // Offline: the cookie still ends with the browser session.
+    }
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('refresh_token');
+}
+
+/** A sign-in failure whose message is meant for the user (lockout, disabled account). */
+export class LoginError extends Error {}
+
 // Helper for Authenticated Requests
 export async function authFetch(url: string, options: RequestInit & { tenantId?: string } = {}): Promise<Response> {
     if (_sessionEnding) throw new Error('Session ended');
+    if (_mfaRequired && !_MFA_ALLOWED.test(url)) throw new Error('Two-factor authentication required');
     const { tenantId, signal: rawSignal, ...restOptions } = options as RequestInit & { tenantId?: string };
     // Guard: only forward signal if it is actually an AbortSignal (callers sometimes pass event objects)
     const fetchOptions: RequestInit = rawSignal instanceof AbortSignal
@@ -258,6 +288,11 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
             _expireSession();
             throw new Error('Session expired');
         }
+    }
+
+    if (response.status === 403 && response.headers.get('X-MFA-Required') && !_mfaRequired) {
+        _mfaRequired = true;
+        window.dispatchEvent(new Event('omni:mfa-required'));
     }
 
     return response;
@@ -565,7 +600,11 @@ export const login = async (username: string, password: string): Promise<any> =>
     });
 
     if (res.status === 429) {
-        throw new Error('Too many login attempts. Please wait a moment and try again.');
+        throw new LoginError('Too many login attempts. Please wait a moment and try again.');
+    }
+    if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        throw new LoginError(body.detail || 'This account is disabled. Contact your administrator.');
     }
     if (!res.ok) {
         throw new Error('Invalid credentials');
@@ -623,7 +662,6 @@ export const passkeyLoginVerify = async (credential: any, challengeKey: string):
         _sessionEnding = false;
         _lastRefreshFailTime = 0;
         sessionStorage.setItem('token', data.access_token);
-        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
     }
     return data;
 };
@@ -2268,7 +2306,6 @@ export const registerNewTenant = async (payload: NewTenantPayload) => {
     // Store the JWT so the new session is authenticated immediately
     if (data.access_token) {
         sessionStorage.setItem('access_token', data.access_token);
-        if (data.refresh_token) sessionStorage.setItem('refresh_token', data.refresh_token);
     }
     const newTenant: Tenant = { ...data.tenant, apiKeys: [] };
     const newUser: User = { ...data.user, password: '' };

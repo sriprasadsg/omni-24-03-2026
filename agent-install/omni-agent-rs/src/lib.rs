@@ -8,6 +8,7 @@ pub mod config;
 pub mod heartbeat;
 pub mod instructions;
 pub mod registration;
+pub mod tls;
 pub mod tray;
 
 #[cfg(windows)]
@@ -39,16 +40,22 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         .unwrap_or_default();
     let buf = MessageBuffer::new(exe_dir.join("buffer.db"));
 
-    let client = reqwest::Client::builder()
+    tls::init(&cfg);
+    // Platform requests trust only the pinned certificate (when shipped); the
+    // public-IP echo services are third parties and use the OS store.
+    let client = tls::platform_client()
         .timeout(std::time::Duration::from_secs(30))
-        .danger_accept_invalid_certs(cfg.accept_invalid_certs)
+        .build()
+        .expect("HTTP client build");
+    let public_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("HTTP client build");
 
     let cap_mgr = CapabilityManager::new();
     // Resolve the WAN/ISP public IP before registering so the first payload
     // carries it. Best-effort — registration proceeds regardless.
-    heartbeat::refresh_public_ip(&client).await;
+    heartbeat::refresh_public_ip(&public_client).await;
     registration::ensure_registered(&mut cfg, &client, &cap_mgr).await;
     if cfg.agent_token.is_empty() {
         log::warn!("No agent_token — heartbeats will be unauthenticated until registered");
@@ -101,7 +108,7 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         }
 
         if last_public_ip_refresh.elapsed() >= std::time::Duration::from_secs(1800) {
-            heartbeat::refresh_public_ip(&client).await;
+            heartbeat::refresh_public_ip(&public_client).await;
             last_public_ip_refresh = std::time::Instant::now();
         }
 

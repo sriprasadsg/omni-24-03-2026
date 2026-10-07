@@ -137,7 +137,9 @@ def test_concurrent_refresh_yields_exactly_one_winner():
             body = winner.json()
             assert body.get("success") is True
             assert body.get("access_token")
-            assert body.get("refresh_token")
+            # The rotated refresh token travels only in the httpOnly cookie.
+            assert "refresh_token" not in body
+            assert winner.cookies.get("omni_refresh")
 
             count = await motor_db.revoked_tokens.count_documents({"jti": jti})
             assert count == 1, (

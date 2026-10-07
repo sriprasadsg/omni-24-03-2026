@@ -12,8 +12,9 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from database import get_database
+from rbac_utils import is_super_admin, require_permission
 from tenant_context import set_tenant_id
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,15 @@ try:
 except ImportError:
     _PSUTIL = False
 
-router = APIRouter(prefix="/api/system", tags=["System Health"])
+# Platform diagnostics: the UI shows this page to manage:settings holders. Only
+# super-admins see platform-wide data; everyone else gets their own tenant's
+# counts through the tenant-isolated DB wrapper.
+_require_settings = require_permission("manage:settings")
+router = APIRouter(
+    prefix="/api/system",
+    tags=["System Health"],
+    dependencies=[Depends(_require_settings)],
+)
 
 _start_time = time.time()
 
@@ -107,6 +116,14 @@ async def _agent_fleet(db) -> Dict[str, Any]:
         return {"total": 0, "online": 0, "offline": 0, "stale": 0, "health_pct": 0}
 
 
+def _elevate_if_super(user) -> bool:
+    """Bypass tenant isolation for super-admins only; returns True when elevated."""
+    if is_super_admin(getattr(user, "role", "")):
+        set_tenant_id("platform-admin")
+        return True
+    return False
+
+
 def _background_tasks() -> List[Dict[str, Any]]:
     """Report on known background loops by checking process name patterns."""
     tasks = [
@@ -124,9 +141,9 @@ def _background_tasks() -> List[Dict[str, Any]]:
 
 
 @router.get("/health")
-async def system_health():
+async def system_health(current_user=Depends(_require_settings)):
     """Comprehensive platform health snapshot."""
-    set_tenant_id("platform-admin")
+    elevated = _elevate_if_super(current_user)
     db = get_database()
     resources, db_stats, queues, fleet = await asyncio.gather(
         asyncio.get_event_loop().run_in_executor(None, _cpu_mem_disk),
@@ -144,6 +161,9 @@ async def system_health():
         overall = "degraded"
     if not db_stats.get("connected"):
         overall = "critical"
+    if not elevated:
+        # dbStats describes the whole shared database — not tenant data
+        db_stats = {"connected": db_stats.get("connected", False)}
 
     return {
         "status": overall,
@@ -191,9 +211,9 @@ async def list_services():
 
 
 @router.get("/queues")
-async def queue_depths():
+async def queue_depths(current_user=Depends(_require_settings)):
     """Current queue depths for all async processing pipelines."""
-    set_tenant_id("platform-admin")
+    _elevate_if_super(current_user)
     db = get_database()
     depths = await _queue_depths(db)
     return {
@@ -208,9 +228,9 @@ async def queue_depths():
 
 
 @router.get("/fleet")
-async def agent_fleet():
+async def agent_fleet(current_user=Depends(_require_settings)):
     """Agent fleet health summary."""
-    set_tenant_id("platform-admin")
+    _elevate_if_super(current_user)
     db = get_database()
     fleet = await _agent_fleet(db)
 

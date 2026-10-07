@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from rbac_utils import require_permission
 from pydantic import BaseModel
 from auth_utils import require_auth
 from database import get_db
@@ -42,14 +43,14 @@ async def get_summary(user=Depends(require_auth), svc: InsiderThreatService = De
     return await svc.get_summary(tenant_id)
 
 
-@router.put("/alerts/{alert_id}")
+@router.put("/alerts/{alert_id}", dependencies=[Depends(require_permission("investigate:security"))])
 async def update_alert(alert_id: str, body: InsiderThreatAlertUpdate, user=Depends(require_auth),
                        svc: InsiderThreatService = Depends(get_svc)):
     await svc.update_alert_status(alert_id, body.status, body.note)
     return {"updated": True}
 
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(require_permission("manage:settings"))])
 async def seed(user=Depends(require_auth), svc: InsiderThreatService = Depends(get_svc)):
     tenant_id = getattr(user, "tenant_id", None)
     await svc.seed_demo_data(tenant_id)

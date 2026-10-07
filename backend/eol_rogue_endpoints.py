@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict
 
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 import eol_rogue_service as svc
 
 router = APIRouter(prefix="/api/asset-intelligence", tags=["Asset Intelligence"])
@@ -37,7 +38,7 @@ async def rogue_summary(current_user=Depends(get_current_user)) -> Any:
 
 
 @router.post("/rogue/{asset_id}/authorize")
-async def authorize_asset(asset_id: str, current_user=Depends(get_current_user)) -> Any:
+async def authorize_asset(asset_id: str, current_user=Depends(require_permission("manage:assets"))) -> Any:
     tenant_id = getattr(current_user, "tenant_id", "") or ""
     try:
         return await svc.authorize_asset(tenant_id, asset_id)

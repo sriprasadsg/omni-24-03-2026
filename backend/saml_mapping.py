@@ -66,16 +66,22 @@ class SAMLUserProvisioner:
             "source": "saml",
             "saml_nameid": mapped.get("nameid"),
             "saml_groups": mapped.get("groups", []),
-            "status": "Active",
             "updatedAt": now,
         }
         if existing:
             if role:
                 doc["role"] = role
+            # Never touch status on an existing account: a directory sign-in
+            # must not undo an admin's disable.
             await db.users.update_one({"_id": existing["_id"]}, {"$set": doc})
             doc["_id"] = existing["_id"]
             doc["role"] = doc.get("role", existing.get("role", default_role))
+            doc["status"] = existing.get("status", "Active")
+            if doc["role"] != existing.get("role"):
+                from authentication_service import revoke_user_sessions
+                await revoke_user_sessions(doc["email"], "saml role change")
         else:
+            doc["status"] = "Active"
             doc["role"] = role or default_role
             doc["createdAt"] = now
             # DB-F09 (2026-08-25 audit): users.email has a *global* unique

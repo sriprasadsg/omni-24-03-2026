@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from models import User
 from questionnaire_inbound_service import questionnaire_inbound_service, QuestionnaireInboundCreate
 
@@ -17,7 +18,7 @@ async def _tenant(user: User = Depends(get_current_user)) -> str:
 @router.post("/", response_model=Dict[str, Any])
 async def create_inbound_question_set(
     data: QuestionnaireInboundCreate,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("manage:compliance")),
     tenant_id: str = Depends(_tenant),
 ) -> Dict[str, Any]:
     """Create a new inbound questionnaire set manually."""
@@ -28,7 +29,7 @@ async def create_inbound_question_set(
 async def upload_inbound_questions(
     qid: str,
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("manage:compliance")),
     tenant_id: str = Depends(_tenant),
 ) -> Dict[str, Any]:
     """Upload questions from a CSV or XLSX file and append to an existing set."""

@@ -438,16 +438,22 @@ class LDAPUserSyncer:
             "source": "ldap",
             "ldap_dn": mapped["ldap_dn"],
             "ldap_groups": mapped["groups"],
-            "status": "Active",
             "updatedAt": now,
         }
         if existing:
             if role:
                 doc["role"] = role
+            # Never touch status on an existing account: a directory sign-in
+            # must not undo an admin's disable.
             await db.users.update_one({"_id": existing["_id"]}, {"$set": doc})
             doc["_id"] = existing["_id"]
             doc["role"] = doc.get("role", existing.get("role", default_role))
+            doc["status"] = existing.get("status", "Active")
+            if doc["role"] != existing.get("role"):
+                from authentication_service import revoke_user_sessions
+                await revoke_user_sessions(doc["email"], "ldap role change")
         else:
+            doc["status"] = "Active"
             doc["role"] = role or default_role
             doc["createdAt"] = now
             # DB-F09 (2026-08-25 audit): users.email has a *global* unique
@@ -634,7 +640,9 @@ async def authenticate_ldap(username: str, password: str, tenant_id: Optional[st
     role = await group_mapper.resolve_role(mapped["groups"], target_tenant_id)
     user_doc = await syncer.sync_user(mapped, target_tenant_id, role=role)
 
-    from authentication_service import create_access_token, create_refresh_token
+    from authentication_service import create_access_token, create_refresh_token, account_is_active
+    if not account_is_active(user_doc):
+        raise LDAPAuthError("This account is disabled. Contact your administrator.")
     token_payload = {
         "sub": user_doc["email"],
         "role": user_doc.get("role", "itam_viewer"),

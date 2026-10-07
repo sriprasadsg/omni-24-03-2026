@@ -3,12 +3,19 @@ from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from playbook_service import playbook_service
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from auth_types import TokenData
+from auth_roles import SUPER_ROLES
 
 router = APIRouter(
     prefix="/api/playbooks",
     tags=["Playbooks"]
 )
+
+
+def _is_super(current_user) -> bool:
+    """Cross-tenant playbook access is for platform super-admins only ("admin" is a tenant role)."""
+    return getattr(current_user, "role", "") in SUPER_ROLES
 
 
 class PlaybookCreate(BaseModel):
@@ -20,7 +27,7 @@ class PlaybookCreate(BaseModel):
 @router.get("", response_model=List[Dict[str, Any]])
 async def get_playbooks(current_user: TokenData = Depends(get_current_user)):
     """List playbooks visible to the caller (own tenant + platform-level)."""
-    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
+    is_admin = _is_super(current_user)
     tenant_id = getattr(current_user, "tenant_id", None) or None
     all_playbooks = await playbook_service.get_playbooks()
     if is_admin:
@@ -43,7 +50,7 @@ async def get_playbook(
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
     # Non-admins can only view their own tenant's playbooks
-    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
+    is_admin = _is_super(current_user)
     if not is_admin:
         tenant_id = getattr(current_user, "tenant_id", None) or None
         if not tenant_id:
@@ -56,7 +63,7 @@ async def get_playbook(
 @router.post("/create", response_model=Dict[str, str])
 async def create_playbook(
     playbook: PlaybookCreate,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:playbooks")),
 ):
     """Create a new playbook scoped to the caller's tenant."""
     tenant_id = getattr(current_user, "tenant_id", None) or None
@@ -78,16 +85,17 @@ async def delete_playbook(
     playbook_id: str,
     current_user: TokenData = Depends(get_current_user),
 ):
-    """Delete a playbook — non-admins can only delete their own tenant's playbooks."""
+    """Delete a playbook — non-super-admins can only delete their own tenant's playbooks.
+    Shared "platform" playbooks are visible to every tenant, so only super-admins may delete them."""
     playbook = await playbook_service.get_playbook(playbook_id)
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
-    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
+    is_admin = _is_super(current_user)
     caller_tenant = getattr(current_user, "tenant_id", None) or None
     if not is_admin:
         if not caller_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
-        if playbook.get("tenant_id", playbook.get("tenantId", "")) not in (caller_tenant, "platform"):
+        if playbook.get("tenant_id", playbook.get("tenantId", "")) != caller_tenant:
             raise HTTPException(status_code=403, detail="Not authorized to delete this playbook")
     success = await playbook_service.delete_playbook(playbook_id)
     if not success:
@@ -104,11 +112,12 @@ async def toggle_playbook(
     existing = await playbook_service.get_playbook(playbook_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Playbook not found")
-    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
+    is_admin = _is_super(current_user)
     caller_tenant = getattr(current_user, "tenant_id", None) or None
     if not is_admin and not caller_tenant:
         raise HTTPException(status_code=403, detail="Tenant context required")
-    if not is_admin and existing.get("tenant_id", existing.get("tenantId", "")) not in (caller_tenant, "platform"):
+    # Shared "platform" playbooks affect every tenant — only super-admins may toggle them
+    if not is_admin and existing.get("tenant_id", existing.get("tenantId", "")) != caller_tenant:
         raise HTTPException(status_code=403, detail="Not authorized to modify this playbook")
     playbook = await playbook_service.toggle_playbook(playbook_id)
     if not playbook:
@@ -132,7 +141,7 @@ async def execute_playbook(
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
-    is_admin = getattr(current_user, "role", "") in ("Super Admin", "super_admin", "admin", "platform-admin")
+    is_admin = _is_super(current_user)
     caller_tenant = getattr(current_user, "tenant_id", None) or None
     if not is_admin and not caller_tenant:
         raise HTTPException(status_code=403, detail="Tenant context required")

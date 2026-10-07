@@ -4,13 +4,12 @@ import json
 from agent_logic_service import agent_logic_service
 
 logger = logging.getLogger(__name__)
-from celery_app import celery_app
 from database import get_database
 from datetime import datetime, timezone
 import uuid
 
 class IntentParserService:
-    """Parses ticket descriptions and dispatches agent tasks."""
+    """Parses ticket descriptions into proposed agent tasks for operator approval."""
 
     async def parse_and_dispatch(self, ticket_data: Dict[str, Any], platform: str) -> Dict[str, Any]:
         """
@@ -43,30 +42,28 @@ class IntentParserService:
         if not intent or intent.get("action") == "none":
             return {"success": True, "message": "No actionable intent detected", "intent": intent}
 
-        # 3. Dispatch Task
+        # 3. Record a proposal for an operator to approve. Ticket text is untrusted
+        # input (anyone who can file a ticket controls it), so nothing runs
+        # automatically — installs, env changes and isolation need a human.
         target_agent = intent.get("target_agent", "default")
         action = intent.get("action")
         params = intent.get("params", {})
-        
         task_description = self._build_task_description(action, params)
-        
-        logger.info("[IntentParser] Dispatching task: %s to %s", task_description, target_agent)
-        
-        task = celery_app.send_task(
-            "tasks.run_agent_task_async",
-            args=[task_description, target_agent],
-            queue="default"
-        )
-        
-        # 4. Record as a job in DB for UI visibility
-        db = get_database()
+
+        db = get_database()  # scoped to the tenant whose webhook secret signed the event
+        agent = None
+        if target_agent and target_agent != "default":
+            agent = await db.agents.find_one(
+                {"$or": [{"id": target_agent}, {"hostname": target_agent}]}, {"id": 1}
+            )
         job_id = f"job-{uuid.uuid4().hex[:8]}"
+        logger.info("[IntentParser] Proposed task %s for %s awaiting approval", task_description, target_agent)
         await db.jobs.insert_one({
             "id": job_id,
             "task_id": job_id,
             "type": "ticket_automation",
-            "status": "processing",
-            "progress": 50, # Initial progress
+            "status": "awaiting_approval",
+            "progress": 0,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": "system",
             "details": {
@@ -74,16 +71,17 @@ class IntentParserService:
                 "platform": platform,
                 "action": action,
                 "task_description": task_description,
-                "agent_id": target_agent,
-                "celery_task_id": task.id
+                "requested_agent": target_agent,
+                "agent_id": agent["id"] if agent else None,
             },
             "result": None
         })
-        
+
         return {
             "success": True,
             "intent": intent,
-            "task_id": task.id,
+            "task_id": job_id,
+            "status": "awaiting_approval",
             "ticket_id": ticket_id
         }
 

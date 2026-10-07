@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import List, Dict
 from authentication_service import get_current_user
+from rbac_utils import require_permission
 from compliance_automation_service import compliance_automation
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ def _tenant_id(user):
 @router.post("/generate/patch-compliance")
 async def generate_patch_compliance_evidence(
     framework: str = "All",
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("manage:compliance_evidence"))
 ) -> Dict:
     """Generate patch compliance evidence"""
     evidence = await compliance_automation.generate_patch_compliance_evidence(
@@ -41,7 +42,7 @@ async def generate_patch_compliance_evidence(
 
 @router.post("/generate/vulnerabilities")
 async def generate_vulnerability_evidence(
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("manage:compliance_evidence"))
 ) -> Dict:
     """Generate vulnerability scan evidence"""
     evidence = await compliance_automation.generate_vulnerability_evidence(
@@ -51,7 +52,7 @@ async def generate_vulnerability_evidence(
 
 @router.post("/generate/agent-status")
 async def generate_agent_status_evidence(
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("manage:compliance_evidence"))
 ) -> Dict:
     """Generate agent status evidence"""
     evidence = await compliance_automation.generate_agent_status_evidence(
@@ -62,7 +63,7 @@ async def generate_agent_status_evidence(
 @router.post("/generate/security-alerts")
 async def generate_security_alert_evidence(
     days: int = 7,
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("manage:compliance_evidence"))
 ) -> Dict:
     """Generate security alert summary evidence"""
     evidence = await compliance_automation.generate_security_alert_evidence(
@@ -88,7 +89,7 @@ async def get_evidence(
 @router.post("/rules")
 async def create_automation_rule(
     rule: Dict,
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("manage:compliance"))
 ) -> Dict:
     """Create automated evidence collection rule"""
     created_rule = await compliance_automation.create_automation_rule(
@@ -136,7 +137,7 @@ async def download_evidence_package(
 @router.post("/evaluate-all")
 async def evaluate_all_tenant_assets_endpoint(
     data: Dict,
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission("manage:compliance"))
 ) -> Dict:
     """
     Evaluate all assets for a tenant against compliance controls

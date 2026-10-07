@@ -641,6 +641,8 @@ class TestMFAEndpoints:
         app = self._app()
         token_data = TokenData(username="user@example.com", role="Viewer", tenant_id="t1", mfa_verified=True)
         app.dependency_overrides[get_current_user] = lambda: token_data
+        from authentication_service import get_current_user_mfa_pending
+        app.dependency_overrides[get_current_user_mfa_pending] = lambda: token_data
         return app
 
     def test_setup_endpoint_reenrollment_requires_password(self):

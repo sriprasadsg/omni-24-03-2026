@@ -59,6 +59,15 @@ pub enum ConsentError {
     SpawnFailed(String),
 }
 
+impl std::fmt::Display for ConsentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConsentError::NoInteractiveSession => write!(f, "no interactive console session"),
+            ConsentError::SpawnFailed(e) => write!(f, "could not start the consent window: {e}"),
+        }
+    }
+}
+
 /// Directory that holds the per-session config, decision file, and sentinels.
 #[cfg(windows)]
 pub fn data_dir() -> std::path::PathBuf {
@@ -301,7 +310,8 @@ mod win {
     use winapi::um::processthreadsapi::{CreateProcessAsUserW, PROCESS_INFORMATION, STARTUPINFOW};
     use winapi::um::securitybaseapi::DuplicateTokenEx;
     use winapi::um::userenv::{CreateEnvironmentBlock, DestroyEnvironmentBlock};
-    use winapi::um::winbase::{WTSGetActiveConsoleSessionId, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT};
+    pub(super) use winapi::um::winbase::WTSGetActiveConsoleSessionId;
+    use winapi::um::winbase::{CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT};
     use winapi::um::winnt::{
         SecurityImpersonation, TokenPrimary, HANDLE, MAXIMUM_ALLOWED,
     };
