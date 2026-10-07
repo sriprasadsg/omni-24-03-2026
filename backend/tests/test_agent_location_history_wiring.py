@@ -113,11 +113,15 @@ _ASN = {"asn": {"number": 15169, "org": "Google LLC"}, "vpn_heuristic": False}
 
 
 def _hb_set_payload(db):
-    """Extract the $set dict from agents.update_one's call in the heartbeat handler."""
+    """Extract the heartbeat's own $set (the one stamping lastSeen) from
+    agents.update_one — the handler may also write other agent fields, e.g.
+    issuing the uninstall code on first contact."""
     assert db.agents.update_one.call_count >= 1
-    args, kwargs = db.agents.update_one.call_args
-    update_doc = args[1] if len(args) > 1 else kwargs.get("_")
-    return update_doc["$set"]
+    for args, kwargs in reversed(db.agents.update_one.call_args_list):
+        update_doc = args[1] if len(args) > 1 else kwargs.get("_")
+        if "lastSeen" in update_doc.get("$set", {}):
+            return update_doc["$set"]
+    raise AssertionError("heartbeat never stamped lastSeen")
 
 
 # ─── toggle_on ────────────────────────────────────────────────────────────────

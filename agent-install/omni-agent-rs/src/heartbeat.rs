@@ -602,15 +602,17 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
     })
 }
 
+/// Returns the platform's response body on success (it carries the uninstall
+/// protection data), `None` when the heartbeat was not accepted.
 pub async fn send(
     cfg: &Config,
     payload: Value,
     buffer: &MessageBuffer,
     client: &reqwest::Client,
-) -> bool {
+) -> Option<Value> {
     if cfg.agent_id.is_empty() {
         log::debug!("Skipping heartbeat — agent not yet registered");
-        return false;
+        return None;
     }
     let url = format!(
         "{}/api/agents/{}/heartbeat",
@@ -628,17 +630,18 @@ pub async fn send(
             let status = resp.status().as_u16();
             log::info!("Heartbeat -> {status}");
             if status == 200 {
+                let body = resp.json::<Value>().await.unwrap_or(Value::Null);
                 flush_buffer(cfg, buffer, client, &url).await;
-                true
+                Some(body)
             } else {
                 buffer.push(&payload);
-                false
+                None
             }
         }
         Err(e) => {
             log::error!("Heartbeat failed: {e}");
             buffer.push(&payload);
-            false
+            None
         }
     }
 }

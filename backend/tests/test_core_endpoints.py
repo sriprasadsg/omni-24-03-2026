@@ -352,8 +352,10 @@ class TestPatchInstructionFixes:
 
     # ── B1: apply_os_patches stores tenantId and "install_patches" ────────────
 
-    def test_apply_os_patches_instruction_has_tenant_id_and_correct_format(self):
+    def test_apply_os_patches_instruction_has_tenant_id_and_correct_format(self, admin_user):
         """apply_os_patches must store tenantId and instruction='install_patches'."""
+        import patch_endpoints as mod
+        self.app = _app(mod.router, admin_user)  # applying patches needs manage:patches
         captured: list[dict] = []
 
         async def _insert_one(doc):
@@ -380,8 +382,10 @@ class TestPatchInstructionFixes:
 
     # ── B1: apply_software_update stores tenantId ─────────────────────────────
 
-    def test_apply_software_update_instruction_has_tenant_id(self):
+    def test_apply_software_update_instruction_has_tenant_id(self, admin_user):
         """apply_software_update must store tenantId so the agent can fetch it."""
+        import patch_endpoints as mod
+        self.app = _app(mod.router, admin_user)  # applying patches needs manage:patches
         captured: list[dict] = []
 
         async def _insert_one(doc):

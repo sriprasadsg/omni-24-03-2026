@@ -7,6 +7,7 @@ from rbac_utils import require_permission
 from datetime import datetime, timezone
 import uuid
 from agent_auth import verify_agent_key
+from tunnel_endpoints import deliverable_payload
 from rate_limiter import limiter
 from tickets_service import tickets_service
 import logging
@@ -22,6 +23,7 @@ _TASK_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
 @router.get("/{hostname}/instructions")
 async def get_agent_instructions(
     hostname: str,
+    request: Request,
     _tenant: Dict[str, Any] = Depends(verify_agent_key)
 ):
     """Get pending instructions for a specific agent (by hostname). Polled by the agent."""
@@ -46,6 +48,11 @@ async def get_agent_instructions(
             {"$set": {"status": "sent", "sent_at": datetime.now(timezone.utc).isoformat()}}
         )
 
+    # Remote-session instructions get the tunnel URL on the address this agent
+    # polled from (tunnel_endpoints.deliverable_payload), not the stored one.
+    for i in instructions:
+        if i.get("payload"):
+            i["payload"] = deliverable_payload(i, request)
     return [
         {
             "task_id": i.get("id") or str(i.get("_id", "")),

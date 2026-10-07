@@ -107,7 +107,7 @@ async def trigger_compliance_fix(
 @router.post("/api/compliance/collect-all")
 async def trigger_full_evidence_sweep(
     background_tasks: BackgroundTasks,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_permission("manage:compliance")),
 ):
     """
     Immediately dispatch a compliance evidence collection sweep to all active agents

@@ -74,6 +74,10 @@ else:
 
 from security import SecurityManager
 from platform_utils import PlatformUtils
+try:
+    import uninstall_guard
+except ImportError:  # self-update replaces agent.py alone; run unprotected until reinstalled
+    uninstall_guard = None
 
 # Thread-safe buffer: completed response-task outcomes flushed via next heartbeat
 _pending_task_feedback: list = []
@@ -1415,6 +1419,11 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
         logger.info(f"Heartbeat → {resp.status_code}")
 
         if resp.status_code == 200:
+            if uninstall_guard:
+                try:
+                    uninstall_guard.update_from_heartbeat(cfg, resp.json(), save_config)
+                except ValueError:
+                    pass
             # Also POST metrics to dedicated endpoint for frontend charts
             metrics_data = capability_data.get("metrics_collection", {}).get("data", {})
             if metrics_data:
@@ -2268,13 +2277,42 @@ if WINDOWS_SERVICE_AVAILABLE:
 if __name__ == "__main__":
     from service_manager import ServiceManager
 
+    def _arg_after(flag):
+        i = sys.argv.index(flag) if flag in sys.argv else -1
+        return sys.argv[i + 1] if 0 <= i < len(sys.argv) - 1 else ""
+
+    def _platform_session(cfg):
+        import tls_pinning
+        tls_pinning.configure(cfg, Path(cfg['_cfg_path']).parent)
+
     if len(sys.argv) > 1:
         svc_mgr = ServiceManager()
+        if uninstall_guard is None and any(a in sys.argv for a in ("--verify-uninstall-code", "--report-uninstall")):
+            print("uninstall_guard.py is missing from this install; reinstall the agent package.")
+            sys.exit(3)
         if "--install" in sys.argv:
             if svc_mgr.install():
                 svc_mgr.start()
             sys.exit(0)
+        elif "--verify-uninstall-code" in sys.argv:
+            sys.exit(uninstall_guard.verify_exit_code(load_config(), _arg_after("--verify-uninstall-code")))
+        elif "--report-uninstall" in sys.argv:
+            cfg = load_config()
+            _platform_session(cfg)
+            reported = uninstall_guard.report(cfg, _arg_after("--report-uninstall"), _arg_after("--method") or "script")
+            sys.exit(0 if reported else 1)
         elif "--uninstall" in sys.argv:
+            # Uninstall protection: the code comes from the platform (Agents >
+            # agent > Uninstall code); without it the agent stays installed.
+            cfg = load_config()
+            code = _arg_after("--code") or os.environ.get("OMNI_UNINSTALL_CODE", "")
+            if uninstall_guard and uninstall_guard.verify(cfg, code) is False:
+                print("Uninstall refused: pass this agent's uninstall code with --code CODE. "
+                      "An administrator can show it in the platform under Agents > agent > Uninstall code.")
+                sys.exit(uninstall_guard.EXIT_INVALID)
+            if uninstall_guard:
+                _platform_session(cfg)
+                uninstall_guard.report(cfg, code, "agent-cli")
             svc_mgr.stop()
             svc_mgr.uninstall()
             sys.exit(0)

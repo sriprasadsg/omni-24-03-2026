@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/patches", tags=["Patch Management"])
 @router.post("/apply-software-update")
 async def apply_software_update(
     request: SoftwareUpdateRequest,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Trigger a package upgrade on an agent."""
     try:
@@ -65,7 +65,7 @@ async def apply_software_update(
 @router.post("/bulk-apply-software-update")
 async def apply_bulk_software_update(
     request: BulkSoftwareUpdateRequest,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Trigger multiple package upgrades across different agents."""
     try:
@@ -107,7 +107,7 @@ async def apply_bulk_software_update(
 @router.post("/apply-os-patches")
 async def apply_os_patches(
     request: OsPatchRequest,
-    _current_user: TokenData = Depends(get_current_user),
+    _current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
     """Trigger OS patch installation on an agent."""
     try:

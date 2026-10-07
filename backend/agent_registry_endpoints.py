@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Re
 from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user, create_access_token, SECRET_KEY, ALGORITHM, is_agent_payload
+from rbac_utils import require_permission
 from datetime import datetime, timezone, timedelta
 import hashlib
 import hmac
@@ -272,7 +273,7 @@ async def link_agent_to_asset(
     agent_id: str,
     asset_data: Dict[str, str] = Body(...),
     db=Depends(get_database),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_permission("manage:agents"))
 ):
     """Manually link an Agent to a specific Asset. Expects body: {"assetId": "asset-123"}"""
     asset_id = asset_data.get("assetId")
@@ -311,7 +312,7 @@ async def link_agent_to_asset(
 async def delete_agent(
     agent_id: str,
     db=Depends(get_database),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_permission("manage:agents"))
 ):
     """Delete an agent and its linked asset. Requires Admin or Tenant Admin."""
     user_role = getattr(current_user, "role", None)
@@ -399,7 +400,7 @@ async def move_agent(
 async def update_agent(
     agent_id: str,
     update_data: Dict[str, Any] = Body(...),
-    current_user: Any = Depends(get_current_user)
+    current_user: Any = Depends(require_permission("manage:agents"))
 ):
     """Update agent configuration (e.g. capabilities). Requires Admin privileges."""
     db = get_database()

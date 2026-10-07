@@ -35,6 +35,11 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
+    // Uninstaller modes (uninstall protection) — answer and exit.
+    if let Some(code) = omni_agent::uninstall::cli(&args).await {
+        std::process::exit(code);
+    }
+
     #[cfg(windows)]
     {
         if args.len() == 1 {

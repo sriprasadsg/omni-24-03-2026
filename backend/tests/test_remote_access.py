@@ -306,8 +306,11 @@ def _tunnel_db(session_tenant="tenant-1"):
     """
     raw_db = MagicMock()
     raw_db.remote_sessions.find_one = AsyncMock(
-        return_value={"session_id": "any", "tenantId": session_tenant, "status": "pending"}
+        return_value={"session_id": "any", "tenantId": session_tenant, "status": "pending",
+                      "agent_id": "agent-1"}
     )
+    # The session's target agent; the agent side authenticates against it.
+    raw_db.agents.find_one = AsyncMock(return_value={"id": "agent-1", "tenantId": "tenant-1"})
     raw_db.tenants.find_one = AsyncMock(
         return_value={"id": "tenant-1", "registrationKey": "valid-reg-key"}
     )
@@ -340,10 +343,13 @@ def _patch_tunnel_db(session_tenant="tenant-1"):
 
 
 def _user_token(tenant_id="tenant-1"):
-    """verify_token_async mock that returns a real TokenData."""
-    return AsyncMock(return_value=TokenData(
-        username="user@t1.com", role="admin", tenant_id=tenant_id, mfa_verified=True
-    ))
+    """verify_token_async mock that returns a real TokenData: the session's
+    agent for "agenttok", a tenant admin for anything else."""
+    def verify(token, *args, **kwargs):
+        if token == "agenttok":
+            return TokenData(username="agent-1", role="agent", tenant_id="tenant-1")
+        return TokenData(username="user@t1.com", role="admin", tenant_id=tenant_id, mfa_verified=True)
+    return AsyncMock(side_effect=verify)
 
 
 class TestTunnelWebSocket:
@@ -431,57 +437,77 @@ class TestTunnelWebSocket:
                         ):
                             pass
 
+    def _agent_connect(self, url, headers=None):
+        """'accepted', or the close code the agent side was refused with."""
+        from starlette.websockets import WebSocketDisconnect
+        with TestClient(self.app) as c:
+            try:
+                with c.websocket_connect(url, headers=headers or {}):
+                    return "accepted"
+            except WebSocketDisconnect as exc:
+                return exc.code
+
     def test_agent_side_rejects_invalid_tenant_key_header(self):
         """X-Tenant-Key that does not match any stored registrationKey is rejected."""
-        raw_db, idb = _tunnel_db()
-        idb.tenants.find_one = AsyncMock(return_value=None)
-        mock_mdb = MagicMock(); mock_mdb.db = raw_db
-
-        with patch("authentication_service.verify_token_async",
-                   AsyncMock(side_effect=Exception("no jwt"))):
-            with patch("tunnel_endpoints.mongodb", mock_mdb):
-                with patch("tunnel_endpoints.get_database", return_value=idb):
-                    with TestClient(self.app) as c:
-                        with c.websocket_connect(
-                            "/api/tunnel/bad-key-sess/agent",
-                            headers={"X-Tenant-Key": "wrong-key"},
-                        ) as ws:
-                            pass  # closed with 4401, no exception in TestClient
-                        assert True
+        with patch("authentication_service.verify_token_async", AsyncMock(side_effect=Exception("no jwt"))):
+            with _patch_tunnel_db() as raw_db:
+                raw_db.tenants.find_one = AsyncMock(return_value=None)
+                code = self._agent_connect("/api/tunnel/bad-key-sess/agent", {"X-Tenant-Key": "wrong-key"})
+        assert code == 4401
 
     def test_agent_side_rejects_tenant_key_from_wrong_tenant(self):
-        """Valid tenant_key resolves to tenant-99, but session belongs to tenant-1 → rejected."""
-        raw_db, idb = _tunnel_db(session_tenant="tenant-1")
-        idb.tenants.find_one = AsyncMock(
-            return_value={"id": "tenant-99", "registrationKey": "valid-reg-key"}
-        )
-        mock_mdb = MagicMock(); mock_mdb.db = raw_db
-
-        with patch("authentication_service.verify_token_async",
-                   AsyncMock(side_effect=Exception("no jwt"))):
-            with patch("tunnel_endpoints.mongodb", mock_mdb):
-                with patch("tunnel_endpoints.get_database", return_value=idb):
-                    with TestClient(self.app) as c:
-                        with c.websocket_connect(
-                            "/api/tunnel/wrong-tenant-sess/agent",
-                            headers={"X-Tenant-Key": "valid-reg-key"},
-                        ) as ws:
-                            pass  # closed with 4401, no exception in TestClient
-                        assert True
+        """A valid key of tenant-99 cannot serve a session for tenant-1's agent."""
+        with patch("authentication_service.verify_token_async", AsyncMock(side_effect=Exception("no jwt"))):
+            with _patch_tunnel_db() as raw_db:
+                raw_db.tenants.find_one = AsyncMock(return_value={"id": "tenant-99"})
+                code = self._agent_connect("/api/tunnel/wrong-tenant-sess/agent", {"X-Tenant-Key": "valid-reg-key"})
+        assert code == 4401
 
     def test_agent_side_accepts_valid_tenant_key_from_header(self):
-        """Agent with a matching X-Tenant-Key (header only) is accepted."""
-        sid = "valid-tk-" + uuid.uuid4().hex[:8]
-
-        with patch("authentication_service.verify_token_async",
-                   AsyncMock(side_effect=Exception("no jwt"))):
+        """Agent with its tenant's X-Tenant-Key (header only) is accepted."""
+        with patch("authentication_service.verify_token_async", AsyncMock(side_effect=Exception("no jwt"))):
             with _patch_tunnel_db():
-                with TestClient(self.app) as c:
-                    with c.websocket_connect(
-                        f"/api/tunnel/{sid}/agent",
-                        headers={"X-Tenant-Key": "valid-reg-key"},
-                    ):
-                        pass
+                code = self._agent_connect(f"/api/tunnel/valid-tk-{uuid.uuid4().hex[:8]}/agent",
+                                           {"X-Tenant-Key": "valid-reg-key"})
+        assert code == "accepted"
+
+    def test_agent_side_accepts_agent_key_for_a_super_admin_session(self):
+        """Regression: a super admin's session is stamped "platform-admin", which
+        no agent key matched, so remote desktop from a super admin always failed."""
+        with patch("authentication_service.verify_token_async", AsyncMock(side_effect=Exception("no jwt"))):
+            with _patch_tunnel_db(session_tenant="platform-admin"):
+                code = self._agent_connect(f"/api/tunnel/sa-{uuid.uuid4().hex[:8]}/agent",
+                                           {"X-Tenant-Key": "valid-reg-key"})
+        assert code == "accepted"
+
+    def test_agent_side_accepts_the_session_agents_token(self):
+        with patch("authentication_service.verify_token_async", _user_token()):
+            with _patch_tunnel_db(session_tenant="platform-admin"):
+                code = self._agent_connect(f"/api/tunnel/tok-{uuid.uuid4().hex[:8]}/agent",
+                                           {"Authorization": "Bearer agenttok"})
+        assert code == "accepted"
+
+    def test_agent_side_refuses_user_tokens(self):
+        """Any valid JWT used to pass; a user must not take the agent side (it
+        receives the operator's keystrokes and feeds the operator's screen)."""
+        with patch("authentication_service.verify_token_async", _user_token()):
+            with _patch_tunnel_db():
+                code = self._agent_connect("/api/tunnel/user-as-agent/agent?token=usertok")
+        assert code == 4401
+
+    def test_agent_side_refuses_another_agents_token(self):
+        other = AsyncMock(return_value=TokenData(username="agent-2", role="agent", tenant_id="tenant-1"))
+        with patch("authentication_service.verify_token_async", other):
+            with _patch_tunnel_db():
+                code = self._agent_connect("/api/tunnel/other-agent/agent", {"Authorization": "Bearer t"})
+        assert code == 4401
+
+    def test_agent_side_refuses_an_unknown_session(self):
+        with patch("authentication_service.verify_token_async", _user_token()):
+            with _patch_tunnel_db() as raw_db:
+                raw_db.remote_sessions.find_one = AsyncMock(return_value=None)
+                code = self._agent_connect("/api/tunnel/ghost/agent", {"Authorization": "Bearer agenttok"})
+        assert code == 4403
 
     # ── relay (bidirectional) ─────────────────────────────────────────────────
 
@@ -500,7 +526,7 @@ class TestTunnelWebSocket:
                     def run_agent():
                         try:
                             with client.websocket_connect(
-                                f"/api/tunnel/{sid}/agent?token=tok"
+                                f"/api/tunnel/{sid}/agent?token=agenttok"
                             ) as ws:
                                 agent_ready.set()
                                 msg = ws.receive_text()
@@ -540,7 +566,7 @@ class TestTunnelWebSocket:
                     def run_agent():
                         try:
                             with client.websocket_connect(
-                                f"/api/tunnel/{sid}/agent?token=tok"
+                                f"/api/tunnel/{sid}/agent?token=agenttok"
                             ) as ws:
                                 agent_ready.set()
                                 user_ready.wait(timeout=3)
@@ -612,7 +638,7 @@ class TestTunnelWebSocket:
                     def run_agent():
                         try:
                             with client.websocket_connect(
-                                f"/api/tunnel/{sid}/agent?token=tok"
+                                f"/api/tunnel/{sid}/agent?token=agenttok"
                             ) as ws:
                                 agent_ready.set()
                                 msg = ws.receive_text()
@@ -654,7 +680,7 @@ class TestTunnelWebSocket:
                     def run_agent():
                         try:
                             with client.websocket_connect(
-                                f"/api/tunnel/{sid}/agent?token=tok"
+                                f"/api/tunnel/{sid}/agent?token=agenttok"
                             ) as ws:
                                 agent_ready.set()
                                 # Block until something arrives, then exit. The
@@ -760,98 +786,96 @@ class TestSessionDisconnect:
 class TestConsentReporting:
     """POST /session/{id}/consent — agent reports accept/decline/timeout, writes audit."""
 
+    AGENT = TokenData(username="a1", role="agent", tenant_id="tenant-1")
+
     @pytest.fixture(autouse=True)
     def setup(self):
         import remote_endpoints as mod
         self.mod = mod
-        self.user = _user()
         self.db = _db()
-        self.app = _app(mod.router, self.user)
+        self.db._db = self.db  # the route reads sessions on the raw collection
+        self.db.remote_sessions.find_one = AsyncMock(return_value={
+            "session_id": "s1", "type": "control", "tenantId": "platform-admin", "agent_id": "a1"
+        })
+
+    def _post(self, principal, body, audit=None, closed=False):
+        from authentication_service import get_current_user_or_agent
+        app = FastAPI()
+        app.include_router(self.mod.router)
+        if principal is not None:
+            app.dependency_overrides[get_current_user_or_agent] = lambda: principal
+        async def capture_audit(db, tenant, record):
+            if audit is not None:
+                audit["record"] = record
+            return "audit-id"
+        with patch("remote_endpoints.get_database", return_value=self.db), \
+             patch("remote_endpoints.close_session", return_value=closed), \
+             patch("remote_endpoints.write_audit", capture_audit):
+            with TestClient(app) as c:
+                return c.post("/api/remote/session/s1/consent", json=body)
 
     def test_consent_rejects_invalid_decision(self):
-        # Auth passes; decision validation must then reject "maybe".
-        self.db.remote_sessions.find_one = AsyncMock(return_value={
-            "session_id": "s1", "type": "control", "tenantId": "tenant-1", "agent_id": "a1"
-        })
-        with patch("remote_endpoints.get_database", return_value=self.db):
-            with patch("authentication_service.verify_token_async", AsyncMock(return_value=TokenData(
-                username="agent@tenant-1", role="agent", tenant_id="tenant-1", mfa_verified=True
-            ))):
-                with TestClient(self.app) as c:
-                    r = c.post("/api/remote/session/s1/consent",
-                               json={"decision": "maybe", "token": "good", "tenant_key": ""})
-        assert r.status_code == 400
+        assert self._post(self.AGENT, {"decision": "maybe"}).status_code == 400
 
     def test_consent_requires_agent_auth(self):
-        with patch("remote_endpoints.get_database", return_value=self.db):
-            with patch("authentication_service.verify_token_async", AsyncMock(side_effect=Exception("bad"))):
-                with TestClient(self.app) as c:
-                    r = c.post("/api/remote/session/s1/consent",
-                               json={"decision": "accept", "token": "bad", "tenant_key": "bad"})
-        assert r.status_code == 401
+        # No bearer token at all.
+        assert self._post(None, {"decision": "accept"}).status_code == 401
 
-    @pytest.mark.parametrize("token_user,status", [
+    @pytest.mark.parametrize("principal,status", [
         (TokenData(username="op@tenant-1", role="Tenant Admin", tenant_id="tenant-1", mfa_verified=True), 401),
-        (TokenData(username="agent@tenant-2", role="agent", tenant_id="tenant-2", mfa_verified=True), 403),
+        (TokenData(username="a2", role="agent", tenant_id="tenant-1"), 403),
+        (TokenData(username="a9", role="agent", tenant_id="tenant-2"), 403),
     ])
-    def test_consent_refuses_user_tokens_and_other_tenants_agents(self, token_user, status):
-        """Only the session tenant's agent can record consent — not the requester, not another tenant."""
-        self.db.remote_sessions.find_one = AsyncMock(return_value={
-            "session_id": "s1", "type": "control", "tenantId": "tenant-1", "agent_id": "a1"
-        })
-        with patch("remote_endpoints.get_database", return_value=self.db):
-            with patch("authentication_service.verify_token_async", AsyncMock(return_value=token_user)):
-                with TestClient(self.app) as c:
-                    r = c.post("/api/remote/session/s1/consent", json={"decision": "accept", "token": "t"})
-        assert r.status_code == status
+    def test_consent_refuses_user_tokens_and_other_agents(self, principal, status):
+        """Only the session's own agent can record consent — not the requester,
+        not another agent (a super admin's "platform-admin" session used to
+        accept any tenant's agent)."""
+        assert self._post(principal, {"decision": "accept"}).status_code == status
         self.db.remote_sessions.update_one.assert_not_called()
 
     def test_consent_accept_activates_session(self):
-        self.db.remote_sessions.find_one = AsyncMock(return_value={
-            "session_id": "s1", "type": "control", "tenantId": "tenant-1", "agent_id": "a1"
-        })
-        self.db.remote_sessions.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
-        write_audit_called = {}
-        async def capture_audit(db, tenant, record):
-            write_audit_called["record"] = record
-            return "audit-id"
-        with patch("remote_endpoints.get_database", return_value=self.db):
-            with patch("authentication_service.verify_token_async", AsyncMock(return_value=TokenData(
-                username="agent@tenant-1", role="agent", tenant_id="tenant-1", mfa_verified=True
-            ))):
-                with patch("tunnel_endpoints.close_session", return_value=False):
-                    with patch("remote_endpoints.write_audit", capture_audit):
-                        with TestClient(self.app) as c:
-                            r = c.post("/api/remote/session/s1/consent",
-                                       json={"decision": "accept", "token": "good", "tenant_key": ""})
+        r = self._post(self.AGENT, {"decision": "accept"})
         assert r.status_code == 200
         assert r.json()["decision"] == "accept"
-        # Session should be set to active
-        calls = self.db.remote_sessions.update_one.call_args_list
-        statuses = [c.args[1].get("$set", {}).get("status") for c in calls]
+        statuses = [c.args[1].get("$set", {}).get("status") for c in self.db.remote_sessions.update_one.call_args_list]
         assert "active" in statuses
 
     def test_consent_decline_closes_session(self):
-        self.db.remote_sessions.find_one = AsyncMock(return_value={
-            "session_id": "s1", "type": "control", "tenantId": "tenant-1", "agent_id": "a1"
-        })
-        self.db.remote_sessions.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
-        write_audit_called = {}
-        async def capture_audit(db, tenant, record):
-            write_audit_called["record"] = record
-            return "audit-id"
-        with patch("remote_endpoints.get_database", return_value=self.db):
-            with patch("authentication_service.verify_token_async", AsyncMock(return_value=TokenData(
-                username="agent@tenant-1", role="agent", tenant_id="tenant-1", mfa_verified=True
-            ))):
-                with patch("tunnel_endpoints.close_session", return_value=True):
-                    with patch("remote_endpoints.write_audit", capture_audit):
-                        with TestClient(self.app) as c:
-                            r = c.post("/api/remote/session/s1/consent",
-                                       json={"decision": "decline", "token": "good", "tenant_key": ""})
+        audit = {}
+        r = self._post(self.AGENT, {"decision": "decline"}, audit=audit, closed=True)
         assert r.status_code == 200
-        assert write_audit_called["record"]["consent_decision"] == "decline"
-        assert write_audit_called["record"]["disconnect_reason"] == "consent_declined"
+        assert audit["record"]["consent_decision"] == "decline"
+        assert audit["record"]["disconnect_reason"] == "consent_declined"
+
+
+class TestAgentTunnelUrl:
+    """The address agents are told to stream to must be the one they enrolled with."""
+
+    def _resolve(self, monkeypatch, env, host="57.154.210.55"):
+        import remote_endpoints as mod
+        for k in ("PLATFORM_URL", "AGENT_CA_CERT_FILE", "BACKEND_WS_HOST", "BACKEND_WS_PORT", "BACKEND_HOST"):
+            monkeypatch.delenv(k, raising=False)
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+        req = MagicMock()
+        req.headers = {"host": host}
+        req.url.scheme = "http"
+        return mod._resolve_backend_ws_base(req)
+
+    def test_stale_backend_ws_host_no_longer_wins_for_pinned_agents(self, monkeypatch):
+        """Regression: BACKEND_WS_HOST left at the retired 192.168.10.70 sent every
+        desktop session there over plain ws:// — no video."""
+        base = self._resolve(monkeypatch, {"BACKEND_WS_HOST": "192.168.10.70",
+                                           "AGENT_CA_CERT_FILE": "/etc/nginx/ssl/omni.crt"})
+        assert base == "wss://57.154.210.55"
+
+    def test_platform_url_matches_what_installers_ship(self, monkeypatch):
+        base = self._resolve(monkeypatch, {"PLATFORM_URL": "https://omni.example.com/",
+                                           "BACKEND_WS_HOST": "192.168.10.70"})
+        assert base == "wss://omni.example.com"
+
+    def test_legacy_plaintext_deployments_keep_backend_ws_host(self, monkeypatch):
+        assert self._resolve(monkeypatch, {"BACKEND_WS_HOST": "10.0.0.5"}) == "ws://10.0.0.5:5000"
 
 
 class TestRemoteCapabilities:

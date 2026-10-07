@@ -94,8 +94,12 @@ USER_AUTH = AUTH - {agent_auth.verify_agent_key}
 PERM_DEP = re.compile(r"has_permission|require_permission|require_super_admin|require_role|require_admin|_require_|check_ops_permission")
 # Role/permission checks in the handler body. A 403 alone doesn't count: many
 # handlers only refuse a missing tenant ("Tenant context required").
-PERM_BODY = re.compile(r"verify_permission\(|has_permission\(|is_super_admin\(|_is_super\(|_is_admin\(|_require_\w+\(|_check_auth\("
-                       r"|[\"']role[\"'][^\n]*\)\s*(!=|==|(not\s+)?in\s)|\w*role\([^)]*\)\s*(not\s+)?in\s|role\s+(not\s+)?in\s|role\s*[!=]=")
+PERM_BODY = re.compile(r"verify_permission\(|has_permission\(|is_super_admin\(|_is_super\(|_is_admin\(|_require_\w+\(|_check_auth\(")
+# A role comparison is authorisation only if the handler can refuse: many
+# handlers compare the role just to decide whether to add a tenant filter, and
+# then let any signed-in user through (a viewer could delete agents that way).
+ROLE_CMP = re.compile(r"[\"']role[\"'][^\n]*\)\s*(!=|==|(not\s+)?in\s)|\w*role\([^)]*\)\s*(not\s+)?in\s|role\s+(not\s+)?in\s|role\s*[!=]=")
+DENIES = re.compile(r"status_code\s*=\s*(403|status\.HTTP_403)|HTTP_403_FORBIDDEN|PermissionError")
 
 def dep_calls(dep, acc):
     acc.append(dep.call)
@@ -114,7 +118,7 @@ def login_only(route, include_deps):
         body = inspect.getsource(route.endpoint).split(":", 1)[1]
     except (OSError, TypeError):
         body = ""
-    return not PERM_BODY.search(body)
+    return not (PERM_BODY.search(body) or (ROLE_CMP.search(body) and DENIES.search(body)))
 
 app = FastAPI()
 register_all_routers(app)
@@ -195,6 +199,7 @@ SELF_SERVICE_WRITES = frozenset({
     ("POST", "/api/provenance/verify"), ("POST", "/api/cissp/oracle/chat"),
     ("POST", "/api/jit/requests"),  # asking for just-in-time access; approval is separate
     ("POST", "/api/voice/transcribe"), ("POST", "/api/voice/synthesize"),
+    ("POST", "/api/digital_twin/simulate"),  # read-only what-if estimate; writes nothing
 })
 
 

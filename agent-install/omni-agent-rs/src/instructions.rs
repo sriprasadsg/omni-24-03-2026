@@ -43,6 +43,23 @@ pub async fn poll(cfg: &Config, client: &reqwest::Client) {
     }
 }
 
+/// The tunnel URL on this agent's own platform (see remote_access::tunnel_url);
+/// the instruction's URL only matters for noticing a misconfigured server.
+fn enrolled_tunnel_url(cfg: &Config, session_id: &str, instructed: &str) -> Option<String> {
+    let url = crate::capabilities::remote_access::tunnel_url(&cfg.api_base_url, session_id)?;
+    if instructed != url {
+        log::info!("Remote session {session_id}: using {url} (the platform suggested {instructed})");
+    }
+    Some(url)
+}
+
+fn tunnel_auth(cfg: &Config) -> crate::capabilities::remote_access::TunnelAuth {
+    crate::capabilities::remote_access::TunnelAuth {
+        agent_token: cfg.agent_token.clone(),
+        tenant_key: cfg.registration_key.clone(),
+    }
+}
+
 async fn execute_instruction(
     action: &str,
     raw_action: &str,
@@ -294,6 +311,9 @@ pub async fn compute_instruction_result(
                     return None;
                 }
             };
+            let Some(url) = enrolled_tunnel_url(cfg, &session_id, &url) else {
+                return Some(serde_json::json!({"status": "error", "error": "invalid remote session id"}));
+            };
             // A "start_remote_session" instruction carries the session kind in
             // payload.type: the dashboard's Live Desktop requests "desktop"/"vnc",
             // the remote terminal requests "shell" (default). Both use the same
@@ -310,10 +330,10 @@ pub async fn compute_instruction_result(
                     email: payload.get("requester_email").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                     tenant: payload.get("tenant").and_then(|v| v.as_str()).unwrap_or("Default").to_string(),
                 };
-                crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone(), control, requester);
+                crate::capabilities::remote_access::start_desktop_stream(session_id, url, tunnel_auth(cfg), control, requester);
                 serde_json::json!({"status": "success", "message": if control { "Interactive control session started" } else { "Desktop stream started" }})
             } else {
-                crate::capabilities::remote_access::start_reverse_shell(session_id, url, cfg.registration_key.clone());
+                crate::capabilities::remote_access::start_reverse_shell(session_id, url, tunnel_auth(cfg));
                 serde_json::json!({"status": "success", "message": "Reverse shell session started"})
             }
         }
@@ -333,12 +353,15 @@ pub async fn compute_instruction_result(
                     return None;
                 }
             };
+            let Some(url) = enrolled_tunnel_url(cfg, &session_id, &url) else {
+                return Some(serde_json::json!({"status": "error", "error": "invalid remote session id"}));
+            };
             let requester = crate::capabilities::remote_access::Requester {
                 name: payload.get("requester_name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string(),
                 email: payload.get("requester_email").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                 tenant: payload.get("tenant").and_then(|v| v.as_str()).unwrap_or("Default").to_string(),
             };
-            crate::capabilities::remote_access::start_desktop_stream(session_id, url, cfg.registration_key.clone(), false, requester);
+            crate::capabilities::remote_access::start_desktop_stream(session_id, url, tunnel_auth(cfg), false, requester);
             serde_json::json!({"status": "success", "message": "Desktop stream started"})
         }
         // ── Ticketing (ticket_reporter) ──────────────────────────────────────

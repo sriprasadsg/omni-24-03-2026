@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
+from rbac_utils import verify_permission
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents", tags=["Agent Metrics"])
@@ -45,6 +46,13 @@ async def record_agent_metrics(
     db = get_database()
     user_role = getattr(current_user, "role", "")
     tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
+
+    # An agent reports only its own metrics; people need manage:agents to post any.
+    if user_role == "agent":
+        if getattr(current_user, "username", None) != agent_id:
+            raise HTTPException(status_code=403, detail="Agents can only report their own metrics")
+    elif not await verify_permission(current_user, "manage:agents"):
+        raise HTTPException(status_code=403, detail="Missing required permission: manage:agents")
 
     agent_filter: dict = {"id": agent_id}
     if user_role not in _METRICS_SUPER_ROLES and tenant_id:

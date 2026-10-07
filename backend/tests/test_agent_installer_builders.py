@@ -100,3 +100,19 @@ async def test_default_agent_url_stays_http_without_a_pin(monkeypatch):
     request = MagicMock()
     request.headers = {"host": "10.0.0.5:5000"}
     assert await _resolve_url(request, None) == "http://10.0.0.5:5000"
+
+
+def test_a_newer_tray_script_rebuilds_the_cached_agent(tmp_path):
+    # The tray scripts are compiled into the exe (include_str!); a tray-only
+    # fix used to leave installers shipping the old tray.
+    import agent_rust_builder
+    exe = tmp_path / "omni-agent.exe"
+    (tmp_path / "src").mkdir()
+    (tmp_path / "scripts").mkdir()
+    for p in (exe, tmp_path / "Cargo.toml", tmp_path / "src" / "lib.rs", tmp_path / "scripts" / "tray_icon.ps1"):
+        p.write_text("x")
+        os.utime(p, (1000, 1000))
+    os.utime(exe, (2000, 2000))
+    assert not agent_rust_builder._sources_newer_than(exe, tmp_path)
+    os.utime(tmp_path / "scripts" / "tray_icon.ps1", (3000, 3000))
+    assert agent_rust_builder._sources_newer_than(exe, tmp_path)

@@ -230,6 +230,9 @@ async def submit_task_feedback(
     """Submit execution feedback for a completed task."""
     caller_tenant = getattr(current_user, "tenant_id", None)
     caller_role = getattr(current_user, "role", "")
+    # Agents report on tasks they ran; people need remediate:agents to do it.
+    if caller_role != "agent" and not await verify_permission(current_user, "remediate:agents"):
+        raise HTTPException(status_code=403, detail="Missing required permission: remediate:agents")
     success = await orchestrator.record_feedback(
         task_id=task_id,
         success=feedback.success,

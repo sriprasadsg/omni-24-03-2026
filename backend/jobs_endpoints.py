@@ -74,7 +74,7 @@ async def create_job(job_data: Dict[str, Any], current_user: TokenData = Depends
 
 
 @router.post("/{job_id}/cancel")
-async def cancel_job(job_id: str, current_user: TokenData = Depends(get_current_user)):
+async def cancel_job(job_id: str, current_user: TokenData = Depends(require_permission("manage:automation"))):
     """Cancel a pending or running job"""
     db = get_database()
     caller_role = getattr(current_user, "role", "")

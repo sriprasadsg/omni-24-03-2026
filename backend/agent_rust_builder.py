@@ -26,9 +26,11 @@ _native_build_lock  = asyncio.Lock()
 
 
 def _sources_newer_than(exe: Path, rust_src: Path) -> bool:
-    """True if any .rs source or Cargo.toml is newer than the cached exe."""
+    """True if any .rs source, Cargo.toml or embedded script is newer than the
+    cached exe. The tray scripts are compiled in (include_str!), so a fix to
+    them alone must rebuild too, or installers keep shipping the old tray."""
     exe_mtime = exe.stat().st_mtime
-    candidates = [rust_src / "Cargo.toml", *rust_src.glob("src/**/*.rs")]
+    candidates = [rust_src / "Cargo.toml", *rust_src.glob("src/**/*.rs"), *rust_src.glob("scripts/*")]
     return any(p.stat().st_mtime > exe_mtime for p in candidates if p.exists())
 
 
@@ -235,7 +237,7 @@ try {{
     Write-Host "Tray logon task registered (OmniAgentTray)."
     # Best-effort: surface the tray in the current interactive session now, once
     # the agent has written the launcher (it does so right after registering).
-    for ($i = 0; $i -lt 8 -and -not (Test-Path $trayLauncher); $i++) {{ Start-Sleep -Seconds 3 }}
+    for ($i = 0; $i -lt 20 -and -not (Test-Path $trayLauncher); $i++) {{ Start-Sleep -Seconds 3 }}
     Start-ScheduledTask -TaskName 'OmniAgentTray' -ErrorAction SilentlyContinue
 }} catch {{
     Write-Warning "Tray task registration failed (agent still runs): $_"
@@ -244,8 +246,96 @@ Stop-Transcript | Out-Null
 """
 
 
+# Present in agents that can check uninstall codes (src/uninstall.rs). An older
+# omni-agent.exe ignores the flag and starts its agent loop instead, which would
+# hang the uninstaller, so the code page is only added when the bundled binary
+# has it (the builder reuses a cached binary when it cannot rebuild).
+UNINSTALL_CODE_MARKER = b"--verify-uninstall-code"
+
+
+# NSIS pieces for uninstall protection, added by _build_nsi_rust only when the
+# bundled binary supports --verify-uninstall-code.
+_NSI_UNINSTALL_PAGE = "UninstPage custom un.CodePageCreate un.CodePageLeave\n"
+_NSI_UNINSTALL_FUNCS = r"""
+; Uninstall protection: removing the agent needs its platform-issued, single-use
+; uninstall code (Agents > agent > Uninstall code). omni-agent.exe checks it
+; against the hash it holds: exit 0 valid, 1 wrong code, 3 no code issued yet.
+; Silent uninstall: set OMNI_UNINSTALL_CODE, then run Uninstall.exe /S.
+Var UninstallCode
+Var UninstallCodeCtrl
+
+Function un.VerifyCode
+  StrCpy $0 0
+  ${If} ${FileExists} "$INSTDIR\omni-agent.exe"
+    nsExec::Exec '"$INSTDIR\omni-agent.exe" --verify-uninstall-code "$UninstallCode"'
+    Pop $0
+  ${EndIf}
+FunctionEnd
+
+Function un.onInit
+  ReadEnvStr $UninstallCode OMNI_UNINSTALL_CODE
+  ${If} ${Silent}
+    Call un.VerifyCode
+    ${If} $0 != 0
+    ${AndIf} $0 != 3
+      SetErrorLevel 2
+      Quit
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
+Function un.CodePageCreate
+  nsDialogs::Create 1018
+  Pop $R9
+  ${NSD_CreateLabel} 0 0 100% 30u "Enter this agent's uninstall code. An administrator can show it in the platform under Agents > agent > Uninstall code. Each code works once."
+  Pop $R9
+  ${NSD_CreateText} 0 36u 100% 12u "$UninstallCode"
+  Pop $UninstallCodeCtrl
+  nsDialogs::Show
+FunctionEnd
+
+Function un.CodePageLeave
+  ${NSD_GetText} $UninstallCodeCtrl $UninstallCode
+  Call un.VerifyCode
+  ${If} $0 == 1
+    MessageBox MB_OK|MB_ICONEXCLAMATION "That uninstall code is not valid for this agent."
+    Abort
+  ${ElseIf} $0 != 0
+  ${AndIf} $0 != 3
+    MessageBox MB_OK|MB_ICONEXCLAMATION "The uninstall code could not be checked (omni-agent.exe returned $0)."
+    Abort
+  ${EndIf}
+FunctionEnd
+"""
+_NSI_UNINSTALL_REPORT = r"""  ${If} ${FileExists} "$INSTDIR\omni-agent.exe"
+    nsExec::Exec '"$INSTDIR\omni-agent.exe" --report-uninstall "$UninstallCode" --method nsis'
+    Pop $1
+  ${EndIf}
+"""
+
+def _supports_uninstall_code(binary: Path) -> bool:
+    try:
+        return UNINSTALL_CODE_MARKER in binary.read_bytes()
+    except OSError:
+        return False
+
+
+# Stops tray/chat helper processes (NSIS-escaped: $$ is a literal $).
+_NSI_TRAY_KILL = ("Get-CimInstance Win32_Process | Where-Object { $$_.CommandLine -like '*tray_launch.vbs*' "
+                  "-or $$_.CommandLine -like '*tray_icon.ps1*' -or $$_.CommandLine -like '*chat_ui.ps1*' } "
+                  "| ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }")
+
+
 def _build_nsi_rust(tenant_name: str, pkg_dir: Path, outfile: str, version: str) -> str:
-    esc = lambda s: s.replace('"', '$\\"')
+    tray_kill = _NSI_TRAY_KILL
+    def esc(s: str) -> str:
+        return s.replace('"', '$\\"')
+    protected = _supports_uninstall_code(pkg_dir / "omni-agent.exe")
+    if not protected:
+        logger.warning("Bundled omni-agent.exe predates uninstall protection — building the installer without the uninstall code page")
+    uninstall_page = _NSI_UNINSTALL_PAGE if protected else ""
+    uninstall_funcs = _NSI_UNINSTALL_FUNCS if protected else ""
+    uninstall_report = _NSI_UNINSTALL_REPORT if protected else ""
     files = "\n".join(
         f'  File "{pkg_dir / f.name}"'
         for f in sorted(pkg_dir.iterdir(), key=lambda p: p.name)
@@ -262,6 +352,7 @@ def _build_nsi_rust(tenant_name: str, pkg_dir: Path, outfile: str, version: str)
     return f"""; OmniAgent Rust Installer — auto-generated
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "nsDialogs.nsh"
 Name "OmniAgent Rust {version} — {esc(tenant_name)}"
 OutFile "{outfile}"
 InstallDir "$PROGRAMFILES64\\OmniAgentRust"
@@ -273,11 +364,11 @@ SetCompressor lzma
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TEXT "OmniAgent (Rust) installed.$\\r$\\nNo Python or .NET required.$\\r$\\nManage via services.msc  →  'Enterprise OmniAgent (Rust)'"
 !insertmacro MUI_PAGE_FINISH
-!insertmacro MUI_UNPAGE_CONFIRM
+{uninstall_page}!insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 !define UNINST "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OmniAgentRust"
-
+{uninstall_funcs}
 Section "OmniAgent (Rust)"
   SectionIn RO
   ; Upgrade path: a running OmniAgentRust service holds an exclusive lock on its
@@ -286,6 +377,17 @@ Section "OmniAgent (Rust)"
   ; task, and kill any stray process FIRST so the binary is unlocked before copy.
   DetailPrint "Stopping any existing OmniAgent (Rust) install for upgrade..."
   nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Stop-Service OmniAgentRust -Force -EA SilentlyContinue; Start-Sleep 2; sc.exe delete OmniAgentRust | Out-Null; Stop-ScheduledTask -TaskName OmniAgentTray -EA SilentlyContinue; Get-Process omni-agent -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue; Start-Sleep 2"'
+  ; The tray runs as a hidden powershell started by wscript, outside the task and the
+  ; service, so stopping those leaves an old tray (with its old token/certificate)
+  ; running next to the new one. Matched by command line, not process name.
+  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "{tray_kill}"`
+  Pop $0
+  ; Keep this machine's enrollment across reinstalls: the fresh config.yaml has no
+  ; agent id, token or per-agent secret, and the platform answers 409 when a known
+  ; host re-enrolls without its secret. The agent folds them back in from .prev.
+  ${{If}} ${{FileExists}} "$INSTDIR\\config.yaml"
+    CopyFiles /SILENT "$INSTDIR\\config.yaml" "$INSTDIR\\config.yaml.prev"
+  ${{EndIf}}
   SetOutPath "$INSTDIR"
   SetOverwrite on
 {files}
@@ -310,7 +412,9 @@ Section "OmniAgent (Rust)"
 SectionEnd
 
 Section "Uninstall"
-  ExecWait '{uninstall_ps}' $0
+  nsExec::ExecToLog `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Unregister-ScheduledTask -TaskName OmniAgentTray -Confirm:$$false -ErrorAction SilentlyContinue; {tray_kill}"`
+  Pop $0
+{uninstall_report}  ExecWait '{uninstall_ps}' $0
   RMDir /r "$INSTDIR"
   DeleteRegKey HKLM "${{UNINST}}"
 SectionEnd

@@ -13,6 +13,7 @@ from agent_approval_endpoints import router as _approvals
 from agent_telemetry_endpoints import router as _telemetry
 from agent_heartbeat_endpoints import router as _heartbeat
 from agent_security_endpoints import router as _security
+from agent_uninstall_endpoints import router as _uninstall
 
 router = APIRouter()
 router.include_router(_registry)
@@ -22,6 +23,7 @@ router.include_router(_approvals)
 router.include_router(_telemetry)
 router.include_router(_heartbeat)
 router.include_router(_security)
+router.include_router(_uninstall)
 
 # Re-exported for router_registry.py's global /api/tasks/{task_id} alias
 from agent_tasks_endpoints import get_task_status  # noqa: F401

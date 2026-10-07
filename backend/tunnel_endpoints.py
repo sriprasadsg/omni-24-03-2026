@@ -5,8 +5,10 @@ FastAPI WebSocket handlers must be decorated on the app instance.
 """
 import asyncio
 import logging
+import re
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from database import get_database, mongodb
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,42 @@ logger = logging.getLogger(__name__)
 _tunnels: dict = {}
 # Sentinel placed into a queue to signal the partner side to stop draining
 _SENTINEL = object()
+
+
+_TUNNEL_INSTRUCTIONS = {"start_remote_session", "start_desktop_stream"}
+_HOST_RE = re.compile(r"[A-Za-z0-9.\-]+(:\d{1,5})?|\[[0-9A-Fa-f:.]+\](:\d{1,5})?")
+_SESSION_RE = re.compile(r"[A-Za-z0-9\-]{1,64}")
+
+
+def agent_tunnel_url(request: Request, session_id: str) -> Optional[str]:
+    """The tunnel URL on the address this agent just used to reach us.
+
+    The URL stored when the session was created comes from server settings
+    (PLATFORM_URL, BACKEND_WS_HOST). Left pointing at a retired host, they sent
+    every remote desktop there and the viewer never got a frame. The poll that
+    is collecting the instruction proves which address works for this agent.
+    """
+    host = (request.headers.get("host") or "").strip()
+    if not _HOST_RE.fullmatch(host) or not _SESSION_RE.fullmatch(session_id or ""):
+        return None
+    proto = (request.headers.get("x-forwarded-proto") or "").strip().lower()
+    if not proto:
+        # nginx terminates TLS on :443 (its :80 only redirects) and marks the
+        # requests it proxies with X-Real-IP; agents dialling the backend
+        # directly (legacy http://host:5000) come in without it.
+        proto = "https" if request.headers.get("x-real-ip") else request.url.scheme
+    scheme = "wss" if proto == "https" else "ws"
+    return f"{scheme}://{host}/api/tunnel/{session_id}/agent"
+
+
+def deliverable_payload(instr: Dict[str, Any], request: Request) -> Dict[str, Any]:
+    payload = dict(instr.get("payload") or {})
+    kind = instr.get("instruction") or instr.get("type")
+    if kind in _TUNNEL_INSTRUCTIONS and payload.get("session_id"):
+        url = agent_tunnel_url(request, str(payload["session_id"]))
+        if url:
+            payload["url"] = url
+    return payload
 
 
 def _get_tunnel(session_id: str) -> dict:
@@ -172,35 +210,49 @@ def register_tunnel_routes(app: FastAPI) -> None:
         websocket: WebSocket, session_id: str, token: str = ""
     ):
         """Agent-side endpoint — the agent connects here to relay shell I/O."""
-        from authentication_service import verify_token_async
+        from authentication_service import verify_token_async, AGENT_ROLE
 
         if not token:
             token = websocket.query_params.get("token", "")
+        auth = websocket.headers.get("Authorization", "")
+        if not token and auth.startswith("Bearer "):
+            token = auth[7:]
         # Only accept X-Tenant-Key from headers — query params leak into access logs
         tenant_key = websocket.headers.get("X-Tenant-Key", "")
 
-        jwt_valid = False
+        # This side serves the endpoint's screen or shell and receives the
+        # operator's keystrokes, so only the agent the session targets may take
+        # it. Raw Motor db (same reason as tunnel_user_side/tunnel_viewer_side):
+        # no tenant context exists yet — this lookup is what establishes it.
+        session = await mongodb.db.remote_sessions.find_one({"session_id": session_id})
+        agent = None
+        if session and session.get("agent_id"):
+            agent = await mongodb.db.agents.find_one(
+                {"id": session["agent_id"]}, {"_id": 0, "id": 1, "tenantId": 1}
+            )
+        if not agent:
+            await websocket.close(code=4403)
+            return
+
+        authorized = False
         if token:
+            # Any valid JWT, a user's included, used to be enough here.
             try:
-                await verify_token_async(token)
-                jwt_valid = True
+                td = await verify_token_async(token)
+                authorized = (td.role == AGENT_ROLE and td.username == agent["id"]
+                              and td.tenant_id == agent.get("tenantId"))
             except Exception as e:
                 logger.debug("Agent tunnel token verification failed: %s", e)
 
-        # Validate tenant_key against the stored registrationKey and session tenantId.
-        # Raw Motor db (same reason as tunnel_user_side/tunnel_viewer_side): no tenant
-        # context exists yet at this point — this lookup is what establishes it — so
-        # the tenant-isolated wrapper would fail-closed on a sentinel tenantId and
-        # always return no match, rejecting every agent connection.
-        tenant_key_valid = False
-        if not jwt_valid and tenant_key:
-            session = await mongodb.db.remote_sessions.find_one({"session_id": session_id})
-            tenant = await mongodb.db.tenants.find_one({"registrationKey": tenant_key})
-            if (tenant and session
-                    and tenant.get("id") == session.get("tenantId")):
-                tenant_key_valid = True
+        if not authorized and tenant_key:
+            # Legacy agents send their tenant's registration key. Compare it with
+            # the AGENT's tenant: the session carries the caller's, which for a
+            # super admin is "platform-admin" — no agent key ever matched it, so
+            # remote desktop from a super admin always failed with 4401.
+            tenant = await mongodb.db.tenants.find_one({"registrationKey": tenant_key}, {"_id": 0, "id": 1})
+            authorized = bool(tenant) and tenant.get("id") == agent.get("tenantId")
 
-        if not jwt_valid and not tenant_key_valid:
+        if not authorized:
             await websocket.close(code=4401)
             return
 

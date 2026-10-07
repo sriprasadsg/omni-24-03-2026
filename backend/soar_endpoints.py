@@ -66,7 +66,7 @@ async def execute_playbook(
     playbook_id: str,
     trigger_context: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(require_permission("manage:playbooks")),
 ):
     db = get_database()
     user_role = getattr(current_user, "role", "")

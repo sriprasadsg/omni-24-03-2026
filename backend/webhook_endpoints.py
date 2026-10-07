@@ -106,7 +106,10 @@ async def get_webhooks(current_user: TokenData = Depends(get_current_user_or_api
     caller_role = getattr(current_user, "role", "")
     caller_tenant = getattr(current_user, "tenant_id", None)
     query = {} if caller_role in _WEBHOOK_SUPER_ROLES else {"tenantId": caller_tenant}
-    cursor = db.webhooks.find(query, {"_id": 0})
+    # Any signed-in user may list webhooks, so never return the signing secret:
+    # with it a read-only user could forge signed deliveries to the receivers.
+    # create_webhook returns it once, to the caller allowed to manage webhooks.
+    cursor = db.webhooks.find(query, {"_id": 0, "secret": 0})
     return await cursor.to_list(length=100)
 
 @router.post("")
@@ -194,7 +197,7 @@ async def update_webhook(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Webhook not found")
 
-    updated_webhook = await db.webhooks.find_one(query, {"_id": 0})
+    updated_webhook = await db.webhooks.find_one(query, {"_id": 0, "secret": 0})
     return updated_webhook
 
 @router.get("/{webhook_id}/deliveries")
@@ -246,7 +249,7 @@ async def _record_delivery(db, webhook_id: str, event: str, payload: dict,
 
 
 @router.post("/{webhook_id}/test")
-async def test_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user)):
+async def test_webhook(webhook_id: str, current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Test a webhook by sending a ping event and recording the delivery."""
     db = get_database()
     caller_role = getattr(current_user, "role", "")

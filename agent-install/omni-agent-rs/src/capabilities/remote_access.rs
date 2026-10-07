@@ -78,22 +78,63 @@ pub fn set_rdp(enable: bool) -> Result<(), String> {
     }
 }
 
-/// Build a WebSocket client request carrying the tenant's `X-Tenant-Key`
-/// header. `tunnel_agent_side` (backend/tunnel_endpoints.py) requires either
-/// a valid JWT `?token=` or this header to authenticate the agent side of
-/// the tunnel — the agent has never had a JWT of its own, and the previous
-/// bare `connect_async(url)` sent neither, so every tunnel connection was
-/// silently rejected with code 4401 before any shell/capture logic ran.
+/// Credentials for the agent side of a tunnel. The platform accepts this
+/// agent's own token; servers from before that only take the tenant key.
+#[derive(Clone)]
+pub struct TunnelAuth {
+    pub agent_token: String,
+    pub tenant_key: String,
+}
+
+/// The tunnel endpoint on the platform this agent is enrolled with.
+///
+/// The URL inside the instruction is deliberately not used. The server built
+/// it from its own settings, and a stale BACKEND_WS_HOST sent every desktop
+/// session to a retired host over plain ws:// (no video, and the tenant key in
+/// clear text). An instruction must not be able to point the screen stream
+/// and credentials at another address. None for a malformed session id.
+pub fn tunnel_url(api_base_url: &str, session_id: &str) -> Option<String> {
+    if session_id.is_empty() || !session_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return None;
+    }
+    let base = api_base_url.trim_end_matches('/');
+    let ws_base = if let Some(rest) = base.strip_prefix("https://") {
+        format!("wss://{rest}")
+    } else if let Some(rest) = base.strip_prefix("http://") {
+        format!("ws://{rest}")
+    } else {
+        return None;
+    };
+    Some(format!("{ws_base}/api/tunnel/{session_id}/agent"))
+}
+
+/// Where the agent reports its user's consent decision for a control session
+/// (backend remote_endpoints.report_consent), on the same platform as the tunnel.
+fn consent_url(tunnel_url: &str, session_id: &str) -> Option<String> {
+    let (base, _) = tunnel_url.split_once("/api/tunnel/")?;
+    let base = base.replacen("wss://", "https://", 1).replacen("ws://", "http://", 1);
+    Some(format!("{base}/api/remote/session/{session_id}/consent"))
+}
+
+/// Build the tunnel WebSocket request with this agent's token and, for older
+/// platforms, the tenant's `X-Tenant-Key` header. `tunnel_agent_side`
+/// (backend/tunnel_endpoints.py) refuses a connection that carries neither.
 fn tunnel_request(
     url: &str,
-    tenant_key: &str,
+    auth: &TunnelAuth,
 ) -> Result<tokio_tungstenite::tungstenite::handshake::client::Request, Box<dyn std::error::Error + Send + Sync>> {
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::http::HeaderValue;
     let mut req = url.into_client_request()?;
-    req.headers_mut().insert(
-        "X-Tenant-Key",
-        tokio_tungstenite::tungstenite::http::HeaderValue::from_str(tenant_key)?,
-    );
+    if !auth.agent_token.is_empty() {
+        req.headers_mut().insert(
+            "Authorization",
+            HeaderValue::from_str(&format!("Bearer {}", auth.agent_token))?,
+        );
+    }
+    if !auth.tenant_key.is_empty() {
+        req.headers_mut().insert("X-Tenant-Key", HeaderValue::from_str(&auth.tenant_key)?);
+    }
     Ok(req)
 }
 
@@ -101,23 +142,23 @@ fn tunnel_request(
 /// platform connection does (pinned certificate, see crate::tls).
 async fn connect_tunnel(
     url: &str,
-    tenant_key: &str,
+    auth: &TunnelAuth,
 ) -> Result<
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
     Box<dyn std::error::Error + Send + Sync>,
 > {
     let connector = crate::tls::platform_ws_connector()?;
     let (ws_stream, _) =
-        tokio_tungstenite::connect_async_tls_with_config(tunnel_request(url, tenant_key)?, None, false, connector)
+        tokio_tungstenite::connect_async_tls_with_config(tunnel_request(url, auth)?, None, false, connector)
             .await?;
     Ok(ws_stream)
 }
 
 /// Spawn a WebSocket-based reverse shell in a background tokio task.
-pub fn start_reverse_shell(session_id: String, url: String, tenant_key: String) {
+pub fn start_reverse_shell(session_id: String, url: String, auth: TunnelAuth) {
     tokio::spawn(async move {
         log::info!("Reverse shell starting: session={session_id} url={url}");
-        if let Err(e) = reverse_shell_run(&url, &tenant_key).await {
+        if let Err(e) = reverse_shell_run(&url, &auth).await {
             log::error!("Reverse shell error: {e}");
         }
         log::info!("Reverse shell ended: session={session_id}");
@@ -130,7 +171,7 @@ pub fn start_reverse_shell(session_id: String, url: String, tenant_key: String) 
 pub fn start_desktop_stream(
     session_id: String,
     url: String,
-    tenant_key: String,
+    auth: TunnelAuth,
     control: bool,
     requester: Requester,
 ) {
@@ -138,7 +179,7 @@ pub fn start_desktop_stream(
         log::info!(
             "Desktop stream starting: session={session_id} url={url} control={control}"
         );
-        if let Err(e) = desktop_stream_run(&session_id, &url, &tenant_key, control, &requester).await {
+        if let Err(e) = desktop_stream_run(&session_id, &url, &auth, control, &requester).await {
             log::error!("Desktop stream error: {e}");
         }
         log::info!("Desktop stream ended: session={session_id}");
@@ -162,13 +203,13 @@ fn spawn_local_shell() -> std::io::Result<tokio::process::Child> {
         .spawn()
 }
 
-async fn reverse_shell_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn reverse_shell_run(url: &str, auth: &TunnelAuth) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use futures_util::{SinkExt, StreamExt};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::sync::mpsc;
     use tokio_tungstenite::tungstenite::Message;
 
-    let ws_stream = connect_tunnel(url, tenant_key).await?;
+    let ws_stream = connect_tunnel(url, auth).await?;
     let (ws_write, mut ws_read) = ws_stream.split();
     let mut child = spawn_local_shell()?;
     let mut proc_stdin = child.stdin.take().ok_or("no stdin")?;
@@ -228,18 +269,17 @@ async fn reverse_shell_run(url: &str, tenant_key: &str) -> Result<(), Box<dyn st
 async fn desktop_stream_run(
     session_id: &str,
     url: &str,
-    tenant_key: &str,
+    auth: &TunnelAuth,
     control: bool,
     requester: &Requester,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use crate::capabilities::control_input::{control_input_replay, parse_input_frame, ConsentGate};
     use crate::consent_ui::{request_consent, show_stop_bar, hide_stop_bar, stop_requested, ConsentDecision, ConsentError};
     use futures_util::{SinkExt, StreamExt};
-    use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::time::{timeout, Duration, interval};
     use tokio_tungstenite::tungstenite::Message;
 
-    let ws_stream = connect_tunnel(url, tenant_key).await?;
+    let ws_stream = connect_tunnel(url, auth).await?;
     let (mut ws_write, ws_read) = ws_stream.split();
 
     // Build a control_state frame. `Message` is the WS frame wrapper; string
@@ -286,7 +326,7 @@ async fn desktop_stream_run(
     };
 
     // 3. POST decision to backend audit endpoint (T-74-19)
-    let _ = post_consent_decision(url, &session_id_owned, &decision, requester).await;
+    let _ = post_consent_decision(url, auth, &session_id_owned, &decision, requester).await;
 
     match decision {
         ConsentDecision::Decline => {
@@ -307,7 +347,9 @@ async fn desktop_stream_run(
     let _ = ws_write.send(send_state("active", None, Some("Interactive control active"))).await;
 
     // 5. Start capture process
-    let ps_script = r#"Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+    let ps_script = r#"Add-Type -Name Dpi -Namespace OmniCapture -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
+[void][OmniCapture.Dpi]::SetProcessDPIAware()   # else scaled displays (125-150%) show only part of the screen
+Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 if ($bounds.Width -le 0 -or $bounds.Height -le 0) {
     [Console]::Out.WriteLine("ERR:No interactive desktop available (0x0 screen bounds) - the agent likely has no active user session to capture (Session 0 isolation)")
@@ -335,48 +377,48 @@ while ($true) {
     Start-Sleep -Milliseconds 150
 }"#;
 
-    let mut child = match tokio::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-    {
+    // The capture must run in the user's session: this service lives in
+    // session 0, whose desktop is not the one on screen (CopyFromScreen from
+    // here failed as soon as the user had granted consent).
+    let mut child = match crate::user_session::spawn_piped(&crate::user_session::powershell_encoded(ps_script)) {
         Ok(child) => child,
         Err(e) => {
-            let msg = format!("Failed to launch capture process: {}", e).replace('"', "'");
+            let msg = format!("Failed to launch capture process in the user's session: {}", e).replace('"', "'");
             let payload = format!(r#"{{"type":"error","message":"{}"}}"#, msg);
             let _ = ws_write.send(Message::Text(payload.into())).await;
             let _ = hide_stop_bar(&session_id_owned);
-            return Err(format!("failed to spawn powershell.exe: {}", e).into());
+            return Err(format!("failed to start capture in the user session: {}", e).into());
         }
     };
-
-    let stdout = match child.stdout.take() {
-        Some(stdout) => stdout,
-        None => {
-            let _ = ws_write
-                .send(Message::Text(
-                    r#"{"type":"error","message":"Failed to capture stdout from the desktop capture process"}"#.into(),
-                ))
-                .await;
-            let _ = child.kill().await;
-            let _ = hide_stop_bar(&session_id_owned);
-            return Err("no stdout from capture process".into());
-        }
+    let Some(stdout) = child.stdout.take() else {
+        let _ = hide_stop_bar(&session_id_owned);
+        return Err("no stdout from capture process".into());
     };
-    let mut lines = BufReader::new(stdout).lines();
+    // Lines arrive from a blocking pipe; a small channel keeps at most a few
+    // frames buffered when the relay is slower than the capture.
+    let (line_tx, mut line_rx) = tokio::sync::mpsc::channel::<String>(4);
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        for line in std::io::BufReader::new(stdout).lines() {
+            match line {
+                Ok(l) => if line_tx.blocking_send(l).is_err() { break },
+                Err(_) => break,
+            }
+        }
+    });
 
-    // First line must arrive within 5s
-    let first_line = timeout(Duration::from_secs(5), lines.next_line()).await;
-    let mut pending = match first_line {
-        Ok(next) => next,
+    // First line must arrive within 15s (PowerShell start-up in the user's
+    // session, loading System.Drawing, can take several seconds).
+    let first_line = timeout(Duration::from_secs(15), line_rx.recv()).await;
+    let mut pending: Result<Option<String>, std::io::Error> = match first_line {
+        Ok(next) => Ok(next),
         Err(_) => {
             let _ = ws_write
                 .send(Message::Text(
-                    r#"{"type":"error","message":"No response from desktop capture process within 5s - it may lack an interactive desktop session"}"#.into(),
+                    r#"{"type":"error","message":"No response from desktop capture process within 15s - it may lack an interactive desktop session"}"#.into(),
                 ))
                 .await;
-            let _ = child.kill().await;
+            child.kill();
             let _ = hide_stop_bar(&session_id_owned);
             return Err("desktop capture timed out with no output".into());
         }
@@ -470,33 +512,33 @@ while ($true) {
             }
             _ => {}
         }
-        pending = lines.next_line().await;
+        pending = Ok(line_rx.recv().await);
     }
 
     // 8. Cleanup: abort input task, kill capture, hide stop bar, send ended state
     input_task.abort();
-    let _ = child.kill().await;
+    child.kill();
     let _ = hide_stop_bar(&session_id_owned);
     let _ = ws_write.send(send_state("ended", Some(end_reason), Some(end_message))).await;
 
     Ok(())
 }
 
-/// POST consent decision to the backend audit endpoint (T-74-19).
-/// Derives HTTP base from the tunnel WebSocket URL.
+/// POST consent decision to the backend audit endpoint (T-74-19), as this
+/// agent. It used to go to a made-up /consent-decision path with no token, so
+/// no decision was ever recorded and accepted sessions never became active.
+#[cfg_attr(not(windows), allow(dead_code))]
 async fn post_consent_decision(
     tunnel_url: &str,
+    auth: &TunnelAuth,
     session_id: &str,
     decision: &crate::consent_ui::ConsentDecision,
     requester: &Requester,
 ) {
-    // Derive HTTP endpoint from ws:// or wss:// tunnel URL
-    let http_url = tunnel_url
-        .replace("wss://", "https://")
-        .replace("ws://", "http://")
-        .replace("/tunnel", "/consent-decision")
-        .replace("/viewer", "/consent-decision")
-        .replace("/user", "/consent-decision");
+    let Some(http_url) = consent_url(tunnel_url, session_id) else {
+        log::warn!("Failed to POST consent decision: no platform address in {tunnel_url}");
+        return;
+    };
 
     let body = serde_json::json!({
         "session_id": session_id,
@@ -518,14 +560,17 @@ async fn post_consent_decision(
             return;
         }
     };
-    if let Err(e) = client
+    match client
         .post(&http_url)
+        .bearer_auth(&auth.agent_token)
         .json(&body)
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
     {
-        log::warn!("Failed to POST consent decision: {e}");
+        Ok(r) if !r.status().is_success() => log::warn!("Consent decision refused: {}", r.status()),
+        Ok(_) => {}
+        Err(e) => log::warn!("Failed to POST consent decision: {e}"),
     }
 }
 
@@ -533,7 +578,7 @@ async fn post_consent_decision(
 async fn desktop_stream_run(
     _session_id: &str,
     url: &str,
-    tenant_key: &str,
+    auth: &TunnelAuth,
     control: bool,
     _requester: &Requester,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -544,7 +589,7 @@ async fn desktop_stream_run(
     // coming, instead of leaving it connected-but-silent forever (the
     // previous behavior: returning Err before ever calling connect_async
     // meant the viewer had zero signal that streaming would never start).
-    let ws_stream = connect_tunnel(url, tenant_key).await?;
+    let ws_stream = connect_tunnel(url, auth).await?;
     let (mut ws_write, _) = ws_stream.split();
     // Control mode must say WHY it cannot proceed, so the browser can show a
     // real terminal state (T-74-04) rather than an endless spinner. View mode
@@ -563,26 +608,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn post_consent_decision_url_derivation() {
-        // HTTP base derives from the tunnel WebSocket URL (T-74-19)
-        let http_url = "wss://relay.example.com/tunnel/abc"
-            .replace("wss://", "https://")
-            .replace("/tunnel", "/consent-decision");
+    fn tunnel_goes_to_the_enrolled_platform_not_the_instruction_url() {
         assert_eq!(
-            http_url,
-            "https://relay.example.com/consent-decision/abc"
+            tunnel_url("https://57.154.210.55/", "76f428aa-08b7-4991-b813-33fa9f5dc77a").as_deref(),
+            Some("wss://57.154.210.55/api/tunnel/76f428aa-08b7-4991-b813-33fa9f5dc77a/agent")
         );
+        assert_eq!(
+            tunnel_url("http://10.0.0.5:5000", "abc-1").as_deref(),
+            Some("ws://10.0.0.5:5000/api/tunnel/abc-1/agent")
+        );
+        // A session id cannot steer the agent to another path or host.
+        assert_eq!(tunnel_url("https://p.example", "../../x"), None);
+        assert_eq!(tunnel_url("https://p.example", "a/b?c"), None);
+        assert_eq!(tunnel_url("https://p.example", ""), None);
+        assert_eq!(tunnel_url("ftp://p.example", "abc"), None);
     }
 
     #[test]
-    fn post_consent_decision_url_viewer_derivation() {
-        let http_url = "ws://relay.example.com/viewer/xyz"
-            .replace("ws://", "http://")
-            .replace("/viewer", "/consent-decision")
-            .replace("/user", "/consent-decision");
-        assert_eq!(
-            http_url,
-            "http://relay.example.com/consent-decision/xyz"
-        );
+    fn consent_is_reported_to_the_session_consent_route() {
+        let t = tunnel_url("https://p.example", "s-1").unwrap();
+        assert_eq!(consent_url(&t, "s-1").as_deref(), Some("https://p.example/api/remote/session/s-1/consent"));
+        let t = tunnel_url("http://10.0.0.5:5000", "s-2").unwrap();
+        assert_eq!(consent_url(&t, "s-2").as_deref(), Some("http://10.0.0.5:5000/api/remote/session/s-2/consent"));
+    }
+
+    #[test]
+    fn tunnel_request_carries_the_agent_token_and_the_legacy_key() {
+        let auth = TunnelAuth { agent_token: "tok".into(), tenant_key: "reg".into() };
+        let req = tunnel_request("wss://p.example/api/tunnel/s/agent", &auth).unwrap();
+        assert_eq!(req.headers()["Authorization"], "Bearer tok");
+        assert_eq!(req.headers()["X-Tenant-Key"], "reg");
+        let none = TunnelAuth { agent_token: String::new(), tenant_key: String::new() };
+        let req = tunnel_request("wss://p.example/api/tunnel/s/agent", &none).unwrap();
+        assert!(req.headers().get("Authorization").is_none() && req.headers().get("X-Tenant-Key").is_none());
     }
 }

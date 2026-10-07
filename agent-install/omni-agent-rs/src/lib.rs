@@ -10,6 +10,8 @@ pub mod instructions;
 pub mod registration;
 pub mod tls;
 pub mod tray;
+pub mod uninstall;
+pub mod user_session;
 
 #[cfg(windows)]
 pub mod service;
@@ -17,6 +19,10 @@ pub mod service;
 use buffer::MessageBuffer;
 use capabilities::CapabilityManager;
 use sysinfo::System;
+
+/// How often an agent without a token asks the platform to enroll it again.
+/// The register route allows 10 calls a minute per address.
+const REGISTRATION_RETRY: std::time::Duration = std::time::Duration::from_secs(120);
 
 pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     let mut cfg = match config::load() {
@@ -27,6 +33,12 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         }
     };
 
+    if config::adopt_previous_identity(&mut cfg) {
+        match config::save(&cfg) {
+            Ok(()) => log::info!("Kept this machine's enrollment from the previous install"),
+            Err(e) => log::warn!("Could not save the carried-over enrollment: {e}"),
+        }
+    }
     let interval = std::time::Duration::from_secs(cfg.interval_seconds);
     log::info!(
         "Omni Agent v2.0 starting — interval {}s, host {}",
@@ -53,6 +65,24 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         .expect("HTTP client build");
 
     let cap_mgr = CapabilityManager::new();
+
+    // Write the tray launcher before any network call: the installer starts
+    // the OmniAgentTray task once it sees tray_launch.vbs, and only waits a
+    // short while. Registration (and the public-IP lookup) can take far longer
+    // when the platform is slow or unreachable, which left no tray icon.
+    #[cfg(windows)]
+    {
+        if let Err(e) = chat_ui::ensure_script_installed() {
+            log::warn!("chat UI script install failed: {e}");
+        }
+        if let Err(e) = tray::ensure_script_installed() {
+            log::warn!("tray script install failed: {e}");
+        }
+        if let Err(e) = config::write_tray_config(&cfg) {
+            log::warn!("tray-config write failed: {e}");
+        }
+    }
+
     // Resolve the WAN/ISP public IP before registering so the first payload
     // carries it. Best-effort — registration proceeds regardless.
     heartbeat::refresh_public_ip(&public_client).await;
@@ -78,17 +108,10 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         tokio::spawn(crate::capabilities::fim::drain_queue(cfg_drain, client_drain, drain_stop));
     }
 
-    // Materialize the interactive-session UI helpers now that we have a token:
-    // the chat-window and tray scripts + a user-readable tray-config the logon
-    // tray task consumes. Non-fatal — telemetry continues regardless.
+    // Refresh the user-readable tray-config now that registration has (or has
+    // not) produced a token. Non-fatal — telemetry continues regardless.
     #[cfg(windows)]
     {
-        if let Err(e) = chat_ui::ensure_script_installed() {
-            log::warn!("chat UI script install failed: {e}");
-        }
-        if let Err(e) = tray::ensure_script_installed() {
-            log::warn!("tray script install failed: {e}");
-        }
         if let Err(e) = config::write_tray_config(&cfg) {
             log::warn!("tray-config write failed: {e}");
         }
@@ -98,6 +121,12 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     let mut tick = 0u32;
     // Public IP rarely changes; re-resolve periodically rather than every beat.
     let mut last_public_ip_refresh = std::time::Instant::now();
+    // Registration used to run once per service start: a host whose enrollment
+    // was refused (e.g. 409 after a reinstall lost its secret) or that started
+    // while the platform was down stayed tokenless until someone restarted the
+    // service — no heartbeats, no instructions, and a tray that cannot raise
+    // tickets or open chats. Keep trying while there is no token.
+    let mut last_registration_attempt = std::time::Instant::now();
 
     loop {
         if let Some(ref rx) = stop_rx {
@@ -110,6 +139,19 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         if last_public_ip_refresh.elapsed() >= std::time::Duration::from_secs(1800) {
             heartbeat::refresh_public_ip(&public_client).await;
             last_public_ip_refresh = std::time::Instant::now();
+        }
+
+        if cfg.agent_token.is_empty() && last_registration_attempt.elapsed() >= REGISTRATION_RETRY {
+            last_registration_attempt = std::time::Instant::now();
+            if registration::ensure_registered(&mut cfg, &client, &cap_mgr).await {
+                log::info!("Enrolled with the platform after retrying");
+            }
+            #[cfg(windows)]
+            {
+                if let Err(e) = config::write_tray_config(&cfg) {
+                    log::warn!("tray-config write failed: {e}");
+                }
+            }
         }
 
         sys.refresh_all();
@@ -126,7 +168,9 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
             }
         }
         let payload = heartbeat::build_payload(&cfg, &sys, &cap_mgr);
-        heartbeat::send(&cfg, payload, &buf, &client).await;
+        if let Some(body) = heartbeat::send(&cfg, payload, &buf, &client).await {
+            uninstall::update_from_heartbeat(&mut cfg, &body);
+        }
         instructions::poll(&cfg, &client).await;
 
         tick += 1;

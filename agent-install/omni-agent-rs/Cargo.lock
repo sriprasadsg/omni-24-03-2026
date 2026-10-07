@@ -2079,6 +2079,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-util",
  "hex",
+ "hmac",
  "hostname",
  "libc",
  "log",

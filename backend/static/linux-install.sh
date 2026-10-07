@@ -3,6 +3,7 @@ set -e
 
 # Enterprise Omni Agent - Linux Installation Script
 # Usage: ./linux-install.sh -r <RegistrationKey> -b <BackendUrl> [-t <TenantId>] [--as-service]
+#        sudo ./linux-install.sh --uninstall --code <UninstallCode>
 
 BACKEND_URL="http://localhost:5000"
 REGISTRATION_KEY=""
@@ -10,6 +11,8 @@ TENANT_ID="default-tenant"
 AGENT_TOKEN=""
 INSTALL_DIR="/opt/enterprise-omni-agent"
 AS_SERVICE=false
+UNINSTALL=false
+UNINSTALL_CODE="${OMNI_UNINSTALL_CODE:-}"
 
 # Colors
 RED='\033[0;31m'
@@ -32,6 +35,8 @@ while [[ $# -gt 0 ]]; do
         -k|--agent-token)      AGENT_TOKEN="$2";      shift 2 ;;
         --install-dir)         INSTALL_DIR="$2";      shift 2 ;;
         --as-service)          AS_SERVICE=true;       shift   ;;
+        --uninstall)           UNINSTALL=true;        shift   ;;
+        --code)                UNINSTALL_CODE="$2";   shift 2 ;;
         *)
             print_error "Unknown option: $1"
             echo "Usage: $0 -r <RegistrationKey> -b <BackendUrl> [-t <TenantId>] [-k <AgentToken>] [--as-service]"
@@ -39,6 +44,46 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# ── Uninstall ────────────────────────────────────────────────────────────────
+# Needs the agent's platform-issued, single-use uninstall code (Agents > agent >
+# Uninstall code). The agent checks it against the hash it holds:
+# exit 0 valid, 1 wrong code, 3 no code issued yet.
+if [ "$UNINSTALL" = true ]; then
+    if [ "$(id -u)" -ne 0 ]; then
+        print_error "Run the uninstall as root (sudo)."
+        exit 1
+    fi
+    AGENT_PY="$INSTALL_DIR/venv/bin/python"
+    # Older agents ignore the flag and start their agent loop instead, so only
+    # ask agents that know about uninstall codes (and never wait forever).
+    if [ -x "$AGENT_PY" ] && grep -q -- '--verify-uninstall-code' "$INSTALL_DIR/agent.py" 2>/dev/null; then
+        set +e
+        (cd "$INSTALL_DIR" && timeout 120 "$AGENT_PY" agent.py --verify-uninstall-code "$UNINSTALL_CODE" >/dev/null 2>&1)
+        rc=$?
+        set -e
+        case $rc in
+            0) print_success "Uninstall code accepted" ;;
+            3) print_warning "This agent has no uninstall code yet — continuing" ;;
+            *) print_error "Wrong or missing uninstall code — the agent stays installed."
+               echo "Ask an administrator for this agent's code and pass it with --code."
+               exit 2 ;;
+        esac
+        (cd "$INSTALL_DIR" && timeout 60 "$AGENT_PY" agent.py --report-uninstall "$UNINSTALL_CODE" --method linux-install.sh >/dev/null 2>&1) \
+            && print_success "Uninstall reported to the platform" \
+            || print_warning "Could not reach the platform to report the uninstall"
+    elif [ -f "$INSTALL_DIR/agent.py" ]; then
+        print_warning "This agent version predates uninstall codes — continuing without one."
+    else
+        print_warning "No agent found in $INSTALL_DIR — cannot check the uninstall code."
+    fi
+    systemctl disable --now omni-agent 2>/dev/null || true
+    rm -f /etc/systemd/system/omni-agent.service
+    systemctl daemon-reload 2>/dev/null || true
+    rm -rf "$INSTALL_DIR"
+    print_success "Enterprise Omni Agent removed from $INSTALL_DIR"
+    exit 0
+fi
 
 echo "═══════════════════════════════════════════════════════════"
 echo "    Enterprise Omni Agent — Linux Installer"

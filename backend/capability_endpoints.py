@@ -208,7 +208,7 @@ async def configure_agent_capabilities(
 async def update_agent_capabilities_simple(
     agent_id: str,
     body: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:agents")),
 ):
     """
     Simple capability toggle endpoint (test-compatible alias).
@@ -297,7 +297,7 @@ async def ingest_capability_data(
     agent_id: str,
     capability_id: str,
     data: Dict[str, Any] = Body(...),
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:agents"))
 ):
     """Ingest data from a specific capability (agent uses Bearer JWT)."""
     db = get_database()

@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, R
 from fastapi.responses import Response
 from database import mongodb
 from authentication_service import get_current_user, get_optional_user
+from rbac_utils import require_permission
 from typing import Optional, Dict, Any
 
 from agent_installer_builders import (
@@ -312,7 +313,7 @@ async def download_msi_installer(
 # ── Agent command dispatch ─────────────────────────────────────────────────────
 
 @router.post("/deploy")
-async def agent_deploy(payload: Dict[str, Any], current_user=Depends(get_current_user)):
+async def agent_deploy(payload: Dict[str, Any], current_user=Depends(require_permission("manage:agents"))):
     """Dispatch a command to one or more agents via the agent_instructions queue."""
     from database import get_database
     import uuid as _uuid

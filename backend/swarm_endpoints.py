@@ -6,7 +6,7 @@ import time
 import asyncio
 from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
-from rbac_utils import verify_permission
+from rbac_utils import require_permission, verify_permission
 from auth_types import TokenData
 
 router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
@@ -158,8 +158,10 @@ Example: [{{"type": "vulnerability_scan", "instruction": "Scan all endpoints for
 
 # --- Endpoints ---
 
+# A mission dispatches AI-planned instructions (patching, host isolation) to every
+# online agent in the tenant, so it needs the same permission as managing agents.
 @router.post("/start")
-async def start_mission(mission: SwarmMission, background_tasks: BackgroundTasks, _current_user: TokenData = Depends(get_current_user)):
+async def start_mission(mission: SwarmMission, background_tasks: BackgroundTasks, _current_user: TokenData = Depends(require_permission("manage:agents"))):
     mission_id = str(uuid.uuid4())
     db = get_database()
     now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()

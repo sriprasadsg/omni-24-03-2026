@@ -14,6 +14,7 @@ from agent_heartbeat_alerts_service import persist_persistence_detection, persis
 import agent_vuln_ingest_service
 from geo_security_service import run_geo_security_detectors
 from ueba_service import persist_security_alert
+from agent_uninstall_endpoints import heartbeat_uninstall_protection
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
@@ -510,4 +511,5 @@ async def report_heartbeat(
         except Exception as fb_err:
             logger.error("ERROR processing task feedback: %s", fb_err)
 
-    return {"success": True}
+    # Verification data for the agent's uninstallers (see agent_uninstall_endpoints).
+    return {"success": True, "uninstall_protection": await heartbeat_uninstall_protection(db, _hb_agent_filter)}

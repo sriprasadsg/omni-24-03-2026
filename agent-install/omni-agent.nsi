@@ -72,10 +72,62 @@ Var IntervalCtrl
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !insertmacro MUI_PAGE_FINISH
 
+UninstPage custom un.CodePageCreate un.CodePageLeave
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
+
+; ── Uninstall protection ─────────────────────────────────────
+; Removing the agent needs its platform-issued, single-use uninstall code
+; (Agents > agent > Uninstall code). omni-agent.exe checks it against the hash
+; it holds: exit 0 valid, 1 wrong code, 3 no code issued yet.
+; Silent uninstall: set OMNI_UNINSTALL_CODE, then run Uninstall.exe /S.
+Var UninstallCode
+Var UninstallCodeCtrl
+
+Function un.VerifyCode
+    StrCpy $0 0
+    ${If} ${FileExists} "$INSTDIR\omni-agent.exe"
+        nsExec::Exec '"$INSTDIR\omni-agent.exe" --verify-uninstall-code "$UninstallCode"'
+        Pop $0
+    ${EndIf}
+FunctionEnd
+
+Function un.onInit
+    ReadEnvStr $UninstallCode OMNI_UNINSTALL_CODE
+    ${If} ${Silent}
+        Call un.VerifyCode
+        ${If} $0 != 0
+        ${AndIf} $0 != 3
+            SetErrorLevel 2
+            Quit
+        ${EndIf}
+    ${EndIf}
+FunctionEnd
+
+Function un.CodePageCreate
+    nsDialogs::Create 1018
+    Pop $R9
+    ${NSD_CreateLabel} 0 0 100% 30u "Enter this agent's uninstall code. An administrator can show it in the platform under Agents > agent > Uninstall code. Each code works once."
+    Pop $R9
+    ${NSD_CreateText} 0 36u 100% 12u "$UninstallCode"
+    Pop $UninstallCodeCtrl
+    nsDialogs::Show
+FunctionEnd
+
+Function un.CodePageLeave
+    ${NSD_GetText} $UninstallCodeCtrl $UninstallCode
+    Call un.VerifyCode
+    ${If} $0 == 1
+        MessageBox MB_OK|MB_ICONEXCLAMATION "That uninstall code is not valid for this agent."
+        Abort
+    ${ElseIf} $0 != 0
+    ${AndIf} $0 != 3
+        MessageBox MB_OK|MB_ICONEXCLAMATION "The uninstall code could not be checked (omni-agent.exe returned $0)."
+        Abort
+    ${EndIf}
+FunctionEnd
 
 ; ── Interactive config page (skipped when BAKED_API_URL is set) ─
 !ifndef BAKED_API_URL
@@ -211,6 +263,11 @@ Section "Uninstall"
     ; survive uninstall indefinitely. Matched by command line (not process
     ; name) since wscript.exe/powershell.exe are too generic to kill blindly.
     nsExec::ExecToLog `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Unregister-ScheduledTask -TaskName OmniAgentTray -Confirm:$$false -ErrorAction SilentlyContinue; Get-CimInstance Win32_Process | Where-Object { $$_.CommandLine -like '*tray_launch.vbs*' -or $$_.CommandLine -like '*tray_icon.ps1*' -or $$_.CommandLine -like '*chat_ui.ps1*' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
+
+    ${If} ${FileExists} "$INSTDIR\omni-agent.exe"
+        nsExec::Exec '"$INSTDIR\omni-agent.exe" --report-uninstall "$UninstallCode" --method nsis'
+        Pop $1
+    ${EndIf}
 
     ExecWait 'sc stop ${SVC_NAME}'
     Sleep 3000

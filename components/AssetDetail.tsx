@@ -8,7 +8,7 @@ import { MetricsChartsTab } from './MetricsChartsTab';
 import { RemoteTerminal } from './RemoteTerminal';
 import { FimAlertsPanel } from './FimAlertsPanel';
 import { RemoteDesktop } from './RemoteDesktop';
-import { startRemoteSession, fetchAgents, linkAssetToAgent, authFetch, fetchAssetById } from '../services/apiService';
+import { fetchAgents, linkAssetToAgent, authFetch, fetchAssetById } from '../services/apiService';
 import { MonitorIcon } from './icons';
 import { showToast } from '../utils/toast';
 
@@ -67,25 +67,12 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
     const displayAsset = enrichedAsset || asset;
 
     const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-    const [desktopSessionId, setDesktopSessionId] = useState<string | null>(null);
-    const [isStartingStream, setIsStartingStream] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-    const handleStartStream = async () => {
-        if (desktopSessionId) return;
-        setIsStartingStream(true);
-        const newSessionId = `desktop-${asset.hostname}-${Date.now()}`;
-        try {
-            // startRemoteSession(agentId, protocol, type)
-            await startRemoteSession(asset.id, 'vnc', 'desktop');
-            setDesktopSessionId(newSessionId);
-        } catch (e) {
-            console.error("Failed to start stream", e);
-            showToast("Failed to start desktop stream", 'error');
-        } finally {
-            setIsStartingStream(false);
-        }
-    };
+    // Remote actions go to the agent linked to this asset. The asset id
+    // ("asset-<host>") used to be sent instead, so no agent ever picked the
+    // session up, and the Live Desktop tab never rendered a viewer at all.
+    const linkedAgentId: string | undefined = (displayAsset as any).agentId || (asset as any).agentId;
 
     // Link Agent State
     const [isLinkingAgent, setIsLinkingAgent] = useState(false);
@@ -134,12 +121,16 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
         if (!confirm(`${action === 'enable' ? 'Enable' : 'Disable'} Remote Access (RDP) on ${asset.hostname}?\n\nThis will send a command to the agent.`)) {
             return;
         }
+        if (!linkedAgentId) {
+            showToast('No agent is linked to this asset.', 'error');
+            return;
+        }
         try {
             const response = await authFetch('/api/agent/deploy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    agentIds: [asset.id],
+                    agentIds: [linkedAgentId],
                     action: `${action}_rdp`,
                     packageId: 'rdp-feature'
                 })
@@ -234,7 +225,7 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                     <button onClick={() => setActiveTab('remote')} className={`flex items-center whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'remote' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'}`}>
                         <ShieldLockIcon size={16} className="mr-2" /> RDP Config
                     </button>
-                    <button onClick={() => { setActiveTab('stream'); handleStartStream(); }} className={`flex items-center whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'stream' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'}`}>
+                    <button onClick={() => setActiveTab('stream')} className={`flex items-center whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'stream' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'}`}>
                         <MonitorIcon size={16} className="mr-2" /> Live Desktop
                     </button>
                 </nav>
@@ -571,6 +562,18 @@ export const AssetDetail: React.FC<AssetDetailProps> = ({ asset, patches, onRunS
                             </table>
                         </div>
                     </div>
+                )}
+                {activeTab === 'stream' && (
+                    linkedAgentId ? (
+                        <div className="h-[600px] rounded-lg overflow-hidden bg-black">
+                            <RemoteDesktop agentId={linkedAgentId} hostname={asset.hostname} />
+                        </div>
+                    ) : (
+                        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                            <MonitorIcon size={48} className="mx-auto mb-4" />
+                            <p>No agent is linked to this asset, so there is no desktop to show.</p>
+                        </div>
+                    )
                 )}
                 {activeTab === 'remote' && (
                     <div className="space-y-6">

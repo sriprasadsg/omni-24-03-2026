@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, HTTPException, Depends, Request
 from database import get_database
-from authentication_service import get_current_user
+from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission
 import rbac_utils
 from models import User
@@ -8,7 +8,6 @@ from tunnel_endpoints import close_session
 from control_session_audit_service import write_audit, list_audit
 import uuid
 import os
-import socket
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/remote", tags=["Remote Access"])
@@ -74,18 +73,37 @@ async def get_active_sessions(
 
 
 def _resolve_backend_ws_base(request: Request) -> str:
-    """Return the ws:// base URL agents should connect back to.
-    Priority: BACKEND_WS_HOST env → PLATFORM_URL env → BACKEND_HOST env (if not 0.0.0.0/localhost) →
-              auto-detect LAN IP → fallback to request host.
-    BACKEND_WS_HOST is independent WS override for cross-subnet agent reachability."""
+    """Return the ws(s):// base URL agents should connect back to.
+
+    It must be the address agents already use: the one their installer wrote
+    (agent_download_endpoints._resolve_url) — PLATFORM_URL, else https://<app
+    host> when agents pin the TLS front end's certificate (AGENT_CA_CERT_FILE).
+    BACKEND_WS_HOST (plain ws:// to :5000) used to win over both; left pointing
+    at a retired server it sent every desktop session there, and the agent
+    would send its tenant key and screen in clear text.
+    Priority: PLATFORM_URL → wss://<app host> (pinned agents) → BACKEND_WS_HOST →
+              app Host (x-forwarded-host/host + x-forwarded-proto) →
+              BACKEND_HOST env (if not 0.0.0.0/localhost) → request client host."""
+    platform_url = os.getenv("PLATFORM_URL", "").rstrip("/")
+    if platform_url:
+        return platform_url.replace("https://", "wss://").replace("http://", "ws://")
+
+    app_host = (request.headers.get("host") or "").split(":")[0].strip()
+    if os.getenv("AGENT_CA_CERT_FILE") and app_host not in ("", "localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        return f"wss://{app_host}"
+
     ws_host = os.getenv("BACKEND_WS_HOST", "").strip()
     ws_port = os.getenv("BACKEND_WS_PORT", "5000").strip()
     if ws_host:
         return f"ws://{ws_host}:{ws_port}"
 
-    platform_url = os.getenv("PLATFORM_URL", "").rstrip("/")
-    if platform_url:
-        return platform_url.replace("https://", "wss://").replace("http://", "ws://")
+    # Prefer public application host — works for internet agents behind proxy
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http").strip().lower()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").strip()
+    # host already includes port when non-standard; strip empty / loopback
+    if host and host not in ("", "localhost", "127.0.0.1", "::1"):
+        ws_scheme = "wss" if proto == "https" else "ws"
+        return f"{ws_scheme}://{host}"
 
     env_host = os.getenv("BACKEND_HOST", "").strip()
     env_port = os.getenv("BACKEND_PORT", "5000").strip()
@@ -93,20 +111,8 @@ def _resolve_backend_ws_base(request: Request) -> str:
     if env_host and env_host not in ("0.0.0.0", "127.0.0.1", "localhost"):
         return f"ws://{env_host}:{env_port}"
 
-    # Try to detect the server's LAN IP so remote agents can reach us
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            lan_ip = s.getsockname()[0]
-        if lan_ip and lan_ip != "127.0.0.1":
-            return f"ws://{lan_ip}:{env_port}"
-    except Exception:
-        pass
-
-    # Last resort: derive from the incoming request host
-    req_host = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-    if not req_host or req_host in ("127.0.0.1", "::1"):
-        req_host = (request.client.host if request.client else None) or "localhost"
+    # Last resort: request client host (never LAN IP — breaks internet reachability)
+    req_host = (request.client.host if request.client else None) or "localhost"
     return f"ws://{req_host}:{env_port}"
 
 
@@ -270,43 +276,42 @@ async def disconnect_session(
 async def report_consent(
     session_id: str,
     payload: dict,
-    current_user=Depends(get_current_user),
+    principal=Depends(get_current_user_or_agent),
 ):
     """Agent reports consent decision (accept/decline/timeout). Writes audit.
 
-    Only the endpoint agent may report its user's decision: the body must carry
-    an agent JWT from the session's tenant. A user token (including the
-    requester's own) or a tenant registration key is refused, so nobody can
-    record consent on the endpoint user's behalf.
+    Only the agent the session targets may report its user's decision, with
+    its own agent token. A user token (including the requester's own) or a
+    tenant registration key is refused, so nobody can record consent on the
+    endpoint user's behalf. (This route used to require a user login as well
+    as an agent token in the body, so no agent could ever reach it.)
     """
-    from authentication_service import verify_token_async
-
-    agent = None
-    token = payload.get("token", "")
-    if token:
-        try:
-            agent = await verify_token_async(token)
-        except Exception:
-            agent = None
-    if agent is None or getattr(agent, "role", "") != "agent":
+    if getattr(principal, "role", "") != "agent":
         raise HTTPException(status_code=401, detail="Agent authentication required")
+    agent = principal
 
     decision = payload.get("decision")
     if decision not in _CONTROL_CONSENT_DECISIONS:
         raise HTTPException(status_code=400, detail="Invalid decision: must be accept, decline, or timeout")
 
     db = get_database()
-    session = await db.remote_sessions.find_one({"session_id": session_id})
+    # Raw collection: the request runs in the agent's tenant, but a super
+    # admin's session is stamped "platform-admin", so the tenant wrapper would
+    # never find it. The ownership check below is what scopes this route.
+    sessions = db._db.remote_sessions
+    session = await sessions.find_one({"session_id": session_id})
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     if session.get("type") != "control":
         raise HTTPException(status_code=400, detail="Consent only applies to control sessions")
 
-    # Tenant scope check
+    # The session's own agent only. Comparing tenants was not enough: a super
+    # admin's session carries "platform-admin", which skipped the check, so any
+    # tenant's agent could record consent for it.
     session_tenant = session.get("tenantId")
-    if session_tenant and session_tenant != "platform-admin" and agent.tenant_id != session_tenant:
-        raise HTTPException(status_code=403, detail="Agent tenant mismatch")
+    if agent.username != session.get("agent_id"):
+        raise HTTPException(status_code=403, detail="Agent does not own this session")
 
     tenant_id = session_tenant
     disconnect_reason = {
@@ -317,7 +322,7 @@ async def report_consent(
 
     if disconnect_reason:
         close_session(session_id)
-        await db.remote_sessions.update_one(
+        await sessions.update_one(
             {"session_id": session_id}, {"$set": {"status": "closed"}}
         )
 
@@ -335,7 +340,7 @@ async def report_consent(
     )
 
     if decision == "accept":
-        await db.remote_sessions.update_one(
+        await sessions.update_one(
             {"session_id": session_id}, {"$set": {"status": "active"}}
         )
 

@@ -8,10 +8,15 @@
     rule. Optionally preserves logs and config.
 
 .EXAMPLE
-    .\uninstall_agent.ps1
+    .\uninstall_agent.ps1 -UninstallCode ABCD-EFGH-JKMN
 
     # Remove everything including logs and config
-    .\uninstall_agent.ps1 -RemoveAll
+    .\uninstall_agent.ps1 -UninstallCode ABCD-EFGH-JKMN -RemoveAll
+
+.NOTES
+    The uninstall code is issued per agent by the platform (Agents > agent >
+    Uninstall code) and works once. Silent runs can pass it in the
+    OMNI_UNINSTALL_CODE environment variable instead.
 #>
 
 param(
@@ -19,7 +24,8 @@ param(
     [string] $ServiceName = "OmniAgent",
     [string] $LogDir      = "C:\ProgramData\OmniAgent\logs",
     [switch] $RemoveAll,  # Also remove logs and config (default: keep them)
-    [switch] $Silent
+    [switch] $Silent,
+    [string] $UninstallCode = $env:OMNI_UNINSTALL_CODE
 )
 
 Set-StrictMode -Version Latest
@@ -49,6 +55,37 @@ if (-not $Silent) {
         Write-Host "Uninstall cancelled."
         exit 0
     }
+}
+
+# ── Uninstall code ────────────────────────────────────────────────────────────
+# The agent checks the code against the hash the platform gave it (works
+# offline): 0 = valid, 1 = wrong code, 3 = no code issued to this agent yet.
+$AgentExe = Join-Path $InstallDir "omni-agent.exe"
+# Older agents ignore the flag and start their agent loop instead (the
+# uninstall would hang), so only ask agents that know about uninstall codes.
+$Protected = (Test-Path $AgentExe) -and (Select-String -Path $AgentExe -Pattern 'verify-uninstall-code' -SimpleMatch -Quiet)
+if ($Protected) {
+    Write-Step "Checking uninstall code"
+    if (-not $UninstallCode -and -not $Silent) {
+        $UninstallCode = Read-Host "Uninstall code (platform: Agents > agent > Uninstall code)"
+    }
+    & $AgentExe --verify-uninstall-code "$UninstallCode" | Out-Null
+    switch ($LASTEXITCODE) {
+        0       { Write-OK "Uninstall code accepted" }
+        3       { Write-Warn "This agent has no uninstall code yet - continuing" }
+        default {
+            Write-Host "ERROR: Wrong or missing uninstall code - the agent stays installed." -ForegroundColor Red
+            Write-Host "Ask an administrator for this agent's code and pass it with -UninstallCode." -ForegroundColor Red
+            exit 2
+        }
+    }
+    & $AgentExe --report-uninstall "$UninstallCode" --method "uninstall_agent.ps1" | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-OK "Uninstall reported to the platform" }
+    else { Write-Warn "Could not reach the platform to report the uninstall" }
+} elseif (Test-Path $AgentExe) {
+    Write-Warn "This agent version predates uninstall codes - continuing without one."
+} else {
+    Write-Warn "$AgentExe not found - cannot check the uninstall code."
 }
 
 # ── Stop service ──────────────────────────────────────────────────────────────

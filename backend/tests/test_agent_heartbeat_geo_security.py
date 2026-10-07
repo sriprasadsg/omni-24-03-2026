@@ -149,5 +149,5 @@ class TestDetectorException:
             resp = _post_heartbeat()
 
         assert resp.status_code == 200
-        assert resp.json() == {"success": True}
+        assert resp.json()["success"] is True
         m_persist.assert_not_called()

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from database import get_database
 from authentication_service import verify_token_async
+from tunnel_endpoints import deliverable_payload
 
 router = APIRouter(tags=["Deployment Results"])
 
@@ -38,7 +39,7 @@ async def _get_caller(request: Request) -> Dict[str, str]:
 # ── Agent instruction poll ───────────────────────────────────────────────────
 
 @router.get("/api/agents/{agent_id}/instructions")
-async def get_agent_instructions(agent_id: str, caller: dict = Depends(_get_caller)):
+async def get_agent_instructions(agent_id: str, request: Request, caller: dict = Depends(_get_caller)):
     """
     Agent polls this endpoint to fetch pending instructions.
     Delivered instructions are marked so they are not re-delivered.
@@ -78,7 +79,7 @@ async def get_agent_instructions(agent_id: str, caller: dict = Depends(_get_call
             "id":          str(instr.get("_id", "")),
             "type":        instr.get("type"),
             "instruction": instr.get("instruction"),
-            "payload":     instr.get("payload", {}),
+            "payload":     deliverable_payload(instr, request),
             "patches":     instr.get("metadata", {}).get("patches", []),
             "job_id":      instr.get("job_id"),
         }
