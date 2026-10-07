@@ -48,6 +48,9 @@ def _db_mock(user=None, mfa_sessions_col=None):
     # matching filter — individual tests override this to simulate a race.
     db.users.find_one_and_update = AsyncMock(return_value=user)
     raw = MagicMock()
+    # The pre-sign-in MFA steps look the account up on the raw handle (no
+    # tenant context yet); it sees the same users as the scoped one here.
+    raw.users = db.users
     raw.mfa_sessions = mfa_sessions_col or _col()
     # WR-04: verify_mfa_at_login folds MFA failures into the shared login
     # lockout bookkeeping (_record_login_failure/_clear_login_failures),

@@ -141,7 +141,10 @@ async def use_backup_code(email: str, code: str) -> bool:
     code could both read the same list, both find the match, and both return
     True before either write landed.
     """
-    db = get_database()
+    # Runs before sign-in completes, so there is no tenant context and the
+    # tenant-scoped wrapper would match nothing: look the account up by its
+    # (globally unique) email on the raw handle, like the password step does.
+    db = get_database()._db
     user = await db.users.find_one({"email": email})
     if not user or not user.get("mfa", {}).get("enabled"):
         return False
@@ -418,7 +421,7 @@ async def verify_mfa_token(session_token: str, code: str) -> dict:
         return {"success": False, "error": "MFA session expired or invalid"}
 
     email = doc["email"]
-    db = get_database()
+    db = get_database()._db  # pre-sign-in: no tenant context (see use_backup_code)
     user = await db.users.find_one({"email": email})
     if not user or not user.get("mfa", {}).get("enabled"):
         return {"success": False, "error": "MFA not configured for this account"}

@@ -201,8 +201,9 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
     # the password-login endpoint's _clear_login_failures on success.
     await _clear_login_failures(db, email)
 
-    # Fetch user and issue full JWT
-    user = await db.users.find_one({"email": email})
+    # Fetch user and issue full JWT. No tenant context exists before this step
+    # completes, so the tenant-scoped wrapper would find nothing.
+    user = await db._db.users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if not account_is_active(user):  # disabled between the password and MFA steps

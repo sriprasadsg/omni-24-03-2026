@@ -194,3 +194,39 @@ def test_pending_admin_cannot_disable_mfa_or_use_other_routes():
     r = _app().post("/api/mfa/disable", json={"password": "x"}, headers=_auth(_token("Tenant Admin")))
     assert r.status_code == 403
     assert r.headers.get("X-MFA-Required") == "1"
+
+
+# --- MFA sign-in step runs before any tenant context exists ------------------
+
+def _unscoped_db(user):
+    """The tenant-scoped wrapper with no tenant context: scoped reads match
+    nothing; only the raw handle (db._db) sees the account."""
+    from datetime import datetime, timedelta, timezone
+    db = MagicMock()
+    db.users.find_one = AsyncMock(return_value=None)
+    db._db.users.find_one = AsyncMock(return_value=user)
+    db._db.users.update_one = AsyncMock()
+    db._db.users.find_one_and_update = AsyncMock(return_value=user)
+    db._db.login_attempts.find_one = AsyncMock(return_value=None)
+    db._db.login_attempts.update_one = AsyncMock()
+    db._db.login_attempts.delete_one = AsyncMock()
+    db._db.mfa_sessions.find_one_and_delete = AsyncMock(return_value={
+        "_id": "s1", "email": EMAIL, "expires_at": datetime.now(timezone.utc) + timedelta(minutes=5)})
+    db._db.mfa_sessions.find_one = db._db.mfa_sessions.find_one_and_delete
+    db._db.mfa_sessions.delete_one = AsyncMock()
+    db._db.mfa_sessions.create_index = AsyncMock()
+    return db
+
+
+def test_mfa_sign_in_finds_the_account_without_tenant_context():
+    import pyotp
+    import mfa_service
+    secret = pyotp.random_base32()
+    user = {**_user(mfa_enabled=True), "mfa": {"enabled": True, "secret_encrypted": mfa_service._encrypt_secret(secret)}}
+    db = _unscoped_db(user)
+    with patch("mfa_endpoints.get_database", return_value=db), \
+         patch("mfa_service.get_database", return_value=db), \
+         patch("authentication_endpoints.get_database", return_value=db):
+        r = _app().post("/api/mfa/verify", json={"session_token": "s1", "code": pyotp.TOTP(secret).now()})
+    assert r.status_code == 200, r.text
+    assert _claims(r.json()["access_token"])["mfa_verified"] is True
