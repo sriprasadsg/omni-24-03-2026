@@ -37,6 +37,7 @@ export default function TrustCenter() {
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<TrustProfile | null>(null);
     const [saving, setSaving] = useState(false);
+    const [analytics, setAnalytics] = useState<{ profile_views_30d: number; public_documents: number } | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -44,13 +45,15 @@ export default function TrustCenter() {
 
     const fetchData = async () => {
         try {
-            const [profile, requests] = await Promise.all([
+            const [profile, requests, analytics] = await Promise.all([
                 api.fetchTrustProfile(),
-                api.fetchTrustRequests()
+                api.fetchTrustRequests(),
+                api.fetchTrustAnalytics()
             ]);
 
             if (profile) setProfile(profile);
             setRequests(requests);
+            setAnalytics(analytics);
         } catch (error) {
             console.error("Error fetching trust center data", error);
         } finally {
@@ -267,11 +270,11 @@ export default function TrustCenter() {
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-500 text-sm">Profile Views (30d)</span>
-                                    <span className="font-bold">1,245</span>
+                                    <span className="font-bold">{analytics ? analytics.profile_views_30d.toLocaleString() : '—'}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-gray-500 text-sm">Document Downloads</span>
-                                    <span className="font-bold">342</span>
+                                    <span className="text-gray-500 text-sm">Public Documents</span>
+                                    <span className="font-bold">{analytics ? analytics.public_documents : '—'}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-gray-500 text-sm">Access Requests</span>

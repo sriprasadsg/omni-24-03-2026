@@ -56,8 +56,16 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
     const [buildState, setBuildState] = React.useState<'idle'|'building'|'done'|'failed'>('idle');
     const [buildError, setBuildError] = React.useState('');
 
-    // Hide EXE download card on non-Windows — backend build requires Windows toolchain
-    const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
+    // Ask the server up front whether it can produce the EXE installer (it needs a
+    // Windows build host or a prebuilt installer), instead of offering a button
+    // that always fails.
+    const [buildInfo, setBuildInfo] = React.useState<{ available: boolean; reason?: string | null } | null>(null);
+    React.useEffect(() => {
+        authFetch('/api/agent-updates/build-info')
+            .then(r => (r.ok ? r.json() : null))
+            .then(setBuildInfo)
+            .catch(() => setBuildInfo(null));
+    }, []);
 
     // ── Build & Download handler ────────────────────────────────────────
     // POST /build → poll /build/{task_id} until done → download
@@ -127,7 +135,7 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
     return (
         <div className="space-y-5">
             {/* EXE Installer download card — Windows only */}
-            {true ? ( /* Always true, remove isWindows check */
+            {buildInfo?.available ? (
             <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <DownloadIcon size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -159,7 +167,11 @@ export const WindowsInstallTab: React.FC<WindowsInstallTabProps> = ({ backendUrl
                 <DownloadIcon size={20} className="text-gray-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Windows Installer (EXE)</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">Available on Windows only — use the install commands below on target machines</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {buildInfo === null
+                            ? 'Checking whether this server can provide the installer…'
+                            : buildInfo.reason || 'Not available on this server — use the install commands below on target machines'}
+                    </p>
                 </div>
             </div>
             )}

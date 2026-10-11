@@ -26,6 +26,21 @@ interface ETLJob {
     details: string[];
 }
 
+// Runs per day for the last 7 days (local dates), oldest first
+export const etlRunsByDay = (jobs: { start_time: string }[], now = new Date()) => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(now);
+        d.setDate(d.getDate() - (6 - i));
+        return { key: d.toDateString(), name: d.toLocaleDateString(undefined, { weekday: 'short' }), runs: 0 };
+    });
+    for (const job of jobs) {
+        const t = new Date(job.start_time);
+        const day = days.find(d => d.key === t.toDateString());
+        if (day) day.runs += 1;
+    }
+    return days.map(({ name, runs }) => ({ name, runs }));
+};
+
 export function DataWarehouseDashboard() {
     const [stats, setStats] = useState<WarehouseStats | null>(null);
     const [history, setHistory] = useState<ETLJob[]>([]);
@@ -180,24 +195,16 @@ export function DataWarehouseDashboard() {
                     </CardContent>
                 </Card>
 
-                {/* Data Distribution Chart (Mock for now, real later) */}
+                {/* ETL activity per day, from the job history */}
                 <Card className="col-span-3 glass-card border-slate-700/50">
                     <CardHeader>
-                        <CardTitle>Data Volume Trend</CardTitle>
-                        <CardDescription>Ingested data over time</CardDescription>
+                        <CardTitle>ETL Runs (last 7 days)</CardTitle>
+                        <CardDescription>{history.length ? 'Pipeline runs per day' : 'No ETL runs yet — trigger one to start'}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="h-[300px] w-full mt-4">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={[
-                                    { name: 'Mon', value: 400 },
-                                    { name: 'Tue', value: 300 },
-                                    { name: 'Wed', value: 550 },
-                                    { name: 'Thu', value: 450 },
-                                    { name: 'Fri', value: 600 },
-                                    { name: 'Sat', value: 350 },
-                                    { name: 'Sun', value: 500 },
-                                ]}>
+                                <AreaChart data={etlRunsByDay(history)}>
                                     <defs>
                                         <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -206,12 +213,12 @@ export function DataWarehouseDashboard() {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                     <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value: number) => `${value}MB`} />
+                                    <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px' }}
                                         itemStyle={{ color: '#e2e8f0' }}
                                     />
-                                    <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorValue)" />
+                                    <Area type="monotone" dataKey="runs" name="Runs" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorValue)" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>

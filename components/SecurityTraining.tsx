@@ -1,18 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
-import {
-    BookOpen, Video, CheckCircle, Clock, Play, GraduationCap,
-    Plus, Trophy, Award, BarChart
-} from 'lucide-react';
-
-interface TrainingModule {
-    id: string;
-    title: string;
-    description: string;
-    content_url: string;
-    duration_minutes: number;
-    quiz_questions: any[];
-}
+import { BookOpen, CheckCircle, Clock, Trophy, Award, ExternalLink } from 'lucide-react';
+import TrainingAdminPanel from './TrainingAdminPanel';
 
 interface UserProgress {
     id: string;
@@ -24,18 +13,25 @@ interface UserProgress {
     started_at: string | null;
     completed_at: string | null;
     quiz_score: number | null;
+    attempts?: number;
+    content_url?: string;
+    // Questions and options only — the server keeps the answers and grades
+    quiz_questions?: { question: string; options: string[] }[];
 }
+
+type QuizResult = { quiz_score: number; passed: boolean; pass_mark: number };
 
 export default function SecurityTraining() {
     const [view, setView] = useState<'my-training' | 'admin'>('my-training');
     const [assignments, setAssignments] = useState<UserProgress[]>([]);
-    const [modules, setModules] = useState<TrainingModule[]>([]);
     const [selectedModule, setSelectedModule] = useState<UserProgress | null>(null);
     const [loading, setLoading] = useState(true);
+    const [answers, setAnswers] = useState<string[]>([]);
+    const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
+    const [actionError, setActionError] = useState('');
 
     useEffect(() => {
         if (view === 'my-training') fetchMyTraining();
-        if (view === 'admin') fetchAllModules();
     }, [view]);
 
     const fetchMyTraining = async () => {
@@ -46,15 +42,6 @@ export default function SecurityTraining() {
             console.error("Error fetching training", error);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const fetchAllModules = async () => {
-        try {
-            const res = await authFetch('/api/training/modules');
-            if (res.ok) setModules(await res.json());
-        } catch (error) {
-            console.error("Error fetching modules", error);
         }
     };
 
@@ -71,20 +58,38 @@ export default function SecurityTraining() {
                 console.error("Error starting module", error);
             }
         }
+        setAnswers([]);
+        setQuizResult(null);
+        setActionError('');
         setSelectedModule(assignment);
     };
 
+    const replaceAssignment = (updated: UserProgress) =>
+        setAssignments(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
+
+    // Modules without a quiz are completed directly
     const completeModule = async (assignmentId: string) => {
-        try {
-            await authFetch(`/api/training/progress/${assignmentId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ status: 'Completed', quiz_score: 100 }) // Mock score
-            });
-            setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, status: 'Completed', quiz_score: 100 } : a));
-            setSelectedModule(null);
-        } catch (error) {
-            console.error("Error completing module", error);
-        }
+        setActionError('');
+        const res = await authFetch(`/api/training/progress/${assignmentId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ status: 'Completed' }),
+        });
+        if (!res.ok) { setActionError((await res.json().catch(() => ({}))).detail || 'Could not complete the module'); return; }
+        replaceAssignment(await res.json());
+        setSelectedModule(null);
+    };
+
+    // Quiz modules: the server grades the answers and records the score
+    const submitQuiz = async (assignmentId: string) => {
+        setActionError('');
+        const res = await authFetch(`/api/training/progress/${assignmentId}/quiz`, {
+            method: 'POST',
+            body: JSON.stringify({ answers }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) { setActionError(body.detail || 'Could not submit the quiz'); return; }
+        replaceAssignment(body);
+        setQuizResult(body);
     };
 
     return (
@@ -150,6 +155,11 @@ export default function SecurityTraining() {
 
                     {/* Module List */}
                     <div className="grid grid-cols-1 gap-4">
+                        {!loading && assignments.length === 0 && (
+                            <div className="p-8 text-center text-gray-500 bg-white dark:bg-[#0f1115] rounded-xl border border-gray-200 dark:border-gray-800">
+                                No training assigned to you yet.
+                            </div>
+                        )}
                         {assignments.map(assignment => (
                             <div key={assignment.id} className="bg-white dark:bg-[#0f1115] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div className="flex items-start gap-4">
@@ -175,9 +185,8 @@ export default function SecurityTraining() {
                                 </div>
                                 <button
                                     onClick={() => startModule(assignment)}
-                                    disabled={assignment.status === 'Completed'}
                                     className={`px-6 py-2 rounded-lg font-medium transition-colors ${assignment.status === 'Completed'
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                             : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20'
                                         }`}
                                 >
@@ -190,37 +199,67 @@ export default function SecurityTraining() {
                     {/* Player Modal */}
                     {selectedModule && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-4xl overflow-hidden shadow-2xl">
+                            <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
                                 <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
                                     <h3 className="font-bold text-gray-900 dark:text-white">{selectedModule.module_title}</h3>
                                     <button onClick={() => setSelectedModule(null)} className="text-gray-500 hover:text-gray-700">Close</button>
                                 </div>
-                                <div className="aspect-video bg-black flex items-center justify-center text-white">
-                                    <div className="text-center">
-                                        <Play className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                                        <p>Video Player Placeholder</p>
-                                    </div>
-                                </div>
-                                <div className="p-6 flex justify-between items-center">
-                                    <div className="text-sm text-gray-500">
-                                        Progress: 100% (Simulation)
-                                    </div>
-                                    <button
-                                        onClick={() => completeModule(selectedModule.id)}
-                                        className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2"
-                                    >
-                                        <CheckCircle className="w-4 h-4" />
-                                        Mark as Complete
-                                    </button>
+                                <div className="p-6 space-y-6">
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">{selectedModule.module_description}</p>
+                                    {selectedModule.content_url ? (
+                                        <a href={selectedModule.content_url} target="_blank" rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
+                                            <ExternalLink className="w-4 h-4" /> Open training material
+                                        </a>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">This module has no linked material.</p>
+                                    )}
+
+                                    {(selectedModule.quiz_questions?.length || 0) > 0 ? (
+                                        <div className="space-y-4">
+                                            <h4 className="font-semibold text-gray-900 dark:text-white">Quiz</h4>
+                                            {selectedModule.quiz_questions!.map((q, qi) => (
+                                                <fieldset key={qi} className="space-y-2">
+                                                    <legend className="text-sm font-medium text-gray-800 dark:text-gray-200">{qi + 1}. {q.question}</legend>
+                                                    {q.options.map(opt => (
+                                                        <label key={opt} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                                            <input type="radio" name={`q-${qi}`} value={opt} checked={answers[qi] === opt}
+                                                                onChange={() => setAnswers(prev => { const next = [...prev]; next[qi] = opt; return next; })} />
+                                                            {opt}
+                                                        </label>
+                                                    ))}
+                                                </fieldset>
+                                            ))}
+                                            {quizResult && (
+                                                <p className={`text-sm font-medium ${quizResult.passed ? 'text-green-600' : 'text-amber-600'}`}>
+                                                    Score {quizResult.quiz_score}% — {quizResult.passed ? 'passed, module completed.' : `below the ${quizResult.pass_mark}% pass mark. Review the material and try again.`}
+                                                </p>
+                                            )}
+                                            <button
+                                                onClick={() => submitQuiz(selectedModule.id)}
+                                                disabled={selectedModule.status === 'Completed' || answers.filter(Boolean).length < (selectedModule.quiz_questions?.length || 0)}
+                                                className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg flex items-center gap-2"
+                                            >
+                                                <CheckCircle className="w-4 h-4" /> Submit answers
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => completeModule(selectedModule.id)}
+                                            disabled={selectedModule.status === 'Completed'}
+                                            className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg flex items-center gap-2"
+                                        >
+                                            <CheckCircle className="w-4 h-4" /> Mark as Complete
+                                        </button>
+                                    )}
+                                    {actionError && <p className="text-sm text-red-600">{actionError}</p>}
                                 </div>
                             </div>
                         </div>
                     )}
                 </>
             ) : (
-                <div className="bg-white dark:bg-[#0f1115] rounded-xl border border-gray-200 dark:border-gray-800 p-6 text-center text-gray-500">
-                    <p>Admin module creation interface would go here.</p>
-                </div>
+                <TrainingAdminPanel />
             )}
         </div>
     );

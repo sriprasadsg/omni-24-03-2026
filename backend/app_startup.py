@@ -644,7 +644,7 @@ async def run_startup_services() -> None:
         logger.warning("[XDR] Playbook seeding failed: %s", _e)
 
     from app_background_tasks import _start_xdr_correlation_scanner
-    asyncio.create_task(_safe_bg_task(_start_xdr_correlation_scanner(), "xdr_correlation"))
+    asyncio.create_task(_safe_bg_task(_start_xdr_correlation_scanner(), "xdr_correlation"), name="xdr_correlation")
 
     try:
         from threat_feed_sync import start_threat_feed_loop
@@ -654,7 +654,7 @@ async def run_startup_services() -> None:
 
     try:
         from nvd_sync import start_nvd_sync_loop
-        asyncio.create_task(_safe_bg_task(start_nvd_sync_loop(db._db), "nvd_sync_loop"))
+        asyncio.create_task(_safe_bg_task(start_nvd_sync_loop(db._db), "nvd_sync_loop"), name="nvd_sync_loop")
     except Exception as _e:
         logger.warning("[NVD] CVE sync failed to start: %s", _e)
 
@@ -744,7 +744,7 @@ async def run_startup_services() -> None:
     try:
         from syslog_receiver import start_syslog_server
         _syslog_port = int(os.getenv("SYSLOG_UDP_PORT", "5140"))
-        asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port))
+        asyncio.create_task(start_syslog_server(host="0.0.0.0", port=_syslog_port), name="syslog_receiver")
         logger.info("[SIEM] UDP Syslog server started on port %d", _syslog_port)
     except Exception as _e:
         logger.warning("[SIEM] Syslog server not started: %s", _e)
@@ -758,21 +758,21 @@ async def run_startup_services() -> None:
         try:
             import importlib
             _mod = importlib.import_module(module)
-            asyncio.create_task(getattr(_mod, func)())
+            asyncio.create_task(getattr(_mod, func)(), name=func)
             logger.info("%s polling started", label)
         except Exception as _e:
             logger.warning("%s ingest not started: %s", label, _e)
 
     try:
         from jit_access_service import start_jit_expiry_loop
-        asyncio.create_task(start_jit_expiry_loop())
+        asyncio.create_task(start_jit_expiry_loop(), name="jit_expiry_loop")
         logger.info("[JIT] Expiry enforcement loop started")
     except Exception as _e:
         logger.warning("[JIT] Expiry loop not started: %s", _e)
 
     try:
         from scheduled_reports_service import start_report_scheduler
-        asyncio.create_task(start_report_scheduler())
+        asyncio.create_task(start_report_scheduler(), name="report_scheduler")
         logger.info("[Reports] Scheduled report delivery started")
     except Exception as _e:
         logger.warning("[Reports] Scheduler not started: %s", _e)

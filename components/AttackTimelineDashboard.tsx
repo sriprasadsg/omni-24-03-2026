@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { authFetch } from '../services/apiService';
 
 interface TimelineEvent {
   id: string;
@@ -28,21 +29,14 @@ const SEV_DOT: Record<string, string> = {
   low: 'bg-blue-500',
 };
 
-const MOCK: TimelineEvent[] = [
-  { id: '1', timestamp: new Date(Date.now() - 3600000).toISOString(), event_type: 'Credential Access', asset: 'WIN-DC01', user: 'jsmith', technique_id: 'T1078', technique_name: 'Valid Accounts', tactic: 'Initial Access', severity: 'high', description: 'Suspicious login from new IP 185.220.101.45' },
-  { id: '2', timestamp: new Date(Date.now() - 3200000).toISOString(), event_type: 'Privilege Escalation', asset: 'WIN-DC01', user: 'jsmith', technique_id: 'T1068', technique_name: 'Exploitation for Privilege Escalation', tactic: 'Privilege Escalation', severity: 'critical', description: 'Local privilege escalation attempt detected' },
-  { id: '3', timestamp: new Date(Date.now() - 2800000).toISOString(), event_type: 'Lateral Movement', asset: 'WIN-APP01', technique_id: 'T1021.002', technique_name: 'SMB/Windows Admin Shares', tactic: 'Lateral Movement', severity: 'high', description: 'SMB lateral movement to WIN-APP01' },
-  { id: '4', timestamp: new Date(Date.now() - 2400000).toISOString(), event_type: 'Discovery', asset: 'WIN-APP01', technique_id: 'T1083', technique_name: 'File and Directory Discovery', tactic: 'Discovery', severity: 'medium', description: 'Bulk file enumeration on shared drives' },
-  { id: '5', timestamp: new Date(Date.now() - 1800000).toISOString(), event_type: 'Exfiltration', asset: 'WIN-APP01', technique_id: 'T1048', technique_name: 'Exfiltration Over Alternative Protocol', tactic: 'Exfiltration', severity: 'critical', description: '2.3 GB transferred to external endpoint' },
-];
-
 const TACTICS = ['All', 'Initial Access', 'Privilege Escalation', 'Lateral Movement', 'Discovery', 'Exfiltration', 'Command and Control', 'Persistence'];
 const SEVERITIES = ['all', 'critical', 'high', 'medium', 'low'];
 const RANGES = [{ label: '1h', hours: 1 }, { label: '6h', hours: 6 }, { label: '24h', hours: 24 }, { label: '7d', hours: 168 }];
 
 export default function AttackTimelineDashboard() {
-  const [events, setEvents] = useState<TimelineEvent[]>(MOCK);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [range, setRange] = useState(24);
   const [sevFilter, setSevFilter] = useState('all');
   const [tacticFilter, setTacticFilter] = useState('All');
@@ -50,15 +44,17 @@ export default function AttackTimelineDashboard() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const r = await fetch(`/api/advanced-hunting/timeline?hours=${range}`, {
-        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` },
-      });
-      if (r.ok) {
-        const data = await r.json();
-        if (Array.isArray(data) && data.length > 0) setEvents(data);
-      }
-    } catch { /* use mock */ }
+      const r = await authFetch(`/api/advanced-hunting/timeline?hours=${range}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      setEvents(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      // Never fall back to sample events: a security timeline must only show real ones
+      setEvents([]);
+      setError(e?.message || 'Request failed');
+    }
     setLoading(false);
   }, [range]);
 
@@ -116,7 +112,9 @@ export default function AttackTimelineDashboard() {
       <div className="relative">
         <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-700" />
         <div className="space-y-3 pl-10">
-          {visible.length === 0 && <p className="text-slate-400 text-sm py-8 text-center">No events match the current filters.</p>}
+          {error && <p className="text-red-400 text-sm py-8 text-center">Could not load the attack timeline ({error}).</p>}
+          {!error && !loading && events.length === 0 && <p className="text-slate-400 text-sm py-8 text-center">No security events in this time range.</p>}
+          {!error && events.length > 0 && visible.length === 0 && <p className="text-slate-400 text-sm py-8 text-center">No events match the current filters.</p>}
           {visible.map(ev => (
             <div key={ev.id} className="relative">
               <div className={`absolute -left-6 top-4 w-3 h-3 rounded-full border-2 border-slate-900 ${SEV_DOT[ev.severity]}`} />

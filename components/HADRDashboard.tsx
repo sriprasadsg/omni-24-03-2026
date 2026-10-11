@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
-import { ShieldCheckIcon, DatabaseIcon, ClockIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, PlayIcon, GlobeIcon, ServerIcon, HardDriveIcon } from './icons';
+import { ShieldCheckIcon, ClockIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon } from './icons';
 import { showToast } from '../utils/toast';
 
 interface BackupMetadata {
@@ -48,6 +48,63 @@ interface DRTestResult {
     duration_minutes?: number;
     errors?: string[];
 }
+
+export const formatBytes = (bytes: number) => {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+    return `${(bytes / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`;
+};
+
+const formatMinutes = (minutes: number) => {
+    if (minutes < 1) return `${Math.round(minutes * 60)}s`;
+    if (minutes < 60) return `${Math.floor(minutes)}m ${Math.round((minutes % 1) * 60)}s`;
+    const h = Math.floor(minutes / 60);
+    return h < 48 ? `${h}h ${Math.round(minutes % 60)}m` : `${Math.floor(h / 24)}d ${h % 24}h`;
+};
+
+// Everything the overview shows, derived from the HA/DR APIs (no fixed figures)
+export const hadrSummary = (
+    backups: BackupMetadata[], status: BackupStatus | null, health: HealthStatus | null,
+    tests: DRTestResult[], now = Date.now(),
+) => {
+    const completed = backups.filter(b => b.status === 'completed');
+    const latestTime = status?.latest_backup_time
+        || completed.map(b => b.completed_at || b.started_at).sort().slice(-1)[0];
+    const sinceMin = latestTime ? (now - new Date(latestTime).getTime()) / 60000 : null;
+    const lastTest = [...tests].sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
+    const totalBytes = backups.reduce((n, b) => n + (b.size_bytes || 0), 0);
+    const types = new Map<string, { count: number; bytes: number }>();
+    for (const b of backups) {
+        const t = types.get(b.backup_type) || { count: 0, bytes: 0 };
+        types.set(b.backup_type, { count: t.count + 1, bytes: t.bytes + (b.size_bytes || 0) });
+    }
+    const rpoTargetMin = status?.rpo_hours ? status.rpo_hours * 60 : null;
+    const rtoTargetMin = status?.rto_minutes ?? null;
+    const drOk = !!lastTest && lastTest.success && lastTest.rto_achieved;
+    return {
+        completed: completed.length,
+        failed: backups.filter(b => b.status === 'failed').length,
+        encrypted: backups.filter(b => b.encrypted).length,
+        storedLabel: formatBytes(status?.total_size_bytes ?? totalBytes),
+        latestBackupAgo: sinceMin === null ? null : formatMinutes(sinceMin),
+        rpoTarget: rpoTargetMin ? formatMinutes(rpoTargetMin) : '—',
+        rpoPct: sinceMin !== null && rpoTargetMin ? (sinceMin / rpoTargetMin) * 100 : null,
+        lastTestDuration: lastTest?.duration_minutes != null ? formatMinutes(lastTest.duration_minutes) : null,
+        rtoTarget: rtoTargetMin ? formatMinutes(rtoTargetMin) : '—',
+        rtoPct: lastTest?.duration_minutes != null && rtoTargetMin ? (lastTest.duration_minutes / rtoTargetMin) * 100 : null,
+        drState: !lastTest
+            ? { ok: false, label: 'NOT TESTED YET' }
+            : { ok: drOk, label: `${drOk ? 'PASSED' : 'FAILED'} — ${new Date(lastTest.started_at).toLocaleString()}` },
+        byType: [...types.entries()].map(([type, v]) => ({ type, ...v, pct: totalBytes ? Math.round((v.bytes / totalBytes) * 100) : 0 })),
+        tiles: [
+            { label: 'Database', value: health ? (health.database_connected ? 'CONNECTED' : 'DISCONNECTED') : '—', ok: health ? health.database_connected : null },
+            { label: 'Backup System', value: health ? (health.backup_system_healthy ? 'HEALTHY' : 'NEEDS ATTENTION') : '—', ok: health ? health.backup_system_healthy : null },
+            { label: 'RPO', value: health ? (health.rpo_compliant ? 'WITHIN TARGET' : 'TARGET MISSED') : '—', ok: health ? health.rpo_compliant : null },
+            { label: 'DR Readiness', value: lastTest ? (drOk ? 'TESTED' : 'LAST TEST FAILED') : 'NOT TESTED', ok: lastTest ? drOk : null },
+        ],
+    };
+};
 
 export const HADRDashboard: React.FC = () => {
     const [backups, setBackups] = useState<BackupMetadata[]>([]);
@@ -113,17 +170,19 @@ export const HADRDashboard: React.FC = () => {
         }
     };
 
+    const summary = hadrSummary(backups, backupStatus, healthStatus, drTests);
+
     return (
         <div className="p-6 space-y-6 bg-slate-50 dark:bg-slate-950 min-h-screen font-sans">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-3">
-                        <GlobeIcon size={32} className="text-blue-600 animate-spin-slow" />
-                        GLOBAL RESILIENCE COMMAND
+                        <ShieldCheckIcon size={32} className="text-blue-600" />
+                        HA/DR &amp; BACKUPS
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                        Real-time High Availability monitoring and Disaster Recovery orchestration
+                        Backups, recovery targets and disaster-recovery tests
                     </p>
                 </div>
                 <div className="flex gap-3 bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
@@ -142,81 +201,67 @@ export const HADRDashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Top-Level Health & Global Coverage */}
+            {/* Status, targets and health — all from /api/hadr/* */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Global Map Mockup */}
-                <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 relative overflow-hidden shadow-sm h-80">
-                    <div className="absolute top-0 right-0 p-6 flex gap-2">
-                        <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-black border border-emerald-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            NORTH AMERICA ACTIVE
-                        </span>
-                        <span className="flex items-center gap-1.5 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] font-black border border-blue-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                            EUROPE STANDBY
-                        </span>
+                <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Backup &amp; Recovery Status</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            { label: 'Latest Backup', value: summary.latestBackupAgo ?? 'No backups yet' },
+                            { label: 'Completed / Failed', value: `${summary.completed} / ${summary.failed}` },
+                            { label: 'Stored', value: summary.storedLabel },
+                            { label: 'Encrypted', value: `${summary.encrypted} of ${backups.length}` },
+                        ].map(f => (
+                            <div key={f.label} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{f.label}</p>
+                                <p className="text-lg font-black text-slate-900 dark:text-white">{f.value}</p>
+                            </div>
+                        ))}
                     </div>
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Region Distribution & Health</h3>
-                    <div className="relative h-full flex items-center justify-center">
-                        <div className="absolute inset-0 opacity-10 dark:opacity-20 pointer-events-none">
-                             <GlobeIcon size={300} className="mx-auto" />
-                        </div>
-                        <div className="flex gap-12 relative z-10">
-                            {[
-                                { region: 'US-EAST-1', status: 'Healthy', load: '42%' },
-                                { region: 'EU-WEST-1', status: 'Standby', load: '0%' },
-                                { region: 'AP-SOUTH-1', status: 'Healthy', load: '18%' }
-                            ].map((reg, i) => (
-                                <div key={i} className="flex flex-col items-center">
-                                    <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center text-blue-600 mb-3 shadow-xl">
-                                        <ServerIcon size={28} />
-                                    </div>
-                                    <p className="text-xs font-black text-slate-900 dark:text-white mb-1">{reg.region}</p>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase">{reg.status}</p>
-                                </div>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-6 mb-2">Reported Issues</h4>
+                    {healthStatus?.issues?.length ? (
+                        <ul className="space-y-1">
+                            {healthStatus.issues.map((issue, i) => (
+                                <li key={i} className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                                    <AlertTriangleIcon size={12} /> {issue}
+                                </li>
                             ))}
-                        </div>
-                    </div>
+                        </ul>
+                    ) : (
+                        <p className="text-xs text-slate-500">{healthStatus ? 'No issues reported.' : 'Health check unavailable.'}</p>
+                    )}
                 </div>
 
-                {/* Resilience Gauges */}
                 <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden flex flex-col justify-between">
                     <div className="absolute top-0 right-0 p-8 opacity-5">
                         <ClockIcon size={140} />
                     </div>
                     <div>
-                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Performance Targets</h3>
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Recovery Targets</h3>
                         <div className="space-y-8">
-                            <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">RPO Delta</p>
-                                        <p className="text-3xl font-black italic">42m 12s</p>
+                            {[
+                                { label: 'RPO — since last backup', value: summary.latestBackupAgo ?? '—', target: summary.rpoTarget, pct: summary.rpoPct, color: 'bg-blue-500', text: 'text-blue-400' },
+                                { label: 'RTO — last DR test', value: summary.lastTestDuration ?? '—', target: summary.rtoTarget, pct: summary.rtoPct, color: 'bg-purple-500', text: 'text-purple-400' },
+                            ].map(t => (
+                                <div key={t.label}>
+                                    <div className="flex justify-between items-end mb-2">
+                                        <div>
+                                            <p className={`text-[10px] font-bold uppercase tracking-widest ${t.text}`}>{t.label}</p>
+                                            <p className="text-3xl font-black italic">{t.value}</p>
+                                        </div>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Target: {t.target}</span>
                                     </div>
-                                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Target: 1h</span>
-                                </div>
-                                <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-blue-500 h-full rounded-full" style={{ width: '70%' }}></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between items-end mb-2">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">RTO Verified</p>
-                                        <p className="text-3xl font-black italic">12m 04s</p>
+                                    <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                                        <div className={`${t.pct !== null && t.pct > 100 ? 'bg-red-500' : t.color} h-full rounded-full`} style={{ width: `${Math.min(100, t.pct ?? 0)}%` }}></div>
                                     </div>
-                                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Target: 15m</span>
                                 </div>
-                                <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-purple-500 h-full rounded-full" style={{ width: '82%' }}></div>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
                     <div className="mt-8 pt-6 border-t border-white/10">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Last System Audit</p>
-                        <p className="text-xs font-bold text-emerald-500 flex items-center gap-2">
-                            <CheckCircleIcon size={14} /> 100% REDUNDANCY VERIFIED
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Last DR Test</p>
+                        <p className={`text-xs font-bold flex items-center gap-2 ${summary.drState.ok ? 'text-emerald-500' : 'text-amber-500'}`}>
+                            {summary.drState.ok ? <CheckCircleIcon size={14} /> : <AlertTriangleIcon size={14} />} {summary.drState.label}
                         </p>
                     </div>
                 </div>
@@ -224,21 +269,10 @@ export const HADRDashboard: React.FC = () => {
 
             {/* Health Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {[
-                    { label: 'System Integrity', value: 'OPTIMAL', icon: ShieldCheckIcon, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                    { label: 'Database Replication', value: 'SYNCED', icon: DatabaseIcon, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-                    { label: 'Backup Health', value: 'ENCRYPTED', icon: HardDriveIcon, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
-                    { label: 'DR Readiness', value: 'VERIFIED', icon: PlayIcon, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-                ].map((stat, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:shadow-xl transition-all group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
-                                <stat.icon size={24} />
-                            </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active</span>
-                        </div>
+                {summary.tiles.map((stat, i) => (
+                    <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
-                        <p className={`text-xl font-black ${stat.color}`}>{stat.value}</p>
+                        <p className={`text-xl font-black ${stat.ok === null ? 'text-slate-400' : stat.ok ? 'text-emerald-500' : 'text-red-500'}`}>{stat.value}</p>
                     </div>
                 ))}
             </div>
@@ -276,6 +310,9 @@ export const HADRDashboard: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                                    {backups.length === 0 && (
+                                        <tr><td colSpan={5} className="py-8 text-center text-xs text-slate-500">No backups yet.</td></tr>
+                                    )}
                                     {backups.map((backup) => (
                                         <tr key={backup.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="py-4 px-4 text-sm font-black text-slate-900 dark:text-white font-mono">{backup.backup_id}</td>
@@ -300,40 +337,34 @@ export const HADRDashboard: React.FC = () => {
                     {activeTab === 'overview' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                             <div>
-                                <h4 className="text-sm font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tighter italic">Storage Utilization</h4>
-                                <div className="space-y-6">
-                                    {[
-                                        { label: 'Full Backups', size: '1.2 TB', color: 'bg-blue-500', pct: 65 },
-                                        { label: 'Incremental Logs', size: '420 GB', color: 'bg-indigo-500', pct: 25 },
-                                        { label: 'System Snapshots', size: '180 GB', color: 'bg-purple-500', pct: 10 }
-                                    ].map((cat, i) => (
-                                        <div key={i}>
-                                            <div className="flex justify-between text-xs font-bold mb-2">
-                                                <span className="text-slate-600 dark:text-slate-400">{cat.label}</span>
-                                                <span className="text-slate-900 dark:text-white">{cat.size}</span>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tighter italic">Storage by Backup Type</h4>
+                                {summary.byType.length === 0 ? (
+                                    <p className="text-xs text-slate-500">No backups yet. Use “Execute Backup” to create the first one.</p>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {summary.byType.map(cat => (
+                                            <div key={cat.type}>
+                                                <div className="flex justify-between text-xs font-bold mb-2">
+                                                    <span className="text-slate-600 dark:text-slate-400 capitalize">{cat.type} ({cat.count})</span>
+                                                    <span className="text-slate-900 dark:text-white">{formatBytes(cat.bytes)}</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                                    <div className="bg-blue-500 h-full rounded-full" style={{ width: `${cat.pct}%` }}></div>
+                                                </div>
                                             </div>
-                                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                                <div className={`${cat.color} h-full rounded-full`} style={{ width: `${cat.pct}%` }}></div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <div className="bg-slate-50 dark:bg-slate-950/50 rounded-3xl p-8 border border-slate-100 dark:border-slate-800">
-                                <h4 className="text-sm font-black text-slate-900 dark:text-white mb-4 uppercase tracking-tighter italic">Resilience Report Card</h4>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white mb-4 uppercase tracking-tighter italic">Health Checks</h4>
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm">
-                                        <span className="text-xs font-bold text-slate-500">Cross-Region Failover</span>
-                                        <span className="text-xs font-black text-emerald-500 uppercase">READY</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm">
-                                        <span className="text-xs font-bold text-slate-500">Data Immutability</span>
-                                        <span className="text-xs font-black text-emerald-500 uppercase">ACTIVE</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm">
-                                        <span className="text-xs font-bold text-slate-500">Air-Gapped Vault</span>
-                                        <span className="text-xs font-black text-blue-500 uppercase">OFFLINE OK</span>
-                                    </div>
+                                    {summary.tiles.map(t => (
+                                        <div key={t.label} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm">
+                                            <span className="text-xs font-bold text-slate-500">{t.label}</span>
+                                            <span className={`text-xs font-black uppercase ${t.ok === null ? 'text-slate-400' : t.ok ? 'text-emerald-500' : 'text-red-500'}`}>{t.value}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -341,6 +372,7 @@ export const HADRDashboard: React.FC = () => {
 
                     {activeTab === 'dr-tests' && (
                         <div className="space-y-6">
+                            {drTests.length === 0 && <p className="text-xs text-slate-500 text-center py-8">No DR tests yet. Use “Validate DR” to run one.</p>}
                             {drTests.map((test) => (
                                 <div key={test.id} className="flex gap-6 p-6 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-200 dark:border-slate-800">
                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${test.success ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>

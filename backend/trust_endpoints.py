@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from typing import List, Dict, Any, Optional
 import trust_service
@@ -8,6 +10,8 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 from rate_limiter import limiter
 from tenant_context import set_tenant_id
+
+logger = logging.getLogger(__name__)
 
 _TRUST_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
 
@@ -75,6 +79,18 @@ async def update_profile(updates: Dict[str, Any], current_user: TokenData = Depe
     result["trust_slug"] = trust_slug
     result["trust_domain"] = (tenant or {}).get("trust_domain")
     return result
+
+
+@router.get("/analytics")
+async def get_analytics(current_user: TokenData = Depends(get_current_user)):
+    """Measured trust-page activity for the caller's tenant."""
+    db = get_database()
+    tenant_id = current_user.tenant_id
+    profile = await trust_service.get_profile(db, tenant_id)
+    return {
+        "profile_views_30d": await trust_service.count_profile_views(db, tenant_id, 30),
+        "public_documents": len(profile.get("public_documents") or []),
+    }
 
 
 @router.get("/requests", response_model=List[AccessRequest])
@@ -146,6 +162,10 @@ async def get_public_trust_profile(request: Request, response: Response, slug: s
     tenant = await _resolve_tenant_from_request(db, request, slug)
     set_tenant_id(tenant["id"])
     profile = await trust_service.get_profile(db, tenant["id"])
+    try:
+        await trust_service.record_profile_view(db, tenant["id"])
+    except Exception as exc:  # analytics must never break the public page
+        logger.debug("Trust page view not recorded: %s", exc)
     return _public_view(profile)
 
 

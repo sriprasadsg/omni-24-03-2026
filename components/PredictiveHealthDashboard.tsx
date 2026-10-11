@@ -24,6 +24,13 @@ interface AccuracyMetrics {
     model_version: string;
 }
 
+// 100 = no host expected to fail; derived from each host's failure probability
+export const fleetHealthIndex = (predictions: { failure_probability: number }[]): string | null => {
+    if (!predictions.length) return null;
+    const avgRisk = predictions.reduce((n, p) => n + (Number(p.failure_probability) || 0), 0) / predictions.length;
+    return (100 * (1 - Math.min(1, Math.max(0, avgRisk)))).toFixed(1);
+};
+
 export const PredictiveHealthDashboard: React.FC = () => {
     const [predictions, setPredictions] = useState<Prediction[]>([]);
     const [metrics, setMetrics] = useState<AccuracyMetrics | null>(null);
@@ -82,7 +89,7 @@ export const PredictiveHealthDashboard: React.FC = () => {
                     </button>
                     <div className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium flex items-center">
                         <Shield className="w-4 h-4 mr-2" />
-                        Model Active: {metrics?.model_version || 'v2.1.0'}
+                        Model Active: {metrics?.model_version || '—'}
                     </div>
                 </div>
             </div>
@@ -94,17 +101,17 @@ export const PredictiveHealthDashboard: React.FC = () => {
                         <p className="text-sm text-slate-500 dark:text-slate-400">Avg. Precision</p>
                         <TrendingUp className="w-4 h-4 text-emerald-500" />
                     </div>
-                    <p className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{(metrics?.precision || 0.87 * 100).toFixed(1)}%</p>
+                    <p className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{metrics && metrics.predictions_last_30d > 0 ? `${(metrics.precision * 100).toFixed(1)}%` : '—'}</p>
                     <div className="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                        <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${(metrics?.precision || 0.87) * 100}%` }}></div>
+                        <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${(metrics?.precision ?? 0) * 100}%` }}></div>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                     <p className="text-sm text-slate-500 dark:text-slate-400">Total Predictions (30d)</p>
-                    <p className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{metrics?.predictions_last_30d || 142}</p>
+                    <p className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{metrics?.predictions_last_30d ?? 0}</p>
                     <p className="text-xs text-emerald-500 mt-1 flex items-center">
                         <CheckCircle className="w-3 h-3 mr-1" />
-                        {metrics?.correct_predictions || 118} accurate
+                        {metrics?.correct_predictions ?? 0} accurate
                     </p>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -114,8 +121,10 @@ export const PredictiveHealthDashboard: React.FC = () => {
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                     <p className="text-sm text-slate-500 dark:text-slate-400">Fleet Health Index</p>
-                    <p className="text-2xl font-bold mt-1 text-indigo-500">94.2</p>
-                    <p className="text-xs text-slate-400 mt-1">Stable across 12 zones</p>
+                    <p className="text-2xl font-bold mt-1 text-indigo-500">{fleetHealthIndex(predictions) ?? '—'}</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                        {predictions.length ? `Across ${predictions.length} host${predictions.length === 1 ? '' : 's'}` : 'No hosts evaluated yet'}
+                    </p>
                 </div>
             </div>
 

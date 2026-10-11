@@ -142,10 +142,13 @@ const SidebarGroup: React.FC<{
             )}
 
             {/* ── Accordion Content (smooth slide) ─────────────────────── */}
+            {/* max-height must fit every item (≈38px each) or the rest of a long
+                group is clipped and can't be clicked; a fixed 1000px cut off
+                half of Security (SecOps). */}
             <div
                 ref={contentRef}
                 style={{
-                    maxHeight: (!isOpen || isExpanded) ? '1000px' : '0px',
+                    maxHeight: (!isOpen || isExpanded) ? `${group.items.length * 44 + 8}px` : '0px',
                     opacity: (!isOpen || isExpanded) ? 1 : 0,
                     overflow: 'hidden',
                     transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease',

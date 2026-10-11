@@ -8,7 +8,7 @@ isolation is enforced the same way as every other GRC module in this codebase.
 trust_profiles/trust_access_requests are deliberately NOT added to database.py's
 global-exemption allowlist.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import uuid
@@ -71,6 +71,25 @@ async def update_profile(db, tenant_id: str, updates: Dict[str, Any]) -> Dict[st
         upsert=True,
     )
     return await get_profile(db, tenant_id)
+
+
+# Public profile views: one timestamp per load (no IP or visitor data kept),
+# expired after 90 days by a TTL index so the collection stays bounded.
+_VIEW_TTL_SECONDS = 90 * 24 * 3600
+_view_index_created = False
+
+
+async def record_profile_view(db, tenant_id: str) -> None:
+    global _view_index_created
+    if not _view_index_created:
+        await db._db.trust_page_views.create_index("viewed_at", expireAfterSeconds=_VIEW_TTL_SECONDS)
+        _view_index_created = True
+    await db.trust_page_views.insert_one({"tenantId": tenant_id, "viewed_at": datetime.now(timezone.utc)})
+
+
+async def count_profile_views(db, tenant_id: str, days: int = 30) -> int:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    return await db.trust_page_views.count_documents({"viewed_at": {"$gte": since}})
 
 
 async def get_requests(db, tenant_id: str) -> List[Dict[str, Any]]:

@@ -30,6 +30,8 @@ export const AdvancedBiDashboard: React.FC<{ tenantId?: string }> = ({ tenantId 
     };
 
     const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    // null from the API means "no data yet" — show a dash, never a default number
+    const fmt = (v: number | null | undefined, unit = '') => (v === null || v === undefined ? '—' : `${v}${unit}`);
 
     if (loading) {
         return (
@@ -64,10 +66,10 @@ export const AdvancedBiDashboard: React.FC<{ tenantId?: string }> = ({ tenantId 
             {/* Top Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                    { label: 'Avg MTTR', value: `${data.efficiency.mttr}h`, icon: ActivityIcon, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-                    { label: 'Automation Rate', value: `${data.efficiency.automation_rate}%`, icon: ZapIcon, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-                    { label: 'Patch Success', value: `${data.efficiency.patch_success_rate}%`, icon: ShieldCheckIcon, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-                    { label: 'Remediation Velocity', value: `${data.efficiency.remediation_velocity}/d`, icon: TrendingUpIcon, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+                    { label: 'Avg MTTR', value: fmt(data.efficiency?.mttr, 'h'), icon: ActivityIcon, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+                    { label: 'Automation Rate', value: fmt(data.efficiency?.automation_rate, '%'), icon: ZapIcon, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+                    { label: 'Patch Success', value: fmt(data.efficiency?.patch_success_rate, '%'), icon: ShieldCheckIcon, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                    { label: 'Remediation Velocity', value: fmt(data.efficiency?.remediation_velocity, '/d'), icon: TrendingUpIcon, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
                 ].map((stat, i) => (
                     <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
@@ -171,10 +173,10 @@ export const AdvancedBiDashboard: React.FC<{ tenantId?: string }> = ({ tenantId 
                     </h3>
                     <div className="space-y-4">
                         {[
-                            { label: 'Critical Assets', value: '12', color: 'bg-red-500' },
-                            { label: 'Compliant Nodes', value: '84%', color: 'bg-emerald-500' },
-                            { label: 'Cloud Spend', value: '$4.2k', color: 'bg-indigo-500' },
-                            { label: 'Risk Score', value: 'Low', color: 'bg-blue-500' },
+                            { label: 'Critical Assets', value: fmt(data.insights?.critical_assets), color: 'bg-red-500' },
+                            { label: 'Controls Passing', value: fmt(data.insights?.compliance_pct, '%'), color: 'bg-emerald-500' },
+                            { label: 'Open Alerts', value: fmt(data.insights?.open_alerts), color: 'bg-indigo-500' },
+                            { label: 'Risk Level', value: data.insights?.risk_level || '—', color: 'bg-blue-500' },
                         ].map((insight, i) => (
                             <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50">
                                 <div className="flex items-center">

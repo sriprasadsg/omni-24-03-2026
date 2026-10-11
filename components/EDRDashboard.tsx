@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { ThemeContext } from '../contexts/ThemeContext';
 import { authFetch } from '../services/apiService';
 
 // Use relative path so the Vite dev-server proxy routes it to localhost:5000
@@ -40,6 +41,12 @@ const ACTION_OPTIONS = [
 ];
 
 export function EDRDashboard({ token }: { token?: string }) {
+    // Inline styles can't use Tailwind dark: variants, so pick colours from the theme
+    const { theme } = useContext(ThemeContext);
+    const pal = theme === 'dark'
+        ? { card: '#1e293b', subtle: '#0f172a', border: '#334155', text: '#f1f5f9', textSoft: '#cbd5e1', muted: '#94a3b8' }
+        : { card: '#fff', subtle: '#f8fafc', border: '#e2e8f0', text: '#0f172a', textSoft: '#334155', muted: '#64748b' };
+
     const [alerts, setAlerts] = useState<EDRAlert[]>([]);
     const [summary, setSummary] = useState<EDRSummary | null>(null);
     const [loading, setLoading] = useState(true);
@@ -153,8 +160,8 @@ export function EDRDashboard({ token }: { token?: string }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
                 <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#ef4444,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🛡️</div>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#0f172a' }}>Real-Time EDR Dashboard</h1>
-                    <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Endpoint Detection & Response — Powered by ETW + psutil</p>
+                    <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: pal.text }}>Real-Time EDR Dashboard</h1>
+                    <p style={{ margin: 0, fontSize: 13, color: pal.muted }}>Endpoint Detection & Response — Powered by ETW + psutil</p>
                 </div>
                 <button onClick={load} style={{ marginLeft: 'auto', padding: '8px 16px', borderRadius: 8, background: '#0f172a', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13 }}>↻ Refresh</button>
             </div>
@@ -168,9 +175,9 @@ export function EDRDashboard({ token }: { token?: string }) {
                         { label: 'Critical (Unack)', value: summary.critical_unacknowledged, color: '#ef4444' },
                         { label: 'High Severity', value: summary.by_severity?.high || 0, color: '#eab308' },
                     ].map(card => (
-                        <div key={card.label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                        <div key={card.label} style={{ background: pal.card, border: `1px solid ${pal.border}`, borderRadius: 12, padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                             <div style={{ fontSize: 28, fontWeight: 700, color: card.color }}>{card.value}</div>
-                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{card.label}</div>
+                            <div style={{ fontSize: 12, color: pal.muted, marginTop: 4 }}>{card.label}</div>
                         </div>
                     ))}
                 </div>
@@ -197,25 +204,25 @@ export function EDRDashboard({ token }: { token?: string }) {
                     {/* Filters */}
                     <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                         <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}
-                            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, background: '#fff' }}>
+                            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, background: pal.card }}>
                             <option value="all">All Severities</option>
                             {Object.keys(SEVERITY_CONFIG).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
                         </select>
                         <select value={ackFilter} onChange={e => { setAckFilter(e.target.value as any); load(); }}
-                            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, background: '#fff' }}>
+                            style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, background: pal.card }}>
                             <option value="unack">Unacknowledged only</option>
                             <option value="all">All Alerts</option>
                         </select>
-                        <span style={{ fontSize: 13, color: '#64748b', marginLeft: 'auto' }}>{filteredAlerts.length} alerts</span>
+                        <span style={{ fontSize: 13, color: pal.muted, marginLeft: 'auto' }}>{filteredAlerts.length} alerts</span>
                     </div>
 
                     {loading ? (
-                        <div style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
+                        <div style={{ textAlign: 'center', padding: 48, color: pal.muted }}>
                             <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
                             Loading EDR telemetry...
                         </div>
                     ) : filteredAlerts.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: 48, background: '#f8fafc', borderRadius: 12, color: '#64748b' }}>
+                        <div style={{ textAlign: 'center', padding: 48, background: pal.subtle, borderRadius: 12, color: pal.muted }}>
                             <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
                             <div style={{ fontWeight: 600 }}>No active alerts</div>
                             <div style={{ fontSize: 13, marginTop: 4 }}>Agent EDR telemetry will appear here automatically when threats are detected.</div>
@@ -226,14 +233,14 @@ export function EDRDashboard({ token }: { token?: string }) {
                                 const sev = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.low;
                                 return (
                                     <div key={`${alert.alert_id}-${idx}`} style={{
-                                        background: '#fff', border: `1px solid ${sev.color}40`, borderLeft: `4px solid ${sev.color}`,
+                                        background: pal.card, border: `1px solid ${sev.color}40`, borderLeft: `4px solid ${sev.color}`,
                                         borderRadius: 10, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                                             <span style={{ background: sev.bg, color: sev.color, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: 1, flexShrink: 0 }}>{sev.label}</span>
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>{alert.type.replace(/_/g, ' ')}</div>
-                                                <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>{alert.description}</div>
+                                                <div style={{ fontWeight: 600, fontSize: 14, color: pal.text }}>{alert.type.replace(/_/g, ' ')}</div>
+                                                <div style={{ fontSize: 13, color: pal.textSoft, marginTop: 4 }}>{alert.description}</div>
                                                 <div style={{ marginTop: 8, display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#94a3b8' }}>
                                                     {alert.process?.name && <span>🔧 Process: <b>{alert.process.name}</b> (PID {alert.process.pid})</span>}
                                                     {alert.hostname && <span>💻 Host: <b>{alert.hostname}</b></span>}
@@ -244,7 +251,7 @@ export function EDRDashboard({ token }: { token?: string }) {
                                             {!alert.acknowledged && (
                                                 <button onClick={() => acknowledge(alert.alert_id)}
                                                     disabled={responding === alert.alert_id}
-                                                    style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid #e2e8f0', background: responding === alert.alert_id ? '#f8fafc' : '#fff', cursor: 'pointer', fontSize: 12, color: '#475569', flexShrink: 0 }}>
+                                                    style={{ padding: '6px 14px', borderRadius: 8, border: `1px solid ${pal.border}`, background: responding === alert.alert_id ? '#f8fafc' : '#fff', cursor: 'pointer', fontSize: 12, color: pal.textSoft, flexShrink: 0 }}>
                                                     {responding === alert.alert_id ? '...' : '✓ Ack'}
                                                 </button>
                                             )}
@@ -262,30 +269,30 @@ export function EDRDashboard({ token }: { token?: string }) {
             {activeTab === 'response' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 24 }}>
                     {/* Manual Action Panel */}
-                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 24 }}>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>⚡ Dispatch Response Action</h3>
+                    <div style={{ background: pal.card, border: `1px solid ${pal.border}`, borderRadius: 12, padding: 24 }}>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>⚡ Dispatch Response Action</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>AGENT ID</label>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>AGENT ID</label>
                                 <input value={responseAgent} onChange={e => setResponseAgent(e.target.value)}
                                     placeholder="agent-uuid or hostname"
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box' }} />
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box' }} />
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>ACTION</label>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>ACTION</label>
                                 <select value={responseAction} onChange={e => setResponseAction(e.target.value)}
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}>
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13 }}>
                                     {ACTION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
                             </div>
                             {(responseAction === 'kill_process' || responseAction === 'quarantine_file') && (
                                 <div>
-                                    <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                                    <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>
                                         {responseAction === 'kill_process' ? 'PID (number)' : 'File Path'}
                                     </label>
                                     <input value={responseParam} onChange={e => setResponseParam(e.target.value)}
                                         placeholder={responseAction === 'kill_process' ? '1234' : 'C:\\path\\to\\malware.exe'}
-                                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box' }} />
+                                        style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box' }} />
                                 </div>
                             )}
                             {feedback && (
@@ -302,23 +309,23 @@ export function EDRDashboard({ token }: { token?: string }) {
 
                     {/* Response History */}
                     <div>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>📋 Response History</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>📋 Response History</h3>
                         {responseHistory.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 32, background: '#f8fafc', borderRadius: 12, color: '#64748b' }}>
+                            <div style={{ textAlign: 'center', padding: 32, background: pal.subtle, borderRadius: 12, color: pal.muted }}>
                                 No response actions dispatched yet
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {responseHistory.map((task, i) => (
-                                    <div key={task.task_id || i} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 18px', fontSize: 13 }}>
+                                    <div key={task.task_id || i} style={{ background: pal.card, border: `1px solid ${pal.border}`, borderRadius: 10, padding: '14px 18px', fontSize: 13 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{task.action?.replace(/_/g, ' ')}</span>
+                                            <span style={{ fontWeight: 600, color: pal.text }}>{task.action?.replace(/_/g, ' ')}</span>
                                             <span style={{ fontSize: 11, color: task.result?.success ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
                                                 {task.result?.success ? '✓ SUCCESS' : '✗ FAILED'}
                                             </span>
                                         </div>
-                                        <div style={{ color: '#64748b', marginTop: 4 }}>Agent: {task.agent_id} • {task.executed_at ? new Date(task.executed_at).toLocaleString() : 'Pending'}</div>
-                                        {task.result?.message && <div style={{ color: '#475569', marginTop: 4 }}>{task.result.message}</div>}
+                                        <div style={{ color: pal.muted, marginTop: 4 }}>Agent: {task.agent_id} • {task.executed_at ? new Date(task.executed_at).toLocaleString() : 'Pending'}</div>
+                                        {task.result?.message && <div style={{ color: pal.textSoft, marginTop: 4 }}>{task.result.message}</div>}
                                     </div>
                                 ))}
                             </div>
@@ -330,28 +337,28 @@ export function EDRDashboard({ token }: { token?: string }) {
             {/* IOC TAB */}
             {activeTab === 'ioc' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 24 }}>
-                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 24 }}>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>➕ Add IOC to Blocklist</h3>
+                    <div style={{ background: pal.card, border: `1px solid ${pal.border}`, borderRadius: 12, padding: 24 }}>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>➕ Add IOC to Blocklist</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>SHA-256 Hash (optional)</label>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>SHA-256 Hash (optional)</label>
                                 <input value={iocHash} onChange={e => setIocHash(e.target.value)} placeholder="abc123..."
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} />
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} />
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Process Name (optional)</label>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>Process Name (optional)</label>
                                 <input value={iocProcess} onChange={e => setIocProcess(e.target.value)} placeholder="mimikatz.exe"
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box' }} />
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box' }} />
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Description*</label>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>Description*</label>
                                 <input value={iocDesc} onChange={e => setIocDesc(e.target.value)} placeholder="Credential dumper — CISA alert AA23-XXX"
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, boxSizing: 'border-box' }} />
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13, boxSizing: 'border-box' }} />
                             </div>
                             <div>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Severity</label>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: pal.muted, display: 'block', marginBottom: 4 }}>Severity</label>
                                 <select value={iocSeverity} onChange={e => setIocSeverity(e.target.value)}
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13 }}>
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${pal.border}`, fontSize: 13 }}>
                                     {Object.keys(SEVERITY_CONFIG).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
                                 </select>
                             </div>
@@ -363,21 +370,21 @@ export function EDRDashboard({ token }: { token?: string }) {
                         </div>
                     </div>
                     <div>
-                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>🔍 Current IOC Blocklist ({iocList.length})</h3>
+                        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: pal.text }}>🔍 Current IOC Blocklist ({iocList.length})</h3>
                         {iocList.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: 32, background: '#f8fafc', borderRadius: 12, color: '#64748b' }}>No IOCs in blocklist yet</div>
+                            <div style={{ textAlign: 'center', padding: 32, background: pal.subtle, borderRadius: 12, color: pal.muted }}>No IOCs in blocklist yet</div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {iocList.map((ioc, i) => {
                                     const sev = SEVERITY_CONFIG[ioc.severity as keyof typeof SEVERITY_CONFIG] || SEVERITY_CONFIG.low;
                                     return (
-                                        <div key={i} style={{ background: '#fff', border: `1px solid ${sev.color}30`, borderLeft: `3px solid ${sev.color}`, borderRadius: 8, padding: '12px 16px', fontSize: 13 }}>
+                                        <div key={i} style={{ background: pal.card, border: `1px solid ${sev.color}30`, borderLeft: `3px solid ${sev.color}`, borderRadius: 8, padding: '12px 16px', fontSize: 13 }}>
                                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                 <span style={{ background: sev.bg, color: sev.color, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>{sev.label}</span>
-                                                <span style={{ fontWeight: 600, color: '#0f172a' }}>{ioc.description}</span>
+                                                <span style={{ fontWeight: 600, color: pal.text }}>{ioc.description}</span>
                                             </div>
                                             {ioc.sha256 && <div style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 11, marginTop: 4 }}>SHA256: {ioc.sha256.slice(0, 32)}...</div>}
-                                            {ioc.process_name && <div style={{ color: '#64748b', marginTop: 2 }}>Process: {ioc.process_name}</div>}
+                                            {ioc.process_name && <div style={{ color: pal.muted, marginTop: 2 }}>Process: {ioc.process_name}</div>}
                                             <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>Added: {new Date(ioc.added_at).toLocaleString()}</div>
                                         </div>
                                     );

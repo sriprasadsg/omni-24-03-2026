@@ -299,15 +299,87 @@ def test_inbound_webhook_secret_is_stored_sealed(monkeypatch):
 
 # ── Training ─────────────────────────────────────────────────────────────────
 
+class _FakeCursor:
+    def __init__(self, docs):
+        self._docs = docs
+
+    async def to_list(self, length=None):
+        return [dict(d) for d in self._docs]
+
+
+class _FakeCollection:
+    """Just enough async Mongo for the training service (equality filters, $set)."""
+    def __init__(self):
+        self.docs = []
+
+    def _match(self, flt):
+        return [d for d in self.docs if all(d.get(k) == v for k, v in (flt or {}).items())]
+
+    def find(self, flt=None, projection=None):
+        return _FakeCursor(self._match(flt))
+
+    async def find_one(self, flt=None, projection=None):
+        found = self._match(flt)
+        return dict(found[0]) if found else None
+
+    async def insert_one(self, doc):
+        self.docs.append(dict(doc))
+
+    async def update_one(self, flt, update):
+        for d in self._match(flt):
+            d.update(update.get("$set", {}))
+
+
+def _training_db():
+    db = MagicMock()
+    db.training_modules = _FakeCollection()
+    db.training_assignments = _FakeCollection()
+    return db
+
+
+def _seed_training(db, quiz=None):
+    import asyncio
+    import training_service as ts
+    mod = asyncio.run(ts.create_module(db, {"title": "Phishing", "quiz_questions": quiz or []}))
+    mine = asyncio.run(ts.assign(db, "alice@a.test", mod["id"]))
+    theirs = asyncio.run(ts.assign(db, "bob@a.test", mod["id"]))
+    return mod, mine, theirs
+
+
 def test_training_is_bound_to_the_caller():
     import training_endpoints as te
-    from training_service import TrainingService
-    svc = TrainingService()
-    mine = svc.assign_training("alice@a.test", "mod-1")
-    theirs = svc.assign_training("bob@a.test", "mod-1")
-    with patch.object(te, "training_service", svc):
+    db = _training_db()
+    _, mine, theirs = _seed_training(db)
+    with patch.object(te, "get_database", return_value=db):
         client = TestClient(_app(te.router, user=_user("user", username="alice@a.test")))
         ids = {a["id"] for a in client.get("/api/training/my-training").json()}
-        assert mine.id in ids and theirs.id not in ids
-        assert client.put(f"/api/training/progress/{theirs.id}", json={"status": "Completed"}).status_code == 404
-        assert client.put(f"/api/training/progress/{mine.id}", json={"status": "Completed"}).status_code == 200
+        assert mine["id"] in ids and theirs["id"] not in ids
+        assert client.put(f"/api/training/progress/{theirs['id']}", json={"status": "Completed"}).status_code == 404
+        assert client.put(f"/api/training/progress/{mine['id']}", json={"status": "Completed"}).status_code == 200
+
+
+def test_training_quiz_is_graded_by_the_server():
+    import training_endpoints as te
+    quiz = [{"question": "Red flag?", "options": ["Urgency", "None"], "correct_answer": "Urgency"},
+            {"question": "Report to?", "options": ["SOC", "Nobody"], "correct_answer": "SOC"}]
+    db = _training_db()
+    _, mine, _ = _seed_training(db, quiz)
+    with patch.object(te, "get_database", return_value=db):
+        client = TestClient(_app(te.router, user=_user("user", username="alice@a.test")))
+        # answers are never sent to the learner
+        item = client.get("/api/training/my-training").json()[0]
+        assert all("correct_answer" not in q for q in item["quiz_questions"])
+        # a client-supplied score is ignored and a quiz module can't be marked complete directly
+        r = client.put(f"/api/training/progress/{mine['id']}", json={"status": "Completed", "quiz_score": 100})
+        assert r.status_code == 400
+        failed = client.post(f"/api/training/progress/{mine['id']}/quiz", json={"answers": ["None", "SOC"]}).json()
+        assert failed["quiz_score"] == 50 and failed["status"] == "In Progress" and not failed["passed"]
+        passed = client.post(f"/api/training/progress/{mine['id']}/quiz", json={"answers": ["Urgency", "SOC"]}).json()
+        assert passed["quiz_score"] == 100 and passed["status"] == "Completed" and passed["attempts"] == 2
+
+
+def test_training_module_quiz_is_validated():
+    import training_service as ts
+    assert ts.validate_quiz([{"question": "Q", "options": ["a", "b"], "correct_answer": "c"}])
+    assert ts.validate_quiz([{"question": "Q", "options": ["a"], "correct_answer": "a"}])
+    assert ts.validate_quiz([{"question": "Q", "options": ["a", "b"], "correct_answer": "a"}]) is None

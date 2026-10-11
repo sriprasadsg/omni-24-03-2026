@@ -31,9 +31,13 @@ export const SustainabilityDashboard: React.FC = () => {
     };
 
     const totalEmissions = carbonData.reduce((sum, d) => sum + d.totalEmissions, 0);
-    const avgEmissions = totalEmissions / carbonData.length;
+    const avgEmissions = carbonData.length ? totalEmissions / carbonData.length : 0;
 
     const latestBreakdown = carbonData[carbonData.length - 1]?.breakdown;
+    const latestTotal = carbonData[carbonData.length - 1]?.totalEmissions;
+    // Savings are estimates from the latest measured emissions, never fixed figures
+    const savingsLabel = (base: number | undefined, share: number) =>
+        base && base > 0 ? `~${(base * share).toFixed(1)} kg CO2e` : 'needs emissions data';
     const breakdownData = latestBreakdown ? [
         { name: 'Compute', value: latestBreakdown.compute, color: '#10b981' },
         { name: 'Storage', value: latestBreakdown.storage, color: '#3b82f6' },
@@ -155,7 +159,7 @@ export const SustainabilityDashboard: React.FC = () => {
                                 dataKey="value"
                                 label={(props) => {
                                     const RADIAN = Math.PI / 180;
-                                    const { cx, cy, midAngle, outerRadius, percent } = props;
+                                    const { cx, cy, midAngle = 0, outerRadius, percent = 0 } = props;
                                     const radius = outerRadius + 25;
                                     const x = cx + radius * Math.cos(-midAngle * RADIAN);
                                     const y = cy + radius * Math.sin(-midAngle * RADIAN);
@@ -233,7 +237,7 @@ export const SustainabilityDashboard: React.FC = () => {
                             Right-size compute instances
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Potential savings: <span className="font-semibold text-green-600">145 kg CO2e/month</span>
+                            Estimated savings: <span className="font-semibold text-green-600">{savingsLabel(latestBreakdown?.compute, 0.2)}</span> (assumes 20% of compute emissions)
                         </p>
                     </div>
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
@@ -241,7 +245,7 @@ export const SustainabilityDashboard: React.FC = () => {
                             Enable carbon-aware workload scheduling
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Run batch jobs during low-carbon hours. Potential savings: <span className="font-semibold text-green-600">89 kg CO2e/month</span>
+                            Run batch jobs during low-carbon hours. Estimated savings: <span className="font-semibold text-green-600">{savingsLabel(latestBreakdown?.compute, 0.1)}</span> (assumes 10% of compute emissions)
                         </p>
                     </div>
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
@@ -249,7 +253,7 @@ export const SustainabilityDashboard: React.FC = () => {
                             Migrate to greener regions
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Consider us-west-2 (renewable energy: 85%). Potential savings: <span className="font-semibold text-green-600">230 kg CO2e/month</span>
+                            Move workloads to a region with a cleaner grid. Estimated savings: <span className="font-semibold text-green-600">{savingsLabel(latestTotal, 0.3)}</span> (assumes 30% of total emissions)
                         </p>
                     </div>
                 </div>

@@ -35,6 +35,16 @@ interface Integration {
     config?: Record<string, any>;
 }
 
+// Header stats from the integration list itself; events show "—" until reported
+export const integrationHubStats = (list: Partial<Integration>[]) => {
+    const counts = list.map(i => i.events_count).filter((n): n is number => typeof n === 'number');
+    return {
+        enabled: list.filter(i => i.isEnabled).length,
+        errors: list.filter(i => i.status === 'error').length,
+        events: counts.length ? counts.reduce((a, b) => a + b, 0) : null,
+    };
+};
+
 export const IntegrationsHub: React.FC = () => {
     const [integrations, setIntegrations] = useState<Integration[]>([]);
     const [loading, setLoading] = useState(true);
@@ -129,6 +139,8 @@ export const IntegrationsHub: React.FC = () => {
         }
     };
 
+    const hubStats = integrationHubStats(integrations);
+
     return (
         <div className="p-8 bg-slate-50 dark:bg-slate-900 min-h-screen">
             <div className="max-w-6xl mx-auto space-y-8">
@@ -153,8 +165,8 @@ export const IntegrationsHub: React.FC = () => {
                             <Zap className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">Total Events (24h)</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white">1.24M</p>
+                            <p className="text-xs text-slate-400 font-bold uppercase">Events Received</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-white">{hubStats.events === null ? '—' : hubStats.events.toLocaleString()}</p>
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center space-x-4">
@@ -162,8 +174,8 @@ export const IntegrationsHub: React.FC = () => {
                             <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">Active Sources</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white">14 / 16</p>
+                            <p className="text-xs text-slate-400 font-bold uppercase">Enabled Integrations</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-white">{hubStats.enabled} / {integrations.length}</p>
                         </div>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center space-x-4">
@@ -171,8 +183,8 @@ export const IntegrationsHub: React.FC = () => {
                             <Shield className="w-6 h-6 text-red-600 dark:text-red-400" />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">Failed Syncs</p>
-                            <p className="text-2xl font-bold text-slate-900 dark:text-white">2</p>
+                            <p className="text-xs text-slate-400 font-bold uppercase">Integrations With Errors</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-white">{hubStats.errors}</p>
                         </div>
                     </div>
                 </div>

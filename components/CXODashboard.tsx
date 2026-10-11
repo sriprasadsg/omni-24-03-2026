@@ -8,7 +8,7 @@ import { ComplianceFrameworkModal } from './ComplianceFrameworkModal';
 
 interface CXODashboardProps { }
 
-const StatCard: React.FC<{ title: string; value: string; change: number; trend: 'up' | 'down'; icon: React.ReactNode; color: string }> = ({ title, value, change, trend, icon, color }) => (
+const StatCard: React.FC<{ title: string; value: string; change?: number; trend?: 'up' | 'down'; icon: React.ReactNode; color: string }> = ({ title, value, change, trend, icon, color }) => (
     <div className={`glass-premium p-6 rounded-3xl flex items-center gap-4 group transition-all hover:scale-105 border-l-4 ${color}`}>
         <div className="p-3 bg-white/5 rounded-2xl group-hover:bg-white/10 transition-colors">
             {icon}
@@ -16,13 +16,59 @@ const StatCard: React.FC<{ title: string; value: string; change: number; trend: 
         <div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
             <p className="text-3xl font-black text-gray-800 dark:text-gray-100 italic tracking-tighter">{value}</p>
-            <p className={`text-[10px] font-bold flex items-center gap-1 mt-1 ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
-                {trend === 'up' ? <TrendingUpIcon size={10} /> : <ArrowDownRightIcon size={10} />}
-                {trend === 'up' ? '+' : ''}{change}% vs last month
-            </p>
+            {/* Only shown when a measured month-over-month change exists */}
+            {change !== undefined && (
+                <p className={`text-[10px] font-bold flex items-center gap-1 mt-1 ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
+                    {trend === 'up' ? <TrendingUpIcon size={10} /> : <ArrowDownRightIcon size={10} />}
+                    {trend === 'up' ? '+' : ''}{change}% vs last month
+                </p>
+            )}
         </div>
     </div>
 );
+
+export const alertsPerDay = (alerts: { severity?: string; timestamp?: string }[], now = new Date()) => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(now);
+        d.setDate(d.getDate() - (6 - i));
+        return { key: d.toDateString(), day: d.toLocaleDateString(undefined, { weekday: 'short' }), critical: 0, high: 0, medium: 0 };
+    });
+    for (const a of alerts) {
+        if (!a.timestamp) continue;
+        const day = days.find(d => d.key === new Date(a.timestamp as string).toDateString());
+        const sev = (a.severity || '').toLowerCase();
+        if (day && (sev === 'critical' || sev === 'high' || sev === 'medium')) day[sev] += 1;
+    }
+    return days.map(({ key, ...rest }) => rest);
+};
+
+// Compare the last 3 days with the first 3 days of the 7-day window
+export const threatTrendDirection = (days: { critical: number; high: number; medium: number }[]) => {
+    const total = (d: { critical: number; high: number; medium: number }) => d.critical + d.high + d.medium;
+    const early = days.slice(0, 3).reduce((n, d) => n + total(d), 0);
+    const late = days.slice(-3).reduce((n, d) => n + total(d), 0);
+    if (early + late === 0) return { label: 'No alerts', className: 'bg-gray-100 dark:bg-gray-800 text-gray-500' };
+    if (late > early) return { label: 'Rising', className: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' };
+    if (late < early) return { label: 'Falling', className: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' };
+    return { label: 'Stable', className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' };
+};
+
+const OS_FAMILIES = [
+    { name: 'Windows', match: /windows/i, color: '#6366f1' },
+    { name: 'Linux', match: /linux|ubuntu|debian|centos|rhel|red hat|fedora|suse/i, color: '#8b5cf6' },
+    { name: 'macOS', match: /mac|darwin/i, color: '#ec4899' },
+];
+
+export const assetsByOsFamily = (assets: { osName?: string }[]) => {
+    const counts = new Map<string, number>();
+    for (const a of assets) {
+        const family = OS_FAMILIES.find(f => f.match.test(a.osName || ''))?.name || 'Other';
+        counts.set(family, (counts.get(family) || 0) + 1);
+    }
+    return [...OS_FAMILIES, { name: 'Other', color: '#14b8a6' }]
+        .map(f => ({ name: f.name, value: counts.get(f.name) || 0, color: f.color }))
+        .filter(f => f.value > 0);
+};
 
 export const CXODashboard: React.FC<CXODashboardProps> = () => {
     const { timeZone } = useTimeZone();
@@ -136,33 +182,22 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
         ? (((filteredAssets.length - vulnerableAssetsCount) / filteredAssets.length) * 100).toFixed(1)
         : '0.0';
 
-    // Threat trend data (last 7 days simulation based on filtered alerts)
-    const threatTrendData = [
-        { day: 'Mon', critical: Math.ceil(criticalAlertsCount * 0.8), high: Math.ceil(highAlertsCount * 0.8), medium: 5 },
-        { day: 'Tue', critical: Math.ceil(criticalAlertsCount * 0.7), high: Math.ceil(highAlertsCount * 0.9), medium: 6 },
-        { day: 'Wed', critical: Math.ceil(criticalAlertsCount * 0.9), high: Math.ceil(highAlertsCount * 0.7), medium: 7 },
-        { day: 'Thu', critical: Math.ceil(criticalAlertsCount * 0.6), high: Math.ceil(highAlertsCount * 0.6), medium: 8 },
-        { day: 'Fri', critical: Math.ceil(criticalAlertsCount * 0.9), high: Math.ceil(highAlertsCount * 0.8), medium: 9 },
-        { day: 'Sat', critical: Math.ceil(criticalAlertsCount * 0.5), high: Math.ceil(highAlertsCount * 0.5), medium: 4 },
-        { day: 'Sun', critical: criticalAlertsCount, high: highAlertsCount, medium: totalAlertsCount - criticalAlertsCount - highAlertsCount }
-    ];
+    // Threat trend: real alert counts per day for the last 7 days
+    const threatTrendData = alertsPerDay(filteredAlerts);
 
-    // Asset distribution
-    const assetDistribution = [
-        { name: 'Servers', value: Math.floor(filteredAssets.length * 0.4), color: '#6366f1' },
-        { name: 'Workstations', value: Math.floor(filteredAssets.length * 0.35), color: '#8b5cf6' },
-        { name: 'Network Devices', value: Math.floor(filteredAssets.length * 0.15), color: '#ec4899' },
-        { name: 'Cloud Resources', value: Math.floor(filteredAssets.length * 0.10), color: '#14b8a6' }
-    ];
+    const trendDirection = threatTrendDirection(threatTrendData);
+
+    // Asset distribution by OS family (counts from the asset inventory)
+    const assetDistribution = assetsByOsFamily(filteredAssets);
 
     const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
     const textColor = theme === 'dark' ? '#9ca3af' : '#4b5563';
 
     const kpis = [
-        { title: 'Security Posture', value: `${securityPosture}%`, change: 2.1, trend: 'up' as const, icon: <ShieldCheckIcon size={24} className="text-primary-500" />, color: 'border-primary-500' },
-        { title: 'Agent Health', value: `${agentHealth}%`, change: 5.4, trend: 'up' as const, icon: <ActivityIcon size={24} className="text-indigo-500" />, color: 'border-indigo-500' },
-        { title: 'Compliance Avg', value: `${avgCompliance}%`, change: 0.2, trend: 'up' as const, icon: <BarChart3Icon size={24} className="text-accent-500" />, color: 'border-accent-500' },
-        { title: 'Active Alerts', value: `${totalAlertsCount}`, change: -12.5, trend: 'down' as const, icon: <AlertTriangleIcon size={24} className="text-emerald-500" />, color: 'border-emerald-500' },
+        { title: 'Security Posture', value: `${securityPosture}%`, icon: <ShieldCheckIcon size={24} className="text-primary-500" />, color: 'border-primary-500' },
+        { title: 'Agent Health', value: `${agentHealth}%`, icon: <ActivityIcon size={24} className="text-indigo-500" />, color: 'border-indigo-500' },
+        { title: 'Compliance Avg', value: `${avgCompliance}%`, icon: <BarChart3Icon size={24} className="text-accent-500" />, color: 'border-accent-500' },
+        { title: 'Active Alerts', value: `${totalAlertsCount}`, icon: <AlertTriangleIcon size={24} className="text-emerald-500" />, color: 'border-emerald-500' },
     ];
 
     if (loading) {
@@ -223,8 +258,6 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
                         key={idx}
                         title={kpi.title}
                         value={kpi.value}
-                        change={kpi.change}
-                        trend={kpi.trend}
                         icon={kpi.icon}
                         color={kpi.color}
                     />
@@ -274,8 +307,8 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
                             <ShieldSearchIcon className="text-primary-500" />
                             7-Day Threat Trend
                         </h2>
-                        <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full text-xs font-black uppercase">
-                            Stable
+                        <div className={`px-3 py-1 rounded-full text-xs font-black uppercase ${trendDirection.className}`}>
+                            {trendDirection.label}
                         </div>
                     </div>
                     <div className="h-80">
@@ -330,7 +363,7 @@ export const CXODashboard: React.FC<CXODashboardProps> = () => {
                                     dataKey="value"
                                     label={(props) => {
                                         const RADIAN = Math.PI / 180;
-                                        const { cx, cy, midAngle, outerRadius, percent } = props;
+                                        const { cx, cy, midAngle = 0, outerRadius, percent = 0 } = props;
                                         const radius = outerRadius + 30;
                                         const x = cx + radius * Math.cos(-midAngle * RADIAN);
                                         const y = cy + radius * Math.sin(-midAngle * RADIAN);

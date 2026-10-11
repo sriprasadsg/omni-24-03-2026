@@ -6,8 +6,14 @@ interface ApiRoute {
     path: string;
     name: string;
     methods: string[];
-    status: 'Active' | 'Inactive' | 'Error';
+    status: 'Active' | 'Inactive' | 'Error' | 'Unregistered';
 }
+
+// Describe the route's actual reported state for the AI analysis (never a made-up error)
+export const describeRouteProblem = (route: ApiRoute) =>
+    route.status === 'Unregistered'
+        ? `Route ${route.methods.join('/')} ${route.path} has no handler bound (status: Unregistered)`
+        : `Route ${route.methods.join('/')} ${route.path} reports status: ${route.status}`;
 
 export const ApiStatusDashboard: React.FC = () => {
     const [routes, setRoutes] = useState<ApiRoute[]>([]);
@@ -31,7 +37,7 @@ export const ApiStatusDashboard: React.FC = () => {
         setSelectedRoute(route);
         setFixing(true);
         try {
-            const result = await remediateRoute(route.path, "500 Internal Server Error"); // Simulate error for now
+            const result = await remediateRoute(route.path, describeRouteProblem(route));
             setRemediationResult(result);
         } catch (e) {
             setRemediationResult({ error: "Failed to run remediation." });
@@ -87,12 +93,16 @@ export const ApiStatusDashboard: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <button
-                                                onClick={() => handleAutoFix(route)}
-                                                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium text-xs flex items-center"
-                                            >
-                                                <Play className="w-3 h-3 mr-1" /> Auto-Fix
-                                            </button>
+                                            {route.status === 'Active' ? (
+                                                <span className="text-xs text-gray-400">—</span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleAutoFix(route)}
+                                                    className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium text-xs flex items-center"
+                                                >
+                                                    <Play className="w-3 h-3 mr-1" /> Auto-Fix
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

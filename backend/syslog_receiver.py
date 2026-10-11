@@ -62,12 +62,23 @@ class SyslogProtocol(asyncio.DatagramProtocol):
         except Exception as e:
             logger.error(f"Error saving syslog message to DB: {e}")
 
+# The open UDP transport, kept so System Health can report whether the
+# receiver is actually listening.
+_transport = None
+
+
+def is_listening() -> bool:
+    return _transport is not None and not _transport.is_closing()
+
+
 async def start_syslog_server(host="0.0.0.0", port=5140, tenant_id="default"):
+    global _transport
     loop = asyncio.get_running_loop()
     logger.info(f"Starting UDP Syslog Server on {host}:{port}")
     transport, protocol = await loop.create_datagram_endpoint(
         lambda: SyslogProtocol(tenant_id=tenant_id),
         local_addr=(host, port)
     )
+    _transport = transport
     return transport
 

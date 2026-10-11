@@ -108,7 +108,7 @@ class CookieConsentService:
         records = await db.cookie_consent_records.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=10000)
         total = len(records)
         if not total:
-            return {"total": 0, "byCategory": {}, "fullConsent": 0, "necessaryOnly": 0, "optOut": 0}
+            return {"total": 0, "byCategory": {}, "byCategoryPct": {}, "fullConsent": 0, "fullConsentPct": 0, "necessaryOnly": 0, "optOut": 0}
         config = await self.get_config(tenant_id)
         all_cats = [c["id"] for c in config.get("categories", [])]
         non_required = [c["id"] for c in config.get("categories", []) if not c.get("required")]

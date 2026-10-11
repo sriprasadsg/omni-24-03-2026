@@ -89,7 +89,6 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                 });
 
                 const allElements = [...parentNodes, ...nodesWithParents, ...data.elements.edges];
-                console.log("FINAL ELEMENTS JSON:", JSON.stringify(allElements));
                 setElements(allElements);
             } catch (error) {
                 console.error("Error loading topology:", error);
@@ -315,6 +314,13 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
         }
     ];
 
+    // Counts come from the loaded topology, not fixed marketing figures
+    const topoStats = {
+        devices: elements.filter(e => !e.data?.source && !e.data?.isZone).length,
+        links: elements.filter(e => e.data?.source).length,
+        zones: elements.filter(e => e.data?.isZone).length,
+    };
+
     return (
         <div className="w-full h-[700px] bg-[#0b0e14] border border-[#2a2f3a] rounded-xl overflow-hidden relative shadow-2xl">
             {loading && (
@@ -325,17 +331,21 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
 
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-3">
                 <div className="flex items-center gap-2 bg-[#1a1f26]/90 px-3 py-1.5 rounded-lg border border-[#3b82f6]/30 text-[10px] font-mono text-blue-400">
-                    <Activity className="w-3 h-3 animate-pulse" /> SYSTEM TELEMETRY: NOMINAL
+                    <Activity className="w-3 h-3" /> {topoStats.devices > 0 ? 'DISCOVERED TOPOLOGY' : 'NO DEVICES DISCOVERED YET'}
                 </div>
                 <div className="flex flex-col gap-2 p-4 bg-[#151921]/95 rounded-xl border border-[#2a2f3a] shadow-2xl backdrop-blur-sm">
-                    <h4 className="text-[10px] uppercase tracking-[0.2em] text-[#565f6e] font-bold">Network Resilience</h4>
+                    <h4 className="text-[10px] uppercase tracking-[0.2em] text-[#565f6e] font-bold">Topology</h4>
                     <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_#10b981]" />
-                        <span>Backbone: <span className="text-green-400 font-mono">100Gbps</span></span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        <span>Devices: <span className="text-green-400 font-mono">{topoStats.devices}</span></span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]" />
-                        <span>WAN Edge: <span className="text-blue-400 font-mono">99.98%</span></span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span>Links: <span className="text-blue-400 font-mono">{topoStats.links}</span></span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                        <span>Zones: <span className="text-purple-400 font-mono">{topoStats.zones}</span></span>
                     </div>
                 </div>
             </div>
@@ -350,17 +360,17 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                 // frames that touch the destroyed renderer when this instance is
                 // remounted (key change) or unmounted mid-layout.
                 layout={{ name: 'cose', animate: 'end', fit: true, padding: 50 }}
-                cy={(cy) => {
+                cy={(cy: any) => {
                     cyRef.current = cy;
 
-                    cy.on('tap', 'node', (evt) => {
+                    cy.on('tap', 'node', (evt: any) => {
                         const node = evt.target;
                         if (!node.data('isZone')) {
                             setSelectedNode(node.data());
                         }
                     });
 
-                    cy.on('tap', (evt) => {
+                    cy.on('tap', (evt: any) => {
                         if (evt.target === cy) {
                             setSelectedNode(null);
                         }

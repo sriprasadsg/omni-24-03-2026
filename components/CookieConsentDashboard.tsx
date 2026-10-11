@@ -69,7 +69,7 @@ export default function CookieConsentDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Total Consents', value: stats.total },
-            { label: 'Full Consent', value: `${stats.fullConsentPct}%` },
+            { label: 'Full Consent', value: `${stats.fullConsentPct ?? 0}%` },
             { label: 'Necessary Only', value: stats.necessaryOnly },
             { label: 'Categories', value: config?.categories.length || 0 },
           ].map(({ label, value }) => (

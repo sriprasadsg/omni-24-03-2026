@@ -89,10 +89,10 @@ const SwarmDashboard: React.FC = () => {
     };
 
     return (
-        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+        <div className="p-6 space-y-6 bg-slate-50 min-h-screen dark:bg-slate-900">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Autonomous Agent Swarms</h1>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Autonomous Agent Swarms</h1>
                     <p className="text-slate-500">Collaborative AI agents solving complex tasks autonomously</p>
                 </div>
                 <div className="flex gap-2">
@@ -105,15 +105,15 @@ const SwarmDashboard: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Mission Control */}
                 <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 dark:bg-slate-800 dark:border-slate-700">
                         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                             <Terminal size={20} className="text-blue-600" /> Mission Control
                         </h2>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Mission Goal</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1 dark:text-slate-200">Mission Goal</label>
                                 <textarea
-                                    className="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="w-full p-3 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:border-slate-700"
                                     rows={3}
                                     placeholder="e.g., Scan network segment 192.168.1.0/24 and patch critical vulnerabilities..."
                                     value={missionGoal}
@@ -129,7 +129,7 @@ const SwarmDashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 dark:bg-slate-800 dark:border-slate-700">
                         <h2 className="text-lg font-semibold mb-4">Active Missions</h2>
                         <div className="space-y-3">
                             {missions.length === 0 && <p className="text-sm text-slate-400">No active missions</p>}
@@ -145,7 +145,7 @@ const SwarmDashboard: React.FC = () => {
                                             {m.status}
                                         </span>
                                     </div>
-                                    <p className="text-sm font-medium text-slate-800 line-clamp-2">{m.goal}</p>
+                                    <p className="text-sm font-medium text-slate-800 line-clamp-2 dark:text-slate-100">{m.goal}</p>
                                 </div>
                             ))}
                         </div>
@@ -153,8 +153,8 @@ const SwarmDashboard: React.FC = () => {
                 </div>
 
                 {/* Center: Live Swarm Chat */}
-                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-[600px]">
-                    <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col h-[600px] dark:bg-slate-800 dark:border-slate-700">
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center dark:border-slate-700">
                         <h2 className="font-semibold flex items-center gap-2">
                             <MessageSquare size={18} className="text-indigo-600" />
                             Swarm Intelligence Feed
@@ -162,7 +162,7 @@ const SwarmDashboard: React.FC = () => {
                         {activeMission && <span className="text-xs text-slate-500">Mission: {activeMission.id}</span>}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-900">
                         {!activeMission ? (
                             <div className="h-full flex items-center justify-center text-slate-400">Select a mission to view swarm logs</div>
                         ) : (
@@ -173,12 +173,12 @@ const SwarmDashboard: React.FC = () => {
                                         }`}>
                                         {log.role === 'Manager' ? <Shield size={14} /> : log.role === 'Researcher' ? <Activity size={14} /> : <Cpu size={14} />}
                                     </div>
-                                    <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-100 max-w-[80%]">
+                                    <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-100 max-w-[80%] dark:bg-slate-800 dark:border-slate-700">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-xs font-bold text-slate-700">{log.agent_name}</span>
-                                            <span className="text-[10px] text-slate-400 border border-slate-100 px-1 rounded uppercase tracking-wider">{log.role}</span>
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{log.agent_name}</span>
+                                            <span className="text-[10px] text-slate-400 border border-slate-100 px-1 rounded uppercase tracking-wider dark:border-slate-700">{log.role}</span>
                                         </div>
-                                        <p className="text-sm text-slate-600 leading-relaxed font-mono">{log.message}</p>
+                                        <p className="text-sm text-slate-600 leading-relaxed font-mono dark:text-slate-300">{log.message}</p>
                                     </div>
                                 </div>
                             ))
@@ -189,7 +189,7 @@ const SwarmDashboard: React.FC = () => {
             </div>
 
             {/* Digital Immune System */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 dark:bg-slate-800 dark:border-slate-700">
                 <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
                     <Shield size={20} className="text-red-600" /> Digital Immune System
                 </h2>
@@ -205,7 +205,7 @@ const SwarmDashboard: React.FC = () => {
 
                 <div className="flex flex-col sm:flex-row gap-3">
                     <select
-                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-white"
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none bg-white dark:bg-slate-800 dark:border-slate-700"
                         value={antibodyThreat}
                         onChange={e => setAntibodyThreat(e.target.value)}
                     >
@@ -214,7 +214,7 @@ const SwarmDashboard: React.FC = () => {
                         ))}
                     </select>
                     <input
-                        className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none"
+                        className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none dark:border-slate-700"
                         placeholder="IP, hash, or domain indicator…"
                         value={antibodyIndicator}
                         onChange={e => setAntibodyIndicator(e.target.value)}
@@ -232,11 +232,11 @@ const SwarmDashboard: React.FC = () => {
             </div>
 
             {/* Topology Nodes (Visual Mock) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 dark:bg-slate-800 dark:border-slate-700">
                 <h2 className="text-lg font-semibold mb-4">Swarm Topology</h2>
                 <div className="flex flex-wrap gap-4">
                     {topology?.nodes?.map((node: any) => (
-                        <div key={node.id} className="flex items-center gap-3 p-3 border border-slate-100 rounded-lg min-w-[150px]">
+                        <div key={node.id} className="flex items-center gap-3 p-3 border border-slate-100 rounded-lg min-w-[150px] dark:border-slate-700">
                             <div className={`w-3 h-3 rounded-full ${node.status === 'Active' ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
                             <div>
                                 <div className="text-sm font-medium">{node.name}</div>

@@ -1,96 +1,115 @@
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
-import uuid
+"""
+Secure file sharing — uploaded files behind time-limited, optionally
+password-protected, access-counted links.
+
+Shares live in Mongo (file_shares) through the tenant-isolated handle; the files
+themselves are stored privately under FILE_SHARE_DIR (default backend/data/
+file_shares, gitignored). Replaces an in-memory service that was seeded with a
+demo share and only stored a URL string, so nothing real was ever shared.
+"""
+import os
+import pathlib
+import re
 import secrets
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
 import bcrypt
 
-class SharedFile(BaseModel):
-    id: str
-    file_name: str
-    file_url: str
-    created_by: str
-    tenant_id: Optional[str] = None
-    created_at: str
-    expires_at: Optional[str]
-    access_token: str
-    password_protected: bool
-    password_hash: Optional[str] = None  # bcrypt hash, never plaintext
-    access_count: int
-    max_accesses: Optional[int]
-    is_active: bool
+SHARE_DIR = os.getenv("FILE_SHARE_DIR", "") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "file_shares"
+)
+os.makedirs(SHARE_DIR, mode=0o700, exist_ok=True)
 
-class FileShareService:
-    def __init__(self):
-        self.shares: List[SharedFile] = [
-             SharedFile(
-                id="share-1",
-                file_name="SOC2_Report.pdf",
-                file_url="/secure/docs/SOC2_Report.pdf",
-                created_by="admin@omni-agent.com",
-                created_at=datetime.now().isoformat(),
-                expires_at=(datetime.now() + timedelta(days=7)).isoformat(),
-                access_token=secrets.token_urlsafe(16),
-                password_protected=False,
-                password_hash=None,
-                access_count=2,
-                max_accesses=10,
-                is_active=True
-            )
-        ]
+MAX_FILE_BYTES = 20 * 1024 * 1024
 
-    def get_my_shares(self, user_email: str, tenant_id: Optional[str]) -> List[SharedFile]:
-        """Shares the caller created in their own tenant (tokens are bearer credentials)."""
-        return [s for s in self.shares if s.created_by == user_email and s.tenant_id == tenant_id]
+# Fields never returned to clients
+_PRIVATE_FIELDS = {"_id", "password_hash", "stored_name"}
 
-    def create_share(self, share_data: Dict[str, Any]) -> SharedFile:
-        token = secrets.token_urlsafe(16)
-        # Hash the password before storing if one was provided
-        raw_password = share_data.pop("password", None)
-        password_hash = None
-        password_protected = share_data.get("password_protected", False)
-        if password_protected and raw_password:
-            password_hash = bcrypt.hashpw(
-                raw_password.encode("utf-8"), bcrypt.gensalt()
-            ).decode("utf-8")
 
-        new_share = SharedFile(
-            id=str(uuid.uuid4()),
-            access_token=token,
-            created_at=datetime.now().isoformat(),
-            access_count=0,
-            is_active=True,
-            password_hash=password_hash,
-            **share_data
-        )
-        self.shares.append(new_share)
-        return new_share
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
-    def revoke_share(self, share_id: str, user_email: str, tenant_id: Optional[str]) -> bool:
-        for share in self.shares:
-            if share.id == share_id and share.created_by == user_email and share.tenant_id == tenant_id:
-                share.is_active = False
-                return True
+
+def public_view(share: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in share.items() if k not in _PRIVATE_FIELDS}
+
+
+def stored_path(stored_name: str) -> pathlib.Path:
+    root = pathlib.Path(SHARE_DIR).resolve()
+    path = (root / stored_name).resolve()
+    if not str(path).startswith(str(root) + os.sep):
+        raise ValueError("Invalid stored file name")
+    return path
+
+
+async def create_share(
+    db, *, file_name: str, contents: bytes, mimetype: str, created_by: str, tenant_id: Optional[str],
+    expires_in_days: int, password: Optional[str], max_accesses: Optional[int],
+) -> Dict[str, Any]:
+    share_id = f"share-{uuid.uuid4().hex[:12]}"
+    safe_name = re.sub(r"[^A-Za-z0-9._\-]", "_", os.path.basename(file_name)) or "file"
+    stored_name = f"{share_id}_{safe_name}"
+    with open(stored_path(stored_name), "wb") as fh:
+        fh.write(contents)
+    share = {
+        "id": share_id,
+        "file_name": os.path.basename(file_name) or "file",
+        "stored_name": stored_name,
+        "size": len(contents),
+        "mimetype": mimetype,
+        "created_by": created_by,
+        "tenantId": tenant_id,
+        "created_at": _now().isoformat(),
+        "expires_at": (_now() + timedelta(days=expires_in_days)).isoformat(),
+        "access_token": secrets.token_urlsafe(24),
+        "password_protected": bool(password),
+        "password_hash": bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8") if password else None,
+        "access_count": 0,
+        "max_accesses": max_accesses,
+        "is_active": True,
+    }
+    await db.file_shares.insert_one(dict(share))
+    return public_view(share)
+
+
+async def list_shares(db, created_by: str) -> List[Dict[str, Any]]:
+    docs = await db.file_shares.find({"created_by": created_by, "is_active": True}, {"_id": 0}).to_list(length=500)
+    return [public_view(d) for d in docs]
+
+
+async def revoke_share(db, share_id: str, created_by: str) -> bool:
+    share = await db.file_shares.find_one({"id": share_id, "created_by": created_by, "is_active": True}, {"_id": 0})
+    if not share:
         return False
+    await db.file_shares.update_one({"id": share_id}, {"$set": {"is_active": False}})
+    try:
+        stored_path(share["stored_name"]).unlink(missing_ok=True)
+    except ValueError:
+        pass
+    return True
 
-    def access_share(self, token: str, password: Optional[str] = None) -> Dict[str, Any]:
-        import hmac
-        for share in self.shares:
-            if hmac.compare_digest(share.access_token, token):
-                if not share.is_active:
-                    return {"error": "Link revoked"}
-                if share.expires_at and datetime.now().isoformat() > share.expires_at:
-                    return {"error": "Link expired"}
-                if share.max_accesses and share.access_count >= share.max_accesses:
-                    return {"error": "Max accesses reached"}
-                if share.password_protected:
-                    if not password or not share.password_hash:
-                        return {"error": "Invalid password", "password_required": True}
-                    if not bcrypt.checkpw(password.encode("utf-8"), share.password_hash.encode("utf-8")):
-                        return {"error": "Invalid password", "password_required": True}
 
-                share.access_count += 1
-                return {"file_url": share.file_url, "file_name": share.file_name}
-        return {"error": "Not found"}
+async def open_share(raw_db, token: str, password: Optional[str]) -> Dict[str, Any]:
+    """Check a recipient's token/password and count the access.
 
-file_share_service = FileShareService()
+    Runs before any sign-in, so it reads the raw (non tenant-scoped) database by
+    the share's unique token. Returns {"share": ...} or {"error": ..., "status": ...}.
+    """
+    share = await raw_db.file_shares.find_one({"access_token": token, "is_active": True}, {"_id": 0})
+    if not share or not secrets.compare_digest(share["access_token"], token):
+        return {"error": "This link is invalid or has been revoked", "status": 404}
+    if share.get("expires_at") and _now().isoformat() > share["expires_at"]:
+        return {"error": "This link has expired", "status": 410}
+    if share.get("password_protected"):
+        if not password or not bcrypt.checkpw(password.encode("utf-8"), share["password_hash"].encode("utf-8")):
+            return {"error": "Password required", "status": 403, "password_required": True}
+    flt: Dict[str, Any] = {"id": share["id"]}
+    if share.get("max_accesses"):
+        # Atomic check-and-increment so parallel downloads can't exceed the limit
+        flt["access_count"] = {"$lt": share["max_accesses"]}
+    result = await raw_db.file_shares.update_one(flt, {"$inc": {"access_count": 1}})
+    if getattr(result, "modified_count", 1) == 0:
+        return {"error": "This link has reached its download limit", "status": 410}
+    return {"share": share}

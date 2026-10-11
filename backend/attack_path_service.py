@@ -32,14 +32,14 @@ class AttackPathService:
         stored = await self.db.attack_paths.find(query, {"_id": 0}).sort(
             "timestamp", -1
         ).to_list(length=50)
-        legacy = [d for d in stored if "simulated" not in d]
-        if legacy:
-            # Paths seeded before the simulated flag existed can't tell the UI
-            # whether they are demo data — purge them and rebuild below.
+        bad = [d for d in stored if d.get("simulated") is not False]
+        if bad:
+            # Demo paths (simulated=True) and paths saved before the flag existed
+            # are not evidence of real exposure — purge them and rebuild below.
             await self.db.attack_paths.delete_many(
-                {**query, "simulated": {"$exists": False}}
+                {**query, "simulated": {"$ne": False}}
             )
-            stored = [d for d in stored if "simulated" in d]
+            stored = [d for d in stored if d.get("simulated") is False]
         if stored:
             return stored
 
@@ -83,7 +83,9 @@ class AttackPathService:
 
         for entry in entry_assets[:5]:
             entry_vulns = vuln_by_asset.get(entry.get("id") or entry.get("name"), [])
-            if not entry_vulns and not target_assets:
+            # A path needs a real open vulnerability on its entry point; without
+            # one there is no exploit chain to show.
+            if not entry_vulns:
                 continue
 
             for target in target_assets[:3]:
@@ -139,70 +141,6 @@ class AttackPathService:
                 except Exception as e:
                     logger.debug("Failed to persist attack path %s: %s", path_id, e)
 
-        # No real data available — seed representative demo paths so the dashboard is not blank
-        if not paths:
-            paths = self._seed_demo_paths(tenant_id)
-            for p in paths:
-                try:
-                    await self.db.attack_paths.update_one({"id": p["id"]}, {"$set": p}, upsert=True)
-                except Exception as e:
-                    logger.debug("Failed to persist demo attack path: %s", e)
-
-        return paths
-
-    @staticmethod
-    def _seed_demo_paths(tenant_id: str) -> List[Dict[str, Any]]:
-        now = datetime.now(timezone.utc).isoformat()
-        scenarios = [
-            {
-                "name": "Exposed API Gateway → Production Database",
-                "entry": ("api-gateway-prod", "Public Asset", "CVE-2024-1234"),
-                "hop": "Internal Kubernetes Cluster",
-                "target": ("prod-postgres-db", "Crown Jewel"),
-                "probability": 0.82,
-                "impact": "Critical",
-                "open_vulns": 4,
-            },
-            {
-                "name": "VPN Endpoint → Domain Controller",
-                "entry": ("vpn-endpoint-01", "Public Asset", "CVE-2023-20269"),
-                "hop": "Corporate Network Segment",
-                "target": ("dc-primary", "Crown Jewel"),
-                "probability": 0.67,
-                "impact": "Critical",
-                "open_vulns": 2,
-            },
-            {
-                "name": "Web Server → Secret Manager",
-                "entry": ("web-app-server", "Public Asset", "CVE-2024-5678"),
-                "hop": "Internal Service Mesh",
-                "target": ("aws-secrets-manager", "Crown Jewel"),
-                "probability": 0.54,
-                "impact": "High",
-                "open_vulns": 3,
-            },
-        ]
-        paths = []
-        for s in scenarios:
-            pid = str(uuid.uuid4())
-            node_e = {"id": f"{pid}-0", "label": s["entry"][0], "type": s["entry"][1], "risk": 0.85}
-            node_h = {"id": f"{pid}-1", "label": s["hop"], "type": "Internal Service", "risk": 0.50}
-            node_t = {"id": f"{pid}-2", "label": s["target"][0], "type": s["target"][1], "risk": 0.95}
-            paths.append({
-                "id": pid,
-                "tenantId": tenant_id,
-                "name": s["name"],
-                "nodes": [node_e, node_h, node_t],
-                "edges": [
-                    {"source": node_e["id"], "target": node_h["id"], "vulnerability": s["entry"][2]},
-                    {"source": node_h["id"], "target": node_t["id"], "vulnerability": "Lateral Movement"},
-                ],
-                "probability": s["probability"],
-                "impact": s["impact"],
-                "openVulnerabilities": s["open_vulns"],
-                "timestamp": now,
-                "simulated": True,
-            })
         return paths
 
 

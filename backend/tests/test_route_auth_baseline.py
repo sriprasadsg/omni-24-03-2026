@@ -194,6 +194,7 @@ SELF_SERVICE_WRITES = frozenset({
     ("POST", "/api/support/conversations/{convo_id}/messages"),
     ("POST", "/api/support/conversations/{convo_id}/read"),
     ("PUT", "/api/training/progress/{assignment_id}"),
+    ("POST", "/api/training/progress/{assignment_id}/quiz"),
     ("POST", "/api/file-share/shares"), ("DELETE", "/api/file-share/shares/{share_id}"),
     ("POST", "/api/trust-center/requests"), ("POST", "/api/experiments/{experiment_id}/track"),
     ("POST", "/api/provenance/verify"), ("POST", "/api/cissp/oracle/chat"),

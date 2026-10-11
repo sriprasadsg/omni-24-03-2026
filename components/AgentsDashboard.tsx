@@ -103,6 +103,8 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
   }, [activeTenantId]);
 
   const onlineAgents = onlineAgentsCount ?? agents.filter(a => a.status === 'Online').length;
+  // Share of the fleet online right now (no uptime history is kept, so no "average uptime")
+  const fleetTotal = totalAgentsCount ?? agents.length;
   const offlineAgents = (totalAgentsCount && onlineAgentsCount !== null)
     ? (totalAgentsCount - onlineAgentsCount)
     : agents.filter(a => a.status === 'Offline').length;
@@ -391,8 +393,10 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
               <ZapIcon size={24} />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Avg Uptime</p>
-              <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">99.8%</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Online Now</p>
+              <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+                {isLoadingSummary ? '...' : fleetTotal ? `${Math.round((onlineAgents / fleetTotal) * 100)}%` : '—'}
+              </p>
             </div>
           </div>
         </div>

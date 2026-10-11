@@ -4,6 +4,19 @@ import { BombIcon, ZapIcon, CheckIcon, XCircleIcon, ClockIcon, ShieldAlertIcon, 
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
 
+export const SIM_TECHNIQUES = ['memory_write', 'thread_injection', 'dll_injection'];
+export const MITRE_TACTICS = [
+    'Reconnaissance', 'Resource Development', 'Initial Access', 'Execution', 'Persistence',
+    'Privilege Escalation', 'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement',
+    'Collection', 'Command & Control', 'Exfiltration', 'Impact',
+];
+// Process injection (T1055) is the only simulated technique family today
+export const SIMULATED_TACTICS = ['Privilege Escalation', 'Defense Evasion'];
+
+export const simulationCoverage = (history: { technique?: string }[]) => ({
+    exercised: SIM_TECHNIQUES.filter(t => history.some(h => h.technique === t)).length,
+});
+
 export const SecuritySimulation: React.FC = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [selectedAsset, setSelectedAsset] = useState<string>('');
@@ -54,92 +67,55 @@ export const SecuritySimulation: React.FC = () => {
         }
     };
 
-    const mitreTactics = [
-        { id: 'recon', name: 'Reconnaissance', coverage: 45 },
-        { id: 'resource', name: 'Resource Development', coverage: 20 },
-        { id: 'initial', name: 'Initial Access', coverage: 85 },
-        { id: 'execution', name: 'Execution', coverage: 92 },
-        { id: 'persistence', name: 'Persistence', coverage: 78 },
-        { id: 'privilege', name: 'Privilege Escalation', coverage: 65 },
-        { id: 'defense', name: 'Defense Evasion', coverage: 88 },
-        { id: 'credential', name: 'Credential Access', coverage: 72 },
-        { id: 'discovery', name: 'Discovery', coverage: 50 },
-        { id: 'lateral', name: 'Lateral Movement', coverage: 40 },
-        { id: 'collection', name: 'Collection', coverage: 30 },
-        { id: 'command', name: 'Command & Control', coverage: 60 },
-        { id: 'exfiltration', name: 'Exfiltration', coverage: 25 },
-        { id: 'impact', name: 'Impact', coverage: 15 },
-    ];
+    // Coverage is measured from simulations actually run. Only process-injection
+    // techniques (MITRE T1055: Defense Evasion + Privilege Escalation) can be
+    // simulated today; detection outcomes are not recorded, so no detection rate.
+    const coverage = simulationCoverage(history);
 
     const renderValidationLab = () => (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                 <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Overall Coverage</h3>
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Simulation Coverage</h3>
                     <div className="relative flex items-center justify-center h-48">
                         <svg className="w-40 h-40 transform -rotate-90">
                             <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100 dark:text-slate-700" />
-                            <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={440} strokeDashoffset={440 * (1 - 0.62)} className="text-indigo-600 transition-all duration-1000" strokeLinecap="round" />
+                            <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={440} strokeDashoffset={440 * (1 - coverage.exercised / SIM_TECHNIQUES.length)} className="text-indigo-600 transition-all duration-1000" strokeLinecap="round" />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-4xl font-black text-slate-900 dark:text-white">62%</span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Detection Rate</span>
+                            <span className="text-4xl font-black text-slate-900 dark:text-white">{coverage.exercised}/{SIM_TECHNIQUES.length}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Techniques Exercised</span>
                         </div>
                     </div>
-                    <div className="mt-4 space-y-2">
-                        <div className="flex justify-between text-xs font-bold">
-                            <span className="text-slate-500 uppercase">Verified Techniques</span>
-                            <span className="text-indigo-600">142/228</span>
-                        </div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                            <div className="bg-indigo-600 h-full rounded-full" style={{ width: '62%' }}></div>
-                        </div>
+                    <div className="mt-4 space-y-1 text-xs text-slate-500">
+                        <div className="flex justify-between font-bold"><span className="uppercase">Simulations run</span><span className="text-indigo-600">{history.length}</span></div>
+                        <p className="text-[10px] text-slate-400">Detection results aren't recorded yet, so no detection rate is shown.</p>
                     </div>
                 </div>
 
                 <div className="lg:col-span-3 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden relative">
-                    <div className="absolute top-0 right-0 p-6">
-                        <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold border border-emerald-200 animate-pulse">LIVE ANALYTICS</span>
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-6">MITRE ATT&CK® Coverage Matrix</h3>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-6">MITRE ATT&CK® Simulation Coverage</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                        {mitreTactics.map(tactic => (
-                            <div key={tactic.id} className="group relative">
-                                <div className={`aspect-square rounded-lg border flex flex-col items-center justify-center p-2 transition-all cursor-help ${
-                                    tactic.coverage > 80 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
-                                    tactic.coverage > 50 ? 'bg-amber-500/10 border-amber-500/30 text-amber-600' :
-                                    'bg-red-500/10 border-red-500/30 text-red-600'
+                        {MITRE_TACTICS.map(tactic => {
+                            const supported = SIMULATED_TACTICS.includes(tactic);
+                            const runs = supported ? history.length : 0;
+                            return (
+                                <div key={tactic} className={`aspect-square rounded-lg border flex flex-col items-center justify-center p-2 ${
+                                    !supported ? 'bg-slate-500/5 border-slate-500/20 text-slate-400' :
+                                    runs > 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600' :
+                                    'bg-amber-500/10 border-amber-500/30 text-amber-600'
                                 }`}>
-                                    <span className="text-[9px] font-black uppercase tracking-tighter text-center leading-tight mb-1">{tactic.name}</span>
-                                    <span className="text-xs font-black">{tactic.coverage}%</span>
+                                    <span className="text-[9px] font-black uppercase tracking-tighter text-center leading-tight mb-1">{tactic}</span>
+                                    <span className="text-[10px] font-bold text-center">{supported ? `${runs} run${runs === 1 ? '' : 's'}` : 'No simulation available'}</span>
                                 </div>
-                                <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 p-2 bg-slate-900 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                    <p className="font-bold border-b border-white/20 pb-1 mb-1">{tactic.name}</p>
-                                    <p className="text-white/70">Verified: {Math.floor(tactic.coverage * 0.2)} techniques</p>
-                                    <p className="text-white/70">Gap: {Math.floor((100 - tactic.coverage) * 0.2)} techniques</p>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                     <div className="mt-8 flex items-center gap-4 text-[10px] font-bold text-slate-400">
-                        <span className="flex items-center"><span className="w-3 h-3 bg-emerald-500/20 border border-emerald-500/40 rounded mr-1"></span> HIGH ({'>'}80%)</span>
-                        <span className="flex items-center"><span className="w-3 h-3 bg-amber-500/20 border border-amber-500/40 rounded mr-1"></span> MEDIUM (50-80%)</span>
-                        <span className="flex items-center"><span className="w-3 h-3 bg-red-500/20 border border-red-500/40 rounded mr-1"></span> LOW ({'<'}50%)</span>
+                        <span className="flex items-center"><span className="w-3 h-3 bg-emerald-500/20 border border-emerald-500/40 rounded mr-1"></span> SIMULATED</span>
+                        <span className="flex items-center"><span className="w-3 h-3 bg-amber-500/20 border border-amber-500/40 rounded mr-1"></span> AVAILABLE, NOT RUN</span>
+                        <span className="flex items-center"><span className="w-3 h-3 bg-slate-500/10 border border-slate-500/30 rounded mr-1"></span> NO SIMULATION</span>
                     </div>
-                </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 p-8 rounded-2xl text-white border border-indigo-500/30">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="max-w-xl">
-                        <h3 className="text-xl font-bold mb-2">Automated Adversary Simulation</h3>
-                        <p className="text-indigo-200 text-sm">
-                            Generate a comprehensive gap analysis report by running our "Adversary Pack 2026". This will simulate known advanced persistent threat (APT) behaviors across your environment.
-                        </p>
-                    </div>
-                    <button className="px-8 py-3 bg-white text-indigo-900 rounded-xl font-black hover:bg-indigo-50 transition-all shadow-xl shadow-indigo-500/20 whitespace-nowrap">
-                        RUN ADVERSARY PACK
-                    </button>
                 </div>
             </div>
         </div>

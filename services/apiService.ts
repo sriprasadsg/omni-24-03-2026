@@ -1498,13 +1498,28 @@ export const fetchProvisionedServices = async (tenantId?: string): Promise<Provi
         return [];
     }
 };
+// /api/dora/metrics reports lead time and MTTR in minutes (`leadTimeForChanges`,
+// `mttr`) and no `date`; the dashboard shows hours and charts by date.
+export const normalizeDoraMetrics = (m: any): DoraMetrics => {
+    const hours = (minutes: unknown) => Math.round((Number(minutes) || 0) / 60 * 10) / 10;
+    return {
+        tenantId: m.tenantId,
+        date: m.date || (m.calculatedAt ? String(m.calculatedAt).slice(0, 10) : ''),
+        deploymentFrequency: Number(m.deploymentFrequency) || 0,
+        leadTimeForChanges: hours(m.leadTimeForChanges),
+        changeFailureRate: Number(m.changeFailureRate) || 0,
+        meanTimeToRecovery: m.mttr !== undefined ? hours(m.mttr) : Number(m.meanTimeToRecovery) || 0,
+    };
+};
+
 export const fetchDoraMetrics = async (tenantId?: string): Promise<DoraMetrics[]> => {
     try {
         const url = tenantId ? `${API_BASE}/dora/metrics?tenantId=${tenantId}` : `${API_BASE}/dora/metrics`;
         const res = await authFetch(url);
         if (!res.ok) throw new Error('Failed to fetch DORA metrics');
         const data = await res.json();
-        return Array.isArray(data) ? data : (data.items || []);
+        const rows: any[] = Array.isArray(data) ? data : (data.items || []);
+        return rows.map(normalizeDoraMetrics);
     } catch (e) {
         console.warn('Backend offline for DORA metrics', e);
         return [];
@@ -1714,6 +1729,17 @@ export const fetchTrustProfile = async (): Promise<TrustProfile | null> => {
         return await res.json();
     } catch (e) {
         console.error("Error fetching trust profile:", e);
+        return null;
+    }
+};
+
+export const fetchTrustAnalytics = async (): Promise<{ profile_views_30d: number; public_documents: number } | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/trust-center/analytics`);
+        if (!res.ok) throw new Error("Failed to fetch trust analytics");
+        return await res.json();
+    } catch (e) {
+        console.error("Error fetching trust analytics:", e);
         return null;
     }
 };

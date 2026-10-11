@@ -1,56 +1,64 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  Cpu, 
-  Database, 
-  Activity, 
-  Zap, 
-  Lock, 
-  RefreshCcw, 
-  Workflow,
-  Globe
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ShieldCheck, Cpu, Database, Lock, Globe, AlertTriangle } from 'lucide-react';
+import { authFetch, fetchCryptoInventory, fetchAgents } from '../services/apiService';
+import { CryptographicInventory } from '../types';
+
+interface ProvenanceStatus { chain_length: number; latest_hash: string | null; standard?: string }
+
+// Built from live sources (provenance chain, crypto inventory, agent fleet);
+// this page used to be a static mock-up with invented figures.
+export const horizonSummary = (inventory: CryptographicInventory[], agents: any[]) => ({
+    cryptoAssets: inventory.length,
+    quantumVulnerable: inventory.filter(i => i.quantumVulnerable).length,
+    agentsOnline: agents.filter(a => String(a.status || '').toLowerCase() === 'online').length,
+    agentsTotal: agents.length,
+});
 
 const FutureTechDashboard: React.FC = () => {
-  const [swarmNodes, setSwarmNodes] = useState(10245);
-  const [enclaveHealth, setEnclaveHealth] = useState(99.98);
-  const [pqcStandard, setPqcStandard] = useState('Kyber-768 Hybrid');
+  const [provenance, setProvenance] = useState<ProvenanceStatus | null>(null);
+  const [inventory, setInventory] = useState<CryptographicInventory[]>([]);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const [prov, inv, ag] = await Promise.all([
+        authFetch('/api/provenance/status').then(r => (r.ok ? r.json() : null)).catch(() => null),
+        fetchCryptoInventory(),
+        fetchAgents(),
+      ]);
+      setProvenance(prov);
+      setInventory(Array.isArray(inv) ? inv : []);
+      setAgents(Array.isArray(ag) ? ag : []);
+      setLoaded(true);
+    })();
+  }, []);
+
+  const s = horizonSummary(inventory, agents);
+  const dash = (v: string | number) => (loaded ? String(v) : '…');
+  const stats = [
+    { label: 'Provenance Blocks', value: dash(provenance ? provenance.chain_length : '—'), icon: Database, color: 'text-emerald-400' },
+    { label: 'Crypto Assets Tracked', value: dash(s.cryptoAssets), icon: Lock, color: 'text-cyan-400' },
+    { label: 'Quantum-Vulnerable', value: dash(s.quantumVulnerable), icon: AlertTriangle, color: 'text-amber-400' },
+    { label: 'Agents Online', value: dash(`${s.agentsOnline} / ${s.agentsTotal}`), icon: Globe, color: 'text-indigo-400' },
+  ];
+  const vulnerable = inventory.filter(i => i.quantumVulnerable);
 
   return (
     <div className="p-8 bg-[#040812] min-h-screen text-slate-100 font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-end mb-10">
-          <div>
-            <h1 className="text-4xl font-black tracking-tight mb-2 bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">
-              2027 INNOVATION HORIZON
-            </h1>
-            <p className="text-slate-400 text-lg">Autonomous Intelligence & Quantum Resilience Engine</p>
-          </div>
-          <div className="flex gap-3">
-            <span className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-xs font-bold tracking-widest uppercase">
-              Live Preview
-            </span>
-            <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-full text-indigo-400 text-xs font-bold tracking-widest uppercase">
-              Quantum Secure
-            </span>
-          </div>
+        <div className="mb-10">
+          <h1 className="text-4xl font-black tracking-tight mb-2 bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">
+            2027 HORIZON
+          </h1>
+          <p className="text-slate-400 text-lg">Log provenance and post-quantum readiness</p>
         </div>
 
-        {/* Top Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          {[
-            { label: 'Active Enclaves', value: '42', icon: Cpu, color: 'text-cyan-400' },
-            { label: 'Swarm Nodes', value: swarmNodes.toLocaleString(), icon: Globe, color: 'text-indigo-400' },
-            { label: 'Integrity Proofs', value: '1.2M', icon: Database, color: 'text-emerald-400' },
-            { label: 'PQC Handshakes', value: '8.4k/s', icon: Zap, color: 'text-amber-400' },
-          ].map((stat, i) => (
-            <div key={i} className="bg-slate-900/50 border border-slate-800 p-6 rounded-2xl backdrop-blur-sm">
-              <div className="flex justify-between items-start mb-4">
-                <div className={`p-2 rounded-lg bg-slate-800 ${stat.color}`}>
-                  <stat.icon size={20} />
-                </div>
-                <Activity size={16} className="text-slate-700" />
+          {stats.map(stat => (
+            <div key={stat.label} className="bg-slate-900/50 border border-slate-800 p-6 rounded-2xl backdrop-blur-sm">
+              <div className={`p-2 rounded-lg bg-slate-800 w-fit mb-4 ${stat.color}`}>
+                <stat.icon size={20} />
               </div>
               <p className="text-slate-500 text-sm font-medium mb-1">{stat.label}</p>
               <h3 className="text-3xl font-bold">{stat.value}</h3>
@@ -58,132 +66,49 @@ const FutureTechDashboard: React.FC = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 1. Digital Provenance & Integrity */}
-          <div className="lg:col-span-2 space-y-8">
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-400">
-                  <Database size={24} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">Digital Provenance Ledger</h2>
-                  <p className="text-sm text-slate-500">Merkle-Chained Immutable Log Verification</p>
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-400"><ShieldCheck size={24} /></div>
+              <div>
+                <h2 className="text-xl font-bold">Provenance Ledger</h2>
+                <p className="text-sm text-slate-500">Merkle-chained log blocks signed by this server</p>
               </div>
-              
-              <div className="space-y-4">
-                {[1, 2, 3].map((_, i) => (
-                  <div key={i} className="flex items-center gap-6 p-4 bg-slate-950/50 rounded-xl border border-slate-800">
-                    <div className="flex-shrink-0 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <div className="flex-grow">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-mono text-slate-500 uppercase tracking-wider">Block #{42000 + i}</span>
-                        <span className="text-[10px] text-slate-600 font-mono">0x74f...8a2e</span>
-                      </div>
-                      <p className="text-sm font-medium">Log Batch Verified • {12 + i} Entries</p>
-                    </div>
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <ShieldCheck size={16} />
-                      <span className="text-xs font-bold">SIGNED</span>
-                    </div>
-                  </div>
-                ))}
+            </div>
+            {!loaded ? null : !provenance ? (
+              <p className="text-sm text-slate-500">Provenance status unavailable.</p>
+            ) : provenance.chain_length === 0 ? (
+              <p className="text-sm text-slate-500">No log blocks have been signed since the backend started.</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p><span className="text-slate-500">Blocks in chain:</span> {provenance.chain_length}</p>
+                <p className="font-mono text-xs break-all"><span className="text-slate-500 font-sans">Latest hash:</span> {provenance.latest_hash}</p>
               </div>
-              <button className="w-full mt-6 py-3 text-sm font-bold text-slate-400 border border-dashed border-slate-700 rounded-xl hover:bg-slate-800/50 transition-all">
-                Audit Full Chain History
-              </button>
-            </div>
-
-            {/* 2. Swarm Immunity */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8 relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-8 opacity-10">
-                  <Workflow size={120} />
-               </div>
-               <div className="relative">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-400">
-                    <Workflow size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold">Digital Immune Swarm</h2>
-                    <p className="text-sm text-slate-500">Autonomous Antibody Propagation (10,000 Nodes)</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-6 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    <RefreshCcw className="text-indigo-400 animate-spin-slow" size={32} />
-                    <div>
-                      <p className="text-sm font-bold text-indigo-300">Active Learning Loop</p>
-                      <p className="text-xs text-indigo-400/70 italic">Synthesizing defense rules from recent edge anomalies...</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-black">99.99%</p>
-                    <p className="text-[10px] text-indigo-400 font-bold tracking-tighter uppercase">Immunity Coverage</p>
-                  </div>
-                </div>
-               </div>
-            </div>
+            )}
           </div>
 
-          {/* Sidebar Area: PQC & Enclaves */}
-          <div className="space-y-8">
-            {/* Crypto-Agility Card */}
-            <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900/40 border border-indigo-500/20 rounded-3xl p-8">
-              <div className="p-3 bg-indigo-500/10 rounded-2xl text-indigo-400 w-fit mb-6">
-                <Lock size={24} />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Crypto-Agility Hub</h3>
-              <p className="text-sm text-indigo-300/60 mb-6">Real-time PQC Migration & Management</p>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500">Active Standard</span>
-                  <span className="font-bold text-indigo-400">{pqcStandard}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500">Classical Fallback</span>
-                  <span className="font-bold">X25519 (ECC)</span>
-                </div>
-                <div className="pt-4 border-t border-indigo-500/10">
-                   <div className="w-full h-1 bg-slate-800 rounded-full mb-2">
-                      <div className="w-4/5 h-full bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
-                   </div>
-                   <p className="text-[10px] text-center text-indigo-400 font-bold uppercase tracking-tighter">
-                      Fleet Migration Progress: 80%
-                   </p>
-                </div>
+          <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-cyan-500/10 rounded-2xl text-cyan-400"><Cpu size={24} /></div>
+              <div>
+                <h2 className="text-xl font-bold">Crypto-Agility</h2>
+                <p className="text-sm text-slate-500">Algorithms in use that need a post-quantum replacement</p>
               </div>
             </div>
-
-            {/* Confidential Computing Card */}
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8">
-              <div className="p-3 bg-cyan-500/10 rounded-2xl text-cyan-400 w-fit mb-6">
-                <Cpu size={24} />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Enclave Health</h3>
-              <p className="text-sm text-slate-500 mb-6">TEE Attestation & Isolation Status</p>
-
-              <div className="flex items-center gap-4 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl mb-4">
-                <ShieldCheck className="text-cyan-400" size={20} />
-                <span className="text-xs font-bold text-cyan-300">HW-Attestation Verified</span>
-              </div>
-
-              <div className="space-y-3">
-                 {[
-                   { label: 'Isolated Memory', val: '64GB' },
-                   { label: 'Attestation Std', val: 'DCAP v3' },
-                   { label: 'Hardware Key', val: 'TPM 2.0+' }
-                 ].map((row, i) => (
-                   <div key={i} className="flex justify-between items-center text-xs">
-                      <span className="text-slate-500">{row.label}</span>
-                      <span className="font-mono text-cyan-400">{row.val}</span>
-                   </div>
-                 ))}
-              </div>
-            </div>
+            {loaded && inventory.length === 0 ? (
+              <p className="text-sm text-slate-500">No cryptographic inventory recorded yet.</p>
+            ) : loaded && vulnerable.length === 0 ? (
+              <p className="text-sm text-emerald-400">None of the {inventory.length} tracked algorithms is quantum-vulnerable.</p>
+            ) : (
+              <ul className="divide-y divide-slate-800 text-sm">
+                {vulnerable.slice(0, 8).map(item => (
+                  <li key={item.id} className="py-2 flex justify-between gap-4">
+                    <span><span className="font-semibold">{item.algorithm}</span> <span className="text-slate-500">· {item.usage}</span></span>
+                    <span className="text-amber-400 text-xs whitespace-nowrap">→ {item.replacementAlgorithm || 'replacement TBD'} ({item.migrationPriority})</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>

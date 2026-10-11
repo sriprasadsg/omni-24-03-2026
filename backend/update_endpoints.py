@@ -34,15 +34,32 @@ SPYGLASS_UNIFIED = os.path.join(SPYGLASS_DIR, "unified-collection.ps1")
 AGENT_COLLECT_PS1 = os.path.join(PROJECT_ROOT, "agent", "installer", "Collect-Evidence.ps1")
 
 
+def installer_build_info() -> dict:
+    """Whether this server can hand out the Windows EXE installer, and why not."""
+    import sys
+    prebuilt = os.path.exists(os.path.join(BINARY_STORAGE_PATH, "OmniAgent-Setup.exe"))
+    can_build = sys.platform == "win32"
+    reason = None
+    if not (prebuilt or can_build):
+        reason = ("The Windows installer can only be built on a Windows server, and no prebuilt "
+                  "OmniAgent-Setup.exe is present in backend/static. Use the PowerShell install commands instead.")
+    return {"available": prebuilt or can_build, "prebuilt": prebuilt, "can_build": can_build, "reason": reason}
+
+
 def _run_build(task_id: str, capabilities: list[str] = None):
     """Build the EXE/MSI installer with spyglass evidence capture (runs on thread pool)."""
     import sys
     import shutil
 
-    # Windows-only build: powershell.exe, iscc.exe, makensis — none exist on Linux.
+    # The installer build needs Windows tooling (PowerShell evidence step, and
+    # the NSIS script packages a Windows-built agent). Elsewhere, serve an
+    # already-built installer if one was placed in backend/static.
     if sys.platform != "win32":
-        logger.info("[Build] Skipping EXE build (not Windows)")
-        BUILD_STATE[task_id] = {"status": "failed", "path": None, "error": "Windows EXE build requires Windows"}
+        info = installer_build_info()
+        if info["prebuilt"]:
+            BUILD_STATE[task_id] = {"status": "done", "path": os.path.join(BINARY_STORAGE_PATH, "OmniAgent-Setup.exe"), "error": None}
+        else:
+            BUILD_STATE[task_id] = {"status": "failed", "path": None, "error": info["reason"]}
         return
 
     BUILD_STATE[task_id] = {"status": "building", "path": None, "error": None}
@@ -269,25 +286,14 @@ def _sha256_of(path: str) -> str:
 
 
 @router.get("/download/{filename}")
-async def download_agent_binary(filename: str, capabilities: str = None):
+async def download_agent_binary(filename: str):
     # Allow downloading specific named files like 'omni-agent.exe' if they exist
     # or map 'omni-agent.exe' to the latest version
     target_path, filename = _resolve_servable_path(filename)
 
     if not os.path.exists(target_path):
-        # Auto-trigger build if file doesn't exist and it's the installer
-        if filename in ("OmniAgent-Setup.exe",):
-            task_id = str(uuid.uuid4())
-            parsed_capabilities = capabilities.split(',') if capabilities else None
-            _executor.submit(_run_build, task_id, parsed_capabilities)
-            raise HTTPException(
-                status_code=202,
-                detail={
-                    "message": "Build triggered. Poll status at GET /api/agent-updates/build/" + task_id,
-                    "task_id": task_id,
-                    "poll_url": f"/api/agent-updates/build/{task_id}"
-                }
-            )
+        # This route is public, so it never starts a build; builds go through the
+        # authenticated POST /build (manage:agents).
         raise HTTPException(status_code=404, detail="Binary not found")
 
     return FileResponse(target_path, filename=filename, media_type="application/octet-stream")
@@ -307,6 +313,12 @@ async def get_agent_checksum(filename: str):
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="Binary not found")
     return {"filename": resolved_filename, "algorithm": "sha256", "sha256": _sha256_of(target_path)}
+
+
+@router.get("/build-info")
+async def get_build_info(current_user=Depends(get_current_user)):
+    """Tell the UI up front whether the Windows installer can be produced here."""
+    return installer_build_info()
 
 
 @router.post("/build")

@@ -54,6 +54,34 @@ interface SystemHealth {
     }>;
 }
 
+type InfraAlert = { level: 'critical' | 'warning' | 'ok'; title: string; detail: string };
+
+const ALERT_STYLE = {
+    critical: { box: 'bg-red-50 dark:bg-red-900/20 border-red-500', icon: 'text-red-500', title: 'text-red-900 dark:text-red-200', text: 'text-red-700 dark:text-red-300' },
+    warning: { box: 'bg-amber-50 dark:bg-amber-900/20 border-amber-500', icon: 'text-amber-500', title: 'text-amber-900 dark:text-amber-200', text: 'text-amber-700 dark:text-amber-300' },
+    ok: { box: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500', icon: 'text-emerald-500', title: 'text-emerald-900 dark:text-emerald-200', text: 'text-emerald-700 dark:text-emerald-300' },
+};
+
+// Alerts derived from the live health snapshot (nothing here is canned)
+export const infraAlerts = (h: SystemHealth): InfraAlert[] => {
+    const out: InfraAlert[] = [];
+    if (!h.database?.connected) out.push({ level: 'critical', title: 'Database Disconnected', detail: 'The backend cannot reach MongoDB.' });
+    const r = h.resources;
+    if (r?.available) {
+        if (r.cpu_percent >= 90) out.push({ level: 'warning', title: 'High CPU', detail: `CPU at ${r.cpu_percent}%.` });
+        if (r.memory_percent >= 90) out.push({ level: 'warning', title: 'High Memory', detail: `Memory at ${r.memory_percent}%.` });
+        if (r.disk_percent >= 85) out.push({ level: r.disk_percent >= 95 ? 'critical' : 'warning', title: 'Disk Space Low', detail: `Disk at ${r.disk_percent}%.` });
+    }
+    if ((h.queues?.alert_queue ?? 0) >= 500) out.push({ level: 'warning', title: 'Alert Queue Backlog', detail: `${h.queues.alert_queue} alerts waiting.` });
+    const f = h.agent_fleet;
+    if (f?.stale) out.push({ level: 'warning', title: 'Stale Agents', detail: `${f.stale} agent(s) stopped reporting recently.` });
+    if (f?.offline) out.push({ level: 'warning', title: 'Agents Offline', detail: `${f.offline} of ${f.total} agent(s) offline.` });
+    const stopped = (h.background_tasks || []).filter(t => t.status !== 'running');
+    if (stopped.length) out.push({ level: 'warning', title: 'Background Tasks Not Running', detail: stopped.map(t => t.name).join(', ') });
+    if (!out.length) out.push({ level: 'ok', title: 'All Checks Passing', detail: 'Database, resources, queues, agents and background tasks look healthy.' });
+    return out;
+};
+
 export const SystemHealthDashboard: React.FC = () => {
     const [health, setHealth] = useState<SystemHealth | null>(null);
     const [loading, setLoading] = useState(true);
@@ -233,7 +261,7 @@ export const SystemHealthDashboard: React.FC = () => {
                             Background Processing Loops
                         </h2>
                         <span className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-full font-bold text-slate-500">
-                            {health?.background_tasks.length} ACTIVE
+                            {health?.background_tasks.filter(t => t.status === 'running').length ?? 0} ACTIVE
                         </span>
                     </div>
                     <div className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -249,8 +277,8 @@ export const SystemHealthDashboard: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-3">
-                                    <div className="flex items-center text-emerald-500 text-xs font-bold uppercase tracking-wider">
-                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                    <div className={`flex items-center text-xs font-bold uppercase tracking-wider ${task.status === 'running' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                        {task.status === 'running' ? <CheckCircle className="w-3 h-3 mr-1" /> : <AlertCircle className="w-3 h-3 mr-1" />}
                                         {task.status}
                                     </div>
                                     <ChevronRight className="w-4 h-4 text-slate-300" />
@@ -267,30 +295,17 @@ export const SystemHealthDashboard: React.FC = () => {
                         Infrastructure Alerts
                     </h2>
                     <div className="space-y-4">
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded flex space-x-3">
-                            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-red-900 dark:text-red-200">Database Latency Spike</p>
-                                <p className="text-xs text-red-700 dark:text-red-300 opacity-80">Latency &gt; 500ms detected in Cluster-A. Connections are being queued.</p>
-                                <span className="text-[10px] text-red-500 mt-1 block">2 minutes ago</span>
+                        {health && infraAlerts(health).map((a, idx) => (
+                            <div key={idx} className={`p-3 border-l-4 rounded flex space-x-3 ${ALERT_STYLE[a.level].box}`}>
+                                {a.level === 'ok'
+                                    ? <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${ALERT_STYLE[a.level].icon}`} />
+                                    : <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${ALERT_STYLE[a.level].icon}`} />}
+                                <div>
+                                    <p className={`text-sm font-bold ${ALERT_STYLE[a.level].title}`}>{a.title}</p>
+                                    <p className={`text-xs opacity-80 ${ALERT_STYLE[a.level].text}`}>{a.detail}</p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 rounded flex space-x-3">
-                            <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-amber-900 dark:text-amber-200">Queue Depth Warning</p>
-                                <p className="text-xs text-amber-700 dark:text-amber-300 opacity-80">Alert queue depth exceeded 80% of warning threshold.</p>
-                                <span className="text-[10px] text-amber-500 mt-1 block">15 minutes ago</span>
-                            </div>
-                        </div>
-                        <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 rounded flex space-x-3">
-                            <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                            <div>
-                                <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">Scheduled NVD Sync</p>
-                                <p className="text-xs text-emerald-700 dark:text-emerald-300 opacity-80">CVE database synchronization completed successfully.</p>
-                                <span className="text-[10px] text-emerald-500 mt-1 block">1 hour ago</span>
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
             </div>

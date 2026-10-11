@@ -188,7 +188,16 @@ async def public_trust_page(slug: str):
     """
     from fastapi.responses import FileResponse
     _path = os.path.join(os.path.dirname(__file__), "static", "trust-page.html")
-    return FileResponse(_path, media_type="text/html")
+    # The in-app "Public Trust Page Preview" frames this page, so allow
+    # same-origin framing here only (everything else stays X-Frame-Options DENY).
+    return FileResponse(_path, media_type="text/html", headers={
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; connect-src 'self'; font-src 'self' data:; "
+            "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self';"
+        ),
+    })
 
 
 @app.get("/static/win-install.ps1")

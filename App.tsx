@@ -214,7 +214,7 @@ const RemediationDashboard = lazy(() => import('./components/RemediationDashboar
 const RemoteAccessDashboard = lazy(() => import('./components/RemoteAccessDashboard').then(m => ({ default: m.RemoteAccessDashboard || m.default || Object.values(m)[0] })));
 const RetentionPoliciesDashboard = lazy(() => import('./components/RetentionPoliciesDashboard').then(m => ({ default: m.default })));
 const RollbackDashboard = lazy(() => import('./components/RollbackDashboard').then(m => ({ default: m.RollbackDashboard || m.default || Object.values(m)[0] })));
-const RuntimeSecurityDashboard = lazy(() => import('./components/RuntimeSecurityTab').then(m => ({ default: m.RuntimeSecurityTab })));
+const RuntimeSecurityDashboard = lazy(() => import('./components/RuntimeSecurityPage').then(m => ({ default: m.RuntimeSecurityPage })));
 const SASTDashboardLazy = lazy(() => import('./components/SASTDashboard').then(m => ({ default: m.SASTDashboard })));
 const SCADashboard = lazy(() => import('./components/SCADashboard').then(m => ({ default: m.default })));
 const SecurityCopilotDashboard = lazy(() => import('./components/SecurityCopilotDashboard').then(m => ({ default: m.default })));
@@ -985,13 +985,19 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadAllData]);
 
-  // Periodic Data Refresh (every 30s)
+  // Periodic Data Refresh (every 30s). Each refresh is ~45 API calls, so a tab
+  // in the background skips it and catches up as soon as it is visible again.
   useEffect(() => {
     if (!isBackendConnected) return;
     const interval = setInterval(() => {
-      loadAllData();
+      if (!document.hidden) loadAllData();
     }, 30000);
-    return () => clearInterval(interval);
+    const onVisible = () => { if (!document.hidden) loadAllData(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [isBackendConnected, loadAllData]);
 
   // Targeted Polling for Agents View (every 5s)
@@ -1996,7 +2002,7 @@ const App: React.FC = () => {
       case 'emailSecurity': return <ErrorBoundary name="EmailSecurityDashboard"><EmailSecurityDashboard /></ErrorBoundary>;
       case 'supplyChain': return <ErrorBoundary name="SupplyChainDashboard"><SupplyChainDashboard /></ErrorBoundary>;
       case 'fim': return <ErrorBoundary name="FimAlertsDashboard"><Suspense fallback={<SkeletonDashboard />}><FimAlertsDashboard /></Suspense></ErrorBoundary>;
-      case 'runtimeSecurity': return <ErrorBoundary name="RuntimeSecurityDashboard"><Suspense fallback={<SkeletonDashboard />}><RuntimeSecurityDashboard /></Suspense></ErrorBoundary>;
+      case 'runtimeSecurity': return <ErrorBoundary name="RuntimeSecurityDashboard"><Suspense fallback={<SkeletonDashboard />}><RuntimeSecurityDashboard agents={tenantData.agents} /></Suspense></ErrorBoundary>;
       case 'sast': return <ErrorBoundary name="SASTDashboard"><Suspense fallback={<SkeletonDashboard />}><SASTDashboardLazy /></Suspense></ErrorBoundary>;
       case 'remoteAccess': return <ErrorBoundary name="RemoteAccessDashboard"><Suspense fallback={<SkeletonDashboard />}><RemoteAccessDashboard /></Suspense></ErrorBoundary>;
       case 'agentChat': return <ErrorBoundary name="ChatHubEndpoint"><Suspense fallback={<SkeletonDashboard />}><ChatHub initialTab="endpoint" /></Suspense></ErrorBoundary>;

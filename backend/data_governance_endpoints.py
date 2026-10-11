@@ -110,24 +110,7 @@ async def get_data_lineage(
             src_id = (source_layer[0].get("id") or source_layer[0].get("name", "")).lower().replace(" ", "_")
             edges.append({"source": src_id, "target": nid, "label": "direct"})
 
-    # Seed with platform defaults if catalog is empty
-    if not nodes:
-        nodes = [
-            {"id": "agents_db",    "label": "Agent Telemetry DB",   "type": "source",      "classification": "CONFIDENTIAL", "owner": "Platform"},
-            {"id": "assets_db",    "label": "Asset Inventory",       "type": "source",      "classification": "INTERNAL",     "owner": "Platform"},
-            {"id": "etl_normalize","label": "ETL Normalization",      "type": "process",     "classification": "INTERNAL",     "owner": "Data Eng"},
-            {"id": "etl_enrich",   "label": "CVE Enrichment",         "type": "process",     "classification": "INTERNAL",     "owner": "Data Eng"},
-            {"id": "data_lake",    "label": "Security Data Lake",     "type": "destination", "classification": "RESTRICTED",   "owner": "CISO"},
-            {"id": "warehouse",    "label": "Analytics Warehouse",    "type": "destination", "classification": "INTERNAL",     "owner": "Analytics"},
-        ]
-        edges = [
-            {"source": "agents_db",     "target": "etl_normalize", "label": "ingest"},
-            {"source": "assets_db",     "target": "etl_normalize", "label": "ingest"},
-            {"source": "etl_normalize", "target": "etl_enrich",    "label": "transform"},
-            {"source": "etl_enrich",    "target": "data_lake",     "label": "load"},
-            {"source": "etl_enrich",    "target": "warehouse",     "label": "load"},
-        ]
-
+    # Empty catalog means an empty graph — never a made-up default lineage
     return {"nodes": nodes, "edges": edges}
 
 # --- Quality Endpoints ---

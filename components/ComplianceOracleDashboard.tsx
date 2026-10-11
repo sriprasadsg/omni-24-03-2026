@@ -39,10 +39,10 @@ const ComplianceOracleDashboard: React.FC = () => {
     };
 
     return (
-        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+        <div className="p-6 space-y-6 bg-slate-50 min-h-screen dark:bg-slate-900">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Generative Compliance Oracle</h1>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Generative Compliance Oracle</h1>
                     <p className="text-slate-500">Transform natural language policies into executable technical rules using AI</p>
                 </div>
                 <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium border border-indigo-100">
@@ -52,15 +52,15 @@ const ComplianceOracleDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Input Section */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col h-full">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col h-full dark:bg-slate-800 dark:border-slate-700">
                     <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <Upload size={20} className="text-blue-600" /> Policy Input
                     </h2>
-                    <p className="text-sm text-slate-600 mb-4">
+                    <p className="text-sm text-slate-600 mb-4 dark:text-slate-300">
                         Paste your compliance policy text (e.g., from PDF or Wiki) below. The Oracle will parse it and generate Rego/Terraform constraints.
                     </p>
                     <textarea
-                        className="flex-1 w-full p-4 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-none font-mono mb-4"
+                        className="flex-1 w-full p-4 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none resize-none font-mono mb-4 dark:bg-slate-900 dark:border-slate-700"
                         placeholder="e.g. 'All data stored in cloud storage must be encrypted using AES-256. Access logs must be retained for at least 90 days.'"
                         value={policyText}
                         onChange={(e) => setPolicyText(e.target.value)}
@@ -78,7 +78,7 @@ const ComplianceOracleDashboard: React.FC = () => {
                 </div>
 
                 {/* Output Section */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 min-h-[500px] overflow-y-auto">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 min-h-[500px] overflow-y-auto dark:bg-slate-800 dark:border-slate-700">
                     <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <Code size={20} className="text-purple-600" /> Generated Constraints
                     </h2>
@@ -91,15 +91,15 @@ const ComplianceOracleDashboard: React.FC = () => {
                     ) : (
                         <div className="space-y-6 animate-in fade-in duration-500">
                             {/* Summary Card */}
-                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100 dark:bg-slate-900 dark:border-slate-700">
                                 <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-semibold text-slate-800">Analysis Summary</h3>
+                                    <h3 className="font-semibold text-slate-800 dark:text-slate-100">Analysis Summary</h3>
                                     <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Confidence: {(result.confidence_score * 100).toFixed(1)}%</span>
                                 </div>
-                                <p className="text-sm text-slate-600">{result.summary}</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-300">{result.summary}</p>
                                 <div className="mt-3 flex flex-wrap gap-2">
                                     {result.extracted_policies.map((p, i) => (
-                                        <span key={i} className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 flex items-center gap-1">
+                                        <span key={i} className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 flex items-center gap-1 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
                                             <CheckCircle size={10} className="text-green-500" /> {p}
                                         </span>
                                     ))}
@@ -109,11 +109,11 @@ const ComplianceOracleDashboard: React.FC = () => {
                             {/* Rules List */}
                             <div className="space-y-4">
                                 {result.generated_rules.map((rule, idx) => (
-                                    <div key={idx} className="border border-slate-200 rounded-lg overflow-hidden">
-                                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                                    <div key={idx} className="border border-slate-200 rounded-lg overflow-hidden dark:border-slate-700">
+                                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between items-center dark:bg-slate-900 dark:border-slate-700">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-mono font-bold text-slate-500">{rule.policy_id}</span>
-                                                <span className="text-sm font-semibold text-slate-800">{rule.rule_name}</span>
+                                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{rule.rule_name}</span>
                                             </div>
                                             <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${rule.severity === 'Critical' ? 'bg-red-100 text-red-700' :
                                                     rule.severity === 'High' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'

@@ -44,8 +44,8 @@ export const AttackPathDashboard: React.FC<AttackPathDashboardProps> = ({ attack
     if (!displayPath) return (
         <div className="flex flex-col items-center justify-center p-12 glass-premium rounded-3xl text-gray-500">
             <NetworkIcon size={48} className="mb-4 opacity-20" />
-            <p className="text-xl font-bold">No High-Risk Attack Paths Identified</p>
-            <p className="text-sm">Your infrastructure perimeter remains secure.</p>
+            <p className="text-xl font-bold">No Attack Paths Found</p>
+            <p className="text-sm">A path appears when an asset with an open vulnerability can reach a sensitive asset.</p>
         </div>
     );
 

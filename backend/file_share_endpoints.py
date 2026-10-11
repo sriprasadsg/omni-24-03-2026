@@ -1,51 +1,76 @@
-from fastapi import APIRouter, HTTPException, Depends, Request, Response
-from typing import List, Optional
-from file_share_service import file_share_service, SharedFile
+from fastapi import APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Form
+from fastapi.responses import FileResponse
+from typing import Optional
+import file_share_service
 from authentication_service import get_current_user
+from database import get_database
 from pydantic import BaseModel, Field
 from rate_limiter import limiter
+from tickets_endpoints import _validate_attachment
 
 router = APIRouter(prefix="/api/file-share", tags=["Secure File Sharing"])
 
-class ShareCreate(BaseModel):
-    file_name: str = Field(..., max_length=255)
-    file_url: str = Field(..., max_length=2048)
-    expires_at: Optional[str] = None
-    password_protected: bool = False
-    password: Optional[str] = Field(None, max_length=128)
-    max_accesses: Optional[int] = None
 
 class ShareAccess(BaseModel):
     password: Optional[str] = Field(None, max_length=128)
 
-@router.get("/shares", response_model=List[SharedFile], response_model_exclude={"password_hash"})
-def get_shares(current_user=Depends(get_current_user)):
-    user_email = getattr(current_user, "username", None) or getattr(current_user, "email", "")
-    return file_share_service.get_my_shares(user_email, getattr(current_user, "tenant_id", None))
 
-@router.post("/shares", response_model=SharedFile, response_model_exclude={"password_hash"})
-def create_share(share: ShareCreate, current_user=Depends(get_current_user)):
-    user_email = getattr(current_user, "username", None) or getattr(current_user, "email", "")
-    data = share.dict()
-    data["created_by"] = user_email
-    data["tenant_id"] = getattr(current_user, "tenant_id", None)
-    return file_share_service.create_share(data)
+def _email(current_user) -> str:
+    return getattr(current_user, "username", None) or getattr(current_user, "email", "")
+
+
+@router.get("/shares")
+async def get_shares(current_user=Depends(get_current_user)):
+    return await file_share_service.list_shares(get_database(), _email(current_user))
+
+
+@router.post("/shares")
+async def create_share(
+    file: UploadFile = File(...),
+    expires_in_days: int = Form(7, ge=1, le=90),
+    password: Optional[str] = Form(None, max_length=128),
+    max_accesses: Optional[int] = Form(None, ge=1, le=10000),
+    current_user=Depends(get_current_user),
+):
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="The file is empty")
+    if len(contents) > file_share_service.MAX_FILE_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 20 MB limit")
+    mimetype = _validate_attachment(file.filename or "file", contents, file.content_type)
+    return await file_share_service.create_share(
+        get_database(),
+        file_name=file.filename or "file",
+        contents=contents,
+        mimetype=mimetype,
+        created_by=_email(current_user),
+        tenant_id=getattr(current_user, "tenant_id", None),
+        expires_in_days=expires_in_days,
+        password=password or None,
+        max_accesses=max_accesses,
+    )
+
 
 @router.delete("/shares/{share_id}")
-def revoke_share(share_id: str, current_user=Depends(get_current_user)):
-    user_email = getattr(current_user, "username", None) or getattr(current_user, "email", "")
-    success = file_share_service.revoke_share(share_id, user_email, getattr(current_user, "tenant_id", None))
-    if not success:
+async def revoke_share(share_id: str, current_user=Depends(get_current_user)):
+    if not await file_share_service.revoke_share(get_database(), share_id, _email(current_user)):
         raise HTTPException(status_code=404, detail="Share not found")
     return {"message": "Share revoked"}
 
+
 @router.post("/access/{token}")
 @limiter.limit("20/minute")
-def access_share(request: Request, response: Response, token: str, access: ShareAccess):
-    """Public token-based access endpoint — no auth required, token IS the credential."""
-    result = file_share_service.access_share(token, access.password)
+async def access_share(request: Request, response: Response, token: str, access: ShareAccess):
+    """Public token-based download — no auth required, the token IS the credential."""
+    result = await file_share_service.open_share(get_database()._db, token, access.password)
     if "error" in result:
-        if result.get("password_required"):
-            raise HTTPException(status_code=403, detail="Password required")
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        raise HTTPException(status_code=result["status"], detail=result["error"])
+    share = result["share"]
+    try:
+        path = file_share_service.stored_path(share["stored_name"])
+    except ValueError:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    # Content-Disposition: attachment, so the browser saves rather than renders it
+    return FileResponse(path, filename=share["file_name"], media_type=share.get("mimetype") or "application/octet-stream")

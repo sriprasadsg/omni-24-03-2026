@@ -7,7 +7,7 @@ import {
 interface SharedFile {
     id: string;
     file_name: string;
-    file_url: string;
+    size?: number;
     created_at: string;
     expires_at: string | null;
     access_token: string;
@@ -17,6 +17,10 @@ interface SharedFile {
     is_active: boolean;
 }
 
+// Recipients open the standalone download page; the token stays in the URL
+// fragment so it is never sent to (or logged by) the server in a request line.
+export const shareLink = (token: string) => `${window.location.origin}/static/shared.html#${encodeURIComponent(token)}`;
+
 export default function SecureFileShare() {
     const [shares, setShares] = useState<SharedFile[]>([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -25,13 +29,13 @@ export default function SecureFileShare() {
 
     // Form State
     const [newShare, setNewShare] = useState({
-        file_name: 'Audit_Report_2025.pdf', // Mock selection
-        file_url: '/docs/audit_report.pdf',
         expires_in_days: 7,
         password_protected: false,
         password: '',
         max_accesses: 10
     });
+    const [file, setFile] = useState<File | null>(null);
+    const [createError, setCreateError] = useState('');
 
     useEffect(() => {
         fetchShares();
@@ -50,31 +54,28 @@ export default function SecureFileShare() {
         }
     };
 
+    // Uploads the real file; the server stores it privately and returns the share
     const handleCreateShare = async () => {
-        const expires_at = new Date();
-        expires_at.setDate(expires_at.getDate() + newShare.expires_in_days);
-
+        if (!file) return;
+        setCreateError('');
+        const form = new FormData();
+        form.append('file', file);
+        form.append('expires_in_days', String(newShare.expires_in_days || 7));
+        if (newShare.max_accesses) form.append('max_accesses', String(newShare.max_accesses));
+        if (newShare.password_protected && newShare.password) form.append('password', newShare.password);
         try {
-            const response = await authFetch('/api/file-share/shares', {
-                method: 'POST',
-                body: JSON.stringify({
-                    file_name: newShare.file_name,
-                    file_url: newShare.file_url,
-                    created_by: 'admin',
-                    expires_at: expires_at.toISOString(),
-                    password_protected: newShare.password_protected,
-                    password: newShare.password_protected ? newShare.password : null,
-                    max_accesses: newShare.max_accesses
-                })
-            });
-
-            if (response.ok) {
-                const created = await response.json();
-                setShares(prev => [...prev, created]);
-                setShowCreateModal(false);
+            const response = await authFetch('/api/file-share/shares', { method: 'POST', body: form });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                setCreateError(typeof body.detail === 'string' ? body.detail : `Upload failed (HTTP ${response.status})`);
+                return;
             }
+            setShares(prev => [...prev, body]);
+            setShowCreateModal(false);
+            setFile(null);
         } catch (error) {
             console.error("Error creating share", error);
+            setCreateError('Upload failed');
         }
     };
 
@@ -92,7 +93,7 @@ export default function SecureFileShare() {
     };
 
     const copyToClipboard = (token: string, id: string) => {
-        const link = `${window.location.origin}/shared/${token}`;
+        const link = shareLink(token);
         navigator.clipboard.writeText(link);
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
@@ -199,16 +200,13 @@ export default function SecureFileShare() {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">File</label>
-                                <select
-                                    className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
-                                    value={newShare.file_name}
-                                    onChange={(e) => setNewShare({ ...newShare, file_name: e.target.value })}
-                                >
-                                    <option value="Audit_Report_2025.pdf">Audit_Report_2025.pdf</option>
-                                    <option value="Security_Whitepaper.pdf">Security_Whitepaper.pdf</option>
-                                    <option value="Compliance_Cert.pdf">Compliance_Cert.pdf</option>
-                                </select>
+                                <label htmlFor="share-file" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">File (max 20 MB)</label>
+                                <input
+                                    id="share-file"
+                                    type="file"
+                                    className="w-full text-sm text-gray-700 dark:text-gray-300"
+                                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                />
                             </div>
 
                             <div className="flex gap-4">
@@ -246,7 +244,8 @@ export default function SecureFileShare() {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
                                     <input
-                                        type="text"
+                                        type="password"
+                                        autoComplete="new-password"
                                         className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
                                         value={newShare.password}
                                         onChange={(e) => setNewShare({ ...newShare, password: e.target.value })}
@@ -256,6 +255,7 @@ export default function SecureFileShare() {
                             )}
                         </div>
 
+                        {createError && <p className="mt-4 text-sm text-red-600">{createError}</p>}
                         <div className="flex justify-end gap-3 mt-6">
                             <button
                                 onClick={() => setShowCreateModal(false)}
@@ -265,7 +265,8 @@ export default function SecureFileShare() {
                             </button>
                             <button
                                 onClick={handleCreateShare}
-                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                                disabled={!file || (newShare.password_protected && !newShare.password)}
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg"
                             >
                                 Create Link
                             </button>

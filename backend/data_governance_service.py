@@ -4,14 +4,6 @@ from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CATALOG = [
-    {"name": "customer_logs", "classification": "CONFIDENTIAL", "owner": "Ops Team", "retention_days": 90},
-    {"name": "public_metrics", "classification": "PUBLIC", "owner": "Engineering", "retention_days": 365},
-    {"name": "employee_records", "classification": "RESTRICTED", "owner": "HR", "retention_days": 2555},
-    {"name": "security_events", "classification": "INTERNAL", "owner": "SecOps", "retention_days": 180},
-]
-
-
 class DataGovernanceService:
     def __init__(self, db=None):
         self.db = db
@@ -37,15 +29,13 @@ class DataGovernanceService:
         return "INTERNAL"
 
     async def get_data_catalog(self) -> List[Dict[str, Any]]:
-        """Return catalog from DB; fall back to defaults when empty."""
+        """Return the catalog entries stored in the DB (empty until some are added)."""
         if self.db is not None:
             try:
-                docs = await self.db.data_catalog.find({}, {"_id": 0}).to_list(length=500)
-                if docs:
-                    return docs
+                return await self.db.data_catalog.find({}, {"_id": 0}).to_list(length=500)
             except Exception as exc:
                 logger.warning("data_catalog DB query failed: %s", exc)
-        return list(_DEFAULT_CATALOG)
+        return []
 
     async def add_catalog_entry(self, entry: Dict[str, Any]) -> None:
         """Persist a new catalog entry to DB."""

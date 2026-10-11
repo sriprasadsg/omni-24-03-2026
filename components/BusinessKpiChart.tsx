@@ -44,13 +44,13 @@ export const BusinessKpiChart: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <div className="h-80 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-100">Loading chart data...</div>;
+    return <div className="h-80 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-100 dark:bg-slate-800 dark:border-gray-700">Loading chart data...</div>;
   }
 
   // Explicitly defining height to prevent Recharts crash (width -1)
   return (
-    <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-100 h-96 flex flex-col w-full">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex-shrink-0">Business KPI Correlation</h3>
+    <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-100 h-96 flex flex-col w-full dark:bg-slate-800 dark:border-gray-700">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex-shrink-0 dark:text-white">Business KPI Correlation</h3>
       <div className="flex-grow w-full min-h-0">
         <ResponsiveContainer width="100%" height="100%" minHeight={1}>
           <ComposedChart

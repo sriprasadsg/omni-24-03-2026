@@ -41,6 +41,7 @@ export function DataGovernanceDashboard() {
     const [report, setReport] = useState<QualityReport | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [scanResult, setScanResult] = useState<any>(null);
+    const [scanText, setScanText] = useState('');
     const [lineageNodes, setLineageNodes] = useState<LineageNode[]>([]);
     const [lineageEdges, setLineageEdges] = useState<LineageEdge[]>([]);
     const [activeTab, setActiveTab] = useState<'overview' | 'lineage'>('overview');
@@ -68,16 +69,13 @@ export function DataGovernanceDashboard() {
         }
     };
 
-    const runSampleScan = async () => {
+    const runPiiScan = async () => {
+        if (!scanText.trim()) return;
         try {
-            const sampleData = {
-                name: "John Doe", email: "john.doe@example.com",
-                ssn: "123-45-6789", notes: "Customer record"
-            };
             const res = await authFetch('/api/governance/scan', {
-                method: 'POST', body: JSON.stringify(sampleData),
+                method: 'POST', body: JSON.stringify({ content: scanText }),
             });
-            setScanResult(await res.json());
+            setScanResult(res.ok ? await res.json() : null);
         } catch (error) {
             console.error("Scan failed:", error);
         }
@@ -335,12 +333,19 @@ export function DataGovernanceDashboard() {
                                 <Fingerprint className="h-5 w-5 text-purple-400" />
                                 PII Scanner
                             </CardTitle>
-                            <CardDescription>Test interactive data scanning</CardDescription>
+                            <CardDescription>Scan text or a record for personal data</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                <p className="text-sm text-muted-foreground">Click to scan a sample record containing SSN and Email.</p>
-                                <Button onClick={runSampleScan} className="w-full bg-indigo-600 hover:bg-indigo-700">Run PII Scan</Button>
+                                <textarea
+                                    aria-label="Content to scan"
+                                    value={scanText}
+                                    onChange={e => setScanText(e.target.value)}
+                                    placeholder="Paste a record, log line or document excerpt"
+                                    rows={4}
+                                    className="w-full rounded-md bg-slate-900/50 border border-slate-700 p-2 text-sm text-slate-200"
+                                />
+                                <Button onClick={runPiiScan} disabled={!scanText.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700">Run PII Scan</Button>
 
                                 {scanResult && (
                                     <div className="rounded-md bg-slate-900/50 p-3 border border-slate-700 text-sm space-y-2 mt-4">
@@ -353,7 +358,8 @@ export function DataGovernanceDashboard() {
                                         <div>
                                             <span className="text-muted-foreground block mb-1">PII Detected:</span>
                                             <div className="flex gap-1 flex-wrap">
-                                                {scanResult.pii_detected.map((p: string) => (
+                                                {(scanResult.pii_detected || []).length === 0 && <span className="text-xs text-muted-foreground">None found</span>}
+                                                {(scanResult.pii_detected || []).map((p: string) => (
                                                     <Badge key={p} variant="secondary" className="bg-red-500/10 text-red-400 border-red-500/20 text-xs">{p}</Badge>
                                                 ))}
                                             </div>

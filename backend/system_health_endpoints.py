@@ -124,20 +124,45 @@ def _elevate_if_super(user) -> bool:
     return False
 
 
+# (task name given in app_startup.py, display name, polling interval)
+_KNOWN_BACKGROUND_TASKS = [
+    ("xdr_correlation", "XDR Correlation Engine", "5min"),
+    ("start_aws_polling", "AWS CloudTrail Poller", "5min"),
+    ("start_azure_polling", "Azure Defender Poller", "5min"),
+    ("start_gcp_polling", "GCP SCC Poller", "5min"),
+    ("start_okta_polling", "Okta Log Poller", "60s"),
+    ("syslog_receiver", "Syslog UDP Receiver", "persistent"),
+    ("nvd_sync_loop", "NVD CVE Sync", "6h"),
+    ("jit_expiry_loop", "JIT Expiry Enforcer", "60s"),
+    ("report_scheduler", "Scheduled Reports", "1min"),
+]
+
+
+def _syslog_listening() -> bool:
+    # The syslog starter finishes once its UDP endpoint is open, so it has no
+    # live task; ask the receiver module instead.
+    try:
+        import syslog_receiver
+        return syslog_receiver.is_listening()
+    except Exception:
+        return False
+
+
 def _background_tasks() -> List[Dict[str, Any]]:
-    """Report on known background loops by checking process name patterns."""
-    tasks = [
-        {"name": "XDR Correlation Engine", "interval": "5min", "status": "running"},
-        {"name": "AWS CloudTrail Poller", "interval": "5min", "status": "running"},
-        {"name": "Azure Defender Poller", "interval": "5min", "status": "running"},
-        {"name": "GCP SCC Poller", "interval": "5min", "status": "running"},
-        {"name": "Okta Log Poller", "interval": "60s", "status": "running"},
-        {"name": "Syslog UDP Receiver", "interval": "persistent", "status": "running"},
-        {"name": "NVD CVE Sync", "interval": "6h", "status": "running"},
-        {"name": "JIT Expiry Enforcer", "interval": "60s", "status": "running"},
-        {"name": "Scheduled Reports", "interval": "1min", "status": "running"},
+    """Report each known background loop's live state from the event loop
+    (all_tasks() only holds unfinished tasks, so presence means running)."""
+    try:
+        live = {t.get_name() for t in asyncio.all_tasks()}
+    except RuntimeError:  # no running loop
+        live = {}
+    return [
+        {
+            "name": label,
+            "interval": interval,
+            "status": "running" if (_syslog_listening() if name == "syslog_receiver" else name in live) else "not running",
+        }
+        for name, label, interval in _KNOWN_BACKGROUND_TASKS
     ]
-    return tasks
 
 
 @router.get("/health")
