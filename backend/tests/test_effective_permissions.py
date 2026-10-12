@@ -111,6 +111,22 @@ def test_raw_handle_sees_tenant_document_without_tenant_context():
     assert "view:custom_extra" in perms
 
 
+def test_wildcard_and_super_admin_only_permissions_in_documents_are_ignored():
+    """WR-01: the resolver never honours '*' or SUPER_ADMIN_ONLY_PERMISSIONS from a role document."""
+    banned = sorted(rbac_defaults.SUPER_ADMIN_ONLY_PERMISSIONS | {"*"})
+    db = _store({"name": "viewer", "tenantId": "t1", "permissions": banned + ["view:custom_extra"]},
+                {"name": "viewer", "tenantId": "all", "permissions": ["*"]})
+    perms = asyncio.run(rbac_service.effective_permissions(db, "viewer", "t1"))
+    assert perms == list(rbac_defaults.defaults_for("viewer")) + ["view:custom_extra"]
+
+
+def test_star_document_does_not_turn_a_viewer_into_a_super_admin(monkeypatch):
+    db = _store({"name": "viewer", "tenantId": "t1", "permissions": ["*", "manage:tenants"]})
+    _use(monkeypatch, db)
+    assert asyncio.run(rbac_utils.verify_permission(_token("viewer"), "manage:tenants")) is False
+    assert asyncio.run(rbac_utils.verify_permission(_token("viewer"), "manage:users")) is False
+
+
 def test_other_tenants_document_never_contributes():
     db = _store({"name": "viewer", "tenantId": "tenant-b", "permissions": ["view:secret_of_b"]})
     perms = asyncio.run(rbac_service.effective_permissions(db, "viewer", "tenant-a"))

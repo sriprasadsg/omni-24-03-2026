@@ -146,8 +146,9 @@ class TestHasPermission:
 
         assert r.status_code == 200
 
-    def test_wildcard_permission_grants_everything(self):
-        """A role doc with ['*'] should satisfy any required permission."""
+    def test_wildcard_in_a_role_document_grants_nothing(self):
+        """WR-01: a '*' inside a tenant role document is ignored by the resolver;
+        only the super-admin role name reaches the wildcard."""
         user = TokenData(username="a@b.com", role="god_mode", tenant_id="t1", mfa_verified=True)
         role_doc = {"name": "god_mode", "permissions": ["*"]}
         app = self._make_app(user, "manage:settings")
@@ -156,7 +157,7 @@ class TestHasPermission:
             with TestClient(app) as client:
                 r = client.get("/protected")
 
-        assert r.status_code == 200
+        assert r.status_code == 403
 
 
 # ===========================================================================

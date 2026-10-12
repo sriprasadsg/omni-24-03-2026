@@ -62,6 +62,9 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     ``rbac_defaults`` followed by the permissions of the matching role documents
     (own tenant, then "all", then "platform"), de-duplicated in first-seen order.
     A missing role, or an unknown role with no document, resolves to ``[]``.
+    Role documents can only add ordinary permissions: a ``*`` or a
+    ``SUPER_ADMIN_ONLY_PERMISSIONS`` entry found in a document is ignored, so the
+    super-admin tier stays reachable only through the super-admin role name (D-03/D-06).
     Role-store errors propagate; callers decide whether to fail closed or degrade.
     """
     key = RBACService._normalize_role(role or "")
@@ -70,9 +73,10 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     if not key:
         return []
     perms: List[str] = list(rbac_defaults.defaults_for(key))
+    banned = rbac_defaults.SUPER_ADMIN_ONLY_PERMISSIONS | {"*"}
     for name in dict.fromkeys(n for n in (role, key) if n):
         for doc in await _role_docs(db, name, tenant_id):
-            perms.extend(p for p in (doc.get("permissions") or []) if p)
+            perms.extend(p for p in (doc.get("permissions") or []) if p and p not in banned)
     return list(dict.fromkeys(perms))
 
 

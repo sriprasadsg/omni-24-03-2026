@@ -137,7 +137,10 @@ async def test_tenant_document_that_widens_the_target_counts():
 async def test_a_star_document_cannot_unlock_the_super_admin_tier():
     star = {"name": "itam_admin", "tenantId": TENANT, "permissions": ["*"]}
     db = _store([star])
-    assert await assert_can_assign_role(db, _caller("itam_admin"), "admin", target_tenant_id=TENANT) is None
+    # WR-01: the resolver ignores '*' in documents, so the star widens nothing.
+    with pytest.raises(HTTPException) as exc:
+        await assert_can_assign_role(db, _caller("itam_admin"), "admin", target_tenant_id=TENANT)
+    assert exc.value.status_code == 403
     for target in SUPER_SPELLINGS:
         with pytest.raises(HTTPException) as exc:
             await assert_can_assign_role(db, _caller("itam_admin"), target, target_tenant_id=TENANT)
