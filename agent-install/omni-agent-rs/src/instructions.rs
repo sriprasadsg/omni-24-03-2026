@@ -570,6 +570,19 @@ pub async fn compute_instruction_result(
                 Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
             }
         }
+        "install_patches" | "rollback_patches" => {
+            match crate::capabilities::patch_installer::parse_job(item, action == "rollback_patches") {
+                Err(e) => serde_json::json!({"status": "error", "error": e}),
+                Ok(job) => {
+                    let reply = serde_json::json!({
+                        "status": "accepted", "job_id": job.job_id,
+                        "patch_ids": job.patch_ids, "rollback": job.rollback,
+                    });
+                    tokio::spawn(run_patch_job(job, cfg.clone(), client.clone()));
+                    reply
+                }
+            }
+        }
         _ => {
             // Report instead of silently returning: an unhandled instruction must
             // surface as an error in the dashboard, not sit "sent" forever looking
@@ -581,6 +594,30 @@ pub async fn compute_instruction_result(
             })
         }
     })
+}
+
+static PATCH_JOBS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// Runs one patch job off the heartbeat loop (Windows Update can take an hour), then
+/// reports the outcome to /api/deployments/{job_id}/result. Jobs run one at a time.
+async fn run_patch_job(job: crate::capabilities::patch_installer::PatchJob, cfg: Config, client: reqwest::Client) {
+    let _one_at_a_time = PATCH_JOBS.lock().await;
+    let summary = crate::capabilities::patch_installer::run(&job).await;
+    log::info!("Patch job {:?} finished: {}", job.job_id, summary["status"]);
+    let Some(job_id) = job.job_id.as_deref() else { return };
+    let url = format!("{}/api/deployments/{}/result", cfg.api_base_url.trim_end_matches('/'), job_id);
+    match client
+        .post(&url)
+        .bearer_auth(&cfg.agent_token)
+        .timeout(std::time::Duration::from_secs(30))
+        .json(&summary)
+        .send()
+        .await
+    {
+        Ok(r) if r.status().is_success() => {}
+        Ok(r) => log::warn!("Patch job {job_id}: result report -> {}", r.status()),
+        Err(e) => log::warn!("Patch job {job_id}: result report failed: {e}"),
+    }
 }
 
 /// Download a file from `url` and run it as a silent installer.

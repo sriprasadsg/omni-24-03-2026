@@ -10,6 +10,41 @@ interface RemoteDesktopProps {
     hostname?: string;
 }
 
+/** What to tell the admin when the agent ends a view or control session. */
+export function remoteSessionEndedCopy(
+    mode: 'view' | 'control',
+    reason: string | null,
+    message: string | null,
+    requesterName = '',
+): string {
+    const request = mode === 'control' ? 'control request' : 'request to view the desktop';
+    switch (reason) {
+        case 'consent_declined':
+            return `Endpoint user declined the ${request}.`;
+        case 'consent_timeout': // what the agent sends
+        case 'consent_timed_out':
+            return 'Endpoint user did not respond in time. The request has expired.';
+        case 'no_interactive_desktop':
+            return 'The remote machine has no active interactive desktop session.';
+        case 'wrong_platform':
+            return 'Remote control is not supported on the endpoint platform.';
+        case 'already_controlled':
+            return `Already controlled by ${requesterName || 'another admin'}.`;
+        case 'tunnel_drop':
+            return 'Connection lost. Reconnecting requires fresh approval from the endpoint user.';
+        case 'relay_failed':
+            return mode === 'control'
+                ? 'Control session accepted but input relay failed. Session ended.'
+                : 'The desktop stream could not be relayed. Session ended.';
+        default:
+            if (message) return message;
+            return mode === 'control' ? 'Control session ended.' : 'Desktop view ended.';
+    }
+}
+
+/** Reasons whose copy already says everything; others also show the raw code. */
+const SELF_EXPLAINED_REASONS = new Set(['tunnel_drop', 'relay_failed', 'consent_declined', 'consent_timeout', 'consent_timed_out']);
+
 export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId: sessionIdProp, mode = 'view', hostname }) => {
     const [isConnected, setIsConnected] = useState(false);
     const [fps, setFps] = useState(0);
@@ -35,31 +70,14 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
     // 45s no-video watchdog must not fire during that window because frames
     // are (correctly) gated until the user accepts.
     const awaitingConsentRef = useRef(false);
+    // Set once the agent ends the session: its reason is shown instead, so the
+    // generic no-video watchdog must stay quiet.
+    const sessionEndedRef = useRef(false);
 
     const getControlStateCopy = useCallback((): string => {
-        if (controlState === 'ended') {
-            switch (controlReason) {
-                case 'consent_declined':
-                    return 'Endpoint user declined the control request.';
-                case 'consent_timed_out':
-                    return 'Endpoint user did not respond in time. The request has expired.';
-                case 'no_interactive_desktop':
-                    return 'The remote machine has no active interactive desktop session.';
-                case 'wrong_platform':
-                    return 'Remote control is not supported on the endpoint platform.';
-                case 'already_controlled':
-                    return `Already controlled by ${requesterName || 'another admin'}.`;
-                case 'tunnel_drop':
-                    return 'Connection lost. Reconnecting requires fresh approval from the endpoint user.';
-                case 'relay_failed':
-                    return 'Control session accepted but input relay failed. Session ended.';
-                default:
-                    if (controlMessage) return controlMessage;
-                    return 'Control session ended.';
-            }
-        }
+        if (controlState === 'ended') return remoteSessionEndedCopy(mode, controlReason, controlMessage, requesterName);
         return '';
-    }, [controlReason, controlMessage, requesterName]);
+    }, [controlState, mode, controlReason, controlMessage, requesterName]);
 
     const renderFrame = (base64Data: string) => {
         const canvas = canvasRef.current;
@@ -113,6 +131,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
 
         const openWs = (sid: string, mode: 'view' | 'control' = 'view') => {
             hasFramesRef.current = false;
+            sessionEndedRef.current = false;
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const token = sessionStorage.getItem('token') || '';
             const wsUrl = `${wsProtocol}//${window.location.host}/api/tunnel/${sid}/${mode === 'control' ? 'user' : 'viewer'}?token=${encodeURIComponent(token)}`;
@@ -153,6 +172,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                             setStatusMsg('Awaiting endpoint user consent…');
                         } else if (payload.state === 'ended') {
                             awaitingConsentRef.current = false;
+                            sessionEndedRef.current = true;
                             setStatusMsg('');
                         }
                     } else if (payload.type === 'error' && payload.message) {
@@ -173,7 +193,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
             };
 
             setTimeout(() => {
-                if (!cancelled && !hasFramesRef.current && !awaitingConsentRef.current) {
+                if (!cancelled && !hasFramesRef.current && !awaitingConsentRef.current && !sessionEndedRef.current) {
                     setError((prev) => prev ?? 'No video received from the agent within 45s — it may be offline, lack an interactive desktop session, or not support remote desktop on its platform.');
                 }
             }, 45000);
@@ -323,7 +343,7 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                         )}
                     </div>
                 )}
-                {error && (
+                {error && controlState !== 'ended' && (
                     <div className="text-center">
                         <AlertTriangleIcon size={40} className="mx-auto text-red-600 mb-2" />
                         <p className="text-red-400 text-sm">{error}</p>
@@ -402,16 +422,19 @@ export const RemoteDesktop: React.FC<RemoteDesktopProps> = ({ agentId, sessionId
                     </div>
                 )}
 
-                {/* Session ended overlay — red banner */}
-                {mode === 'control' && controlState === 'ended' && (
+                {/* Session ended overlay — red banner (view and control: the agent ends both) */}
+                {controlState === 'ended' && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-                        <div className="text-center">
+                        <div className="text-center max-w-lg px-4">
                             <XIcon size={32} className="mx-auto text-slate-600 mb-2" />
-                            <p className="text-slate-400 text-sm font-medium">Control Ended</p>
+                            <p className="text-slate-400 text-sm font-medium">{mode === 'control' ? 'Control Ended' : 'View Ended'}</p>
                             {getControlStateCopy() && (
                                 <p className="text-red-400 text-xs mt-1">{getControlStateCopy()}</p>
                             )}
-                            {controlReason && controlReason !== 'tunnel_drop' && controlReason !== 'relay_failed' && controlReason !== 'consent_declined' && controlReason !== 'consent_timed_out' && (
+                            {error && error !== getControlStateCopy() && (
+                                <p className="text-slate-400 text-xs mt-1 break-words">{error}</p>
+                            )}
+                            {controlReason && !SELF_EXPLAINED_REASONS.has(controlReason) && (
                                 <p className="text-slate-500 text-xs mt-1">{controlReason}</p>
                             )}
                         </div>

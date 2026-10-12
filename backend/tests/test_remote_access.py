@@ -9,7 +9,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import asyncio
 import threading
+import time
 import uuid
+from datetime import datetime, timezone
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import FastAPI
@@ -294,6 +296,53 @@ class TestControlSessionPermission:
         assert self.db.agent_instructions.insert_one.call_count == 0
 
 
+class TestControlSessionReaping:
+    """The single-control-session guard must block only a session that is still
+    alive, and reap a dead one (capture died while the browser held its socket)
+    rather than wedge the agent with a permanent 409."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        import remote_endpoints as mod
+        self.mod = mod
+        self.db = _db()
+        self.app = _app(mod.router, _user())
+
+    def _start_control(self, existing, connected):
+        self.db.remote_sessions.find_one = AsyncMock(return_value=existing)
+        with patch("remote_endpoints.get_database", return_value=self.db):
+            with patch("rbac_utils.verify_permission", AsyncMock(return_value=True)):
+                with patch("remote_endpoints.is_session_connected", return_value=connected):
+                    with patch("remote_endpoints.close_session", return_value=True):
+                        with TestClient(self.app) as c:
+                            return c.post("/api/remote/session/start",
+                                          json={"agent_id": "agent-abc", "protocol": "vnc", "type": "control"})
+
+    def test_live_control_session_blocks_with_409(self):
+        existing = {"_id": 1, "session_id": "live-1", "created_at": "2000-01-01T00:00:00+00:00"}
+        r = self._start_control(existing, connected=True)
+        assert r.status_code == 409
+        assert r.json()["detail"]["reason"] == "already_controlled"
+        assert self.db.agent_instructions.insert_one.call_count == 0
+
+    def test_recent_control_session_still_blocks_within_grace(self):
+        """No live tunnel yet, but just created — the agent may still be dialing in."""
+        now = datetime.now(timezone.utc).isoformat()
+        r = self._start_control({"_id": 1, "session_id": "new-1", "created_at": now}, connected=False)
+        assert r.status_code == 409
+
+    def test_stale_control_session_is_reaped_and_new_one_starts(self):
+        existing = {"_id": 1, "session_id": "dead-1", "created_at": "2000-01-01T00:00:00+00:00"}
+        r = self._start_control(existing, connected=False)
+        assert r.status_code == 200
+        # The dead session was marked closed, and a fresh session + instruction created.
+        closed = [c for c in self.db.remote_sessions.update_one.call_args_list
+                  if c.args and c.args[0] == {"session_id": "dead-1"}
+                  and c.args[1].get("$set", {}).get("status") == "closed"]
+        assert closed, "stale control session was not reaped"
+        assert self.db.agent_instructions.insert_one.call_count == 1
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 2.  WebSocket Tunnel  (tunnel_endpoints.py)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -462,6 +511,25 @@ class TestTunnelWebSocket:
                 raw_db.tenants.find_one = AsyncMock(return_value={"id": "tenant-99"})
                 code = self._agent_connect("/api/tunnel/wrong-tenant-sess/agent", {"X-Tenant-Key": "valid-reg-key"})
         assert code == 4401
+
+    def test_agent_side_closes_the_session_on_disconnect(self):
+        """When the agent tunnel drops, the session is marked closed — so desktop
+        sessions don't pile up and a dead control session can't wedge the guard."""
+        sid = f"close-on-drop-{uuid.uuid4().hex[:8]}"
+        with patch("authentication_service.verify_token_async", AsyncMock(side_effect=Exception("no jwt"))):
+            with _patch_tunnel_db() as raw_db:
+                code = self._agent_connect(f"/api/tunnel/{sid}/agent", {"X-Tenant-Key": "valid-reg-key"})
+                assert code == "accepted"
+                # The finally runs on the server task just after the client closes.
+                closed = False
+                for _ in range(50):
+                    calls = raw_db.remote_sessions.update_one.call_args_list
+                    if any(c.args and c.args[0] == {"session_id": sid}
+                           and c.args[1].get("$set", {}).get("status") == "closed" for c in calls):
+                        closed = True
+                        break
+                    time.sleep(0.02)
+                assert closed, "agent-side disconnect did not close the session"
 
     def test_agent_side_accepts_valid_tenant_key_from_header(self):
         """Agent with its tenant's X-Tenant-Key (header only) is accepted."""
@@ -846,6 +914,26 @@ class TestConsentReporting:
         assert r.status_code == 200
         assert audit["record"]["consent_decision"] == "decline"
         assert audit["record"]["disconnect_reason"] == "consent_declined"
+        assert audit["record"]["mode"] == "control"
+
+    def test_view_session_consent_is_audited_as_view(self):
+        """The agent prompts before a view-only stream too; that decision used to
+        get a 400 here, so view-mode consent never reached the audit trail."""
+        self.db.remote_sessions.find_one = AsyncMock(return_value={
+            "session_id": "s1", "type": "desktop", "tenantId": "platform-admin", "agent_id": "a1"
+        })
+        audit = {}
+        r = self._post(self.AGENT, {"decision": "accept"}, audit=audit)
+        assert r.status_code == 200
+        assert audit["record"]["mode"] == "view"
+        assert audit["record"]["consent_decision"] == "accept"
+
+    def test_shell_session_has_no_consent(self):
+        self.db.remote_sessions.find_one = AsyncMock(return_value={
+            "session_id": "s1", "type": "shell", "tenantId": "platform-admin", "agent_id": "a1"
+        })
+        assert self._post(self.AGENT, {"decision": "accept"}).status_code == 400
+        self.db.remote_sessions.update_one.assert_not_called()
 
 
 class TestAgentTunnelUrl:

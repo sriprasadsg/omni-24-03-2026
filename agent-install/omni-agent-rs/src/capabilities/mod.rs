@@ -14,6 +14,7 @@ pub mod predictive_health;
 pub mod process_monitor;
 pub mod remote_access;
 pub mod control_input;
+pub mod screen_capture;
 pub mod runtime_security;
 pub mod sbom;
 pub mod software_management;
@@ -23,6 +24,7 @@ pub mod vulnerability_scan;
 pub mod remediation_actions;
 pub mod ssh_key_checks;
 pub mod ssh_key_rotation;
+pub mod patch_installer;
 #[cfg(target_os = "linux")]
 pub mod fanotify_watcher;
 

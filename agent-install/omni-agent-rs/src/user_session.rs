@@ -9,18 +9,21 @@
 //! The child inherits exactly one handle — the pipe's write end — via an
 //! explicit handle list, so no other service handle leaks into a process that
 //! runs as the (less privileged) user.
+//!
+//! The one helper launched this way is the agent itself, re-run with
+//! `--desktop-capture` to grab the screen natively (see `screen_capture`). It
+//! used to be a hidden `powershell.exe -EncodedCommand` screen-grabber, which
+//! Microsoft Defender quarantines as a PUA.
 
-/// `powershell.exe -EncodedCommand` takes the script as base64 UTF-16LE, which
-/// avoids quoting a multi-line script on a CreateProcess command line.
-pub fn powershell_encoded(script: &str) -> String {
-    let bytes: Vec<u8> = script.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
-    format!(
-        "powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand {}",
-        base64(&bytes)
-    )
+/// The command line that re-launches this same agent binary as the desktop
+/// capture helper. Running our own signed executable keeps the screen grabber
+/// out of a scanned script interpreter.
+pub fn self_desktop_capture_cmdline() -> Result<String, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
+    Ok(format!("\"{}\" --desktop-capture", exe.display()))
 }
 
-fn base64(data: &[u8]) -> String {
+pub(crate) fn base64(data: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
     for chunk in data.chunks(3) {
@@ -48,10 +51,10 @@ mod win {
     use winapi::shared::minwindef::{DWORD, FALSE, LPVOID, TRUE};
     use winapi::um::errhandlingapi::GetLastError;
     use winapi::um::handleapi::{CloseHandle, SetHandleInformation};
-    use winapi::um::minwinbase::SECURITY_ATTRIBUTES;
+    use winapi::um::minwinbase::{SECURITY_ATTRIBUTES, STILL_ACTIVE};
     use winapi::um::namedpipeapi::CreatePipe;
     use winapi::um::processthreadsapi::{
-        CreateProcessAsUserW, DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
+        CreateProcessAsUserW, DeleteProcThreadAttributeList, GetExitCodeProcess, InitializeProcThreadAttributeList,
         TerminateProcess, UpdateProcThreadAttribute, PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_LIST,
     };
     use winapi::um::securitybaseapi::DuplicateTokenEx;
@@ -79,6 +82,15 @@ mod win {
     impl UserProcess {
         pub fn kill(&self) {
             unsafe { TerminateProcess(self.process, 1) };
+        }
+
+        /// The exit code once the process has ended; None while it still runs.
+        pub fn exit_code(&self) -> Option<u32> {
+            let mut code: DWORD = 0;
+            if unsafe { GetExitCodeProcess(self.process, &mut code) } == 0 || code == STILL_ACTIVE {
+                return None;
+            }
+            Some(code)
         }
     }
 
@@ -211,8 +223,9 @@ mod tests {
     }
 
     #[test]
-    fn encoded_command_is_utf16le_base64() {
-        // "dir" as UTF-16LE is 64 00 69 00 72 00.
-        assert!(powershell_encoded("dir").ends_with(" -EncodedCommand ZABpAHIA"));
+    fn capture_cmdline_quotes_the_exe_and_passes_the_flag() {
+        let cmd = self_desktop_capture_cmdline().unwrap();
+        assert!(cmd.starts_with('"'));
+        assert!(cmd.ends_with("\" --desktop-capture"));
     }
 }

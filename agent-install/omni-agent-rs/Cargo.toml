@@ -1,6 +1,6 @@
 [package]
 name = "omni-agent"
-version = "2.1.8"
+version = "2.1.12"
 edition = "2021"
 description = "Enterprise Omni Agent - AI-Powered Security Agent"
 authors = ["Enterprise Omni Agent"]
@@ -55,6 +55,10 @@ yara-x = "1.19.0"
 # Phase 64 (rotate_key): SSH authorized_keys parse/generate/fingerprint (pure Rust, no C deps).
 ssh-key = { version = "0.6.7", default-features = false, features = ["alloc", "std", "rand_core", "ed25519", "rsa", "dsa"] }
 libc = "0.2"
+# Remote desktop: encode captured frames to JPEG natively in the agent, instead
+# of shelling out to a hidden PowerShell screen-grabber that Defender quarantines
+# as a PUA. Pure Rust, no C deps, cross-compiles to windows-gnu.
+jpeg-encoder = "0.7"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
@@ -63,6 +67,8 @@ winapi = { version = "0.3", features = [
     "minwindef", "winnt", "handleapi", "errhandlingapi", "processthreadsapi",
     "securitybaseapi", "userenv", "winbase", "wtsapi32", "winuser",
     "namedpipeapi", "minwinbase", "basetsd",
+    # Native GDI screen capture (src/capabilities/screen_capture.rs).
+    "wingdi", "windef",
 ] }
 
 # Phase 65 (FIM fanotify): fanotify is a Linux kernel API with no macOS/Windows

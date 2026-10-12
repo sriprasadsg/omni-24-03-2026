@@ -87,6 +87,16 @@ def close_session(session_id: str) -> bool:
     return True
 
 
+def is_session_connected(session_id: str) -> bool:
+    """Whether a live tunnel exists for this session (either peer connected).
+
+    In-process truth for session liveness: the single-control-session guard in
+    remote_endpoints uses it to tell a genuinely active session from a dead one
+    whose browser tab merely kept its WebSocket open on the "ended" overlay.
+    """
+    return session_id in _tunnels
+
+
 async def _recv_to_queue(websocket: WebSocket, queue: asyncio.Queue):
     """Read all incoming messages from a WebSocket and push them onto a queue."""
     try:
@@ -272,6 +282,19 @@ def register_tunnel_routes(app: FastAPI) -> None:
             except asyncio.QueueFull:
                 pass
             _tunnels.pop(session_id, None)
+            # The agent side is authoritative for whether the endpoint is
+            # actually streaming: when it drops, the session is over even if the
+            # browser kept its /viewer or /user socket open on the "ended"
+            # overlay. The viewer and user finally-blocks alone left desktop
+            # sessions "active" forever and let a dead control session wedge the
+            # single-control-session guard, so close it here too. Raw db: no
+            # tenant context exists in a socket handler.
+            try:
+                await mongodb.db.remote_sessions.update_one(
+                    {"session_id": session_id}, {"$set": {"status": "closed"}}
+                )
+            except Exception as e:
+                logger.debug("Agent-side session close DB update failed (non-fatal): %s", e)
 
     @app.websocket("/api/tunnel/{session_id}/viewer")
     async def tunnel_viewer_side(

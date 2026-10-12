@@ -4,17 +4,46 @@ from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission
 import rbac_utils
 from models import User
-from tunnel_endpoints import close_session
+from tunnel_endpoints import close_session, is_session_connected
 from control_session_audit_service import write_audit, list_audit
 import uuid
 import os
 from datetime import datetime, timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/remote", tags=["Remote Access"])
 
 _REMOTE_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 # Consent decisions the tunnel-authenticated agent may report (74-02 Task 3)
 _CONTROL_CONSENT_DECISIONS = {"accept", "decline", "timeout"}
+# Session type -> audit mode, for the sessions whose screen stream asks the endpoint user.
+_CONSENT_MODES = {"desktop": "view", "control": "control"}
+# Grace window after a control session is created in which it still blocks a new
+# one even without a connected tunnel — the agent may not have dialed in yet.
+_CONTROL_CONNECT_GRACE_SECONDS = 90
+
+
+def _control_session_still_live(existing: dict) -> bool:
+    """Whether an existing control session should still block a new request.
+
+    True while its tunnel is connected, or within the connect grace window after
+    creation. A session that is neither is stale (its capture died while the
+    browser held the socket open) and must not wedge the agent forever.
+    """
+    if is_session_connected(existing.get("session_id", "")):
+        return True
+    created = existing.get("created_at")
+    if not created:
+        return False
+    try:
+        ts = datetime.fromisoformat(created) if isinstance(created, str) else created
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return False
+    return (datetime.now(timezone.utc) - ts).total_seconds() < _CONTROL_CONNECT_GRACE_SECONDS
 
 
 def _requester_identity(current_user) -> dict:
@@ -145,18 +174,34 @@ async def start_remote_session(request: Request, payload: dict = Body(...), curr
     # Single-active-control-session guard (74-02, D-10/T-74-10): refuse a
     # second control request against an agent that already has a pending or
     # active control session. Leave desktop/shell/vnc unaffected.
+    #
+    # Only a session that is genuinely still live blocks. A control session
+    # whose capture died (Defender quarantine, crash) stays "active" in the DB
+    # while the browser keeps its socket open on the "ended" overlay; that dead
+    # row used to wedge every later control request with a 409. So an existing
+    # control session only blocks while its tunnel is connected, or within a
+    # short grace window after creation (the agent may not have connected yet).
+    # Otherwise it is stale — reap it and let this request through.
     if session_type == "control":
         existing = await db.remote_sessions.find_one(
             {"agent_id": agent_id, "type": "control", "status": {"$in": ["pending", "active"]}},
-            {"_id": 1, "session_id": 1},
+            {"_id": 1, "session_id": 1, "created_at": 1},
         )
         if existing:
-            raise HTTPException(
-                status_code=409,
-                detail={"reason": "already_controlled",
-                        "message": f"Agent {agent_id} already has a control session ({existing['session_id']})."
-                                   " Disconnect it first before starting another."},
+            if _control_session_still_live(existing):
+                raise HTTPException(
+                    status_code=409,
+                    detail={"reason": "already_controlled",
+                            "message": f"Agent {agent_id} already has a control session ({existing['session_id']})."
+                                       " Disconnect it first before starting another."},
+                )
+            # Stale: close it (also sentinels any half-open tunnel) and continue.
+            close_session(existing["session_id"])
+            await db.remote_sessions.update_one(
+                {"session_id": existing["session_id"]}, {"$set": {"status": "closed"}}
             )
+            logger.info("Reaped stale control session %s for agent %s before starting a new one",
+                        existing["session_id"], agent_id)
 
     db = get_database()
     session_id = str(uuid.uuid4())
@@ -303,8 +348,12 @@ async def report_consent(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if session.get("type") != "control":
-        raise HTTPException(status_code=400, detail="Consent only applies to control sessions")
+    # The agent asks its user before streaming the screen at all, so a view
+    # session's decision is audited too (it used to be refused here, leaving
+    # view-mode consent unrecorded). Shell sessions never prompt.
+    mode = _CONSENT_MODES.get(session.get("type"))
+    if mode is None:
+        raise HTTPException(status_code=400, detail="Consent only applies to desktop view and control sessions")
 
     # The session's own agent only. Comparing tenants was not enough: a super
     # admin's session carries "platform-admin", which skipped the check, so any
@@ -335,7 +384,7 @@ async def report_consent(
             "event": "consent_decision",
             "consent_decision": decision,
             "disconnect_reason": disconnect_reason,
-            "mode": "control",
+            "mode": mode,
         },
     )
 

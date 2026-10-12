@@ -282,14 +282,13 @@ async fn desktop_stream_run(
     let ws_stream = connect_tunnel(url, auth).await?;
     let (mut ws_write, ws_read) = ws_stream.split();
 
-    // Build a control_state frame. `Message` is the WS frame wrapper; string
-    // building avoids a lifetime-heavy closure returning a self-referential type.
+    // Build a control_state frame. The message can carry PowerShell output
+    // (Windows paths), so it is JSON-encoded rather than spliced in.
     let send_state = |state: &str, reason: Option<&str>, message: Option<&str>| {
-        let mut payload = format!(r#"{{"type":"control_state","state":"{}""#, state);
-        if let Some(r) = reason { payload.push_str(&format!(r#","reason":"{}""#, r)); }
-        if let Some(m) = message { payload.push_str(&format!(r#","message":"{}""#, m)); }
-        payload.push('}');
-        Message::Text(payload.into())
+        let mut payload = json!({"type": "control_state", "state": state});
+        if let Some(r) = reason { payload["reason"] = json!(r); }
+        if let Some(m) = message { payload["message"] = json!(m); }
+        Message::Text(payload.to_string().into())
     };
 
     // 1. Signal awaiting consent
@@ -346,46 +345,28 @@ async fn desktop_stream_run(
     }
     let _ = ws_write.send(send_state("active", None, Some("Interactive control active"))).await;
 
-    // 5. Start capture process
-    let ps_script = r#"Add-Type -Name Dpi -Namespace OmniCapture -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
-[void][OmniCapture.Dpi]::SetProcessDPIAware()   # else scaled displays (125-150%) show only part of the screen
-Add-Type -AssemblyName System.Windows.Forms,System.Drawing
-$bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-if ($bounds.Width -le 0 -or $bounds.Height -le 0) {
-    [Console]::Out.WriteLine("ERR:No interactive desktop available (0x0 screen bounds) - the agent likely has no active user session to capture (Session 0 isolation)")
-    [Console]::Out.Flush()
-    exit 1
-}
-$enc = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {$_.MimeType -eq 'image/jpeg'} | Select-Object -First 1
-$p = New-Object System.Drawing.Imaging.EncoderParameters 1
-$p.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, [long]40)
-while ($true) {
-    try {
-        $bm = New-Object System.Drawing.Bitmap([int]$bounds.Width, [int]$bounds.Height)
-        $gr = [System.Drawing.Graphics]::FromImage($bm)
-        $gr.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-        $ms = New-Object System.IO.MemoryStream
-        $bm.Save($ms, $enc, $p)
-        $bm.Dispose(); $gr.Dispose()
-        [Console]::Out.WriteLine([Convert]::ToBase64String($ms.ToArray()))
-        [Console]::Out.Flush()
-        $ms.Dispose()
-    } catch {
-        [Console]::Out.WriteLine("ERR:" + $_.Exception.Message)
-        [Console]::Out.Flush()
-    }
-    Start-Sleep -Milliseconds 150
-}"#;
-
-    // The capture must run in the user's session: this service lives in
-    // session 0, whose desktop is not the one on screen (CopyFromScreen from
-    // here failed as soon as the user had granted consent).
-    let mut child = match crate::user_session::spawn_piped(&crate::user_session::powershell_encoded(ps_script)) {
+    // 5. Start the capture process: the agent re-launches ITSELF with
+    //    --desktop-capture, which grabs the screen with the Win32 GDI APIs and
+    //    writes base64 JPEG frames to stdout (src/capabilities/screen_capture.rs).
+    //    This replaced a hidden `powershell.exe -EncodedCommand` screen-grabber
+    //    that Microsoft Defender quarantined as a PUA before it produced a frame
+    //    (EILT0197, 2026-10-12). The child must run in the user's session: this
+    //    service lives in session 0, whose desktop is not the one on screen.
+    let capture_cmd = match crate::user_session::self_desktop_capture_cmdline() {
+        Ok(cmd) => cmd,
+        Err(e) => {
+            let payload = json!({"type": "error", "message": format!("Cannot locate the agent executable for capture: {e}")});
+            let _ = ws_write.send(Message::Text(payload.to_string().into())).await;
+            let _ = hide_stop_bar(&session_id_owned);
+            return Err(format!("resolve agent exe for capture: {e}").into());
+        }
+    };
+    let mut child = match crate::user_session::spawn_piped(&capture_cmd) {
         Ok(child) => child,
         Err(e) => {
-            let msg = format!("Failed to launch capture process in the user's session: {}", e).replace('"', "'");
-            let payload = format!(r#"{{"type":"error","message":"{}"}}"#, msg);
-            let _ = ws_write.send(Message::Text(payload.into())).await;
+            let msg = format!("Failed to launch capture process in the user's session: {}", e);
+            let payload = json!({"type": "error", "message": msg});
+            let _ = ws_write.send(Message::Text(payload.to_string().into())).await;
             let _ = hide_stop_bar(&session_id_owned);
             return Err(format!("failed to start capture in the user session: {}", e).into());
         }
@@ -395,14 +376,22 @@ while ($true) {
         return Err("no stdout from capture process".into());
     };
     // Lines arrive from a blocking pipe; a small channel keeps at most a few
-    // frames buffered when the relay is slower than the capture.
+    // frames buffered when the relay is slower than the capture. Read bytes,
+    // not lines(): one non-UTF-8 byte in a PowerShell error (OEM code page)
+    // made lines() fail, which ended the stream as if the capture had exited.
     let (line_tx, mut line_rx) = tokio::sync::mpsc::channel::<String>(4);
     std::thread::spawn(move || {
         use std::io::BufRead;
-        for line in std::io::BufReader::new(stdout).lines() {
-            match line {
-                Ok(l) => if line_tx.blocking_send(l).is_err() { break },
-                Err(_) => break,
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut buf = Vec::new();
+        loop {
+            buf.clear();
+            match reader.read_until(b'\n', &mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    let line = String::from_utf8_lossy(&buf).trim_end_matches(&['\r', '\n'][..]).to_string();
+                    if line_tx.blocking_send(line).is_err() { break }
+                }
             }
         }
     });
@@ -410,8 +399,8 @@ while ($true) {
     // First line must arrive within 15s (PowerShell start-up in the user's
     // session, loading System.Drawing, can take several seconds).
     let first_line = timeout(Duration::from_secs(15), line_rx.recv()).await;
-    let mut pending: Result<Option<String>, std::io::Error> = match first_line {
-        Ok(next) => Ok(next),
+    let mut pending: Option<String> = match first_line {
+        Ok(next) => next,
         Err(_) => {
             let _ = ws_write
                 .send(Message::Text(
@@ -468,60 +457,142 @@ while ($true) {
     };
 
     // 7. Frame capture loop
-    let mut end_reason = "unknown";
-    let mut end_message = "Session ended";
+    let end_reason: &str;
+    let end_message: String;
+    // Whatever the capture printed besides frames: PowerShell errors share the
+    // pipe, and used to be relayed to the viewer as (undrawable) frames.
+    let mut output: Vec<String> = Vec::new();
+    let mut logged_output = 0u32;
     loop {
         // Check stop sentinel each frame (D-09/D-12): the endpoint user's Stop
         // Control click writes stop_{session}.stop. On fire, revoke the gate so
         // the concurrent input task stops replaying immediately.
         if stop_requested(&session_id_owned) {
             end_reason = "stop_requested";
-            end_message = "Endpoint user stopped control";
+            end_message = "Endpoint user stopped control".into();
             gate.lock().unwrap().revoke();
             break;
         }
 
-        match pending {
-            Ok(Some(ref line)) if line.starts_with("ERR:") => {
-                let msg = line.trim_start_matches("ERR:").replace('"', "'");
-                let payload = format!(r#"{{"type":"error","message":"{}"}}"#, msg);
-                let _ = ws_write.send(Message::Text(payload.into())).await;
+        let Some(line) = pending else {
+            // The pipe closed: the capture process exited (or was killed).
+            // Its exit code may lag the pipe by a moment.
+            let mut code = child.exit_code();
+            for _ in 0..10 {
+                if code.is_some() { break }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                code = child.exit_code();
+            }
+            let detail = capture_exit_detail(code, &output);
+            log::warn!("Desktop capture ended: session={session_id_owned} {detail}");
+            let payload = json!({"type": "error", "message": format!("Desktop capture process ended ({detail})")});
+            let _ = ws_write.send(Message::Text(payload.to_string().into())).await;
+            end_reason = "capture_ended";
+            end_message = format!("Desktop capture process ended ({detail})");
+            gate.lock().unwrap().revoke();
+            break;
+        };
+        match classify_capture_line(&line) {
+            CaptureLine::Error(msg) => {
+                log::warn!("Desktop capture failed: session={session_id_owned} {msg}");
+                let payload = json!({"type": "error", "message": msg});
+                let _ = ws_write.send(Message::Text(payload.to_string().into())).await;
                 end_reason = "capture_error";
-                end_message = "Desktop capture failed";
+                end_message = "Desktop capture failed".into();
                 gate.lock().unwrap().revoke();
                 break;
             }
-            Ok(Some(ref line)) if !line.is_empty() => {
+            CaptureLine::Frame(data) => {
                 let ts = chrono::Utc::now().timestamp_millis();
                 let payload = format!(
                     r#"{{"type":"frame","timestamp":{},"data":"{}"}}"#,
-                    ts, line
+                    ts, data
                 );
                 if ws_write.send(Message::Text(payload.into())).await.is_err() {
                     end_reason = "relay_failed";
-                    end_message = "WebSocket relay failed";
+                    end_message = "WebSocket relay failed".into();
                     gate.lock().unwrap().revoke();
                     break;
                 }
             }
-            Ok(None) | Err(_) => {
-                end_reason = "capture_ended";
-                end_message = "Desktop capture process ended";
-                gate.lock().unwrap().revoke();
-                break;
+            CaptureLine::Other(text) if !text.is_empty() => {
+                // Log the first few only: a script stuck printing must not flood the log.
+                logged_output += 1;
+                if logged_output <= 20 {
+                    log::warn!("Desktop capture output: session={session_id_owned} {text}");
+                }
+                remember_capture_output(&mut output, text);
             }
-            _ => {}
+            CaptureLine::Other(_) => {}
         }
-        pending = Ok(line_rx.recv().await);
+        pending = line_rx.recv().await;
     }
 
     // 8. Cleanup: abort input task, kill capture, hide stop bar, send ended state
     input_task.abort();
     child.kill();
     let _ = hide_stop_bar(&session_id_owned);
-    let _ = ws_write.send(send_state("ended", Some(end_reason), Some(end_message))).await;
+    let _ = ws_write.send(send_state("ended", Some(end_reason), Some(&end_message))).await;
 
     Ok(())
+}
+
+/// One line from the desktop capture helper's pipe, which carries its stdout
+/// and stderr: a base64 JPEG frame, an error the script reported itself, or
+/// anything else (a PowerShell error, for one).
+#[derive(Debug, PartialEq)]
+#[cfg_attr(not(windows), allow(dead_code))]
+enum CaptureLine<'a> {
+    Frame(&'a str),
+    Error(&'a str),
+    Other(&'a str),
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn classify_capture_line(line: &str) -> CaptureLine<'_> {
+    let line = line.trim_start_matches('\u{feff}').trim();
+    if let Some(msg) = line.strip_prefix("ERR:") {
+        return CaptureLine::Error(msg.trim());
+    }
+    // A JPEG starts FF D8 FF, which is "/9j/" in base64.
+    if line.starts_with("/9j/") && line.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'=')) {
+        return CaptureLine::Frame(line);
+    }
+    CaptureLine::Other(line)
+}
+
+/// Test hook: whether the relay would treat a capture line as a video frame.
+/// Used by `screen_capture`'s tests to prove its encoder output is accepted.
+#[cfg(test)]
+pub(crate) fn line_is_frame(line: &str) -> bool {
+    matches!(classify_capture_line(line), CaptureLine::Frame(_))
+}
+
+/// Keep the last few non-frame lines the capture printed, each shortened.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn remember_capture_output(output: &mut Vec<String>, text: &str) {
+    const KEEP: usize = 6;
+    const MAX_CHARS: usize = 200;
+    if output.len() == KEEP {
+        output.remove(0);
+    }
+    output.push(text.chars().take(MAX_CHARS).collect());
+}
+
+/// Why the capture process stopped, for the admin's viewer and the agent log.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn capture_exit_detail(exit_code: Option<u32>, output: &[String]) -> String {
+    let mut detail = match exit_code {
+        Some(code) => format!("exit code 0x{code:08X}"),
+        None => "exit code unknown".to_string(),
+    };
+    if output.is_empty() {
+        detail.push_str(", no output");
+    } else {
+        detail.push_str(": ");
+        detail.push_str(&output.join(" | "));
+    }
+    detail
 }
 
 /// POST consent decision to the backend audit endpoint (T-74-19), as this
@@ -641,5 +712,43 @@ mod tests {
         let none = TunnelAuth { agent_token: String::new(), tenant_key: String::new() };
         let req = tunnel_request("wss://p.example/api/tunnel/s/agent", &none).unwrap();
         assert!(req.headers().get("Authorization").is_none() && req.headers().get("X-Tenant-Key").is_none());
+    }
+    #[test]
+    fn capture_lines_are_told_apart() {
+        assert_eq!(classify_capture_line("/9j/4AAQSkZJRg+/="), CaptureLine::Frame("/9j/4AAQSkZJRg+/="));
+        // A UTF-8 BOM before the first frame is not part of the image.
+        assert_eq!(classify_capture_line("\u{feff}/9j/4AAQ"), CaptureLine::Frame("/9j/4AAQ"));
+        assert_eq!(classify_capture_line("ERR: The handle is invalid"), CaptureLine::Error("The handle is invalid"));
+        // PowerShell's own errors share the pipe and must not reach the viewer as frames.
+        for line in [
+            "Add-Type : Cannot add type. Definition of new types is not supported in this language mode.",
+            "At line:1 char:1",
+            "/9j/ but \"quoted\" text",
+            "#< CLIXML",
+        ] {
+            assert_eq!(classify_capture_line(line), CaptureLine::Other(line));
+        }
+    }
+
+    #[test]
+    fn capture_output_keeps_the_last_lines_shortened() {
+        let mut out = Vec::new();
+        for i in 0..8 {
+            remember_capture_output(&mut out, &format!("line {i}"));
+        }
+        assert_eq!(out, ["line 2", "line 3", "line 4", "line 5", "line 6", "line 7"]);
+        remember_capture_output(&mut out, &"x".repeat(500));
+        assert_eq!(out.last().unwrap().chars().count(), 200);
+    }
+
+    #[test]
+    fn capture_exit_detail_names_the_code_and_output() {
+        assert_eq!(capture_exit_detail(Some(1), &[]), "exit code 0x00000001, no output");
+        assert_eq!(capture_exit_detail(None, &[]), "exit code unknown, no output");
+        let out = vec!["At line:1 char:1".to_string(), r"C:\Users\x is blocked".to_string()];
+        assert_eq!(
+            capture_exit_detail(Some(0xC000_0142), &out),
+            r"exit code 0xC0000142: At line:1 char:1 | C:\Users\x is blocked"
+        );
     }
 }

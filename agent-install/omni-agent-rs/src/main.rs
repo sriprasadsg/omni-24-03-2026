@@ -31,9 +31,17 @@ fn init_logging() {
 
 #[tokio::main]
 async fn main() {
-    init_logging();
-
     let args: Vec<String> = std::env::args().collect();
+
+    // Desktop capture helper: the remote-access code re-launches this binary
+    // with --desktop-capture inside the logged-on user's session. It must run
+    // BEFORE init_logging — its stdout is the frame pipe the parent reads, and
+    // a logger writing there would corrupt the stream. Never returns.
+    if args.iter().any(|a| a == "--desktop-capture") {
+        omni_agent::capabilities::screen_capture::run_capture_loop();
+    }
+
+    init_logging();
 
     // Uninstaller modes (uninstall protection) — answer and exit.
     if let Some(code) = omni_agent::uninstall::cli(&args).await {

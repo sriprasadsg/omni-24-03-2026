@@ -11,12 +11,13 @@ after the ASN/location-history wiring lands. This block was self-contained
 heartbeat logic, making it a clean, behavior-preserving extraction.
 """
 import re
+import uuid
 import logging
 from datetime import datetime, timezone
 
 logger = logging.getLogger("agent_auto_update_service")
 
-_LATEST_AGENT_VERSION = "2.1.8"
+_LATEST_AGENT_VERSION = "2.1.12"
 _MIN_SELF_UPDATE_VERSION = (2, 0, 5)
 
 
@@ -46,15 +47,20 @@ async def maybe_push_update_instruction(db, agent_id: str, payload: dict) -> Non
 
     # Dedup against pending AND sent: auto-pushed instructions flip to "sent" as
     # soon as the agent polls, so checking only "pending" would insert a new row
-    # on every heartbeat until the agent finishes updating.
+    # on every heartbeat until the agent finishes updating. Only a push for THIS
+    # version counts: these rows had no id, so the agent could never report them
+    # done, and the 2.1.9 push stayed "sent" forever and blocked every later one.
     _existing = await db.agent_instructions.find_one(
         {"agent_id": agent_id, "instruction": "agent_update",
+         "target_version": _LATEST_AGENT_VERSION,
          "status": {"$in": ["pending", "sent"]}}
     )
     if not _existing:
         await db.agent_instructions.insert_one({
+            "id": uuid.uuid4().hex,
             "agent_id": agent_id,
             "instruction": "agent_update",
+            "target_version": _LATEST_AGENT_VERSION,
             "status": "pending",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by": "auto_update",
