@@ -167,7 +167,14 @@ Plans:
   2. `/login` and `/me` return the same effective permission set for the same user, because both call one resolver that unions the role document's permissions with that role's defaults (a test proves the two endpoints agree).
   3. Exactly one permission-defaults table exists: the `rbac_utils.DEFAULT_PERMISSIONS` / `rbac_service.default_roles` divergence is gone, a test fails if a second copy drifts, and `control:remote_access` stays distinct from `view:remote_access`.
   4. The `itam_admin`, `itam_user`, and `itam_viewer` role documents exist after startup seeding and appear in an admin's role list, while pre-existing custom roles still resolve correctly with no data migration.
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 75-01-PLAN.md — Tracer: single table (rbac_defaults.py) + effective_permissions resolver through /login and /me; verify_permission/RBACService delegate; golden sets (wave 1)
+- [ ] 75-02-PLAN.md — Startup mirrors the table into 11 shared role docs via {name, tenantId}; signup + MFA verify deliver resolver permissions (wave 2)
+- [ ] 75-03-PLAN.md — Real GET /api/roles (manage:users or manage:rbac); frontend fails closed, role-list cache cleared (wave 2)
+- [ ] 75-04-PLAN.md — Bundle assignment super-admin only (D-06); shared role-assignment ceiling for user CRUD (D-18/D-20/D-21) (wave 2)
+- [ ] 75-05-PLAN.md — LDAP/SAML mapping ceiling + apply-time super-admin block (D-22); archive one-off scripts; AST drift guard (wave 3)
 
 ### Phase 76: Catalogue Manifest & Backend Route Enforcement
 
