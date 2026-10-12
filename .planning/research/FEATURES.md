@@ -1,212 +1,273 @@
-# Feature Research
+# Feature Research — v4.2 Catalogue Access Control & Asset Costing
 
-**Domain:** IT Asset Management (ITAM) lifecycle — Snipe-IT parity, added atop an existing agent-based security/observability CMDB
-**Researched:** 2026-08-04
-**Confidence:** MEDIUM (web-search-verified against Snipe-IT's documented behavior + cross-checked against GLPI/Freshservice for table-stakes convergence; no direct Context7/official-docs library involved since this is product-behavior research, not an API/library)
+**Domain:** Permission-gated navigation in a multi-tenant SaaS console (Feature 1) and ITAM asset cost rollup / TCO-lite (Feature 2), added to an existing FastAPI + React/TS + MongoDB platform
+**Researched:** 2026-10-12
+**Confidence:** MEDIUM overall. Codebase findings are HIGH (read directly from source). Product-behavior conventions (Snipe-IT / ServiceNow / Lansweeper style costing, nav-gating patterns) are MEDIUM: web search returned only generic secondary sources, so conventions are stated from domain knowledge and marked as such.
+**Supersedes:** the 2026-08-04 FEATURES.md (v4.0 ITAM lifecycle research); that milestone is shipped.
 
-## Existing System Baseline (grounding for dependency calls below)
+---
 
-Read directly from the codebase (`backend/asset_endpoints.py`, `db.assets`) before scoping features:
+## Existing System Baseline (grounding — read from code, do not re-build)
 
-- `assets` collection, doc id `"asset-{hostname}"`, keyed by **hostname** (agent identity), not by a human-assigned tag.
-- Existing fields: `hostname`, `os`/`osName`, `type` (server/workstation/etc, agent-inferred), `serialNumber` (best-effort from agent metadata), `criticality`, `status` (agent/security-connectivity meaning — online/offline/isolated, NOT ITAM lifecycle), `tags`, `location` (free string), `owner` (free string, not a user FK), `notes`, `maintenanceWindow`, `environment`, `category`, `tenantId`.
-- `bulk-update` allowlist already includes `status`, `criticality`, `tags`, `location`, `owner`, `notes`, `maintenanceWindow`, `environment`, `category` — but these are shallow scalar fields with **no history/audit trail**, no FK to a `users` collection, no enum-enforced lifecycle, and `status` is already semantically overloaded (security state, not ITAM state).
-- No concept of: manually-created (non-agent) asset; check-out/check-in event; assignment target (user vs location vs another asset); manufacturer/model/category/supplier as first-class entities; custom fields; asset tag/barcode/QR; license; accessory; consumable; component; purchase/warranty/depreciation fields.
-- **This confirms the milestone's own framing is correct**: the current `assets` collection is an agent-fingerprint record, not an ITAM asset record. Reusing it wholesale for hand-catalogued items (a laptop with no agent installed, a monitor, a phone) would force every manual asset to fake a `hostname` and would collide with agent auto-discovery logic that keys off `hostname` for upsert. See Feature Dependencies section for the precise fork/extend decision per field group.
+### Feature 1 baseline (RBAC / nav)
 
-## Feature Landscape
+| Fact | Where | Implication |
+|------|-------|-------------|
+| Sidebar already filters by permission: `navGroups` items carry `permission: 'view:...'`; `visibleGroups` drops items where `hasPermission()` is false and drops empty groups; super-admin bypasses; `manage:tenants` hidden when super-admin is viewing a tenant | `components/Sidebar.tsx` L208-466 | The "hide menu items" behavior largely EXISTS. v4.2 is about making it authoritative, consistent with the backend, and visible to admins, not building it from scratch. |
+| ~187 nav items, **89 distinct permission strings** | `Sidebar.tsx` | Large surface; need a registry + automated check, not hand audits. |
+| **Second hand-maintained map** `viewPermissionMap: Record<AppView, Permission>` used by `handleSetCurrentView` (click and hash-deep-link guard) | `App.tsx` L242-446, L1379-1395 | Two sources of truth. **9 views disagree** with the sidebar permission today: `agentCapabilities`, `jobs`, `llmops`, `persistenceDetection`, `sustainability`, `swarm`, `unifiedOps`, `vulnerabilityManagement`, `zeroTrustQuantum`. Item can render in the nav yet the click is silently refused (or vice versa). |
+| Blocked navigation is silent: `console.warn` only, no user-visible state | `App.tsx` L1392 | No fallback/empty state exists. |
+| `hasPermission` fails OPEN if `UserContext` is absent: `userContext?.hasPermission \|\| (() => true)` | `Sidebar.tsx` L178 | Must become fail-closed. |
+| `currentView` initial state is `'dashboard'`; `renderView()` switches on `currentView` with no permission check at render time | `App.tsx` L481, L1806 | Guard exists only at the navigation entry points, not at render. Any direct `setCurrentView` caller bypasses it. |
+| Frontend effective permissions = login-time `user.permissions` (from the `db.roles` doc via `find_role_doc`) ∩ tenant `enabledFeatures`; if the list is empty it falls back to the `/api/roles` **static stub** (`Admin -> ["all"]`) | `App.tsx` L1185-1242, `authentication_endpoints.py` L223-231, `role_endpoints.py` | Frontend evaluator is NOT the backend evaluator. Backend `verify_permission` = hardcoded `DEFAULT_PERMISSIONS` dict first, then `db.roles` doc. A role with defaults but no role doc logs in with `permissions: []`. UI and API can disagree. |
+| Backend evaluator: `rbac_utils.verify_permission` / `require_permission`; ITAM uses `_require_itam_viewer` (`view:itam` OR `manage:assets`, plus API-key scope narrowing) and `_require_itam_admin` (`manage:assets`) | `rbac_utils.py`, `itam_asset_endpoints.py` L38-95 | The "mirror backend authorization" target. Reuse, do not fork. |
+| Backend `require_permission('view:...')` coverage is thin: of 89 nav permission strings, most `require_permission` call sites use `manage:*`/`investigate:*`; a spot grep found few `view:` guards (e.g. `view:security`, `view:reporting`, `view:dashboard`, `view:compliance`, `view:devsecops`) | `grep require_permission backend/*.py` | Many catalogues are UI-gated only. "Mirrors backend" cannot be asserted without a parity audit. (Grep covers only the literal `require_permission("x")` form; other guard styles may exist. Treat as a lead, verify in phase research.) |
+| 3 nav permissions are granted by no seeded default role: `view:goal_system`, `view:jobs`, `view:predictive_health` | grep of `app_startup.py`, `rbac_utils.py`, `authentication_endpoints.py`, `rbac_service.py` | Those catalogues are visible to super-admin only unless a custom role doc grants them. |
+| Three orthogonal gates already stack on a nav item: role permission, tenant `enabledFeatures`/bundle (`featureKey`), subscription tier (`minTier` -> shown **locked**) | `Sidebar.tsx` L449-463 | Keep distinct: permission-denied = hidden; tier-locked = shown with lock. Do not merge. |
+| "Phase 36 ReBAC" is an OpenFGA wrapper (`rebac_service.py`) that the sidebar does NOT consult. Nav gating is flat role-permission. | `rebac_service.py` | The milestone phrase "ReBAC permissions" means the flat `view:` permissions on roles, not OpenFGA tuples. Requirements should say "role permissions (`rbac_utils`/`db.roles`)". |
 
-### Table Stakes (Users Expect These)
+### Feature 2 baseline (ITAM cost data)
 
-Features users assume exist in any ITAM tool once check-in/out is on the table. Missing these makes the product feel like a stripped-down demo. Confirmed as common denominator across Snipe-IT, GLPI, and Freshservice (not Snipe-IT-specific quirks).
+| Fact | Where | Implication |
+|------|-------|-------------|
+| Asset purchase cost: `purchaseCostCents` (int, `>=0`), `purchaseDate` (ISO), `poNumber`, `purchase_order_id`, `warrantyMonths`, `lifecycleStatus`, `modelId`, `locationId` | `itam_models.py` L123-157, L270-295 | Per-asset purchase cost exists. |
+| Depreciation policy lives on the **model** (`usefulLifeYears`, `salvageValueCents` on `asset_models`), not the asset | `itam_finance_endpoints.py` L160-190, `itam_models.py` L218-232 | Book value needs asset + model join. Assets without a model policy have no book value. |
+| `compute_book_value(purchase_date, purchase_cost_cents, useful_life_years, salvage_value_cents, now)`: straight-line, whole-year steps, floors at salvage, read-time only, never persisted. Returns `bookValueCents`, `yearsElapsed`, `annualDepreciationCents` | `itam_finance_service.py` L70-115 | The single source of truth for book value. Costing MUST call it verbatim. |
+| Per-asset read route `GET /api/assets/{id}/book-value` (viewer-gated); `reason` codes `no_purchase_record`, `no_depreciation_policy_assigned` | `itam_finance_endpoints.py`, `itam_finance_service.py` L48-49 | Existing per-asset contract to mirror for the endpoint-level view. |
+| Org-level book-value rollup ALREADY exists as a KPI: `_compute_asset_value_kpi` sums `bookValueCents`, tallies `withoutPolicyCount`, never fakes zero, `hasData:false` when empty, drill-down to `asset_value` report | `itam_reporting_kpis.py` L60-125, `itam_reporting_prebuilt.py` L120-175 | Do not write a second rollup that can disagree (PROJECT.md decision: "every ITAM report/KPI reuses its owning surface's computation verbatim"). Extract/extend, then have KPI + new cost view share one function. |
+| **Licenses have NO cost field.** `LicenseCreate` = `name, notes, seatCount, expiryDate, isReassignable, manufacturerId, productKey` (`extra="forbid"`). **Consumables and components have no cost field either.** | `itam_models.py` L84-91, L319-345, L391-475 | **Biggest scope finding.** "License spend" and "allocated license cost" cannot be computed from existing data. See Open Decision D-1. |
+| License seats: `license_assignments` rows `{licenseId, targetType: "user"\|"asset", targetId}`; unique on (licenseId, targetType, targetId); `seatCount` on license | `itam_license_service.py`, `itam_models.py` L361-380 | Seat-to-asset allocation is possible for `targetType == "asset"`; user-assigned seats have no asset to land on. |
+| **No currency anywhere in ITAM.** Asset costs are integer cents with implicit currency. `finops_service.py` hardcodes `"USD"`. PO model uses **float** `total_cost`/`unit_price`; asset request `estimated_cost` is float. | `itam_models.py`, `finops_service.py` L137,184 | Single implicit currency. Cents arithmetic must stay integer. Do not sum PO float totals with asset cents. |
+| Reporting framework: pre-built report registry, custom report builder, PDF/Excel/CSV export, KPI tiles with drill-down | `itam_reporting_*.py`, `ItamKpiPanel.tsx` | Cheap export/drill-down path for a new `asset_cost` report. |
+| UI home: `components/itam/FinancePanel.tsx` inside `ITAMConsole` (tab list `catalog, lifecycle, finance, purchaseOrders, requests, licenses, ...`) | `ITAMConsole.tsx` L32-49 | Natural place for an org/asset cost view without a new sidebar module or permission. |
+| Agent-discovered assets are keyed `asset-{hostname}` and may carry no purchase data | `.planning` baseline, `assets` collection | "Endpoint cost" = the ITAM asset record. Many endpoints will legitimately have no cost. |
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Check-out asset to user | Core ITAM verb; "who has this laptop" is the #1 question an ITAM tool answers | MEDIUM | Needs `assigned_to` as a typed reference (`{type: user\|location\|asset, id}`), not a free-text `owner` string. New `checkout_records` collection for the transaction log. |
-| Check-in asset (return to stock) | Symmetric to checkout; without it, checkout is a one-way door | LOW | Clears `assigned_to`, appends a check-in event to `checkout_records`, sets status back to a deployable label. |
-| Status lifecycle labels (deployable/deployed/archived/retired/disposed/broken) | Users expect an enum-driven lifecycle, not a raw connectivity flag | MEDIUM | Must be a **new field** (e.g. `lifecycle_status`) — cannot repurpose `assets.status`, which already means agent/security connectivity. Status labels need a `type` (deployable vs not) that gates whether checkout is allowed, per Snipe-IT's model. |
-| Assignment/checkout history (audit trail) | "Who had this before?" is a routine helpdesk/audit question; also needed for compliance evidence parity with the rest of this platform | LOW–MEDIUM | Append-only collection, tenant-scoped, same pattern already used for `status_history` on compliance overrides (Phase 6) — reuse that pattern. |
-| Assign asset to a location (not just a person) | Shared equipment (conference-room TV, printer) isn't assigned to one person | LOW | Locations become a first-class catalog entity (Cluster C); `assigned_to.type = location`. |
-| Manual (non-agent) asset creation | ITAM must catalog things with no software agent — monitors, furniture, phones | MEDIUM | New collection (see Dependency Notes) — this is the crux integration decision for the whole milestone. |
-| Asset tag (human-facing unique ID, distinct from serial number) | Physical labeling requires a short, print-friendly, org-assigned identifier; serial numbers are vendor-assigned and not always visible/scannable | LOW | Simple unique-per-tenant string field + uniqueness index. |
-| Manufacturer / Model / Category / Supplier / Location as catalog entities | Without these, every asset re-types "Dell" and "Latitude 5420" as free text — no reporting, no bulk depreciation-by-model | MEDIUM | 5 small CRUD collections; models reference manufacturer + category; assets reference model. |
-| Purchase cost / purchase date / PO number / supplier | Finance/procurement teams need this for every asset in an ITAM tool; it's the majority of "why doesn't this feel like ITAM yet" gap | LOW | Flat fields on the manual-asset record (or an extension sub-doc — see Dependency Notes). |
-| Warranty tracking + expiry alert | Table stakes once purchase date exists; "which warranties expire this quarter" is a standard report | LOW–MEDIUM | Computed field (`purchase_date + warranty_months`) + a scheduled digest/alert, reusing existing notification infra if present. |
-| Depreciation schedule (straight-line minimum) | Finance stakeholders expect current book value, not just purchase cost | MEDIUM | Model-level depreciation policy (months + floor value) applied per-asset at report time; matches Snipe-IT's model-level assignment pattern. Pure calculation, no external accounting integration (explicitly out of scope per PROJECT.md). |
-| Custom fields | Every org tracks something the vendor didn't anticipate (e.g. an internal cost-center code); a rigid schema without custom fields is a common ITAM complaint | MEDIUM | Global field definitions grouped into fieldsets, fieldset attached at the model level (Snipe-IT pattern) — avoids a full EAV free-for-all while still being flexible. |
-| Asset tag label generation (QR + barcode, printable) | Physical audits require scannable labels; explicitly named in this milestone's constraints (offline/air-gapped, no external services) | MEDIUM | Pure local rendering — `qrcode`-style library + barcode (Code128/Code39) + PDF/label-sheet layout. No live network calls, consistent with the platform's offline-first native-scan precedent (v3.4). |
-| Software license seats (assign/reclaim/expiry) | License compliance ("do we have enough Photoshop seats") is a named cluster requirement and a top ITAM use case | MEDIUM | `licenses` collection with `seats_total`; `license_seats` sub-records or a checkout-record type extension track per-seat assignment to user or asset; expiry date + alert reuses warranty-alert plumbing. |
-| Accessories / consumables (checkout with quantity, no serials) | Non-serialized bulk items (cables, toner, mice) are explicitly named in Cluster D | MEDIUM | Pool-quantity model: `quantity_total`, `quantity_available`; checkout decrements, check-in (accessories only — consumables typically aren't returned) increments. |
-| Components (attached to a specific parent asset) | RAM/HDD/GPU upgrades tracked as sub-inventory of a parent asset is a named cluster item | MEDIUM | `components` collection referencing a parent asset id + quantity, distinct from accessories (which attach to people, not assets). |
-| Physical audit / inventory-verification workflow | Periodic "did we actually find this asset" walkthroughs are a standard ITAM report even though not explicitly named as its own cluster — it's the natural consumer of QR/barcode labels | MEDIUM | "Mark as audited on [date]" action + last-audit-date field + overdue-audit report; can be deferred past MVP since it's a light layer on top of check-in/out + labels, but expected once labels exist. |
+---
 
-### Differentiators (Competitive Advantage)
+# FEATURE 1 — Role-based catalogue access
 
-Not required for Snipe-IT parity, but where this platform can go further than a bolt-on ITAM tool because it already owns the agent-based security layer.
+## How mature multi-tenant apps do it (conventions, MEDIUM confidence)
+
+1. **Menu is derived from permission, per item, default-deny.** Items the user cannot use are *absent*, not greyed out (GitHub, Azure Portal, Okta admin, Jira admin, AWS console services via IAM). Greyed/locked rendering is reserved for *plan/tier* gating (upsell), not for authorization.
+2. **Groups with no visible children disappear.** (Already implemented.)
+3. **Route guard is separate from the menu.** Hiding a link does not stop a deep link, bookmark, or hash change; the router guard re-checks the same predicate and renders an explicit "no access" screen (403 page) rather than a blank page, silent no-op, or redirect loop. Standard guidance: client-side gating is UX; the API is the security boundary.
+4. **One predicate, one registry.** Menu, guard, and API reference the same permission key. Drift between "link visible" and "page allowed" is the classic bug class; mature apps generate both from one route/nav definition (and/or from a server-provided effective-permission set).
+5. **Server is the authority for effective permissions.** The client receives the *evaluated* permission set (what the API will accept), not a re-implementation of role logic. Permissions refresh on role change (re-fetch on focus/interval or on a 403), not only at login.
+6. **API 403 inside a visible page is handled gracefully** (permission revoked mid-session): inline "you no longer have access" state, not a toast storm.
+7. **Admins can see what a role grants.** Role editors show the effective capability/menu set; larger products offer a role x module matrix or "preview as role".
+8. **Super/platform admin sees everything; tenant-scoped admins see their tenant's enabled modules.**
+
+## Table Stakes
+
+| Feature | Why Expected | Complexity | Notes / Dependencies |
+|---------|--------------|------------|----------------------|
+| T1-01 Single authoritative **nav registry** (view id -> permission, group, label) consumed by BOTH `Sidebar` and the `App.tsx` navigation guard; delete the duplicate `viewPermissionMap` permission values | Spec says "UI gating mirrors backend route authorization"; today 9 views already disagree | MEDIUM | Touch `Sidebar.tsx` `navGroups`, `App.tsx` `viewPermissionMap`. Mechanical but wide (187 items). A unit test that sidebar and guard agree for every view is the acceptance test. |
+| T1-02 **Fail-closed default**: no `UserContext` or no `permission` on an item -> hidden / denied | Default-deny is the baseline of any access-control UI; current `() => true` fallback is fail-open | LOW | `Sidebar.tsx` L178. |
+| T1-03 **Render-time guard**: `renderView()` (or a wrapper) re-checks the permission for `currentView` before rendering any module | Menu hiding != access control; `setCurrentView` has callers other than the guarded handler | LOW-MEDIUM | `App.tsx` L1806. Audit direct `setCurrentView(...)` callers; route them through the guarded handler or guard at render. |
+| T1-04 **Visible "no access" state** replacing silent `console.warn`: names the module, says contact your admin, offers return to Overview | Silent no-op reads as a broken app; every mature app has a 403 page | LOW | New small component; reuse existing empty-state styling. Do NOT leak other tenants' info. |
+| T1-05 **Backend parity for gated catalogues**: every catalogue whose nav permission is `view:X` has its list/read routes guarded by `require_permission("view:X")` (or the module's existing equivalent). Produce a parity matrix; fix gaps for catalogues in scope | The milestone's stated defense-in-depth requirement; spot grep shows thin `view:` coverage | HIGH (breadth) / LOW per route | Largest risk in the milestone. Scope by sensitivity and by "what the sidebar exposes", not by touching all ~187 modules blindly. Router-level `dependencies=[Depends(require_permission(...))]` is cheaper than per-route edits. Must not break the API-key scope-narrowing path (`_scopes_allow`). |
+| T1-06 **Effective-permission source of truth is the backend evaluator**: `/api/auth/me` (and login) return permissions computed by the same function the guards use (`DEFAULT_PERMISSIONS` UNION `db.roles` doc), instead of only the raw `db.roles` doc; remove reliance on the `/api/roles` static stub for non-super-admins | A role that has defaults but no role doc logs in with `permissions: []` and falls back to a stub; UI/API can disagree | MEDIUM | `authentication_endpoints.py` L223-231 & `/me` L253-281; `rbac_utils.verify_permission`; `App.tsx` L1185-1242. Keep `rbac_service._normalize_role` as the only role normalizer (existing PROJECT decision). |
+| T1-07 **Seed gap closure**: nav permissions granted by no default role (`view:jobs`, `view:goal_system`, `view:predictive_health`) are either granted to appropriate default roles or consciously left super-admin-only (documented) | Otherwise "role holds the matching view: permission" is vacuous for those catalogues | LOW | Decision, then edit `app_startup.py`/`rbac_utils.py` seed dicts in lockstep (they are duplicated; see Pitfall: lockstep edits, as in Phase 25). |
+| T1-08 **Tenant isolation holds**: nav/permission evaluation uses the caller's own tenant role docs only; super-admin "view as tenant" does not leak other tenants' role definitions | Non-negotiable platform invariant | LOW (verify) | `find_role_doc(db, role, tenant_id)` already handles tenant + global; add a regression test. |
+| T1-09 **Permission changes take effect without re-login** (re-fetch effective permissions on window focus / after role edit / on first 403) | Nav derived only from login-time permissions leaves revoked users seeing modules until token expiry | LOW-MEDIUM | `App.tsx` already fetches roles; add a lightweight `/me` refresh. |
+| T1-10 Keep **tier-lock vs permission-hide** semantics distinct and unchanged | Existing behavior users already see | LOW | Regression test only. |
+
+## Differentiators
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Agent-discovered ↔ manual-asset linking | "This ITAM record IS this monitored endpoint" — link a manually-catalogued asset (with PO/warranty/depreciation) to its auto-discovered security twin (with vuln/patch/criticality data) in one UI, something Snipe-IT can't do because it has no security agent at all | MEDIUM | Add an optional `linked_endpoint_asset_id` FK from the ITAM record to the existing `assets` collection; surface both panels side by side. This is the single most natural differentiator given the existing platform and should be scoped explicitly, not left implicit. |
-| Compliance-evidence-aware asset lifecycle | Retiring/disposing an asset that holds compliance evidence (FIM baselines, scan history) can auto-flag/archive that evidence instead of leaving orphaned records — no ITAM competitor has a compliance evidence layer to integrate with | MEDIUM–HIGH | Hook the "retire/dispose" checkout-status transition to check for and annotate linked compliance evidence records. Good candidate for a later phase, not MVP. |
-| Warranty/depreciation alerts routed through the existing notification/webhook infra (SIEM/OCSF, in-app) | Reuses the outbound webhook plumbing shipped in v3.4 (COMM-01) rather than building new alerting from scratch | LOW | Genuine reuse win — implementation cost is lower than it looks because the pipe already exists. |
-| Tenant-scoped asset tag namespacing with QR deep-link into the existing multi-tenant portal | Scanning a QR code opens the exact tenant-scoped asset record directly (deep link with tenant context), which off-the-shelf Snipe-IT installs typically don't offer in a multi-tenant MSP context | LOW–MEDIUM | Mostly a URL-scheme/auth-routing concern, not new domain logic. |
+| D1-01 **Admin "what can this role see" view**: in role management, a read-only grouped list of the catalogues a role resolves to, computed from the same registry (T1-01) + the role's permission list | Directly answers "admin visibility of what a role can see"; makes the feature auditable; sells RBAC to compliance buyers | MEDIUM | Reuse registry + a shared `visibleViewsFor(permissions)` pure function. No new data model. Surfaces in the existing role/user management UI (`roleManagement`/`userManagement`, `manage:rbac`). |
+| D1-02 **Role x catalogue matrix** (rows = roles, columns = catalogue groups) | Fast review of least-privilege across roles; useful for access reviews (platform already has an Access Reviews module) | MEDIUM | Same pure function over all roles in the tenant. Read-only. |
+| D1-03 **CI parity test**: for every nav permission string, assert either a backend route guard exists or an explicit, reviewed "UI-only" allowlist entry | Makes "UI mirrors backend" a permanent regression net instead of a one-off audit | MEDIUM | Static scan of `require_permission(...)` literals vs registry. Fits the existing pytest suite. |
+| D1-04 **Sub-module (tab) gating inside multi-tab consoles** (e.g. ITAM console tabs: finance/settings/purchase orders visible only if the role's backend guards would allow them) | An `itam_viewer` currently sees tabs whose writes/reads would 403 | MEDIUM | `ITAMConsole.tsx` TABS is static. Optional; do after catalogue-level gating. Keep to ITAM console to avoid creep. |
+| D1-05 Audit log entry for **denied navigation / 403 on a gated catalogue** | Compliance-product expectation (who tried to reach what) | LOW-MEDIUM | Only if existing audit sink makes it a one-liner; otherwise defer. |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+## Anti-Features
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|------------------|-------------|
-| Forking/duplicating the `assets` collection wholesale into a parallel "ITAM assets" collection with 90% overlapping fields | Feels like the fastest path — copy the schema, add fields | Two collections both called "assets" with divergent meanings is exactly the kind of drift this platform has already suffered (see `.planning/PROJECT.md` history — `compliance_remediation_tasks` vs `remediation_tasks` naming collision was deliberately avoided for this reason) | Single `itam_assets` (or similarly named) collection scoped to manually-catalogued items, with an **optional** link field to the existing `assets` collection when a hardware match exists. Do not rename or repurpose the existing collection. |
-| RFID/physical scanner driver integration | "Since we're doing barcodes, why not RFID gates" | Hardware driver integration, out of scope per PROJECT.md ("QR/barcode generation only, no scanner drivers"), and scanning is solvable with any USB barcode scanner emulating keyboard input against the existing search box — no custom driver needed | Rely on standard USB HID barcode scanners hitting the existing asset-tag search field; explicitly punt hardware RFID integration |
-| Full GL/accounting system integration (journal entries, multi-currency, tax) | "Depreciation should post to our accounting system" | Named out of scope in PROJECT.md; deep GL integration is its own product surface and multiplies complexity (currency conversion, fiscal-period close, chart-of-accounts mapping) | Straight-line depreciation report with book value only; export as CSV/PDF for a human to key into accounting software, same posture as the existing PDF/Excel compliance export |
-| Real-time RFID/GPS asset location tracking | "Auto check-in when the asset re-enters the building" sounds compelling | Requires hardware infrastructure this platform has no reason to own, and conflicts with the "no scanner drivers" constraint | Location is a manually-selected catalog entity assigned at checkout time, consistent with Snipe-IT's model (and GLPI/Freshservice) |
-| Merging ITAM "status" into the existing agent `assets.status` field | Seems like less schema sprawl | `assets.status` already carries security/connectivity meaning (online/offline/isolated) for the auto-discovered fleet; overloading it with deployable/deployed/archived/retired/disposed/broken creates an unresolvable ambiguity the moment an asset is both agent-monitored and ITAM-tracked | New, separate `lifecycle_status` field, only present on ITAM-scoped records (or on the link, not the base agent record) |
-| Unlimited free-form custom fields with no fieldset grouping (pure EAV) | Maximum flexibility, "let admins add any field to any asset" | Produces unqueryable, unreportable messes in practice — this is a known pain point in less-opinionated ITAM tools | Snipe-IT's pattern: define fields once, group into fieldsets, attach fieldset to a model — every asset of that model gets a consistent shape |
-| Auto-approve all checkout requests (skip approval step) for "requestable assets" self-service flow | Speeds up the common case | For a security/compliance platform, an unapproved hand-off of a laptop with sensitive data breaks the audit trail this product's core value proposition depends on | Requestable-assets flow (if built at all — not named in this milestone's clusters) should route through an approval step, mirroring the existing remediation approval-gate pattern already shipped in v3.4 |
+| Anti-Feature | Why Requested | Why Problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| New permission model / `catalogue:*` permission namespace / per-catalogue ACL tuples | "Cleaner" mapping of menu to access | Explicitly out of scope; duplicates `view:` permissions, creates a third source of truth, needs a migration | Reuse existing `view:` strings; fix mapping drift (T1-01) |
+| Routing nav decisions through OpenFGA/ReBAC tuples | Milestone text mentions "Phase 36 ReBAC" | Sidebar does not use OpenFGA today; per-item network authz checks for ~187 items = latency + new failure mode | Keep flat role permissions for nav; ReBAC stays for resource-level checks |
+| Showing denied catalogues greyed/locked with "request access" | Discoverability | Leaks existence of security modules to low-privilege users; conflicts with tier-lock visual language | Hide; admins use D1-01 to see the grants |
+| Frontend-only enforcement ("hide and done") | Fast | Zero security; URL/API still open | T1-03 + T1-05 |
+| "Impersonate role" / "view as user" mode | Admin convenience | High-risk (session confusion, audit complexity, token handling) | Read-only preview (D1-01) |
+| Server-driven menu (backend returns the whole nav tree) | Single source of truth | Rewrites 187 items + icons + labels; large regression surface for a gating milestone | Shared frontend registry + effective-permission set from server (T1-01/T1-06) |
+| Per-user nav overrides / custom hide lists | Personalization | Muddies "role determines visibility"; breaks audit story | Out of scope; favorites/pins would be a separate feature |
+| Granting access by hiding `manage:*` logic in the client | Convenience | Client must never decide manage rights | Server returns effective set |
+
+---
+
+# FEATURE 2 — Asset costing (organization and endpoint level)
+
+## How asset costs are typically rolled up and shown (conventions, MEDIUM confidence)
+
+- **Two numbers, never one.** ITAM tools (Snipe-IT, GLPI, ServiceNow, Lansweeper) show *Purchase / original cost* and *Current (depreciated / book) value* side by side; both roll up to org totals. Disposed/retired assets are shown separately or filtered, not silently mixed into "current value".
+- **Org total is the sum of the rows beneath it**, and the drill-down must reconcile exactly to the headline figure (the tile-says-X, report-says-Y bug is trust-breaking; PROJECT.md already records this as a decision).
+- **Coverage is explicit.** Assets missing a cost or a depreciation policy are counted and surfaced ("42 of 310 assets have no purchase cost"), not treated as $0 and not silently dropped.
+- **Groupings:** by category / model / location / lifecycle status / purchase year, plus an assets-table export (CSV/Excel). Per-asset detail shows purchase cost, purchase date, age, annual depreciation, book value, % depreciated.
+- **Software cost is a different shape than hardware cost.** A license has a purchase/subscription cost and a seat count; per-seat cost = cost / seats. Seat-level allocation to a device = per-seat cost x seats assigned to that device. Idle (unassigned) seats are a recognized optimization signal. Licenses are normally *not* depreciated alongside hardware in ITAM views (tools like Snipe-IT track license purchase cost; some finance teams amortize, which is out of scope here).
+- **Currency:** ITAM tools store one currency per instance/tenant and format with a configured symbol; real multi-currency with FX is a finance-system (ERP) concern. Mixed-currency summation without conversion is a known correctness bug.
+- **TCO** in the textbook sense (purchase + operation + maintenance + disposal) requires data ITAM tools usually do not hold; mid-market ITAM shows "acquisition cost + licenses" and calls it cost, not TCO.
+
+## Table Stakes
+
+| Feature | Why Expected | Complexity | Notes / Dependencies |
+|---------|--------------|------------|----------------------|
+| T2-01 **Org-level cost summary** for the tenant: total purchase cost, total current book value, asset counts (with cost / without cost / without depreciation policy) | The milestone goal; the core of any ITAM cost view | MEDIUM | Build on `_compute_asset_value_kpi` logic (`itam_reporting_kpis.py`) + `compute_book_value`. Extract one shared per-asset cost function used by KPI, pre-built report, and the new endpoint. |
+| T2-02 **Endpoint/asset-level cost**: per asset purchase cost, purchase date, depreciation basis (life/salvage from model), annual depreciation, book value, with the same reason codes as `GET .../book-value` when data is missing | Milestone goal; drill-down target of T2-01 | LOW-MEDIUM | Existing `GET /api/assets/{id}/book-value` is the per-asset seed; extend response or add `/cost`. Viewer-gated (`_require_itam_viewer`). |
+| T2-03 **Reconciliation**: org totals equal the sum of the per-asset rows plus explicitly labelled unattributed buckets; tested | Trust. Per PROJECT.md key decision (reports reuse owning computation verbatim) | LOW (design) | Single function; test asserts `sum(rows) == headline`. |
+| T2-04 **Missing-data honesty**: asset with no `purchaseCostCents` -> "cost not recorded" (null), never `0`; asset with cost but no model policy -> purchase cost counted, book value null + `withoutPolicyCount`; `hasData:false` for empty tenant | Existing KPI already behaves this way; a cost view that shows $0 for unrecorded endpoints would mislead (many agent-discovered endpoints have no purchase data) | LOW | Note: the current KPI drops assets with cost-but-no-policy from the *whole* tally; costing needs purchase-total to include them and book-value-total to exclude them, with both counts. |
+| T2-05 **Integer-cents arithmetic and explicit currency label**: all rollups in integer cents; every amount rendered with a clearly stated tenant currency (default USD constant today), never a bare number or assumed `$` | Float money is a known bug source (PO model already uses floats; do not mix) | LOW | Format only at the UI edge. Do NOT add PO `total_cost` into asset totals. |
+| T2-06 **Lifecycle-aware scope**: current book value excludes disposed/retired assets by default (shown separately or via filter); counts reflect the filter | Standard ITAM expectation; otherwise "current value" includes things already gone | LOW-MEDIUM | Uses `lifecycleStatus` on the asset. Define the included set in requirements (e.g. exclude disposed). |
+| T2-07 **License cost at org level**: total license spend and (assigned vs unassigned) split, from the licenses catalogue | Explicitly in the milestone ("license spend") | MEDIUM | **BLOCKED on D-1: no cost field exists on licenses.** Needs one additive optional field on License create/update/edit form (see D-1). |
+| T2-08 **Allocated license cost per endpoint**: per-seat cost (license cost / `seatCount`) x seats assigned with `targetType == "asset"` for that asset, listed per license | Explicitly in the milestone ("allocated license cost") | MEDIUM | Uses `license_assignments` (unique per license+target). Seats assigned to `user` targets are shown at org level as "assigned to users (not attributed to an endpoint)", never guessed onto a device. Guard `seatCount == 0` (divide by zero). |
+| T2-09 **Authorization + tenant isolation**: cost endpoints use the existing `_require_itam_viewer` (`view:itam` or `manage:assets`, API-key scope-aware); every query tenant-scoped via the DB wrapper | Costs are financial data; the existing book-value route is already viewer-gated | LOW | Do not invent a `view:costs` permission (no new permission model). If the product owner wants costs hidden from `itam_viewer`, use the existing `manage:finance`/`manage:itam` permissions that already exist on `itam_admin`; this is a requirements decision (D-2). |
+| T2-10 **UI placement in the existing ITAM console** (Finance tab section or sibling "Cost" tab) with org summary cards + per-asset table (sortable, filterable) and per-asset detail | Avoids a new sidebar module/permission; mirrors where users already look for finance data | MEDIUM | `FinancePanel.tsx`, `ITAMConsole.tsx` TABS. |
+| T2-11 **CSV/Excel export** of the per-asset cost table | Every ITAM tool exports asset cost; reporting framework makes it cheap | LOW | Register an `asset_cost` entry in `itam_reporting_prebuilt.py`'s registry (PDF/Excel/CSV exporters exist). Keep CSV formula-injection protection already built in Phase 70. |
+| T2-12 Cost view works for a **super-admin viewing a selected tenant** and never crosses tenants | Existing console pattern (`isSuperAdminView`, `tenants` prop) | LOW | Follow `FinancePanel` conventions. |
+
+## Differentiators
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| D2-01 **Group-by breakdowns** (category, model, location, lifecycle status, purchase year) with totals | Answers "where is our money" fast; standard in mature ITAM | MEDIUM | Aggregation over the same shared per-asset function. Reconcile to headline. |
+| D2-02 **Cost-coverage indicator** ("N% of assets have purchase cost; M lack a depreciation policy") with a link to the offending assets | Turns the missing-data honesty into a data-quality worklist; fits the platform's compliance-evidence mindset | LOW | Falls out of T2-04 counts + existing filtered asset list. |
+| D2-03 **Idle-seat cost** (unassigned seats x per-seat cost) and license-expiry-with-cost forecast (next 12 months) | Software cost optimization is the main reason buyers want license cost in ITAM | MEDIUM | Uses existing `expiryDate`, `_next_twelve_month_keys`-style bucketing. Depends on D-1 cost field. |
+| D2-04 **Total endpoint cost** line = purchase cost + allocated license cost, displayed with book value as a separate line (do not add a depreciating stock value to a flow) | Single "what does this endpoint cost us" figure | LOW | Pure presentation; define the formula in requirements. |
+| D2-05 **MSP cross-tenant rollup** for super-admins (per-tenant rows, no cross-tenant sum unless currencies are known identical) | Matches the MSP positioning in PROJECT.md | MEDIUM | Super-admin only. Per-tenant rows; no grand total in v4.2. |
+| D2-06 Configurable **tenant display currency code** (symbol only, no FX) | Non-USD tenants see correct symbols | LOW-MEDIUM | Needs one setting (existing `itam_warranty_alert_window`-style settings doc is the precedent). Defer if D-1 already stretches scope. |
+| D2-07 Cost KPI tile(s) on the existing ITAM KPI dashboard with drill-down to the cost table | Consistency with Phase 72 dashboard | LOW | `ItamKpiPanel.tsx`; reuse `drilldownReportKey`. |
+
+## Anti-Features
+
+| Anti-Feature | Why Requested | Why Problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| New cost-entry system / separate cost ledger / cost-center module | "Real" costing | Explicitly out of scope; duplicates `purchaseCostCents`, PO data | Roll up existing fields; at most ONE additive optional cost field on License (D-1) |
+| Multi-currency with FX conversion / historical exchange rates | Global tenants | Needs a rates source, rounding policy, restatement rules; correctness minefield; no currency data exists | Single tenant currency, label explicitly, never sum across currencies |
+| Declining-balance / MACRS / units-of-production depreciation | Snipe-IT offers more methods | Breaks the "reuse `compute_book_value` verbatim" invariant; only straight-line is shipped and tested | Keep straight-line; revisit as its own milestone |
+| True TCO (maintenance, support labor, power, disposal costs) | "Total cost of ownership" is a buzzword | No data source in the platform; invented numbers | Label the figure "acquisition + license cost" |
+| Depreciating licenses | Finance teams amortize software | No amortization schedule/data; scope creep | Show license cost as spend, not as a depreciating asset |
+| Summing PO `total_cost` into asset totals | PO has a cost | Double-counts purchases already on the asset (`purchaseCostCents` + `purchase_order_id` link); PO fields are floats | PO spend remains in the PO panel; costing uses asset cents only |
+| Persisting computed book value / cost snapshots | Faster queries | Contradicts D-04 (never persisted); staleness; new write paths | Compute at read time; add caching only if measured necessary |
+| Guessing user-assigned seat cost onto the user's devices | Wants "complete" per-endpoint figure | Fabricates attribution (one user, many devices) | Show as "assigned to users - not attributed to an endpoint" |
+| Consumable/component costing in v4.2 | Milestone text says "licenses/consumables" | Consumables/components have no cost field and are checked out to users/locations (no asset link; components do have `assetIds`) | Defer to a follow-up; if requirements insist, org-level only after adding a unit-cost field (second D-1-style decision) |
+| Budgeting, forecasting, chargeback invoicing | Natural next step | Different product surface (FinOps-style) | Out of scope |
+
+---
+
+## Open Decisions for Requirements (flag to the user)
+
+| ID | Decision | Why it matters | Recommendation |
+|----|----------|----------------|----------------|
+| **D-1** | Licenses (and consumables/components) have **no cost field**. "Total license spend" and "allocated license cost per endpoint" are impossible without data. | Violates the milestone premise "reuse existing data only" for the license half of Feature 2. | Add exactly **one optional, additive** `purchaseCostCents` (total cost for the license, integer cents) to License create/update/response and the existing `LicensesPanel` form. Note `extra="forbid"` on the Pydantic models, so the model change is mandatory, not optional. Treat absence as "cost not recorded". Alternatively ship asset-level cost only and display licenses as seat counts. Do NOT do consumables/components in v4.2. |
+| **D-2** | Who may see costs: any `view:itam` holder (matches existing `GET .../book-value`) or only admins (`manage:assets`/`manage:itam`)? | Costs are sensitive; `itam_viewer` can already read book value. | Default: same as existing book-value (`_require_itam_viewer`), because hiding it only in the new view while the old route exposes it is inconsistent. |
+| **D-3** | Definition of "current" rollup scope (exclude disposed? archived?). | Changes headline numbers. | Exclude disposed/retired from current book value, include in purchase total only if a "include disposed" filter is on; state in the UI. |
+| **D-4** | Parity scope for Feature 1 (T1-05): all ~187 catalogues or those in specified groups? | Backend guard retrofits are the milestone's largest unknown. | Ship the registry, guard, no-access state, and D1-03 test for all; retrofit backend guards in priority order (financial, identity, security-operations, ITAM), with the rest on a reviewed "UI-only" allowlist. |
+
+---
 
 ## Feature Dependencies
 
 ```
-[Manual (non-agent) asset catalog — itam_assets collection]
-    └──requires──> [Manufacturer / Model / Category / Supplier / Location catalog entities]
-                       └──requires──> [Custom field definitions + fieldsets]
+T1-01 nav registry ──requires──> (nothing; refactor of Sidebar.tsx + App.tsx map)
+    ├──enables──> T1-03 render-time guard ──enables──> T1-04 no-access state
+    ├──enables──> D1-01 role->visible catalogues view ──enables──> D1-02 role x catalogue matrix
+    └──enables──> D1-03 CI parity test <──requires── T1-05 backend parity audit
 
-[Check-out / Check-in flow]
-    └──requires──> [Manual asset catalog] (or link to existing `assets`)
-    └──requires──> [Status lifecycle labels] (checkout gated on "deployable" type)
-    └──requires──> [Assignment target: user | location | asset]
+T1-06 backend-evaluated effective permissions ──enhances──> T1-01 (UI and API share one evaluator)
+T1-07 seed gap closure ──requires──> T1-06 (so the grants are actually delivered to the client)
+T1-09 live permission refresh ──requires──> T1-06 (/me returns evaluated set)
 
-[Assignment/checkout history audit trail]
-    └──requires──> [Check-out / Check-in flow] (nothing to log until the verb exists)
+T2-04 missing-data honesty ──enables──> T2-01 org summary ──enables──> T2-03 reconciliation
+T2-02 per-asset cost ──requires──> compute_book_value (itam_finance_service.py) + model depreciation policy
+T2-01 ──requires──> shared per-asset cost function (extracted from _compute_asset_value_kpi)
+T2-07 license org spend ──requires──> D-1 license cost field
+T2-08 allocated license cost per asset ──requires──> T2-07 + license_assignments (targetType=asset)
+D2-03 idle-seat / renewal forecast ──requires──> D-1 cost field + T2-08
+D2-04 total endpoint cost ──requires──> T2-02 + T2-08
+T2-11 export ──requires──> T2-02 + reporting registry (itam_reporting_prebuilt.py)
+T2-10 UI ──requires──> T2-01/T2-02 endpoints
 
-[Warranty expiry alerts]
-    └──requires──> [Purchase date + warranty_months fields on asset/model]
-
-[Depreciation schedule]
-    └──requires──> [Purchase cost + purchase date]
-    └──requires──> [Asset Model] (Snipe-IT assigns depreciation policy at model level)
-
-[Asset tag + QR/barcode label generation]
-    └──requires──> [Asset tag field] (unique identifier must exist before it can be printed)
-    └──enhances──> [Physical audit workflow]
-
-[License seat assignment]
-    └──requires──> [Licenses catalog entity]
-    └──requires──> [Assignment target: user | asset] (seats can be assigned to either)
-
-[Accessories / Consumables checkout]
-    └──requires──> [Check-out / Check-in flow] (reuses the same transaction pattern, quantity-aware variant)
-
-[Components]
-    └──requires──> [Manual/linked asset to attach to] (components always belong to a parent asset)
-
-[Agent-discovered ↔ manual-asset linking] (differentiator)
-    └──enhances──> [Manual asset catalog] (optional FK to existing `assets` collection, not a hard dependency)
-
-[Compliance-evidence-aware retirement] (differentiator)
-    └──requires──> [Status lifecycle labels] (specifically the retire/dispose transition)
-    └──requires──> [Agent-discovered ↔ manual-asset linking] (no evidence to flag without the link)
+Cross-feature:
+Costing UI (T2-10) lives in the ITAM console, which is itself a gated catalogue (view:itam).
+Cost endpoints reuse _require_itam_viewer; no coupling that would force new permissions.
 ```
 
 ### Dependency Notes
 
-- **Manual asset catalog requires catalog entities first:** you cannot meaningfully create an ITAM asset without at least a placeholder manufacturer/model/category, so Cluster C (catalog/org) is a hard prerequisite phase for Cluster A (lifecycle) and Cluster B (procurement), not a nice-to-have that can trail behind. Sequence Cluster C before A/B in the roadmap.
-- **Check-out/check-in requires status lifecycle labels:** Snipe-IT enforces that checkout is only possible from a "deployable"-typed status; building checkout before the status-type concept exists means either no gating (a correctness gap) or a rework later. Build status labels first or in the same phase as checkout.
-- **Depreciation requires the Model entity, not just the Asset:** Snipe-IT assigns depreciation policy at the model level so all units of the same model depreciate identically; if this platform instead puts depreciation fields directly on each asset, admins will have to re-enter the same policy per unit — a design smell worth avoiding by following the Model-level pattern from the start.
-- **The existing `assets` collection is a soft dependency, not a hard one, for the manual catalog:** the manual `itam_assets` collection should be able to exist and function fully standalone (an org can run ITAM on assets with zero agents installed). The link to `assets` is additive/optional — implement it as a nullable FK, not a required join, so ITAM doesn't break for tenants with no agent-monitored fleet at all, and so the agent-fleet ingestion path is never blocked waiting on ITAM data entry.
-- **`assets.status` (agent/security state) and the new `lifecycle_status` (ITAM state) must not be unified:** this is called out explicitly in Anti-Features above because it's the single highest-risk shortcut a planner could take to "save a phase."
-- **Accessories/consumables/components conflict risk:** these three look similar (all "secondary assets" in Snipe-IT's own terminology) but have different checkout targets (accessories/consumables → user only; components → asset only) and different quantity semantics (components support multi-quantity checkout to an asset; Snipe-IT's core accessories/consumables are limited to 1-per-transaction, a known product gap). Recommend **not** cloning Snipe-IT's 1-per-transaction limitation — since this is a greenfield build, support quantity > 1 in accessory/consumable checkout from the start; it's a small delta in the data model (`quantity_checked_out` on the transaction record) and avoids inheriting a competitor's long-standing complaint.
+- **T1-01 before everything in Feature 1:** the 9 existing mismatches mean any new guard/state would inherit inconsistent answers.
+- **T1-06 is the keystone for "mirrors backend":** without a server-evaluated permission set the client keeps a parallel evaluator.
+- **D-1 gates half of Feature 2:** requirements must resolve it before planning license phases; asset-level cost (T2-01/02/03/04/05/06/09/10/11) is unblocked and should land first.
+- **Features are independent of each other:** sequence is free; Feature 1 touches `Sidebar.tsx`/`App.tsx`/auth endpoints, Feature 2 touches `itam_*` and ITAM UI. Only shared file risk is `App.tsx` (both may add nothing there for Feature 2, so low conflict).
+
+---
 
 ## MVP Definition
 
-### Launch With (v1 of this milestone)
+### Launch With (v4.2)
 
-Minimum to call this "ITAM, not just a checklist of fields."
+**Feature 1**
+- [ ] T1-01 nav registry shared by Sidebar + guard (9 mismatches resolved)
+- [ ] T1-02 fail-closed default
+- [ ] T1-03 render-time guard + T1-04 visible no-access state
+- [ ] T1-06 server-evaluated effective permissions in login and `/me`
+- [ ] T1-05 backend parity matrix + guards for in-scope catalogues (per D-4), T1-07 seed gap decision
+- [ ] T1-08 tenant-isolation regression test, T1-10 tier-lock regression test
+- [ ] D1-01 "what can this role see" view (the explicit admin-visibility ask)
 
-- [ ] Manual (non-agent) asset creation — `itam_assets` collection, tenant-isolated — without this nothing else in the milestone has anything to operate on
-- [ ] Manufacturer / Model / Category / Location catalog entities (Cluster C core) — hard prerequisite for everything else
-- [ ] Asset tag (unique per tenant) — needed before check-out/in and before labels
-- [ ] Status lifecycle labels with deployable/non-deployable typing (Cluster A) — gates checkout correctness from day one
-- [ ] Check-out / check-in to user or location, with assignment history audit trail (Cluster A) — the defining ITAM verb; this milestone's own goal statement names it first
-- [ ] Purchase cost/date/PO/supplier fields (Cluster B) — low complexity, high expected-completeness value, unlocks warranty+depreciation
-- [ ] Admin-gated nav page (new `AppView` + `App.tsx` + Sidebar entry + permission gate) following the Phase 47/48 pattern named in PROJECT.md constraints
+**Feature 2**
+- [ ] T2-01..T2-06, T2-09, T2-10, T2-11, T2-12 (asset-level + org-level hardware cost, honest about missing data, reconciled, exportable)
+- [ ] T2-07/T2-08 license spend and per-endpoint allocation, **conditional on D-1 being approved**
 
-### Add After Validation (v1.x within this milestone)
+### Add After Validation (v4.x)
 
-- [ ] Suppliers as a distinct catalog entity (can launch with supplier as a plain string on the asset, promote to FK once the basic flow is validated)
-- [ ] Warranty expiry alerts (needs purchase/warranty fields validated first; alert delivery is a small increment once dates exist)
-- [ ] Depreciation schedule + book-value reporting (needs Model entity + purchase cost validated; pure calculation layer)
-- [ ] Custom fields + fieldsets (valuable but not blocking; can follow once the base model/category shape is proven)
-- [ ] Asset tag QR/barcode label generation (depends on asset tag existing and being stable; offline PDF/label rendering is a self-contained increment)
-- [ ] Software license seats (assign/reclaim/expiry) (Cluster D — independent enough to sequence after Cluster A/B/C core is solid)
-- [ ] Accessories / consumables with quantity-aware checkout (Cluster D)
-- [ ] Components attached to parent assets (Cluster D)
+- [ ] D1-02 role x catalogue matrix, D1-03 CI parity test (promote to launch if cheap during T1-05), T1-09 live refresh (promote if auth refresh is easy)
+- [ ] D2-01 group-by breakdowns, D2-02 coverage indicator, D2-07 KPI tile
+- [ ] D1-04 ITAM tab-level gating
 
-### Future Consideration (v2+ / explicitly deferred)
+### Future Consideration
 
-- [ ] Physical audit / inventory-verification workflow — natural follow-on to labels existing, but not named as its own cluster; defer until labels + checkout are stable
-- [ ] Agent-discovered ↔ manual-asset linking (differentiator) — high value but touches two data models at once; do only after both sides are individually solid
-- [ ] Compliance-evidence-aware retirement (differentiator) — depends on the linking feature above; genuinely v2+
-- [ ] Requestable-assets self-service flow — not named in this milestone's 4 clusters at all; do not build unless explicitly added to scope
-- [ ] Multi-currency / GL integration — explicitly out of scope per PROJECT.md
-- [ ] RFID/scanner hardware driver integration — explicitly out of scope per PROJECT.md
+- [ ] D2-03 idle-seat/renewal forecast, D2-05 MSP cross-tenant rollup, D2-06 display currency
+- [ ] Consumable/component costing, additional depreciation methods, true TCO, FX
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Manual asset catalog (itam_assets) | HIGH | MEDIUM | P1 |
-| Manufacturer/Model/Category/Location catalog | HIGH | MEDIUM | P1 |
-| Status lifecycle labels | HIGH | MEDIUM | P1 |
-| Check-out/check-in + audit history | HIGH | MEDIUM | P1 |
-| Purchase cost/date/PO/supplier fields | HIGH | LOW | P1 |
-| Asset tag (unique ID) | HIGH | LOW | P1 |
-| Warranty expiry tracking + alerts | MEDIUM | LOW–MEDIUM | P2 |
-| Depreciation schedule (straight-line) | MEDIUM | MEDIUM | P2 |
-| Custom fields + fieldsets | MEDIUM | MEDIUM | P2 |
-| QR/barcode label generation | MEDIUM | MEDIUM | P2 |
-| Software license seats | MEDIUM | MEDIUM | P2 |
-| Accessories/consumables (quantity-aware) | MEDIUM | MEDIUM | P2 |
-| Components | LOW–MEDIUM | MEDIUM | P3 |
-| Physical audit workflow | LOW–MEDIUM | MEDIUM | P3 |
-| Agent-discovered ↔ manual-asset linking | HIGH (differentiator) | MEDIUM | P3 |
-| Compliance-evidence-aware retirement | MEDIUM (differentiator) | HIGH | P3 |
+| T1-01 shared nav registry | HIGH | MEDIUM | P1 |
+| T1-02 fail-closed | HIGH | LOW | P1 |
+| T1-03/04 render guard + no-access state | HIGH | LOW-MED | P1 |
+| T1-06 server-evaluated permissions | HIGH | MEDIUM | P1 |
+| T1-05 backend parity (in-scope) | HIGH | HIGH (breadth) | P1 |
+| D1-01 role -> visible catalogues | HIGH | MEDIUM | P1 |
+| D1-03 parity CI test | MEDIUM | MEDIUM | P2 |
+| T1-09 live refresh | MEDIUM | LOW-MED | P2 |
+| D1-02 role matrix | MEDIUM | MEDIUM | P2 |
+| T2-01/02/03/04/05/06 asset + org hardware cost | HIGH | MEDIUM | P1 |
+| T2-09/12 authz + tenant scope | HIGH | LOW | P1 |
+| T2-10/11 UI + export | HIGH | MEDIUM | P1 |
+| T2-07/08 license spend + allocation | HIGH | MEDIUM | P1 (blocked on D-1) |
+| D2-01 group-by | MEDIUM | MEDIUM | P2 |
+| D2-02 coverage indicator | MEDIUM | LOW | P2 |
+| D2-03 idle-seat/forecast | MEDIUM | MEDIUM | P3 |
+| D2-05 MSP rollup | MEDIUM | MEDIUM | P3 |
+| D2-06 currency code | LOW | LOW-MED | P3 |
 
-**Priority key:**
-- P1: Must have for launch — Clusters A core + B core + C core
-- P2: Should have, add when possible — Cluster B/C completion + Cluster D
-- P3: Nice to have, future consideration — differentiators and audit workflow
+## Competitor / Convention Analysis
 
-## Competitor Feature Analysis
-
-| Feature | Snipe-IT (reference) | GLPI | Freshservice | Our Approach |
-|---------|----------------------|------|---------------|--------------|
-| Check-in/out | Core verb; status-type gated | Core verb, plus ticket-linked checkout | Core verb, workflow-approval optional | Match Snipe-IT's status-type gating; skip approval workflow for MVP (add later if requested) |
-| Asset discovery | Manual entry / CSV import only (no native agent) | Native network/agent-based discovery (its main edge over Snipe-IT) | Agent + network discovery (SaaS) | We already have an agent — the differentiator is *linking* manual ITAM records to agent-discovered security records, which none of the three competitors can do because none combine ITAM + security scanning in one product |
-| Depreciation | Model-level policy, straight-line, book-value report | Similar model-level depreciation | Depreciation via financial module | Match Snipe-IT's model-level pattern (straight-line minimum, per PROJECT.md scope) |
-| Licenses | Seat-count field, per-seat checkout to user or asset | License management module tied to software inventory | License + contract management (SaaS) | Match Snipe-IT's seat model; our existing `SoftwareInventoryTab` (agent-observed installs) is a natural future cross-check against license seat counts (not in this milestone's scope, flag as future) |
-| Accessories/consumables/components | 1-per-transaction limitation (known gap) | Similar secondary-asset categorization | Bundled into general asset/inventory items | Do NOT inherit the 1-per-transaction limitation — support quantity > 1 from the start since this is greenfield |
-| Custom fields | Global fields grouped into per-model fieldsets | Similar plugin-based custom field system | Configurable fields, SaaS-managed | Match Snipe-IT's fieldset-per-model pattern |
-| Labels/tags | QR (deep link) + 1D barcode, fully local rendering, configurable label sheet layout | Barcode/QR support, less emphasis on printable sheets | Primarily digital, less print-workflow focus | Match Snipe-IT's approach — fully offline rendering is a hard constraint (air-gapped deployments) already established by the v3.4 native-scan precedent |
+| Aspect | Snipe-IT / GLPI style (MEDIUM) | Enterprise (ServiceNow, Azure/Okta consoles) (MEDIUM) | Our Approach |
+|--------|-------------------------------|-------------------------------------------------------|--------------|
+| Nav gating | Role/permission-driven menu, hidden when not permitted | Hidden items + 403 page; admin role-capability views | Hide + 403 state + admin "role sees" view |
+| Asset cost | Purchase cost + depreciated value per asset, asset reports, CSV export | Cost per CI/asset, roll-ups by group, TCO with extra cost sources | Purchase + book value, org + asset, export; label "acquisition + license" |
+| License cost | Purchase cost on the license, seats | Cost per seat, optimization (idle seats) | Add one cost field (D-1); per-seat allocation to assets |
+| Currency | One instance currency | Multi-currency via finance integrations | Single labelled tenant currency; no FX |
 
 ## Sources
 
-- [Product Features — Snipe-IT](https://snipeitapp.com/product) — MEDIUM confidence (websearch, verified/cross-checked)
-- [Snipe-IT Docs: Barcodes](https://snipe-it.readme.io/docs/barcodes) — MEDIUM confidence
-- [Snipe-IT Docs: Managing Assets](https://snipe-it.readme.io/docs/managing-assets) — MEDIUM confidence
-- [Snipe-IT Docs: Custom Fields](https://snipe-it.readme.io/docs/custom-fields) — MEDIUM confidence
-- [Snipe-IT Docs: Asset Labels](https://snipe-it.readme.io/docs/asset-labels) — MEDIUM confidence
-- [Snipe-IT Docs: Importing Licenses](https://snipe-it.readme.io/docs/importing-licenses-1) — MEDIUM confidence
-- [GitHub grokability/snipe-it Issue #15679 — status label type behavior](https://github.com/grokability/snipe-it/issues/15679) — MEDIUM confidence
-- [GitHub grokability/snipe-it Issue #18890 — Deployable asset view](https://github.com/grokability/snipe-it/issues/18890) — MEDIUM confidence
-- [GitHub grokability/snipe-it Discussion #11342 — Depreciation calculation](https://github.com/grokability/snipe-it/discussions/11342) — MEDIUM confidence
-- [GitHub grokability/snipe-it Issue #5140 — checkout quantities for accessories/consumables](https://github.com/grokability/snipe-it/issues/5140) — MEDIUM confidence
-- [GitHub grokability/snipe-it Issue #7348 — accessories/consumables quantity on checkout](https://github.com/snipe/snipe-it/issues/7348) — MEDIUM confidence
-- [DeepWiki grokability/snipe-it — Accessories & Components](https://deepwiki.com/grokability/snipe-it/3.2-accessories-and-components) — MEDIUM confidence (secondary/community source)
-- [Compare GLPI vs Snipe-IT — SoftwareSuggest](https://www.softwaresuggest.com/compare/snipe-it-vs-glpi) — LOW-MEDIUM confidence (vendor-comparison marketing content, used only for the discovery-vs-manual-catalog convergence point)
-- [Compare Snipe-IT vs Freshservice — SoftwareSuggest](https://www.softwaresuggest.com/compare/snipe-it-vs-freshservice) — LOW-MEDIUM confidence
-- Existing codebase: `/home/user/enterprise-omni-agent-ai-platform/backend/asset_endpoints.py` — HIGH confidence (direct source read)
-- `/home/user/enterprise-omni-agent-ai-platform/.planning/PROJECT.md` — HIGH confidence (direct source read, milestone scope/constraints)
+- Codebase (HIGH): `components/Sidebar.tsx`, `App.tsx` (L242-446 `viewPermissionMap`, L1185-1242, L1379-1395, L1806), `backend/rbac_utils.py`, `backend/authentication_endpoints.py` (L215-281), `backend/role_endpoints.py`, `backend/rebac_service.py`, `backend/itam_finance_service.py`, `backend/itam_finance_endpoints.py`, `backend/itam_models.py`, `backend/itam_license_service.py`, `backend/itam_reporting_kpis.py`, `backend/itam_reporting_prebuilt.py`, `backend/itam_asset_endpoints.py`, `components/itam/ITAMConsole.tsx`, `.planning/PROJECT.md`
+- Web (LOW-MEDIUM, generic secondary sources): [Snipe-IT overview (Dashen)](https://dashen-tech.com/en/dev-tools/snipe-it-self-hosted-asset-management/) - straight-line/declining depreciation, license seats; [Angular role-based security (Microsoft DevBlogs)](https://devblogs.microsoft.com/premier-developer/angular-how-to-implement-role-based-security/) - route guards vs hidden menu items, client-side authz is UX only; [ITAM cost / TCO (NinjaOne)](https://www.ninjaone.com/itam-software-cost/) and [Xurrent ITAM glossary](https://www.xurrent.com/glossary/it-asset-management-itam) - TCO and cost-allocation concepts
+- Conventions not backed by a specific fetched source (stated from domain knowledge, MEDIUM): hide-vs-lock semantics, reconciliation and coverage UX, single-currency-per-instance norm, license per-seat allocation.
 
 ---
-*Feature research for: IT Asset Management (ITAM) lifecycle, Snipe-IT parity, v4.0 milestone*
-*Researched: 2026-08-04*
+*Feature research for: v4.2 Catalogue Access Control & Asset Costing*
+*Researched: 2026-10-12*
