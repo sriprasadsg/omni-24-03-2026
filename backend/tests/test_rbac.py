@@ -185,7 +185,7 @@ class TestItamRoles:
         with patch("rbac_service.get_database", return_value=_mock_db(role_doc=None)):
             perms = _run(svc.get_user_permissions(user))
 
-        assert set(perms) == {"view:assets", "view:licenses", "view:itam", "request:assets"}
+        assert set(perms) == {"view:assets", "view:licenses", "view:itam", "request:assets", "view:profile"}
         assert "manage:assets" not in perms
 
     def test_itam_viewer_is_read_only(self):
@@ -196,7 +196,7 @@ class TestItamRoles:
         with patch("rbac_service.get_database", return_value=_mock_db(role_doc=None)):
             perms = _run(svc.get_user_permissions(user))
 
-        assert set(perms) == {"view:assets", "view:licenses", "view:itam"}
+        assert set(perms) == {"view:assets", "view:licenses", "view:itam", "view:profile"}
 
     def test_itam_admin_dependency_grants_manage_assets(self):
         from rbac_service import rbac_service
@@ -288,11 +288,21 @@ class TestCanAssignRole:
         assert svc.can_assign_role("Super Admin", "Super Admin") is True
         assert svc.can_assign_role("platform-admin", "super_admin") is True
 
-    def test_non_elevated_role_assignment_always_allowed(self):
+    def test_ceiling_follows_the_table(self):
+        """D-20: the target's defaults must fit the caller's defaults plus manage:X => view:X, request:X."""
         from rbac_service import RBACService
         svc = RBACService()
-        assert svc.can_assign_role("itam_user", "itam_admin") is True
-        assert svc.can_assign_role("viewer", "user") is True
+        assert svc.can_assign_role("itam_user", "itam_admin") is False
+        assert svc.can_assign_role("viewer", "user") is False
+        assert svc.can_assign_role("admin", "itam_admin") is True
+        assert svc.can_assign_role("Tenant Admin", "itam_user") is True
+        assert svc.can_assign_role("itam_admin", "itam_viewer") is True
+        assert svc.can_assign_role("itam_admin", "admin") is False
+        for caller in ("admin", "Tenant Admin", "itam_admin", "viewer"):
+            assert svc.can_assign_role(caller, "super_admin") is False
+        for caller in ("super_admin", "Super Admin", "platform-admin"):
+            assert svc.can_assign_role(caller, "super_admin") is True
+            assert svc.can_assign_role(caller, "itam_admin") is True
 
 
 # ===========================================================================
@@ -403,15 +413,17 @@ class TestRbacUtilsNormalization:
 
         assert allowed is True
 
-    def test_tenant_admin_snake_case_still_redirects_to_canonical_entry(self):
-        """Regression guard: 'tenant_admin' must still resolve via the 'Tenant Admin' entry."""
+    def test_tenant_admin_snake_case_resolves_but_lacks_manage_tenants(self):
+        """'tenant_admin' resolves to the tenant-admin set, which never holds manage:tenants (D-06)."""
         import rbac_utils
         user = TokenData(username="a@b.com", role="tenant_admin", tenant_id="t1", mfa_verified=True)
 
         with patch("rbac_utils.get_database", return_value=_mock_db(role_doc=None)):
-            allowed = self._run(rbac_utils.verify_permission(user, "manage:tenants"))
+            assets = self._run(rbac_utils.verify_permission(user, "manage:assets"))
+            tenants = self._run(rbac_utils.verify_permission(user, "manage:tenants"))
 
-        assert allowed is True
+        assert assets is True
+        assert tenants is False
 
     def test_is_super_admin_recognizes_platform_admin_underscore_variant(self):
         import rbac_utils
