@@ -2,9 +2,14 @@
 gsd_state_version: "1.0"
 milestone: v4.2
 milestone_name: Catalogue Access Control & Asset Costing
+current_phase: 75
+current_phase_name: milestone v4.2
 status: planning
-last_updated: "2026-10-12T20:38:55.000Z"
+stopped_at: Phase 75 context gathered
+last_updated: "2026-10-12T20:50:07.697Z"
 last_activity: 2026-10-12
+last_activity_desc: v4.2 roadmap created (6 phases, 75-80; 17/17 requirements mapped)
+state_head: 3db02242d9973b6810eb1ab80ade7f052337675b
 progress:
   total_phases: 6
   completed_phases: 0
@@ -554,9 +559,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-08-28T08:38:25.824Z
-**Stopped at:** Phase 71 complete — all phases complete
-**Resume file:** None
+**Last session:** 2026-10-12T20:50:07.671Z
+**Stopped at:** Phase 75 context gathered
+**Resume file:** .planning/phases/75-permission-resolver-single-source-of-truth/75-CONTEXT.md
 
 ## Accumulated Context
 
