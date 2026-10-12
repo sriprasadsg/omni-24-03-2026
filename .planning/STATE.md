@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 75
 current_phase_name: Permission Resolver & Single Source of Truth
 status: executing
-stopped_at: Completed 75-03-PLAN.md
-last_updated: "2026-10-12T22:36:31.821Z"
+stopped_at: Completed 75-04-PLAN.md
+last_updated: "2026-10-12T22:45:31.314Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 75 execution started
-state_head: c49e3d5f67c8e3acde0b3d2ab332a1d110edefe6
+state_head: ac91f1ed5fe257dd06903cf2671b34bb88ad584f
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -408,6 +408,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 75]: 75-02: role seeding writes via raw db._db.roles with {name, tenantId} filter so tenant-scoped same-named documents are never touched; Super Admin stays at tenantId platform with [*]
 - [Phase 75]: 75-03: GET /api/roles lists built-ins plus own-tenant documents via effective_permissions; gated by manage:users or manage:rbac (D-15/D-16)
 - [Phase 75]: 75-03: frontend derives permissions only from currentUser.permissions (utils/permissions.ts); role-list fallback removed; fetchWithCache 403 drops cache for every key (D-17/D-26)
+- [Phase 75]: 75-04: Bundle assignment writes (PUT/PATCH/DELETE) require require_super_admin; tenants is isolation-exempt so the write is cross-tenant (D-06)
+- [Phase 75]: 75-04: Role-assignment ceiling in backend/role_assignment.py (assert_can_assign_role); self-change rule runs before super-admin shortcut; resolver error fails closed as 503
 
 ## Performance Metrics
 
@@ -533,6 +535,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 75 P01 | 55 min | 3 tasks | 9 files |
 | Phase 75 P02 | 25 min | 2 tasks | 6 files |
 | Phase 75 P03 | 12 min | 2 tasks | 6 files |
+| Phase 75 P04 | 40 min | 2 tasks | 7 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -567,8 +570,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-12T22:36:31.789Z
-**Stopped at:** Completed 75-03-PLAN.md
+**Last session:** 2026-10-12T22:45:31.279Z
+**Stopped at:** Completed 75-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -592,7 +595,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 75 (Permission Resolver & Single Source of Truth) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-12 — Phase 75 execution started
