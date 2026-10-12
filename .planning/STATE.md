@@ -5,11 +5,11 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 75
 current_phase_name: Permission Resolver & Single Source of Truth
 status: verifying
-stopped_at: Completed 75-05-PLAN.md
-last_updated: "2026-10-12T22:57:26.327Z"
+stopped_at: Phase 76 context gathered
+last_updated: "2026-10-12T23:45:17.853Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 75 execution started
-state_head: 239b3beb2cd57a1967b6dc4a24cefd3a2a47fcf6
+state_head: 2d6bc7e50bc64ae069fe38857b060a89e03fc05f
 progress:
   total_phases: 6
   completed_phases: 0
@@ -573,9 +573,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-12T22:57:26.292Z
-**Stopped at:** Completed 75-05-PLAN.md
-**Resume file:** None
+**Last session:** 2026-10-12T23:45:17.800Z
+**Stopped at:** Phase 76 context gathered
+**Resume file:** .planning/phases/76-catalogue-manifest-backend-route-enforcement/76-CONTEXT.md
 
 ## Accumulated Context
 
