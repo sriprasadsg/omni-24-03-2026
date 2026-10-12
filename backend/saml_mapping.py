@@ -56,6 +56,17 @@ class SAMLUserProvisioner:
         role-clobber guard), so a re-login never silently downgrades an
         admin-assigned elevated role back to the default.
         """
+        if role:
+            from rbac_service import RBACService
+            import rbac_defaults
+            if RBACService._normalize_role(role) == rbac_defaults.SUPER_ADMIN_KEY:
+                # D-22 apply time: a directory group can never grant the super-admin tier.
+                logger.warning(
+                    "SAML mapping resolved %s to super-admin-tier role %r in tenant %s; "
+                    "refusing it and keeping the existing or default role",
+                    mapped["email"], role, tenant_id,
+                )
+                role = None
         db = get_database()
         now = datetime.now(timezone.utc).isoformat()
         existing = await db.users.find_one({"email": mapped["email"], "tenantId": tenant_id})
@@ -132,10 +143,10 @@ class SAMLGroupMapper:
     @staticmethod
     async def upsert_mapping(group_value: str, role: str, tenant_id: Optional[str] = None,
                               priority: int = 100) -> dict:
-        from rbac_service import rbac_service
-        normalized = rbac_service._normalize_role(role)
-        valid_roles = {rbac_service._normalize_role(k) for k in rbac_service.default_roles.keys()}
-        if normalized not in valid_roles:
+        from rbac_service import RBACService
+        import rbac_defaults
+        normalized = RBACService._normalize_role(role)
+        if normalized not in rbac_defaults.builtin_role_keys():
             raise SAMLMappingError(f"'{role}' is not a valid ITAM role")
 
         db = get_database()

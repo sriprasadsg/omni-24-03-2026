@@ -24,6 +24,7 @@ from auth_types import TokenData
 # assets — this surface stays session-auth-only.
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from rbac_utils import is_super_admin
+from role_assignment import assert_can_assign_role
 from tenant_context import get_tenant_id
 
 from saml_service import (
@@ -372,6 +373,11 @@ async def list_attribute_mappings(current_user: TokenData = Depends(_require_ita
 @saml_router.post("/api/admin/sso/saml/attribute-mapping")
 async def upsert_attribute_mapping(mapping: SAMLAttributeMappingIn, current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _saml_config_scope(current_user)
+    # D-22 write time: a mapping may not grant more than its writer holds.
+    await assert_can_assign_role(
+        get_database(), current_user, mapping.role,
+        target_tenant_id=tenant_id or current_user.tenant_id,
+    )
     try:
         return await SAMLGroupMapper.upsert_mapping(
             mapping.group_value, mapping.role, tenant_id=tenant_id, priority=mapping.priority or 100,
