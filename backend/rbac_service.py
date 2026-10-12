@@ -55,6 +55,22 @@ async def _role_docs(db, name: str, tenant_id: Optional[str]) -> List[dict]:
     return docs
 
 
+def _role_document_names(role: Optional[str], key: str) -> List[str]:
+    """Every spelling under which a role's documents may be stored (WR-06).
+
+    The raw string and its normalized key, plus, for a built-in role, the
+    seeded ``name`` and ``display_name`` of every built-in that shares its
+    canonical key (so ``tenant_admin``, ``Tenant Admin`` and ``admin`` all
+    see the same documents and the ceiling evaluates them the same way).
+    """
+    canonical = rbac_defaults.canonical_key(key)
+    names = [role, key]
+    for builtin in rbac_defaults.BUILTIN_ROLES:
+        if rbac_defaults.canonical_key(builtin.key) == canonical and builtin.key != rbac_defaults.SUPER_ADMIN_KEY:
+            names.extend((builtin.name, builtin.display_name))
+    return list(dict.fromkeys(n for n in names if n))
+
+
 async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
     """The one answer to "what may this role do for this tenant" (ACC-01/ACC-02).
 
@@ -65,6 +81,9 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     Role documents can only add ordinary permissions: a ``*`` or a
     ``SUPER_ADMIN_ONLY_PERMISSIONS`` entry found in a document is ignored, so the
     super-admin tier stays reachable only through the super-admin role name (D-03/D-06).
+    Documents are matched under every spelling of a built-in role (see
+    ``_role_document_names``), so a tenant override applies however the user's role
+    was typed. Merging is union-only: a document adds permissions, never removes them.
     Role-store errors propagate; callers decide whether to fail closed or degrade.
     """
     key = RBACService._normalize_role(role or "")
@@ -74,7 +93,7 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
         return []
     perms: List[str] = list(rbac_defaults.defaults_for(key))
     banned = rbac_defaults.SUPER_ADMIN_ONLY_PERMISSIONS | {"*"}
-    for name in dict.fromkeys(n for n in (role, key) if n):
+    for name in _role_document_names(role, key):
         for doc in await _role_docs(db, name, tenant_id):
             perms.extend(p for p in (doc.get("permissions") or []) if p and p not in banned)
     return list(dict.fromkeys(perms))

@@ -127,6 +127,21 @@ def test_star_document_does_not_turn_a_viewer_into_a_super_admin(monkeypatch):
     assert asyncio.run(rbac_utils.verify_permission(_token("viewer"), "manage:users")) is False
 
 
+@pytest.mark.parametrize("stored_role", ["tenant_admin", "Tenant Admin", "admin", "Admin"])
+def test_tenant_override_applies_whatever_the_spelling_of_the_role(stored_role):
+    """WR-06: an override filed under "Tenant Admin" reaches users stored as tenant_admin / admin."""
+    db = _store({"name": "Tenant Admin", "tenantId": "t1", "permissions": ["view:custom_extra"]})
+    perms = asyncio.run(rbac_service.effective_permissions(db, stored_role, "t1"))
+    assert perms == list(rbac_defaults.defaults_for("tenant_admin")) + ["view:custom_extra"]
+
+
+@pytest.mark.parametrize("stored_role", ["itam_user", "ITAM User"])
+def test_tenant_override_found_by_display_name_for_other_builtins(stored_role):
+    db = _store({"name": "itam_user", "tenantId": "t1", "permissions": ["view:custom_extra"]})
+    perms = asyncio.run(rbac_service.effective_permissions(db, stored_role, "t1"))
+    assert "view:custom_extra" in perms
+
+
 def test_other_tenants_document_never_contributes():
     db = _store({"name": "viewer", "tenantId": "tenant-b", "permissions": ["view:secret_of_b"]})
     perms = asyncio.run(rbac_service.effective_permissions(db, "viewer", "tenant-a"))
