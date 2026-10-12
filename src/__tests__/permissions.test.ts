@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { derivePermissionState, isSuperAdminRoleName } from '../../utils/permissions';
-import { fetchRoles, logoutSession } from '../../services/apiService';
+import { fetchRoles, fetchUsers, logoutSession } from '../../services/apiService';
 import type { Permission, Tenant, User } from '../../types';
 
 const user = (over: Partial<User>): User =>
@@ -108,6 +108,27 @@ describe('role-list cache hygiene (D-26)', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
     await logoutSession();
     expect(sessionStorage.getItem('omni_cache_roles')).toBeNull();
+  });
+
+  it('logout removes every omni_cache_* entry and leaves other keys alone (WR-08)', async () => {
+    for (const k of ['roles', 'users', 'tenants', 'assets', 'agents']) {
+      sessionStorage.setItem(`omni_cache_${k}`, JSON.stringify([{ id: `previous-${k}` }]));
+    }
+    sessionStorage.setItem('unrelated', 'keep');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+    await logoutSession();
+    for (const k of ['roles', 'users', 'tenants', 'assets', 'agents']) {
+      expect(sessionStorage.getItem(`omni_cache_${k}`)).toBeNull();
+    }
+    expect(sessionStorage.getItem('unrelated')).toBe('keep');
+  });
+
+  it('the previous users list is not served after logout when the backend is offline (WR-08)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([{ id: 'a1', email: 'a@tenant-a.test' }]), { status: 200 })));
+    expect(await fetchUsers()).toHaveLength(1);
+    await logoutSession();
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    expect(await fetchUsers()).toEqual([]);
   });
 
   it('a 403 returns an empty list and drops the previous cached copy', async () => {

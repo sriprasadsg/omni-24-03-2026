@@ -130,7 +130,16 @@ function _canAttemptRefresh(): boolean {
 
 /** D-26: drop cached API data that must not outlive a sign-in (the next user of this tab may differ). */
 function clearSessionCaches(): void {
-    sessionStorage.removeItem('omni_cache_roles');
+    // Every cached API list (roles, users, tenants, assets, agents, ...), not only the role list.
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('omni_cache_')) sessionStorage.removeItem(key);
+    }
+    // The module-level write-through copies would otherwise survive in memory.
+    USERS = [];
+    ROLES = [];
+    TENANTS = [];
+    ASSETS = [];
 }
 
 function _expireSession(): void {
@@ -432,7 +441,9 @@ const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, 
             // D-26: the server refused this user, so a cached copy from a previous
             // user of this tab must not be served in its place.
             sessionStorage.removeItem(`omni_cache_${key}`);
-            return (Array.isArray(initialData) ? [] : initialData) as T;
+            const empty = (Array.isArray(initialData) ? [] : initialData) as T;
+            updateLocalVar(empty);
+            return empty;
         }
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
