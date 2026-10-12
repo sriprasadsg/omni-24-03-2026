@@ -21,7 +21,7 @@ from feature_bundles import (
     get_feature_catalog,
     resolve_tenant_features,
 )
-from rbac_utils import require_permission
+from rbac_utils import require_super_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bundles", tags=["Bundles"])
@@ -124,11 +124,12 @@ async def assign_bundles_to_tenant(
     response: Response,
     tenant_id: str,
     body: AssignBundlesRequest,
-    _=Depends(require_permission("manage:tenants")),
+    _=Depends(require_super_admin),
 ):
     """
     Replace the tenant's full bundle assignment (bundles + custom + blocked).
-    Requires manage:tenants permission (Super Admin / Tenant Admin).
+    Requires a platform super-admin: the `tenants` collection is exempt from
+    tenant isolation, so this write is cross-tenant by construction (D-06).
     """
     db = get_database()
     tenant = await db.tenants.find_one({"id": tenant_id})
@@ -174,9 +175,12 @@ async def patch_tenant_bundles(
     response: Response,
     tenant_id: str,
     body: UpdateTenantFeaturesRequest,
-    _=Depends(require_permission("manage:tenants")),
+    _=Depends(require_super_admin),
 ):
-    """Partial update — only the fields you provide are changed."""
+    """Partial update — only the fields you provide are changed.
+
+    Platform super-admin only (cross-tenant write through the isolation-exempt `tenants` collection, D-06).
+    """
     db = get_database()
     tenant = await db.tenants.find_one({"id": tenant_id})
     if not tenant:
@@ -217,9 +221,12 @@ async def clear_tenant_bundles(
     request: Request,
     response: Response,
     tenant_id: str,
-    _=Depends(require_permission("manage:tenants")),
+    _=Depends(require_super_admin),
 ):
-    """Remove all bundle assignments from a tenant (reverts to tier-only access)."""
+    """Remove all bundle assignments from a tenant (reverts to tier-only access).
+
+    Platform super-admin only (cross-tenant write through the isolation-exempt `tenants` collection, D-06).
+    """
     db = get_database()
     result = await db.tenants.update_one(
         {"id": tenant_id},
