@@ -343,6 +343,46 @@ class TestSAMLUserProvisioner:
         assert doc["role"] == "itam_admin"
 
 
+    def test_provision_user_refuses_super_admin_role_for_existing_user(self, caplog):
+        db = MagicMock()
+        db.users.find_one = AsyncMock(return_value={"_id": "existing-id", "role": "itam_user"})
+        written = []
+
+        async def _capture(_flt, update):
+            written.append(dict(update["$set"]))  # copy: provision_user mutates doc afterwards
+
+        db.users.update_one = AsyncMock(side_effect=_capture)
+        mapped = {"email": "existing@example.com", "full_name": "Existing",
+                  "nameid": "existing@example.com", "groups": []}
+        for bad_role in ("super_admin", "Super Admin", "platform-admin"):
+            caplog.clear()
+            with patch("saml_mapping.get_database", return_value=db), \
+                 patch("authentication_service.revoke_user_sessions", new_callable=AsyncMock) as revoke, \
+                 caplog.at_level("WARNING", logger="saml_mapping"):
+                doc = _run(SAMLUserProvisioner(_config()).provision_user(
+                    mapped, tenant_id="t1", role=bad_role))
+            assert doc["role"] == "itam_user"
+            revoke.assert_not_awaited()
+            assert any(bad_role in r.getMessage() for r in caplog.records)
+        assert len(written) == 3 and all("role" not in w for w in written)
+
+    def test_provision_user_refuses_super_admin_role_for_new_user(self, caplog):
+        db = MagicMock()
+        db.users.find_one = AsyncMock(return_value=None)
+        inserted = MagicMock()
+        inserted.inserted_id = "new-id"
+        db.users.insert_one = AsyncMock(return_value=inserted)
+        with patch("saml_mapping.get_database", return_value=db), \
+             caplog.at_level("WARNING", logger="saml_mapping"):
+            doc = _run(SAMLUserProvisioner(_config()).provision_user(
+                {"email": "new@example.com", "full_name": "New", "nameid": "new@example.com", "groups": []},
+                tenant_id="t1", role="super_admin",
+            ))
+        assert doc["role"] == "itam_viewer"
+        assert db.users.insert_one.await_args.args[0]["role"] == "itam_viewer"
+        assert any("super_admin" in r.getMessage() for r in caplog.records)
+
+
 class TestSAMLGroupMapper:
 
     def test_resolve_role_returns_none_when_no_groups(self):
@@ -598,6 +638,7 @@ class _EPRawDB:
         self.saml_login_states = _EPCollection([])
         self.saml_processed_assertions = _EPCollection([])
         self.sso_state = _EPCollection([])  # used by sso_endpoints._store_sso_state (exchange-code flow)
+        self.roles = _EPCollection([])  # read by the role-assignment ceiling resolver
 
 
 class _EPFakeDB:
@@ -610,7 +651,7 @@ class _EPFakeDB:
         self._db.saml_configs, self._db.users = self.saml_configs, self.users
 
 
-_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin"}
+_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin", "itam_admin"}
 
 
 async def _fake_verify_permission(user, permission):
@@ -801,6 +842,39 @@ class TestSAMLAttributeMappingEndpoint:
                 "group_value": "G", "role": "not_a_role",
             })
         assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_tenant_admin_cannot_map_attribute_to_super_admin(self, ep_app, ep_db):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/attribute-mapping", json={
+                "group_value": "G", "role": "super_admin",
+            })
+        assert resp.status_code == 403
+        assert ep_db.saml_group_mappings.docs == []
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_cannot_map_attribute_to_admin(self, ep_app, ep_db):
+        user = make_token_data(username="ia@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(ep_app, user)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/attribute-mapping", json={
+                "group_value": "G", "role": "admin",
+            })
+        assert resp.status_code == 403
+        assert ep_db.saml_group_mappings.docs == []
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_can_map_attribute_to_itam_user(self, ep_app, ep_db):
+        user = make_token_data(username="ia@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(ep_app, user)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/attribute-mapping", json={
+                "group_value": "G", "role": "itam_user",
+            })
+        assert resp.status_code == 200, resp.text
+        assert len(ep_db.saml_group_mappings.docs) == 1
 
     @pytest.mark.asyncio
     async def test_delete_missing_mapping_returns_404(self, ep_app):
