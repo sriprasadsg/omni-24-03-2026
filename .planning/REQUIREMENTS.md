@@ -54,17 +54,35 @@
 
 ## Traceability
 
-Populated during roadmap creation.
+Populated during roadmap creation (2026-10-12). Each requirement maps to exactly one phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (pending roadmap) | | |
+| ACC-01 | Phase 75 | Pending |
+| ACC-02 | Phase 75 | Pending |
+| ACC-03 | Phase 76 | Pending |
+| ACC-04 | Phase 76 | Pending |
+| ACC-05 | Phase 76 | Pending |
+| ACC-06 | Phase 77 | Pending |
+| ACC-07 | Phase 77 | Pending |
+| ACC-08 | Phase 77 | Pending |
+| ACC-09 | Phase 77 | Pending |
+| COST-01 | Phase 78 | Pending |
+| COST-02 | Phase 78 | Pending |
+| COST-03 | Phase 78 | Pending |
+| COST-04 | Phase 79 | Pending |
+| COST-05 | Phase 79 | Pending |
+| COST-06 | Phase 78 | Pending |
+| COST-07 | Phase 78 | Pending |
+| COST-08 | Phase 80 | Pending |
 
 **Coverage:**
 - v1 requirements: 17 total (ACC: 9, COST: 8)
-- Mapped to phases: 0 (pending roadmapper)
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17
+- Unmapped: 0
+
+**Per phase:** Phase 75 = 2 (ACC-01, ACC-02) | Phase 76 = 3 (ACC-03, ACC-04, ACC-05) | Phase 77 = 4 (ACC-06..09) | Phase 78 = 5 (COST-01, 02, 03, 06, 07) | Phase 79 = 2 (COST-04, COST-05) | Phase 80 = 1 (COST-08)
 
 ---
 *Requirements defined: 2026-10-12*
-*Last updated: 2026-10-12 after milestone v4.2 definition*
+*Last updated: 2026-10-12 after v4.2 roadmap creation (traceability populated)*

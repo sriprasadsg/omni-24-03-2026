@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v4.2
 milestone_name: Catalogue Access Control & Asset Costing
 status: planning
-last_updated: "2026-10-12T15:34:26.199Z"
+last_updated: "2026-10-12T20:38:55.000Z"
 last_activity: 2026-10-12
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,10 +17,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-04)
+See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 74 — Interactive Remote Desktop Control
+**Current focus:** Phase 75 — Permission Resolver & Single Source of Truth (milestone v4.2 Catalogue Access Control & Asset Costing)
 
 ## Current Phase
 
@@ -146,6 +146,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | 61 | Frontend ITAM Console | Complete (v4.0) — verified 2026-08-09, ITAM-UI-01 delivered; see 61-VERIFICATION.md |
 | 66 | Full YARA-rule engine for native scan (v3.4-era gap closure, standalone) | Cleanup complete 2026-08-24 (retroactively verified) — real yara-x engine ships in the canonical `agent-install/omni-agent-rs/` tree (`capabilities/security_scan.rs`), 97/97 lib tests pass, Windows cross-compile linked and confirmed. Originally executed into the wrong tree (same collision class as Phase 64) and left two false "complete" records behind — both found and fixed this session (fake `.planning/` completion record inside the shipped crate deleted; void UAT rewritten against the real engine). 2 items remain behavior-unverified pending a live agent (not fabricated as closed). See 66-VERIFICATION.md. |
 | 73 | API & Integrations | Complete (v4.1 ITAM-Backlog) — 6/6 plans executed, verified 2026-08-19; ITAM-API-01/02/03 delivered. See 73-VERIFICATION.md. (Rows 62-65, 67-72 not backfilled into this table — pre-existing gap, out of this fix's scope.) |
+| 75 | Permission Resolver & Single Source of Truth | Not started (v4.2) — ACC-01, ACC-02 |
+| 76 | Catalogue Manifest & Backend Route Enforcement | Not started (v4.2) — ACC-03, ACC-04, ACC-05 |
+| 77 | Fail-Closed Sidebar, View Gate & Role Visibility | Not started (v4.2) — ACC-06, ACC-07, ACC-08, ACC-09 |
+| 78 | Organization & Endpoint Cost API | Not started (v4.2) — COST-01, COST-02, COST-03, COST-06, COST-07 |
+| 79 | License Cost & Per-Endpoint Allocation | Not started (v4.2) — COST-04, COST-05 |
+| 80 | Costs Tab in the ITAM Console | Not started (v4.2) — COST-08 |
 
 ## Decisions
 
@@ -563,6 +569,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 - v4.0 milestone added 2026-08-04: 6 new phases (56-61) scaffolded from research run the same day against the milestone's 4 target clusters (lifecycle/check-in-out, procurement/finance, catalog/org, licenses/consumables) plus a Snipe-IT/GLPI/Freshservice feature-convergence pass. Phase 56 (Catalog & Foundation) is the hard prerequisite for every later phase; Phase 61 (Frontend ITAM Console) is threaded last, mirroring the Phase 47/48 admin-gated nav pattern. All 17 v1 requirements (ITAM-CAT/LIFE/FIN/LIC/UI) mapped 1:1 to a phase, no orphans.
 - Phase 63 added: Close gap: ITAM-LIC-02/03 RBAC + ITAM-CAT-05 label UI
+- v4.2 milestone added 2026-10-12: 6 new phases (75-80) roadmapped from 17 v1 requirements (ACC-01..09, COST-01..08), continuing numbering from Phase 74. Two largely independent tracks: access control (75 resolver -> 76 manifest + backend guards + parity test -> 77 fail-closed sidebar/ViewGate/role view) and asset costing (78 org/endpoint cost API -> 79 license cost + allocation -> 80 Costs tab). The cost API sits on Phase 76's hardened guards (cost routes gated by `view:itam`). Backend enforcement deliberately precedes any UI claim; Phase 79 is isolated so license spend can be descoped (open decision D-1) without disturbing the hardware-cost slice. All 17 requirements mapped 1:1, no orphans.
 - Phase 74 added 2026-08-26: Interactive Remote Desktop Control (Zoho Assist parity) — upgrades the existing view-only screenshot-stream remote access feature to attended interactive control (input relay, consent gate, control:remote_access permission, audit log). First phase of a new post-v4.1 cycle; no milestone version assigned yet.
 
 ### Pending Todos
@@ -571,10 +578,13 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 75 of 80 (Permission Resolver & Single Source of Truth) — milestone v4.2
 Plan: —
-Status: Defining requirements
-Last activity: 2026-10-12 — Milestone v4.2 started
+Status: Ready to plan
+Progress: [░░░░░░░░░░] 0% (0/6 phases)
+Last activity: 2026-10-12 — v4.2 roadmap created (6 phases, 75-80; 17/17 requirements mapped)
+
+Next: `/gsd-plan-phase 75`
 
 ## Deferred Items
 
