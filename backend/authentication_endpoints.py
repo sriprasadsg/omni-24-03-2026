@@ -24,7 +24,7 @@ from authentication_service import create_access_token, create_refresh_token, AC
 from authentication_service import REFRESH_COOKIE, set_refresh_cookie, clear_refresh_cookie, _oauth2_optional, _revoked_jti_cache
 from authentication_service import get_current_user_mfa_pending, mfa_action_for
 from database import get_database
-from rbac_service import find_role_doc
+from rbac_service import session_permissions
 
 # WHY db._db.* IS USED IN THIS FILE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -220,15 +220,9 @@ async def login_for_access_token(request: Request, response: Response, login_req
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
 
-    # Add permissions from role. DB-F10: roles is no longer exempt from
-    # tenant isolation, so a bare find_one with no tenantId would auto-scope
-    # to the caller's own tenant and never match a global role (real
-    # tenantId "all"/"platform") — find_role_doc tries both correctly.
-    role_obj = await find_role_doc(db, role, tenant_id)
-    if role_obj:
-        user_data['permissions'] = role_obj.get('permissions', [])
-    else:
-        user_data['permissions'] = []
+    # ACC-01/D-23: one server-evaluated list (table defaults + role documents),
+    # read with an explicit tenantId because /login has no tenant context.
+    user_data['permissions'] = await session_permissions(db, role, tenant_id, warn_if_empty=True)
 
     # Admin-tier accounts without MFA may only enroll until they do
     user_data['mfa_action'] = mfa_action_for(role, mfa_verified=False, mfa_enabled=False)
@@ -263,22 +257,15 @@ async def read_users_me(current_user: dict = Depends(get_current_user_mfa_pendin
             detail="User not found"
         )
     
-    # Get role permissions. DB-F10: see the /login handler's identical fix
-    # above — a bare find_one would auto-scope to the caller's own tenant
-    # and never match a global role.
     role_name = user.get("role", "user")
-    role = await find_role_doc(db, role_name, user.get("tenantId"))
-    
+
     # Build user response object (exclude sensitive fields)
     user_data = _public_user_fields(user)
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
     
-    # Add permissions from role if found
-    if role:
-        user_data['permissions'] = role.get('permissions', [])
-    else:
-        user_data['permissions'] = []
+    # ACC-01/D-23: same resolver as /login, so the two lists always agree.
+    user_data['permissions'] = await session_permissions(db, role_name, user.get("tenantId"))
     
     # Expose MFA enabled flag (not the secret)
     user_data['mfa_enabled'] = user.get('mfa', {}).get('enabled', False)

@@ -1,8 +1,13 @@
+import logging
 from fastapi import HTTPException, status, Depends
 from authentication_service import get_current_user
 from auth_types import TokenData
 from database import get_database
 from typing import Dict, List, Optional
+
+import rbac_defaults
+
+logger = logging.getLogger(__name__)
 
 
 async def find_role_doc(db, role_name: str, tenant_id: Optional[str]) -> Optional[dict]:
@@ -29,6 +34,66 @@ async def find_role_doc(db, role_name: str, tenant_id: Optional[str]) -> Optiona
         await raw_db.roles.find_one({"name": role_name, "tenantId": "all"})
         or await raw_db.roles.find_one({"name": role_name, "tenantId": "platform"})
     )
+
+async def _role_docs(db, name: str, tenant_id: Optional[str]) -> List[dict]:
+    """Role documents named ``name`` visible to ``tenant_id``: its own tenant's,
+    then the shared "all" and "platform" catalogues.
+
+    Reads through the raw handle with an explicit tenantId (D-23) because /login
+    is a public path with no tenant ContextVar, so a wrapper read would be
+    rewritten to the emergency sentinel and never see a tenant-scoped document.
+    Only the caller's own tenantId and the two sentinels are ever queried, never
+    another tenant's.
+    """
+    if not name:
+        return []
+    docs: List[dict] = []
+    for scope in dict.fromkeys(t for t in (tenant_id, "all", "platform") if t):
+        doc = await db._db.roles.find_one({"name": name, "tenantId": scope})
+        if doc:
+            docs.append(doc)
+    return docs
+
+
+async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
+    """The one answer to "what may this role do for this tenant" (ACC-01/ACC-02).
+
+    ``["*"]`` for the super-admin tier; otherwise the built-in defaults from
+    ``rbac_defaults`` followed by the permissions of the matching role documents
+    (own tenant, then "all", then "platform"), de-duplicated in first-seen order.
+    A missing role, or an unknown role with no document, resolves to ``[]``.
+    Role-store errors propagate; callers decide whether to fail closed or degrade.
+    """
+    key = RBACService._normalize_role(role or "")
+    if key == rbac_defaults.SUPER_ADMIN_KEY:
+        return ["*"]
+    if not key:
+        return []
+    perms: List[str] = list(rbac_defaults.defaults_for(key))
+    for name in dict.fromkeys(n for n in (role, key) if n):
+        for doc in await _role_docs(db, name, tenant_id):
+            perms.extend(p for p in (doc.get("permissions") or []) if p)
+    return list(dict.fromkeys(perms))
+
+
+async def session_permissions(db, role: Optional[str], tenant_id: Optional[str], *,
+                              warn_if_empty: bool = False) -> List[str]:
+    """effective_permissions for delivery to the UI (/login, /me): never raises.
+
+    If the role store is unreachable the built-in defaults are delivered instead
+    (never more than the table). ``warn_if_empty`` logs when a role resolves to
+    nothing so an operator can spot a stranded account (D-19).
+    """
+    try:
+        perms = await effective_permissions(db, role, tenant_id)
+    except Exception as exc:
+        logger.warning("Role store unavailable while resolving %r; delivering built-in defaults only: %s",
+                       role, exc)
+        perms = list(rbac_defaults.defaults_for(RBACService._normalize_role(role or "")))
+    if warn_if_empty and not perms:
+        logger.warning("Role %r resolved to no permissions; login allowed with an empty permission list", role)
+    return perms
+
 
 # ITAM-USR-05 (Phase 64-05): roles whose require_role()-gated endpoints are
 # additionally narrowed to a specific scope when the caller authenticated via
