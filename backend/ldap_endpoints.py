@@ -188,6 +188,18 @@ async def upsert_group_mapping(mapping: GroupMappingIn, current_user: TokenData 
 
 @router.delete("/api/admin/ldap/group-mapping/{mapping_id}")
 async def delete_group_mapping(mapping_id: str, current_user: TokenData = Depends(_require_itam_admin)):
+    tenant_id = _config_scope(current_user)
+    try:
+        existing = await LDAPGroupMapper.get_mapping(mapping_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid mapping ID")
+    if not existing:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    # D-22: removing a mapping is held to the same ceiling as writing one.
+    await assert_can_assign_role(
+        get_database(), current_user, existing.get("role") or "",
+        target_tenant_id=tenant_id or current_user.tenant_id,
+    )
     try:
         deleted = await LDAPGroupMapper.delete_mapping(mapping_id)
     except Exception:

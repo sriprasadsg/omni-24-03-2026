@@ -366,6 +366,25 @@ class TestSAMLUserProvisioner:
             assert any(bad_role in r.getMessage() for r in caplog.records)
         assert len(written) == 3 and all("role" not in w for w in written)
 
+    def test_provision_user_never_overwrites_an_existing_super_admin_accounts_role(self):
+        """WR-04: a mapping must not demote or replace a local super-admin account."""
+        db = MagicMock()
+        db.users.find_one = AsyncMock(return_value={"_id": "existing-id", "role": "Super Admin"})
+        written = []
+
+        async def _capture(_flt, update):
+            written.append(dict(update["$set"]))
+
+        db.users.update_one = AsyncMock(side_effect=_capture)
+        mapped = {"email": "root@example.com", "full_name": "Root",
+                  "nameid": "root@example.com", "groups": []}
+        with patch("saml_mapping.get_database", return_value=db), \
+             patch("authentication_service.revoke_user_sessions", new_callable=AsyncMock) as revoke:
+            doc = _run(SAMLUserProvisioner(_config()).provision_user(mapped, tenant_id="t1", role="itam_viewer"))
+        assert doc["role"] == "Super Admin"
+        revoke.assert_not_awaited()
+        assert len(written) == 1 and "role" not in written[0]
+
     def test_provision_user_refuses_super_admin_role_for_new_user(self, caplog):
         db = MagicMock()
         db.users.find_one = AsyncMock(return_value=None)
@@ -863,6 +882,31 @@ class TestSAMLAttributeMappingEndpoint:
                 "group_value": "G", "role": "admin",
             })
         assert resp.status_code == 403
+        assert ep_db.saml_group_mappings.docs == []
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_cannot_delete_a_mapping_above_its_role(self, ep_app, ep_db):
+        """WR-04: deleting a mapping is held to the same ceiling as writing one."""
+        from saml_mapping import SAMLGroupMapper
+        await SAMLGroupMapper.upsert_mapping("Admins", "Tenant Admin", tenant_id="tenant-a")
+        mapping_id = str(ep_db.saml_group_mappings.docs[0]["_id"])
+        _override_user(ep_app, make_token_data(username="ia@tenant-a.com", role="itam_admin",
+                                               tenant_id="tenant-a"))
+        async with await _ep_client(ep_app) as client:
+            resp = await client.delete(f"/api/admin/sso/saml/attribute-mapping/{mapping_id}")
+        assert resp.status_code == 403
+        assert len(ep_db.saml_group_mappings.docs) == 1
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_can_delete_a_mapping_within_its_role(self, ep_app, ep_db):
+        from saml_mapping import SAMLGroupMapper
+        await SAMLGroupMapper.upsert_mapping("Users", "itam_user", tenant_id="tenant-a")
+        mapping_id = str(ep_db.saml_group_mappings.docs[0]["_id"])
+        _override_user(ep_app, make_token_data(username="ia@tenant-a.com", role="itam_admin",
+                                               tenant_id="tenant-a"))
+        async with await _ep_client(ep_app) as client:
+            resp = await client.delete(f"/api/admin/sso/saml/attribute-mapping/{mapping_id}")
+        assert resp.status_code == 200
         assert ep_db.saml_group_mappings.docs == []
 
     @pytest.mark.asyncio

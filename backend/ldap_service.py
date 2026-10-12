@@ -48,6 +48,13 @@ from tenant_context import get_tenant_id, set_tenant_id
 logger = logging.getLogger(__name__)
 
 
+def _is_super_admin_tier(role: Optional[str]) -> bool:
+    """True when ``role`` normalizes to the super-admin tier (decided by name, never by permissions)."""
+    from rbac_service import RBACService
+    import rbac_defaults
+    return RBACService._normalize_role(role or "") == rbac_defaults.SUPER_ADMIN_KEY
+
+
 # ─── Exceptions ──────────────────────────────────────────────────────────────
 
 class LDAPConfigError(Exception):
@@ -445,6 +452,13 @@ class LDAPUserSyncer:
         db = get_database()
         now = datetime.now(timezone.utc).isoformat()
         existing = await db.users.find_one({"email": mapped["email"], "tenantId": tenant_id})
+        if role and existing and _is_super_admin_tier(existing.get("role")):
+            # A directory mapping may not replace the role of a platform super-admin account.
+            logger.warning(
+                "LDAP mapping resolved %s to role %r but the existing account is super-admin-tier; "
+                "keeping its role", mapped["email"], role,
+            )
+            role = None
         doc = {
             "email": mapped["email"],
             "full_name": mapped["full_name"],
@@ -584,6 +598,12 @@ class LDAPGroupMapper:
         )
         doc["_id"] = str(result.upserted_id) if getattr(result, "upserted_id", None) else None
         return doc
+
+    @staticmethod
+    async def get_mapping(mapping_id: str) -> Optional[dict]:
+        from bson import ObjectId
+        db = get_database()
+        return await db.ldap_group_mappings.find_one({"_id": ObjectId(mapping_id)})
 
     @staticmethod
     async def delete_mapping(mapping_id: str) -> bool:
