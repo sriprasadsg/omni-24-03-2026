@@ -8,8 +8,8 @@
 
 ### 1. Catalogue Access Control
 
-- [ ] **ACC-01**: `/login` and `/me` return a server-evaluated *effective* permission set (role-doc permissions unioned with defaults) from a single resolver, so no role logs in with an empty permission list.
-- [ ] **ACC-02**: The drifted permission defaults (`rbac_utils.DEFAULT_PERMISSIONS` vs `rbac_service.default_roles`) are collapsed into one source of truth, and the missing `itam_admin/itam_user/itam_viewer` role documents are seeded.
+- [x] **ACC-01**: `/login` and `/me` return a server-evaluated *effective* permission set (role-doc permissions unioned with defaults) from a single resolver, so no role logs in with an empty permission list.
+- [x] **ACC-02**: The drifted permission defaults (`rbac_utils.DEFAULT_PERMISSIONS` vs `rbac_service.default_roles`) are collapsed into one source of truth, and the missing `itam_admin/itam_user/itam_viewer` role documents are seeded.
 - [ ] **ACC-03**: A single shared catalogue manifest maps each left-nav catalogue to its required permission and its backend route(s); the frontend reads it instead of the divergent `Sidebar.tsx` / `App.tsx viewPermissionMap` tables (the 9 mismatched views reconciled).
 - [ ] **ACC-04**: Backend route-permission guards are added to the priority unguarded router groups (Assets, ITAM, Settings, financial, identity, security-operations); routers not yet guarded are recorded in a committed gap ledger. Agent-authenticated `/api/agents/*` routes are excluded by design.
 - [ ] **ACC-05**: A deny-by-default route-parity test fails when an in-scope catalogue's routes are not guarded per the manifest, plus a frontend test that fails on manifest/sidebar drift.
@@ -58,8 +58,8 @@ Populated during roadmap creation (2026-10-12). Each requirement maps to exactly
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ACC-01 | Phase 75 | Pending |
-| ACC-02 | Phase 75 | Pending |
+| ACC-01 | Phase 75 | Complete |
+| ACC-02 | Phase 75 | Complete |
 | ACC-03 | Phase 76 | Pending |
 | ACC-04 | Phase 76 | Pending |
 | ACC-05 | Phase 76 | Pending |

@@ -168,7 +168,7 @@ Plans:
   3. Exactly one permission-defaults table exists: the `rbac_utils.DEFAULT_PERMISSIONS` / `rbac_service.default_roles` divergence is gone, a test fails if a second copy drifts, and `control:remote_access` stays distinct from `view:remote_access`.
   4. The `itam_admin`, `itam_user`, and `itam_viewer` role documents exist after startup seeding and appear in an admin's role list, while pre-existing custom roles still resolve correctly with no data migration.
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 Plans:
 **Wave 1**
@@ -180,7 +180,7 @@ Plans:
 - [x] 75-04-PLAN.md — Bundle assignment super-admin only (D-06); shared role-assignment ceiling for user CRUD (D-18/D-20/D-21) (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 75-05-PLAN.md — LDAP/SAML mapping ceiling + apply-time super-admin block (D-22); archive one-off scripts; AST drift guard (wave 3)
+- [x] 75-05-PLAN.md — LDAP/SAML mapping ceiling + apply-time super-admin block (D-22); archive one-off scripts; AST drift guard (wave 3)
 
 ### Phase 76: Catalogue Manifest & Backend Route Enforcement
 
@@ -258,7 +258,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 75. Permission Resolver & Single Source of Truth | 4/5 | In Progress | - |
+| 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 0/TBD | Not started | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 0/TBD | Not started | - |
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |

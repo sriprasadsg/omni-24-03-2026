@@ -4,17 +4,17 @@ milestone: v4.2
 milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 75
 current_phase_name: Permission Resolver & Single Source of Truth
-status: executing
-stopped_at: Completed 75-04-PLAN.md
-last_updated: "2026-10-12T22:45:31.314Z"
+status: verifying
+stopped_at: Completed 75-05-PLAN.md
+last_updated: "2026-10-12T22:57:26.327Z"
 last_activity: 2026-10-12
 last_activity_desc: Phase 75 execution started
-state_head: ac91f1ed5fe257dd06903cf2671b34bb88ad584f
+state_head: 239b3beb2cd57a1967b6dc4a24cefd3a2a47fcf6
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -410,6 +410,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 75]: 75-03: frontend derives permissions only from currentUser.permissions (utils/permissions.ts); role-list fallback removed; fetchWithCache 403 drops cache for every key (D-17/D-26)
 - [Phase 75]: 75-04: Bundle assignment writes (PUT/PATCH/DELETE) require require_super_admin; tenants is isolation-exempt so the write is cross-tenant (D-06)
 - [Phase 75]: 75-04: Role-assignment ceiling in backend/role_assignment.py (assert_can_assign_role); self-change rule runs before super-admin shortcut; resolver error fails closed as 503
+- [Phase 75]: 75-05: LDAP/SAML mapping writes run assert_can_assign_role; sync_user/provision_user hard-refuse the super-admin tier at apply time (role=None, warning, no migration)
+- [Phase 75]: 75-05: Drift guard scans top-level backend/*.py by AST with per-(file, variable) tier-list allowlist; five role-writing scripts archived to archive/backend-rbac-oneoffs/ via git mv
 
 ## Performance Metrics
 
@@ -536,6 +538,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 75 P02 | 25 min | 2 tasks | 6 files |
 | Phase 75 P03 | 12 min | 2 tasks | 6 files |
 | Phase 75 P04 | 40 min | 2 tasks | 7 files |
+| Phase 75 P05 | 65 min | 3 tasks | 13 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -570,8 +573,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-12T22:45:31.279Z
-**Stopped at:** Completed 75-04-PLAN.md
+**Last session:** 2026-10-12T22:57:26.292Z
+**Stopped at:** Completed 75-05-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -596,7 +599,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Phase: 75 (Permission Resolver & Single Source of Truth) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-12 — Phase 75 execution started
 
