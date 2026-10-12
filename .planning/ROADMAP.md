@@ -168,14 +168,14 @@ Plans:
   3. Exactly one permission-defaults table exists: the `rbac_utils.DEFAULT_PERMISSIONS` / `rbac_service.default_roles` divergence is gone, a test fails if a second copy drifts, and `control:remote_access` stays distinct from `view:remote_access`.
   4. The `itam_admin`, `itam_user`, and `itam_viewer` role documents exist after startup seeding and appear in an admin's role list, while pre-existing custom roles still resolve correctly with no data migration.
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 
 Plans:
 **Wave 1**
 - [x] 75-01-PLAN.md — Tracer: single table (rbac_defaults.py) + effective_permissions resolver through /login and /me; verify_permission/RBACService delegate; golden sets (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 75-02-PLAN.md — Startup mirrors the table into 11 shared role docs via {name, tenantId}; signup + MFA verify deliver resolver permissions (wave 2)
+- [x] 75-02-PLAN.md — Startup mirrors the table into 11 shared role docs via {name, tenantId}; signup + MFA verify deliver resolver permissions (wave 2)
 - [ ] 75-03-PLAN.md — Real GET /api/roles (manage:users or manage:rbac); frontend fails closed, role-list cache cleared (wave 2)
 - [ ] 75-04-PLAN.md — Bundle assignment super-admin only (D-06); shared role-assignment ceiling for user CRUD (D-18/D-20/D-21) (wave 2)
 
@@ -258,7 +258,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 75. Permission Resolver & Single Source of Truth | 1/5 | In Progress | - |
+| 75. Permission Resolver & Single Source of Truth | 2/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 0/TBD | Not started | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 0/TBD | Not started | - |
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
