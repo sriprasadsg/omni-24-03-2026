@@ -117,6 +117,9 @@ class FakeDB:
     def __init__(self, users=None, tenants=None):
         self.users = FakeCollection(users or [])
         self.tenants = FakeCollection(tenants or [])
+        # The role resolver reads documents through the raw handle (db._db.roles).
+        self.roles = FakeCollection([])
+        self._db = self
         self.audit_logs = FakeCollection([])
         self.audit_logs.insert_one = AsyncMock(side_effect=self.audit_logs.insert_one)
 
@@ -129,7 +132,9 @@ TENANT_B = {"id": "tenant-b", "name": "Tenant B"}
 # Admin-gate role set mirrored from rbac_utils.DEFAULT_PERMISSIONS/manage:assets
 # grantees, including the Title-Case "Admin" the /api/roles UI stub actually
 # sends (see 64-01-SUMMARY.md deviation notes).
-_FAKE_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin"}
+# itam_admin really holds manage:assets, so it reaches the handlers; the role
+# assignment ceiling (Phase 75 plan 04) is what must stop it escalating.
+_FAKE_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin", "itam_admin"}
 
 
 async def _fake_verify_permission(user, permission):
@@ -624,3 +629,108 @@ class TestListUsersFilteringAndSearch:
         body = r.json()
         assert len(body) == 1
         assert body[0]["email"] == "a1@tenant-a.com"
+
+
+# ── Phase 75 plan 04: role-assignment ceiling (D-18/D-20/D-21) ───────────────
+
+class TestRoleAssignmentCeiling:
+    """Regressions for the escalation path: manage:assets gated user CRUD, so an
+    itam_admin could create or promote users (itself included) to admin /
+    Tenant Admin, which carry manage:rbac and control:remote_access."""
+
+    @pytest.fixture(autouse=True)
+    def _no_session_store(self):
+        with patch("user_endpoints.revoke_user_sessions", new_callable=AsyncMock):
+            yield
+
+    @staticmethod
+    def _create_body(email, role):
+        return {"email": email, "password": "Str0ng!Passw0rd", "full_name": "T",
+                "role": role, "tenantId": "tenant-a"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("role", ["admin", "Tenant Admin"])
+    async def test_itam_admin_cannot_create_admin_or_tenant_admin(self, app, fake_db, role):
+        _override_user(app, make_token_data(username="itam@tenant-a.com", role="itam_admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.post("/api/users", json=self._create_body("esc@tenant-a.com", role))
+        assert r.status_code == 403, r.text
+        assert fake_db.users.docs == []
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_cannot_promote_itself(self, app, fake_db):
+        uid = ObjectId()
+        fake_db.users.docs.append({
+            "_id": uid, "email": "itam@tenant-a.com", "full_name": "Itam", "role": "itam_admin",
+            "tenantId": "tenant-a", "status": "Active", "hashed_password": "x",
+        })
+        _override_user(app, make_token_data(username="itam@tenant-a.com", role="itam_admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"role": "Tenant Admin"})
+        assert r.status_code == 403, r.text
+        assert fake_db.users.docs[0]["role"] == "itam_admin"
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_cannot_change_own_role_even_downward(self, app, fake_db):
+        uid = ObjectId()
+        fake_db.users.docs.append({
+            "_id": uid, "email": "itam@tenant-a.com", "full_name": "Itam", "role": "itam_admin",
+            "tenantId": "tenant-a", "status": "Active", "hashed_password": "x",
+        })
+        _override_user(app, make_token_data(username="itam@tenant-a.com", role="itam_admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"role": "itam_viewer"})
+        assert r.status_code == 403, r.text
+
+    @pytest.mark.asyncio
+    async def test_resending_the_same_role_is_not_a_change(self, app, fake_db):
+        uid = ObjectId()
+        fake_db.users.docs.append({
+            "_id": uid, "email": "itam@tenant-a.com", "full_name": "Itam", "role": "itam_admin",
+            "tenantId": "tenant-a", "status": "Active", "hashed_password": "x",
+        })
+        _override_user(app, make_token_data(username="itam@tenant-a.com", role="itam_admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"role": "ITAM Admin", "full_name": "Renamed"})
+        assert r.status_code == 200, r.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("role", ["itam_user", "itam_viewer"])
+    async def test_itam_admin_can_create_itam_users(self, app, role):
+        _override_user(app, make_token_data(username="itam@tenant-a.com", role="itam_admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.post("/api/users", json=self._create_body(f"{role}@tenant-a.com", role))
+        assert r.status_code == 201, r.text
+
+    @pytest.mark.asyncio
+    async def test_tenant_admin_can_create_itam_admin(self, app):
+        _override_user(app, make_token_data(username="ta@tenant-a.com", role="Tenant Admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.post("/api/users", json=self._create_body("ia@tenant-a.com", "itam_admin"))
+        assert r.status_code == 201, r.text
+
+    @pytest.mark.asyncio
+    async def test_unknown_role_is_400_before_the_ceiling(self, app):
+        _override_user(app, make_token_data(username="itam@tenant-a.com", role="itam_admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.post("/api/users", json=self._create_body("x@tenant-a.com", "galactic_overlord"))
+        assert r.status_code == 400, r.text
+
+    @pytest.mark.asyncio
+    async def test_role_store_error_refuses_the_assignment(self, app, fake_db):
+        async def boom(*a, **k):
+            raise RuntimeError("mongo down")
+        fake_db.roles.find_one = boom
+        _override_user(app, make_token_data(username="itam@tenant-a.com", role="itam_admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.post("/api/users", json=self._create_body("y@tenant-a.com", "itam_user"))
+        assert r.status_code == 503, r.text
+        assert fake_db.users.docs == []
