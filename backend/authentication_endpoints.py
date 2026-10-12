@@ -325,28 +325,6 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     }
     await db.tenants.insert_one(tenant_doc)
     
-    # Standard full permissions for Tenant Admin - matching app.py seed_database
-    enterprise_permissions = [
-        'view:dashboard', 'view:reporting', 'export:reports', 
-        'view:agents', 'view:software_deployment', 'view:agent_logs', 'remediate:agents',
-        'view:assets', 'view:patching', 'manage:patches', 'view:security', 
-        'manage:security_cases', 'investigate:security', 'view:compliance',
-        'manage:compliance_evidence', 'view:ai_governance', 'manage:ai_risks',
-        'view:cloud_security', 'view:finops', 'view:audit_log',
-        'manage:rbac', 'manage:api_keys', 'view:logs', 'view:profile',
-        'view:automation', 'manage:automation', 'view:devsecops', 'manage:devsecops',
-        'view:sbom', 'manage:sbom', 'view:insights', 'view:software_updates',
-        'view:threat_hunting', 'view:tracing', 'view:dspm', 'view:attack_path',
-        'view:service_catalog', 'view:dora_metrics', 'view:chaos', 'view:network',
-        'view:zero_trust', 'view:developer_hub', 'manage:security_playbooks',
-        'view:cxo_dashboard', 'view:unified_ops', 'view:advanced_bi',
-        'view:sustainability', 'view:web_monitoring', 'view:analytics', 
-        'view:threat_intel', 'view:vulnerabilities', 'view:persistence',
-        'view:security_audit', 'view:mlops', 'view:llmops', 'view:automl',
-        'manage:experiments', 'view:xai', 'view:governance', 'manage:playbooks',
-        'view:swarm', 'view:itam', 'manage:itam'
-    ]
-
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     user_doc = {
         "id": user_id, 
@@ -358,7 +336,6 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "status": "Active",
         "subscriptionTier": "Free",
         "maxAgents": 5,
-        "permissions": enterprise_permissions,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     try:
@@ -395,7 +372,9 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     if 'id' not in user_data:
         user_data['id'] = user_id
     user_data['mfa_action'] = mfa_action_for("Tenant Admin", mfa_verified=False, mfa_enabled=False)
-        
+    # D-07/D-24: nothing is stored per user; the response carries the resolver's list.
+    user_data['permissions'] = await session_permissions(db, "Tenant Admin", tenant_id)
+
     set_refresh_cookie(response, request, refresh_token)
     return {
         "success": True, 

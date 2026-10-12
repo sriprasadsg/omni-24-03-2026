@@ -10,6 +10,7 @@ from authentication_service import get_current_user_mfa_pending
 from authentication_endpoints import _public_user_fields, _record_login_failure, _clear_login_failures, _check_login_lockout
 from database import get_database
 from rate_limiter import limiter
+from rbac_service import session_permissions
 from datetime import timedelta
 import mfa_service
 
@@ -221,6 +222,8 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
     )
     user_data = _public_user_fields(user)
     user_data["id"] = str(user.get("_id", ""))
+    # D-24: same resolver as /login and /me, never the stored per-user array.
+    user_data["permissions"] = await session_permissions(db, role, tenant_id)
     # Refreshes keep the session MFA-verified (and MFA users no longer drop
     # back to the login page when the first access token expires).
     set_refresh_cookie(response, request, create_refresh_token(data={"sub": email, "mfa_verified": True}))
