@@ -340,6 +340,40 @@ class TestLDAPUserSyncer:
         assert doc["role"] == "itam_admin"
         revoke.assert_awaited_once()  # sessions minted with the old role end
 
+    def test_sync_user_refuses_super_admin_role_for_existing_user(self, caplog):
+        db = MagicMock()
+        existing = {"_id": "abc123", "email": "jdoe@example.com", "role": "itam_user"}
+        db.users.find_one = AsyncMock(return_value=existing)
+        db.users.update_one = AsyncMock()
+        mapped = {"ldap_dn": "cn=jdoe", "ldap_user_id": "jdoe",
+                  "email": "jdoe@example.com", "full_name": "Jane Doe", "groups": []}
+        for bad_role in ("super_admin", "Super Admin", "platform-admin"):
+            caplog.clear()
+            with patch("ldap_service.get_database", return_value=db), \
+                 patch("authentication_service.revoke_user_sessions", new_callable=AsyncMock) as revoke, \
+                 caplog.at_level("WARNING", logger="ldap_service"):
+                syncer = LDAPUserSyncer(_config())
+                doc = _run(syncer.sync_user(mapped, tenant_id="t1", role=bad_role))
+            assert doc["role"] == "itam_user"
+            revoke.assert_not_awaited()
+            assert any(bad_role in r.getMessage() for r in caplog.records)
+        set_doc = db.users.update_one.await_args.args[1]["$set"]
+        assert "role" not in set_doc
+
+    def test_sync_user_refuses_super_admin_role_for_new_user(self, caplog):
+        db = MagicMock()
+        db.users.find_one = AsyncMock(return_value=None)
+        db.users.insert_one = AsyncMock(return_value=MagicMock(inserted_id="new-id"))
+        mapped = {"ldap_dn": "cn=jdoe", "ldap_user_id": "jdoe",
+                  "email": "jdoe@example.com", "full_name": "Jane Doe", "groups": []}
+        with patch("ldap_service.get_database", return_value=db), \
+             caplog.at_level("WARNING", logger="ldap_service"):
+            syncer = LDAPUserSyncer(_config())
+            doc = _run(syncer.sync_user(mapped, tenant_id="t1", role="super_admin"))
+        assert doc["role"] == "itam_viewer"
+        assert db.users.insert_one.await_args.args[0]["role"] == "itam_viewer"
+        assert any("super_admin" in r.getMessage() for r in caplog.records)
+
     def test_sync_all_summarizes_results(self):
         syncer = LDAPUserSyncer(_config())
         mapped_users = [
@@ -601,10 +635,11 @@ class _EPFakeDB:
         self.ldap_configs = _EPCollection([])
         self.ldap_group_mappings = _EPCollection([])
         self.users = _EPCollection([])
+        self.roles = _EPCollection([])
         self._db = self  # raw handle: same in-memory docs, no tenant scoping
 
 
-_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin"}
+_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin", "itam_admin"}
 
 
 async def _fake_verify_permission(user, permission):
@@ -827,6 +862,50 @@ class TestLDAPGroupMappingEndpoint:
                 "group_dn": "cn=g,dc=x", "role": "not_a_role",
             })
         assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_tenant_admin_cannot_map_group_to_super_admin(self, ep_app, ep_db):
+        admin = make_token_data(username="admin@tenant-a.com", role="admin", tenant_id="tenant-a")
+        _override_user(ep_app, admin)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/group-mapping", json={
+                "group_dn": "cn=g,dc=x", "role": "super_admin",
+            })
+        assert resp.status_code == 403
+        assert ep_db.ldap_group_mappings.docs == []
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_cannot_map_group_to_admin(self, ep_app, ep_db):
+        user = make_token_data(username="ia@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(ep_app, user)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/group-mapping", json={
+                "group_dn": "cn=g,dc=x", "role": "admin",
+            })
+        assert resp.status_code == 403
+        assert ep_db.ldap_group_mappings.docs == []
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_cannot_map_group_to_tenant_admin(self, ep_app, ep_db):
+        user = make_token_data(username="ia@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(ep_app, user)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/group-mapping", json={
+                "group_dn": "cn=g,dc=x", "role": "Tenant Admin",
+            })
+        assert resp.status_code == 403
+        assert ep_db.ldap_group_mappings.docs == []
+
+    @pytest.mark.asyncio
+    async def test_itam_admin_can_map_group_to_itam_user(self, ep_app, ep_db):
+        user = make_token_data(username="ia@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+        _override_user(ep_app, user)
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/ldap/group-mapping", json={
+                "group_dn": "cn=g,dc=x", "role": "itam_user",
+            })
+        assert resp.status_code == 200, resp.text
+        assert len(ep_db.ldap_group_mappings.docs) == 1
 
     @pytest.mark.asyncio
     async def test_delete_missing_mapping_returns_404(self, ep_app):
