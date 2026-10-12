@@ -235,6 +235,7 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
+import { derivePermissionState } from './utils/permissions';
 
 const API_BASE = '/api';
 
@@ -1182,64 +1183,12 @@ const App: React.FC = () => {
   }, [currentView]);
 
   // --- DERIVED STATE & CONTEXT ---
-  const { enabledFeatures, hasPermission } = useMemo(() => {
-    if (!currentUser) return { enabledFeatures: [], hasPermission: () => false };
-
-    // FIX: Super Admin bypasses all lookups (roles, tenants) to ensure visibility
-    if (currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' || currentUser.role === 'super_admin') {
-      return {
-        enabledFeatures: [],
-        hasPermission: (perm: any) => {
-          // console.log('[App] Super Admin Access:', perm);
-          return true;
-        }
-      };
-    }
-
-    // Use permissions from currentUser object (provided by backend during login/signup)
-    let effectiveFeatures: Permission[] = [];
-
-    if (currentUser.permissions && Array.isArray(currentUser.permissions) && currentUser.permissions.length > 0) {
-      // Backend included permissions in the user object
-      const userPerms = currentUser.permissions as Permission[];
-
-      const tenant = tenants.find(t => t.id === currentUser.tenantId);
-      if (tenant && currentUser.role !== 'Super Admin') {
-        // Intersect user permissions with tenant's enabled features
-        effectiveFeatures = userPerms.filter(p => tenant.enabledFeatures.includes(p));
-      } else {
-        effectiveFeatures = userPerms;
-      }
-    } else {
-      // Fallback to role-based lookup (case-insensitive)
-      const roleLower = currentUser.role?.trim().toLowerCase() || '';
-      const role = roles.find(r => r.name?.trim().toLowerCase() === roleLower);
-
-      if (role) {
-        // If role grants "all" permissions, skip tenant intersection
-        if (role.permissions.includes('all' as Permission)) {
-          effectiveFeatures = ['all' as Permission];
-        } else {
-          const tenant = tenants.find(t => t.id === currentUser.tenantId);
-          effectiveFeatures = tenant
-            ? role.permissions.filter(p => tenant.enabledFeatures.includes(p))
-            : role.permissions;
-        }
-      }
-      // If no role found, effectiveFeatures stays [] — checkPermission handles "all" shortcut below
-    }
-
-    const checkPermission = (permission: Permission): boolean => {
-      const roleName = currentUser?.role?.trim().toLowerCase() || '';
-      const isSuperAdmin = roleName === 'super admin' || roleName === 'superadmin' || roleName === 'super_admin' || roleName === 'platform-admin';
-      if (isSuperAdmin) return true;
-      // "all" permission grants access to everything
-      if (effectiveFeatures.includes('all' as Permission)) return true;
-      return effectiveFeatures.includes(permission);
-    };
-
-    return { enabledFeatures: effectiveFeatures, hasPermission: checkPermission };
-  }, [currentUser, roles, tenants]);
+  // D-17: permissions come only from the server-delivered currentUser.permissions
+  // (narrowed to the tenant's enabled features); no role-list fallback.
+  const { enabledFeatures, hasPermission } = useMemo(
+    () => derivePermissionState(currentUser, tenants),
+    [currentUser, tenants]
+  );
 
 
 

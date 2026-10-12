@@ -128,12 +128,18 @@ function _canAttemptRefresh(): boolean {
     return !_sessionEnding && (Date.now() - _lastRefreshFailTime > _REFRESH_BACKOFF_MS);
 }
 
+/** D-26: drop cached API data that must not outlive a sign-in (the next user of this tab may differ). */
+function clearSessionCaches(): void {
+    sessionStorage.removeItem('omni_cache_roles');
+}
+
 function _expireSession(): void {
     if (_sessionEnding) return;
     _sessionEnding = true;
     stopTokenRefreshCycle();
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('refresh_token');
+    clearSessionCaches();
     setTimeout(() => { window.location.href = '/login'; }, 50);
 }
 
@@ -235,6 +241,7 @@ export async function logoutSession(): Promise<void> {
     }
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('refresh_token');
+    clearSessionCaches();
 }
 
 /** A sign-in failure whose message is meant for the user (lockout, disabled account). */
@@ -421,6 +428,12 @@ export const fetchPredictiveModelAccuracy = async (): Promise<any | null> => {
 const fetchWithCache = async <T>(key: string, endpoint: string, initialData: T, updateLocalVar: (data: T) => void): Promise<T> => {
     try {
         const res = await authFetch(`${API_BASE}${endpoint}`); // Use authFetch
+        if (res.status === 403) {
+            // D-26: the server refused this user, so a cached copy from a previous
+            // user of this tab must not be served in its place.
+            sessionStorage.removeItem(`omni_cache_${key}`);
+            return (Array.isArray(initialData) ? [] : initialData) as T;
+        }
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
 
