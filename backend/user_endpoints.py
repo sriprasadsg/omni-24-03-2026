@@ -16,7 +16,7 @@ from rbac_utils import is_super_admin
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from rbac_service import rbac_service
 import rbac_defaults
-from role_assignment import assert_can_assign_role
+from role_assignment import assert_can_assign_role, assert_can_manage_account
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 import datetime
@@ -340,6 +340,14 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
         if target_user.get("tenantId") != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to update users in other tenants")
 
+    # D-18/D-20 ceiling on the target ACCOUNT: password, status, role, tenant and
+    # profile changes are refused unless the caller holds everything the
+    # account's current role grants.
+    await assert_can_manage_account(
+        db, current_user, target_user.get("role"),
+        target_tenant_id=target_user.get("tenantId"),
+    )
+
     # Prepare update data
     update_data = {}
     if updates.full_name is not None:
@@ -434,6 +442,12 @@ async def delete_user(user_id: str, current_user: TokenData = Depends(_require_i
         tenant_id = get_tenant_id()
         if target_user.get("tenantId") != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to delete users in other tenants")
+
+    # D-18/D-20 ceiling on the target ACCOUNT: no deleting a higher-privileged user.
+    await assert_can_manage_account(
+        db, current_user, target_user.get("role"),
+        target_tenant_id=target_user.get("tenantId"),
+    )
 
     # Cannot delete yourself
     if getattr(current_user, "username", "") == target_user.get("email"):

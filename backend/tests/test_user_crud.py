@@ -734,3 +734,123 @@ class TestRoleAssignmentCeiling:
             r = await ac.post("/api/users", json=self._create_body("y@tenant-a.com", "itam_user"))
         assert r.status_code == 503, r.text
         assert fake_db.users.docs == []
+
+
+# ── Phase 75 review CR-01: the ceiling also applies to the TARGET account ────
+
+class TestTargetAccountCeiling:
+    """An itam_admin (manage:assets) must not reset the password of, disable,
+    re-home, rename or delete an account whose role outranks its own."""
+
+    @pytest.fixture(autouse=True)
+    def _no_session_store(self):
+        with patch("user_endpoints.revoke_user_sessions", new_callable=AsyncMock):
+            yield
+
+    @staticmethod
+    def _seed(fake_db, role, email="victim@tenant-a.com", tenant="tenant-a"):
+        uid = ObjectId()
+        fake_db.users.docs.append({
+            "_id": uid, "email": email, "full_name": "Victim", "role": role,
+            "tenantId": tenant, "status": "Active", "hashed_password": "orig",
+        })
+        return uid
+
+    @staticmethod
+    def _itam_admin():
+        return make_token_data(username="itam@tenant-a.com", role="itam_admin", tenant_id="tenant-a")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("victim_role", ["Tenant Admin", "admin", "tenant_admin", "analyst", "Super Admin"])
+    @pytest.mark.parametrize("body", [
+        {"password": "Str0ng!Passw0rd"},
+        {"status": "inactive"},
+        {"full_name": "Renamed"},
+    ])
+    async def test_itam_admin_cannot_modify_higher_privileged_account(self, app, fake_db, victim_role, body):
+        uid = self._seed(fake_db, victim_role)
+        _override_user(app, self._itam_admin())
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json=body)
+        assert r.status_code == 403, r.text
+        doc = fake_db.users.docs[0]
+        assert doc["status"] == "Active"
+        assert doc["full_name"] == "Victim"
+        assert doc["hashed_password"] == "orig" and "password" not in doc
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("victim_role", ["Tenant Admin", "admin", "analyst", "Super Admin"])
+    async def test_itam_admin_cannot_delete_higher_privileged_account(self, app, fake_db, victim_role):
+        uid = self._seed(fake_db, victim_role)
+        _override_user(app, self._itam_admin())
+        async with await _client(app) as ac:
+            r = await ac.delete(f"/api/users/{uid}")
+        assert r.status_code == 403, r.text
+        assert len(fake_db.users.docs) == 1
+
+    @pytest.mark.asyncio
+    async def test_target_role_check_runs_even_when_the_body_carries_a_lower_role(self, app, fake_db):
+        # Demoting a tenant admin is still an act on a higher account.
+        uid = self._seed(fake_db, "Tenant Admin")
+        _override_user(app, self._itam_admin())
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"role": "itam_viewer"})
+        assert r.status_code == 403, r.text
+        assert fake_db.users.docs[0]["role"] == "Tenant Admin"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("victim_role", ["itam_admin", "ITAM Admin", "itam_user", "itam_viewer"])
+    async def test_itam_admin_can_still_manage_equal_or_lower_accounts(self, app, fake_db, victim_role):
+        uid = self._seed(fake_db, victim_role)
+        _override_user(app, self._itam_admin())
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"status": "inactive"})
+            assert r.status_code == 200, r.text
+            r = await ac.delete(f"/api/users/{uid}")
+            assert r.status_code == 200, r.text
+        assert fake_db.users.docs == []
+
+    @pytest.mark.asyncio
+    async def test_tenant_admin_can_reset_an_itam_admin_password(self, app, fake_db):
+        uid = self._seed(fake_db, "itam_admin")
+        _override_user(app, make_token_data(username="ta@tenant-a.com", role="Tenant Admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"password": "Str0ng!Passw0rd"})
+        assert r.status_code == 200, r.text
+
+    @pytest.mark.asyncio
+    async def test_tenant_admin_cannot_touch_a_super_admin_account(self, app, fake_db):
+        uid = self._seed(fake_db, "Super Admin", email="root@tenant-a.com")
+        _override_user(app, make_token_data(username="ta@tenant-a.com", role="Tenant Admin",
+                                            tenant_id="tenant-a"))
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"password": "Str0ng!Passw0rd"})
+            assert r.status_code == 403, r.text
+            r = await ac.delete(f"/api/users/{uid}")
+            assert r.status_code == 403, r.text
+        assert len(fake_db.users.docs) == 1 and "password" not in fake_db.users.docs[0]
+
+    @pytest.mark.asyncio
+    async def test_super_admin_can_still_manage_any_account(self, app, fake_db):
+        uid = self._seed(fake_db, "Tenant Admin")
+        _override_user(app, make_token_data(username="root@platform.com", role="Super Admin",
+                                            tenant_id="platform-admin"))
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"password": "Str0ng!Passw0rd"})
+            assert r.status_code == 200, r.text
+            r = await ac.delete(f"/api/users/{uid}")
+            assert r.status_code == 200, r.text
+
+    @pytest.mark.asyncio
+    async def test_role_store_error_refuses_the_account_change(self, app, fake_db):
+        uid = self._seed(fake_db, "itam_user")
+
+        async def boom(*a, **k):
+            raise RuntimeError("mongo down")
+        fake_db.roles.find_one = boom
+        _override_user(app, self._itam_admin())
+        async with await _client(app) as ac:
+            r = await ac.put(f"/api/users/{uid}", json={"status": "inactive"})
+        assert r.status_code == 503, r.text
+        assert fake_db.users.docs[0]["status"] == "Active"

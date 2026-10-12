@@ -68,3 +68,48 @@ async def assert_can_assign_role(
         raise HTTPException(
             status_code=403,
             detail=f"Not authorized to assign role '{target_role}': it grants permissions you do not hold")
+
+
+async def assert_can_manage_account(
+    db,
+    caller: TokenData,
+    target_role: Optional[str],
+    *,
+    target_tenant_id: Optional[str],
+) -> None:
+    """Raise ``HTTPException`` unless ``caller`` may modify or delete an account that holds ``target_role``.
+
+    The account-side twin of ``assert_can_assign_role`` (D-18/D-20): resetting
+    a password, disabling, moving or deleting an account is as powerful as
+    handing out its role, so the same ceiling applies to the account's
+    *current* role. Rules, in order:
+      1. A super-admin caller may manage any account.
+      2. A super-admin-tier account is managed only by a super-admin, decided by
+         role-name normalization and never by a ``*`` inside a role document.
+      3. Otherwise the account's effective permissions must be a subset of the
+         caller's under the manage:X implies view:X and request:X closure
+         (an account of an equal role is manageable; a higher one is not).
+    A role-store error refuses the operation (fail closed, 503).
+    """
+    normalize = RBACService._normalize_role
+    super_key = rbac_defaults.SUPER_ADMIN_KEY
+    if normalize(caller.role or "") == super_key:
+        return
+
+    if normalize(target_role or "") == super_key:
+        raise HTTPException(status_code=403,
+                            detail="Only a platform super-admin can modify a super-admin account")
+
+    try:
+        caller_perms = await effective_permissions(db, caller.role, caller.tenant_id)
+        target_perms = await effective_permissions(db, target_role, target_tenant_id)
+    except Exception as exc:  # fail closed
+        logger.warning("Role store error while checking management of a %r account by %r: %s",
+                       target_role, caller.role, exc)
+        raise HTTPException(status_code=503,
+                            detail="Role store unavailable; account change refused")
+
+    if not rbac_defaults.ceiling_allows(caller_perms, target_perms):
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to modify this account: its role grants permissions you do not hold")
