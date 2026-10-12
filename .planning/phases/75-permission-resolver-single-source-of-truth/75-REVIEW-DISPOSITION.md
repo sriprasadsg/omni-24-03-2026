@@ -9,7 +9,7 @@ findings:
     title: "Ceiling is not applied to the target account, so a lower admin can take over a higher-privileged user"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Resolver honours `*` and super-admin-only permissions from non-super role documents"
   - id: WR-02
     severity: warning
@@ -17,7 +17,7 @@ findings:
     title: "`GET /api/bundles/tenant/{tenant_id}/features` lets any authenticated user read any tenant's entitlements"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "PATCH bundle assignment skips the validation PUT performs"
   - id: WR-04
     severity: warning
@@ -37,7 +37,7 @@ findings:
     title: "Frontend super-admin detection disagrees with the backend and ignores `*`"
   - id: WR-08
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "D-26 cache hygiene covers only `omni_cache_roles`"
   - id: IN-01
     severity: info
@@ -59,9 +59,9 @@ findings:
     severity: info
     disposition: open
     title: "`can_assign_role` table-only helper has no production caller"
-open: 14
+open: 11
 total: 14
-recorded: 2026-10-12T23:03:37.207Z
+recorded: 2026-10-12T23:14:26.886Z
 ---
 
 # Phase 75: Code Review Disposition
@@ -69,14 +69,14 @@ recorded: 2026-10-12T23:03:37.207Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | CR-01 | critical | open | - |
-| WR-01 | warning | open | - |
+| WR-01 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
+| WR-03 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
-| WR-08 | warning | open | - |
+| WR-08 | warning | fixed | 75-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
