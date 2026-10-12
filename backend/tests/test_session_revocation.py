@@ -233,6 +233,8 @@ def _users_client(target):
     db.users.update_one = AsyncMock()
     db.users.delete_one = AsyncMock()
     db.audit_logs.insert_one = AsyncMock()
+    # The role-assignment ceiling reads role documents through the raw handle.
+    db._db.roles.find_one = AsyncMock(return_value=None)
     app = FastAPI()
     app.include_router(ue.router)
     app.dependency_overrides[_require_itam_admin_session_only] = lambda: ADMIN

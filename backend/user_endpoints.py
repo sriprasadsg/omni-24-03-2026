@@ -15,6 +15,8 @@ from rbac_utils import is_super_admin
 # exclusions) alongside sso_endpoints.py.
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from rbac_service import rbac_service
+import rbac_defaults
+from role_assignment import assert_can_assign_role
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 import datetime
@@ -27,12 +29,10 @@ router = APIRouter(prefix="/api/users", tags=["User Management"])
 # --- Role helpers ------------------------------------------------------------
 # Reuse rbac_service's canonical normalizer so Title-Case names surfaced by the
 # /api/roles UI stub ("Admin", "User", "Viewer") compare equal to their
-# rbac_service.default_roles counterparts ("admin"/"user"/"viewer") — ITAM-USR-01
-# item 2: role must validate against rbac_service.default_roles keys.
+# rbac_defaults.builtin_role_keys() counterparts ("admin"/"user"/"viewer") — ITAM-USR-01
+# item 2: role must validate against the built-in role table keys.
 _normalize_role = rbac_service._normalize_role
-_VALID_ROLE_KEYS = {_normalize_role(k) for k in rbac_service.default_roles.keys()}
-# The only role tier a non-super-admin caller may never assign.
-_ELEVATED_ROLE_KEYS = {"super_admin"}
+_VALID_ROLE_KEYS = rbac_defaults.builtin_role_keys()
 
 # --- Status (lifecycle) helpers ----------------------------------------------
 # Stored canonically as Title-Case ("Active"/"Inactive"/"Pending") because
@@ -269,9 +269,6 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
     requested_role_key = _normalize_role(user.role)
     if requested_role_key not in _VALID_ROLE_KEYS:
         raise HTTPException(status_code=400, detail=f"Invalid role '{user.role}'")
-    # Prevent privilege escalation: non-super-admins cannot assign elevated roles
-    if requested_role_key in _ELEVATED_ROLE_KEYS and not caller_is_super_admin:
-        raise HTTPException(status_code=403, detail=f"Not authorized to assign role '{user.role}'")
 
     db = get_database()
 
@@ -280,6 +277,9 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
         target_tenant_id = user.tenantId
     else:
         target_tenant_id = get_tenant_id()
+
+    # D-20 ceiling: no role above the caller's own, no super-admin tier unless a super-admin.
+    await assert_can_assign_role(db, current_user, user.role, target_tenant_id=target_tenant_id)
 
     if not target_tenant_id or not await _tenant_exists(db, target_tenant_id):
         raise HTTPException(status_code=400, detail=f"Tenant '{target_tenant_id}' does not exist")
@@ -348,8 +348,12 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
         requested_role_key = _normalize_role(updates.role)
         if requested_role_key not in _VALID_ROLE_KEYS:
             raise HTTPException(status_code=400, detail=f"Invalid role '{updates.role}'")
-        if requested_role_key in _ELEVATED_ROLE_KEYS and not caller_is_super_admin:
-            raise HTTPException(status_code=403, detail=f"Not authorized to assign role '{updates.role}'")
+        await assert_can_assign_role(
+            db, current_user, updates.role,
+            target_tenant_id=target_user.get("tenantId"),
+            target_email=target_user.get("email"),
+            current_role=target_user.get("role"),
+        )
         update_data["role"] = updates.role
     if updates.password is not None:
         # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are
