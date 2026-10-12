@@ -63,6 +63,23 @@ describe('derivePermissionState (D-17)', () => {
     },
   );
 
+  it.each(['super-admin', 'Super-Admin', 'platform_admin', 'platform admin', 'Platform Admin'])(
+    'accepts the backend spelling %j of the super-admin role (WR-07)',
+    (role) => {
+      expect(isSuperAdminRoleName(role)).toBe(true);
+      expect(derivePermissionState(user({ role, permissions: [] }), []).hasPermission(perm('manage:tenants'))).toBe(true);
+    },
+  );
+
+  it('a delivered "*" is a super grant that skips the tenant intersection (WR-07)', () => {
+    const state = derivePermissionState(
+      user({ role: 'Some Custom Name', permissions: [perm('*')] }),
+      [tenant({ enabledFeatures: [perm('view:dashboard')] })],
+    );
+    expect(state.hasPermission(perm('manage:tenants'))).toBe(true);
+    expect(state.hasPermission(perm('view:assets'))).toBe(true);
+  });
+
   it('does not treat ordinary roles as super admin', () => {
     expect(isSuperAdminRoleName('Tenant Admin')).toBe(false);
     expect(isSuperAdminRoleName(undefined)).toBe(false);

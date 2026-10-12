@@ -1,28 +1,37 @@
 import type { Permission, Tenant, User } from '../types';
 
-const SUPER_ADMIN_ROLE_NAMES = new Set(['super admin', 'superadmin', 'super_admin', 'platform-admin']);
+/**
+ * Mirrors the backend normalizer (RBACService._normalize_role): lower-case, trim,
+ * spaces and hyphens to underscores; `superadmin` and `platform_admin` fold into
+ * `super_admin`. Keep the two in step.
+ */
+function normalizeRoleName(role?: string | null): string {
+  const normalized = (role ?? '').trim().toLowerCase().replace(/[ -]/g, '_');
+  return normalized === 'superadmin' || normalized === 'platform_admin' ? 'super_admin' : normalized;
+}
 
-/** True for the role names the UI treats as super admin (Phase 77 unifies the rest). */
+/** True for every spelling of the super-admin role the backend accepts (Phase 77 unifies the rest). */
 export function isSuperAdminRoleName(role?: string | null): boolean {
-  return SUPER_ADMIN_ROLE_NAMES.has((role ?? '').trim().toLowerCase());
+  return normalizeRoleName(role) === 'super_admin';
 }
 
 /**
  * What the signed-in user may see (D-17). The only source is the permission list
  * the server delivered in `currentUser.permissions`, narrowed to the tenant's
  * enabled features. An empty list means no access: the role list is never
- * consulted. Super-admin role names get everything.
+ * consulted. Super-admin role names, and a delivered `*`, get everything.
  */
 export function derivePermissionState(
   currentUser: User | null,
   tenants: Tenant[],
 ): { enabledFeatures: Permission[]; hasPermission: (permission: Permission) => boolean } {
   if (!currentUser) return { enabledFeatures: [], hasPermission: () => false };
-  if (isSuperAdminRoleName(currentUser.role)) {
+  const delivered: Permission[] = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
+  // The server delivers ["*"] for the super-admin tier; honour that however the role is spelled.
+  if (isSuperAdminRoleName(currentUser.role) || delivered.includes('*' as Permission)) {
     return { enabledFeatures: [], hasPermission: () => true };
   }
 
-  const delivered: Permission[] = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
   const tenant = tenants.find(t => t.id === currentUser.tenantId);
   const enabled = tenant ? new Set<Permission>(tenant.enabledFeatures ?? []) : null;
   const enabledFeatures = enabled ? delivered.filter(p => enabled.has(p)) : delivered;

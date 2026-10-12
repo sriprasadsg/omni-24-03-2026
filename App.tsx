@@ -235,7 +235,7 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState } from './utils/permissions';
+import { derivePermissionState, isSuperAdminRoleName } from './utils/permissions';
 
 const API_BASE = '/api';
 
@@ -1329,7 +1329,7 @@ const App: React.FC = () => {
     // On phones the open sidebar overlays the page; close it once a page is picked.
     if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
     // Super Admin can access all views without permission check
-    if (currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin') {
+    if (isSuperAdminRoleName(currentUser?.role)) {
       setCurrentView(view);
       return;
     }
