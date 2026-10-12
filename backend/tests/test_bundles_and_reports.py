@@ -194,6 +194,74 @@ class TestBundleEndpoints:
         assert resp.status_code == 404
 
 
+class TestBundleAssignSuperAdminOnly:
+    """D-06: tenants is isolation-exempt, so assigning bundles is a cross-tenant
+    write. Only a platform super-admin may do it; a tenant-scoped role document
+    that grants manage:tenants must not change that. rbac_utils.verify_permission
+    is deliberately NOT patched here."""
+
+    _BODY = {"assigned_bundles": ["ticketing_only"], "custom_features": [], "blocked_features": []}
+
+    @staticmethod
+    def _tenant_admin():
+        from auth_types import TokenData
+        return TokenData(username="ta@tenant-a.test", role="Tenant Admin", tenant_id="tenant-a",
+                         mfa_verified=True)
+
+    def _call(self, user, method, tenant_id, db, *, store=None):
+        import bundle_endpoints as mod
+        client = TestClient(_app_with_limiter(mod.router, user))
+        url = f"/api/bundles/tenant/{tenant_id}/assign"
+        patches = [patch("bundle_endpoints.get_database", return_value=db)]
+        if store is not None:
+            patches.append(patch("rbac_utils.get_database", return_value=store))
+        for p in patches:
+            p.start()
+        try:
+            if method == "PUT":
+                return client.put(url, json=self._BODY)
+            if method == "PATCH":
+                return client.patch(url, json={"assigned_bundles": ["ticketing_only"]})
+            return client.delete(url)
+        finally:
+            for p in patches:
+                p.stop()
+
+    @staticmethod
+    def _tenant_db():
+        db = _db()
+        db.tenants.find_one = AsyncMock(return_value={"id": "tenant-b", "assignedBundles": []})
+        db.tenants.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+        return db
+
+    @pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE"])
+    @pytest.mark.parametrize("tenant_id", ["tenant-b", "tenant-a"])
+    def test_tenant_admin_gets_403_and_nothing_is_written(self, method, tenant_id):
+        db = self._tenant_db()
+        resp = self._call(self._tenant_admin(), method, tenant_id, db)
+        assert resp.status_code == 403
+        db.tenants.update_one.assert_not_awaited()
+
+    @pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE"])
+    def test_tenant_admin_with_manage_tenants_document_still_gets_403(self, method):
+        from tests.rbac_test_support import role_store
+        store, _raw = role_store(roles=[{
+            "name": "Tenant Admin", "tenantId": "tenant-a", "permissions": ["manage:tenants"],
+        }])
+        db = self._tenant_db()
+        resp = self._call(self._tenant_admin(), method, "tenant-b", db, store=store)
+        assert resp.status_code == 403
+        db.tenants.update_one.assert_not_awaited()
+
+    @pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE"])
+    def test_super_admin_still_gets_200(self, method, super_admin_user):
+        db = self._tenant_db()
+        resp = self._call(super_admin_user, method, "tenant-b", db)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["success"] is True
+        db.tenants.update_one.assert_awaited()
+
+
 # ===========================================================================
 # ticket_reports_endpoints
 # ===========================================================================
