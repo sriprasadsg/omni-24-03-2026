@@ -5,7 +5,8 @@ from fastapi import HTTPException, status, Depends
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
-from rbac_service import rbac_service as _rbac_service
+import rbac_defaults
+from rbac_service import rbac_service as _rbac_service, effective_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -67,151 +68,22 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
     if is_super_admin(user.role):
         return True
 
-    # A permission is granted by the role's built-in defaults OR by the tenant's
-    # custom role document. Defaults are checked first (no DB round-trip for the
-    # common case); the DB lookup only runs when the defaults don't grant it.
-    # Built-in defaults — kept in sync with rbac_service.default_roles
-    DEFAULT_PERMISSIONS: dict[str, list[str]] = {
-        # Super-admin tier (all variants) — wildcard bypass
-        "Super Admin":    ["*"],
-        "super_admin":    ["*"],
-        "superadmin":     ["*"],
-        "platform-admin": ["*"],
-        # Tenant-scoped admin
-        "admin": [
-            "manage:assets", # Added for ITAM Phase 56-01
-            "view:itam", # Added for ITAM Phase 61-01
-            "manage:itam", # Added for ITAM Phase 61-01
-            "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
-            "view:agents", "view:agent_capabilities", "view:software_deployment",
-            "view:agent_logs", "remediate:agents", "view:assets", "view:patching",
-            "manage:patches", "view:security", "manage:security_cases",
-            "manage:security_playbooks", "investigate:security", "view:compliance",
-            "manage:compliance", "manage:compliance_evidence", "view:ai_governance",
-            "manage:ai_risks", "manage:settings", "view:cloud_security", "view:finops",
-            "view:audit_log", "manage:rbac", "manage:api_keys", "view:logs",
-            "view:threat_hunting", "view:profile", "view:automation", "manage:automation",
-            "view:devsecops", "view:developer_hub", "view:insights", "view:tracing",
-            "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
-            "view:chaos", "view:network", "manage:pricing", "manage:playbooks",
-            "view:software_updates", "view:sbom", "manage:sbom", "view:mdr", "view:xdr",
-            "view:secrets", "manage:agents", "view:approvals", "view:remote_access",
-            "control:remote_access", # Phase 74: interactive control (never implied by view:remote_access)
-            "view:active_response", "manage:active_response",
-        ],
-        "Tenant Admin": [
-            "manage:assets", # Added for ITAM Phase 56-01
-            "view:itam", # Added for ITAM Phase 61-01
-            "manage:itam", # Added for ITAM Phase 61-01
-            "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
-            "view:agents", "view:agent_capabilities", "view:software_deployment",
-            "view:agent_logs", "remediate:agents", "view:assets", "view:patching",
-            "manage:patches", "view:security", "manage:security_cases",
-            "manage:security_playbooks", "investigate:security", "view:compliance",
-            "manage:compliance", "manage:compliance_evidence", "view:ai_governance",
-            "manage:ai_risks", "manage:settings", "manage:tenants", "view:cloud_security",
-            "view:finops", "view:audit_log", "manage:rbac", "manage:api_keys", "view:logs",
-            "view:threat_hunting", "view:profile", "view:automation", "manage:automation",
-            "view:devsecops", "manage:devsecops", "view:developer_hub", "view:insights",
-            "view:tracing", "view:dspm", "view:attack_path", "view:service_catalog",
-            "view:dora_metrics", "view:chaos", "view:network", "manage:pricing",
-            "manage:playbooks", "view:software_updates", "view:sbom", "manage:sbom",
-            "view:mdr", "view:xdr", "view:agent_capabilities", "manage:agents",
-            "view:unified_ops", "view:advanced_bi", "view:sustainability",
-            "view:threat_intel", "view:vulnerabilities", "view:security_audit",
-            "view:mlops", "view:llmops", "view:automl", "manage:experiments",
-            "view:xai", "view:governance", "view:swarm", "view:integrations",
-            "view:secrets", "manage:secrets", "view:approvals", "manage:approvals", "view:remote_access",
-            "control:remote_access", # Phase 74: interactive control (never implied by view:remote_access)
-            "view:active_response", "manage:active_response",
-        ],
-        "tenant_admin": [],  # normalized variant — resolved via Tenant Admin above
-        # Standard user
-        "user": [
-            "view:dashboard", "view:reporting", "view:agents", "view:agent_capabilities",
-            "view:assets", "view:patching", "view:security", "view:compliance",
-            "view:ai_governance", "view:cloud_security", "view:finops", "view:audit_log",
-            "view:logs", "view:threat_hunting", "view:profile", "view:automation",
-            "view:devsecops", "view:developer_hub", "view:insights", "view:tracing",
-            "view:mdr", "view:xdr",
-        ],
-        # Analyst — security-focused read + investigate access
-        "analyst": [
-            "view:dashboard", "view:reporting", "view:agents", "view:assets",
-            "view:security", "investigate:security", "view:compliance",
-            "view:threat_hunting", "view:threat_intel", "view:vulnerabilities",
-            "view:audit_log", "view:logs", "view:attack_path", "view:dspm",
-            "view:mdr", "view:xdr", "view:devsecops", "view:tracing",
-            "view:profile",
-        ],
-        "Analyst": [],  # resolved via analyst above
-        "security_analyst": [
-            "view:dashboard", "view:security", "investigate:security",
-            "manage:security_cases", "view:threat_hunting", "view:threat_intel",
-            "view:vulnerabilities", "view:attack_path", "view:audit_log",
-            "view:logs", "view:mdr", "view:xdr", "view:dspm", "view:tracing",
-            "view:compliance", "view:assets", "view:profile",
-        ],
-        "incident_responder": [
-            "view:dashboard", "view:security", "investigate:security",
-            "manage:security_cases", "view:threat_hunting", "view:audit_log",
-            "view:logs", "view:mdr", "view:xdr", "view:profile",
-            "view:agents", "view:assets",
-        ],
-        # Read-only
-        "viewer": [
-            "view:dashboard", "view:reporting", "view:assets", "view:compliance",
-            "view:ai_governance", "view:cloud_security", "view:finops", "view:profile",
-        ],
-        # ITAM-specific roles (ITAM-USR-02) — mirrored from rbac_service.py's
-        # default_roles. Without these, itam_admin/itam_user/itam_viewer
-        # silently have zero permissions here whenever a tenant has no
-        # matching db.roles document (verify_permission's DB lookup misses,
-        # falls through to this dict, finds nothing) — RBACService.has_permission
-        # doesn't have this gap since it falls back to self.default_roles
-        # in-memory, but the itam_procurement/itam_asset_request endpoints
-        # use verify_permission, not RBACService.has_permission.
-        "itam_admin": [
-            "manage:assets", "manage:licenses", "manage:users",
-            "view:itam", "manage:procurement", "manage:finance",
-        ],
-        "itam_user": [
-            "view:assets", "view:licenses", "view:itam", "request:assets",
-        ],
-        "itam_viewer": [
-            "view:assets", "view:licenses", "view:itam",
-        ],
-    }
-
-    # Canonical DEFAULT_PERMISSIONS key for a normalized role — single
-    # normalization path (RESEARCH.md Pitfall 3 / WINDOWS.md #6). The dict
-    # above stores a couple of entries under a display name that differs
-    # from the normalized form (e.g. "Tenant Admin" rather than
-    # "tenant_admin"); redirect through those first, then fall back to the
-    # normalized form itself for any other raw-casing variant (e.g. the
-    # /api/roles stub's "Admin"/"User"/"Viewer" Title-Case names, which
-    # previously fell straight through to an empty permission list).
-    _CANONICAL_KEY_BY_NORMALIZED = {"tenant_admin": "Tenant Admin", "analyst": "analyst"}
-
-    normalized_role = _rbac_service._normalize_role(user.role or "")
-    effective_role = _CANONICAL_KEY_BY_NORMALIZED.get(normalized_role, user.role or "")
-    if effective_role not in DEFAULT_PERMISSIONS:
-        effective_role = normalized_role
-
-    perms = DEFAULT_PERMISSIONS.get(effective_role, [])
-    if "*" in perms or required_permission in perms:
+    # ACC-01/ACC-02: the role table lives in rbac_defaults and the full answer
+    # (defaults plus the tenant's role documents) in effective_permissions, the
+    # same resolver /login and /me deliver. Defaults are checked first so the
+    # common case needs no database round-trip.
+    defaults = rbac_defaults.defaults_for(_rbac_service._normalize_role(user.role or ""))
+    if "*" in defaults or required_permission in defaults:
         return True
 
-    # Tenant-defined role documents can grant more
     if not user.role:
         return False
     try:
-        role_doc = await get_database().roles.find_one({"name": user.role, "tenantId": user.tenant_id})
+        perms = await effective_permissions(get_database(), user.role, user.tenant_id)
     except Exception as exc:  # fail closed: no grant if the role store is unreachable
         logger.warning("Role lookup failed for %s (denying %s): %s", user.role, required_permission, exc)
         return False
-    role_perms = (role_doc or {}).get("permissions", [])
-    return "*" in role_perms or required_permission in role_perms
+    return "*" in perms or required_permission in perms
 
 # Dependency Injection Helper
 def require_permission(permission: str):

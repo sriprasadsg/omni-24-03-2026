@@ -111,98 +111,15 @@ _ROLE_ADMIN_GATING_SCOPE: Dict[str, str] = {
 
 class RBACService:
     def __init__(self):
-        # Default roles and permissions if not in DB
+        # Read-only view of the single table in rbac_defaults (ACC-02): one list
+        # per role key, the `admin` alias and the legacy `Tenant Admin` display
+        # key kept for back-compat (user_endpoints._VALID_ROLE_KEYS, ldap/saml
+        # role validation, tests). Never edit permissions here; edit the table.
         self.default_roles = {
-            "super_admin": ["*"], # All permissions
-            "admin": [
-                "manage:assets", # Added for ITAM Phase 56-01
-                "view:itam", # Added for ITAM Phase 61-01
-                "manage:itam", # Added for ITAM Phase 61-01
-                "view:vector_db", "view:federated_learning", "view:webgpu_inference",
-                "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
-                "view:agents", "view:agent_capabilities", "view:software_deployment", "view:agent_logs", "remediate:agents",
-                "view:assets", "view:patching", "manage:patches", "view:security",
-                "manage:security_cases", "manage:security_playbooks", "investigate:security",
-                "view:compliance", "manage:compliance_evidence", "view:ai_governance",
-                "manage:ai_risks", "manage:settings", "view:cloud_security", "view:finops",
-                "view:audit_log", "manage:rbac", "manage:api_keys", "view:logs",
-                "view:threat_hunting", "view:profile", "view:automation", "manage:automation",
-                "view:devsecops", "view:developer_hub", "view:insights", "view:tracing",
-                "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
-                "view:chaos", "view:network", "manage:pricing", "manage:playbooks",
-                "view:software_updates", "view:sbom", "manage:sbom",
-                "view:mdr", "view:xdr",
-                "view:active_response", "manage:active_response",
-            ],
-            "Tenant Admin": [
-                "manage:assets", # Added for ITAM Phase 56-01
-                "view:itam", # Added for ITAM Phase 61-01
-                "manage:itam", # Added for ITAM Phase 61-01
-                "view:vector_db", "view:federated_learning", "view:webgpu_inference",
-                "view:dashboard", "view:cxo_dashboard", "view:reporting", "export:reports",
-                "view:agents", "view:agent_capabilities", "view:software_deployment", "view:agent_logs", "remediate:agents",
-                "view:assets", "view:patching", "manage:patches", "view:security",
-                "manage:security_cases", "manage:security_playbooks", "investigate:security",
-                "view:compliance", "manage:compliance_evidence", "view:ai_governance",
-                "manage:ai_risks", "manage:settings", "manage:tenants", "view:cloud_security", "view:finops",
-                "view:audit_log", "manage:rbac", "manage:api_keys", "view:logs",
-                "view:threat_hunting", "view:profile", "view:automation", "manage:automation",
-                "view:devsecops", "view:developer_hub", "view:insights", "view:tracing",
-                "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
-                "view:chaos", "view:network", "manage:pricing", "manage:playbooks",
-                "view:software_updates", "view:sbom", "manage:sbom",
-                "view:mdr", "view:xdr",
-                "view:active_response", "manage:active_response",
-            ],
-            "user": [
-                "view:dashboard", "view:reporting", "view:agents", "view:agent_capabilities", "view:assets",
-                "view:patching", "view:security", "view:compliance", "view:ai_governance",
-                "view:cloud_security", "view:finops", "view:audit_log", "view:logs",
-                "view:threat_hunting", "view:profile", "view:automation", "view:devsecops",
-                "view:developer_hub", "view:insights", "view:tracing",
-                "view:mdr", "view:xdr",
-            ],
-            "viewer": [
-                "view:dashboard", "view:reporting", "view:assets", "view:compliance",
-                "view:ai_governance", "view:cloud_security", "view:finops", "view:profile",
-            ],
-            # Analyst — security-focused investigation access
-            "analyst": [
-                "view:dashboard", "view:reporting", "view:agents", "view:assets",
-                "view:security", "investigate:security", "view:compliance",
-                "view:threat_hunting", "view:threat_intel", "view:vulnerabilities",
-                "view:audit_log", "view:logs", "view:attack_path", "view:dspm",
-                "view:mdr", "view:xdr", "view:devsecops", "view:tracing", "view:profile",
-            ],
-            "Analyst": [],  # alias — normalized to "analyst" by _normalize_role
-            # Security analyst — deeper threat response
-            "security_analyst": [
-                "view:dashboard", "view:security", "investigate:security",
-                "manage:security_cases", "view:threat_hunting", "view:threat_intel",
-                "view:vulnerabilities", "view:attack_path", "view:audit_log",
-                "view:logs", "view:mdr", "view:xdr", "view:dspm", "view:tracing",
-                "view:compliance", "view:assets", "view:profile",
-            ],
-            # Incident responder — triage and case management
-            "incident_responder": [
-                "view:dashboard", "view:security", "investigate:security",
-                "manage:security_cases", "view:threat_hunting", "view:audit_log",
-                "view:logs", "view:mdr", "view:xdr", "view:profile",
-                "view:agents", "view:assets",
-            ],
-            # ITAM-specific roles (ITAM-USR-02) — scoped access to the ITAM
-            # console independent of the broader security-platform roles above.
-            "itam_admin": [
-                "manage:assets", "manage:licenses", "manage:users",
-                "view:itam", "manage:procurement", "manage:finance",
-            ],
-            "itam_user": [
-                "view:assets", "view:licenses", "view:itam", "request:assets",
-            ],
-            "itam_viewer": [
-                "view:assets", "view:licenses", "view:itam",
-            ],
+            key: list(rbac_defaults.defaults_for(key))
+            for key in sorted(rbac_defaults.builtin_role_keys())
         }
+        self.default_roles["Tenant Admin"] = list(rbac_defaults.defaults_for("tenant_admin"))
 
     @staticmethod
     def _normalize_role(name: str) -> str:
@@ -223,47 +140,43 @@ class RBACService:
         return normalized
 
     def get_permissions_for_role(self, role: str) -> List[str]:
-        """Static (non-DB) permission list for a role name — for frontend UI role-matrix rendering.
+        """Static (non-DB) permission list for a role name, for frontend UI role-matrix rendering.
 
-        Looks up `default_roles` only (no DB call), trying the raw role string
-        first and falling back to its normalized form so Title-Case variants
-        (e.g. the /api/roles stub's "Admin"/"User"/"Viewer") resolve correctly.
-        For actual request-time enforcement use `has_permission`/`require_role`/
+        Reads the built-in table only (no DB call); the role is normalized first
+        so Title-Case variants (e.g. the /api/roles stub's "Admin"/"User") resolve.
+        For request-time enforcement use `has_permission`/`require_role`/
         `get_user_permissions`, which also consult the `roles` collection.
         """
-        normalized = self._normalize_role(role)
-        if normalized == "super_admin":
-            return ["*"]
-        return self.default_roles.get(role) or self.default_roles.get(normalized) or []
+        return list(rbac_defaults.defaults_for(self._normalize_role(role)))
 
     def can_assign_role(self, caller_role: str, target_role: str) -> bool:
-        """Only super-admins may assign the super-admin role to a user (ITAM-USR-02 T-64-04)."""
-        if self._normalize_role(target_role) == "super_admin":
-            return self._normalize_role(caller_role) == "super_admin"
-        return True
+        """Table-only form of the D-20 assignment ceiling.
+
+        A super-admin target needs a super-admin caller (decided by role name,
+        never by a `*` appearing in a document); a super-admin caller may assign
+        anything; otherwise the target's defaults must fit the caller's defaults
+        under the manage:X implies view:X and request:X closure. The request-time
+        helper `role_assignment.assert_can_assign_role` (Phase 75 plan 04) adds
+        the self-change rule and tenant-scoped role documents on top of this.
+        """
+        target_key = self._normalize_role(target_role)
+        caller_key = self._normalize_role(caller_role)
+        if target_key == rbac_defaults.SUPER_ADMIN_KEY:
+            return caller_key == rbac_defaults.SUPER_ADMIN_KEY
+        if caller_key == rbac_defaults.SUPER_ADMIN_KEY:
+            return True
+        return rbac_defaults.ceiling_allows(
+            rbac_defaults.defaults_for(caller_key), rbac_defaults.defaults_for(target_key))
 
     async def get_user_permissions(self, user: TokenData) -> List[str]:
-        """Fetch permissions for the current user based on their role"""
-        normalized = self._normalize_role(user.role)
-        if normalized == "super_admin":
-            return ["*"]
-
-        db = get_database()
-        # Try exact match scoped to tenant first, then platform-wide fallbacks.
-        # Also try normalized name for DB records that may use snake_case.
-        role_doc = await find_role_doc(db, user.role, user.tenant_id) or await find_role_doc(
-            db, normalized, user.tenant_id
-        )
-
-        if not role_doc:
-            # Absolute fallback to in-memory default roles (try both raw and normalized)
-            return (
-                self.default_roles.get(user.role)
-                or self.default_roles.get(normalized)
-                or []
-            )
-
-        return role_doc.get("permissions", [])
+        """Effective permissions for the current user, from the shared resolver."""
+        try:
+            return await effective_permissions(get_database(), user.role, user.tenant_id)
+        except Exception as exc:
+            # Never more than the built-in table when the role store is unreachable.
+            logger.warning("Role store unavailable while resolving %r; using built-in defaults only: %s",
+                           user.role, exc)
+            return list(rbac_defaults.defaults_for(self._normalize_role(user.role or "")))
 
     def _scopes_allow(self, user: TokenData, required_permission: str) -> bool:
         """ITAM-USR-05 (Task 3): a token's scopes can only narrow what its
