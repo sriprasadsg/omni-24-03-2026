@@ -519,7 +519,9 @@ const App: React.FC = () => {
   const [isSupportChatOpen, setIsSupportChatOpen] = useState(false);
   useEffect(() => { isSupportChatOpenRef.current = isSupportChatOpen; }, [isSupportChatOpen]);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Collapsed to the icon rail on phone-width screens: the open 256px sidebar
+  // left ~120px for page content at 375px wide.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 768);
   const [viewingTenantId, setViewingTenantId] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
@@ -921,6 +923,14 @@ const App: React.FC = () => {
         window.location.reload();
       });
   }, []);
+
+  // A signed-in user should not be left on /login (session expiry redirects
+  // there, and the SPA renders the dashboard in place after sign-in).
+  useEffect(() => {
+    if (currentUser && window.location.pathname === '/login') {
+      window.history.replaceState({}, '', '/');
+    }
+  }, [currentUser]);
 
   // Initial Data Load
   useEffect(() => {
@@ -1367,6 +1377,8 @@ const App: React.FC = () => {
   }, []);
 
   const handleSetCurrentView = useCallback((view: AppView) => {
+    // On phones the open sidebar overlays the page; close it once a page is picked.
+    if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
     // Super Admin can access all views without permission check
     if (currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin') {
       setCurrentView(view);
@@ -1503,11 +1515,19 @@ const App: React.FC = () => {
   const handleSchedulePatchDeployment = async (patchIds: string[], assetIds: string[], deploymentType: 'Immediate' | 'Scheduled', scheduleTime?: string): Promise<void> => {
     const newJob = await api.schedulePatchDeployment(patchIds, assetIds, deploymentType, scheduleTime);
     setPatchDeploymentJobs(prev => [newJob, ...prev]);
-    // The job simulation will eventually change patch statuses, so we refetch patches after a while
-    setTimeout(() => {
-      api.fetchPatches().then(setPatches);
-    }, (assetIds.length * 1500) + 5000); // Wait until job simulation is likely complete
   };
+
+  // Patch jobs finish when the agents report back (minutes, up to an hour for Windows
+  // Update), so refresh the job list while one is open and the Patching page is shown.
+  const hasOpenPatchJob = patchDeploymentJobs.some(j => j.status === 'In Progress' || j.status === 'Scheduled');
+  useEffect(() => {
+    if (currentView !== 'patchManagement' || !hasOpenPatchJob) return;
+    const timer = setInterval(async () => {
+      if (document.hidden) return;
+      setPatchDeploymentJobs(await api.fetchPatchDeploymentJobs());
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [currentView, hasOpenPatchJob]);
 
   const handleScheduleVulnerabilityScan = async (assetIds: string[], scanType: 'Immediate' | 'Scheduled', scheduleTime?: string): Promise<void> => {
     // Calling backend service to schedule scan
@@ -1540,8 +1560,19 @@ const App: React.FC = () => {
 
   const handleResetPassword = async (userId: string, userName: string) => {
     if (window.confirm(`Are you sure you want to reset the password for ${userName}?`)) {
-      await api.resetPassword(userId);
-      showToast(`Password reset link sent to the user's email.`, 'success');
+      // The reset endpoint is keyed by email, so resolve the address from the
+      // user record before calling it.
+      const targetEmail = users.find(u => u.id === userId)?.email;
+      if (!targetEmail) {
+        showToast(`No email address on file for ${userName}.`, 'error');
+        return;
+      }
+      try {
+        await api.resetPassword(targetEmail);
+        showToast(`Password reset link sent to the user's email.`, 'success');
+      } catch (error: any) {
+        showToast(error.message || "Failed to send password reset email. Please try again.", 'error');
+      }
     }
   };
 
@@ -1806,7 +1837,7 @@ const App: React.FC = () => {
       case 'agentCapabilities': return <ErrorBoundary name="AgentCapabilitiesDashboard"><AgentCapabilitiesDashboard /></ErrorBoundary>;
       case 'assetManagement': return <ErrorBoundary name="AssetManagementDashboard"><AssetManagementDashboard assets={tenantData.assets} patches={tenantData.patches} onRunVulnerabilityScan={handleRunVulnerabilityScan} filters={assetFilters} onClearFilters={() => setAssetFilters([])} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} onDeleteAsset={handleDeleteAsset} /></ErrorBoundary>;
       case 'softwareUpdates': return <ErrorBoundary name="SoftwareUpdateManagement"><SoftwareUpdateManagement assets={tenantData.assets} /></ErrorBoundary>;
-      case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} /></ErrorBoundary>;
+      case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} tenantId={viewingTenantId} /></ErrorBoundary>;
       case 'deploymentApprovals': return <ErrorBoundary name="ApprovalDashboard"><ApprovalDashboard currentUser={currentUser} /></ErrorBoundary>;
       case 'stagedDeployments': return <ErrorBoundary name="StagedDeploymentsPage"><StagedDeploymentsPage /></ErrorBoundary>;
       case 'vulnerabilityManagement': return <ErrorBoundary name="VulnerabilityManagement"><VulnerabilityManagement /></ErrorBoundary>;

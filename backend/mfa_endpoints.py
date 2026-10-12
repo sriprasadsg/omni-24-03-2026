@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from authentication_service import get_current_user, create_access_token, create_refresh_token, set_refresh_cookie, ACCESS_TOKEN_EXPIRE_MINUTES, account_is_active
 from authentication_service import get_current_user_mfa_pending
-from authentication_endpoints import _SENSITIVE_USER_FIELDS, _record_login_failure, _clear_login_failures, _check_login_lockout
+from authentication_endpoints import _public_user_fields, _record_login_failure, _clear_login_failures, _check_login_lockout
 from database import get_database
 from rate_limiter import limiter
 from datetime import timedelta
@@ -219,7 +219,7 @@ async def verify_mfa_at_login(request: Request, response: Response, req: MFAVeri
         data={"sub": email, "role": role, "tenant_id": tenant_id, "mfa_verified": True},
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
-    user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
+    user_data = _public_user_fields(user)
     user_data["id"] = str(user.get("_id", ""))
     # Refreshes keep the session MFA-verified (and MFA users no longer drop
     # back to the login page when the first access token expires).

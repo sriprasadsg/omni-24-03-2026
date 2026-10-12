@@ -167,16 +167,24 @@ def _own_user_filter(current_user: TokenData) -> dict:
     return {"$or": [{"email": current_user.username}, {"username": current_user.username}]}
 
 
-@router.get("/me/notification-preferences", response_model=NotificationPreferences)
+@router.get(
+    "/me/notification-preferences",
+    response_model=NotificationPreferences,
+    responses={204: {"description": "No preferences saved yet; the client uses its defaults"}},
+)
 async def get_my_notification_preferences(current_user: TokenData = Depends(get_current_user)):
-    """The caller's saved notification preferences; 404 until first saved (UI uses defaults)."""
+    """The caller's saved notification preferences, or 204 until first saved.
+
+    "Not saved yet" is a normal empty state, not a missing resource: answering
+    404 put a failed request in every user's console on My Profile load.
+    """
     db = get_database()
     user_doc = await db.users.find_one(_own_user_filter(current_user), {"notificationPreferences": 1})
-    if not user_doc:
+    if user_doc is None:
         raise HTTPException(status_code=404, detail="User not found")
     prefs = user_doc.get("notificationPreferences")
     if not prefs:
-        raise HTTPException(status_code=404, detail="Notification preferences not set")
+        return Response(status_code=204)
     return prefs
 
 

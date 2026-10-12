@@ -40,6 +40,7 @@ from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from onelogin.saml2.settings import OneLogin_Saml2_Settings
 
 from database import get_database
+from tenant_context import get_tenant_id, set_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,10 @@ async def get_saml_config(tenant_id: Optional[str] = None) -> SAMLConfig:
     over environment variables (mirrors ldap_service.get_ldap_config).
     `tenant_id=None` is the platform-wide default config; a tenant-scoped
     lookup that finds nothing falls back to the platform default, then env."""
-    db = get_database()
+    # The public /api/auth/saml/* routes run before sign-in, with no tenant
+    # context, so the tenant-scoped wrapper would hide every saved config. The
+    # explicit tenant_id key is the scope here: read the raw handle.
+    db = get_database()._db
     doc = await db.saml_configs.find_one({"tenant_id": tenant_id})
     if not doc and tenant_id is not None:
         doc = await db.saml_configs.find_one({"tenant_id": None})
@@ -393,8 +397,10 @@ async def authenticate_saml(request_data: dict, tenant_id: Optional[str] = None)
     if not mapped.get("email"):
         raise SAMLProvisionError("SAML assertion did not contain a usable email/NameID")
 
-    db = get_database()
-    existing = await db.users.find_one({"email": mapped["email"]})
+    # The public ACS route runs before sign-in, with no tenant context: find the
+    # account by its globally unique email on the raw handle, then scope the
+    # mapping and provisioning below to that account's tenant.
+    existing = await get_database()._db.users.find_one({"email": mapped["email"]})
     target_tenant_id = tenant_id or (existing.get("tenantId") if existing else None)
     if not target_tenant_id:
         raise SAMLProvisionError(
@@ -402,6 +408,8 @@ async def authenticate_saml(request_data: dict, tenant_id: Optional[str] = None)
             "account and no tenant could be determined. Pre-create the user via "
             "POST /api/users with the matching tenantId."
         )
+    if not get_tenant_id():
+        set_tenant_id(target_tenant_id)
 
     group_mapper = SAMLGroupMapper()
     role = await group_mapper.resolve_role(mapped.get("groups") or [], target_tenant_id)

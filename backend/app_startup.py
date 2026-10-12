@@ -194,6 +194,30 @@ async def _seed_yara_rules(raw_db) -> None:
         )
 
 
+# Passwords that were hardcoded as fallbacks in tracked scripts (start-all-services*.sh,
+# diag2.py, fix_super_admin.py) before 2026-10-06 and so remain in git history.
+_LEAKED_DEFAULT_PASSWORDS = ("Admin@2030",)
+
+
+def _warn_if_leaked_default_password(stored_hash: str | None) -> bool:
+    """Log CRITICAL when the super admin still uses a password published in the repo."""
+    from auth_utils import verify_password
+    if not stored_hash:
+        return False
+    for leaked in _LEAKED_DEFAULT_PASSWORDS:
+        try:
+            if verify_password(leaked, stored_hash):
+                logger.critical(
+                    "[Security] The super admin (super@omni.ai) still uses a default password that is "
+                    "published in this repository's git history. Change it now from My Profile, or run "
+                    "ADMIN_RESET_PASSWORD='<new password>' python reset_admin_password.py in backend/."
+                )
+                return True
+        except Exception:
+            continue
+    return False
+
+
 async def seed_database():
     """Create or refresh the super admin user and platform tenant.
 
@@ -240,6 +264,9 @@ async def seed_database():
                 "tenantName": "Platform",
                 "name": "Super Admin",
                 "email": "super@omni.ai",
+                # `password` is the field login_for_access_token reads (as do
+                # signup and every other user writer); a differently named
+                # hash field leaves a fresh install with no usable admin login.
                 "password": hash_password(_super_admin_password),
                 "role": "Super Admin",
                 "avatar": "https://i.pravatar.cc/150?u=super-admin",
@@ -248,10 +275,17 @@ async def seed_database():
             })
         else:
             logger.info("Verifying existing super admin account status/role...")
-            await raw_users.update_one(
-                {"email": "super@omni.ai"},
-                {"$set": {"status": "Active", "role": "Super Admin"}},
-            )
+            update: dict = {"$set": {"status": "Active", "role": "Super Admin"}}
+            # Installs seeded by the old code stored the hash as `passwordHash`,
+            # which login never reads. Move it to `password` once, so those
+            # admins can log in with the SUPER_ADMIN_PASSWORD they were created
+            # with; an existing `password` always wins and is never touched.
+            if super_admin.get("passwordHash") and not super_admin.get("password"):
+                update["$set"]["password"] = super_admin["passwordHash"]
+                update["$unset"] = {"passwordHash": ""}
+                logger.info("[Seed] Migrated legacy super admin passwordHash field to password")
+            await raw_users.update_one({"email": "super@omni.ai"}, update)
+            _warn_if_leaked_default_password(update["$set"].get("password") or super_admin.get("password"))
 
         logger.info("Super admin account verified.")
     except Exception as e:
@@ -495,60 +529,31 @@ async def seed_database():
         logger.error("[Seed] Standard roles seeding failed: %s", e)
 
 
-def _resolve_cargo_binary() -> str | None:
-    """Prefer rustup's own cargo over whatever `cargo` resolves to on PATH —
-    matches agent_rust_builder.py's _CARGO_BIN precedent. This matters
-    specifically under sudo: sudoers' secure_path strips ~/.cargo/bin, so
-    shutil.which("cargo") alone falls back to an ancient distro package
-    (e.g. Debian's cargo 1.75) that can't even parse a Cargo.lock written by
-    a modern cargo (lock file version 4 requires a newer toolchain), failing
-    every background pre-build with a confusing lock-file error."""
-    from pathlib import Path as _Path
-    import shutil as _shutil
-
-    rustup_cargo = _Path.home() / ".cargo" / "bin" / "cargo"
-    if rustup_cargo.exists():
-        return str(rustup_cargo)
-    return _shutil.which("cargo")
-
-
 async def _prebuild_windows_agent() -> None:
-    """
-    Build the Rust Windows agent binary in the background at server startup.
-    Idempotent — skips if the binary already exists or cargo is not available.
+    """Warm the Windows agent binary cache at startup so the first tenant
+    download is instant.
+
+    Delegates to agent_rust_builder._ensure_rust_binary — the same builder the
+    download endpoints use (x86_64-pc-windows-gnu target, MinGW check, build
+    lock, rustup-cargo precedence). This used to run its own host-target
+    `cargo build --release` and check target/release/omni-agent.exe, a file a
+    Linux build never produces, so every startup rebuilt and then logged a
+    false "Pre-build complete" for a non-existent exe.
     """
     from pathlib import Path as _Path
+    from fastapi import HTTPException as _HTTPException
+    from agent_rust_builder import _ensure_rust_binary
 
-    base_dir = _Path(__file__).parent.parent
-    exe_path = base_dir / "agent-install" / "omni-agent-rs" / "target" / "release" / "omni-agent.exe"
-    if exe_path.exists():
-        logger.debug("[WindowsAgent] Pre-built binary already present; skipping build")
+    src_dir = _Path(__file__).resolve().parent.parent / "agent-install" / "omni-agent-rs"
+    if not src_dir.is_dir():
+        logger.debug("[WindowsAgent] agent source not present; skipping pre-build")
         return
-
-    src_dir = base_dir / "agent-install" / "omni-agent-rs"
-    cargo = _resolve_cargo_binary()
-    if not src_dir.is_dir() or not cargo:
-        logger.debug("[WindowsAgent] cargo not found; skipping pre-build")
-        return
-
-    logger.info("[WindowsAgent] Pre-building Rust agent binary in background...")
-    proc = await asyncio.create_subprocess_exec(
-        cargo, "build", "--release",
-        cwd=str(src_dir),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
     try:
-        _, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=600)
-    except (asyncio.TimeoutError, TimeoutError):
-        logger.warning("[WindowsAgent] Pre-build timed out (>10 min)")
+        exe = await _ensure_rust_binary(src_dir)
+    except _HTTPException as exc:
+        logger.warning("[WindowsAgent] Pre-build skipped: %s", exc.detail)
         return
-
-    if proc.returncode == 0:
-        logger.info("[WindowsAgent] Pre-build complete — %s", exe_path)
-    else:
-        snippet = (stderr_bytes or b"").decode(errors="replace")[-300:]
-        logger.warning("[WindowsAgent] Pre-build failed: %s", snippet)
+    logger.info("[WindowsAgent] Windows agent binary ready — %s", exe)
 
 
 async def _safe_bg_task(coro, name: str) -> None:

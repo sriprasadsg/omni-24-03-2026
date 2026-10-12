@@ -274,8 +274,10 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
 
     let response = await makeRequest(token);
 
-    // On 401, attempt one refresh (if allowed by backoff) then retry
-    if (response.status === 401) {
+    // On 401, attempt one refresh (if allowed by backoff) then retry. A 401 on a
+    // request sent without any token is not an expired session — there is no
+    // session yet — so return it as-is instead of bouncing the page to /login.
+    if (response.status === 401 && token) {
         if (!_canAttemptRefresh()) {
             // Already know refresh is broken — end the session now
             _expireSession();
@@ -2653,8 +2655,16 @@ export const runVulnerabilityScan = async (assetId: string) => {
 
 // Redundant mock updateUser removed to use the earlier implementation that supports backend sync.
 
-export const resetPassword = async (_userId: string) => {
-    return true;
+// The reset endpoint is keyed by email, not by user id — the caller resolves
+// the address from the user record and passes it in.
+export const resetPassword = async (email: string) => {
+    const res = await authFetch(`${API_BASE}/auth/reset-password/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error(`Failed to send password reset email: ${res.status}`);
+    return res.json();
 };
 
 export const generateApiKey = async (tenantId: string, name: string, userId: string) => {
@@ -2723,7 +2733,8 @@ export const fetchAiModels = async (): Promise<AiModel[]> => {
 };
 
 export const registerAiModel = async (model: Partial<AiModel>) => {
-    const res = await authFetch(`${API_BASE}/ai-governance/models`, {
+    // The backend registers via POST /register-model; /models is GET-only (405).
+    const res = await authFetch(`${API_BASE}/ai-governance/register-model`, {
         method: 'POST',
         body: JSON.stringify(model)
     });
@@ -3967,7 +3978,7 @@ export const fetchChangeManagementReport = async () => {
 // --- Security Simulations ---
 export const triggerProcessInjectionSimulation = async (agentId: string, technique: string, target: string) => {
     try {
-        const res = await fetch(`${API_BASE}/simulation/process-injection`, {
+        const res = await authFetch(`${API_BASE}/simulation/process-injection`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agentId, technique, target })
@@ -3981,7 +3992,7 @@ export const triggerProcessInjectionSimulation = async (agentId: string, techniq
 
 export const fetchSimulationHistory = async () => {
     try {
-        const res = await fetch(`${API_BASE}/simulation/history`);
+        const res = await authFetch(`${API_BASE}/simulation/history`);
         if (res.ok) return await res.json();
         return [];
     } catch (e) {
@@ -4099,7 +4110,7 @@ export const deleteServicePricing = async (serviceId: string) => {
 // --- Persistence Detection ---
 export const triggerPersistenceScan = async (agentId: string) => {
     try {
-        const res = await fetch(`${API_BASE}/persistence/scan`, {
+        const res = await authFetch(`${API_BASE}/persistence/scan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agentId })
@@ -4113,7 +4124,7 @@ export const triggerPersistenceScan = async (agentId: string) => {
 
 export const fetchPersistenceResults = async (agentId: string) => {
     try {
-        const res = await fetch(`${API_BASE}/persistence/results/${agentId}`);
+        const res = await authFetch(`${API_BASE}/persistence/results/${agentId}`);
         if (res.ok) return await res.json();
         return { findings: [], count: 0 };
     } catch (e) {
@@ -4518,8 +4529,22 @@ export const deleteTicketAttachment = async (ticketId: string, attachmentId: str
     return res.json();
 };
 
-export const getAttachmentUrl = (ticketId: string, storedAs: string) =>
-    `${API_BASE}/tickets/${ticketId}/attachments/${storedAs}/download`;
+/** Download a ticket attachment through the authenticated API and hand it to
+ *  the browser as a file. (A plain link cannot carry the Bearer token.) */
+export const downloadTicketAttachment = async (ticketId: string, attachmentId: string, filename: string) => {
+    const res = await authFetch(
+        `${API_BASE}/tickets/${encodeURIComponent(ticketId)}/attachments/${encodeURIComponent(attachmentId)}/download`,
+    );
+    if (!res.ok) throw new Error(res.status === 404 ? 'Attachment not found' : 'Failed to download attachment');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'attachment';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
 
 // ── Linking ───────────────────────────────────────────────────────────────────
 

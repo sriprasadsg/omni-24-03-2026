@@ -1,12 +1,25 @@
+import re
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Request, Response
 
 # Fields that must never appear in any user-facing API response
 _SENSITIVE_USER_FIELDS = frozenset({
-    'password', 'hashed_password', 'password_hash',
+    'password', 'hashed_password', 'password_hash', 'passwordHash',
     '_id', 'mfa',
     'reset_token', 'invite_token', 'api_key', 'secret',
 })
+# Backstop for naming variants the set above misses (the seeded super admin
+# once carried `passwordHash`, which this denylist did not know about and
+# login + /me returned verbatim).
+_SENSITIVE_KEY_RE = re.compile(r"passw|secret|token|api_?key", re.IGNORECASE)
+
+
+def _public_user_fields(user: dict) -> dict:
+    """User document minus every credential-bearing field, for API responses."""
+    return {
+        k: v for k, v in user.items()
+        if k not in _SENSITIVE_USER_FIELDS and not _SENSITIVE_KEY_RE.search(k)
+    }
 from authentication_service import create_access_token, create_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY, account_is_active, refresh_token_cut_off
 from authentication_service import REFRESH_COOKIE, set_refresh_cookie, clear_refresh_cookie, _oauth2_optional, _revoked_jti_cache
 from authentication_service import get_current_user_mfa_pending, mfa_action_for
@@ -203,7 +216,7 @@ async def login_for_access_token(request: Request, response: Response, login_req
     refresh_token = create_refresh_token(data={"sub": user["email"]})
 
     # Prepare user object for frontend (exclude sensitive fields)
-    user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
+    user_data = _public_user_fields(user)
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
 
@@ -257,7 +270,7 @@ async def read_users_me(current_user: dict = Depends(get_current_user_mfa_pendin
     role = await find_role_doc(db, role_name, user.get("tenantId"))
     
     # Build user response object (exclude sensitive fields)
-    user_data = {k: v for k, v in user.items() if k not in _SENSITIVE_USER_FIELDS}
+    user_data = _public_user_fields(user)
     if 'id' not in user_data:
         user_data['id'] = str(user.get('_id', ''))
     
@@ -391,7 +404,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     refresh_token = create_refresh_token(data={"sub": email})
     
     # Prepare user object for frontend (exclude sensitive fields)
-    user_data = {k: v for k, v in user_doc.items() if k not in _SENSITIVE_USER_FIELDS}
+    user_data = _public_user_fields(user_doc)
     if 'id' not in user_data:
         user_data['id'] = user_id
     user_data['mfa_action'] = mfa_action_for("Tenant Admin", mfa_verified=False, mfa_enabled=False)

@@ -43,6 +43,7 @@ from ldap3.utils.conv import escape_filter_chars
 from pymongo.errors import DuplicateKeyError
 
 from database import get_database
+from tenant_context import get_tenant_id, set_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +138,9 @@ async def get_ldap_config(tenant_id: Optional[str] = None) -> LDAPConfig:
     authenticated). A tenant-scoped lookup that finds nothing falls back to
     the platform-wide default before finally falling back to env vars.
     """
-    db = get_database()
+    # /api/auth/ldap/login has no tenant context, so the tenant-scoped wrapper
+    # would hide every saved config; the explicit tenant_id key is the scope.
+    db = get_database()._db
     doc = await db.ldap_configs.find_one({"tenant_id": tenant_id})
     if not doc and tenant_id is not None:
         doc = await db.ldap_configs.find_one({"tenant_id": None})
@@ -621,8 +624,10 @@ async def authenticate_ldap(username: str, password: str, tenant_id: Optional[st
             f"LDAP user '{username}' authenticated but could not be re-fetched for sync"
         )
 
-    db = get_database()
-    existing = await db.users.find_one({"email": mapped["email"]})
+    # /api/auth/ldap/login runs before sign-in, with no tenant context: find the
+    # account by its globally unique email on the raw handle, then scope the
+    # mapping and sync below to the resolved tenant.
+    existing = await get_database()._db.users.find_one({"email": mapped["email"]})
     target_tenant_id = (
         tenant_id
         or (existing.get("tenantId") if existing else None)
@@ -635,6 +640,8 @@ async def authenticate_ldap(username: str, password: str, tenant_id: Optional[st
             "for first-time LDAP provisioning, or pre-create the user via "
             "POST /api/users with the matching tenantId."
         )
+    if not get_tenant_id():
+        set_tenant_id(target_tenant_id)
 
     group_mapper = LDAPGroupMapper(config)
     role = await group_mapper.resolve_role(mapped["groups"], target_tenant_id)
