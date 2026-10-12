@@ -275,6 +275,19 @@ class TestBundleAssignSuperAdminOnly:
         assert resp.status_code == 403
         db.tenants.update_one.assert_not_awaited()
 
+    @pytest.mark.parametrize("method", ["PUT", "PATCH"])
+    @pytest.mark.parametrize("field", ["custom_features", "blocked_features"])
+    def test_unknown_feature_keys_are_rejected_by_put_and_patch(self, method, field, super_admin_user):
+        """WR-03: PUT and PATCH validate custom and blocked features identically."""
+        db = self._tenant_db()
+        client = TestClient(_app_with_limiter(__import__("bundle_endpoints").router, super_admin_user))
+        body = {"assigned_bundles": ["ticketing_only"], field: ["not_a_real_feature"]}
+        with patch("bundle_endpoints.get_database", return_value=db):
+            resp = client.put("/api/bundles/tenant/tenant-b/assign", json=body) if method == "PUT" \
+                else client.patch("/api/bundles/tenant/tenant-b/assign", json=body)
+        assert resp.status_code == 400, resp.text
+        db.tenants.update_one.assert_not_awaited()
+
     @pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE"])
     def test_super_admin_still_gets_200(self, method, super_admin_user):
         db = self._tenant_db()

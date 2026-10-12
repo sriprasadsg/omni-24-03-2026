@@ -42,6 +42,14 @@ class UpdateTenantFeaturesRequest(BaseModel):
     blocked_features: Optional[List[str]] = None
 
 
+def _reject_unknown_features(keys: Optional[List[str]]) -> None:
+    """400 when any feature key is not in FEATURE_CATALOG (shared by PUT and PATCH,
+    for both custom_features and blocked_features)."""
+    unknown = [f for f in (keys or []) if f not in FEATURE_CATALOG]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown feature keys: {unknown}")
+
+
 # ── Bundle catalogue routes ───────────────────────────────────────────────────
 
 @router.get("")
@@ -147,9 +155,8 @@ async def assign_bundles_to_tenant(
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown bundle keys: {unknown}")
 
-    unknown_feat = [f for f in body.custom_features if f not in FEATURE_CATALOG]
-    if unknown_feat:
-        raise HTTPException(status_code=400, detail=f"Unknown feature keys: {unknown_feat}")
+    _reject_unknown_features(body.custom_features)
+    _reject_unknown_features(body.blocked_features)
 
     await db.tenants.update_one(
         {"id": tenant_id},
@@ -200,8 +207,10 @@ async def patch_tenant_bundles(
             raise HTTPException(status_code=400, detail=f"Unknown bundle keys: {unknown}")
         update["assignedBundles"] = body.assigned_bundles
     if body.custom_features is not None:
+        _reject_unknown_features(body.custom_features)
         update["customFeatures"] = body.custom_features
     if body.blocked_features is not None:
+        _reject_unknown_features(body.blocked_features)
         update["blockedFeatures"] = body.blocked_features
 
     if update:
