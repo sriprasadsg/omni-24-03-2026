@@ -167,13 +167,19 @@ Plans:
   2. `/login` and `/me` return the same effective permission set for the same user, because both call one resolver that unions the role document's permissions with that role's defaults (a test proves the two endpoints agree).
   3. Exactly one permission-defaults table exists: the `rbac_utils.DEFAULT_PERMISSIONS` / `rbac_service.default_roles` divergence is gone, a test fails if a second copy drifts, and `control:remote_access` stays distinct from `view:remote_access`.
   4. The `itam_admin`, `itam_user`, and `itam_viewer` role documents exist after startup seeding and appear in an admin's role list, while pre-existing custom roles still resolve correctly with no data migration.
+
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
 - [ ] 75-01-PLAN.md — Tracer: single table (rbac_defaults.py) + effective_permissions resolver through /login and /me; verify_permission/RBACService delegate; golden sets (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 75-02-PLAN.md — Startup mirrors the table into 11 shared role docs via {name, tenantId}; signup + MFA verify deliver resolver permissions (wave 2)
 - [ ] 75-03-PLAN.md — Real GET /api/roles (manage:users or manage:rbac); frontend fails closed, role-list cache cleared (wave 2)
 - [ ] 75-04-PLAN.md — Bundle assignment super-admin only (D-06); shared role-assignment ceiling for user CRUD (D-18/D-20/D-21) (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 75-05-PLAN.md — LDAP/SAML mapping ceiling + apply-time super-admin block (D-22); archive one-off scripts; AST drift guard (wave 3)
 
 ### Phase 76: Catalogue Manifest & Backend Route Enforcement
@@ -187,6 +193,7 @@ Plans:
   3. Agent enrollment and heartbeat traffic on `/api/agents/*` and existing API-key callers on the ITAM routers keep working unchanged after the guards land.
   4. A committed gap ledger lists every router that remains unguarded, and the deny-by-default route-parity test fails if an in-scope catalogue route is unguarded or an unguarded router is missing from the ledger.
   5. A frontend test fails when the sidebar and the manifest drift (for example, a nav item added with no manifest entry).
+
 **Plans**: TBD
 
 ### Phase 77: Fail-Closed Sidebar, View Gate & Role Visibility
@@ -200,6 +207,7 @@ Plans:
   3. An admin opens a "what can this role see" view and sees, for each role, which catalogues it can access, matching what the backend enforces.
   4. After an admin edits a role's permissions, the affected user's sidebar updates on the next window focus or 403 response, without logging out and back in.
   5. Regression tests prove catalogue visibility and route guards hold per role and per tenant, including super-admin and `platform-admin` handling, and that one tenant's role edit never changes another tenant's users.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -214,6 +222,7 @@ Plans:
   3. The ITAM KPI tile, the existing asset-value report, and the cost summary show identical figures for the same tenant, enforced by a parity test over a shared per-asset computation and a golden-value table.
   4. Disposed and retired assets are excluded from current book value by default and counted in historical purchase totals only when an explicit filter is set, with the same rule in the KPI and the cost view.
   5. Every cost route returns 403 without `view:itam`, returns 400 for a `platform-admin` context with no tenant, and passes a two-tenant isolation test proving tenant A never sees tenant B's cost data.
+
 **Plans**: TBD
 
 ### Phase 79: License Cost & Per-Endpoint Allocation
@@ -227,6 +236,7 @@ Plans:
   3. An endpoint's cost view shows the license cost allocated from seats assigned to that asset, and seats assigned to users appear in a separate "unattributed" bucket rather than being pinned to an endpoint.
   4. For every tested seat configuration, including licenses with more than 1,000 seats, the sum of endpoint allocations plus the unallocated amount equals organization license spend.
   5. License cost lines stay tenant-isolated, proven by a two-tenant test on the extended cost routes.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -240,6 +250,7 @@ Plans:
   2. The tab shows total purchase cost, current book value, and license spend, with a coverage banner stating how many assets lack cost data and how disposed assets are treated.
   3. A paginated per-asset table shows purchase cost, book value, and allocated license cost, renders missing values as "not tracked" instead of $0, and formats every amount through the shared currency formatter.
   4. Exporting the cost view through the existing report registry downloads the same figures shown on screen.
+
 **Plans**: TBD
 **UI hint**: yes
 
