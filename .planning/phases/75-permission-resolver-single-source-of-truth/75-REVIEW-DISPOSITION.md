@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Ceiling is not applied to the target account, so a lower admin can take over a higher-privileged user"
   - id: WR-01
     severity: warning
@@ -13,7 +13,7 @@ findings:
     title: "Resolver honours `*` and super-admin-only permissions from non-super role documents"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`GET /api/bundles/tenant/{tenant_id}/features` lets any authenticated user read any tenant's entitlements"
   - id: WR-03
     severity: warning
@@ -25,7 +25,7 @@ findings:
     title: "Role-mapping ceiling is write-time only; apply time checks nothing but the super-admin tier"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Session revocation after a role change runs after the write and can fail open"
   - id: WR-06
     severity: warning
@@ -33,7 +33,7 @@ findings:
     title: "Role documents are matched by exact spelling, so tenant overrides and the ceiling are spelling-dependent"
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Frontend super-admin detection disagrees with the backend and ignores `*`"
   - id: WR-08
     severity: warning
@@ -59,23 +59,23 @@ findings:
     severity: info
     disposition: open
     title: "`can_assign_role` table-only helper has no production caller"
-open: 11
+open: 7
 total: 14
-recorded: 2026-10-12T23:14:26.886Z
+recorded: 2026-10-12T23:14:47.131Z
 ---
 
 # Phase 75: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
+| CR-01 | critical | fixed | 75-REVIEW-FIX.md |
 | WR-01 | warning | fixed | 75-REVIEW-FIX.md |
-| WR-02 | warning | open | - |
+| WR-02 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-03 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-04 | warning | open | - |
-| WR-05 | warning | open | - |
+| WR-05 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-06 | warning | open | - |
-| WR-07 | warning | open | - |
+| WR-07 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-08 | warning | fixed | 75-REVIEW-FIX.md |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
