@@ -127,11 +127,33 @@ class TestBundleEndpoints:
         assert "core" in body["catalog"]
         assert body["total"] > 0
 
-    def test_get_tenant_features_not_found(self):
+    def test_get_tenant_features_not_found(self, super_admin_user):
         self.db.tenants.find_one = AsyncMock(return_value=None)
+        client = TestClient(_app_with_limiter(self.mod.router, super_admin_user))
         with patch("bundle_endpoints.get_database", return_value=self.db):
-            resp = self.client.get("/api/bundles/tenant/no-such-tenant/features")
+            resp = client.get("/api/bundles/tenant/no-such-tenant/features")
         assert resp.status_code == 404
+
+    def test_get_tenant_features_of_another_tenant_is_403_and_never_read(self):
+        """WR-02: tenant t1's user cannot read tenant-b's entitlements, and a missing
+        tenant id answers 403 too, so ids cannot be enumerated."""
+        self.db.tenants.find_one = AsyncMock(return_value={
+            "id": "tenant-b", "assignedBundles": ["security"], "customFeatures": [], "blockedFeatures": []
+        })
+        with patch("bundle_endpoints.get_database", return_value=self.db):
+            for tid in ("tenant-b", "no-such-tenant"):
+                resp = self.client.get(f"/api/bundles/tenant/{tid}/features")
+                assert resp.status_code == 403, resp.text
+        self.db.tenants.find_one.assert_not_awaited()
+
+    def test_super_admin_can_read_any_tenants_features(self, super_admin_user):
+        self.db.tenants.find_one = AsyncMock(return_value={
+            "id": "tenant-b", "assignedBundles": [], "customFeatures": [], "blockedFeatures": []
+        })
+        client = TestClient(_app_with_limiter(self.mod.router, super_admin_user))
+        with patch("bundle_endpoints.get_database", return_value=self.db):
+            resp = client.get("/api/bundles/tenant/tenant-b/features")
+        assert resp.status_code == 200
 
     def test_get_tenant_features_legacy_mode(self):
         """Tenant with no assignedBundles returns empty feature list."""

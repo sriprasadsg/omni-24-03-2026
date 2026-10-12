@@ -21,7 +21,7 @@ from feature_bundles import (
     get_feature_catalog,
     resolve_tenant_features,
 )
-from rbac_utils import require_super_admin
+from rbac_utils import is_super_admin, require_super_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bundles", tags=["Bundles"])
@@ -91,7 +91,14 @@ async def get_tenant_features(
     """
     Return the effective feature set for a tenant, computed from their
     assigned bundles + custom_features - blocked_features.
+
+    A caller may read only their own tenant's entitlements; a platform
+    super-admin may read any tenant's. The `tenants` collection is exempt from
+    tenant isolation, so the check is made here, before the lookup, which also
+    keeps a 404 from revealing whether another tenant exists.
     """
+    if not (is_super_admin(current_user.role) or tenant_id == current_user.tenant_id):
+        raise HTTPException(status_code=403, detail="Not authorized for this tenant")
     db = get_database()
     tenant = await db.tenants.find_one({"id": tenant_id})
     if not tenant:
