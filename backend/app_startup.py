@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from auth_utils import hash_password
 from database import get_database
 from migrations.runner import run_migrations
+from rbac_defaults import seed_role_documents
 
 logger = logging.getLogger(__name__)
 
@@ -219,14 +220,16 @@ def _warn_if_leaked_default_password(stored_hash: str | None) -> bool:
 
 
 async def seed_database():
-    """Create or refresh the super admin user and platform tenant.
+    """Create or refresh the super admin user, platform tenant and built-in roles.
+
+    Steps: migrations, super admin user, platform tenant, one step that mirrors
+    rbac_defaults into the 11 shared role documents (each document written
+    independently), then the ITAM enabledFeatures backfill.
 
     ARCH-018 (2026-08-25 audit): this used to be one try/except wrapping
-    every seeding step below. A failure partway through (e.g. the Super
-    Admin role write) silently aborted every step after it too — the ITAM
-    backfill and all 5 standard roles would simply never run that boot,
-    with only one generic "Database seeding error" log line and no
-    indication which step actually failed. Each step below now fails
+    every seeding step below. A failure partway through silently aborted every
+    step after it too, with only one generic "Database seeding error" log line
+    and no indication which step actually failed. Each step below now fails
     independently: one broken step is logged with its own message and does
     not prevent the others from running.
     """
@@ -311,121 +314,26 @@ async def seed_database():
         logger.error("[Seed] Platform tenant seeding failed: %s", e)
 
     try:
-        all_permissions = [
-            "view:dashboard", "view:reporting", "export:reports", "view:agents",
-            "view:software_deployment", "view:agent_logs", "remediate:agents", "view:assets",
-            "view:patching", "manage:patches", "view:security", "manage:security_cases",
-            "manage:security_playbooks", "investigate:security", "view:compliance",
-            "manage:compliance_evidence", "view:ai_governance", "manage:ai_risks",
-            "manage:settings", "manage:tenants", "view:cloud_security", "view:finops",
-            "view:audit_log", "manage:rbac", "manage:api_keys", "view:logs",
-            "view:threat_hunting", "view:profile", "view:automation", "manage:automation",
-            "view:devsecops", "manage:devsecops", "view:sbom", "manage:sbom",
-            "view:developer_hub", "view:insights", "view:tracing",
-            "view:dspm", "view:attack_path", "view:service_catalog", "view:dora_metrics",
-            "view:chaos", "view:network", "manage:pricing", "view:software_updates",
-            "view:zero_trust", "view:mdr", "view:xdr", "view:agent_capabilities",
-            "manage:agents", "view:autopilot", "manage:autopilot",
-            "view:conditional_access", "manage:conditional_access",
-            "view:mdm", "manage:mdm", "view:branch_sites", "manage:branch_sites",
-            "view:app_catalog", "manage:app_catalog",
-            "view:asset_intelligence", "manage:asset_intelligence",
-            "view:mam", "manage:mam",
-            "view:android_enterprise", "manage:android_enterprise",
-            "view:device_config_profiles", "manage:device_config_profiles",
-            "view:firmware_drivers", "manage:firmware_drivers",
-            "view:advanced_hunting", "manage:advanced_hunting",
-            "view:detection_rules", "manage:detection_rules",
-            "view:connectors_hub", "manage:connectors_hub",
-            "view:security_copilot",
-            "view:mssp", "manage:mssp",
-            "view:attack_timeline",
-            "view:geographic_map",
-            "view:retention_policies", "manage:retention_policies",
-            "view:sca", "manage:sca",
-            "view:agent_groups", "manage:agent_groups",
-            "view:config_drift", "manage:config_drift",
-            "view:fim", "manage:fim",
-            "view:active_response", "manage:active_response",
-            "view:itam", "manage:itam",
-            "admin:*",
-        ]
-        await db.roles.update_one(
-            {"name": "Super Admin"},
-            {"$set": {
-                "id": "role-super-admin",
-                "name": "Super Admin",
-                "description": "Has all permissions across all tenants.",
-                "permissions": all_permissions,
-                "isEditable": False,
-                "tenantId": "platform",
-            }},
-            upsert=True,
-        )
-        logger.info("Super Admin role permissions updated")
+        # D-12/D-13/D-25: every boot mirrors the single table (rbac_defaults) into the 11
+        # shared role documents. The raw handle bypasses the tenant wrapper, which under the
+        # platform-admin context passes a bare name filter through to every tenant's documents;
+        # the {name, tenantId} filter keeps a tenant's own same-named document out of reach.
+        raw_roles = db._db.roles
+        role_docs = seed_role_documents()
+        written = 0
+        for doc in role_docs:
+            try:
+                await raw_roles.update_one(
+                    {"name": doc["name"], "tenantId": doc["tenantId"]},
+                    {"$set": doc},
+                    upsert=True,
+                )
+                written += 1
+            except Exception as e:
+                logger.error("[Seed] Role %s seeding failed: %s", doc["name"], e)
+        logger.info("Built-in role documents mirrored from rbac_defaults: %d of %d", written, len(role_docs))
     except Exception as e:
-        logger.error("[Seed] Super Admin role seeding failed: %s", e)
-
-    try:
-        tenant_admin_permissions = [
-            "view:dashboard", "view:reporting", "export:reports",
-            "view:agents", "view:software_deployment", "view:agent_logs", "remediate:agents",
-            "view:assets", "view:patching", "manage:patches", "view:security",
-            "manage:security_cases", "investigate:security", "view:compliance",
-            "manage:compliance_evidence", "view:ai_governance", "manage:ai_risks",
-            "view:cloud_security", "view:finops", "view:audit_log",
-            "manage:rbac", "manage:api_keys", "manage:settings", "view:logs", "view:profile",
-            "view:automation", "manage:automation", "view:devsecops", "manage:devsecops",
-            "view:sbom", "manage:sbom", "view:insights", "view:software_updates",
-            "view:threat_hunting", "view:tracing", "view:dspm", "view:attack_path",
-            "view:service_catalog", "view:dora_metrics", "view:chaos", "view:network",
-            "view:zero_trust", "view:developer_hub", "manage:security_playbooks",
-            "view:cxo_dashboard", "view:unified_ops", "view:advanced_bi",
-            "view:sustainability", "view:web_monitoring", "view:analytics",
-            "view:threat_intel", "view:vulnerabilities", "view:persistence",
-            "view:security_audit", "view:mlops", "view:llmops", "view:automl",
-            "manage:experiments", "view:xai", "view:governance", "manage:playbooks",
-            "view:swarm", "view:mdr", "view:xdr", "view:agent_capabilities",
-            "manage:pricing", "manage:agents", "view:integrations",
-            "view:autopilot", "manage:autopilot",
-            "view:conditional_access", "manage:conditional_access",
-            "view:mdm", "manage:mdm", "view:branch_sites", "manage:branch_sites",
-            "view:app_catalog", "manage:app_catalog",
-            "view:asset_intelligence", "manage:asset_intelligence",
-            "view:mam", "manage:mam",
-            "view:android_enterprise", "manage:android_enterprise",
-            "view:device_config_profiles", "manage:device_config_profiles",
-            "view:firmware_drivers", "manage:firmware_drivers",
-            "view:advanced_hunting", "manage:advanced_hunting",
-            "view:detection_rules", "manage:detection_rules",
-            "view:connectors_hub", "manage:connectors_hub",
-            "view:security_copilot",
-            "view:mssp", "manage:mssp",
-            "view:attack_timeline",
-            "view:geographic_map",
-            "view:retention_policies", "manage:retention_policies",
-            "view:sca", "manage:sca",
-            "view:agent_groups", "manage:agent_groups",
-            "view:config_drift", "manage:config_drift",
-            "view:fim", "manage:fim",
-            "view:active_response", "manage:active_response",
-            "view:itam", "manage:itam",
-        ]
-        await db.roles.update_one(
-            {"name": "Tenant Admin"},
-            {"$set": {
-                "id": "role-tenant-admin",
-                "name": "Tenant Admin",
-                "description": "Administrator for a specific tenant with full permissions except cross-tenant management.",
-                "permissions": tenant_admin_permissions,
-                "isEditable": False,
-                "tenantId": "all",
-            }},
-            upsert=True,
-        )
-        logger.info("Tenant Admin role created/updated")
-    except Exception as e:
-        logger.error("[Seed] Tenant Admin role seeding failed: %s", e)
+        logger.error("[Seed] Built-in role seeding failed: %s", e)
 
     try:
         # Backfill: tenants provisioned before ITAM (Phase 56-61) never had
@@ -441,92 +349,6 @@ async def seed_database():
             logger.info(f"Backfilled view:itam/manage:itam onto {itam_backfill.modified_count} existing tenant(s)")
     except Exception as e:
         logger.error("[Seed] ITAM enabledFeatures backfill failed: %s", e)
-
-    try:
-        # ── Standard roles (seeded with tenantId="all" so they apply platform-wide) ──
-        standard_roles = [
-            {
-                "id": "role-analyst",
-                "name": "analyst",
-                "display_name": "Analyst",
-                "description": "Security analyst with investigation and threat-hunting access.",
-                "permissions": [
-                    "view:dashboard", "view:reporting", "view:agents", "view:assets",
-                    "view:security", "investigate:security", "view:compliance",
-                    "view:threat_hunting", "view:threat_intel", "view:vulnerabilities",
-                    "view:audit_log", "view:logs", "view:attack_path", "view:dspm",
-                    "view:mdr", "view:xdr", "view:devsecops", "view:tracing", "view:profile",
-                ],
-                "isEditable": True,
-                "tenantId": "all",
-            },
-            {
-                "id": "role-security-analyst",
-                "name": "security_analyst",
-                "display_name": "Security Analyst",
-                "description": "Deep security investigation with case management access.",
-                "permissions": [
-                    "view:dashboard", "view:security", "investigate:security",
-                    "manage:security_cases", "view:threat_hunting", "view:threat_intel",
-                    "view:vulnerabilities", "view:attack_path", "view:audit_log",
-                    "view:logs", "view:mdr", "view:xdr", "view:dspm", "view:tracing",
-                    "view:compliance", "view:assets", "view:profile",
-                ],
-                "isEditable": True,
-                "tenantId": "all",
-            },
-            {
-                "id": "role-incident-responder",
-                "name": "incident_responder",
-                "display_name": "Incident Responder",
-                "description": "Incident triage and security case management.",
-                "permissions": [
-                    "view:dashboard", "view:security", "investigate:security",
-                    "manage:security_cases", "view:threat_hunting", "view:audit_log",
-                    "view:logs", "view:mdr", "view:xdr", "view:profile",
-                    "view:agents", "view:assets",
-                ],
-                "isEditable": True,
-                "tenantId": "all",
-            },
-            {
-                "id": "role-user",
-                "name": "user",
-                "display_name": "User",
-                "description": "Standard platform user with read-only access to core modules.",
-                "permissions": [
-                    "view:dashboard", "view:reporting", "view:agents", "view:agent_capabilities",
-                    "view:assets", "view:patching", "view:security", "view:compliance",
-                    "view:ai_governance", "view:cloud_security", "view:finops",
-                    "view:audit_log", "view:logs", "view:threat_hunting", "view:profile",
-                    "view:automation", "view:devsecops", "view:developer_hub",
-                    "view:insights", "view:tracing", "view:mdr", "view:xdr",
-                ],
-                "isEditable": True,
-                "tenantId": "all",
-            },
-            {
-                "id": "role-viewer",
-                "name": "viewer",
-                "display_name": "Viewer",
-                "description": "Read-only access to dashboards and reports.",
-                "permissions": [
-                    "view:dashboard", "view:reporting", "view:assets", "view:compliance",
-                    "view:ai_governance", "view:cloud_security", "view:finops", "view:profile",
-                ],
-                "isEditable": True,
-                "tenantId": "all",
-            },
-        ]
-        for role_def in standard_roles:
-            await db.roles.update_one(
-                {"name": role_def["name"]},
-                {"$set": role_def},
-                upsert=True,
-            )
-        logger.info("Standard roles (analyst, security_analyst, incident_responder, user, viewer) seeded")
-    except Exception as e:
-        logger.error("[Seed] Standard roles seeding failed: %s", e)
 
 
 async def _prebuild_windows_agent() -> None:
