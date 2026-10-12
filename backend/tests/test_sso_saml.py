@@ -114,6 +114,7 @@ class TestGetSamlConfig:
         monkeypatch.setenv("SAML_IDP_ENTITY_ID", "https://idp.example.com/metadata")
         monkeypatch.setenv("SAML_IDP_SSO_URL", "https://idp.example.com/sso")
         db = MagicMock()
+        db._db = db  # the config loader reads the raw handle; same docs here
         db.saml_configs.find_one = AsyncMock(return_value=None)
         with patch("saml_service.get_database", return_value=db):
             cfg = _run(get_saml_config(tenant_id="t1"))
@@ -121,6 +122,7 @@ class TestGetSamlConfig:
 
     def test_uses_db_doc_and_decrypts_private_key(self):
         db = MagicMock()
+        db._db = db  # the config loader reads the raw handle; same docs here
         db.saml_configs.find_one = AsyncMock(return_value={
             "entity_id": "https://db.example.com/metadata",
             "acs_url": "https://db.example.com/acs",
@@ -397,6 +399,7 @@ class TestAuthenticateSamlFlowAuth:
 
         db = MagicMock()
         db._db = raw_db
+        raw_db.saml_configs, raw_db.users = db.saml_configs, db.users  # pre-sign-in lookups
         db.saml_configs.find_one = AsyncMock(return_value=None)
         db.users.find_one = AsyncMock(return_value={"_id": "u1", "email": "user@example.com", "tenantId": "t1", "role": "itam_user"})
         db.users.update_one = AsyncMock()
@@ -429,6 +432,7 @@ class TestAuthenticateSamlFlowAuth:
 
         db = MagicMock()
         db._db = raw_db
+        raw_db.saml_configs, raw_db.users = db.saml_configs, db.users  # pre-sign-in lookups
         db.saml_configs.find_one = AsyncMock(return_value=None)
         db.users.find_one = AsyncMock(return_value=None)
 
@@ -459,6 +463,7 @@ class TestAuthenticateSamlFlowAuth:
 
         db = MagicMock()
         db._db = raw_db
+        raw_db.saml_configs, raw_db.users = db.saml_configs, db.users  # pre-sign-in lookups
         db.saml_configs.find_one = AsyncMock(return_value=None)
         db.users.find_one = AsyncMock(return_value=None)  # no user for this tenant
         db.users.insert_one = AsyncMock(side_effect=DuplicateKeyError("E11000 duplicate key error email_1"))
@@ -601,6 +606,8 @@ class _EPFakeDB:
         self.saml_group_mappings = _EPCollection([])
         self.users = _EPCollection([])
         self._db = _EPRawDB()
+        # Pre-sign-in lookups use the raw handle: it sees the same docs.
+        self._db.saml_configs, self._db.users = self.saml_configs, self.users
 
 
 _ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin"}

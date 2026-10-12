@@ -124,6 +124,7 @@ class TestGetLdapConfig:
         monkeypatch.setenv("LDAP_BIND_DN", "cn=svc")
         monkeypatch.setenv("LDAP_USER_BASE_DN", "ou=users")
         db = MagicMock()
+        db._db = db  # config/user lookups read the raw handle; same docs here
         db.ldap_configs.find_one = AsyncMock(return_value=None)
         with patch("ldap_service.get_database", return_value=db):
             cfg = _run(get_ldap_config(tenant_id="t1"))
@@ -131,6 +132,7 @@ class TestGetLdapConfig:
 
     def test_uses_db_doc_and_decrypts_password(self):
         db = MagicMock()
+        db._db = db  # config/user lookups read the raw handle; same docs here
         db.ldap_configs.find_one = AsyncMock(return_value={
             "uri": "ldap://db:389", "bind_dn": "cn=svc,dc=x",
             "bind_password_encrypted": "enc(secret)", "user_base_dn": "ou=users,dc=x",
@@ -146,6 +148,7 @@ class TestGetLdapConfig:
 
     def test_tenant_scoped_falls_back_to_platform_default(self):
         db = MagicMock()
+        db._db = db  # config/user lookups read the raw handle; same docs here
         platform_doc = {
             "uri": "ldap://platform:389", "bind_dn": "cn=svc,dc=x",
             "bind_password": "p", "user_base_dn": "ou=users,dc=x", "tenant_id": None,
@@ -444,6 +447,7 @@ class TestAuthenticateLdapFlowAuth:
 
     def _patched_db(self, existing_user=None, resolved_role=None):
         db = MagicMock()
+        db._db = db  # pre-sign-in lookups read the raw handle; same docs here
         db.users.find_one = AsyncMock(return_value=existing_user)
         db.users.update_one = AsyncMock()
         inserted = MagicMock()
@@ -597,6 +601,7 @@ class _EPFakeDB:
         self.ldap_configs = _EPCollection([])
         self.ldap_group_mappings = _EPCollection([])
         self.users = _EPCollection([])
+        self._db = self  # raw handle: same in-memory docs, no tenant scoping
 
 
 _ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "tenant_admin"}
