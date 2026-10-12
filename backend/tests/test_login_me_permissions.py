@@ -139,3 +139,80 @@ def test_role_store_outage_degrades_to_defaults_on_login(monkeypatch):
     resp = login(client, user["email"])
     assert resp.status_code == 200
     assert resp.json()["user"]["permissions"] == list(rbac_defaults.defaults_for("viewer"))
+
+
+# ── Signup and MFA verify-login deliver the same resolver list (D-24, D-07) ──
+
+SIGNUP_BODY = {"companyName": "Acme Corp", "name": "Ada Admin",
+               "email": "ada@acme-signup.test", "password": "Str0ng!Passw0rd#42"}
+
+
+def test_signup_response_carries_resolver_permissions(monkeypatch):
+    db, raw = role_store(users=[], roles=shared_role_docs(), tenants=[], user_consents=[])
+    client = make_auth_client(db, monkeypatch)
+    resp = client.post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 200, resp.text
+    perms = resp.json()["user"]["permissions"]
+    assert perms == list(rbac_defaults.defaults_for("tenant_admin"))
+    assert "manage:users" in perms and "manage:tenants" not in perms
+    stored = [u for u in raw.users.docs if u["email"] == SIGNUP_BODY["email"]]
+    assert len(stored) == 1
+    assert "permissions" not in stored[0]
+
+
+def test_signup_permissions_match_me(monkeypatch):
+    db, raw = role_store(users=[], roles=shared_role_docs(), tenants=[], user_consents=[])
+    client = make_auth_client(db, monkeypatch)
+    resp = client.post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 200, resp.text
+    tenant_id = resp.json()["tenant"]["id"]
+    current = me(client, SIGNUP_BODY["email"], "Tenant Admin", tenant_id)
+    assert current.status_code == 200, current.text
+    assert current.json()["permissions"] == resp.json()["user"]["permissions"]
+
+
+def _mfa_client(monkeypatch, db, email):
+    from unittest.mock import AsyncMock
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+    from slowapi.util import get_remote_address
+    import mfa_endpoints
+    import mfa_service
+
+    monkeypatch.setattr(mfa_endpoints, "get_database", lambda: db)
+    monkeypatch.setattr(mfa_service, "verify_mfa_token",
+                        AsyncMock(return_value={"success": True, "email": email}))
+    app = FastAPI()
+    app.state.limiter = Limiter(key_func=get_remote_address)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+    app.include_router(mfa_endpoints.router)
+    return TestClient(app)
+
+
+def _mfa_verify(client):
+    return client.post("/api/mfa/verify", json={"session_token": "s" * 32, "code": "123456"})
+
+
+def test_mfa_verify_carries_resolver_permissions(monkeypatch):
+    user = make_user("itam.mfa@acme.test", "itam_user", "t1")
+    db, _raw = role_store(users=[user], roles=shared_role_docs())
+    client = _mfa_client(monkeypatch, db, user["email"])
+    resp = _mfa_verify(client)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["user"]["permissions"] == [
+        "request:assets", "view:assets", "view:itam", "view:licenses", "view:profile"]
+
+
+def test_mfa_verify_ignores_stored_permissions(monkeypatch):
+    user = make_user("stale.mfa@acme.test", "viewer", "t1", permissions=["bogus:perm"])
+    db, _raw = role_store(users=[user], roles=shared_role_docs())
+    client = _mfa_client(monkeypatch, db, user["email"])
+    resp = _mfa_verify(client)
+    assert resp.status_code == 200, resp.text
+    perms = resp.json()["user"]["permissions"]
+    assert "bogus:perm" not in perms
+    assert perms == list(rbac_defaults.defaults_for("viewer"))
