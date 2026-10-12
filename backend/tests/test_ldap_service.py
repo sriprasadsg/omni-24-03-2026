@@ -344,7 +344,12 @@ class TestLDAPUserSyncer:
         db = MagicMock()
         existing = {"_id": "abc123", "email": "jdoe@example.com", "role": "itam_user"}
         db.users.find_one = AsyncMock(return_value=existing)
-        db.users.update_one = AsyncMock()
+        written = []
+
+        async def _capture(_flt, update):
+            written.append(dict(update["$set"]))  # copy: sync_user mutates doc afterwards
+
+        db.users.update_one = AsyncMock(side_effect=_capture)
         mapped = {"ldap_dn": "cn=jdoe", "ldap_user_id": "jdoe",
                   "email": "jdoe@example.com", "full_name": "Jane Doe", "groups": []}
         for bad_role in ("super_admin", "Super Admin", "platform-admin"):
@@ -357,8 +362,7 @@ class TestLDAPUserSyncer:
             assert doc["role"] == "itam_user"
             revoke.assert_not_awaited()
             assert any(bad_role in r.getMessage() for r in caplog.records)
-        set_doc = db.users.update_one.await_args.args[1]["$set"]
-        assert "role" not in set_doc
+        assert len(written) == 3 and all("role" not in w for w in written)
 
     def test_sync_user_refuses_super_admin_role_for_new_user(self, caplog):
         db = MagicMock()
