@@ -854,3 +854,59 @@ class TestTargetAccountCeiling:
             r = await ac.put(f"/api/users/{uid}", json={"status": "inactive"})
         assert r.status_code == 503, r.text
         assert fake_db.users.docs[0]["status"] == "Active"
+
+
+# ── Phase 75 review WR-05: session revocation happens before the write ───────
+
+class TestRevocationOrdering:
+
+    @staticmethod
+    def _seed(fake_db, role="itam_user"):
+        uid = ObjectId()
+        fake_db.users.docs.append({
+            "_id": uid, "email": "victim@tenant-a.com", "full_name": "Victim", "role": role,
+            "tenantId": "tenant-a", "status": "Active", "hashed_password": "orig",
+        })
+        return uid
+
+    @staticmethod
+    def _tenant_admin():
+        return make_token_data(username="ta@tenant-a.com", role="Tenant Admin", tenant_id="tenant-a")
+
+    @pytest.mark.asyncio
+    async def test_failed_revocation_leaves_a_demotion_unapplied(self, app, fake_db):
+        uid = self._seed(fake_db, role="itam_admin")
+        _override_user(app, self._tenant_admin())
+        with patch("user_endpoints.revoke_user_sessions",
+                   new=AsyncMock(side_effect=RuntimeError("cutoff store down"))):
+            async with await _client(app) as ac:
+                with pytest.raises(RuntimeError):
+                    await ac.put(f"/api/users/{uid}", json={"role": "itam_viewer"})
+        assert fake_db.users.docs[0]["role"] == "itam_admin"
+
+    @pytest.mark.asyncio
+    async def test_failed_revocation_leaves_the_account_undeleted(self, app, fake_db):
+        uid = self._seed(fake_db)
+        _override_user(app, self._tenant_admin())
+        with patch("user_endpoints.revoke_user_sessions",
+                   new=AsyncMock(side_effect=RuntimeError("cutoff store down"))):
+            async with await _client(app) as ac:
+                with pytest.raises(RuntimeError):
+                    await ac.delete(f"/api/users/{uid}")
+        assert len(fake_db.users.docs) == 1
+
+    @pytest.mark.asyncio
+    async def test_revocation_precedes_the_write(self, app, fake_db):
+        uid = self._seed(fake_db, role="itam_admin")
+        _override_user(app, self._tenant_admin())
+        seen_roles = []
+
+        async def _spy(email, reason):
+            seen_roles.append(fake_db.users.docs[0]["role"])
+
+        with patch("user_endpoints.revoke_user_sessions", new=AsyncMock(side_effect=_spy)):
+            async with await _client(app) as ac:
+                r = await ac.put(f"/api/users/{uid}", json={"role": "itam_viewer"})
+        assert r.status_code == 200, r.text
+        assert seen_roles[0] == "itam_admin"  # first cutoff was stored before the role changed
+        assert fake_db.users.docs[0]["role"] == "itam_viewer"

@@ -384,6 +384,20 @@ class TestLDAPUserSyncer:
         revoke.assert_not_awaited()
         assert len(written) == 1 and "role" not in written[0]
 
+    def test_sync_user_revokes_before_writing_a_role_change(self):
+        """WR-05: a failed cutoff write must not leave the new role persisted."""
+        db = MagicMock()
+        db.users.find_one = AsyncMock(return_value={"_id": "abc123", "email": "jdoe@example.com", "role": "itam_admin"})
+        db.users.update_one = AsyncMock()
+        mapped = {"ldap_dn": "cn=jdoe", "ldap_user_id": "jdoe",
+                  "email": "jdoe@example.com", "full_name": "Jane Doe", "groups": []}
+        with patch("ldap_service.get_database", return_value=db), \
+             patch("authentication_service.revoke_user_sessions",
+                   new=AsyncMock(side_effect=RuntimeError("cutoff store down"))):
+            with pytest.raises(RuntimeError):
+                _run(LDAPUserSyncer(_config()).sync_user(mapped, tenant_id="t1", role="itam_viewer"))
+        db.users.update_one.assert_not_awaited()
+
     def test_sync_user_refuses_super_admin_role_for_new_user(self, caplog):
         db = MagicMock()
         db.users.find_one = AsyncMock(return_value=None)

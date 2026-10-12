@@ -399,9 +399,10 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
     update_op = {"$set": update_data}
     if "password" in update_data:
         update_op["$unset"] = {"hashed_password": ""}
-    await db.users.update_one({"_id": obj_id}, update_op)
     # Existing sessions carry the old role/tenant and outlive a disable or a
-    # password reset, so end them whenever one of those changes.
+    # password reset, so end them whenever one of those changes. Revoke BEFORE
+    # the write: if the cutoff cannot be stored the request fails with nothing
+    # changed, instead of persisting a demotion the old session survives (WR-05).
     revoke_reasons = [
         name for name, changed in (
             ("role", "role" in update_data and update_data["role"] != target_user.get("role")),
@@ -412,6 +413,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
     ]
     if revoke_reasons and target_user.get("email"):
         await revoke_user_sessions(target_user["email"], "user updated: " + ", ".join(revoke_reasons))
+    await db.users.update_one({"_id": obj_id}, update_op)
     await _audit(db, "user.updated", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     # Reload and return
@@ -453,9 +455,10 @@ async def delete_user(user_id: str, current_user: TokenData = Depends(_require_i
     if getattr(current_user, "username", "") == target_user.get("email"):
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
-    await db.users.delete_one({"_id": obj_id})
+    # Revoke first so a failed cutoff write leaves the account (and its audit trail) intact (WR-05).
     if target_user.get("email"):
         await revoke_user_sessions(target_user["email"], "user deleted")
+    await db.users.delete_one({"_id": obj_id})
     await _audit(db, "user.deleted", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     return {"message": "User deleted successfully"}

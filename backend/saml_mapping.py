@@ -96,15 +96,17 @@ class SAMLUserProvisioner:
         if existing:
             if role:
                 doc["role"] = role
+            if doc.get("role", existing.get("role", default_role)) != existing.get("role"):
+                # Revoke BEFORE the write: if the cutoff cannot be stored the role is not
+                # changed, so a demotion never persists while the old session survives (WR-05).
+                from authentication_service import revoke_user_sessions
+                await revoke_user_sessions(doc["email"], "saml role change")
             # Never touch status on an existing account: a directory sign-in
             # must not undo an admin's disable.
             await db.users.update_one({"_id": existing["_id"]}, {"$set": doc})
             doc["_id"] = existing["_id"]
             doc["role"] = doc.get("role", existing.get("role", default_role))
             doc["status"] = existing.get("status", "Active")
-            if doc["role"] != existing.get("role"):
-                from authentication_service import revoke_user_sessions
-                await revoke_user_sessions(doc["email"], "saml role change")
         else:
             doc["status"] = "Active"
             doc["role"] = role or default_role
