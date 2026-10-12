@@ -231,3 +231,166 @@ def test_module_imports_nothing_outside_the_standard_library():
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module.split(".")[0])
     assert not imported & {"database", "fastapi", "rbac_service", "rbac_utils"}
+
+
+# --- Drift guard (SC3): no second role-to-permission table in backend/*.py ----------------
+
+import glob
+import re
+
+from rbac_service import RBACService
+
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_REPO_DIR = os.path.abspath(os.path.join(_BACKEND_DIR, ".."))
+
+_PERM_RE = re.compile(r"^(view|manage|export|remediate|investigate|request|control|admin|read|write|delete):[A-Za-z_*:.\-]+$")
+
+# (file name, enclosing assignment target) -> reason. Tenant feature-tier lists and a demo
+# per-user array are a different concept from a role's permissions.
+_TIER_LIST_ALLOWLIST = {
+    ("authentication_endpoints.py", "free_features"): "tenant free-tier feature list",
+    ("tenant_endpoints.py", "enabledFeatures"): "TenantCreate default tenant feature list",
+    ("seed_demo_data.py", "tenants"): "demo tenant documents with their enabled features",
+    ("seed_demo_data.py", "admin_permissions"): "demo per-user permission array, ignored by the resolver",
+    ("unlock_enterprise_features.py", "ENTERPRISE_FEATURES"): "tenant enterprise tier feature list",
+}
+
+
+def _is_perm_string(node) -> bool:
+    return isinstance(node, ast.Constant) and isinstance(node.value, str) and bool(_PERM_RE.match(node.value))
+
+
+def _str_consts(elts):
+    return [e.value for e in elts if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+
+
+def _enclosing_target(node, parents):
+    """Name of the nearest Assign/AnnAssign target above node, or None."""
+    cur = parents.get(node)
+    while cur is not None:
+        if isinstance(cur, ast.Assign) and cur.targets:
+            target = cur.targets[0]
+        elif isinstance(cur, ast.AnnAssign):
+            target = cur.target
+        else:
+            cur = parents.get(cur)
+            continue
+        if isinstance(target, ast.Name):
+            return target.id
+        if isinstance(target, ast.Attribute):
+            return target.attr
+        return None
+    return None
+
+
+def _parents_of(tree):
+    return {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+
+
+def scan_permission_lists(source: str, filename: str):
+    """Offenders: list/tuple/set literals made (mostly) of permission strings, outside the allowlist."""
+    tree = ast.parse(source)
+    parents = _parents_of(tree)
+    base = os.path.basename(filename)
+    offenders = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            continue
+        strings = _str_consts(node.elts)
+        if len(strings) < 5:
+            continue
+        matching = sum(1 for e in node.elts if _is_perm_string(e))
+        if matching / len(strings) < 0.8:
+            continue
+        if (base, _enclosing_target(node, parents)) in _TIER_LIST_ALLOWLIST:
+            continue
+        offenders.append(f"{base}:{node.lineno}")
+    return offenders
+
+
+def _permission_collection(node) -> bool:
+    if not isinstance(node, (ast.List, ast.Tuple, ast.Set)) or not node.elts:
+        return False
+    return all(
+        isinstance(e, ast.Constant) and isinstance(e.value, str) and (e.value == "*" or _PERM_RE.match(e.value))
+        for e in node.elts
+    )
+
+
+def _is_builtin_role_name(node) -> bool:
+    return (isinstance(node, ast.Constant) and isinstance(node.value, str)
+            and RBACService._normalize_role(node.value) in d.builtin_role_keys())
+
+
+def scan_role_tables(source: str, filename: str):
+    """Offenders: role-keyed permission dicts and role document literals, of any size."""
+    tree = ast.parse(source)
+    base = os.path.basename(filename)
+    offenders = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Dict):
+            continue
+        hit = False
+        fields = {}
+        for key, value in zip(node.keys, node.values):
+            if _is_builtin_role_name(key) and _permission_collection(value):
+                hit = True
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                fields[key.value] = value
+        if (not hit and "name" in fields and "permissions" in fields
+                and _is_builtin_role_name(fields["name"]) and _permission_collection(fields["permissions"])):
+            hit = True
+        if hit:
+            offenders.append(f"{base}:{node.lineno}")
+    return offenders
+
+
+def test_no_second_permission_table():
+    offenders = []
+    for path in sorted(glob.glob(os.path.join(_BACKEND_DIR, "*.py"))):
+        name = os.path.basename(path)
+        if name == "rbac_defaults.py":
+            continue
+        with open(path, encoding="utf-8-sig") as fh:
+            source = fh.read()
+        offenders += scan_permission_lists(source, name)  # a parse error raises and fails the test
+        offenders += scan_role_tables(source, name)
+    assert not offenders, "second role-to-permission table(s) outside rbac_defaults.py: " + ", ".join(offenders)
+
+
+def test_scanner_flags_role_keyed_dict():
+    src = 'TABLE = {"viewer": ["view:assets", "view:agents", "view:logs"]}\n'
+    assert scan_role_tables(src, "x.py") == ["x.py:1"]
+
+
+def test_scanner_flags_permission_list():
+    src = ('perms = ["view:a", "view:b", "view:c", "manage:d", "manage:e", "export:f"]\n')
+    assert scan_permission_lists(src, "x.py") == ["x.py:1"]
+
+
+def test_scanner_flags_role_document():
+    src = 'doc = {"name": "viewer", "permissions": ["view:assets", "view:agents"]}\n'
+    assert scan_role_tables(src, "x.py") == ["x.py:1"]
+
+
+def test_scanner_allows_named_tier_list():
+    src = 'free_features = ["view:a", "view:b", "view:c", "manage:d", "manage:e", "export:f"]\n'
+    assert scan_permission_lists(src, "authentication_endpoints.py") == []
+    assert scan_permission_lists(src, "other.py") == ["other.py:1"]
+
+
+_ARCHIVED_SCRIPTS = (
+    "fix_rbac_integrations.py", "update_sbom_roles.py", "update_all_sbom_roles.py",
+    "enable_compliance_for_admin.py", "reset_db_fresh.py",
+)
+_KEPT_SCRIPTS = ("fix_rbac.py", "fix_all_rbac.py", "unlock_enterprise_features.py", "diagnose_rbac.py")
+
+
+def test_role_writing_scripts_are_archived():
+    archive = os.path.join(_REPO_DIR, "archive", "backend-rbac-oneoffs")
+    for name in _ARCHIVED_SCRIPTS:
+        assert not os.path.exists(os.path.join(_BACKEND_DIR, name)), f"{name} must not live in backend/"
+        assert os.path.isfile(os.path.join(archive, name)), f"{name} missing from the archive"
+    assert os.path.isfile(os.path.join(archive, "ARCHIVED.md"))
+    for name in _KEPT_SCRIPTS:
+        assert os.path.isfile(os.path.join(_BACKEND_DIR, name)), f"{name} must stay in backend/"
