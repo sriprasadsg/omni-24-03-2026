@@ -26,7 +26,7 @@ Findings marked "requires human verification" are logic changes: tests and synta
 
 ## Fixed Issues
 
-### CR-01: Ceiling is not applied to the target account
+### CR-01: Ceiling is not applied to the target account, so a lower admin can take over a higher-privileged user
 
 **Status:** fixed: requires human verification
 **Files modified:** `backend/role_assignment.py`, `backend/user_endpoints.py`, `backend/tests/test_user_crud.py`
@@ -40,7 +40,7 @@ Findings marked "requires human verification" are logic changes: tests and synta
 **Commit:** 709d8e77a
 **Applied fix:** `effective_permissions` drops `*` and every `SUPER_ADMIN_ONLY_PERMISSIONS` entry found in role documents. Two existing tests asserted the old behaviour and were updated: `test_wildcard_permission_grants_everything` (now expects 403) and `test_a_star_document_cannot_unlock_the_super_admin_tier` (a `*` document no longer lets an itam_admin assign `admin`). New tests check the resolver output and that a viewer with a `*` document is denied `manage:tenants` and `manage:users`.
 
-### WR-02: `GET /api/bundles/tenant/{tenant_id}/features` readable for any tenant
+### WR-02: `GET /api/bundles/tenant/{tenant_id}/features` lets any authenticated user read any tenant's entitlements
 
 **Status:** fixed
 **Files modified:** `backend/bundle_endpoints.py`, `backend/tests/test_bundles_and_reports.py`
@@ -66,7 +66,7 @@ Findings marked "requires human verification" are logic changes: tests and synta
 
 **Not done (design change, left for a later phase):** storing the writer's identity or role on each mapping and re-validating it at every login or sync. This needs a mapping-document schema change and a migration for existing mappings, which is outside a review fix. Mappings written before the ceiling existed can still grant a tenant-level role at apply time; only the super-admin tier is re-checked there.
 
-### WR-05: Session revocation runs after the write and can fail open
+### WR-05: Session revocation after a role change runs after the write and can fail open
 
 **Status:** fixed: requires human verification
 **Files modified:** `backend/user_endpoints.py`, `backend/ldap_service.py`, `backend/saml_mapping.py`, `backend/tests/test_user_crud.py`, `backend/tests/test_ldap_service.py`, `backend/tests/test_sso_saml.py`
@@ -82,7 +82,7 @@ Findings marked "requires human verification" are logic changes: tests and synta
 
 **Not done:** the second half of the finding (whether `isEditable` should have any effect on the shared documents, since the boot-time `$set` overwrites them and tenant documents can only add permissions) is a product decision, not a code defect. The union-only merge is now stated in the `effective_permissions` docstring; whether to change it needs a decision.
 
-### WR-07: Frontend super-admin detection disagrees with the backend
+### WR-07: Frontend super-admin detection disagrees with the backend and ignores `*`
 
 **Status:** fixed
 **Files modified:** `utils/permissions.ts`, `App.tsx`, `src/__tests__/permissions.test.ts`
