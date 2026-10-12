@@ -62,8 +62,12 @@ Requirements: ACC-01, ACC-02.
   - Manual database edits to shared documents are reverted on restart, as they are today. Tenant-scoped documents are never touched.
 - **D-13:** **Every** built-in role gets a seeded shared document: the existing seven (Super Admin, Tenant Admin, analyst, security_analyst, incident_responder, user, viewer) **plus** `admin`, `itam_admin`, `itam_user` and `itam_viewer`. This satisfies ACC-02 and success criterion 4.
 - **D-14:** **Archive** (move, never delete) the one-off backend scripts that write role permission lists directly, so nobody re-runs one and re-creates drift.
-  - Candidates: `fix_rbac.py`, `fix_all_rbac.py`, `fix_rbac_integrations.py`, `update_sbom_roles.py`, `update_all_sbom_roles.py`, `unlock_enterprise_features.py`, `enable_compliance_for_admin.py`, `reset_db_fresh.py`.
-  - The planner must confirm each one actually writes role permissions before moving it; `diagnose_rbac.py` is read-only and stays.
+  - **Corrected by 75-RESEARCH.md**, which checked each candidate. Archive exactly these 5: `backend/fix_rbac_integrations.py`, `backend/update_sbom_roles.py`, `backend/update_all_sbom_roles.py`, `backend/enable_compliance_for_admin.py`, `backend/reset_db_fresh.py`.
+  - Destination: `archive/backend-rbac-oneoffs/`, with an `ARCHIVED.md` (the repo's existing archive convention).
+  - **Keep in place:**
+    - `fix_rbac.py` and `fix_all_rbac.py` rewrite source files, not role documents;
+    - `unlock_enterprise_features.py` writes tenant tier lists only and is invoked by `deploy-ubuntu.sh:366` and `run-on-ubuntu.sh:429`;
+    - `diagnose_rbac.py` is read-only.
   - The single-table drift test (success criterion 3) ignores the archive folder.
   - Follows the project's archive-not-delete rule.
 
@@ -84,6 +88,21 @@ Requirements: ACC-01, ACC-02.
   - Nobody can change their **own** role.
   - Applies to user create/update in `backend/user_endpoints.py` (today only `_ELEVATED_ROLE_KEYS = {"super_admin"}` is blocked) **and** to the ITAM LDAP group→role mapping path.
   - **Reason (found by code reading, not live-tested):** user CRUD is gated by `manage:assets` via `_require_itam_admin_session_only`, so an `itam_admin` could create or promote a user, including themselves, to `admin`/`Tenant Admin`. With D-01 that set includes `manage:rbac` and `control:remote_access`.
+- **D-20 (refines D-18; chosen after research found the literal subset rule blocks tenant admins from assigning any ITAM role):** the ceiling compares **effective permission sets with an implication closure applied to the caller's set only**: `manage:X` ⇒ `view:X` and `request:X`. The rules apply in this order, in one shared helper used by user create/update and by LDAP/SAML mapping writes:
+  1. A super-admin-tier target is assignable only by a super-admin caller. That is decided by role-name normalization (`rbac_service._normalize_role`), never by a `"*"` appearing in a document.
+  2. A caller changing their **own** account's role is rejected (403) when the requested role differs after normalization. Re-sending the same role is not a change.
+  3. A super-admin caller may assign anything.
+  4. Otherwise: target effective set ⊆ closure(caller effective set), using the same resolver (so a tenant-scoped document that widens a built-in counts).
+  - The full caller × target matrix is a parametrized test.
+- **D-21 (consequence of D-20, user-approved):** both tenant-admin roles (`Tenant Admin` and its alias `admin`) gain 6 ITAM permissions in the single table: `manage:procurement`, `manage:finance`, `manage:licenses`, `manage:users`, `view:licenses`, `request:assets`. With D-20's closure this lets tenant admins assign every ITAM role, and lets `itam_admin` assign `itam_user`/`itam_viewer`. It also fixes tenant admins' current 403 on ITAM procurement. This is an explicit exception to D-02's "no other role gains" (that clause was about non-admin roles).
+- **D-22 (LDAP/SAML, extends D-18; research finding):** the LDAP and SAML group→role mapping validators accept `super_admin` (`backend/ldap_service.py:563-564`, `backend/saml_mapping.py:137-138`), and the mapping routes are gated only by `manage:assets`. Two fixes:
+  - Enforce the D-20 ceiling when a mapping is **written** (callers of `upsert_mapping` at `backend/ldap_endpoints.py:173` and `backend/sso_endpoints.py:373`).
+  - **At apply time**, refuse any mapping that resolves to the super-admin tier: log a warning and keep the user's existing/default role. This is in `LDAPUserSyncer.sync_user` (`backend/ldap_service.py:447-448`, `460`) and `SAMLUserProvisioner.provision_user` (`backend/saml_mapping.py:72-73`, `85`).
+  - No data migration; existing mappings stay readable. Needs a regression test that fails today.
+- **D-23 (resolver data access; research finding):** `/api/auth/login` is a public path with no tenant ContextVar (`backend/tenant_middleware.py:15-18`), so an own-tenant role lookup through the isolation wrapper can never match there. The resolver must read role documents through the raw handle (`db._db.roles`) with an **explicit** `tenantId`: the caller's own tenant first, then the shared sentinels.
+- **D-24 (every session-mint response):** every response that carries `user.permissions` uses the resolver: `/login`, `/me`, MFA verify-login (`backend/mfa_endpoints.py:222-234`, currently has no permissions key), and the signup response (`backend/authentication_endpoints.py:~407`, which would otherwise lose permissions entirely once D-07 stops writing the stored array). Passkey/LDAP/SAML flows reload into `/me`.
+- **D-25 (Super Admin shared document):** the existing Super Admin shared document lives at `tenantId: "platform"`, not `"all"`, and stays there. Each seed entry carries its own document `tenantId`; D-12's `"all"` applies to all the others. Its permissions mirror `["*"]` (consistent with D-05), replacing the 96-string list.
+- **D-26 (cached role list):** the frontend's `omni_cache_roles` sessionStorage entry survives logout within a tab, so a later user could be shown a previous admin's role list. Clear it on logout, and do not serve the cached role list after a 403 from `/api/roles`.
 - **D-19:** **A user whose role resolves to no permissions can still log in.** That covers a custom or legacy role with no defaults and no document. Login succeeds with an empty list, and the server logs a warning naming the role (not refused). Phase 77 renders the no-access screen with sign-out.
 
 ### Locked before this discussion (carried forward)
@@ -94,7 +113,7 @@ Requirements: ACC-01, ACC-02.
 ### Claude's Discretion
 - Where the single table lives. Research suggested a new `backend/rbac_defaults.py` imported by `rbac_utils` and `rbac_service`; the exact module layout is the planner's call.
 - Resolver placement and signature, e.g. `rbac_utils.effective_permissions(user)`. Also whether `verify_permission` and `RBACService.has_permission`/`get_user_permissions` are rewritten to delegate to it; they should, so enforcement and delivery cannot diverge again.
-- `itam_admin` may also receive `manage:itam` for parity with tenant admins (`manage:itam` is currently only an API-key scope name). Harmless, so the planner decides.
+- ~~`itam_admin` may also receive `manage:itam`~~ — resolved after research: **yes**, `itam_admin` gets `manage:itam` (parity with tenant admins; harmless).
 - The frontend still intersects permissions with the tenant's `enabledFeatures` client-side. Keep that as-is: `/me` returns the role-effective set (what the backend enforces), and tier gating stays a separate UI concern.
 - The drift test's mechanism (import-time assertion vs a pytest that greps for permission-list literals) and the per-role gained/lost diff format.
 

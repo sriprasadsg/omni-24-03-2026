@@ -143,3 +143,17 @@
 - Persisted role create/edit/delete (currently client-memory only) — for Phase 77 discussion (ACC-07/08).
 - Per-user permission grants.
 - Backend enforcement of tenant `enabledFeatures` (v4.2 out of scope).
+
+---
+
+## Post-research amendment (during /gsd-plan-phase 75)
+
+Research (75-RESEARCH.md) showed the literal D-18 subset rule would block tenant admins from assigning any ITAM role, and block itam_admin from assigning itam_user/itam_viewer.
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| A: Permission subset | Subset ceiling with `manage:X` ⇒ `view:X`/`request:X` closure; tenant admins gain 6 ITAM permissions (also fixes their procurement 403) | ✓ |
+| B: Fixed rank order | Rank field in the table; no permission changes | |
+| C: Privilege verbs only | Compare only manage/control/remediate/investigate/export/admin; tenant admins still need 4 ITAM manage strings | |
+
+**Recorded as:** D-20, D-21. Research-driven corrections recorded without a question (factual, within prior decisions): D-14 script list corrected to 5; D-22 LDAP/SAML super-admin mapping block; D-23 raw-handle role reads; D-24 all session-mint responses; D-25 Super Admin doc stays at `tenantId:"platform"` and mirrors `["*"]`; D-26 clear cached role list; `itam_admin` gets `manage:itam` (discretion).
