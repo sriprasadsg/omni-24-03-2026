@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 75
 current_phase_name: Permission Resolver & Single Source of Truth
 status: executing
-stopped_at: Phase 75 context gathered
-last_updated: "2026-10-12T21:42:45.080Z"
+stopped_at: Completed 75-01-PLAN.md
+last_updated: "2026-10-12T22:25:32.237Z"
 last_activity: 2026-10-12
-last_activity_desc: v4.2 roadmap created (6 phases, 75-80; 17/17 requirements mapped)
-state_head: 3f24fc63ec19a4cadfed26465cb6ef00ddf49da4
+last_activity_desc: Phase 75 execution started
+state_head: b68bad56d79ae68a592d69e3e85eb267e0771ff1
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 75 — Permission Resolver & Single Source of Truth (milestone v4.2 Catalogue Access Control & Asset Costing)
+**Current focus:** Phase 75 — Permission Resolver & Single Source of Truth
 
 ## Current Phase
 
@@ -403,6 +403,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase ?]: Task 3 (held-out visual checkpoint) required no code change — user approved all four checks live in browser (16-entry picker, dropdown edge clipping, long ticket reference, no-provider/failure/new-tab behaviors)
 - [Phase ?]: Plan 73-05: STUCK_APPROVAL_TICKET_EVENT_TYPE is a local string constant (asset_request.stuck_approval), not a new EVENT_* webhook constant — D-05 defines no webhook event for a stuck approval; it only feeds ticketing_bridge's mechanical type derivation.
 - [Phase ?]: Plan 73-05: fixed constants for the previously-unspecified thresholds — STUCK_APPROVAL_WINDOW_DAYS=7, HIGH_VALUE_REQUEST_COST=2000, HIGH_VALUE_REQUEST_QUANTITY=10, ITAM_EVENT_SWEEP_INTERVAL_SECONDS=86400 (daily, not the warranty job's hourly cadence).
+- [Phase 75]: 75-01: effective_permissions lives in rbac_service; rbac_defaults is stdlib-only (import-cycle rule); find_role_doc untouched, resolver reads roles via db._db with explicit tenantId
+- [Phase 75]: 75-01: verify_permission keeps no-DB fast path on table defaults and fails closed on role-store error; delivery and get_user_permissions degrade to defaults only
 
 ## Performance Metrics
 
@@ -525,6 +527,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 73 P03 | 35min | 3 tasks | 4 files |
 | Phase 73 P06 | 12min | 3 tasks | 5 files |
 | Phase 73 P05 | 55min | 3 tasks | 6 files |
+| Phase 75 P01 | 55 min | 3 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -559,9 +562,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-12T20:50:07.671Z
-**Stopped at:** Phase 75 context gathered
-**Resume file:** .planning/phases/75-permission-resolver-single-source-of-truth/75-CONTEXT.md
+**Last session:** 2026-10-12T22:25:32.205Z
+**Stopped at:** Completed 75-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -583,11 +586,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 75 (Permission Resolver & Single Source of Truth) — READY TO EXECUTE
-Plan: —
+Phase: 75 (Permission Resolver & Single Source of Truth) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
-Last activity: 2026-10-12 — v4.2 roadmap created (6 phases, 75-80; 17/17 requirements mapped)
+Last activity: 2026-10-12 — Phase 75 execution started
 
 Next: `/gsd-plan-phase 75`
 
