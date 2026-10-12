@@ -1,20 +1,16 @@
 ---
-gsd_state_version: 1.0
-milestone: v4.1
-current_phase: 74
-current_phase_name: Interactive Remote Desktop Control
-status: idle
-stopped_at: Phase 74 complete — all 5 plans committed, ROADMAP/STATE updated
-last_updated: "2026-09-06T00:00:00.000Z"
-last_activity: 2026-09-06
-last_activity_desc: Phase 74 complete — all plans committed, ROADMAP/STATE synced
-state_head: 8188c5ad90b21d8e33c2c10f6f4e8b7a3c1e9f2d
+gsd_state_version: "1.0"
+milestone: v4.2
+milestone_name: Catalogue Access Control & Asset Costing
+status: planning
+last_updated: "2026-10-12T15:34:26.199Z"
+last_activity: 2026-10-12
 progress:
-  total_phases: 70
-  completed_phases: 31
-  total_plans: 199
-  completed_plans: 177
-milestone_name: ITAM-Backlog
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -575,10 +571,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 74 (Interactive Remote Desktop Control) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 74
-Last activity: 2026-08-29 — Phase 74 execution resumed (wave continue)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-10-12 — Milestone v4.2 started
 
 ## Deferred Items
 

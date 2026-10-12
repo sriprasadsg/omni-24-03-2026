@@ -41,6 +41,17 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 </details>
 
+## Current Milestone: v4.2 Catalogue Access Control & Asset Costing
+
+**Goal:** Give tenants role-scoped visibility of the left-nav catalogues and a cost view of their assets at organization and endpoint level — both built on systems already shipped (RBAC/ReBAC, ITAM finance).
+
+**Target features:**
+- Role-based catalogue access — each left-sidebar module is shown only when the user's role holds the matching `view:` permission, enforced by existing RBAC (Phase 36 ReBAC / `rbac_utils`); UI hiding mirrors backend route authorization (defense in depth). No new permission model.
+- Org-level asset cost — tenant-wide cost rollup from existing ITAM procurement/depreciation/license data (total purchase cost, current depreciated book value, license spend).
+- Endpoint-level asset cost — per endpoint/asset cost (purchase cost, depreciated book value, allocated license cost).
+
+**Key context:** No new permission system and no new cost-entry system — both reuse existing data (ReBAC permissions; ITAM phases 59–60). Multi-tenant isolation must hold throughout. Phases continue from 75.
+
 ## Requirements
 
 ### Validated
@@ -159,4 +170,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-26 after v4.1 milestone*
+*Last updated: 2026-10-12 after starting milestone v4.2*
