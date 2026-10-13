@@ -87,6 +87,10 @@ _pending_task_feedback: list = []
 # Offline message buffer (SQLite)
 # ─────────────────────────────────────────────
 class MessageBuffer:
+    # Each entry is a full heartbeat (up to ~450 KB), so keep only the newest
+    # few hundred: unbounded, an offline stretch grew buffer.db to 7.9 GB.
+    MAX_MESSAGES = 500
+
     def __init__(self, db_path="buffer.db", security_mgr=None):
         self.db_path = db_path
         self.security_mgr = security_mgr
@@ -113,6 +117,8 @@ class MessageBuffer:
             if self.security_mgr:
                 data = self.security_mgr.encrypt_data(data)
             c.execute("INSERT INTO messages (payload) VALUES (?)", (data,))
+            c.execute("DELETE FROM messages WHERE id <= (SELECT id FROM messages ORDER BY id DESC LIMIT 1 OFFSET ?)",
+                      (self.MAX_MESSAGES,))
             conn.commit()
             conn.close()
             logging.info("Buffered failed message to SQLite")
@@ -1248,6 +1254,40 @@ class AgentCapabilityManager:
 # ─────────────────────────────────────────────
 # Heartbeat
 # ─────────────────────────────────────────────
+def _drain_buffer(buffer_mgr, url, headers, limit=5):
+    """Resend up to `limit` buffered heartbeats, oldest first.
+
+    A message the server rejects for good (4xx other than 408/429), one that no
+    longer decodes, or one queued on another host (a copied install) is dropped:
+    keeping it would block everything queued behind it forever. A transient
+    failure (5xx, 408, 429, network) keeps it and stops this round.
+    """
+    hostname = socket.gethostname()
+    for msg_id, msg_str in buffer_mgr.get_messages(limit=limit):
+        try:
+            msg_payload = json.loads(msg_str)
+        except (TypeError, ValueError):
+            logger.warning(f"Dropped undecodable buffered message {msg_id}")
+            buffer_mgr.delete_message(msg_id)
+            continue
+        if msg_payload.get("hostname") not in (None, hostname):
+            logger.warning(f"Dropped buffered message {msg_id} queued on host {msg_payload.get('hostname')!r}")
+            buffer_mgr.delete_message(msg_id)
+            continue
+        try:
+            r = requests.post(url, json=msg_payload, headers=headers, timeout=10)
+        except Exception as e:
+            logger.error(f"Error syncing buffered message {msg_id}: {e}")
+            break
+        if r.status_code == 200:
+            buffer_mgr.delete_message(msg_id)
+        elif 400 <= r.status_code < 500 and r.status_code not in (408, 429):
+            logger.warning(f"Dropped buffered message {msg_id}: server rejected it ({r.status_code})")
+            buffer_mgr.delete_message(msg_id)
+        else:
+            break
+
+
 def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
     """Send heartbeat with full capability + hardware data."""
     logger.info("Sending heartbeat…")
@@ -1451,20 +1491,8 @@ def send_heartbeat(cfg, capability_mgr, buffer_mgr=None):
                     logger.info(f"Metrics POST → {metrics_resp.status_code}")
                 except Exception as e:
                     logger.error(f"Failed to post metrics: {e}")
-            # Drain offline buffer
             if buffer_mgr:
-                pending = buffer_mgr.get_messages(limit=5)
-                for msg_id, msg_str in pending:
-                    try:
-                        msg_payload = json.loads(msg_str)
-                        r = requests.post(url, json=msg_payload, headers=headers, timeout=10)
-                        if r.status_code == 200:
-                            buffer_mgr.delete_message(msg_id)
-                        else:
-                            break
-                    except Exception as e:
-                        logger.error(f"Error syncing buffered message {msg_id}: {e}")
-                        break
+                _drain_buffer(buffer_mgr, url, headers)
             return True
         else:
             if buffer_mgr:
