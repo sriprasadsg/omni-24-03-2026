@@ -10,6 +10,7 @@ import {
   viewForHash,
   viewPermission,
 } from '../../utils/catalogueAccess';
+import { SIDEBAR_PRESENTATION } from '../../components/sidebarPresentation';
 
 const ROOT = resolve(__dirname, '../..');
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), 'utf-8');
@@ -140,5 +141,22 @@ describe('findNavDrift (D-06)', () => {
 
   it('reports two empty lists for equal inputs, regardless of order', () => {
     expect(findNavDrift(['a', 'b'], ['b', 'a'])).toEqual({ missingPresentation: [], missingManifest: [] });
+  });
+});
+
+describe('sidebar presentation vs manifest (D-06)', () => {
+  it('manifest nav views and presentation keys have no drift', () => {
+    const navViews = raw.catalogues.filter(c => c.nav).map(c => c.view);
+    expect(findNavDrift(navViews, Object.keys(SIDEBAR_PRESENTATION))).toEqual({
+      missingPresentation: [],
+      missingManifest: [],
+    });
+  });
+
+  it('Sidebar.tsx reads the manifest and carries no item-level permission literal', () => {
+    const text = read('components/Sidebar.tsx');
+    expect(text).toContain("from '../utils/catalogueAccess'");
+    expect(text).not.toMatch(/permission: '(view|manage|investigate|export|request):/);
+    expect(text.split('\n').length).toBeLessThan(500);
   });
 });
