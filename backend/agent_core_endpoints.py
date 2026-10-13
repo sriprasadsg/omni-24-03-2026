@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, Response
+from catalogue_mounts_agents import AGENTS_GUARD
 from typing import List, Optional, Dict, Any
 from database import get_database
 from authentication_service import get_current_user
@@ -94,7 +95,7 @@ _DEFAULT_INTERVALS: Dict[str, int] = {
 }
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(AGENTS_GUARD)])
 @cached(ttl=60, key_prefix="agents")
 async def get_agents(
     page: int = Query(1, ge=1),
@@ -181,7 +182,7 @@ async def get_agents(
     return result
 
 
-@router.get("/search")
+@router.get("/search", dependencies=[Depends(AGENTS_GUARD)])
 async def search_agents_route(
     q: str = Query(..., min_length=1),
     status: Optional[str] = None,
@@ -207,7 +208,7 @@ async def search_agents_route(
     return await db.agents.find(query, {"_id": 0}).to_list(length=limit)
 
 
-@router.delete("/bulk")
+@router.delete("/bulk", dependencies=[Depends(AGENTS_GUARD)])
 @limiter.limit("10/minute")
 async def bulk_delete_agents_route(
     request: Request,
@@ -242,7 +243,7 @@ _BULK_PATCH_ALLOWED_FIELDS = frozenset({
 })
 
 
-@router.patch("/bulk")
+@router.patch("/bulk", dependencies=[Depends(AGENTS_GUARD)])
 async def bulk_update_agents_route(
     body: Dict[str, Any] = Body(...),
     db=Depends(get_database),
@@ -276,7 +277,7 @@ async def bulk_update_agents_route(
     return {"matched": result.matched_count, "modified": result.modified_count}
 
 
-@router.get("/network-utilization")
+@router.get("/network-utilization", dependencies=[Depends(AGENTS_GUARD)])
 async def get_network_utilization(current_user=Depends(get_current_user), db=Depends(get_database)):
     """Get aggregated network utilization metrics for agents."""
     is_admin = is_super_admin(current_user.role)
@@ -323,7 +324,7 @@ async def get_agent_configuration(agent_id: str, _tenant: Dict[str, Any] = Depen
 
 
 
-@router.patch("/{agent_id}/software-exclusion")
+@router.patch("/{agent_id}/software-exclusion", dependencies=[Depends(AGENTS_GUARD)])
 async def set_software_exclusion(
     agent_id: str,
     body: Dict[str, Any] = Body(...),
@@ -351,7 +352,7 @@ async def set_software_exclusion(
     return {"success": True, "agent_id": agent_id, "excludeFromSoftwareOps": exclude}
 
 
-@router.post("/{agent_id}/diagnostics")
+@router.post("/{agent_id}/diagnostics", dependencies=[Depends(AGENTS_GUARD)])
 async def run_agent_diagnostics(agent_id: str, current_user=Depends(get_current_user)):
     """Run a lightweight diagnostic check: last-seen recency, status, capabilities, instruction backlog."""
     import datetime as _dt

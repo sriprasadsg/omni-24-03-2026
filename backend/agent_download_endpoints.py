@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request
+from catalogue_mounts_agents import AGENTS_GUARD
 from fastapi.responses import Response
 from database import mongodb
 from authentication_service import get_current_user, get_optional_user
@@ -115,7 +116,7 @@ async def _get_tenant(tenant_id: str):
 
 # ── One-time download token ────────────────────────────────────────────────────
 
-@router.post("/download-token/{tenant_id}")
+@router.post("/download-token/{tenant_id}", dependencies=[Depends(AGENTS_GUARD)])
 async def create_download_token(tenant_id: str, current_user=Depends(get_current_user)):
     role = getattr(current_user, "role", "")
     ut = getattr(current_user, "tenant_id", None)
@@ -312,7 +313,7 @@ async def download_msi_installer(
 
 # ── Agent command dispatch ─────────────────────────────────────────────────────
 
-@router.post("/deploy")
+@router.post("/deploy", dependencies=[Depends(AGENTS_GUARD)])
 async def agent_deploy(payload: Dict[str, Any], current_user=Depends(require_permission("manage:agents"))):
     """Dispatch a command to one or more agents via the agent_instructions queue."""
     from database import get_database

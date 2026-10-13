@@ -4,6 +4,7 @@ Routes are under the /api/agents prefix alongside agent_tasks_endpoints.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response
+from catalogue_mounts_agents import AGENTS_GUARD
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from database import get_database
@@ -208,7 +209,7 @@ async def get_safety_rules(
     }
 
 
-@router.put("/{agent_id}/safety-rules")
+@router.put("/{agent_id}/safety-rules", dependencies=[Depends(AGENTS_GUARD)])
 async def update_safety_rules(
     agent_id: str,
     payload: Dict[str, Any] = Body(...),
@@ -259,7 +260,7 @@ async def record_agentic_decision(
     return {"decision_id": doc["id"], "status": doc["status"]}
 
 
-@router.get("/{agent_id}/agentic-decisions")
+@router.get("/{agent_id}/agentic-decisions", dependencies=[Depends(AGENTS_GUARD)])
 async def list_agentic_decisions(
     agent_id: str,
     limit: int = 50,
@@ -273,7 +274,7 @@ async def list_agentic_decisions(
     return {"decisions": await cursor.to_list(limit)}
 
 
-@router.patch("/{agent_id}/agentic-decisions/{decision_id}")
+@router.patch("/{agent_id}/agentic-decisions/{decision_id}", dependencies=[Depends(AGENTS_GUARD)])
 async def approve_agentic_decision(
     agent_id: str,
     decision_id: str,

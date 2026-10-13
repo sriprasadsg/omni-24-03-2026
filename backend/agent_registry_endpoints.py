@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request, Response
+from catalogue_mounts_agents import AGENTS_GUARD
 from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user, create_access_token, SECRET_KEY, ALGORITHM, is_agent_payload
@@ -268,7 +269,7 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     return result
 
 
-@router.put("/{agent_id}/link")
+@router.put("/{agent_id}/link", dependencies=[Depends(AGENTS_GUARD)])
 async def link_agent_to_asset(
     agent_id: str,
     asset_data: Dict[str, str] = Body(...),
@@ -308,7 +309,7 @@ async def link_agent_to_asset(
     return {"success": True, "message": f"Agent {agent_id} successfully linked to Asset {asset_id}"}
 
 
-@router.delete("/{agent_id}")
+@router.delete("/{agent_id}", dependencies=[Depends(AGENTS_GUARD)])
 async def delete_agent(
     agent_id: str,
     db=Depends(get_database),
@@ -350,7 +351,7 @@ async def delete_agent(
     return {"success": True, "message": f"Agent {agent_id} and its associated Asset successfully deleted"}
 
 
-@router.put("/{agent_id}/move")
+@router.put("/{agent_id}/move", dependencies=[Depends(AGENTS_GUARD)])
 async def move_agent(
     agent_id: str,
     payload: Dict[str, str] = Body(...),
@@ -396,7 +397,7 @@ async def move_agent(
     }
 
 
-@router.put("/{agent_id}")
+@router.put("/{agent_id}", dependencies=[Depends(AGENTS_GUARD)])
 async def update_agent(
     agent_id: str,
     update_data: Dict[str, Any] = Body(...),
