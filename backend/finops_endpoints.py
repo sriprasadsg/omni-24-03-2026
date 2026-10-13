@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from finops_service import finops_service
-from rbac_utils import require_permission
+from rbac_utils import require_permission, require_super_admin
 from database import get_database
 
 _FINOPS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
@@ -171,10 +171,11 @@ async def get_pricing(
     """Get service pricing configuration."""
     return finops_service.get_service_pricing()
 
+# Service pricing applies to every tenant, so its writes are platform super-admin only.
 @router.post("/pricing")
 async def update_pricing_bulk(
     pricing: List[Dict[str, Any]],
-    current_user: dict = Depends(require_permission("manage:settings"))
+    current_user: dict = Depends(require_super_admin)
 ):
     """Bulk update service pricing — persisted to MongoDB and reflected in-memory."""
     pricing = pricing[:500]
@@ -204,7 +205,7 @@ async def update_pricing_bulk(
 @router.post("/pricing/service")
 async def create_service(
     service_data: Dict[str, Any],
-    current_user: dict = Depends(require_permission("manage:settings"))
+    current_user: dict = Depends(require_super_admin)
 ):
     """Create a new service pricing entry."""
     return finops_service.create_service_pricing(service_data)
@@ -213,7 +214,7 @@ async def create_service(
 async def update_service(
     service_id: str,
     updates: Dict[str, Any],
-    current_user: dict = Depends(require_permission("manage:settings"))
+    current_user: dict = Depends(require_super_admin)
 ):
     """Update a specific service pricing."""
     return finops_service.update_service_pricing(service_id, updates)
@@ -221,7 +222,7 @@ async def update_service(
 @router.delete("/pricing/service/{service_id}")
 async def delete_service(
     service_id: str,
-    current_user: dict = Depends(require_permission("manage:settings"))
+    current_user: dict = Depends(require_super_admin)
 ):
     """Delete a service pricing entry."""
     return finops_service.delete_service_pricing(service_id)
