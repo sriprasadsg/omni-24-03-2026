@@ -104,6 +104,9 @@ def _mock_reg_db(existing_agent=None, tenant_doc=None, existing_asset=None):
     db.assets = MagicMock()
     db.assets.find_one = AsyncMock(return_value=existing_asset)
     db.assets.update_one = AsyncMock()
+    # First enrollments take the tenant enrollment lease (QA ISSUE-001).
+    db._db.enrollment_locks.update_one = AsyncMock()
+    db._db.enrollment_locks.delete_one = AsyncMock()
     return db
 
 
