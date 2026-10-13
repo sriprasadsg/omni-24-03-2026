@@ -160,3 +160,14 @@ describe('sidebar presentation vs manifest (D-06)', () => {
     expect(text.split('\n').length).toBeLessThan(500);
   });
 });
+
+describe('App.tsx lookups (ACC-03)', () => {
+  it('resolves view permissions and hash routes from the manifest reader', () => {
+    const text = read('App.tsx');
+    expect(text).toContain("from './utils/catalogueAccess'");
+    expect(text).toMatch(/viewPermission\(/);
+    expect(text).toMatch(/viewForHash\(/);
+    expect(text).not.toMatch(/Record<AppView,\s*Permission>/);
+    expect(text).not.toContain('viewPermissionMap');
+  });
+});
