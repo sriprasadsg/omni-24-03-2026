@@ -77,12 +77,13 @@ def test_longest_prefix_wins():
 
 def test_slices_partition_every_in_scope_catalogue_once():
     views = [view for group in SLICES.values() for view in group]
-    assert len(views) == len(set(views)) == 104  # 98 sidebar catalogues + 6 identity views
+    assert len(views) == len(set(views)) == 110  # 98 sidebar catalogues + 12 enforced views with no sidebar item
     sidebar = open(os.path.join(REPO_ROOT, "components", "Sidebar.tsx"), encoding="utf-8").read()
     sidebar_views = set(re.findall(r"view:\s*'(\w+)'", sidebar))
     identity = {"userManagement", "roleManagement", "apiKeys", "profile", "notifications", "integrations"}
-    assert identity <= set(views)
-    assert set(views) - identity <= sidebar_views
+    aliases = {"agentChat", "supportChat", "vulnerabilities", "persistence", "insiderThreat", "fim"}
+    assert identity | aliases <= set(views)
+    assert set(views) - identity - aliases <= sidebar_views
 
 
 def test_slice_modules_assign_each_module_to_one_slice():

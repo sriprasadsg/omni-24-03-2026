@@ -14,11 +14,15 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MANIFEST_PATH = os.path.join(REPO_ROOT, "shared", "catalogue-access.json")
 
-# 98 in-scope sidebar catalogues (RESEARCH Appendix A) plus six identity views with
-# no sidebar item. Slice order breaks ties in slice_modules().
+# 98 in-scope sidebar catalogues (RESEARCH Appendix A) plus twelve enforced views with
+# no sidebar item (six identity views, two chat aliases, four security aliases). Slice
+# order breaks ties in slice_modules().
 SLICES: Dict[str, Tuple[str, ...]] = {
     "assets": ("assetManagement", "itam", "certificates"),
-    "agents": ("agents", "agentCapabilities", "remoteAccess", "chat", "jobs", "serviceCatalog"),
+    "agents": (
+        "agents", "agentCapabilities", "remoteAccess", "chat", "jobs", "serviceCatalog",
+        "agentChat", "supportChat",
+    ),
     "devices": (
         "patchManagement", "deploymentApprovals", "softwareUpdates", "softwareDeployment",
         "stagedDeployments", "windowsAutopilot", "mobileDeviceManagement", "mobileAppManagement",
@@ -33,11 +37,12 @@ SLICES: Dict[str, Tuple[str, ...]] = {
         "securitySimulation", "securityAudit", "advancedHunting", "detectionRules",
         "connectorsHub", "securityCopilot", "attackTimeline", "geographicMap", "agentGroups",
         "configDrift", "fimMonitoring", "activeResponse",
+        "persistence", "insiderThreat", "fim",
     ),
     "secposture": (
         "cloudSecurity", "cloudAccounts", "cloudChecksScanner", "iacContainer", "dlp",
         "dataSecurity", "attackPath", "pentest", "dast", "zeroTrustQuantum",
-        "vulnerabilityManagement", "runtimeSecurity", "pam", "scaAssessment",
+        "vulnerabilityManagement", "runtimeSecurity", "pam", "scaAssessment", "vulnerabilities",
     ),
     "billing_identity": (
         "finops", "servicePricing", "paymentSettings", "subscriptionManagement", "invoices",
