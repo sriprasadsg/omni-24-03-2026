@@ -1,5 +1,6 @@
 import logging
 import re
+import uuid
 from datetime import timezone
 from fastapi import APIRouter, HTTPException, Depends, Query, Response
 from typing import Dict, List, Optional
@@ -295,6 +296,9 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
 
     now = datetime.datetime.now(timezone.utc).isoformat()
     new_user = {
+        # users has a unique index on `id` (migrations/001); without one every
+        # user after the first collides on id=null.
+        "id": f"user-{uuid.uuid4()}",
         "email": user.email,
         "hashed_password": get_password_hash(user.password),
         "full_name": user.full_name,
