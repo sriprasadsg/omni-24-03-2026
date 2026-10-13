@@ -18,6 +18,7 @@ from pymongo import ReturnDocument
 from auth_types import TokenData
 from database import get_database
 from cache_service import invalidate_cache
+from catalogue_mounts_assets import ASSETS_API_KEY_GUARD, ITAM_API_KEY_GUARD
 from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_audit_service import log_itam_action
 from itam_models import AuditMarkRequest, CheckinRequest, CheckoutRequest, LifecycleStatus
@@ -100,7 +101,7 @@ async def _resolve_target(db, target_type: str, target_id: str) -> None:
         )
 
 
-@router.post("/{asset_id}/checkout", response_model=Dict[str, Any])
+@router.post("/{asset_id}/checkout", response_model=Dict[str, Any], dependencies=[Depends(ASSETS_API_KEY_GUARD)])
 async def checkout_asset(
     asset_id: str,
     payload: CheckoutRequest,
@@ -242,7 +243,7 @@ async def checkout_asset(
     return {**updated, "history": response_history}
 
 
-@router.post("/{asset_id}/checkin", response_model=Dict[str, Any])
+@router.post("/{asset_id}/checkin", response_model=Dict[str, Any], dependencies=[Depends(ASSETS_API_KEY_GUARD)])
 async def checkin_asset(
     asset_id: str,
     payload: CheckinRequest,
@@ -376,7 +377,7 @@ async def checkin_asset(
     return {**updated, "history": response_history}
 
 
-@router.get("/{asset_id}/history", response_model=Dict[str, Any])
+@router.get("/{asset_id}/history", response_model=Dict[str, Any], dependencies=[Depends(ASSETS_API_KEY_GUARD)])
 async def list_assignment_history(
     asset_id: str,
     limit: int = Query(100, ge=1, le=500),
@@ -418,7 +419,7 @@ async def list_assignment_history(
     return {"assetId": asset_id, "entries": entries}
 
 
-@router.post("/{asset_id}/audit", response_model=Dict[str, Any])
+@router.post("/{asset_id}/audit", response_model=Dict[str, Any], dependencies=[Depends(ASSETS_API_KEY_GUARD)])
 async def mark_asset_audited(
     asset_id: str,
     payload: AuditMarkRequest,
@@ -563,7 +564,7 @@ def _overdue_row(doc: Dict[str, Any], cutoff: str, now: datetime) -> Dict[str, A
     return row
 
 
-@router.get("/reports/overdue-audit", response_model=Dict[str, Any])
+@router.get("/reports/overdue-audit", response_model=Dict[str, Any], dependencies=[Depends(ITAM_API_KEY_GUARD)])
 async def overdue_audit_report(
     limit: int = Query(200, ge=1, le=1000),
     current_user: TokenData = Depends(_require_itam_viewer),

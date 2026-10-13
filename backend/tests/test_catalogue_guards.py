@@ -139,6 +139,15 @@ def test_api_key_with_matching_scope_or_wildcard_passes():
     assert _client(guard, "admin", scopes=["view:itam"], auth_source="api_key").post("/x").status_code == 403
 
 
+def test_write_scope_also_authorises_a_read_but_never_the_reverse():
+    # 76-04: a key scoped manage:assets has always read ITAM data (D-02 compatibility).
+    guard = _guard(read=("view:itam",), write=("manage:assets",))
+    key = dict(scopes=["manage:assets"], auth_source="api_key")
+    assert _client(guard, "admin", **key).get("/x").status_code == 200
+    assert _client(guard, "admin", **key).post("/x").status_code == 200
+    assert _client(guard, "admin", scopes=["view:itam"], auth_source="api_key").post("/x").status_code == 403
+
+
 def test_role_is_checked_before_scopes():
     # viewer lacks view:itam; the key's scope lists it, yet the role message wins (D-02 order).
     resp = _client(_guard(**ITAM), "viewer", scopes=["view:itam"], auth_source="api_key").get("/x")

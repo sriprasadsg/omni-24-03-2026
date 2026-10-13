@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 
 from auth_types import TokenData
 from database import get_database
+from catalogue_mounts_assets import ASSETS_API_KEY_GUARD, ITAM_API_KEY_GUARD
 from itam_asset_endpoints import _require_itam_admin, _require_itam_viewer
 from itam_label_service import LabelEncodingError, generate_barcode_png, generate_label_sheet_pdf, generate_qr_png
 from itam_models import MAX_LABEL_SHEET_ASSETS, LabelSheetRequest
@@ -87,7 +88,7 @@ async def _resolve_tag_for_label(current_user: TokenData, asset_id: str) -> str:
     return asset_tag
 
 
-@router.get("/{asset_id}/label/qr")
+@router.get("/{asset_id}/label/qr", dependencies=[Depends(ASSETS_API_KEY_GUARD)])
 async def get_asset_qr_label(
     asset_id: str,
     current_user: TokenData = Depends(_require_itam_viewer),
@@ -111,7 +112,7 @@ async def get_asset_qr_label(
     )
 
 
-@router.get("/{asset_id}/label/barcode")
+@router.get("/{asset_id}/label/barcode", dependencies=[Depends(ASSETS_API_KEY_GUARD)])
 async def get_asset_barcode_label(
     asset_id: str,
     current_user: TokenData = Depends(_require_itam_viewer),
@@ -165,7 +166,7 @@ async def _resolve_assets_for_sheet(db, asset_ids: list) -> tuple:
     return resolved, unresolved_ids
 
 
-@router.post("/labels/sheet")
+@router.post("/labels/sheet", dependencies=[Depends(ITAM_API_KEY_GUARD)])
 async def post_labels_sheet(
     payload: LabelSheetRequest,
     current_user: TokenData = Depends(_require_itam_admin),

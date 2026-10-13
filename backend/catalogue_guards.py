@@ -65,7 +65,11 @@ async def check_catalogue_access(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Missing required permission: {accepted[0]}",
         )
-    if not any(_rbac_service._scopes_allow(user, perm) for perm in accepted):
+    # A key scoped to a catalogue's write permission has always been able to read it too
+    # (ITAM's _require_itam_viewer accepts the manage:assets scope), so a safe request also
+    # honours the write scopes. The role check above stays read-only (D-03).
+    scope_accepted = accepted + [p for p in write if p not in accepted] if method.upper() in SAFE_METHODS else accepted
+    if not any(_rbac_service._scopes_allow(user, perm) for perm in scope_accepted):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"API key scope does not permit: {accepted[0]}",
