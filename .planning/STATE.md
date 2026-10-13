@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Phase 76 context gathered
-last_updated: "2026-10-13T04:12:53.684Z"
-last_activity: 2026-10-12
-last_activity_desc: Phase 75 execution started
-state_head: 20a06715339d8576f5a92c9d7a11060aa73297ae
+stopped_at: Completed 76-01-PLAN.md
+last_updated: "2026-10-13T04:26:45.561Z"
+last_activity: 2026-10-13
+last_activity_desc: Phase 76 execution started
+state_head: 8447e4c26518a11ab408bd5d6ce3bb3ea7254070
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 17
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 75 — Permission Resolver & Single Source of Truth
+**Current focus:** Phase 76 — Catalogue Manifest & Backend Route Enforcement
 
 ## Current Phase
 
@@ -412,6 +412,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 75]: 75-04: Role-assignment ceiling in backend/role_assignment.py (assert_can_assign_role); self-change rule runs before super-admin shortcut; resolver error fails closed as 503
 - [Phase 75]: 75-05: LDAP/SAML mapping writes run assert_can_assign_role; sync_user/provision_user hard-refuse the super-admin tier at apply time (role=None, warning, no migration)
 - [Phase 75]: 75-05: Drift guard scans top-level backend/*.py by AST with per-(file, variable) tier-list allowlist; five role-writing scripts archived to archive/backend-rbac-oneoffs/ via git mv
+- [Phase 76]: 76-01: MDM write permission is manage:assets (existing mdm_endpoints write string); read closure view:X/manage:X lives only in catalogue_guard, rbac_service/rbac_defaults untouched (D-07)
 
 ## Performance Metrics
 
@@ -539,6 +540,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 75 P03 | 12 min | 2 tasks | 6 files |
 | Phase 75 P04 | 40 min | 2 tasks | 7 files |
 | Phase 75 P05 | 65 min | 3 tasks | 13 files |
+| Phase 76 P01 | 12 min | 3 tasks | 12 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -573,9 +575,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-12T23:45:17.800Z
-**Stopped at:** Phase 76 context gathered
-**Resume file:** .planning/phases/76-catalogue-manifest-backend-route-enforcement/76-CONTEXT.md
+**Last session:** 2026-10-13T04:26:45.511Z
+**Stopped at:** Completed 76-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -597,11 +599,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — READY TO EXECUTE
-Plan: 5 of 5
+Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
+Plan: 2 of 12
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
-Last activity: 2026-10-12 — Phase 75 execution started
+Last activity: 2026-10-13 — Phase 76 execution started
 
 Next: `/gsd-plan-phase 75`
 
