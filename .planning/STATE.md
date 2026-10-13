@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Completed 76-03-PLAN.md
-last_updated: "2026-10-13T04:47:00.206Z"
+stopped_at: Completed 76-04-PLAN.md
+last_updated: "2026-10-13T07:57:33.784Z"
 last_activity: 2026-10-13
 last_activity_desc: Phase 76 execution started
-state_head: 88c8d0c202216b39606452ece58aff6670365eac
+state_head: a04d6be86ade50bcef85668f5a082e094815e573
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 17
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -415,6 +415,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-01: MDM write permission is manage:assets (existing mdm_endpoints write string); read closure view:X/manage:X lives only in catalogue_guard, rbac_service/rbac_defaults untouched (D-07)
 - [Phase 76]: 76-02: SSO/LDAP admin routes owned by userManagement (write manage:assets mirrors existing guard); /api/response owned by edr; self-service /api/users/me and /api/tenants/me owned by profile (view:profile)
 - [Phase 76]: 76-03: CatalogueEntry read/write typed string[] (backend-only strings); sidebar built from NAV_GROUPS + SIDEBAR_PRESENTATION; App uses viewPermission/viewForHash with unchanged undefined flow
+- [Phase 76]: 76-04: finance_filtered strips asset purchase/warranty fields outside @cached, so role edits apply immediately — Cache keeps full docs; permission check runs per request (removes the RESEARCH A5 60 s stale window)
+- [Phase 76]: 76-04: catalogue_guard lets an API key's write scope authorise reads (safe methods only) — _require_itam_viewer always accepted manage:assets keys; keeps D-02
 
 ## Performance Metrics
 
@@ -545,6 +547,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P01 | 12 min | 3 tasks | 12 files |
 | Phase 76 P02 | 13 min | 3 tasks | 4 files |
 | Phase 76 P03 | 9 min | 3 tasks | 5 files |
+| Phase 76 P04 | 30 min | 3 tasks | 14 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -579,8 +582,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-13T04:47:00.166Z
-**Stopped at:** Completed 76-03-PLAN.md
+**Last session:** 2026-10-13T07:57:28.899Z
+**Stopped at:** Completed 76-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -604,7 +607,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
-Plan: 4 of 12
+Plan: 5 of 12
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-13 — Phase 76 execution started
