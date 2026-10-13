@@ -9,7 +9,6 @@ import re
 
 from fastapi import APIRouter, Depends, FastAPI
 
-from authentication_service import get_current_user
 from catalogue_guards import catalogue_guard
 from tests._catalogue_parity import (
     REPO_ROOT, SLICES, load_manifest, owner_of, parity_offenders, slice_modules,
@@ -18,6 +17,10 @@ from tests._route_walk import run_real_app_walk, walk_app
 
 
 def _synthetic_records(*dependencies):
+    # Imported here, not at module top: test_authentication reloads authentication_service,
+    # and the walker compares dependency identity against the module's current functions.
+    import authentication_service as auth
+    get_current_user = auth.get_current_user
     router = APIRouter(prefix="/api/mdm")
 
     @router.get("/devices")
