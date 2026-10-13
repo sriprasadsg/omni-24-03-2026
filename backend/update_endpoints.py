@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from catalogue_mounts_agents import AGENTS_GUARD
 import logging
 from fastapi.responses import FileResponse, JSONResponse
 import os
@@ -315,13 +316,13 @@ async def get_agent_checksum(filename: str):
     return {"filename": resolved_filename, "algorithm": "sha256", "sha256": _sha256_of(target_path)}
 
 
-@router.get("/build-info")
+@router.get("/build-info", dependencies=[Depends(AGENTS_GUARD)])
 async def get_build_info(current_user=Depends(get_current_user)):
     """Tell the UI up front whether the Windows installer can be produced here."""
     return installer_build_info()
 
 
-@router.post("/build")
+@router.post("/build", dependencies=[Depends(AGENTS_GUARD)])
 async def trigger_build(capabilities: list[str] = None, current_user=Depends(require_permission("manage:agents"))):
     """
     Trigger an async installer build with Spyglass evidence collection.
@@ -336,7 +337,7 @@ async def trigger_build(capabilities: list[str] = None, current_user=Depends(req
     }
 
 
-@router.get("/build/{task_id}")
+@router.get("/build/{task_id}", dependencies=[Depends(AGENTS_GUARD)])
 async def get_build_status(task_id: str, current_user=Depends(get_current_user)):
     """Poll the status of an async build."""
     state = BUILD_STATE.get(task_id)

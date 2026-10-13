@@ -2,6 +2,7 @@ import base64
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
+from catalogue_mounts_agents import AGENTS_GUARD, SECURITY_AUDIT_GUARD
 from database import get_database
 from security_service import get_security_service
 from authentication_service import get_current_user
@@ -21,7 +22,7 @@ def _sec_caller_tenant(current_user) -> str:
     return tid
 
 
-@router.post("/agents/{agent_id}/verify-integrity")
+@router.post("/agents/{agent_id}/verify-integrity", dependencies=[Depends(AGENTS_GUARD)])
 async def verify_agent_integrity(
     agent_id: str,
     data: dict,
@@ -108,7 +109,7 @@ async def encrypt_data(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/security/audit-log")
+@router.get("/security/audit-log", dependencies=[Depends(SECURITY_AUDIT_GUARD)])
 async def get_security_audit_log(
     limit: int = 50,
     severity: str = None,

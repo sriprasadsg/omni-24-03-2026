@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Form, BackgroundTasks, Depends, Query
+from catalogue_mounts_agents import AGENTS_GUARD
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -63,7 +64,7 @@ async def trigger_framework_scan(
     }
 
 
-@router.post("/api/agents/{agent_id}/compliance/scan")
+@router.post("/api/agents/{agent_id}/compliance/scan", dependencies=[Depends(AGENTS_GUARD)])
 async def trigger_agent_scan(agent_id: str, current_user=Depends(require_permission("manage:compliance"))):
     """Send 'Run Compliance Scan' instruction to a single agent."""
     db = get_database()
@@ -84,7 +85,7 @@ async def trigger_agent_scan(agent_id: str, current_user=Depends(require_permiss
     }
 
 
-@router.post("/api/agents/{agent_id}/compliance/fix")
+@router.post("/api/agents/{agent_id}/compliance/fix", dependencies=[Depends(AGENTS_GUARD)])
 async def trigger_compliance_fix(
     agent_id: str,
     check_name: str = Form(...),

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Body, HTTPException, Depends, Request
+from catalogue_mounts_agents import REMOTE_ACCESS_GUARD
 from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission
@@ -70,8 +71,8 @@ def _remote_tenant(current_user) -> dict:
     return {"tenantId": tid} if tid else {}
 
 
-@router.get("")
-@router.get("/")
+@router.get("", dependencies=[Depends(REMOTE_ACCESS_GUARD)])
+@router.get("/", dependencies=[Depends(REMOTE_ACCESS_GUARD)])
 async def list_remote_sessions(
     limit: int = 50,
     current_user=Depends(require_permission("view:remote_access"))
@@ -86,7 +87,7 @@ async def list_remote_sessions(
         sessions = []
     return sessions
 
-@router.get("/sessions")
+@router.get("/sessions", dependencies=[Depends(REMOTE_ACCESS_GUARD)])
 async def get_active_sessions(
     current_user=Depends(require_permission("view:remote_access"))
 ):
@@ -145,7 +146,7 @@ def _resolve_backend_ws_base(request: Request) -> str:
     return f"ws://{req_host}:{env_port}"
 
 
-@router.post("/session/start")
+@router.post("/session/start", dependencies=[Depends(REMOTE_ACCESS_GUARD)])
 async def start_remote_session(request: Request, payload: dict = Body(...), current_user: User = Depends(get_current_user)):
     """
     Start a remote session with an agent.
@@ -271,7 +272,7 @@ async def start_remote_session(request: Request, payload: dict = Body(...), curr
     }
 
 
-@router.post("/session/{session_id}/disconnect")
+@router.post("/session/{session_id}/disconnect", dependencies=[Depends(REMOTE_ACCESS_GUARD)])
 async def disconnect_session(
     session_id: str,
     payload: dict,
@@ -396,7 +397,7 @@ async def report_consent(
     return {"status": "recorded", "decision": decision}
 
 
-@router.get("/capabilities")
+@router.get("/capabilities", dependencies=[Depends(REMOTE_ACCESS_GUARD)])
 async def get_capabilities(current_user=Depends(get_current_user)):
     """Return what the caller can do: view vs control."""
     can_view = await rbac_utils.verify_permission(current_user, "view:remote_access")

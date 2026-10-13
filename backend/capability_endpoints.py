@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Body
+from catalogue_mounts_agents import AGENTS_GUARD, AGENT_CAPABILITIES_GUARD
 from typing import Dict, Any
 from database import get_database
 from authentication_service import get_current_user
@@ -123,7 +124,7 @@ CAPABILITY_DEFINITIONS = {
     }
 }
 
-@router.get("/{agent_id}/capabilities")
+@router.get("/{agent_id}/capabilities", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agent_capabilities(
     agent_id: str,
     current_user: TokenData = Depends(rbac_service.has_permission("view:agents"))
@@ -162,7 +163,7 @@ async def get_agent_capabilities(
         "enabledCount": len(enabled_capabilities)
     }
 
-@router.post("/{agent_id}/capabilities/configure")
+@router.post("/{agent_id}/capabilities/configure", dependencies=[Depends(AGENTS_GUARD)])
 async def configure_agent_capabilities(
     agent_id: str,
     config: Dict[str, Any] = Body(...),
@@ -204,7 +205,7 @@ async def configure_agent_capabilities(
         "collectionIntervals": collection_intervals
     }
 
-@router.post("/{agent_id}/capabilities")
+@router.post("/{agent_id}/capabilities", dependencies=[Depends(AGENTS_GUARD)])
 async def update_agent_capabilities_simple(
     agent_id: str,
     body: Dict[str, Any] = Body(...),
@@ -239,7 +240,7 @@ async def update_agent_capabilities_simple(
     return {"success": True, "agentId": agent_id, "capabilities": updated_caps}
 
 
-@router.get("/{agent_id}/capabilities/configuration")
+@router.get("/{agent_id}/capabilities/configuration", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agent_configuration(
     agent_id: str,
     current_user: TokenData = Depends(get_current_user)
@@ -292,7 +293,7 @@ async def get_agent_configuration(
         "capabilitySettings":  capability_settings,
     }
 
-@router.post("/{agent_id}/capabilities/{capability_id}/data")
+@router.post("/{agent_id}/capabilities/{capability_id}/data", dependencies=[Depends(AGENTS_GUARD)])
 async def ingest_capability_data(
     agent_id: str,
     capability_id: str,
@@ -333,7 +334,7 @@ async def ingest_capability_data(
     
     return {"success": True, "message": "Data ingested successfully"}
 
-@router.get("/capabilities/definitions")
+@router.get("/capabilities/definitions", dependencies=[Depends(AGENT_CAPABILITIES_GUARD)])
 async def get_capability_definitions(current_user: TokenData = Depends(rbac_service.has_permission("view:agents"))):
     """Get definitions of all available capabilities"""
     return {

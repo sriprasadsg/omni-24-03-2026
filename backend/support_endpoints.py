@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from catalogue_mounts_agents import CHAT_GUARD, SUPPORT_OWN_CONVERSATION, SUPPORT_PRESENCE
 from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user
@@ -102,7 +103,7 @@ def _make_msg(username: str, role: str, content: str) -> Dict[str, Any]:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.get("/conversations")
+@router.get("/conversations", dependencies=[Depends(SUPPORT_OWN_CONVERSATION)])
 async def list_conversations(
     status: Optional[str] = None,
     chat_type: Optional[str] = None,
@@ -122,7 +123,7 @@ async def list_conversations(
     return convos
 
 
-@router.post("/conversations")
+@router.post("/conversations", dependencies=[Depends(SUPPORT_OWN_CONVERSATION)])
 async def start_conversation(
     body: StartConvoRequest,
     current_user: TokenData = Depends(get_current_user),
@@ -213,7 +214,7 @@ async def start_conversation(
     return convo
 
 
-@router.get("/conversations/{convo_id}")
+@router.get("/conversations/{convo_id}", dependencies=[Depends(SUPPORT_OWN_CONVERSATION)])
 async def get_conversation(
     convo_id: str,
     current_user: TokenData = Depends(get_current_user),
@@ -226,7 +227,7 @@ async def get_conversation(
     return convo
 
 
-@router.post("/conversations/{convo_id}/messages")
+@router.post("/conversations/{convo_id}/messages", dependencies=[Depends(SUPPORT_OWN_CONVERSATION)])
 async def send_message(
     convo_id: str,
     body: SendMessageRequest,
@@ -292,7 +293,7 @@ async def send_message(
     return msg
 
 
-@router.patch("/conversations/{convo_id}/status")
+@router.patch("/conversations/{convo_id}/status", dependencies=[Depends(SUPPORT_OWN_CONVERSATION)])
 async def update_status(
     convo_id: str,
     body: UpdateStatusRequest,
@@ -315,7 +316,7 @@ async def update_status(
     return convo
 
 
-@router.post("/conversations/{convo_id}/read")
+@router.post("/conversations/{convo_id}/read", dependencies=[Depends(SUPPORT_OWN_CONVERSATION)])
 async def mark_conversation_read(
     convo_id: str,
     current_user: TokenData = Depends(get_current_user),
@@ -349,7 +350,7 @@ async def mark_conversation_read(
     return {"ok": True}
 
 
-@router.get("/presence")
+@router.get("/presence", dependencies=[Depends(SUPPORT_PRESENCE)])
 async def get_presence(
     usernames: str = "",
     current_user: TokenData = Depends(get_current_user),
@@ -360,7 +361,7 @@ async def get_presence(
     return {u: (u in user_sessions) for u in requested}
 
 
-@router.get("/unread-count")
+@router.get("/unread-count", dependencies=[Depends(SUPPORT_OWN_CONVERSATION)])
 async def unread_count(
     current_user: TokenData = Depends(get_current_user),
 ) -> Dict[str, int]:
@@ -371,7 +372,7 @@ async def unread_count(
     return {"count": count}
 
 
-@router.get("/tenant-users")
+@router.get("/tenant-users", dependencies=[Depends(CHAT_GUARD)])
 async def list_tenant_users(
     current_user: TokenData = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:

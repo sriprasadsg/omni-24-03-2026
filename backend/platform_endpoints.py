@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException
+from catalogue_mounts_agents import AGENTS_GUARD, ALERT_MANAGEMENT_GUARD, CLOUD_SECURITY_GUARD, SERVICE_CATALOG_GUARD, SETTINGS_GUARD
 
 from authentication_service import get_current_user
 from rbac_utils import require_permission
@@ -66,7 +67,7 @@ def _plat_tenant(current_user) -> str:
 # CSPM Findings
 # ══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/cspm/findings")
+@router.get("/cspm/findings", dependencies=[Depends(CLOUD_SECURITY_GUARD)])
 async def get_cspm_findings(
     tenantId: Optional[str] = None,
     current_user: TokenData = Depends(get_current_user),
@@ -87,7 +88,7 @@ async def get_cspm_findings(
 # Alert Rules  (CRUD — replaces in-memory ALERT_RULES)
 # ══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/alert-rules")
+@router.get("/alert-rules", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def list_alert_rules(
     tenantId: Optional[str] = None,
     current_user: TokenData = Depends(get_current_user),
@@ -103,7 +104,7 @@ async def list_alert_rules(
     return rules
 
 
-@router.post("/alert-rules")
+@router.post("/alert-rules", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def create_alert_rule(
     rule: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(require_permission("manage:security_cases")),
@@ -117,7 +118,7 @@ async def create_alert_rule(
     return rule
 
 
-@router.put("/alert-rules/{rule_id}")
+@router.put("/alert-rules/{rule_id}", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def update_alert_rule(
     rule_id: str,
     rule: Dict[str, Any] = Body(...),
@@ -138,7 +139,7 @@ async def update_alert_rule(
     return rule
 
 
-@router.delete("/alert-rules/{rule_id}")
+@router.delete("/alert-rules/{rule_id}", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def delete_alert_rule(
     rule_id: str,
     current_user: TokenData = Depends(require_permission("manage:security_cases")),
@@ -157,7 +158,7 @@ async def delete_alert_rule(
 # Data Sources  (CRUD — replaces in-memory DATA_SOURCES)
 # ══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/data-sources")
+@router.get("/data-sources", dependencies=[Depends(SETTINGS_GUARD)])
 async def list_data_sources(
     tenantId: Optional[str] = None,
     current_user: TokenData = Depends(get_current_user),
@@ -173,7 +174,7 @@ async def list_data_sources(
     return sources
 
 
-@router.post("/data-sources")
+@router.post("/data-sources", dependencies=[Depends(SETTINGS_GUARD)])
 async def create_data_source(
     source: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -188,7 +189,7 @@ async def create_data_source(
     return source
 
 
-@router.put("/data-sources/{source_id}")
+@router.put("/data-sources/{source_id}", dependencies=[Depends(SETTINGS_GUARD)])
 async def update_data_source(
     source_id: str,
     source: Dict[str, Any] = Body(...),
@@ -209,7 +210,7 @@ async def update_data_source(
     return source
 
 
-@router.delete("/data-sources/{source_id}")
+@router.delete("/data-sources/{source_id}", dependencies=[Depends(SETTINGS_GUARD)])
 async def delete_data_source(
     source_id: str,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -224,7 +225,7 @@ async def delete_data_source(
     return {"success": True}
 
 
-@router.post("/data-sources/{source_id}/test")
+@router.post("/data-sources/{source_id}/test", dependencies=[Depends(SETTINGS_GUARD)])
 async def test_data_source(
     source_id: str,
     _current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -285,7 +286,7 @@ async def test_data_source(
 # Agent Upgrade Jobs
 # ══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/agents/upgrade-jobs")
+@router.get("/agents/upgrade-jobs", dependencies=[Depends(AGENTS_GUARD)])
 async def list_upgrade_jobs(
     tenantId: Optional[str] = None,
     current_user: TokenData = Depends(get_current_user),
@@ -309,7 +310,7 @@ async def list_upgrade_jobs(
 # Service Catalog
 # ══════════════════════════════════════════════════════════════════════════════
 
-@router.get("/service-catalog/templates")
+@router.get("/service-catalog/templates", dependencies=[Depends(SERVICE_CATALOG_GUARD)])
 async def list_service_templates(
     _current_user: TokenData = Depends(get_current_user),
 ):
@@ -318,7 +319,7 @@ async def list_service_templates(
     return templates
 
 
-@router.post("/service-catalog/templates")
+@router.post("/service-catalog/templates", dependencies=[Depends(SERVICE_CATALOG_GUARD)])
 async def create_service_template(
     template: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(get_current_user),
@@ -334,7 +335,7 @@ async def create_service_template(
     return template
 
 
-@router.get("/service-catalog/provisioned")
+@router.get("/service-catalog/provisioned", dependencies=[Depends(SERVICE_CATALOG_GUARD)])
 async def list_provisioned_services(
     tenantId: Optional[str] = None,
     current_user: TokenData = Depends(get_current_user),
@@ -353,7 +354,7 @@ async def list_provisioned_services(
     return services
 
 
-@router.post("/service-catalog/provisioned")
+@router.post("/service-catalog/provisioned", dependencies=[Depends(SERVICE_CATALOG_GUARD)])
 async def provision_service(
     payload: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(require_permission("manage:automation")),

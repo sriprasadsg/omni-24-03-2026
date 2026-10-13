@@ -7,6 +7,7 @@ Frontend calls GET /api/agents/{id}/metrics/history for charts.
 import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends
+from catalogue_mounts_agents import AGENTS_GUARD
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from database import get_database
@@ -105,7 +106,7 @@ async def record_agent_metrics(
 _METRICS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 
-@router.get("/{agent_id}/metrics/history")
+@router.get("/{agent_id}/metrics/history", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agent_metrics_history(
     agent_id: str,
     hours: int = 24,
@@ -156,7 +157,7 @@ async def get_agent_metrics_history(
     return {"agent_id": agent_id, "hours": hours, "metrics": metrics, "summary": summary}
 
 
-@router.get("/{agent_id}/metrics/current")
+@router.get("/{agent_id}/metrics/current", dependencies=[Depends(AGENTS_GUARD)])
 async def get_current_agent_metrics(agent_id: str, current_user=Depends(get_current_user)):
     """Get the most recent metrics snapshot for an agent."""
     db = get_database()

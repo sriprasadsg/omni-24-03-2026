@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from catalogue_mounts_agents import CHAT_GUARD
 from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user, get_current_user_or_agent
@@ -195,7 +196,7 @@ async def list_sessions(
 
 # ── Admin: get full session ───────────────────────────────────────────────────
 
-@router.get("/sessions/{session_id}")
+@router.get("/sessions/{session_id}", dependencies=[Depends(CHAT_GUARD)])
 async def get_session(
     session_id: str,
     current_user: TokenData = Depends(get_current_user),
@@ -214,7 +215,7 @@ async def get_session(
 
 # ── Admin: send a message to the endpoint ────────────────────────────────────
 
-@router.post("/sessions/{session_id}/admin-message")
+@router.post("/sessions/{session_id}/admin-message", dependencies=[Depends(CHAT_GUARD)])
 async def admin_send_message(
     session_id: str,
     body: SendMessageRequest,
@@ -410,7 +411,7 @@ async def poll_messages(
 
 # ── List platform admins available for escalation ────────────────────────────
 
-@router.get("/platform-admins")
+@router.get("/platform-admins", dependencies=[Depends(CHAT_GUARD)])
 async def list_platform_admins(
     current_user: TokenData = Depends(get_current_user),
 ) -> List[Dict[str, Any]]:
@@ -516,7 +517,7 @@ async def initiate_session(
 
 # ── Admin: escalate an endpoint chat to platform admin ───────────────────────
 
-@router.post("/sessions/{session_id}/escalate")
+@router.post("/sessions/{session_id}/escalate", dependencies=[Depends(CHAT_GUARD)])
 async def escalate_session(
     session_id: str,
     body: EscalateSessionRequest,
