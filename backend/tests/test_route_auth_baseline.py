@@ -9,12 +9,9 @@ not listed here. Entries on the list are public by design or check a
 credential inside the handler; the list should only shrink.
 Hermetic — no Mongo (routes are registered, never called).
 """
-import json
-import os
-import subprocess
-import sys
-
 import pytest
+
+from tests._route_walk import run_real_app_walk
 
 # (method, path). "WS" marks a websocket route.
 REVIEWED_UNAUTHENTICATED = frozenset({
@@ -61,92 +58,11 @@ REVIEWED_UNAUTHENTICATED = frozenset({
 })
 
 
-# Runs in a fresh interpreter: other tests reload authentication_service or swap
-# its functions, which would break the identity checks below.
-_WALK = r"""
-import inspect, json, logging, re, sys
-logging.disable(logging.CRITICAL)
-from fastapi import FastAPI
-from fastapi.routing import APIRoute, APIWebSocketRoute, _IncludedRouter
-import agent_auth, api_key_auth, authentication_service as auth
-from router_registry import register_all_routers
-
-AUTH = {auth.get_current_user, auth.get_current_user_or_agent, auth.get_current_user_mfa_pending,
-        agent_auth.verify_agent_key, api_key_auth.get_current_user_or_api_key}
-
-def walk(routes, include_deps=()):
-    for route in routes:
-        if isinstance(route, _IncludedRouter):
-            deps = include_deps + tuple(route.include_context.dependencies or ())
-            for c in route.effective_candidates():
-                if isinstance(c, _IncludedRouter):
-                    yield from walk([c], deps)
-                else:
-                    path = c.starlette_route.path if c.starlette_route is not None else c.path
-                    yield path, c.original_route, deps
-        elif isinstance(route, (APIRoute, APIWebSocketRoute)):
-            yield route.path, route, include_deps
-
-def has_auth(dep):
-    return dep.call in AUTH or any(has_auth(d) for d in dep.dependencies)
-
-USER_AUTH = AUTH - {agent_auth.verify_agent_key}
-PERM_DEP = re.compile(r"has_permission|require_permission|require_super_admin|require_role|require_admin|_require_|check_ops_permission")
-# Role/permission checks in the handler body. A 403 alone doesn't count: many
-# handlers only refuse a missing tenant ("Tenant context required").
-PERM_BODY = re.compile(r"verify_permission\(|has_permission\(|is_super_admin\(|_is_super\(|_is_admin\(|_require_\w+\(|_check_auth\(")
-# A role comparison is authorisation only if the handler can refuse: many
-# handlers compare the role just to decide whether to add a tenant filter, and
-# then let any signed-in user through (a viewer could delete agents that way).
-ROLE_CMP = re.compile(r"[\"']role[\"'][^\n]*\)\s*(!=|==|(not\s+)?in\s)|\w*role\([^)]*\)\s*(not\s+)?in\s|role\s+(not\s+)?in\s|role\s*[!=]=")
-DENIES = re.compile(r"status_code\s*=\s*(403|status\.HTTP_403)|HTTP_403_FORBIDDEN|PermissionError")
-
-def dep_calls(dep, acc):
-    acc.append(dep.call)
-    for d in dep.dependencies:
-        dep_calls(d, acc)
-    return acc
-
-def login_only(route, include_deps):
-    calls = dep_calls(route.dependant, []) + [getattr(d, "dependency", None) for d in include_deps]
-    if not any(c in USER_AUTH for c in calls):
-        return False
-    names = [getattr(c, "__qualname__", "") for c in calls if c is not None]
-    if any(PERM_DEP.search(n) for n in names):
-        return False
-    try:
-        body = inspect.getsource(route.endpoint).split(":", 1)[1]
-    except (OSError, TypeError):
-        body = ""
-    return not (PERM_BODY.search(body) or (ROLE_CMP.search(body) and DENIES.search(body)))
-
-app = FastAPI()
-register_all_routers(app)
-found, writes, total = set(), set(), 0
-for path, route, deps in walk(app.routes):
-    if not isinstance(route, (APIRoute, APIWebSocketRoute)):
-        continue
-    total += 1
-    mutating = (getattr(route, "methods", None) or set()) & {"POST", "PUT", "PATCH", "DELETE"}
-    if isinstance(route, APIRoute) and mutating and login_only(route, deps):
-        writes.update((m, path) for m in mutating)
-    if any(getattr(d, "dependency", None) in AUTH for d in deps) or has_auth(route.dependant):
-        continue
-    for method in sorted(getattr(route, "methods", None) or {"WS"}):
-        found.add((method, path))
-json.dump({"total": total, "unauthenticated": sorted(found), "login_only_writes": sorted(writes)}, sys.stdout)
-"""
-
-
 @pytest.fixture(scope="module")
 def route_walk():
-    backend = os.path.join(os.path.dirname(__file__), "..")
-    proc = subprocess.run([sys.executable, "-c", _WALK], cwd=backend, capture_output=True,
-                          text=True, timeout=300)
-    assert proc.returncode == 0, proc.stderr[-2000:]
-    result = json.loads(proc.stdout.strip().splitlines()[-1])
-    assert result["total"] > 1000  # guards against the walk silently covering nothing
-    return result
+    # The walk runs in a fresh interpreter (see tests/_route_walk.py): other tests
+    # reload authentication_service or swap its functions.
+    return run_real_app_walk()
 
 
 @pytest.fixture(scope="module")
