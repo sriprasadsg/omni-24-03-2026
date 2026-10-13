@@ -29,6 +29,13 @@ One shared manifest defines each left-nav catalogue once (required permission + 
 - **D-05:** **Deny-by-default:** the backend route-parity test fails when an in-scope catalogue route is unguarded, **and** when any router has no permission guard and is not listed in the committed gap ledger. Adding a router therefore requires either a guard or a ledger entry with a stated reason.
 - **D-06:** A frontend test fails when the sidebar and the manifest drift (e.g. a nav item with no manifest entry, or a manifest entry with no nav item).
 
+### Post-research amendments (2026-10-13, user-approved after 76-RESEARCH.md)
+- **D-07:** The `manage:X` ⇒ `view:X` read closure (D-03) is applied in the **backend guard only** this phase (the guard checks both strings, since the Phase 75 resolver applies no closure). Delivering the closure through `/me` (which would make the Assets nav visible to `itam_admin`) is deferred to Phase 77; Phase 75 delivery tests stay unchanged.
+- **D-08:** Payments/billing routes behind Subscription, Invoices and Knowledge Base require **`manage:settings`**; FinOps reads require **`view:finops`** (replacing the everyone-has-it `view:dashboard`).
+- **D-09:** `/api/users` and `/api/roles` **keep their existing guards** (user CRUD: current check plus the Phase 75 assignment ceiling; role/user listing reads accept `manage:users` OR `manage:rbac`); they are tagged for the parity test, not re-permissioned.
+- **D-10:** The D-04 strip covers purchase cost, book value, **warranty fields and `supplierId`** for callers without `view:itam`; the strip must copy (the `@cached` layer returns shared objects).
+- **D-11:** For the nine mismatched views, the **Sidebar.tsx permission string wins**; `view:jobs` stays super-admin-only (Phase 75 D-03).
+
 ### Claude's Discretion
 - Manifest location and format (research suggested `shared/catalogue-access.json` plus a typed `catalogueAccess.ts` reader) and how Vite/vitest import it.
 - Gap-ledger file format and location (research suggested `shared/catalogue-gaps.json`), and how each entry states its reason.
