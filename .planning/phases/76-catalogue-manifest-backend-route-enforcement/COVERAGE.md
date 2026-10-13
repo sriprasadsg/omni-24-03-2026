@@ -1,0 +1,1 @@
+No external API integration: Phase 76 adds permission guards to the platform's own FastAPI routes, a shared JSON catalogue manifest read by the React frontend and tests, and parity/ledger tests; the detector matched internal route ("endpoints") and API-key wording, not a third-party API, SDK or service.
