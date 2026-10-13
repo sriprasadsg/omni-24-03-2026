@@ -19,6 +19,7 @@ import rbac_defaults
 from role_assignment import assert_can_assign_role, assert_can_manage_account
 from auth_types import TokenData
 from tenant_context import get_tenant_id
+from audit_service import get_audit_service
 import datetime
 from pymongo.errors import DuplicateKeyError
 
@@ -66,14 +67,13 @@ async def _tenant_exists(db, tenant_id: str) -> bool:
 
 
 async def _audit(db, action: str, actor: str, target: str, tenant_id: str):
+    # The shared hash-chained writer, so the entry has the schema /api/audit-logs
+    # reads (tenantId, userName, resourceType, resourceId) and joins the tenant's chain.
     try:
-        await db.audit_logs.insert_one({
-            "action": action,
-            "actor": actor,
-            "target": target,
-            "tenant_id": tenant_id,
-            "timestamp": datetime.datetime.now(timezone.utc).isoformat(),
-        })
+        await get_audit_service().log_action_async(
+            user_name=actor, action=action, resource_type="user", resource_id=target,
+            details=f"{action}: {target}", tenant_id=tenant_id,
+        )
     except Exception as e:
         logger.error("Audit log write failed: %s", e)
 
