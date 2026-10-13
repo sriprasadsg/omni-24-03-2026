@@ -48,6 +48,17 @@ def test_assets_real_app_enforced():
     assert allowed_cert != 403
 
 
+def test_compliance_and_scan_asset_routes_enforced_on_real_app():
+    refused = probe_real_app([
+        _case("/api/assets/a1/compliance", "nobody"),
+        _case("/api/assets/a1/compliance/status", "nobody", method="PATCH"),
+        _case("/api/assets/a1/scan", "nobody", method="POST"),
+        _case("/api/vulnerability-scans/schedule", "nobody", method="POST"),
+    ])
+    assert refused == [403, 403, 403, 403]
+    assert probe_real_app([_case("/api/assets/a1/compliance", "viewer")])[0] != 403
+
+
 def test_itam_reads_follow_view_itam_on_real_app():
     viewer_denied, itam_viewer_ok, itam_admin_ok = probe_real_app([
         _case("/api/itam/kpis", "viewer", api_key=True),        # holds view:assets, not view:itam

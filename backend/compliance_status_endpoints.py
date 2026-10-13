@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from database import get_database
 from authentication_service import get_current_user
 from cache_service import invalidate_cache
+from catalogue_mounts_assets import ASSETS_GUARD
 
 router = APIRouter()
 
@@ -32,7 +33,7 @@ class ComplianceStatusUpdate(BaseModel):
     notes: str = Field("", max_length=2000)
 
 
-@router.patch("/api/assets/{asset_id}/compliance/status")
+@router.patch("/api/assets/{asset_id}/compliance/status", dependencies=[Depends(ASSETS_GUARD)])
 async def patch_asset_compliance_status(
     asset_id: str,
     body: ComplianceStatusUpdate,

@@ -7,6 +7,7 @@ from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
 from rbac_utils import is_super_admin
+from catalogue_mounts_assets import ASSETS_GUARD, VULNERABILITY_GUARD
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def _sec_caller_tenant(current_user) -> str:
     return tid
 
 
-@router.post("/vulnerability-scans/schedule")
+@router.post("/vulnerability-scans/schedule", dependencies=[Depends(VULNERABILITY_GUARD)])
 async def schedule_vulnerability_scan(
     data: dict,
     current_user: TokenData = Depends(require_permission("investigate:security")),
@@ -49,7 +50,7 @@ async def schedule_vulnerability_scan(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/assets/{asset_id}/scan")
+@router.post("/assets/{asset_id}/scan", dependencies=[Depends(ASSETS_GUARD)])
 async def trigger_asset_scan(
     asset_id: str,
     current_user: TokenData = Depends(get_current_user),

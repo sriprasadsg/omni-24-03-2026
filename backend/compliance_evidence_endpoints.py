@@ -13,6 +13,7 @@ from rate_limiter import limiter
 from compliance_artifacts_endpoints import UPLOAD_DIR, _write_binary, _ALLOWED_UPLOAD_EXTENSIONS, _ALLOWED_UPLOAD_MIME_PREFIXES, _check_magic, _SUPER_ROLES
 from evidence_coc import _append_coc_entry
 from evidence_staleness import get_staleness_threshold, compute_stale
+from catalogue_mounts_assets import ASSETS_GUARD
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ _EVIDENCE_ALLOWED_MIME_PREFIXES: tuple[str, ...] = (
 )
 
 
-@router.post("/api/assets/{asset_id}/compliance/evidence")
+@router.post("/api/assets/{asset_id}/compliance/evidence", dependencies=[Depends(ASSETS_GUARD)])
 @limiter.limit("30/hour")
 async def upload_compliance_evidence(
     request: Request,
@@ -221,7 +222,7 @@ async def download_compliance_evidence(
     )
 
 
-@router.get("/api/assets/{asset_id}/compliance")
+@router.get("/api/assets/{asset_id}/compliance", dependencies=[Depends(ASSETS_GUARD)])
 async def get_asset_compliance(
     asset_id: str,
     current_user=Depends(get_current_user),
@@ -248,7 +249,7 @@ async def get_asset_compliance(
     return await cursor.to_list(length=1000)
 
 
-@router.delete("/api/assets/{asset_id}/compliance/evidence/{evidence_id}")
+@router.delete("/api/assets/{asset_id}/compliance/evidence/{evidence_id}", dependencies=[Depends(ASSETS_GUARD)])
 async def delete_compliance_evidence(
     asset_id: str,
     evidence_id: str,
