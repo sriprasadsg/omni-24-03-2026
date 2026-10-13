@@ -9,6 +9,7 @@ import re
 from cache_service import cached, invalidate_cache
 from pagination_utils import paginate_mongo_query, PaginationParams
 from itam_models import DEFAULT_LIFECYCLE_STATUS
+from asset_finance_fields import finance_filtered
 
 router = APIRouter(prefix="/api/assets", tags=["Assets"])
 
@@ -59,6 +60,7 @@ def _normalize_disks(raw_disks) -> List[Dict[str, Any]]:
     return out
 
 @router.get("")
+@finance_filtered
 @cached(ttl=60, key_prefix="assets")
 async def get_assets(
     page: int = Query(1, ge=1),
@@ -103,6 +105,7 @@ async def get_assets(
     return result
 
 @router.get("/search")
+@finance_filtered
 @cached(ttl=30, key_prefix="assets_search")
 async def search_assets(
     q: str = Query(..., min_length=1, description="Search query"),
@@ -156,6 +159,7 @@ async def bulk_delete_assets_route(
 
 
 @router.get("/{asset_id}")
+@finance_filtered
 async def get_asset_details(
     asset_id: str,
     db=Depends(get_database),
