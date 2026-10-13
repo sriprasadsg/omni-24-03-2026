@@ -11,6 +11,8 @@ import importlib
 import logging
 from fastapi import FastAPI, APIRouter, Depends
 
+from catalogue_mounts import mount_dependencies
+
 logger = logging.getLogger(__name__)
 
 # Routers that MUST be present for the application to be usable.
@@ -58,6 +60,9 @@ def _load(app: FastAPI, module_name: str, attr: str = "router", **kwargs) -> Non
     """
     try:
         mod = importlib.import_module(module_name)
+        guards = mount_dependencies(module_name, attr)
+        if guards:
+            kwargs["dependencies"] = [*(kwargs.get("dependencies") or []), *guards]
         app.include_router(getattr(mod, attr), **kwargs)
         logger.debug("[Router] Loaded %s", module_name)
     except Exception as exc:

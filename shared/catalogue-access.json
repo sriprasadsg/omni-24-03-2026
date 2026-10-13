@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "groups": [
+    { "id": "dashboards", "title": "Dashboards & Insights", "enforce": false },
+    { "id": "observability", "title": "Observability", "enforce": false },
+    { "id": "infra", "title": "Infrastructure & Assets", "enforce": true },
+    { "id": "security", "title": "Security (SecOps)", "enforce": true },
+    { "id": "devsecops", "title": "DevSecOps & Engineering", "enforce": false },
+    { "id": "governance", "title": "Governance & Compliance", "enforce": false },
+    { "id": "automation", "title": "Automation & Intelligence", "enforce": false },
+    { "id": "mgmt", "title": "Management & Settings", "enforce": true }
+  ],
+  "catalogues": [
+    { "view": "mobileDeviceManagement", "label": "Mobile Device Management", "group": "infra", "nav": true, "permission": "view:mdm", "write": ["manage:assets"], "routes": ["/api/mdm"] }
+  ],
+  "unownedPrefixes": []
+}
