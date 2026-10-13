@@ -76,6 +76,8 @@ class TestAgentCoreEndpoints:
         return app
 
     def test_list_agents_returns_200(self, tenant_user):
+        from dataclasses import replace
+        tenant_user = replace(tenant_user, role="tenant_admin")  # holds view:agents + manage:agents (76-05 catalogue guard)
         db = _db("agents")
         paged = {"items": [], "total": 0, "page": 1, "pageSize": 50, "totalPages": 0, "hasNext": False, "hasPrev": False}
         app = self._make_app(tenant_user, db)
@@ -87,6 +89,8 @@ class TestAgentCoreEndpoints:
         assert isinstance(resp.json(), (list, dict))
 
     def test_search_agents_returns_200(self, tenant_user):
+        from dataclasses import replace
+        tenant_user = replace(tenant_user, role="tenant_admin")  # holds view:agents + manage:agents (76-05 catalogue guard)
         db = _db("agents")
         app = self._make_app(tenant_user, db)
         with TestClient(app) as client:
@@ -94,6 +98,8 @@ class TestAgentCoreEndpoints:
         assert resp.status_code == 200
 
     def test_bulk_delete_no_ids_returns_error(self, tenant_user):
+        from dataclasses import replace
+        tenant_user = replace(tenant_user, role="tenant_admin")  # holds view:agents + manage:agents (76-05 catalogue guard)
         db = _db("agents")
         app = self._make_app(tenant_user, db)
         with TestClient(app) as client:
@@ -101,6 +107,8 @@ class TestAgentCoreEndpoints:
         assert resp.status_code in (400, 422)
 
     def test_diagnostics_agent_not_found_returns_404(self, tenant_user):
+        from dataclasses import replace
+        tenant_user = replace(tenant_user, role="tenant_admin")  # holds view:agents + manage:agents (76-05 catalogue guard)
         db = _db("agents", "agent_instructions")
         db.agents.find_one = AsyncMock(return_value=None)
         app = self._make_app(tenant_user, db)
