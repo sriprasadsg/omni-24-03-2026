@@ -2,7 +2,7 @@
 
 Receives batched host events (process/network/registry/DNS) and behavioural detections
 from the Windows agent's ETW engine, stores them tenant-scoped, and raises security
-alerts for high/critical detections. See agent-rust/docs/etw-telemetry-design.md.
+alerts for high/critical detections. See archive/agent-rust/docs/etw-telemetry-design.md (legacy tree).
 """
 from fastapi import APIRouter, Depends, Query, Body
 from typing import Dict, Any, List

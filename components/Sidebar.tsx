@@ -466,7 +466,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     }, [navGroups, isViewingTenant, currentUser, hasPermission, serverLockedFeatures, isBundleMode, hasFeature]);
 
     return (
-        <aside className={`flex-shrink-0 glass border-r-0 flex flex-col transition-all duration-300 ease-in-out z-40 ${isOpen ? 'w-64' : 'w-20'} `} >
+        <aside className={`flex-shrink-0 glass border-r-0 flex flex-col transition-all duration-300 ease-in-out z-40 ${isOpen ? 'w-64 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:shadow-2xl' : 'w-20'} `} >
             {/* Logo Section */}
             <div className="flex items-center justify-center h-16 border-b border-white/5 bg-transparent" >
                 {
@@ -481,7 +481,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                     isOpen && (
                         <div className="ml-3 flex flex-col justify-center">
                             <span className="font-bold text-gray-900 dark:text-gray-100 leading-tight">
-                                {branding?.companyName || 'Genesis'}
+                                {branding?.companyName || 'Omni-Agent'}
                             </span>
                             <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium tracking-wider">
                                 AI PLATFORM

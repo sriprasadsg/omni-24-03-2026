@@ -435,39 +435,85 @@ async def get_email_config(tenant_id: str, current_user=Depends(get_current_user
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"emailConfig": 1, "_id": 0})
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    config = dict(tenant.get("emailConfig", {}))
-    smtp_password_set = bool(config.pop("smtpPassword", None))
-    return {"success": True, "config": config, "smtpPasswordSet": smtp_password_set}
+    config = dict(tenant.get("emailConfig", {}) or {})
+    enc = config.pop("smtpPasswordEncrypted", None)
+    legacy = config.pop("smtpPassword", None)
+    config.pop("smtpPassword", None)  # paranoia: no plaintext leak
+    return {"success": True, "config": config, "smtpPasswordSet": bool(enc or legacy)}
 
 
 def _encrypt_smtp_password(plaintext: str) -> str:
-    """Encrypt an SMTP password with Fernet; falls back to a tagged plaintext if key unset."""
-    import os as _os
-    key = _os.getenv("INTEGRATION_ENCRYPTION_KEY", "")
-    if not key:
-        return plaintext
+    """Encrypt SMTP password via email_service. Raises 400 if key misconfigured."""
+    from email_service import email_service as _es
     try:
-        from cryptography.fernet import Fernet
-        return "enc:" + Fernet(key.encode() if isinstance(key, str) else key).encrypt(plaintext.encode()).decode()
-    except Exception:
-        return plaintext
+        return _es.encrypt_password(plaintext)
+    except Exception as exc:  # Fernet ValueError when EMAIL_ENCRYPTION_KEY invalid
+        logger.error("SMTP password encryption failed: %s", exc)
+        raise HTTPException(
+            status_code=400, detail="SMTP encryption not configured — set EMAIL_ENCRYPTION_KEY"
+        ) from exc
 
 
 @router.post("/{tenant_id}/email/config")
 async def save_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(require_permission("manage:settings"))):
     _assert_tenant_access(current_user, tenant_id)
+    logger.info(f"save_email_config called for tenant_id={tenant_id}, data_keys={list(data.keys())}")
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    existing = tenant.get("emailConfig", {})
-    # Preserve existing (already encrypted) password if blank submitted
-    if not data.get("smtpPassword"):
-        data["smtpPassword"] = existing.get("smtpPassword", "")
-    elif not data["smtpPassword"].startswith("enc:"):
-        data["smtpPassword"] = _encrypt_smtp_password(data["smtpPassword"])
+    existing = tenant.get("emailConfig", {}) or {}
+    raw_pwd = data.pop("smtpPassword", "")
+    submitted = (raw_pwd or "").strip() if isinstance(raw_pwd, str) else ""
+    # Map snake_case from frontend to camelCase for storage
+    snake_to_camel = {
+        "smtp_host": "smtpHost",
+        "smtp_port": "smtpPort",
+        "smtp_user": "smtpUser",
+        "from_email": "fromEmail",
+        "from_name": "fromName",
+        "use_tls": "useTLS",
+        "enable_tls": "enable_tls",
+        "enable_ssl": "enable_ssl",
+        "encryption": "encryption",
+    }
+    data = {snake_to_camel.get(k, k): v for k, v in data.items()}
+    logger.info(f"After snake_to_camel mapping: data_keys={list(data.keys())}")
+    # ponytail: whitelist keeps emailConfig bounded; add field here when UI adds one
+    allowed = {"smtpHost", "smtpPort", "smtpUser", "fromEmail", "fromName", "useTLS", "encryption", "enable_tls", "enable_ssl"}
+    clean: Dict[str, Any] = {k: data[k] for k in allowed if k in data}
+    logger.info(f"clean dict: {clean}")
+    # normalize port early so bad input is 400 not 500
+    if "smtpPort" in clean:
+        try:
+            clean["smtpPort"] = int(clean["smtpPort"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="smtpPort must be a number")
+    clean.pop("smtpPassword", None)
+    clean.pop("smtpPasswordEncrypted", None)
+    # Preserve existing ciphertext when blank/"********" submitted; defer legacy migration to avoid 400 on blank save when key bad
+    if not submitted or submitted == "********":
+        existing_enc = existing.get("smtpPasswordEncrypted", "")
+        if existing_enc:
+            clean["smtpPasswordEncrypted"] = existing_enc
+        elif existing.get("smtpPassword"):
+            try:
+                clean["smtpPasswordEncrypted"] = _encrypt_smtp_password(existing["smtpPassword"])
+            except HTTPException:
+                # key misconfigured — keep legacy verbatim so blank save never 400; migration retries on next real password save
+                clean["smtpPassword"] = existing["smtpPassword"]
+                clean["smtpPasswordEncrypted"] = ""
+        else:
+            clean["smtpPasswordEncrypted"] = ""
+    else:
+        if submitted.startswith("enc:"):
+            clean["smtpPasswordEncrypted"] = existing.get("smtpPasswordEncrypted", "")
+            if not clean["smtpPasswordEncrypted"]:
+                clean["smtpPasswordEncrypted"] = _encrypt_smtp_password(submitted[4:])
+        else:
+            clean["smtpPasswordEncrypted"] = _encrypt_smtp_password(submitted)
     await mongodb.db.tenants.update_one(
         {"id": tenant_id},
-        {"$set": {"emailConfig": data, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"emailConfig": clean, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     return {"success": True, "message": "Email configuration saved"}
 
@@ -478,31 +524,40 @@ async def test_email_config(tenant_id: str, data: Dict[str, Any], current_user=D
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    cfg = tenant.get("emailConfig", {})
+    cfg = tenant.get("emailConfig", {}) or {}
     if not cfg.get("smtpHost"):
         return {"success": False, "message": "SMTP not configured — save a configuration first"}
-
+    try:
+        smtp_port = int(cfg.get("smtpPort", 587))
+    except (TypeError, ValueError):
+        return {"success": False, "message": "Stored smtpPort is invalid — re-save configuration"}
+    enc = cfg.get("smtpPasswordEncrypted", "")
+    if not enc and cfg.get("smtpPassword"):
+        try:
+            enc = _encrypt_smtp_password(cfg["smtpPassword"])
+        except HTTPException as he:
+            return {"success": False, "message": he.detail}
     from email_service import email_service as _es
     smtp_cfg = {
         "smtpHost": cfg.get("smtpHost", ""),
-        "smtpPort": int(cfg.get("smtpPort", 587)),
+        "smtpPort": smtp_port,
         "smtpUser": cfg.get("smtpUser", ""),
-        "smtpPasswordEncrypted": cfg.get("smtpPassword", ""),
+        "smtpPasswordEncrypted": enc,
         "useTLS": cfg.get("useTLS", True),
     }
     result = await _es.verify_smtp_config(smtp_cfg)
     if not result.get("success"):
         return result
-
-    # Optionally send a test message
-    test_email = data.get("testEmail", "")
+    test_email = (data.get("testEmail", "") or "").strip()
     if test_email:
-        send_cfg = {**smtp_cfg, "from_email": cfg.get("fromEmail", smtp_cfg["smtpUser"])}
+        send_cfg = {**smtp_cfg, "fromEmail": cfg.get("fromEmail", smtp_cfg["smtpUser"]), "fromName": cfg.get("fromName", "Omni-Agent")}
+        body = "SMTP connectivity test from Omni-Agent platform. Your email configuration is working correctly."
         await _es.send_email(
+            smtp_config=send_cfg,
             to_email=test_email,
             subject="Omni-Agent SMTP Test",
-            html_content="<p>SMTP connectivity test from Omni-Agent platform. Your email configuration is working correctly.</p>",
-            smtp_config=send_cfg,
+            body_text=body,
+            body_html=f"<p>{body}</p>",
         )
     return {"success": True, "message": f"SMTP connection verified{' and test email sent to ' + test_email if test_email else ''} via {cfg['smtpHost']}"}
 
@@ -562,7 +617,7 @@ async def revoke_api_key(
         tenant_name = tenant_id
         svc = get_notification_service(get_database())
         await svc.send_alert(
-            title=f"API Key Revoked",
+            title="API Key Revoked",
             message=f"API key {key_id} revoked for tenant {tenant_name}.",
             severity="info",
             recipients=[],

@@ -6,7 +6,7 @@ from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission
 from datetime import datetime, timezone
 import uuid
-from agent_auth import verify_agent_key
+from agent_auth import verify_agent_key, caller_agent_id
 from tunnel_endpoints import deliverable_payload
 from rate_limiter import limiter
 from tickets_service import tickets_service
@@ -26,15 +26,15 @@ async def get_agent_instructions(
     request: Request,
     _tenant: Dict[str, Any] = Depends(verify_agent_key)
 ):
-    """Get pending instructions for a specific agent (by hostname). Polled by the agent."""
+    """Get pending instructions for a specific agent (by hostname or agent id).
+    Polled by the agent, which must present its own token: reading marks the
+    instructions sent, and their payloads can carry deployment credentials."""
     db = get_database()
     tenant_id = _tenant.get("tenant_id") or _tenant.get("tenantId") or _tenant.get("id", "")
 
-    agent = await db.agents.find_one({"hostname": hostname, "tenantId": tenant_id})
-    agent_id = agent["id"] if agent else hostname
-
+    # verify_agent_key refused the registration key and any other agent's token.
     query = {
-        "$or": [{"agent_id": hostname}, {"agent_id": agent_id}],
+        "$or": [{"agent_id": hostname}, {"agent_id": caller_agent_id(_tenant)}],
         "status": "pending",
         "tenantId": tenant_id,
     }
@@ -81,6 +81,8 @@ async def report_instruction_result(
 
     task_id = result.get("task_id")
     if task_id:
+        # Only this agent's own instructions (queued under its id or hostname).
+        own_task = {"id": task_id, "agent_id": {"$in": [hostname, caller_agent_id(_tenant)]}}
         raw_status = result.get("status", "unknown")
         mapped = "SUCCESS" if raw_status == "success" else ("FAILURE" if raw_status == "error" else raw_status.upper())
         nested = result.get("result") if isinstance(result.get("result"), dict) else {}
@@ -90,7 +92,7 @@ async def report_instruction_result(
         if error_msg and "Unknown instruction" in error_msg:
             error_msg = f"Agent binary is outdated — URL install requires agent v2.0+. Update the agent from the Agent Installation page. (detail: {error_msg})"
         await db.agent_instructions.update_one(
-            {"id": task_id},
+            own_task,
             {"$set": {
                 "status": mapped,
                 "result": {
@@ -101,6 +103,18 @@ async def report_instruction_result(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }}
         )
+        # A patch instruction the agent rejected outright (e.g. an agent build without
+        # install_patches support) never reaches /api/deployments/{job}/result, so fail
+        # this agent's share of the job here instead of leaving it "In Progress" forever.
+        if raw_status == "error":
+            task = await db.agent_instructions.find_one(
+                own_task, {"_id": 0, "type": 1, "job_id": 1, "agent_id": 1})
+            if task and task.get("type") in ("os_patch_install", "os_patch_rollback") and task.get("job_id"):
+                from deployment_result_endpoints import record_agent_patch_result
+                await record_agent_patch_result(db, task["job_id"], task["agent_id"], {
+                    "status": "failed", "error": error_msg or "Agent rejected the patch instruction",
+                    "results": [], "total": 0,
+                })
 
     # Rust agent wraps its result as {"result": {"compliance_checks": [...]}}; Python callers
     # post compliance_checks at the top level. Accept both shapes.

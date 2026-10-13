@@ -5,7 +5,7 @@ Stores in MongoDB and surfaces them to the frontend EDR Dashboard.
 Automatically routes each incoming alert through the response orchestrator
 so that enabled policies can trigger kill/quarantine/isolate actions.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
@@ -105,23 +105,24 @@ class IOCEntry(BaseModel):
 
 async def _verify_edr_agent(
     batch: EDREventBatch,
+    request: Request,
     x_tenant_key: Optional[str] = Header(None, alias="X-Tenant-Key"),
     authorization: Optional[str] = Header(None),
     db=Depends(get_database),
 ) -> EDREventBatch:
     """
-    Verify the inbound EDR batch comes from a registered agent.
-    Accepts the same credentials as other agent endpoints:
-      • X-Tenant-Key header (legacy)
-      • Authorization: Bearer <agent-jwt>
-    Also cross-checks that batch.agent_id is registered in the tenant.
+    Verify the inbound EDR batch comes from the agent it names: the
+    Authorization: Bearer <agent-jwt> of batch.agent_id (the tenant
+    registration key only proves the tenant). Also cross-checks that
+    batch.agent_id is registered in the tenant.
     """
-    from agent_endpoints import verify_agent_key
+    from agent_auth import verify_agent_key, caller_agent_id, require_agent_named
     # Reuse the existing agent-key / JWT verifier — raises HTTP 401/403 on failure
-    tenant = await verify_agent_key(x_tenant_key=x_tenant_key, authorization=authorization, db=db)
+    tenant = await verify_agent_key(request=request, x_tenant_key=x_tenant_key, authorization=authorization, db=db)
 
     # Ensure the reported agent_id actually belongs to the authenticated tenant
     tenant_id = tenant.get("id") or tenant.get("tenantId")
+    await require_agent_named(caller_agent_id(tenant), tenant_id, batch.agent_id, db)
     agent = await db.agents.find_one({"id": batch.agent_id, "tenantId": tenant_id}, {"_id": 1})
     if not agent:
         # Allow newly-registered agents a grace period (registration may still be in-flight)
