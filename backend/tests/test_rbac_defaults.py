@@ -22,7 +22,7 @@ GOLDEN = {
         "manage:connectors_hub", "manage:detection_rules", "manage:device_config_profiles",
         "manage:devsecops", "manage:experiments", "manage:fim", "manage:finance",
         "manage:firmware_drivers", "manage:itam", "manage:licenses", "manage:mam", "manage:mdm",
-        "manage:mssp", "manage:patches", "manage:playbooks", "manage:pricing",
+        "manage:mssp", "manage:patches", "manage:playbooks",
         "manage:procurement", "manage:rbac", "manage:retention_policies", "manage:sbom",
         "manage:sca", "manage:secrets", "manage:security_cases", "manage:security_playbooks",
         "manage:settings", "manage:users", "remediate:agents", "request:assets",
@@ -85,7 +85,7 @@ GOLDEN = {
     }),
 }
 
-GOLDEN_SIZES = {"tenant_admin": 127, "user": 22, "analyst": 19, "security_analyst": 17,
+GOLDEN_SIZES = {"tenant_admin": 126, "user": 22, "analyst": 19, "security_analyst": 17,
                 "incident_responder": 12, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4}
 
 D02_VIEW = [
@@ -146,7 +146,7 @@ def test_d02_catalogues_belong_to_tenant_admin_only():
 
 def test_super_admin_only_catalogues_and_manage_tenants_are_never_granted():
     """D-03 / D-06"""
-    assert len(d.SUPER_ADMIN_ONLY_PERMISSIONS) == 7
+    assert len(d.SUPER_ADMIN_ONLY_PERMISSIONS) == 8  # + manage:pricing (QA ISSUE-005)
     assert "manage:tenants" in d.SUPER_ADMIN_ONLY_PERMISSIONS
     for key, perms in d.ROLE_DEFAULTS.items():
         assert not (d.SUPER_ADMIN_ONLY_PERMISSIONS & set(perms)), key
