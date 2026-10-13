@@ -5,6 +5,8 @@ from database import get_database
 from authentication_service import get_current_user, create_access_token, SECRET_KEY, ALGORITHM, is_agent_payload
 from rbac_utils import require_permission
 from datetime import datetime, timezone, timedelta
+import asyncio
+import contextlib
 import hashlib
 import hmac
 import secrets
@@ -58,6 +60,43 @@ async def _proves_agent_identity(db, existing_agent: dict, tenant_id: str, data:
     return True
 
 
+_ENROLLMENT_LOCK_TTL = timedelta(seconds=10)
+_ENROLLMENT_LOCK_ATTEMPTS = 60
+_ENROLLMENT_LOCK_RETRY_S = 0.05
+
+
+@contextlib.asynccontextmanager
+async def _tenant_enrollment_lock(db, tenant_id: str):
+    """Serialize a tenant's seat-limit check and agent insert across requests and
+    workers, so concurrent first enrollments cannot all pass the count (QA
+    ISSUE-001). A lease, not a mutex: a crashed holder's lock expires after the
+    TTL. Interim until an atomic seat counter replaces the count check.
+    """
+    locks = getattr(db, "_db", db).enrollment_locks  # platform-internal, not tenant-scoped
+    key = f"enroll:{tenant_id}"
+    owner = uuid.uuid4().hex
+    for _ in range(_ENROLLMENT_LOCK_ATTEMPTS):
+        now = datetime.now(timezone.utc)
+        try:
+            # Matches only an expired lease; otherwise the upsert collides on _id.
+            await locks.update_one(
+                {"_id": key, "lockedUntil": {"$lt": now}},
+                {"$set": {"lockedUntil": now + _ENROLLMENT_LOCK_TTL, "owner": owner}},
+                upsert=True,
+            )
+            break
+        except Exception as e:
+            if "E11000 duplicate key error" not in str(e):
+                raise
+            await asyncio.sleep(_ENROLLMENT_LOCK_RETRY_S)
+    else:
+        raise HTTPException(status_code=503, detail="Agent enrollment is busy for this tenant; retry")
+    try:
+        yield
+    finally:
+        await locks.delete_one({"_id": key, "owner": owner})
+
+
 @router.post("/register")
 @limiter.limit("10/minute")
 async def register_agent(request: Request, response: Response, data: Dict[str, Any] = Body(...), background_tasks: BackgroundTasks = None):
@@ -103,13 +142,6 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         agent_secret = secrets.token_urlsafe(32)
 
     agent_limit = tenant.get("maxAgents", 5)
-    if not existing_agent:
-        current_agent_count = await db.agents.count_documents({"tenantId": tenant["id"]})
-        if current_agent_count >= agent_limit:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Agent limit reached ({agent_limit}). Please upgrade your plan for more capacity."
-            )
 
     agent_data = {
         "id": agent_id,
@@ -168,17 +200,27 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     # concurrent /register calls for the same hostname both miss the check,
     # the second upsert hits E11000 and we degrade to a non-upsert update on
     # the winner's id instead of minting a duplicate agent doc.
-    try:
-        await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
-    except Exception as e:
-        if "E11000 duplicate key error" in str(e):
-            if not existing_agent:
-                # Lost a concurrent first-enrollment race for this hostname: the
-                # winner owns the agent record, so this caller gets no token.
-                raise HTTPException(status_code=409, detail="Concurrent enrollment for this hostname; retry")
-            await db.agents.update_one({"id": agent_id}, {"$set": agent_data})
-        else:
-            raise e
+    # A new agent takes a seat, so its limit check and insert run under the
+    # tenant's enrollment lock; re-enrolling an existing agent takes no seat.
+    async with (_tenant_enrollment_lock(db, tenant["id"]) if not existing_agent else contextlib.nullcontext()):
+        if not existing_agent:
+            current_agent_count = await db.agents.count_documents({"tenantId": tenant["id"]})
+            if current_agent_count >= agent_limit:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Agent limit reached ({agent_limit}). Please upgrade your plan for more capacity."
+                )
+        try:
+            await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
+        except Exception as e:
+            if "E11000 duplicate key error" in str(e):
+                if not existing_agent:
+                    # Lost a concurrent first-enrollment race for this hostname: the
+                    # winner owns the agent record, so this caller gets no token.
+                    raise HTTPException(status_code=409, detail="Concurrent enrollment for this hostname; retry")
+                await db.agents.update_one({"id": agent_id}, {"$set": agent_data})
+            else:
+                raise e
 
     # Record location history (Phase 46, GAUD-01) — reuses the existing_agent
     # doc already fetched above (D-05, zero extra reads); None on first-ever
