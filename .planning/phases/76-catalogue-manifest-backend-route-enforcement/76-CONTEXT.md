@@ -36,6 +36,8 @@ One shared manifest defines each left-nav catalogue once (required permission + 
 - **D-10:** The D-04 strip covers purchase cost, book value, **warranty fields and `supplierId`** for callers without `view:itam`; the strip must copy (the `@cached` layer returns shared objects).
 - **D-11:** For the nine mismatched views, the **Sidebar.tsx permission string wins**; `view:jobs` stays super-admin-only (Phase 75 D-03).
 
+- **D-12 (user decision during execution, 2026-10-13):** API-key **self-service is exempt** from the `apiKeys` catalogue guard — a user keeps creating/listing/revoking their OWN API keys under the existing guard (so `itam_admin` keeps the Phase 69/73 ITAM API-token feature); only listing or managing OTHER users' keys requires `manage:api_keys`.
+
 ### Claude's Discretion
 - Manifest location and format (research suggested `shared/catalogue-access.json` plus a typed `catalogueAccess.ts` reader) and how Vite/vitest import it.
 - Gap-ledger file format and location (research suggested `shared/catalogue-gaps.json`), and how each entry states its reason.
