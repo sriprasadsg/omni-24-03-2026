@@ -95,13 +95,24 @@ describe('manifest membership in the type unions', () => {
 
   it('every manifest permission string is a Permission member', () => {
     const permissions = unionMembers('Permission');
-    const used = new Set<string>();
-    for (const c of raw.catalogues) {
-      used.add(c.permission);
-      (c.read ?? []).forEach(p => used.add(p));
-      (c.write ?? []).forEach(p => used.add(p));
-    }
+    const used = new Set(raw.catalogues.map(c => c.permission));
     expect([...used].filter(p => !permissions.includes(p))).toEqual([]);
+  });
+
+  it('read and write lists are strings the backend guard evaluates (not typed as Permission)', () => {
+    const permissions = unionMembers('Permission');
+    const backendOnly = new Set<string>();
+    for (const c of raw.catalogues) {
+      [...(c.read ?? []), ...(c.write ?? [])].forEach(p => {
+        expect(p).toMatch(/^[a-z_]+:[a-z_0-9]+$/);
+        if (!permissions.includes(p)) backendOnly.add(p);
+      });
+    }
+    // Known gap for 76-11: these appear only in read/write lists, never as a view permission.
+    expect([...backendOnly].sort()).toEqual([
+      'manage:approvals', 'manage:assets', 'manage:compliance', 'manage:procurement',
+      'manage:secrets', 'manage:users', 'request:assets', 'view:secrets',
+    ]);
   });
 });
 

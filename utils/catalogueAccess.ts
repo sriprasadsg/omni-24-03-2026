@@ -12,8 +12,9 @@ export interface CatalogueEntry {
   group: string;
   nav: boolean;
   permission: Permission;
-  read?: Permission[];
-  write?: Permission[];
+  /** Backend-only lists: may name strings the frontend Permission union does not carry. */
+  read?: string[];
+  write?: string[];
   routes: string[];
   noBackendReason?: string;
 }
