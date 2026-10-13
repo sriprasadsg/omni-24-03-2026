@@ -29,7 +29,7 @@ MOCK_REQUEST_DOC = {
 
 @pytest.fixture(autouse=True)
 def patch_dependencies():
-    mock_user = TokenData(username=MOCK_REQUESTER_EMAIL, tenant_id=MOCK_TENANT_ID, role="user")
+    mock_user = TokenData(username=MOCK_REQUESTER_EMAIL, tenant_id=MOCK_TENANT_ID, role="admin")  # holds view:itam + request:assets + manage:procurement (76-04 catalogue guard)
     _fastapi_app.dependency_overrides[get_current_user] = lambda: mock_user
 
     mock_service = AsyncMock(spec=ItamAssetRequestService)
@@ -143,7 +143,7 @@ def test_reject_asset_request_endpoint(patch_dependencies):
 
 
 def test_create_asset_request_permission_denied():
-    mock_user = TokenData(username=MOCK_REQUESTER_EMAIL, tenant_id=MOCK_TENANT_ID, role="user")
+    mock_user = TokenData(username=MOCK_REQUESTER_EMAIL, tenant_id=MOCK_TENANT_ID, role="admin")  # holds view:itam + request:assets + manage:procurement (76-04 catalogue guard)
     _fastapi_app.dependency_overrides[get_current_user] = lambda: mock_user
 
     mock_service = AsyncMock(spec=ItamAssetRequestService)
@@ -163,7 +163,7 @@ def test_create_asset_request_permission_denied():
 
 
 def test_approve_asset_request_permission_denied():
-    mock_user = TokenData(username=MOCK_REQUESTER_EMAIL, tenant_id=MOCK_TENANT_ID, role="user")
+    mock_user = TokenData(username=MOCK_REQUESTER_EMAIL, tenant_id=MOCK_TENANT_ID, role="admin")  # holds view:itam + request:assets + manage:procurement (76-04 catalogue guard)
     _fastapi_app.dependency_overrides[get_current_user] = lambda: mock_user
 
     mock_service = AsyncMock(spec=ItamAssetRequestService)
