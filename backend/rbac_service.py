@@ -6,6 +6,7 @@ from database import get_database
 from typing import Dict, List, Optional
 
 import rbac_defaults
+import tenant_features
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,9 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     ``_role_document_names``), so a tenant override applies however the user's role
     was typed. Merging is union-only: a document adds permissions, never removes them.
     Role-store errors propagate; callers decide whether to fail closed or degrade.
+
+    This is the role's definition (role lists, the assignment ceiling). What a user may
+    actually do also depends on the tenant's feature switches: see ``granted_permissions``.
     """
     key = RBACService._normalize_role(role or "")
     if key == rbac_defaults.SUPER_ADMIN_KEY:
@@ -102,20 +106,46 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     return list(dict.fromkeys(perms))
 
 
+async def granted_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
+    """What a user with ``role`` in ``tenant_id`` may do: ``effective_permissions`` minus
+    the features switched off for that tenant (spec C6, ``tenant_features``).
+
+    Platform roles are never narrowed. Errors propagate like ``effective_permissions``.
+    """
+    perms = await effective_permissions(db, role, tenant_id)
+    if "*" in perms or not tenant_features.applies_to(role):
+        return perms
+    return tenant_features.narrow(perms, await tenant_features.enabled_features(tenant_id, lambda: db))
+
+
+async def _fallback_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
+    """Built-in defaults when the role store is unreachable: never more than the table,
+    still narrowed by the tenant's feature switches, and with every switch off when
+    those cannot be read either."""
+    perms = list(rbac_defaults.defaults_for(RBACService._normalize_role(role or "")))
+    if "*" in perms or not tenant_features.applies_to(role):
+        return perms
+    try:
+        enabled = await tenant_features.enabled_features(tenant_id, lambda: db)
+    except Exception:
+        enabled = []
+    return tenant_features.narrow(perms, enabled)
+
+
 async def session_permissions(db, role: Optional[str], tenant_id: Optional[str], *,
                               warn_if_empty: bool = False) -> List[str]:
-    """effective_permissions for delivery to the UI (/login, /me): never raises.
+    """granted_permissions for delivery to the UI (/login, /me): never raises.
 
     If the role store is unreachable the built-in defaults are delivered instead
-    (never more than the table). ``warn_if_empty`` logs when a role resolves to
-    nothing so an operator can spot a stranded account (D-19).
+    (never more than the table, feature switches all off). ``warn_if_empty`` logs when
+    a role resolves to nothing so an operator can spot a stranded account (D-19).
     """
     try:
-        perms = await effective_permissions(db, role, tenant_id)
+        perms = await granted_permissions(db, role, tenant_id)
     except Exception as exc:
         logger.warning("Role store unavailable while resolving %r; delivering built-in defaults only: %s",
                        role, exc)
-        perms = list(rbac_defaults.defaults_for(RBACService._normalize_role(role or "")))
+        perms = await _fallback_permissions(db, role, tenant_id)
     if warn_if_empty and not perms:
         logger.warning("Role %r resolved to no permissions; login allowed with an empty permission list", role)
     return perms
@@ -188,14 +218,16 @@ class RBACService:
             rbac_defaults.defaults_for(caller_key), rbac_defaults.defaults_for(target_key))
 
     async def get_user_permissions(self, user: TokenData) -> List[str]:
-        """Effective permissions for the current user, from the shared resolver."""
+        """Granted permissions for the current user, from the shared resolver."""
+        db = None
         try:
-            return await effective_permissions(get_database(), user.role, user.tenant_id)
+            db = get_database()
+            return await granted_permissions(db, user.role, user.tenant_id)
         except Exception as exc:
             # Never more than the built-in table when the role store is unreachable.
             logger.warning("Role store unavailable while resolving %r; using built-in defaults only: %s",
                            user.role, exc)
-            return list(rbac_defaults.defaults_for(self._normalize_role(user.role or "")))
+            return await _fallback_permissions(db, user.role, user.tenant_id)
 
     def _scopes_allow(self, user: TokenData, required_permission: str) -> bool:
         """ITAM-USR-05 (Task 3): a token's scopes can only narrow what its

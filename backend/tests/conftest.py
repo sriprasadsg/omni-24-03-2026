@@ -15,6 +15,22 @@ os.environ.setdefault("ENVIRONMENT", "test")
 import tempfile as _tempfile
 os.environ["AUDIT_SPOOL_PATH"] = os.path.join(_tempfile.mkdtemp(prefix="omni_test_audit_"), "audit-spool.ndjson")
 
+
+@pytest.fixture(autouse=True)
+def _tenant_features_all_on(request, monkeypatch):
+    """Tests written before spec C6 fake the database without a tenants collection and
+    assume a tenant with every feature switched on; give them that. Tests of the
+    switches themselves carry the ``real_tenant_features`` marker and keep the real
+    lookup (see test_tenant_feature_switches.py)."""
+    if request.node.get_closest_marker("real_tenant_features"):
+        return
+    import tenant_features
+
+    async def _all_on(tenant_id, get_db):
+        return [tenant_features.ALL_FEATURES]
+
+    monkeypatch.setattr(tenant_features, "enabled_features", _all_on)
+
 # Process-global sentinel recording whether AI_ROUTER_URL was set in the REAL
 # shell environment when pytest started. Several Phase 39 eval test modules
 # transitively import `database.py`, whose module-level `load_dotenv()` leaks

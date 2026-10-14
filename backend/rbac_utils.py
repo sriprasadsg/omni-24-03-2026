@@ -6,7 +6,8 @@ from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
 import rbac_defaults
-from rbac_service import rbac_service as _rbac_service, effective_permissions
+from rbac_service import rbac_service as _rbac_service, granted_permissions
+import tenant_features
 
 logger = logging.getLogger(__name__)
 
@@ -98,17 +99,29 @@ async def verify_permission(user: TokenData, required_permission: str) -> bool:
         return True
 
     # ACC-01/ACC-02: the role table lives in rbac_defaults and the full answer
-    # (defaults plus the tenant's role documents) in effective_permissions, the
-    # same resolver /login and /me deliver. Defaults are checked first so the
-    # common case needs no database round-trip.
+    # (defaults plus the tenant's role documents, minus the tenant's switched-off
+    # features, spec C6) in granted_permissions, the same resolver /login and /me
+    # deliver. Defaults are checked first so the common case needs no database
+    # round-trip, except for a permission a tenant's feature switches can remove.
     defaults = rbac_defaults.defaults_for(_rbac_service._normalize_role(user.role or ""))
-    if "*" in defaults or required_permission in defaults:
+    if "*" in defaults:
         return True
+    if required_permission in defaults:
+        if not (tenant_features.applies_to(user.role) and tenant_features.is_switchable(required_permission)):
+            return True
+        # The role holds it by default, so only the tenant's switches can take it away.
+        try:
+            enabled = await tenant_features.enabled_features(user.tenant_id, get_database)
+        except Exception as exc:  # fail closed: the tenant's switches are unknown
+            logger.warning("Tenant feature lookup failed for %s (denying %s): %s",
+                           user.tenant_id, required_permission, exc)
+            return False
+        return bool(tenant_features.narrow([required_permission], enabled))
 
     if not user.role:
         return False
     try:
-        perms = await effective_permissions(get_database(), user.role, user.tenant_id)
+        perms = await granted_permissions(get_database(), user.role, user.tenant_id)
     except Exception as exc:  # fail closed: no grant if the role store is unreachable
         logger.warning("Role lookup failed for %s (denying %s): %s", user.role, required_permission, exc)
         return False

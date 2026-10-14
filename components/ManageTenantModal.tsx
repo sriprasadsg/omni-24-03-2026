@@ -7,6 +7,7 @@ import { Modal } from './Modal';
 import { TenantLicensePanel } from './TenantLicensePanel';
 import { TenantEnrollmentKeysPanel } from './TenantEnrollmentKeysPanel';
 import { TenantAllowlistPanel } from './TenantAllowlistPanel';
+import featureSwitches from '../shared/tenant-feature-switches.json';
 
 interface ManageTenantModalProps {
   isOpen: boolean;
@@ -16,63 +17,13 @@ interface ManageTenantModalProps {
   onDelete: (tenantId: string) => void;
 }
 
-// Initial Static Map
-const staticFeatureMap: Record<string, string> = {
-  'view:dashboard': 'Main Dashboard',
-  'view:reporting': 'Reporting & Analytics',
-  'export:reports': 'Export Reports',
-  'view:agents': 'Agent Fleet Management',
-  'view:software_deployment': 'Software Deployment Hub',
-  'view:agent_logs': 'View Agent Logs',
-  'remediate:agents': 'Agent Remediation',
-  'view:assets': 'Asset Management',
-  'view:patching': 'Patch Management',
-  'manage:patches': 'Deploy Patches',
-  'view:security': 'Security Operations',
-  'manage:security_cases': 'Manage Security Cases',
-  'manage:security_playbooks': 'Manage SOAR Playbooks',
-  'investigate:security': 'Threat Intelligence',
-  'view:compliance': 'Compliance Management',
-  'manage:compliance_evidence': 'Manage Compliance Evidence',
-  'view:ai_governance': 'AI Governance',
-  'manage:ai_risks': 'Manage AI Risks',
-  'manage:settings': 'System Settings',
-  'manage:tenants': 'Tenant Management',
-  'view:cloud_security': 'Cloud Security',
-  'view:finops': 'FinOps & Billing',
-  'view:audit_log': 'Audit Log',
-  'manage:rbac': 'Role & Permission Management',
-  'manage:api_keys': 'API Key Management',
-  'view:logs': 'Log Explorer',
-  'view:threat_hunting': 'Threat Hunting',
-  'view:profile': 'User Profile',
-  'view:automation': 'Automation Workflows',
-  'manage:automation': 'Manage Automations',
-  'view:devsecops': 'DevSecOps Dashboard',
-  'view:developer_hub': 'Developer Hub',
-  'view:insights': 'Proactive Insights',
-  'view:tracing': 'Distributed Tracing',
-  'view:dspm': 'Data Security (DSPM)',
-  'view:attack_path': 'Attack Path Analysis',
-  'view:service_catalog': 'Service Catalog (IDP)',
-  'view:dora_metrics': 'DORA Metrics',
-  'view:chaos': 'Chaos Engineering',
-  'view:network': 'Network Observability',
-  'manage:pricing': 'Service Pricing Management',
-};
-
-const permissionGroups: { name: string; permissions: string[] }[] = [
-  { name: 'General', permissions: ['view:reporting', 'export:reports'] },
-  { name: 'Administration', permissions: ['manage:settings', 'manage:rbac', 'manage:api_keys', 'view:finops', 'view:profile'] },
-  { name: 'Security & Compliance', permissions: ['view:security', 'manage:security_cases', 'manage:security_playbooks', 'investigate:security', 'view:cloud_security', 'view:patching', 'manage:patches', 'view:threat_hunting', 'view:compliance', 'manage:compliance_evidence', 'view:audit_log'] },
-  { name: 'Observability', permissions: ['view:agents', 'view:software_deployment', 'view:agent_logs', 'remediate:agents', 'view:assets', 'view:logs', 'view:insights', 'view:tracing', 'view:network'] },
-  { name: 'AI Governance', permissions: ['view:ai_governance', 'manage:ai_risks'] },
-  { name: 'Automation', permissions: ['view:automation', 'manage:automation'] },
-  { name: 'Developer Tools', permissions: ['view:devsecops', 'view:developer_hub'] },
-  { name: 'Advanced Platform', permissions: ['view:dspm', 'view:attack_path', 'view:service_catalog', 'view:dora_metrics', 'view:chaos'] },
-];
-
-const allToggleableFeatures = permissionGroups.flatMap(g => g.permissions);
+// The tenant feature switches (spec C6): one list, also read by the server
+// (backend/tenant_features.py), which removes switched-off features from every
+// user of the tenant. A feature with a parent only counts while its parent is on.
+type FeatureSwitch = { permission: string; label: string; parent?: string };
+const permissionGroups: { name: string; features: FeatureSwitch[] }[] = featureSwitches.groups;
+const switchByPermission = new Map(permissionGroups.flatMap(g => g.features).map(f => [f.permission, f]));
+const allToggleableFeatures = [...switchByPermission.keys()];
 
 export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, onClose, tenant, onSave, onDelete }) => {
   const [enabledFeatures, setEnabledFeatures] = useState<Set<string>>(new Set());
@@ -261,7 +212,11 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
               </div>
             )}
 
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Standard Features</h3>
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Standard Features</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Switched-off features are removed for everyone in this tenant, in the menu and in the API, within 30 seconds.
+              Dashboard, profile, user management and ITAM always follow the user's role.
+            </p>
             <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md border border-gray-200 dark:border-gray-600">
               <label className="flex items-center space-x-3 font-semibold">
                 <input
@@ -279,17 +234,22 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
                 <div key={group.name} role="group" aria-labelledby={`group-label-${group.name}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                   <h4 id={`group-label-${group.name}`} className="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-2">{group.name}</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                    {group.permissions.map(feature => (
-                      <label key={feature} className="flex items-center space-x-3">
-                        <input
-                          type="checkbox"
-                          checked={enabledFeatures.has(feature)}
-                          onChange={() => handleFeatureToggle(feature)}
-                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{staticFeatureMap[feature] || feature}</span>
-                      </label>
-                    ))}
+                    {group.features.map(feature => {
+                      const parentOff = !!feature.parent && !enabledFeatures.has(feature.parent);
+                      return (
+                        <label key={feature.permission} className={`flex items-center space-x-3 ${parentOff ? 'opacity-50' : ''}`}
+                          title={parentOff ? `Needs ${switchByPermission.get(feature.parent!)?.label ?? feature.parent}` : undefined}>
+                          <input
+                            type="checkbox"
+                            checked={enabledFeatures.has(feature.permission) && !parentOff}
+                            disabled={parentOff}
+                            onChange={() => handleFeatureToggle(feature.permission)}
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{feature.label}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

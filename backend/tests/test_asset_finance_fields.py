@@ -104,7 +104,7 @@ def _env(monkeypatch):
             return list(perms[role])
         return list(rbac_defaults.defaults_for(rbac_utils._rbac_service._normalize_role(role or "")))
 
-    monkeypatch.setattr(rbac_utils, "effective_permissions", _defaults_only)
+    monkeypatch.setattr(rbac_utils, "granted_permissions", _defaults_only)
     monkeypatch.setattr(rbac_utils, "get_database", lambda: None)
     monkeypatch.setattr(cache_service, "cache", _RefCache())
     return perms

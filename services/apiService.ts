@@ -731,6 +731,23 @@ export const fetchCurrentUser = async (): Promise<any> => {
     }
 };
 
+/**
+ * The signed-in user's current permission list, or null when it can't be read.
+ * Polled with the periodic data refresh so a tenant feature switch or role edit
+ * reaches the menu without a re-login (spec C6). Uses authFetch, so an expiring
+ * token is refreshed rather than dropped.
+ */
+export const fetchCurrentPermissions = async (): Promise<Permission[] | null> => {
+    try {
+        const res = await authFetch(`${API_BASE}/auth/me`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.mfa_action || !Array.isArray(data?.permissions) ? null : data.permissions;
+    } catch {
+        return null;
+    }
+};
+
 // --- Fetchers ---
 export const fetchUsers = async () => {
     return fetchWithCache('users', '/users', [], (data) => { USERS = data; });

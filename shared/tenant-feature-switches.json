@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. Permissions not listed here are never switched, so profile, user management and ITAM always follow the role alone. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
+  "groups": [
+    {
+      "name": "General",
+      "features": [
+        { "permission": "view:reporting", "label": "Reporting & Analytics" },
+        { "permission": "export:reports", "label": "Export Reports", "parent": "view:reporting" }
+      ]
+    },
+    {
+      "name": "Administration",
+      "features": [
+        { "permission": "manage:settings", "label": "System Settings" },
+        { "permission": "manage:rbac", "label": "Role & Permission Management" },
+        { "permission": "manage:api_keys", "label": "API Key Management" },
+        { "permission": "view:finops", "label": "FinOps & Billing" }
+      ]
+    },
+    {
+      "name": "Security & Compliance",
+      "features": [
+        { "permission": "view:security", "label": "Security Operations" },
+        { "permission": "manage:security_cases", "label": "Manage Security Cases", "parent": "view:security" },
+        { "permission": "manage:security_playbooks", "label": "Manage SOAR Playbooks", "parent": "view:security" },
+        { "permission": "investigate:security", "label": "Threat Intelligence", "parent": "view:security" },
+        { "permission": "view:cloud_security", "label": "Cloud Security" },
+        { "permission": "view:patching", "label": "Patch Management" },
+        { "permission": "manage:patches", "label": "Deploy Patches", "parent": "view:patching" },
+        { "permission": "view:threat_hunting", "label": "Threat Hunting" },
+        { "permission": "view:compliance", "label": "Compliance Management" },
+        { "permission": "manage:compliance_evidence", "label": "Manage Compliance Evidence", "parent": "view:compliance" },
+        { "permission": "view:audit_log", "label": "Audit Log" }
+      ]
+    },
+    {
+      "name": "Observability",
+      "features": [
+        { "permission": "view:agents", "label": "Agent Fleet Management" },
+        { "permission": "view:software_deployment", "label": "Software Deployment Hub" },
+        { "permission": "view:agent_logs", "label": "View Agent Logs", "parent": "view:agents" },
+        { "permission": "remediate:agents", "label": "Agent Remediation", "parent": "view:agents" },
+        { "permission": "view:assets", "label": "Asset Management" },
+        { "permission": "view:logs", "label": "Log Explorer" },
+        { "permission": "view:insights", "label": "Proactive Insights" },
+        { "permission": "view:tracing", "label": "Distributed Tracing" },
+        { "permission": "view:network", "label": "Network Observability" }
+      ]
+    },
+    {
+      "name": "AI Governance",
+      "features": [
+        { "permission": "view:ai_governance", "label": "AI Governance" },
+        { "permission": "manage:ai_risks", "label": "Manage AI Risks", "parent": "view:ai_governance" }
+      ]
+    },
+    {
+      "name": "Automation",
+      "features": [
+        { "permission": "view:automation", "label": "Automation Workflows" },
+        { "permission": "manage:automation", "label": "Manage Automations", "parent": "view:automation" }
+      ]
+    },
+    {
+      "name": "Developer Tools",
+      "features": [
+        { "permission": "view:devsecops", "label": "DevSecOps Dashboard" },
+        { "permission": "view:developer_hub", "label": "Developer Hub" }
+      ]
+    },
+    {
+      "name": "Advanced Platform",
+      "features": [
+        { "permission": "view:dspm", "label": "Data Security (DSPM)" },
+        { "permission": "view:attack_path", "label": "Attack Path Analysis" },
+        { "permission": "view:service_catalog", "label": "Service Catalog (IDP)" },
+        { "permission": "view:dora_metrics", "label": "DORA Metrics" },
+        { "permission": "view:chaos", "label": "Chaos Engineering" }
+      ]
+    }
+  ]
+}

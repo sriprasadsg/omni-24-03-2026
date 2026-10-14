@@ -791,20 +791,34 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadAllData]);
 
+  // A tenant feature switch or role edit changes what the server grants (spec C6);
+  // re-read the delivered list so the menu follows without a re-login. An unchanged
+  // list keeps the same user object, so nothing re-renders or reloads.
+  const refreshPermissions = useCallback(async () => {
+    const fresh = await api.fetchCurrentPermissions();
+    if (!fresh) return;
+    setCurrentUser(prev => {
+      if (!prev) return prev;
+      const same = [...(prev.permissions ?? [])].sort().join('|') === [...fresh].sort().join('|');
+      return same ? prev : { ...prev, permissions: fresh };
+    });
+  }, []);
+
   // Periodic Data Refresh (every 30s). Each refresh is ~45 API calls, so a tab
   // in the background skips it and catches up as soon as it is visible again.
   useEffect(() => {
     if (!isBackendConnected) return;
+    const refresh = () => { loadAllData(); refreshPermissions(); };
     const interval = setInterval(() => {
-      if (!document.hidden) loadAllData();
+      if (!document.hidden) refresh();
     }, 30000);
-    const onVisible = () => { if (!document.hidden) loadAllData(); };
+    const onVisible = () => { if (!document.hidden) refresh(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [isBackendConnected, loadAllData]);
+  }, [isBackendConnected, loadAllData, refreshPermissions]);
 
   // Targeted Polling for Agents View (every 5s)
   useEffect(() => {
@@ -979,10 +993,10 @@ const App: React.FC = () => {
 
   // --- DERIVED STATE & CONTEXT ---
   // D-17: permissions come only from the server-delivered currentUser.permissions
-  // (narrowed to the tenant's enabled features); no role-list fallback.
+  // (already narrowed to the tenant's feature switches, spec C6); no role-list fallback.
   const { enabledFeatures, hasPermission } = useMemo(
-    () => derivePermissionState(currentUser, tenants),
-    [currentUser, tenants]
+    () => derivePermissionState(currentUser),
+    [currentUser]
   );
 
 

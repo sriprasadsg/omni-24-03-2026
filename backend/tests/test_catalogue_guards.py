@@ -37,7 +37,7 @@ def _built_in_roles_only(monkeypatch):
     """Resolve roles from rbac_defaults alone: no Mongo, no tenant role documents."""
     async def _defaults_only(db, role, tenant_id):
         return list(rbac_defaults.defaults_for(rbac_utils._rbac_service._normalize_role(role or "")))
-    monkeypatch.setattr(rbac_utils, "effective_permissions", _defaults_only)
+    monkeypatch.setattr(rbac_utils, "granted_permissions", _defaults_only)
     monkeypatch.setattr(rbac_utils, "get_database", lambda: None)
 
 

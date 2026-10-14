@@ -1,4 +1,4 @@
-import type { Permission, Tenant, User } from '../types';
+import type { Permission, User } from '../types';
 
 /**
  * Mirrors the backend normalizer (rbac_defaults.normalize_role): lower-case, trim,
@@ -39,13 +39,14 @@ export function roleLabel(role: string): string {
 
 /**
  * What the signed-in user may see (D-17). The only source is the permission list
- * the server delivered in `currentUser.permissions`, narrowed to the tenant's
- * enabled features. An empty list means no access: the role list is never
- * consulted. Super-admin role names, and a delivered `*`, get everything.
+ * the server delivered in `currentUser.permissions`; the server has already removed
+ * what the tenant's feature switches turn off (spec C6, backend/tenant_features.py),
+ * so the client applies no second, different rule. An empty list means no access:
+ * the role list is never consulted. Super-admin role names, and a delivered `*`,
+ * get everything.
  */
 export function derivePermissionState(
   currentUser: User | null,
-  tenants: Tenant[],
 ): { enabledFeatures: Permission[]; hasPermission: (permission: Permission) => boolean } {
   if (!currentUser) return { enabledFeatures: [], hasPermission: () => false };
   const delivered: Permission[] = Array.isArray(currentUser.permissions) ? currentUser.permissions : [];
@@ -54,11 +55,7 @@ export function derivePermissionState(
     return { enabledFeatures: [], hasPermission: () => true };
   }
 
-  // Platform staff (spec C1) are not narrowed by the Platform tenant's (empty) feature list.
-  const tenant = isPlatformRoleName(currentUser.role) ? undefined : tenants.find(t => t.id === currentUser.tenantId);
-  const enabled = tenant ? new Set<Permission>(tenant.enabledFeatures ?? []) : null;
-  const enabledFeatures = enabled ? delivered.filter(p => enabled.has(p)) : delivered;
-
+  const enabledFeatures = delivered;
   const hasPermission = (permission: Permission): boolean => {
     if (enabledFeatures.includes('all' as Permission)) return true;
     return enabledFeatures.includes(permission);

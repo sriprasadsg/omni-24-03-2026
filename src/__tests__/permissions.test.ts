@@ -6,59 +6,48 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, platformTier, roleLabel } from '../../utils/permissions';
 import { fetchRoles, fetchUsers, logoutSession } from '../../services/apiService';
-import type { Permission, Tenant, User } from '../../types';
+import type { Permission, User } from '../../types';
 
 const user = (over: Partial<User>): User =>
   ({ id: 'u1', name: 'U', email: 'u@x.test', role: 'Tenant Admin', tenantId: 't1', ...over }) as User;
-
-const tenant = (over: Partial<Tenant>): Tenant =>
-  ({ id: 't1', name: 'T', enabledFeatures: [], ...over }) as Tenant;
 
 const perm = (p: string) => p as Permission;
 
 describe('derivePermissionState (D-17)', () => {
   it('grants nothing without a user', () => {
-    const state = derivePermissionState(null, []);
+    const state = derivePermissionState(null);
     expect(state.enabledFeatures).toEqual([]);
     expect(state.hasPermission(perm('view:dashboard'))).toBe(false);
   });
 
   it('empty server permissions mean no access, even for a Tenant Admin', () => {
-    const state = derivePermissionState(user({ permissions: [] }), [tenant({ enabledFeatures: [perm('view:dashboard')] })]);
+    const state = derivePermissionState(user({ permissions: [] }));
     expect(state.enabledFeatures).toEqual([]);
     expect(state.hasPermission(perm('view:dashboard'))).toBe(false);
     expect(state.hasPermission(perm('view:profile'))).toBe(false);
   });
 
   it('a missing permissions field is treated as empty', () => {
-    const state = derivePermissionState(user({ permissions: undefined }), []);
+    const state = derivePermissionState(user({ permissions: undefined }));
     expect(state.hasPermission(perm('view:dashboard'))).toBe(false);
   });
 
-  it('intersects the server list with the tenant enabled features', () => {
-    const itamViewer = user({
-      role: 'itam_viewer',
-      permissions: ['view:assets', 'view:itam', 'view:licenses', 'view:profile'].map(perm),
-    });
-    const state = derivePermissionState(itamViewer, [tenant({ enabledFeatures: ['view:itam', 'view:profile'].map(perm) })]);
-    expect(state.hasPermission(perm('view:itam'))).toBe(true);
-    expect(state.hasPermission(perm('view:profile'))).toBe(true);
-    expect(state.hasPermission(perm('view:assets'))).toBe(false);
-    expect(state.hasPermission(perm('view:dashboard'))).toBe(false);
-  });
-
-  it('uses the server list as-is when no tenant matches', () => {
-    const state = derivePermissionState(user({ tenantId: 'other', permissions: [perm('view:itam')] }), [tenant({})]);
-    expect(state.enabledFeatures).toEqual(['view:itam']);
-    expect(state.hasPermission(perm('view:itam'))).toBe(true);
-    expect(state.hasPermission(perm('view:assets'))).toBe(false);
+  it('the server list is the whole answer: the server already applied the tenant feature switches (spec C6)', () => {
+    // The server removes switched-off features before delivering; the client must not apply a
+    // second rule (a plain intersection with enabledFeatures would also drop permissions that
+    // have no switch, such as manage:users).
+    const tenantAdmin = user({ permissions: ['view:agents', 'manage:users', 'view:profile'].map(perm) });
+    const state = derivePermissionState(tenantAdmin);
+    expect(state.enabledFeatures).toEqual(['view:agents', 'manage:users', 'view:profile']);
+    expect(state.hasPermission(perm('manage:users'))).toBe(true);
+    expect(state.hasPermission(perm('view:security'))).toBe(false);
   });
 
   it.each(['Super Admin', 'superadmin', 'super_admin', 'platform-admin', '  SUPER ADMIN  '])(
     'super-admin role name %j gets every permission with an empty list',
     (role) => {
       expect(isSuperAdminRoleName(role)).toBe(true);
-      const state = derivePermissionState(user({ role, permissions: [] }), []);
+      const state = derivePermissionState(user({ role, permissions: [] }));
       expect(state.hasPermission(perm('manage:tenants'))).toBe(true);
     },
   );
@@ -67,15 +56,12 @@ describe('derivePermissionState (D-17)', () => {
     'accepts the backend spelling %j of the super-admin role (WR-07)',
     (role) => {
       expect(isSuperAdminRoleName(role)).toBe(true);
-      expect(derivePermissionState(user({ role, permissions: [] }), []).hasPermission(perm('manage:tenants'))).toBe(true);
+      expect(derivePermissionState(user({ role, permissions: [] })).hasPermission(perm('manage:tenants'))).toBe(true);
     },
   );
 
-  it('a delivered "*" is a super grant that skips the tenant intersection (WR-07)', () => {
-    const state = derivePermissionState(
-      user({ role: 'Some Custom Name', permissions: [perm('*')] }),
-      [tenant({ enabledFeatures: [perm('view:dashboard')] })],
-    );
+  it('a delivered "*" is a super grant (WR-07)', () => {
+    const state = derivePermissionState(user({ role: 'Some Custom Name', permissions: [perm('*')] }));
     expect(state.hasPermission(perm('manage:tenants'))).toBe(true);
     expect(state.hasPermission(perm('view:assets'))).toBe(true);
   });
@@ -100,9 +86,9 @@ describe('platform roles (spec C1)', () => {
     expect(roleLabel('Platform Support')).toBe('Platform Support');
   });
 
-  it("support is not narrowed by the Platform tenant's empty feature list", () => {
+  it('support gets exactly what the server delivered', () => {
     const support = user({ role: 'Platform Support', tenantId: 'platform-admin', permissions: [perm('view:agents')] });
-    const state = derivePermissionState(support, [tenant({ id: 'platform-admin', enabledFeatures: [] })]);
+    const state = derivePermissionState(support);
     expect(state.hasPermission(perm('view:agents'))).toBe(true);
     expect(state.hasPermission(perm('manage:agents'))).toBe(false);
   });

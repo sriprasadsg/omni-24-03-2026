@@ -188,11 +188,22 @@ import api_key_auth
 import authentication_service as auth
 from auth_types import TokenData
 from router_registry import register_all_routers
+import tenant_features
+
+# Spec C6: the child has no database, so the tenant's feature switches come from the
+# case ("tenant_features", default every feature on).
+_switches = {"list": [tenant_features.ALL_FEATURES]}
+
+async def _case_switches(tenant_id, get_db):
+    return list(_switches["list"])
+
+tenant_features.enabled_features = _case_switches
 
 app = FastAPI()
 register_all_routers(app)
 out = []
 for case in json.loads(sys.argv[1]):
+    _switches["list"] = case.get("tenant_features", [tenant_features.ALL_FEATURES])
     api_key = case.get("auth", "session") == "api_key"
     td = TokenData(username="probe@example.com", role=case["role"], tenant_id=case["tenant_id"],
                    scopes=case.get("scopes"), auth_source="api_key" if api_key else "session")
@@ -208,7 +219,8 @@ json.dump(out, sys.stdout)
 def probe_real_app(cases: List[Dict[str, Any]]) -> List[int]:
     """Status code per case on the real app (fresh interpreter, throwaway Mongo env).
 
-    Case keys: method, path, role, tenant_id, scopes (optional), auth ("session" or "api_key").
+    Case keys: method, path, role, tenant_id, scopes (optional), auth ("session" or "api_key"),
+    tenant_features (optional: the tenant's feature-switch list, spec C6; default every feature on).
     """
     raw = subprocess.run([sys.executable, "-c", _PROBE, json.dumps(cases)], cwd=BACKEND_DIR,
                          env=throwaway_env(), capture_output=True, text=True, timeout=300)
