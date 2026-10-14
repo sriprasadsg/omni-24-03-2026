@@ -50,6 +50,7 @@ import uuid
 import datetime
 import jwt
 import logging
+import tenant_features
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +335,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "maxAgents": 5,
         "registrationKey": registration_key,
         "apiKeys": [],
-        "enabledFeatures": free_features,
+        "enabledFeatures": tenant_features.with_all_screens(free_features),
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.tenants.insert_one(tenant_doc)
@@ -400,7 +401,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
             "name": company_name,
             "subscriptionTier": "Free",
             "maxAgents": 5,
-            "enabledFeatures": free_features
+            "enabledFeatures": tenant_features.with_all_screens(free_features)
         }
     }
 

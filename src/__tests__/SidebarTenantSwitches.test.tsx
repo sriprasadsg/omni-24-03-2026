@@ -56,3 +56,21 @@ describe('Sidebar for a tenant user (spec C6)', () => {
     expect(isTenantSwitchable('view:profile')).toBe(false);
   });
 });
+
+describe('Per-screen switches (spec C6)', () => {
+  it('shows only the Security screens switched on for the tenant', async () => {
+    const manifest = (await import('../../shared/catalogue-access.json')).default as { catalogues: { view: string; label: string }[] };
+    const label = (view: string) => manifest.catalogues.find(c => c.view === view)!.label;
+    granted.add('view:security');
+    granted.add('screen-off:alertManagement');   // the server marks the switched-off screen
+    try {
+      const { container } = renderSidebar('Tenant Admin');
+      const shown = labels(container);
+      expect(shown.some(l => l.startsWith(label('edr')))).toBe(true);
+      expect(shown.some(l => l.startsWith(label('alertManagement')))).toBe(false);
+    } finally {
+      granted.delete('view:security');
+      granted.delete('screen-off:alertManagement');
+    }
+  });
+});

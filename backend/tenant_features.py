@@ -50,6 +50,23 @@ SWITCHABLE: FrozenSet[str] = frozenset(SWITCH_PARENTS)
 # Resources whose every permission goes with an off view:X switch.
 _VIEW_RESOURCES: FrozenSet[str] = frozenset(p[len("view:"):] for p in SWITCHABLE if p.startswith("view:"))
 
+# Per-screen switches ("screen:<view>") for screens that share one permission (the Security and
+# Compliance screens): {view: the permission its parent switch grants}.
+SCREEN_PREFIX = "screen:"
+SCREEN_SWITCHES: Dict[str, str] = {p[len(SCREEN_PREFIX):]: parent for p, parent in SWITCH_PARENTS.items()
+                                   if p.startswith(SCREEN_PREFIX) and parent}
+
+
+def _route_owners(path: Path = _CATALOGUE_PATH.parent / "catalogue-access.json") -> List[tuple]:
+    """(route prefix, owning view) from the sidebar manifest, longest prefix first."""
+    with open(path, encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    owners = [(prefix, entry["view"]) for entry in manifest["catalogues"] for prefix in entry.get("routes") or []]
+    return sorted(owners, key=lambda item: -len(item[0]))
+
+
+_ROUTE_OWNERS = _route_owners()
+
 
 def _resource(perm: str) -> Optional[str]:
     return perm.split(":", 1)[1] if ":" in perm else None
@@ -78,6 +95,43 @@ def narrow(perms: Iterable[str], enabled: Optional[Iterable[str]]) -> List[str]:
     off = switched_off(enabled)
     off_resources = {p[len("view:"):] for p in off if p.startswith("view:")}
     return [p for p in perms if p not in off and _resource(p) not in off_resources]
+
+
+SCREEN_OFF_PREFIX = "screen-off:"
+
+
+def screen_permissions(perms: Iterable[str], enabled: Optional[Iterable[str]]) -> List[str]:
+    """``screen:<view>`` for every switched screen whose parent permission is in ``perms`` and whose
+    switch (and parent switch) is on: what the route middleware checks."""
+    held, off = set(perms), switched_off(enabled)
+    return [f"{SCREEN_PREFIX}{view}" for view, parent in SCREEN_SWITCHES.items()
+            if parent in held and f"{SCREEN_PREFIX}{view}" not in off]
+
+
+def hidden_screens(perms: Iterable[str], enabled: Optional[Iterable[str]]) -> List[str]:
+    """``screen-off:<view>`` for every switched screen the user would otherwise reach (its parent
+    permission is held) but that is switched off; delivered with the permissions so the UI hides
+    it. A tenant with every screen on gets no markers, so its list is the role's permissions."""
+    held, on = set(perms), set(screen_permissions(perms, enabled))
+    return [f"{SCREEN_OFF_PREFIX}{view}" for view, parent in SCREEN_SWITCHES.items()
+            if parent in held and f"{SCREEN_PREFIX}{view}" not in on]
+
+
+def screen_of(path: str) -> Optional[str]:
+    """The switched screen that owns ``path`` (longest manifest route prefix), if any."""
+    for prefix, view in _ROUTE_OWNERS:
+        if path == prefix or path.startswith(prefix + "/"):
+            return view if view in SCREEN_SWITCHES else None
+    return None
+
+
+def with_all_screens(features: Iterable[str]) -> List[str]:
+    """``features`` plus every screen switch whose parent switch is in it (new tenants and the
+    migration that introduced screen switches keep every screen of a feature they have)."""
+    features = list(features)
+    have = set(features)
+    return features + [f"{SCREEN_PREFIX}{view}" for view, parent in SCREEN_SWITCHES.items()
+                       if parent in have and f"{SCREEN_PREFIX}{view}" not in have]
 
 
 def applies_to(role: Optional[str]) -> bool:

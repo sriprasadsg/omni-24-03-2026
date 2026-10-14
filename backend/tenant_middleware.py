@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import rbac_defaults
+import tenant_features
 from tenant_context import set_tenant_id, reset_tenant_id, get_tenant_id
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,38 @@ class PlatformReadOnlyMiddleware:
             return await self.app(scope, receive, send)
         logger.info("Refused %s %s to read-only platform role %r", scope.get("method"), scope.get("path"), role)
         body = json.dumps({"error": reason, "status_code": 403}).encode()
+        await send({"type": "http.response.start", "status": 403,
+                    "headers": [(b"content-type", b"application/json"),
+                                (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
+
+
+class ScreenSwitchMiddleware:
+    """Spec C6 per-screen switches: a tenant user's request to a route that a switched-off
+    Security or Compliance screen owns (tenant_features.screen_of) gets 403. Runs inside
+    TenantMiddleware, so the tenant context is already set; platform roles, requests without
+    a bearer JWT and routes no switched screen owns pass through. Fails closed when the
+    tenant's switches cannot be read."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        view = tenant_features.screen_of(scope.get("path", "")) if scope.get("type") == "http" else None
+        role = _bearer_role(scope) if view else None
+        if not view or not role or not tenant_features.applies_to(role):
+            return await self.app(scope, receive, send)
+        try:
+            from database import get_database
+            enabled = await tenant_features.enabled_features(get_tenant_id(), get_database)
+            parent = tenant_features.SCREEN_SWITCHES[view]
+            allowed = f"{tenant_features.SCREEN_PREFIX}{view}" in tenant_features.screen_permissions([parent], enabled)
+        except Exception as exc:
+            logger.warning("Screen switch lookup failed for %s (refusing %s): %s", get_tenant_id(), scope.get("path"), exc)
+            allowed = False
+        if allowed:
+            return await self.app(scope, receive, send)
+        body = json.dumps({"error": "This screen is not enabled for your organization", "status_code": 403}).encode()
         await send({"type": "http.response.start", "status": 403,
                     "headers": [(b"content-type", b"application/json"),
                                 (b"content-length", str(len(body)).encode())]})

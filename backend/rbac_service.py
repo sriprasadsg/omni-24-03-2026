@@ -108,14 +108,17 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
 
 async def granted_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
     """What a user with ``role`` in ``tenant_id`` may do: ``effective_permissions`` minus
-    the features switched off for that tenant (spec C6, ``tenant_features``).
+    the features switched off for that tenant (spec C6, ``tenant_features``), plus a
+    ``screen-off:<view>`` marker for each switched-off Security/Compliance screen it would otherwise reach.
 
     Platform roles are never narrowed. Errors propagate like ``effective_permissions``.
     """
     perms = await effective_permissions(db, role, tenant_id)
     if "*" in perms or not tenant_features.applies_to(role):
         return perms
-    return tenant_features.narrow(perms, await tenant_features.enabled_features(tenant_id, lambda: db))
+    enabled = await tenant_features.enabled_features(tenant_id, lambda: db)
+    narrowed = tenant_features.narrow(perms, enabled)
+    return narrowed + tenant_features.hidden_screens(narrowed, enabled)
 
 
 async def _fallback_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
@@ -129,7 +132,8 @@ async def _fallback_permissions(db, role: Optional[str], tenant_id: Optional[str
         enabled = await tenant_features.enabled_features(tenant_id, lambda: db)
     except Exception:
         enabled = []
-    return tenant_features.narrow(perms, enabled)
+    narrowed = tenant_features.narrow(perms, enabled)
+    return narrowed + tenant_features.hidden_screens(narrowed, enabled)
 
 
 async def session_permissions(db, role: Optional[str], tenant_id: Optional[str], *,

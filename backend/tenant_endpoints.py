@@ -6,6 +6,7 @@ from authentication_service import get_current_user, revoke_user_sessions
 from rbac_utils import require_permission
 from rbac_utils import can_read_all_tenants, has_platform_permission, is_super_admin
 import compliance_purchases
+import tenant_features
 import license_rules
 import licensing
 from rate_limiter import limiter
@@ -109,7 +110,8 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
         "name": data.name,
         "subscriptionTier": data.subscriptionTier,
         "registrationKey": registration_key,
-        "enabledFeatures": data.enabledFeatures,
+        # A new tenant gets every Security/Compliance screen of the features it starts with (spec C6).
+        "enabledFeatures": tenant_features.with_all_screens(data.enabledFeatures),
         "notificationPreferences": data.notificationPreferences,
         "emailConfig": {},
         "maxAgents": data.maxAgents,

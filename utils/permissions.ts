@@ -6,6 +6,15 @@ import featureSwitches from '../shared/tenant-feature-switches.json';
 const SWITCHABLE = new Set<string>(featureSwitches.groups.flatMap(g => g.features.map(f => f.permission)));
 const SWITCHED_VIEW_RESOURCES = new Set([...SWITCHABLE].filter(p => p.startsWith('view:')).map(p => p.slice('view:'.length)));
 
+/**
+ * True unless the server marked `view` as a switched-off screen for this tenant user
+ * (`screen-off:<view>`, backend tenant_features.hidden_screens): the Security and Compliance
+ * screens share one permission, so each has its own switch. Callers skip it for platform roles.
+ */
+export function screenAllowed(view: string, hasPermission: (permission: Permission) => boolean): boolean {
+  return !hasPermission(`screen-off:${view}` as Permission);
+}
+
 /** True when a Super Admin's per-tenant feature switch decides whether a tenant user holds `permission`. */
 export function isTenantSwitchable(permission: string): boolean {
   const colon = permission.indexOf(':');

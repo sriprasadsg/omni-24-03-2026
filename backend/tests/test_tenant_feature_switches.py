@@ -10,6 +10,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+import jwt
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
@@ -96,7 +97,9 @@ def test_the_switch_catalogue_is_sound():
     """protects=the shared list the Manage Tenant screen shows is the list the server enforces, every
     switch is a real tenant permission, and the basics are never switchable; fails_when=a typo'd
     permission, a dangling parent, or view:profile becomes switchable; no_claim=the screen's rendering."""
-    assert tf.SWITCHABLE <= set(TENANT_ADMIN_DEFAULTS)
+    assert {p for p in tf.SWITCHABLE if not p.startswith(tf.SCREEN_PREFIX)} <= set(TENANT_ADMIN_DEFAULTS)
+    manifest = {c["view"]: c["permission"] for c in json.load(open(tf._CATALOGUE_PATH.parent / "catalogue-access.json"))["catalogues"]}
+    assert all(manifest.get(view) == parent for view, parent in tf.SCREEN_SWITCHES.items())
     assert all(parent in tf.SWITCHABLE for parent in tf.SWITCH_PARENTS.values() if parent)
     assert not set(ALWAYS_ON) & tf.SWITCHABLE
     assert not any(tf.is_switchable(p) for p in ALWAYS_ON)
@@ -267,3 +270,91 @@ async def test_the_itam_backfill_runs_once_as_a_migration(mongo_db):
     features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
     assert set(features["old"]) == {"view:agents", "view:itam", "manage:itam"}
     assert features["has"] == ["view:itam", "manage:itam"] and features["platform-admin"] == []
+
+
+# ── Per-screen switches (Security / Compliance screens share one permission) ──
+
+def test_screen_switch_rule():
+    """protects=a screen is on only when its switch and its parent switch are on, "all" turns on every
+    screen of a held parent, route ownership is the longest manifest prefix, and new tenants get every
+    screen of the features they start with; fails_when=a screen survives its parent or a non-screen
+    route is claimed; no_claim=MongoDB (pure functions)."""
+    assert tf.screen_permissions(["view:security"], ["view:security", "screen:edr"]) == ["screen:edr"]
+    assert tf.screen_permissions(["view:security"], ["screen:edr"]) == []          # parent off
+    assert tf.screen_permissions([], ["view:security", "screen:edr"]) == []        # role lacks the parent
+    assert "screen:edr" in tf.screen_permissions(["view:security"], ["all"])
+    assert (tf.screen_of("/api/edr/hosts"), tf.screen_of("/api/edr"), tf.screen_of("/api/agents")) == ("edr", "edr", None)
+    assert set(tf.with_all_screens(["view:security"])) >= {"screen:edr", "screen:alertManagement"}
+    assert not any(s.startswith("screen:") for s in tf.with_all_screens(["view:agents"]))
+
+
+async def test_granted_permissions_mark_the_switched_off_screens():
+    """protects=/login and /me mark each switched-off Security screen (screen-off:<view>) so the UI hides
+    it, mark nothing for a tenant with every screen on (its list stays the role's permissions), and mark
+    nothing for a feature the user lacks; fails_when=EDR is marked off while on, or Alert Management is not
+    marked while off; no_claim=none beyond protects."""
+    db = _db(tenants=[_tenant(["view:security", "screen:edr"])])
+    granted = await rbac_service.granted_permissions(db, "Tenant Admin", "tenant-a")
+    assert "screen-off:alertManagement" in granted and "screen-off:edr" not in granted
+    assert not any(p.startswith(("screen:", "screen-off:compliance")) for p in granted)
+    everything = _db(tenants=[_tenant(["all"])])
+    assert await rbac_service.granted_permissions(everything, "Tenant Admin", "tenant-a") == \
+        await rbac_service.effective_permissions(everything, "Tenant Admin", "tenant-a")
+
+
+def _screen_app():
+    from fastapi.testclient import TestClient
+    from tenant_middleware import ScreenSwitchMiddleware, TenantMiddleware
+    app = FastAPI()
+    app.add_middleware(ScreenSwitchMiddleware)
+    app.add_middleware(TenantMiddleware)
+    for path in ("/api/edr/hosts", "/api/alerts", "/api/agents"):
+        app.add_api_route(path, lambda: {}, methods=["GET"])
+    return TestClient(app)
+
+
+def _bearer(role, tenant):
+    import authentication_service as auth
+    token = jwt.encode({"sub": "u@x", "role": role, "tenant_id": tenant}, auth.SECRET_KEY, algorithm=auth.ALGORITHM)
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.parametrize("features,role,path,expected", [
+    (["view:security"], "Tenant Admin", "/api/edr/hosts", 403),
+    (["view:security", "screen:edr"], "Tenant Admin", "/api/edr/hosts", 200),
+    (["view:security", "screen:edr"], "Tenant Admin", "/api/alerts", 403),
+    (["view:security"], "Tenant Admin", "/api/agents", 200),
+    (["view:security"], "Platform Support", "/api/edr/hosts", 200),
+])
+def test_a_switched_off_screen_is_refused_on_its_routes(monkeypatch, features, role, path, expected):
+    """protects=the server refuses a tenant user the routes a switched-off screen owns, serves a
+    switched-on screen, ignores routes no switched screen owns, and never limits platform roles;
+    fails_when=EDR's API answers with the EDR screen off; no_claim=API-key callers (no bearer JWT pass
+    through to the route's own guard)."""
+    import database
+    tenant = "platform-admin" if role == "Platform Support" else "tenant-a"
+    monkeypatch.setattr(database, "get_database", lambda: _db(tenants=[_tenant(features)]))
+    assert _screen_app().get(path, headers=_bearer(role, tenant)).status_code == expected
+
+
+def test_a_failed_screen_lookup_refuses(monkeypatch):
+    """protects=when the tenant's switches cannot be read a screen route is refused, not served;
+    fails_when=an error falls through to the route; no_claim=none beyond protects."""
+    import database
+    monkeypatch.setattr(database, "get_database", lambda: _db(tenants_fail=True))
+    assert _screen_app().get("/api/edr/hosts", headers=_bearer("Tenant Admin", "tenant-a")).status_code == 403
+
+
+async def test_migration_017_keeps_every_screen_a_tenant_already_had(mongo_db):
+    """protects=on deploy every tenant keeps all Security/Compliance screens of the features it has, and
+    gains none for features it lacks; fails_when=security screens vanish for an existing tenant;
+    no_claim=the runner bookkeeping."""
+    import importlib
+    await mongo_db.tenants.insert_many([{"id": "sec", "enabledFeatures": ["view:security"]},
+                                        {"id": "none", "enabledFeatures": ["view:agents"]}])
+    migration = importlib.import_module("migrations.017_screen_switches")
+    await migration.up(mongo_db)
+    await migration.up(mongo_db)
+    features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
+    assert {"screen:edr", "screen:alertManagement"} <= set(features["sec"]) and len(features["sec"]) == len(set(features["sec"]))
+    assert features["none"] == ["view:agents"]

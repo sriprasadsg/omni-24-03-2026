@@ -235,7 +235,7 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState, isSuperAdminRoleName } from './utils/permissions';
+import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './utils/permissions';
 import { viewForHash, viewPermission } from './utils/catalogueAccess';
 
 const API_BASE = '/api';
@@ -1145,7 +1145,9 @@ const App: React.FC = () => {
 
     // Every AppView has a manifest entry (pinned by catalogueAccess.test.ts); undefined handling is unchanged (Phase 77 owns fail-closed).
     const requiredPermission = viewPermission(view) as Permission;
-    if (hasPermission(requiredPermission)) {
+    // A Security/Compliance screen the Super Admin switched off for this tenant (spec C6).
+    const screenOk = isPlatformRoleName(currentUser?.role) || screenAllowed(view, hasPermission);
+    if (hasPermission(requiredPermission) && screenOk) {
       setCurrentView(view);
     } else {
       console.warn(`User does not have permission to view: ${view}`);

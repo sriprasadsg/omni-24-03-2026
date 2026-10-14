@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has a switch except Overview, Tickets, AI Assistant, Digital Twin, 2027 Horizon (all view:dashboard), My Tasks and Notification Prefs (view:profile). For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
+  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has a switch except Overview, Tickets, AI Assistant, Digital Twin, 2027 Horizon (all view:dashboard), My Tasks and Notification Prefs (view:profile). For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. \"screen:<view>\" entries switch one Security or Compliance screen (they share view:security / view:compliance): the sidebar hides a switched-off screen and the server refuses the routes it owns in the manifest. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
   "groups": [
     {
       "name": "Dashboards & Insights",
@@ -165,6 +165,131 @@
           "label": "Security Operations"
         },
         {
+          "permission": "screen:security",
+          "label": "Security Overview",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:alertManagement",
+          "label": "Alert Management",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:edr",
+          "label": "EDR (Real-Time)",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:yaraRules",
+          "label": "YARA Rule Editor",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:mitreAttack",
+          "label": "MITRE ATT&CK",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:dlp",
+          "label": "Data Loss Prevention",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:siem",
+          "label": "SIEM Dashboard (OCSF)",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:securityIntelConnectors",
+          "label": "Intel Connectors",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:siemRules",
+          "label": "SIEM Correlation Rules",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:deception",
+          "label": "Deception Technology",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:aiAnomaly",
+          "label": "AI Anomaly Detection",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:ueba",
+          "label": "UEBA & Insider Threats",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:shadowAI",
+          "label": "Shadow AI Detection",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:ndr",
+          "label": "Network Detection (NDR)",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:correlations",
+          "label": "Event Correlations",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:emailSecurity",
+          "label": "Email Security",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:pentest",
+          "label": "Pentesting",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:dast",
+          "label": "DAST",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:securitySimulation",
+          "label": "Simulation",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:runtimeSecurity",
+          "label": "Runtime Security",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:k8sSecurity",
+          "label": "Kubernetes Security",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:apiSecurity",
+          "label": "API Security",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:databaseMonitoring",
+          "label": "Database Monitor (DAM)",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:sast",
+          "label": "SAST",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:problemManagement",
+          "label": "Problem Management",
+          "parent": "view:security"
+        },
+        {
           "permission": "manage:security_cases",
           "label": "Manage Security Cases",
           "parent": "view:security"
@@ -320,6 +445,121 @@
         {
           "permission": "view:compliance",
           "label": "Compliance Management"
+        },
+        {
+          "permission": "screen:compliance",
+          "label": "Compliance",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:programs",
+          "label": "Programs",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:inboundQuestionnaires",
+          "label": "Inbound Questionnaires",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:governanceDocuments",
+          "label": "Governance Documents",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:auditProgram",
+          "label": "Audit Programs",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:accessReview",
+          "label": "Access Reviews",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:cookieConsent",
+          "label": "Cookie Consent",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:maturityScore",
+          "label": "Maturity Score",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:complianceEvidence",
+          "label": "Evidence Collector",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:saasIntegrations",
+          "label": "SaaS Evidence Integrations",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:remediationWorkflow",
+          "label": "Remediation",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:complianceFrameworks",
+          "label": "Framework Evaluator",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:customFrameworks",
+          "label": "Custom Frameworks",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:complianceOracle",
+          "label": "Compliance Oracle",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:cissporacle",
+          "label": "CISSP Oracle",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:privacy",
+          "label": "Privacy (GDPR/CCPA)",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:privacyLegal",
+          "label": "Privacy & Legal (TIA/LIA)",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:riskRegister",
+          "label": "Risk Register",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:vendorManagement",
+          "label": "Vendor Mgmt",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:trustCenter",
+          "label": "Trust Center",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:trustPage",
+          "label": "Public Trust Page Preview",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:securityTraining",
+          "label": "Training",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "screen:baaManagement",
+          "label": "BAA Management",
+          "parent": "view:compliance"
         },
         {
           "permission": "manage:compliance_evidence",

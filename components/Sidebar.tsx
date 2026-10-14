@@ -8,7 +8,7 @@ import { useUser } from '../contexts/UserContext';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { fetchSupportUnreadCount } from '../services/apiService';
 import { socketService } from '../services/socketService';
-import { isPlatformRoleName, isTenantSwitchable } from '../utils/permissions';
+import { isPlatformRoleName, isTenantSwitchable, screenAllowed } from '../utils/permissions';
 
 // Tier precedence — matches backend TIER_ORDER
 const TIER_ORDER: Record<string, number> = { Free: 0, Pro: 1, Enterprise: 2, Custom: 3 };
@@ -245,6 +245,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                         // Bundle mode: hide items whose feature the tenant hasn't been assigned
                         if (isBundleMode && item.featureKey && !hasFeature(item.featureKey)) return false;
                         if (isTenantUser && tierLock(item) && !isTenantSwitchable(item.permission)) return false;
+                        if (isTenantUser && !screenAllowed(item.view, hasPermission)) return false;
                         return true;
                     })
                     .map(item => (isSuperAdmin || isTenantUser ? { ...item, locked: undefined } : { ...item, locked: tierLock(item) })),
