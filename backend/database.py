@@ -35,6 +35,14 @@ TENANT_ISOLATION_EXEMPT_COLLECTIONS = frozenset([
     "crypto_inventory",   # platform-wide PQC inventory seeded at startup
 ])
 
+# Spec C3: agents waiting for approval (Pending) or refused (Rejected) are not part of
+# the fleet, so every list read through this wrapper (find, count_documents, distinct,
+# aggregate) leaves them out — one choke point instead of ~100 call sites. Single-
+# document reads and writes still see them, so enrollment and heartbeat can find them;
+# code that lists them on purpose (pending_agents, licensing) uses the raw collection.
+_HIDDEN_FROM_LISTS = {"agents": {"status": {"$nin": ["Pending", "Rejected"]}}}
+
+
 class TenantIsolatedCollection:
     """
     Wrapper for Motor collection to automatically inject tenantId filter.
@@ -43,6 +51,14 @@ class TenantIsolatedCollection:
     """
     def __init__(self, collection):
         self._collection = collection
+
+    def _hide_from_lists(self, filter_query: Dict[str, Any]) -> Dict[str, Any]:
+        hidden = _HIDDEN_FROM_LISTS.get(getattr(self._collection, "name", None))
+        if not hidden:
+            return filter_query
+        if "status" in filter_query or "$and" in filter_query:
+            return {"$and": [filter_query, hidden]}
+        return {**filter_query, **hidden}
 
     def _inject_tenant_id(self, filter_query: Dict[str, Any]) -> Dict[str, Any]:
         tenant_id = get_tenant_id()
@@ -65,7 +81,7 @@ class TenantIsolatedCollection:
         return new_filter
 
     def find(self, filter=None, *args, **kwargs):
-        return self._collection.find(self._inject_tenant_id(filter), *args, **kwargs)
+        return self._collection.find(self._hide_from_lists(self._inject_tenant_id(filter)), *args, **kwargs)
 
     async def find_one(self, filter=None, *args, **kwargs):
         return await self._collection.find_one(self._inject_tenant_id(filter), *args, **kwargs)
@@ -107,10 +123,10 @@ class TenantIsolatedCollection:
         return await self._collection.delete_many(self._inject_tenant_id(filter), *args, **kwargs)
 
     async def count_documents(self, filter, *args, **kwargs):
-        return await self._collection.count_documents(self._inject_tenant_id(filter), *args, **kwargs)
+        return await self._collection.count_documents(self._hide_from_lists(self._inject_tenant_id(filter)), *args, **kwargs)
 
     async def distinct(self, key, filter=None, *args, **kwargs):
-        return await self._collection.distinct(key, self._inject_tenant_id(filter), *args, **kwargs)
+        return await self._collection.distinct(key, self._hide_from_lists(self._inject_tenant_id(filter)), *args, **kwargs)
 
     async def find_one_and_update(self, filter, update, *args, **kwargs):
         return await self._collection.find_one_and_update(self._inject_tenant_id(filter), update, *args, **kwargs)
@@ -126,7 +142,10 @@ class TenantIsolatedCollection:
             match_stage = {"$match": {"tenantId": effective_tenant_id}}
             # Prepend the match stage
             pipeline = [match_stage] + pipeline
-            
+        hidden = _HIDDEN_FROM_LISTS.get(getattr(self._collection, "name", None))
+        if hidden:
+            pipeline = [{"$match": hidden}] + list(pipeline)
+
         return self._collection.aggregate(pipeline, *args, **kwargs)
 
     def __getattr__(self, name):

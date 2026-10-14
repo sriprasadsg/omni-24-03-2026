@@ -4,6 +4,9 @@ import { Tenant, Permission, SubscriptionTier } from '../types';
 import { TrashIcon } from './icons';
 import { SUBSCRIPTION_TIERS } from '../constants';
 import { Modal } from './Modal';
+import { TenantLicensePanel } from './TenantLicensePanel';
+import { TenantEnrollmentKeysPanel } from './TenantEnrollmentKeysPanel';
+import { TenantAllowlistPanel } from './TenantAllowlistPanel';
 
 interface ManageTenantModalProps {
   isOpen: boolean;
@@ -204,6 +207,10 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
       footer={footer}
     >
         <div className="space-y-4">
+          <TenantLicensePanel tenantId={tenant.id} />
+          {/* Tenant Management is super-admin only, so these panels can manage (spec C4). */}
+          <TenantEnrollmentKeysPanel tenantId={tenant.id} canManage />
+          <TenantAllowlistPanel tenantId={tenant.id} canManage />
           <div>
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Subscription Tier</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select a base subscription tier.</p>

@@ -71,3 +71,14 @@ async def test_up_to_date_and_non_windows_agents_get_nothing():
     await svc.maybe_push_update_instruction(db, "a2", {"version": "2.1.10", "platform": "Linux"})
     await svc.maybe_push_update_instruction(db, "a3", {"version": "2.0.1", "platform": "Windows"})
     assert db.agent_instructions.rows == []
+
+
+async def test_a_build_newer_than_the_published_one_is_not_downgraded():
+    """protects=an agent installed from a fresh source build (e.g. 2.1.13 before it is
+    published) is left alone; fails_when=the push fires on any version mismatch and
+    "updates" it back down to the published binary."""
+    major, minor, patch = svc._parse_ver(svc._LATEST_AGENT_VERSION)
+    db = FakeDb()
+    await svc.maybe_push_update_instruction(db, "a1", {"version": f"{major}.{minor}.{patch + 1}", "platform": "Windows"})
+    await svc.maybe_push_update_instruction(db, "a2", {"version": f"{major}.{minor + 1}.0-rust", "platform": "Windows"})
+    assert db.agent_instructions.rows == []

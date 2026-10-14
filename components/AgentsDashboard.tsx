@@ -11,6 +11,7 @@ import { AgentDetailModal } from './AgentDetailModal';
 import { RemediationLogsModal } from './RemediationLogsModal';
 import { RemediationConfirmationModal } from './RemediationConfirmationModal';
 import { AgentUpgradeManager } from './AgentUpgradeManager';
+import { PendingAgentsPanel } from './PendingAgentsPanel';
 import { ManageAgentCapabilitiesModal } from './ManageAgentCapabilitiesModal';
 import { UpgradeModal } from './UpgradeModal';
 import { fetchKpiSummary } from '../services/apiService';
@@ -324,6 +325,9 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     <div className="container mx-auto">
       <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-2">Agent Fleet Management</h2>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Monitor the status and health of all deployed Omni-Agents.</p>
+
+      {/* The platform tenant's own view lists every tenant's waiting agents. */}
+      <PendingAgentsPanel tenantId={activeTenantId === 'platform-admin' ? null : activeTenantId} />
 
       {/* Stats Cards */}
       {/* Stats Cards - Flash UI Style */}

@@ -127,7 +127,7 @@ fn os_info() -> Value {
 // out of scope for now.
 
 #[cfg(windows)]
-fn logged_in_user() -> Option<String> {
+pub(crate) fn logged_in_user() -> Option<String> {
     use winapi::shared::minwindef::{BOOL, DWORD};
     use winapi::um::winbase::WTSGetActiveConsoleSessionId;
     use winapi::um::winnt::HANDLE;
@@ -178,7 +178,7 @@ fn logged_in_user() -> Option<String> {
 }
 
 #[cfg(target_os = "linux")]
-fn logged_in_user() -> Option<String> {
+pub(crate) fn logged_in_user() -> Option<String> {
     // `who` reads utmp system-wide — reflects real logged-in sessions
     // regardless of the calling (root/service) process's own context.
     let out = std::process::Command::new("who").output().ok()?;
@@ -193,7 +193,7 @@ fn logged_in_user() -> Option<String> {
 }
 
 #[cfg(target_os = "macos")]
-fn logged_in_user() -> Option<String> {
+pub(crate) fn logged_in_user() -> Option<String> {
     // Owner of /dev/console is the interactively logged-in user, or "root"
     // when nobody is logged in at the console.
     let out = std::process::Command::new("stat")
@@ -208,7 +208,7 @@ fn logged_in_user() -> Option<String> {
 }
 
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-fn logged_in_user() -> Option<String> {
+pub(crate) fn logged_in_user() -> Option<String> {
     None
 }
 
@@ -227,58 +227,10 @@ fn fallback_serial() -> String {
     format!("SN-{}", hostname_str().chars().take(12).collect::<String>())
 }
 
-#[cfg(windows)]
 fn detect_serial_number() -> String {
-    // wmic.exe was removed starting Windows 11 24H2; Get-CimInstance talks to
-    // the same underlying WMI/CIM subsystem and is still present everywhere.
-    let out = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "(Get-CimInstance -ClassName Win32_BIOS).SerialNumber",
-        ])
-        .output();
-    if let Ok(out) = out {
-        let serial = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if !serial.is_empty() && serial != "To Be Filled By O.E.M." {
-            return serial;
-        }
-    }
-    fallback_serial()
-}
-
-#[cfg(target_os = "linux")]
-fn detect_serial_number() -> String {
-    std::fs::read_to_string("/sys/class/dmi/id/product_serial")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
+    crate::identity::bios_serial()
+        .filter(|s| s != "To Be Filled By O.E.M.")
         .unwrap_or_else(fallback_serial)
-}
-
-#[cfg(target_os = "macos")]
-fn detect_serial_number() -> String {
-    let out = std::process::Command::new("system_profiler")
-        .arg("SPHardwareDataType")
-        .output();
-    if let Ok(out) = out {
-        let text = String::from_utf8_lossy(&out.stdout);
-        for line in text.lines() {
-            if let Some((_, val)) = line.split_once("Serial Number") {
-                let val = val.trim_start_matches(':').trim();
-                if !val.is_empty() {
-                    return val.to_string();
-                }
-            }
-        }
-    }
-    fallback_serial()
-}
-
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-fn detect_serial_number() -> String {
-    fallback_serial()
 }
 
 // ── Device type / chassis classification ────────────────────────────────────
@@ -289,7 +241,7 @@ fn detect_serial_number() -> String {
 
 static DEVICE_TYPE: OnceLock<Value> = OnceLock::new();
 
-fn device_type_info() -> Value {
+pub(crate) fn device_type_info() -> Value {
     DEVICE_TYPE.get_or_init(detect_device_type).clone()
 }
 
@@ -598,7 +550,25 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
         "version": env!("CARGO_PKG_VERSION"),
         "ipAddress": best_ip(),
         "publicIp": public_ip,
+        "supportsPending": true,
+        "hardware": crate::identity::hardware_block(),
         "meta": meta,
+    })
+}
+
+/// What an agent waiting for approval sends: who it is and nothing else. The
+/// platform stores no capability data for a Pending agent (spec C3), so none
+/// is collected.
+pub fn identity_payload(cfg: &Config) -> Value {
+    json!({
+        "hostname": hostname_str(),
+        "tenantId": cfg.tenant_id,
+        "platform": if cfg!(windows) { "Windows" } else { "Linux" },
+        "version": env!("CARGO_PKG_VERSION"),
+        "ipAddress": best_ip(),
+        "publicIp": cached_public_ip(),
+        "supportsPending": true,
+        "hardware": crate::identity::hardware_block(),
     })
 }
 
@@ -631,8 +601,23 @@ pub async fn send(
             log::info!("Heartbeat -> {status}");
             if status == 200 {
                 let body = resp.json::<Value>().await.unwrap_or(Value::Null);
+                crate::registration::note_admitted();
                 flush_buffer(cfg, buffer, client, &url).await;
                 Some(body)
+            } else if status == 202 {
+                // Waiting for approval (spec C3): the platform keeps none of this
+                // beat's data, so it is not buffered for a retry either.
+                let body = resp.json::<Value>().await.unwrap_or(Value::Null);
+                crate::registration::note_pending(body["pendingReason"].as_str().unwrap_or("seat_limit"));
+                None
+            } else if status == 403 {
+                let body = resp.json::<Value>().await.unwrap_or(Value::Null);
+                if crate::registration::refusal_detail(&body).starts_with("agent_rejected") {
+                    crate::registration::note_rejected();
+                } else {
+                    buffer.push(&payload);
+                }
+                None
             } else {
                 buffer.push(&payload);
                 None

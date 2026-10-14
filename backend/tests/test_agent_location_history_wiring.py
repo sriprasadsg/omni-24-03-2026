@@ -104,9 +104,14 @@ def _mock_reg_db(existing_agent=None, tenant_doc=None, existing_asset=None):
     db.assets = MagicMock()
     db.assets.find_one = AsyncMock(return_value=existing_asset)
     db.assets.update_one = AsyncMock()
-    # First enrollments take the tenant enrollment lease (QA ISSUE-001).
-    db._db.enrollment_locks.update_one = AsyncMock()
-    db._db.enrollment_locks.delete_one = AsyncMock()
+    # First enrollments claim a seat on the tenant's license (spec C2).
+    db._db.tenants.find_one = AsyncMock(return_value={"id": "t1", "license": {"maxAgents": 5, "seatsUsed": 0}})
+    db._db.tenants.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
+    # The registration key resolves to the tenant's Legacy install key, created on
+    # first use, and each new enrollment takes one use of it (spec C4).
+    db._db.enrollment_keys.find_one = AsyncMock(return_value=None)
+    db._db.enrollment_keys.insert_one = AsyncMock()
+    db._db.enrollment_keys.find_one_and_update = AsyncMock(return_value={"uses": 1})
     return db
 
 

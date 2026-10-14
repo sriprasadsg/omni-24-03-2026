@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional, List
 from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import verify_permission
+import licensing
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents", tags=["Agent Metrics"])
@@ -61,6 +62,10 @@ async def record_agent_metrics(
     agent = await db.agents.find_one(agent_filter)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.get("status") in licensing.NON_SEAT_STATUSES:
+        # Writing status Online below would admit an agent that holds no seat (spec C2/C3);
+        # its heartbeat claims one first.
+        raise HTTPException(status_code=409, detail=f"Agent is {agent.get('status')}; send a heartbeat first")
 
     timestamp = datetime.now(timezone.utc).isoformat()
     metric_doc = {

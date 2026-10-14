@@ -6233,3 +6233,52 @@ export const apiService = {
     updateRemediationPlaybook,
     deleteRemediationPlaybook,
 };
+
+// ── Agent seat license (spec C2) ─────────────────────────────────────────────
+export interface LicenseSubLimit {
+    key: string;   // os:windows_workstation | os:windows_server | os:linux | os:macos | group:<agentGroupId>
+    max: number;
+}
+
+export interface TenantLicense {
+    tenantId: string;
+    maxAgents: number;
+    seatsUsed: number;
+    seatsAvailable: number;
+    overBy: number;
+    inactiveReclaimDays: number;
+    allowlistMode: 'off' | 'enforce';
+    subLimits: LicenseSubLimit[];
+    expiresAt: string | null;
+}
+
+const _licenseError = async (res: Response, fallback: string): Promise<never> => {
+    let message = fallback;
+    try {
+        const body = await res.json();
+        message = body?.error || body?.detail || fallback;
+    } catch { /* non-JSON error body */ }
+    throw new Error(typeof message === 'string' ? message : fallback);
+};
+
+export const fetchTenantLicense = async (tenantId: string): Promise<TenantLicense> => {
+    const res = await authFetch(`${API_BASE}/tenants/${tenantId}/license`);
+    if (!res.ok) return _licenseError(res, 'Failed to load the agent license');
+    return res.json();
+};
+
+export const updateTenantLicense = async (
+    tenantId: string,
+    changes: {
+        maxAgents?: number; inactiveReclaimDays?: number; allowlistMode?: 'off' | 'enforce';
+        subLimits?: LicenseSubLimit[]; expiresAt?: string | null;
+    },
+): Promise<TenantLicense> => {
+    const res = await authFetch(`${API_BASE}/tenants/${tenantId}/license`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+    });
+    if (!res.ok) return _licenseError(res, 'Failed to update the agent license');
+    return res.json();
+};

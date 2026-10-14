@@ -69,8 +69,14 @@ async def get_notifications(
     """Get recent notifications for a tenant"""
     db = get_database()
     tenant_id = get_tenant_id()
+    query: Dict[str, Any] = {"tenantId": tenant_id}
+    # Alerts addressed to tenant admins (e.g. agents waiting for approval, spec C3) carry
+    # host details; users who cannot manage agents don't get them.
+    perms = await rbac_service.get_user_permissions(current_user)
+    if "*" not in perms and "manage:agents" not in perms:
+        query["metadata.audience"] = {"$ne": "tenant_admins"}
     notifications = await db.notifications.find(
-        {"tenantId": tenant_id},
+        query,
         {"_id": 0}
     ).sort("sent_at", -1).to_list(length=limit)
     return notifications

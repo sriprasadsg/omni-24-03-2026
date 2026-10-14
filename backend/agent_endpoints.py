@@ -14,8 +14,10 @@ from agent_telemetry_endpoints import router as _telemetry
 from agent_heartbeat_endpoints import router as _heartbeat
 from agent_security_endpoints import router as _security
 from agent_uninstall_endpoints import router as _uninstall
+from pending_agent_endpoints import router as _pending
 
 router = APIRouter()
+router.include_router(_pending)  # static /pending paths first, before any /{agent_id} route
 router.include_router(_registry)
 router.include_router(_core)
 router.include_router(_tasks)

@@ -40,9 +40,10 @@ async def maybe_push_update_instruction(db, agent_id: str, payload: dict) -> Non
     """
     _reported_version = payload.get("version", "")
     _rv = _parse_ver(_reported_version)
-    if not (_reported_version and _reported_version != _LATEST_AGENT_VERSION
-            and payload.get("platform") == "Windows"
-            and _rv is not None and _rv >= _MIN_SELF_UPDATE_VERSION):
+    # Only older agents: a build newer than the published one (installed from a
+    # fresh source build before it is published) must not be "updated" back down.
+    if not (_reported_version and payload.get("platform") == "Windows"
+            and _rv is not None and _MIN_SELF_UPDATE_VERSION <= _rv < _parse_ver(_LATEST_AGENT_VERSION)):
         return
 
     # Dedup against pending AND sent: auto-pushed instructions flip to "sent" as

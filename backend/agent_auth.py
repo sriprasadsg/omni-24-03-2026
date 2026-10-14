@@ -4,6 +4,7 @@ from database import get_database
 import logging
 import jwt
 from authentication_service import SECRET_KEY, ALGORITHM, is_agent_payload
+import pending_agents
 
 logger = logging.getLogger("agent_auth")
 
@@ -92,6 +93,8 @@ async def verify_agent_key(
                 logger.warning("Agent token references unknown tenant_id: %s", tenant_id)
                 raise HTTPException(status_code=403, detail="Invalid Agent Token")
             await bind_path_agent(request, agent_id, tenant["id"], db)
+            # Pending/Rejected agents reach only their heartbeat (spec C3).
+            await pending_agents.assert_admitted(db, agent_id, request.url.path if request is not None else "")
             set_tenant_id(tenant["id"])
             return {**tenant, CALLER_AGENT_KEY: agent_id}
         if not x_tenant_key:

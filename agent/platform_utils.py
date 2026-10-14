@@ -658,6 +658,104 @@ class PlatformUtils:
         # Fallback to hostname-based ID
         return f"SN-{socket.gethostname()[:12]}"
     
+    # Interfaces that never identify the physical machine.
+    _VIRTUAL_NIC = ("lo", "docker", "veth", "br-", "virbr", "vmnet", "vboxnet", "tun", "tap",
+                    "wg", "zt", "utun", "awdl", "llw", "bridge", "cni", "flannel", "kube", "tailscale")
+
+    @staticmethod
+    def _run(cmd, timeout=15):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            return r.stdout.strip() if r.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _read(path):
+        try:
+            with open(path) as f:
+                return f.read().strip()
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _os_name(system: str) -> str:
+        """Product name of the OS, e.g. "Windows 2022Server ServerDatacenter", "Ubuntu 24.04.1 LTS"."""
+        try:
+            if system == "Windows":
+                edition = platform.win32_edition() if hasattr(platform, "win32_edition") else ""
+                return f"Windows {platform.release()} {edition or ''}".strip()
+            if system == "Darwin":
+                return f"macOS {platform.mac_ver()[0]}".strip()
+            for line in PlatformUtils._read("/etc/os-release").splitlines():
+                if line.startswith("PRETTY_NAME="):
+                    return line.split("=", 1)[1].strip().strip('"')
+        except Exception as e:
+            logger.debug(f"OS name lookup failed: {e}")
+        return f"{system} {platform.release()}".strip()
+
+    @staticmethod
+    def get_hardware_identity() -> dict:
+        """Machine identity for seat licensing (spec C2): BIOS serial, SMBIOS UUID,
+        physical MACs (interfaces carrying an IPv4 address first) and OS facts.
+        Unknown values are None; the server ignores placeholders."""
+        system = platform.system()
+        run, read = PlatformUtils._run, PlatformUtils._read
+        serial = PlatformUtils.get_serial_number()
+        if not serial or serial.startswith("SN-"):  # hostname-derived fallback is not an identity
+            serial = None
+        smbios_uuid = None
+        if system == "Windows":
+            ps = ["powershell", "-NoProfile", "-NonInteractive", "-Command"]
+            if not serial:  # wmic is gone on current Windows 11 builds
+                serial = run(ps + ["(Get-CimInstance Win32_BIOS).SerialNumber"]) or None
+            smbios_uuid = run(ps + ["(Get-CimInstance Win32_ComputerSystemProduct).UUID"]) or None
+        elif system == "Linux":
+            smbios_uuid = read("/sys/class/dmi/id/product_uuid") or None
+            if not smbios_uuid:  # root-only on most distros; machine-id survives agent reinstalls
+                mid = read("/etc/machine-id")
+                if len(mid) == 32:
+                    smbios_uuid = str(uuid.UUID(mid))
+        elif system == "Darwin":
+            for line in run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"]).splitlines():
+                if "IOPlatformUUID" in line and "=" in line:
+                    smbios_uuid = line.split("=", 1)[1].strip().strip('"') or None
+
+        macs_with_ip, macs_other = [], []
+        try:
+            addrs = psutil.net_if_addrs()
+            for name, entries in addrs.items():
+                if name.lower().startswith(PlatformUtils._VIRTUAL_NIC):
+                    continue
+                mac = next((e.address for e in entries if e.family == psutil.AF_LINK), None)
+                if not mac:
+                    continue
+                has_ipv4 = any(e.family == socket.AF_INET for e in entries)
+                (macs_with_ip if has_ipv4 else macs_other).append(mac.lower().replace("-", ":"))
+        except Exception as e:
+            logger.debug(f"MAC enumeration failed: {e}")
+
+        try:
+            device_type = PlatformUtils.detect_device_type().get("device_type")
+        except Exception:
+            device_type = None
+        try:
+            users = psutil.users()
+            logged_in = users[0].name if users else None
+        except Exception:
+            logged_in = None
+        os_family = {"Windows": "windows", "Linux": "linux", "Darwin": "macos"}.get(system, system.lower())
+        return {
+            "serialNumber": serial,
+            "smbiosUuid": smbios_uuid,
+            "macAddresses": macs_with_ip + macs_other,
+            "osFamily": os_family,
+            "osName": PlatformUtils._os_name(system),  # tells Windows Server from a workstation (spec C4)
+            "osVersion": platform.version() if system == "Windows" else platform.release(),
+            "deviceType": device_type,
+            "loggedInUser": logged_in,
+        }
+
     @staticmethod
     def get_installed_software():
         """

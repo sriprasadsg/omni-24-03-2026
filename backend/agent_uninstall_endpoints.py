@@ -23,6 +23,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 
 from authentication_service import get_current_user_or_agent
 from database import get_database
+import licensing
 from rbac_utils import require_permission
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -165,6 +166,8 @@ async def report_uninstall(
     if authorized:  # single use: the next install or a failed uninstall needs a fresh code
         update["uninstallProtection"] = _new_protection(protection["version"] + 1, "system")
     await db.agents.update_one({"id": agent_id}, {"$set": update})
+    if agent.get("status") not in licensing.NON_SEAT_STATUSES:
+        await licensing.release_seats(db, agent["tenantId"])  # an uninstalled agent holds no seat
     await _audit(db, "AGENT_UNINSTALLED", agent, current_user, authorized=authorized, method=update["uninstallMethod"])
 
     from ueba_service import persist_security_alert

@@ -398,7 +398,10 @@ async def get_current_user_or_agent(token: str = Depends(oauth2_scheme), request
     if token_data.role == AGENT_ROLE and request is not None:
         from agent_auth import bind_path_agent
         from database import get_database
+        import pending_agents
         await bind_path_agent(request, token_data.username, token_data.tenant_id, get_database())
+        # Pending/Rejected agents reach only their heartbeat and uninstall report (spec C3).
+        await pending_agents.assert_admitted(get_database(), token_data.username, request.url.path)
     return token_data
 
 async def get_optional_user(token: Optional[str] = Depends(_oauth2_optional)):

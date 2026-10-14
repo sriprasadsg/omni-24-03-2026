@@ -1,10 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Response
-from typing import List, Any, Dict, Optional
-from pydantic import BaseModel
+from typing import List, Any, Dict, Literal, Optional
+from pydantic import BaseModel, Field
 from database import get_database, mongodb
 from authentication_service import get_current_user, revoke_user_sessions
 from rbac_utils import require_permission
 from rbac_utils import is_super_admin
+import license_rules
+import licensing
 from rate_limiter import limiter
 from datetime import datetime, timezone
 import hashlib
@@ -42,6 +44,7 @@ class TenantCreate(BaseModel):
         "view:swarm", "view:itam", "manage:itam"
     ]
     notificationPreferences: Dict[str, Any] = {}
+    maxAgents: int = Field(licensing.DEFAULT_MAX_AGENTS, ge=0, le=licensing.MAX_AGENTS_CEILING)
 
 @router.get("")
 async def get_tenants(current_user = Depends(get_current_user)):
@@ -50,13 +53,24 @@ async def get_tenants(current_user = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Super Admin access required")
     tenants = await mongodb.db.tenants.find({}, {"_id": 0}).to_list(length=1000)
 
-    # Batch agent counts via a single aggregation instead of one query per tenant
-    pipeline = [{"$group": {"_id": "$tenantId", "count": {"$sum": 1}}}]
-    count_cursor = mongodb.db.agents.aggregate(pipeline)
-    agent_counts = {doc["_id"]: doc["count"] async for doc in count_cursor}
+    # Batch agent counts via a single aggregation instead of one query per tenant.
+    # Pending agents (spec C3) are counted apart; Rejected ones not at all.
+    pipeline = [{"$group": {"_id": {"t": "$tenantId", "s": "$status"}, "count": {"$sum": 1}}}]
+    agent_counts: Dict[str, int] = {}
+    pending_counts: Dict[str, int] = {}
+    async for doc in mongodb.db.agents.aggregate(pipeline):
+        tid, status = doc["_id"].get("t"), doc["_id"].get("s")
+        if status == "Pending":
+            pending_counts[tid] = pending_counts.get(tid, 0) + doc["count"]
+        elif status != "Rejected":
+            agent_counts[tid] = agent_counts.get(tid, 0) + doc["count"]
 
     for tenant in tenants:
         tenant["agentCount"] = agent_counts.get(tenant.get("id"), 0)
+        tenant["pendingCount"] = pending_counts.get(tenant.get("id"), 0)
+        lic = licensing.license_of(tenant)
+        tenant["agentLimit"] = lic["maxAgents"]
+        tenant["seatsUsed"] = lic["seatsUsed"] if lic["seatsUsed"] is not None else tenant["agentCount"]
 
     return tenants
 
@@ -85,6 +99,9 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
         "enabledFeatures": data.enabledFeatures,
         "notificationPreferences": data.notificationPreferences,
         "emailConfig": {},
+        "maxAgents": data.maxAgents,
+        "license": {"maxAgents": data.maxAgents, "seatsUsed": 0,
+                    "inactiveReclaimDays": licensing.DEFAULT_RECLAIM_DAYS},
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "updatedAt": datetime.now(timezone.utc).isoformat()
     }
@@ -633,3 +650,69 @@ async def revoke_api_key(
         logger.debug("API key revocation notification failed (non-fatal): %s", e)
 
     return {"success": True}
+
+
+# ── Agent seat license (spec C2) ─────────────────────────────────────────────
+
+class SubLimit(BaseModel):
+    key: str = Field(..., max_length=80)
+    max: int = Field(..., ge=0, le=licensing.MAX_AGENTS_CEILING)
+
+
+class LicenseUpdate(BaseModel):
+    maxAgents: Optional[int] = Field(None, ge=0, le=licensing.MAX_AGENTS_CEILING)
+    inactiveReclaimDays: Optional[int] = Field(None, ge=1, le=licensing.MAX_RECLAIM_DAYS)
+    # Spec C4 enrollment controls; an explicit null expiresAt clears the expiry.
+    allowlistMode: Optional[Literal["off", "enforce"]] = None
+    subLimits: Optional[List[SubLimit]] = None
+    expiresAt: Optional[datetime] = None
+
+
+@router.get("/{tenant_id}/license")
+async def get_tenant_license(tenant_id: str, current_user=Depends(get_current_user)):
+    """Seat limit and usage. Super admins read any tenant; others only their own."""
+    _assert_tenant_access(current_user, tenant_id)
+    if not await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return await licensing.license_summary(mongodb.db, tenant_id)
+
+
+@router.patch("/{tenant_id}/license")
+async def update_tenant_license(tenant_id: str, data: LicenseUpdate, current_user=Depends(get_current_user)):
+    """Change a tenant's agent seat limit or reclaim window. Super Admin only; lowering the
+    limit below seats in use is allowed (running agents keep their seats, new enrollments
+    are refused until seats free up)."""
+    if not is_super_admin(getattr(current_user, "role", "")):
+        raise HTTPException(status_code=403, detail="Only Super Admin can change agent licenses")
+    given = data.model_fields_set
+    if not given:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+    if not await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    controls: Dict[str, Any] = {}
+    if "allowlistMode" in given and data.allowlistMode is not None:
+        controls["allowlist_mode"] = data.allowlistMode
+    if "subLimits" in given and data.subLimits is not None:
+        try:
+            controls["sub_limits"] = await license_rules.validate_sub_limits(
+                mongodb.db, tenant_id, [s.model_dump() for s in data.subLimits])
+        except license_rules.ControlError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+    if "expiresAt" in given:
+        at = data.expiresAt
+        controls["expires_at"] = (at if at.tzinfo else at.replace(tzinfo=timezone.utc)).astimezone(
+            timezone.utc).isoformat() if at else None
+    before = await licensing.license_summary(mongodb.db, tenant_id)
+    after = await licensing.update_license(mongodb.db, tenant_id, data.maxAgents, data.inactiveReclaimDays, **controls)
+    try:
+        from audit_service import get_audit_service
+        await get_audit_service().log_action_async(
+            user_name=getattr(current_user, "username", "unknown"), action="license.changed",
+            resource_type="agent_license", resource_id=tenant_id,
+            details="; ".join(f"{k} {before.get(k)!r} -> {after.get(k)!r}" for k in
+                              ("maxAgents", "inactiveReclaimDays", "allowlistMode", "subLimits", "expiresAt")
+                              if before.get(k) != after.get(k)) or "no change",
+            tenant_id=tenant_id)
+    except Exception as e:
+        logger.warning("License audit write failed for %s: %s", tenant_id, e)
+    return after

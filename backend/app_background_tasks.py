@@ -267,7 +267,7 @@ async def _run_agent_uptime_rollup_once(db) -> int:
             try:
                 set_tenant_id(tid)
                 agents = await db._db.agents.find(
-                    {"tenantId": tid}, {"id": 1}
+                    {"tenantId": tid, "status": {"$nin": ["Pending", "Rejected"]}}, {"id": 1}
                 ).to_list(length=5000)
 
                 for agent in agents:
@@ -333,3 +333,28 @@ async def agent_uptime_rollup_loop():
             _log.error("Agent uptime rollup loop error: %s", _e)
 
 
+
+
+async def license_seat_maintenance_loop():
+    """Agent seat upkeep (spec C2): hourly, agents silent past their tenant's reclaim
+    window become Inactive and free their seats; at startup and every 24 h after,
+    each tenant's seatsUsed is recomputed from its agents to repair drift. Hourly too,
+    licenses 30/7/1 days from expiry raise a reminder (spec C4)."""
+    import license_rules
+    import licensing
+    from database import get_database
+
+    _log = logging.getLogger(__name__ + ".license_seats")
+    _log.info("License seat maintenance loop started (reclaim hourly, reconcile daily)")
+    runs = 0
+    while True:
+        try:
+            db = get_database()
+            if runs % 24 == 0:
+                await licensing.reconcile_all(db)
+            await licensing.reclaim_inactive_agents(db)
+            await license_rules.send_expiry_reminders(db)
+        except Exception as exc:
+            _log.error("License seat maintenance failed: %s", exc)
+        runs += 1
+        await asyncio.sleep(3600)

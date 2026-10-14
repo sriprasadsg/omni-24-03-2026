@@ -130,6 +130,10 @@ async def test_legacy_upgrade_rejects_wrong_tokens(token, tenant, revoked):
 async def test_register_endpoint_returns_409_for_unproven_reenrollment():
     db = MagicMock()
     db.tenants.find_one = AsyncMock(return_value={"id": "tenant-a", "registrationKey": "k"})
+    # "k" resolves to the tenant's Legacy install key (spec C4), created on first use.
+    db._db.tenants.find_one = AsyncMock(return_value={"id": "tenant-a", "registrationKey": "k"})
+    db._db.enrollment_keys.find_one = AsyncMock(return_value=None)
+    db._db.enrollment_keys.insert_one = AsyncMock()
     db.agents.find_one = AsyncMock(return_value=dict(ENROLLED, hostname="srv-1", tenantId="tenant-a"))
     db.agents.update_one = AsyncMock()
     with patch.object(reg, "get_database", return_value=db), patch.object(reg.limiter, "enabled", False):

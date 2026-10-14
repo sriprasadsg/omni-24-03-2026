@@ -5,8 +5,6 @@ from database import get_database
 from authentication_service import get_current_user, create_access_token, SECRET_KEY, ALGORITHM, is_agent_payload
 from rbac_utils import require_permission
 from datetime import datetime, timezone, timedelta
-import asyncio
-import contextlib
 import hashlib
 import hmac
 import secrets
@@ -18,6 +16,11 @@ import geoip_service
 import agent_asn_service
 import logging
 from agent_location_history_service import record_location_change, get_track_agent_location
+import enrollment_keys
+import license_rules
+import licensing
+import pending_agents
+import seat_identity
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_registry_endpoints")
@@ -60,41 +63,48 @@ async def _proves_agent_identity(db, existing_agent: dict, tenant_id: str, data:
     return True
 
 
-_ENROLLMENT_LOCK_TTL = timedelta(seconds=10)
-_ENROLLMENT_LOCK_ATTEMPTS = 60
-_ENROLLMENT_LOCK_RETRY_S = 0.05
+# An agent that shares this machine's serial/UUID and was seen this recently is
+# treated as still alive: its seat is not handed to a new enrollment (spec C2).
+_HARDWARE_TAKEOVER_AFTER = timedelta(hours=24)
 
 
-@contextlib.asynccontextmanager
-async def _tenant_enrollment_lock(db, tenant_id: str):
-    """Serialize a tenant's seat-limit check and agent insert across requests and
-    workers, so concurrent first enrollments cannot all pass the count (QA
-    ISSUE-001). A lease, not a mutex: a crashed holder's lock expires after the
-    TTL. Interim until an atomic seat counter replaces the count check.
-    """
-    locks = getattr(db, "_db", db).enrollment_locks  # platform-internal, not tenant-scoped
-    key = f"enroll:{tenant_id}"
-    owner = uuid.uuid4().hex
-    for _ in range(_ENROLLMENT_LOCK_ATTEMPTS):
-        now = datetime.now(timezone.utc)
-        try:
-            # Matches only an expired lease; otherwise the upsert collides on _id.
-            await locks.update_one(
-                {"_id": key, "lockedUntil": {"$lt": now}},
-                {"$set": {"lockedUntil": now + _ENROLLMENT_LOCK_TTL, "owner": owner}},
-                upsert=True,
-            )
-            break
-        except Exception as e:
-            if "E11000 duplicate key error" not in str(e):
-                raise
-            await asyncio.sleep(_ENROLLMENT_LOCK_RETRY_S)
-    else:
-        raise HTTPException(status_code=503, detail="Agent enrollment is busy for this tenant; retry")
+def _seen_within(agent: dict, window: timedelta) -> bool:
     try:
-        yield
-    finally:
-        await locks.delete_one({"_id": key, "owner": owner})
+        last = datetime.fromisoformat(str(agent.get("lastSeen")).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last < window
+
+
+class _LiveDuplicate(Exception):
+    """The machine's serial/UUID belongs to a seat-holding agent seen within 24 h."""
+
+
+async def _take_over_hardware_seat(db, tenant_id: str, hardware: dict, new_agent_id: str):
+    """Seat transfer for a reinstall/rename on known hardware (spec C2).
+
+    Returns the replaced agent's id when this enrollment inherits its seat, or None
+    when no seat-holding agent shares the machine's serial/UUID. Raises _LiveDuplicate
+    when that agent was seen within 24 h, so a spoofed serial cannot take a live agent's
+    seat; the caller holds the enrollment as Pending (spec C3).
+    """
+    flt = seat_identity.hardware_match_filter(tenant_id, hardware)
+    if flt is None:
+        return None
+    raw = getattr(db, "_db", db)
+    owner = await raw.agents.find_one({**flt, "status": {"$nin": sorted(licensing.NON_SEAT_STATUSES)}})
+    if not owner:
+        return None
+    if _seen_within(owner, _HARDWARE_TAKEOVER_AFTER):
+        raise _LiveDuplicate(owner.get("hostname"))
+    res = await raw.agents.update_one(
+        {"id": owner["id"], "status": {"$nin": sorted(licensing.NON_SEAT_STATUSES)}},
+        {"$set": {"status": "Replaced", "replacedBy": new_agent_id,
+                  "replacedAt": datetime.now(timezone.utc).isoformat()}},
+    )
+    return owner["id"] if res.modified_count == 1 else None
 
 
 @router.post("/register")
@@ -110,9 +120,11 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     if not registration_key:
         raise HTTPException(status_code=400, detail="Registration key required")
 
-    tenant = await db.tenants.find_one({"registrationKey": registration_key})
-    if not tenant:
+    # Any install key of the tenant, or its original registrationKey (spec C4).
+    resolved = await enrollment_keys.resolve(db, registration_key)
+    if not resolved:
         raise HTTPException(status_code=404, detail="Invalid registration key")
+    tenant, install_key = resolved
 
     from tenant_context import set_tenant_id
     set_tenant_id(tenant["id"])
@@ -124,7 +136,14 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     agent_id = f"agent-{uuid.uuid4().hex}"
     existing_agent = await db.agents.find_one({"hostname": hostname, "tenantId": tenant["id"]})
     agent_secret = None  # issued to new agents and to legacy agents upgrading
-    if existing_agent:
+    if existing_agent and existing_agent.get("status") == pending_agents.REJECTED:
+        raise HTTPException(status_code=403, detail="agent_rejected: this computer was rejected by the platform administrator")
+    if existing_agent and existing_agent.get("awaitingCredentials"):
+        # A record kept from a refused enrollment of an older agent build (spec C3): no
+        # secret or token was ever issued for it, so there is no identity to prove.
+        agent_id = existing_agent["id"]
+        agent_secret = secrets.token_urlsafe(32)
+    elif existing_agent:
         if not await _proves_agent_identity(db, existing_agent, tenant["id"], data, request):
             logger.warning(
                 "Rejected re-registration of enrolled agent %s (hostname %s) without proof of identity",
@@ -141,7 +160,32 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     else:
         agent_secret = secrets.token_urlsafe(32)
 
-    agent_limit = tenant.get("maxAgents", 5)
+    hardware = seat_identity.normalize_hardware(data.get("hardware"))
+    agent_seat_key = seat_identity.seat_key(hardware, data.get("device_id") or data.get("deviceId"))
+
+    # ── Admission (spec C3): a denylisted machine is refused, an agent still waiting for
+    # approval gets the pending answer again, and an enrollment that cannot take a seat
+    # is held as Pending instead of being refused outright.
+    capable = pending_agents.supports_pending(data)
+    seat_needed = not existing_agent or existing_agent.get("status") in licensing.NON_SEAT_STATUSES
+    identity = {
+        **pending_agents.identity_fields(data, hardware if isinstance(data.get("hardware"), dict) else {},
+                                         request.client.host if request.client else None),
+        "seatKey": agent_seat_key, "identityStrength": seat_identity.identity_strength(agent_seat_key),
+    }
+    if agent_secret and capable:
+        identity["agentSecretHash"] = _hash_agent_secret(agent_secret)
+        identity["awaitingCredentials"] = False
+    elif not existing_agent or existing_agent.get("awaitingCredentials"):
+        identity["awaitingCredentials"] = True  # older build: nothing issued until admitted
+    if seat_needed and await pending_agents.is_denied(db, tenant["id"], agent_seat_key):
+        await pending_agents.record_rejected(db, tenant, agent_id, identity, existing_agent)
+        raise HTTPException(status_code=403, detail="agent_rejected: this computer was rejected by the platform administrator")
+    if existing_agent and existing_agent.get("status") == pending_agents.PENDING:
+        held = await pending_agents.hold(db, tenant, agent_id, identity,
+                                         existing_agent.get("pendingReason") or pending_agents.REASON_SEAT_LIMIT,
+                                         existing_agent)
+        return await pending_agents.answer(db, response, tenant, held, capable, agent_secret if capable else None)
 
     agent_data = {
         "id": agent_id,
@@ -166,6 +210,13 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
 
     if agent_secret:
         agent_data["agentSecretHash"] = _hash_agent_secret(agent_secret)
+    if existing_agent and existing_agent.get("awaitingCredentials"):
+        agent_data["awaitingCredentials"] = False
+
+    agent_data["seatKey"] = agent_seat_key
+    agent_data["identityStrength"] = seat_identity.identity_strength(agent_seat_key)
+    if isinstance(data.get("hardware"), dict):
+        agent_data["hardware"] = hardware
 
     reg_meta = data.get("meta", {})
     available_caps = reg_meta.get("availableCapabilities") or reg_meta.get("capabilities") or []
@@ -200,27 +251,72 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     # concurrent /register calls for the same hostname both miss the check,
     # the second upsert hits E11000 and we degrade to a non-upsert update on
     # the winner's id instead of minting a duplicate agent doc.
-    # A new agent takes a seat, so its limit check and insert run under the
-    # tenant's enrollment lock; re-enrolling an existing agent takes no seat.
-    async with (_tenant_enrollment_lock(db, tenant["id"]) if not existing_agent else contextlib.nullcontext()):
+    # Seats (spec C2): a first enrollment, or an agent returning from a state that holds
+    # no seat (Inactive, Uninstalled, ...), takes one atomically; a reinstall or rename on
+    # hardware whose previous agent has been silent for 24 h inherits that agent's seat.
+    # Seats that cannot be had hold the enrollment as Pending (spec C3). A new machine
+    # first passes the C4 controls: one use of its install key, then expiry, allowlist
+    # and sub-limits (license_rules).
+    claimed = False
+    key_claimed = False
+    replaced_id = None
+    if not existing_agent:
+        key_fields = {"enrollmentKeyId": install_key["id"], "enrollmentKeyName": install_key.get("name")}
+        if install_key.get("defaultGroupId"):
+            key_fields["enrollmentGroupId"] = install_key["defaultGroupId"]
+        identity.update(key_fields)
+        agent_data.update(key_fields)
+    if seat_needed:
+        hold_reason = None
         if not existing_agent:
-            current_agent_count = await db.agents.count_documents({"tenantId": tenant["id"]})
-            if current_agent_count >= agent_limit:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Agent limit reached ({agent_limit}). Please upgrade your plan for more capacity."
-                )
-        try:
-            await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
-        except Exception as e:
-            if "E11000 duplicate key error" in str(e):
-                if not existing_agent:
-                    # Lost a concurrent first-enrollment race for this hostname: the
-                    # winner owns the agent record, so this caller gets no token.
+            key_claimed = await enrollment_keys.claim_use(db, install_key)
+            hold_reason = (await license_rules.hold_reason(db, tenant, hardware, data.get("platform"),
+                                                           install_key.get("defaultGroupId"))
+                           if key_claimed else license_rules.REASON_KEY_EXHAUSTED)
+        if not existing_agent and hold_reason is None:
+            try:
+                replaced_id = await _take_over_hardware_seat(db, tenant["id"], hardware, agent_id)
+            except _LiveDuplicate:
+                hold_reason = pending_agents.REASON_DUPLICATE_HARDWARE
+        if replaced_id:
+            agent_data["replaces"] = replaced_id
+        elif hold_reason is None:
+            claimed = await licensing.try_claim_seat(db, tenant["id"])
+            if not claimed:
+                hold_reason = pending_agents.REASON_SEAT_LIMIT
+        if hold_reason:
+            try:
+                held = await pending_agents.hold(db, tenant, agent_id, identity, hold_reason, existing_agent)
+            except Exception as e:
+                if key_claimed:
+                    await enrollment_keys.release_use(db, install_key)
+                if "E11000 duplicate key error" in str(e) and not existing_agent:
                     raise HTTPException(status_code=409, detail="Concurrent enrollment for this hostname; retry")
-                await db.agents.update_one({"id": agent_id}, {"$set": agent_data})
-            else:
-                raise e
+                raise
+            return await pending_agents.answer(db, response, tenant, held, capable,
+                                               agent_secret if capable else None)
+    try:
+        await db.agents.update_one({"id": agent_id}, {"$set": agent_data}, upsert=True)
+    except Exception as e:
+        if claimed:
+            await licensing.release_seats(db, tenant["id"])
+        if key_claimed:
+            await enrollment_keys.release_use(db, install_key)
+        if replaced_id:
+            await getattr(db, "_db", db).agents.update_one(
+                {"id": replaced_id, "replacedBy": agent_id},
+                {"$set": {"status": "Offline"}, "$unset": {"replacedBy": "", "replacedAt": ""}})
+        if "E11000 duplicate key error" in str(e):
+            if not existing_agent:
+                # Lost a concurrent first-enrollment race for this hostname: the
+                # winner owns the agent record, so this caller gets no token.
+                raise HTTPException(status_code=409, detail="Concurrent enrollment for this hostname; retry")
+            await db.agents.update_one({"id": agent_id}, {"$set": agent_data})
+        else:
+            raise e
+
+    if not existing_agent and install_key.get("defaultGroupId"):
+        await license_rules.join_group(db, tenant["id"], install_key["defaultGroupId"], agent_id, "enrollment")
 
     # Record location history (Phase 46, GAUD-01) — reuses the existing_agent
     # doc already fetched above (D-05, zero extra reads); None on first-ever
@@ -245,14 +341,14 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         "osName": data.get("platform", "Unknown"),
         "osVersion": data.get("osVersion", os_info.get("version", "Unknown")),
         "kernel": data.get("kernel", "Unknown"),
-        "serialNumber": data.get("serialNumber", "Not Available"),
+        "serialNumber": data.get("serialNumber") or hardware.get("serialNumber") or "Not Available",
         "osEdition": data.get("osEdition") or (existing_asset.get("osEdition") if existing_asset else ""),
         "osDisplayVersion": data.get("osDisplayVersion") or (existing_asset.get("osDisplayVersion") if existing_asset else ""),
         "osInstalledOn": data.get("osInstalledOn") or (existing_asset.get("osInstalledOn") if existing_asset else ""),
         "osBuild": data.get("osBuild") or (existing_asset.get("osBuild") if existing_asset else ""),
         "osExperience": data.get("osExperience") or (existing_asset.get("osExperience") if existing_asset else ""),
         "ipAddress": data.get("ipAddress", "0.0.0.0"),
-        "macAddress": data.get("macAddress", "00:00:00:00:00:00"),
+        "macAddress": data.get("macAddress") or next(iter(hardware.get("macAddresses") or []), "00:00:00:00:00:00"),
         "lastScanned": datetime.now(timezone.utc).isoformat(),
         "cpuModel": data.get("cpuModel", "Unknown"),
         "cpuCores": data.get("cpuCores", 0),
@@ -379,6 +475,8 @@ async def delete_agent(
     del_result = await db.agents.delete_one(query)
     if del_result.deleted_count == 0:
         raise HTTPException(status_code=500, detail="Failed to delete agent")
+    if agent.get("status") not in licensing.NON_SEAT_STATUSES:
+        await licensing.release_seats(db, agent["tenantId"])
 
     await db.audit_logs.insert_one({
         "action": "DELETE_AGENT",
@@ -420,6 +518,12 @@ async def move_agent(
     if agent["tenantId"] == target_tenant_id:
         return {"success": True, "message": "Agent is already in this tenant"}
 
+    # The seat moves with the agent: take one in the target first, then free the source's.
+    holds_seat = agent.get("status") not in licensing.NON_SEAT_STATUSES
+    if holds_seat and not await licensing.try_claim_seat(db, target_tenant_id):
+        raise HTTPException(status_code=409,
+                            detail=f"Tenant {target_tenant['name']} has no free agent seat; raise its limit first")
+
     await db.agents.update_one(
         {"id": agent_id, "tenantId": agent["tenantId"]},
         {"$set": {"tenantId": target_tenant_id, "updatedAt": datetime.now(timezone.utc).isoformat()}}
@@ -429,6 +533,8 @@ async def move_agent(
             {"id": agent["assetId"], "tenantId": agent["tenantId"]},
             {"$set": {"tenantId": target_tenant_id}}
         )
+    if holds_seat:
+        await licensing.release_seats(db, agent["tenantId"])
 
     invalidate_cache("agents:*")
     invalidate_cache("assets:*")
@@ -480,6 +586,10 @@ async def update_agent(
         set_data["capabilities"] = cap_value
         set_data["agentCapabilities"] = cap_value
 
+    if "status" in update_data:
+        refusal = licensing.manual_status_change_error(agent.get("status"), update_data["status"])
+        if refusal:
+            raise HTTPException(status_code=409, detail=refusal)
     for field in ["status", "alias", "tags", "remediationAttempts"]:
         if field in update_data:
             set_data[field] = update_data[field]

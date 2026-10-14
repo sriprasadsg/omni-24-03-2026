@@ -32,6 +32,8 @@ def _db(agent):
     db = MagicMock()
     db.agents = _Agents([agent])
     db.audit_logs.insert_one = AsyncMock()
+    # Seat release on uninstall (spec C2) decrements the tenant's license counter.
+    db._db.tenants.update_one = AsyncMock(return_value=MagicMock(modified_count=1))
     return db
 
 

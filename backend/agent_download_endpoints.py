@@ -4,10 +4,12 @@ import shutil
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Request, Body
 from catalogue_mounts_agents import AGENTS_GUARD
 from fastapi.responses import Response
 from database import mongodb
+import enrollment_keys
+import licensing
 from authentication_service import get_current_user, get_optional_user
 from rbac_utils import require_permission
 from typing import Optional, Dict, Any
@@ -38,9 +40,10 @@ async def _check_agent_limit(tenant_id: str) -> None:
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
         return
-    agent_limit = tenant.get("maxAgents", 5)
-    current_agent_count = await mongodb.db.agents.count_documents({"tenantId": tenant_id})
-    if current_agent_count >= agent_limit:
+    lic = licensing.license_of(tenant)
+    agent_limit = lic["maxAgents"]
+    if await licensing.seats_available(mongodb.db, tenant) <= 0:
+        current_agent_count = lic["seatsUsed"] if lic["seatsUsed"] is not None else agent_limit
         raise HTTPException(
             status_code=403,
             detail={
@@ -100,13 +103,17 @@ async def _auth_from_token(tenant_id: str, download_token: str):
     tok_tenant = tok.get("tenant_id") or tok.get("tenantId") or ""
     if tok_tenant and tok_tenant != tenant_id:
         raise HTTPException(status_code=403, detail="Token tenant mismatch")
-    return tok.get("user_role", "tenant_admin"), tok.get("user_tenant", tenant_id)
+    return tok.get("user_role", "tenant_admin"), tok.get("user_tenant", tenant_id), tok.get("enrollment_key")
 
 
-async def _get_tenant(tenant_id: str):
+async def _get_tenant(tenant_id: str, install_key: Optional[str] = None):
+    """(tenant name, key the installer ships): the install key chosen for this download
+    (spec C4), else the tenant's registrationKey."""
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if install_key:
+        return tenant.get("name", tenant_id), install_key
     reg_key = tenant.get("registrationKey") or ""
     if not reg_key:
         reg_key = f"reg_{secrets.token_hex(16)}"
@@ -117,18 +124,30 @@ async def _get_tenant(tenant_id: str):
 # ── One-time download token ────────────────────────────────────────────────────
 
 @router.post("/download-token/{tenant_id}", dependencies=[Depends(AGENTS_GUARD)])
-async def create_download_token(tenant_id: str, current_user=Depends(get_current_user)):
+async def create_download_token(tenant_id: str, body: Optional[Dict[str, Any]] = Body(None),
+                                current_user=Depends(get_current_user)):
+    """One-time (60 s) download token. ``{"enrollmentKey": "..."}`` makes the installer ship
+    that install key instead of the tenant's registration key (spec C4)."""
     role = getattr(current_user, "role", "")
     ut = getattr(current_user, "tenant_id", None)
     _check_auth(tenant_id, role, ut)
     await _check_agent_limit(tenant_id)
+    install_key = (body or {}).get("enrollmentKey")
+    if install_key is not None:
+        resolved = await enrollment_keys.resolve(mongodb.db, str(install_key))
+        if not resolved or resolved[0]["id"] != tenant_id:
+            raise HTTPException(status_code=422, detail="enrollmentKey: not an install key of this tenant")
+        problem = enrollment_keys.problem(resolved[1])
+        if problem:
+            raise HTTPException(status_code=422, detail=f"enrollmentKey: this install key is {problem}")
     await _cleanup_expired_tokens()
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=60)
-    await mongodb.db.agent_download_tokens.insert_one({
-        "token": token, "tenant_id": tenant_id, "user_role": role,
-        "user_tenant": ut, "expires_at": expires_at.isoformat(),
-    })
+    doc = {"token": token, "tenant_id": tenant_id, "user_role": role,
+           "user_tenant": ut, "expires_at": expires_at.isoformat()}
+    if install_key:
+        doc["enrollment_key"] = str(install_key)  # deleted with the token on use or expiry
+    await mongodb.db.agent_download_tokens.insert_one(doc)
     return {"token": token}
 
 
@@ -149,8 +168,9 @@ async def download_agent(
       lighter binary, smaller capability set (opt-in, not the Linux default)
     - platform=windows: Windows EXE installer (requires makensis on server)
     """
+    install_key = None
     if download_token:
-        role, ut = await _auth_from_token(tenant_id, download_token)
+        role, ut, install_key = await _auth_from_token(tenant_id, download_token)
     else:
         role = getattr(current_user, "role", "")
         ut = getattr(current_user, "tenant_id", None)
@@ -158,7 +178,7 @@ async def download_agent(
     await _check_agent_limit(tenant_id)
 
     resolved_url = await _resolve_url(request, api_url)
-    tenant_name, reg_key = await _get_tenant(tenant_id)
+    tenant_name, reg_key = await _get_tenant(tenant_id, install_key)
 
     try:
         from database import get_database as _gdb
@@ -242,7 +262,7 @@ async def download_rust_binary(
     Preserves the existing config.yaml on the endpoint — no re-registration needed."""
     tok = download_token or token
     if tok:
-        role, ut = await _auth_from_token(tenant_id, tok)
+        role, ut, _ = await _auth_from_token(tenant_id, tok)
     else:
         role = getattr(current_user, "role", "")
         ut = getattr(current_user, "tenant_id", None)
@@ -285,8 +305,9 @@ async def download_msi_installer(
 ):
     """Download installer. Serves pre-built MSI if available, otherwise the EXE installer."""
     tok = download_token or token
+    install_key = None
     if tok:
-        role, ut = await _auth_from_token(tenant_id, tok)
+        role, ut, install_key = await _auth_from_token(tenant_id, tok)
     else:
         role = getattr(current_user, "role", "")
         ut = getattr(current_user, "tenant_id", None)
@@ -306,7 +327,7 @@ async def download_msi_installer(
 
     # Fallback: serve the Rust EXE installer (handles upgrade-in-place)
     resolved_url = await _resolve_url(request, None)
-    tenant_name, reg_key = await _get_tenant(tenant_id)
+    tenant_name, reg_key = await _get_tenant(tenant_id, install_key)
     return await build_rust_exe(tenant_id, tenant_name, reg_key, resolved_url,
                                 background_tasks, base_dir)
 

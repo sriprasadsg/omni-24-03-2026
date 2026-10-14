@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, Res
 from catalogue_mounts_agents import AGENTS_GUARD
 from typing import List, Optional, Dict, Any
 from database import get_database
+import licensing
 from authentication_service import get_current_user
 from rbac_utils import is_super_admin
 from datetime import datetime, timezone, timedelta
@@ -229,7 +230,16 @@ async def bulk_delete_agents_route(
         if not _ac_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
         query["tenantId"] = _ac_tenant
+    # Seats held by the deleted agents go back to their tenants (spec C2).
+    seat_holders = await db.agents.find(
+        {**query, "status": {"$nin": sorted(licensing.NON_SEAT_STATUSES)}}, {"_id": 0, "tenantId": 1}
+    ).to_list(length=100)
     result = await db.agents.delete_many(query)
+    freed: Dict[str, int] = {}
+    for a in seat_holders:
+        freed[a["tenantId"]] = freed.get(a["tenantId"], 0) + 1
+    for t, n in freed.items():
+        await licensing.release_seats(db, t, n)
     return {"success": True, "deleted": result.deleted_count}
 
 
@@ -273,6 +283,11 @@ async def bulk_update_agents_route(
         if not _ac_tenant:
             raise HTTPException(status_code=403, detail="Tenant context required")
         query["tenantId"] = _ac_tenant
+    if "status" in patch:
+        # A hand-written status may not move agents into or out of a seat-less state (spec C3).
+        if patch["status"] in licensing.NON_SEAT_STATUSES:
+            raise HTTPException(status_code=409, detail=licensing.manual_status_change_error(None, patch["status"]))
+        query["status"] = {"$nin": sorted(licensing.NON_SEAT_STATUSES)}
     result = await db.agents.update_many(query, {"$set": patch})
     return {"matched": result.matched_count, "modified": result.modified_count}
 

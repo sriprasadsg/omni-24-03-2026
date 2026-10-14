@@ -15,9 +15,12 @@ import agent_vuln_ingest_service
 from geo_security_service import run_geo_security_detectors
 from ueba_service import persist_security_alert
 from agent_uninstall_endpoints import heartbeat_uninstall_protection
+import licensing
+import pending_agents
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
+
 
 
 @router.post("/heartbeat")
@@ -68,21 +71,26 @@ async def report_heartbeat(
 
     existing_agent = await db.agents.find_one(_hb_agent_filter)
 
-    # ── Agent limit check — block new agents when tenant is at capacity ───────
-    if not existing_agent and _hb_tenant_id:
-        tenant_doc = await db.tenants.find_one({"id": _hb_tenant_id})
-        if tenant_doc:
-            agent_limit = tenant_doc.get("maxAgents", 5)
-            current_count = await db.agents.count_documents({"tenantId": _hb_tenant_id})
-            if current_count >= agent_limit:
-                logger.warning(
-                    "Heartbeat rejected: tenant %s at agent limit (%d/%d)",
-                    _hb_tenant_id, current_count, agent_limit,
-                )
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Agent limit reached ({agent_limit}). Please upgrade your plan to add more agents.",
-                )
+    # ── Admission (spec C3) — a rejected agent is refused; a Pending one only refreshes
+    # who it is (no capability data, no tasks) and is told to keep waiting.
+    if existing_agent and existing_agent.get("status") == pending_agents.REJECTED:
+        raise HTTPException(status_code=403, detail="agent_rejected: this agent was rejected by the platform administrator")
+    _hb_tenant = await db.tenants.find_one({"id": _hb_tenant_id}) if _hb_tenant_id else None
+    if existing_agent and existing_agent.get("status") == pending_agents.PENDING and _hb_tenant:
+        return await pending_agents.answer_heartbeat(
+            db, request, response, _hb_tenant, agent_id, payload, existing_agent,
+            existing_agent.get("pendingReason") or pending_agents.REASON_SEAT_LIMIT)
+
+    # ── Agent seat (spec C2) — a new agent, or one returning from a state that holds
+    # no seat (Inactive, Uninstalled, ...), takes a seat atomically before going Online;
+    # without a free seat it is held as Pending (spec C3).
+    needs_seat = not existing_agent or existing_agent.get("status") in licensing.NON_SEAT_STATUSES
+    if needs_seat and _hb_tenant:
+        if not await licensing.try_claim_seat(db, _hb_tenant_id):
+            logger.warning("Heartbeat held: tenant %s has no free agent seat; agent %s is Pending",
+                           _hb_tenant_id, agent_id)
+            return await pending_agents.answer_heartbeat(db, request, response, _hb_tenant, agent_id, payload,
+                                                         existing_agent, pending_agents.REASON_SEAT_LIMIT)
 
     if existing_agent:
         # ── Quarantine check — reject heartbeats from isolated agents ─────────

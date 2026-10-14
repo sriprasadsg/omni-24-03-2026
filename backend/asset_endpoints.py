@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from database import get_database
+import licensing
 from authentication_service import get_current_user
 from rbac_utils import is_super_admin
 import datetime
@@ -353,7 +354,10 @@ async def delete_asset(
     cascade_filter: dict = {"assetId": asset_id}
     if asset_tenant:
         cascade_filter["tenantId"] = asset_tenant
-    await db.agents.delete_one(cascade_filter)
+    linked_agent = await db.agents.find_one(cascade_filter, {"_id": 0, "tenantId": 1, "status": 1})
+    cascade = await db.agents.delete_one(cascade_filter)
+    if cascade.deleted_count and linked_agent and linked_agent.get("status") not in licensing.NON_SEAT_STATUSES:
+        await licensing.release_seats(db, linked_agent["tenantId"])
     
     # Invalidate cache
     invalidate_cache("assets:*")

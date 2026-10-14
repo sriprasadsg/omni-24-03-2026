@@ -6,6 +6,7 @@ pub mod consent_scripts;
 pub mod consent_ui;
 pub mod config;
 pub mod heartbeat;
+pub mod identity;
 pub mod instructions;
 pub mod registration;
 pub mod tls;
@@ -127,6 +128,7 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     // service — no heartbeats, no instructions, and a tray that cannot raise
     // tickets or open chats. Keep trying while there is no token.
     let mut last_registration_attempt = std::time::Instant::now();
+    let mut last_admission_check = std::time::Instant::now();
 
     loop {
         if let Some(ref rx) = stop_rx {
@@ -141,7 +143,9 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
             last_public_ip_refresh = std::time::Instant::now();
         }
 
-        if cfg.agent_token.is_empty() && last_registration_attempt.elapsed() >= REGISTRATION_RETRY {
+        if cfg.agent_token.is_empty()
+            && last_registration_attempt.elapsed() >= registration::retry_interval(REGISTRATION_RETRY)
+        {
             last_registration_attempt = std::time::Instant::now();
             if registration::ensure_registered(&mut cfg, &client, &cap_mgr).await {
                 log::info!("Enrolled with the platform after retrying");
@@ -152,6 +156,32 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
                     log::warn!("tray-config write failed: {e}");
                 }
             }
+        }
+
+        // Without a token the platform accepts nothing (not enrolled yet, waiting
+        // for approval, or refused), so there is nothing to collect or send.
+        if cfg.agent_token.is_empty() {
+            tokio::time::sleep(interval).await;
+            continue;
+        }
+
+        // Pending or Rejected (spec C3): check back with an identity-only beat at
+        // the platform's pace; collect no capability data and run no tasks.
+        if registration::admission() != registration::Admission::Admitted {
+            if last_admission_check.elapsed() >= registration::retry_interval(REGISTRATION_RETRY) {
+                last_admission_check = std::time::Instant::now();
+                if let Some(body) = heartbeat::send(&cfg, heartbeat::identity_payload(&cfg), &buf, &client).await {
+                    uninstall::update_from_heartbeat(&mut cfg, &body);
+                }
+                #[cfg(windows)]
+                {
+                    if let Err(e) = config::write_tray_config(&cfg) {
+                        log::warn!("tray-config write failed: {e}");
+                    }
+                }
+            }
+            tokio::time::sleep(interval).await;
+            continue;
         }
 
         sys.refresh_all();
@@ -170,6 +200,19 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         let payload = heartbeat::build_payload(&cfg, &sys, &cap_mgr);
         if let Some(body) = heartbeat::send(&cfg, payload, &buf, &client).await {
             uninstall::update_from_heartbeat(&mut cfg, &body);
+        }
+        if registration::admission() != registration::Admission::Admitted {
+            // This beat was answered "pending" or "rejected": tell the tray, and
+            // start the slow check-in clock from now.
+            last_admission_check = std::time::Instant::now();
+            #[cfg(windows)]
+            {
+                if let Err(e) = config::write_tray_config(&cfg) {
+                    log::warn!("tray-config write failed: {e}");
+                }
+            }
+            tokio::time::sleep(interval).await;
+            continue;
         }
         instructions::poll(&cfg, &client).await;
 

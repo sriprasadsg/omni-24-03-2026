@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from typing import Optional, List
 import uuid
 
+import license_rules
+import licensing
+
 router = APIRouter(prefix="/api/agent-groups", tags=["Agent Groups"])
 
 
@@ -159,6 +162,18 @@ async def add_members(
     )
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
+    # Group sub-limit (spec C4): a full group refuses new seat-holding members.
+    tenant = await db.tenants.find_one({"id": current_user.tenant_id})
+    room = await license_rules.group_room(db, tenant, group_id) if tenant else None
+    if room is not None:
+        current = set(await db.agent_group_members.distinct(
+            "agent_id", {"group_id": group_id, "tenantId": current_user.tenant_id}))
+        joining = [a for a in dict.fromkeys(body.agent_ids) if a not in current]
+        joining_seats = await db.agents.count_documents(
+            {"id": {"$in": joining}, "status": {"$nin": sorted(licensing.NON_SEAT_STATUSES)}}) if joining else 0
+        if joining_seats > room:
+            raise HTTPException(status_code=409, detail=f"Group {group.get('name')!r} is at its agent sub-limit: "
+                                                        f"{room} place(s) left, {joining_seats} requested")
     now = datetime.now(timezone.utc).isoformat()
     added = 0
     for agent_id in body.agent_ids:

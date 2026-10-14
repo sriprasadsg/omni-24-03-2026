@@ -128,9 +128,20 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
 
     const isWindows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent);
 
+    // Optional install key (spec C4): installers then ship it instead of the tenant key.
+    const [installKey, setInstallKey] = React.useState('');
+
     const _getDownloadToken = async (): Promise<string | null> => {
-        const tokenRes = await authFetch(`/api/agent/download-token/${effectiveTenantId}`, { method: 'POST' });
+        const key = installKey.trim();
+        const tokenRes = await authFetch(`/api/agent/download-token/${effectiveTenantId}`, key
+            ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enrollmentKey: key }) }
+            : { method: 'POST' });
         if (!tokenRes.ok) {
+            if (tokenRes.status === 422) {
+                const body = await tokenRes.json().catch(() => null);
+                showToast(body?.error || 'That install key cannot be used.', 'error');
+                return null;
+            }
             if (tokenRes.status === 403) {
                 const body = await tokenRes.json().catch(() => null);
                 const detail = body?.detail;
@@ -261,6 +272,24 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
                                         This URL is embedded in install commands and the agent config.yaml so agents can call back to the platform.
                                     </p>
                                 )}
+                            </div>
+
+                            <div className="mb-4">
+                                <label htmlFor="install-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Install key (optional)
+                                </label>
+                                <input
+                                    id="install-key"
+                                    type="text"
+                                    value={installKey}
+                                    onChange={e => setInstallKey(e.target.value)}
+                                    placeholder="ek_… — leave empty to use the tenant registration key"
+                                    autoComplete="off"
+                                    className="block w-full px-3 py-2 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Downloaded installers carry this key instead. Install keys can limit how many machines enroll and when they expire (Tenant Management → Manage → Install keys).
+                                </p>
                             </div>
 
                             <div className="flex flex-col sm:flex-row sm:items-end gap-4">

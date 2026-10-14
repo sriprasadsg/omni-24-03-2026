@@ -4,6 +4,13 @@ import { SettingsIcon, ZapIcon, TrashIcon, UserIcon } from './icons';
 import { TenantBrandingSettings } from './TenantBrandingSettings';
 import { useUser } from '../contexts/UserContext';
 
+/** "used / limit" agent seats when the API reports a license (spec C2), else the agent count. */
+const seatLabel = (tenant: Tenant): string => {
+    const t = tenant as Tenant & { seatsUsed?: number; agentLimit?: number };
+    const used = t.seatsUsed ?? t.agentCount ?? 0;
+    return t.agentLimit != null ? `${used} / ${t.agentLimit}` : String(used);
+};
+
 interface TenantManagementDashboardProps {
     tenants: Tenant[];
     onManageTenant: (tenant: Tenant) => void;
@@ -55,7 +62,7 @@ export const TenantManagementDashboard: React.FC<TenantManagementDashboardProps>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                     <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                        {tenant.agentCount || 0}
+                                        {seatLabel(tenant)}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
