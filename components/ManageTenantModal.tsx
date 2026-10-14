@@ -13,7 +13,7 @@ interface ManageTenantModalProps {
   isOpen: boolean;
   onClose: () => void;
   tenant: Tenant | null;
-  onSave: (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier }) => void;
+  onSave: (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier, purchasedFrameworks: string[] }) => void;
   onDelete: (tenantId: string) => void;
 }
 
@@ -29,11 +29,16 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   const [enabledFeatures, setEnabledFeatures] = useState<Set<string>>(new Set());
   const [currentTier, setCurrentTier] = useState<SubscriptionTier>('Custom');
   const [dynamicServices, setDynamicServices] = useState<any[]>([]);
+  // Compliance frameworks the tenant purchased: kept apart from the price list, so a
+  // failed price fetch can never clear them on save.
+  const [purchased, setPurchased] = useState<Set<string>>(new Set());
+  const [frameworkQuery, setFrameworkQuery] = useState('');
 
   useEffect(() => {
     if (tenant) {
       setEnabledFeatures(new Set(tenant.enabledFeatures || []));
       setCurrentTier(tenant.subscriptionTier);
+      setPurchased(new Set(tenant.purchasedFrameworks || []));
     }
   }, [tenant]);
 
@@ -118,7 +123,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
       const finalFeatures = new Set(enabledFeatures);
       finalFeatures.add('view:dashboard');
       // cast to Permission[] assuming backend accepts string[], verify Permission type if strict
-      onSave(tenant.id, { features: Array.from(finalFeatures) as Permission[], tier: currentTier });
+      onSave(tenant.id, { features: Array.from(finalFeatures) as Permission[], tier: currentTier, purchasedFrameworks: Array.from(purchased) });
     }
   };
 
@@ -133,6 +138,16 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   if (!tenant) return null;
 
   const allSelected = allToggleableFeatures.every(f => enabledFeatures.has(f));
+  // Per-framework prices come from Service Pricing Configuration (entries with a frameworkId).
+  const billableServices = dynamicServices.filter(service => !service.frameworkId);
+  const frameworkPrices = dynamicServices.filter(service => service.frameworkId);
+  const shownFrameworks = frameworkPrices.filter(f => f.name.toLowerCase().includes(frameworkQuery.trim().toLowerCase()));
+  const monthlyFrameworkTotal = frameworkPrices.filter(f => purchased.has(f.frameworkId)).reduce((sum, f) => sum + Number(f.price || 0), 0);
+  const togglePurchased = (frameworkId: string) => setPurchased(prev => {
+    const next = new Set(prev);
+    if (next.has(frameworkId)) next.delete(frameworkId); else next.add(frameworkId);
+    return next;
+  });
 
   const footer = (
     <>
@@ -179,7 +194,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
 
           <div>
             {/* Dynamic Services Section */}
-            {dynamicServices.length > 0 && (
+            {billableServices.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-2 flex items-center">
                   <span className="bg-green-100 text-green-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">Add-on</span>
@@ -187,7 +202,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
                 </h3>
                 <div className="p-3 bg-green-50 dark:bg-gray-700/50 rounded-lg border border-green-200 dark:border-gray-600">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                    {dynamicServices.map(service => {
+                    {billableServices.map(service => {
                       // Permission ID convention: service:{id}
                       const permId = `service:${service.id}`;
                       return (
@@ -211,6 +226,53 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
                 </div>
               </div>
             )}
+
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-1">Compliance Frameworks</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Tick the frameworks this tenant purchased. Each is billed monthly at its price in Service Pricing
+                Configuration, and the tenant's users see only the ticked frameworks.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <input
+                  type="search"
+                  value={frameworkQuery}
+                  onChange={e => setFrameworkQuery(e.target.value)}
+                  placeholder="Search frameworks"
+                  aria-label="Search frameworks"
+                  className="flex-1 min-w-[10rem] px-3 py-1.5 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md dark:text-white"
+                />
+                <button type="button" onClick={() => setPurchased(new Set(frameworkPrices.map(f => f.frameworkId)))}
+                  className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200">Select all</button>
+                <button type="button" onClick={() => setPurchased(new Set())}
+                  className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200">Clear</button>
+              </div>
+              <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2" aria-live="polite">
+                {purchased.size} selected · ${monthlyFrameworkTotal.toFixed(2)} / month
+              </p>
+              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 max-h-64 overflow-y-auto">
+                {frameworkPrices.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Framework prices could not be loaded. Purchases are unchanged.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                    {shownFrameworks.map(framework => (
+                      <label key={framework.frameworkId} className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          checked={purchased.has(framework.frameworkId)}
+                          onChange={() => togglePurchased(framework.frameworkId)}
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="flex flex-col">
+                          <span className="text-sm text-gray-800 dark:text-gray-200">{framework.name}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">${Number(framework.price).toFixed(2)} / month</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Standard Features</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">

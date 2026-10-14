@@ -5,6 +5,7 @@ from database import get_database, mongodb
 from authentication_service import get_current_user, revoke_user_sessions
 from rbac_utils import require_permission
 from rbac_utils import can_read_all_tenants, has_platform_permission, is_super_admin
+import compliance_purchases
 import license_rules
 import licensing
 from rate_limiter import limiter
@@ -174,6 +175,9 @@ class TenantUpdate(BaseModel):
     enabledFeatures: List[str] | None = None
     subscriptionTier: str | None = None
     voiceBotSettings: Dict[str, Any] | None = None
+    # Catalogue compliance frameworks the tenant purchased (billed monthly; only these are
+    # visible to the tenant's users). Super Admin only.
+    purchasedFrameworks: List[str] | None = Field(None, max_length=500)
 
 
 @router.patch("/{tenant_id}")
@@ -191,11 +195,12 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
         if caller_tenant != tenant_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this tenant")
 
-        # Subscription tier and feature flags are billing-controlled — only super admin may change them
-        if data.subscriptionTier is not None or data.enabledFeatures is not None:
+        # Subscription tier, feature flags and purchased frameworks are billing-controlled —
+        # only super admin may change them
+        if data.subscriptionTier is not None or data.enabledFeatures is not None or data.purchasedFrameworks is not None:
             raise HTTPException(
                 status_code=403,
-                detail="Subscription tier and feature changes require Super Admin. Contact support to upgrade.",
+                detail="Subscription tier, feature and compliance framework changes require Super Admin. Contact support to upgrade.",
             )
              
     
@@ -215,6 +220,12 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
         update_data["subscriptionTier"] = data.subscriptionTier
     if data.voiceBotSettings is not None:
         update_data["voiceBotSettings"] = data.voiceBotSettings
+    if data.purchasedFrameworks is not None:
+        try:
+            update_data["purchasedFrameworks"] = await compliance_purchases.validate_purchase(
+                mongodb.db, data.purchasedFrameworks)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
     
     result = await mongodb.db.tenants.update_one(
         {"id": tenant_id},

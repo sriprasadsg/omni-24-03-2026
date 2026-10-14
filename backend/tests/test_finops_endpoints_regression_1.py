@@ -17,7 +17,7 @@ service writes are mocked). Hermetic: no Mongo.
 """
 import os
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -45,12 +45,23 @@ def _client(role):
     return TestClient(app)
 
 
+def _service():
+    service = MagicMock()
+    service.save_service_pricing = AsyncMock(return_value=[{"id": "svc"}])
+    service.create_service_pricing = AsyncMock(return_value={"id": "svc"})
+    service.update_service_pricing = AsyncMock(return_value={"id": "svc"})
+    service.delete_service_pricing = AsyncMock(return_value={"deleted": True})
+    return service
+
+
 @pytest.mark.parametrize("method,path,body", WRITES)
 def test_tenant_admin_cannot_write_platform_pricing(method, path, body):
-    service = MagicMock()
-    with patch.object(finops_endpoints, "finops_service", service):
+    service = _service()
+    with patch.object(finops_endpoints, "finops_service", service), \
+         patch.object(finops_endpoints, "get_database", MagicMock()):
         r = _client("Tenant Admin").request(method, path, json=body)
     assert r.status_code == 403, (r.status_code, r.text)
+    assert not service.save_service_pricing.called
     assert not service.create_service_pricing.called
     assert not service.update_service_pricing.called
     assert not service.delete_service_pricing.called
@@ -58,10 +69,8 @@ def test_tenant_admin_cannot_write_platform_pricing(method, path, body):
 
 @pytest.mark.parametrize("method,path,body", WRITES)
 def test_super_admin_still_reaches_pricing_writes(method, path, body):
-    service = MagicMock()
-    service.create_service_pricing.return_value = {"id": "svc"}
-    service.update_service_pricing.return_value = {"id": "svc"}
-    service.delete_service_pricing.return_value = {"deleted": True}
-    with patch.object(finops_endpoints, "finops_service", service):
+    service = _service()
+    with patch.object(finops_endpoints, "finops_service", service), \
+         patch.object(finops_endpoints, "get_database", MagicMock()):
         r = _client("Super Admin").request(method, path, json=body)
     assert r.status_code != 403, (r.status_code, r.text)

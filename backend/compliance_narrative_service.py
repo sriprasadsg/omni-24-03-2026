@@ -111,7 +111,7 @@ async def enrich_report_data(data: dict, db, tenant_id: str) -> None:
     # into the generic metrics table / HTML / JSON report exports.
     failing_by_framework: dict = {}
     try:
-        frameworks = await db._db.compliance_frameworks.find({}).to_list(length=50)
+        frameworks = await db.compliance_frameworks.find({}).to_list(length=50)
         control_id_to_name: dict = {}
         control_id_to_severity: dict = {}
         control_id_to_framework: dict = {}

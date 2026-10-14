@@ -58,6 +58,7 @@ def _make_full_db(frameworks_data, ac_docs):
 
     db = MagicMock()
     db._db = raw
+    db.compliance_frameworks = fw_col  # read through the purchase-scoped wrapper name
 
     async def _ac_cursor(*a, **kw):
         for doc in ac_docs:

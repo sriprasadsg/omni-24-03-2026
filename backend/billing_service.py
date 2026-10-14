@@ -2,6 +2,7 @@ from typing import Dict, Optional
 from datetime import datetime, timezone
 from database import get_database
 import logging
+import compliance_purchases
 
 logger = logging.getLogger(__name__)
 
@@ -197,9 +198,13 @@ class BillingService:
             })
         
         line_items.extend(usage_charges["charges"])
-        
+
+        # Purchased compliance frameworks: one monthly line each at its configured price.
+        framework_lines = await compliance_purchases.invoice_lines(getattr(db, "_db", db), tenant_id)
+        line_items.extend(framework_lines)
+
         # Calculate total
-        total_amount = subscription_amount + usage_charges["total_amount"]
+        total_amount = subscription_amount + usage_charges["total_amount"] + sum(l["amount"] for l in framework_lines)
         
         # Calculate tax (simplified logic)
         tax_rate = 0.0825 if tenant.get("location") == "US" else 0.05

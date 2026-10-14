@@ -4,6 +4,8 @@ import os
 from app_env import environment, is_production
 from dotenv import load_dotenv
 from tenant_context import get_tenant_id
+# Per-tenant purchased compliance frameworks (the catalogue is otherwise global).
+from framework_scope import FrameworkScopedCollection
 
 # Try to import mongomock for fallback
 try:
@@ -24,7 +26,7 @@ except ImportError:
 # rbac_service.find_role_doc(), which explicitly bypasses the wrapper for
 # just those two sentinel values rather than for the whole collection.
 TENANT_ISOLATION_EXEMPT_COLLECTIONS = frozenset([
-    "compliance_frameworks",
+    "compliance_frameworks",  # no tenantId injection, but scoped to purchases (framework_scope)
     "compliance_controls",
     "ai_governance_frameworks",
     "system_features",
@@ -164,11 +166,15 @@ class TenantIsolatedDatabase:
         # We only wrap actual collections, not internal methods
         if name.startswith("_") or name in ["client", "name", "codec_options", "read_preference", "write_concern", "read_concern", "list_collection_names", "create_collection", "drop_collection", "validate_collection", "command", "dereference"]:
             return collection
+        if name == "compliance_frameworks":
+            return FrameworkScopedCollection(collection, self._db)
         if name in TENANT_ISOLATION_EXEMPT_COLLECTIONS:
             return collection
         return TenantIsolatedCollection(collection)
 
     def __getitem__(self, name):
+        if name == "compliance_frameworks":
+            return FrameworkScopedCollection(self._db[name], self._db)
         if name in TENANT_ISOLATION_EXEMPT_COLLECTIONS:
             return self._db[name]
         return TenantIsolatedCollection(self._db[name])

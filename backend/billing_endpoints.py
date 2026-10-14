@@ -19,6 +19,7 @@ from authentication_service import get_current_user
 from rbac_utils import require_permission
 from tenant_context import get_tenant_id
 from auth_roles import tenant_admin_roles
+import compliance_purchases
 
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
 
@@ -117,7 +118,13 @@ async def generate_invoice(req: InvoiceRequest, current_user=Depends(get_current
     # Build invoice
     plan = req.plan or tenant.get("subscriptionPlan", "Standard")
     plan_pricing = {"Starter": 99, "Standard": 299, "Professional": 799, "Enterprise": 1999}
-    amount = plan_pricing.get(plan, 299)
+    plan_amount = plan_pricing.get(plan, 299)
+    items = [{"description": f"{plan} Plan — Monthly Subscription", "qty": 1, "unit_price": plan_amount, "total": plan_amount}]
+    # Purchased compliance frameworks: one monthly line each at its configured price.
+    for line in await compliance_purchases.invoice_lines(getattr(db, "_db", db), tenant_id):
+        items.append({"description": line["description"], "qty": 1, "unit_price": line["unit_price"],
+                      "total": line["amount"]})
+    amount = round(sum(item["total"] for item in items), 2)
 
     # Apply location-based tax
     location = tenant.get("location", "")
@@ -137,7 +144,7 @@ async def generate_invoice(req: InvoiceRequest, current_user=Depends(get_current
         "currency": "USD",
         "status": "pending",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "items": [{"description": f"{plan} Plan — Monthly Subscription", "qty": 1, "unit_price": amount, "total": amount}],
+        "items": items,
     }
 
     await db.invoices.insert_one({**invoice, "_id": invoice["id"]})

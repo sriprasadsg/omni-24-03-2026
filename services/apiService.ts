@@ -2426,14 +2426,15 @@ export const addTenant = async (tenantData: { name: string; subscriptionTier?: s
     }
 };
 
-export const updateTenantFeatures = async (tenantId: string, features: Permission[], tier: SubscriptionTier) => {
+export const updateTenantFeatures = async (tenantId: string, features: Permission[], tier: SubscriptionTier, purchasedFrameworks?: string[]) => {
     try {
         const res = await authFetch(`${API_BASE}/tenants/${tenantId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 enabledFeatures: features,
-                subscriptionTier: tier
+                subscriptionTier: tier,
+                ...(purchasedFrameworks ? { purchasedFrameworks } : {}),
             })
         });
 

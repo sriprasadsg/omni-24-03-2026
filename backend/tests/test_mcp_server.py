@@ -100,6 +100,7 @@ async def test_call_tool_list_frameworks():
     ))
     db = MagicMock()
     db._db = raw
+    db.compliance_frameworks = raw.compliance_frameworks  # purchase-scoped name
     with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
         _, structured = await srv.mcp.call_tool("list_frameworks", {})
 
@@ -114,6 +115,7 @@ async def test_get_compliance_score():
     })
     db = MagicMock()
     db._db = raw
+    db.compliance_frameworks = raw.compliance_frameworks  # purchase-scoped name
     db.asset_compliance.find = MagicMock(return_value=_make_cursor(
         [{"status": "Compliant"}, {"status": "Non-Compliant"}]
     ))
@@ -194,6 +196,7 @@ async def test_get_compliance_score_unknown_framework():
     raw.compliance_frameworks.find_one = AsyncMock(return_value=None)
     db = MagicMock()
     db._db = raw
+    db.compliance_frameworks = raw.compliance_frameworks  # purchase-scoped name
     with patch("mcp_server.get_database", MagicMock(return_value=db)), _tenant_patch():
         with pytest.raises(HTTPException) as exc:
             await srv.get_compliance_score("unknown_fw")

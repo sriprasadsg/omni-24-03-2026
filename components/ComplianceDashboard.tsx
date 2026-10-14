@@ -68,7 +68,11 @@ export const ComplianceDashboard: React.FC<ComplianceDashboardProps> = ({ compli
                         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md h-full flex items-center justify-center">
                             <div className="text-center text-gray-500 dark:text-gray-400 p-8">
                                 <ShieldCheckIcon size={48} className="mx-auto text-gray-400 dark:text-gray-500" />
-                                <p className="mt-4">Select a framework to view its details and controls.</p>
+                                <p className="mt-4">
+                                    {frameworks.length === 0
+                                        ? 'No compliance frameworks are enabled for your organization yet. Contact your provider to purchase one.'
+                                        : 'Select a framework to view its details and controls.'}
+                                </p>
                             </div>
                         </div>
                     )}

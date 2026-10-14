@@ -5,8 +5,8 @@ Delivers SCORE-01 (live per-tenant score), SCORE-02 (severity weighting), SCORE-
 Cache key: compliance:score:{tenant_id}  (TTL 300s)
 Super admin: compliance:score:__super__
 
-compliance_frameworks: global collection — queried via db._db.compliance_frameworks (raw Motor, bypasses
-TenantIsolatedCollection). Exempted in database.py lines 123-135, but the plan mandates db._db usage.
+compliance_frameworks: global catalogue — queried via db.compliance_frameworks, which limits a tenant to the
+frameworks it purchased plus its own (framework_scope); the platform context sees all.
 asset_compliance: tenant-scoped — queried via db.asset_compliance (TenantIsolatedCollection auto-injects tenantId).
 """
 from fastapi import APIRouter, Depends, HTTPException
@@ -89,8 +89,8 @@ async def get_compliance_score(current_user=Depends(get_current_user)):
 
         db = get_database()
 
-        # Fetch all frameworks (global collection — raw Motor)
-        frameworks = [fw async for fw in db._db.compliance_frameworks.find({})]
+        # The frameworks this tenant may see (purchased + own; all for the platform)
+        frameworks = [fw async for fw in db.compliance_frameworks.find({})]
 
         # Build control_meta: control_id → {severity, fw_id}
         control_meta: dict[str, dict] = {}
@@ -198,7 +198,7 @@ async def get_threat_score(current_user=Depends(get_current_user)):
 
         # ── 1. Compliance component (0-400) ───────────────────────────────────
         # Reuse the same asset_compliance → score logic
-        frameworks = [fw async for fw in db._db.compliance_frameworks.find({})]
+        frameworks = [fw async for fw in db.compliance_frameworks.find({})]
         control_meta: dict[str, dict] = {}
         for fw in frameworks:
             for c in fw.get("controls", []):

@@ -4,6 +4,8 @@ from database import get_database
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 
+import compliance_purchases
+
 logger = logging.getLogger(__name__)
 
 class FinOpsService:
@@ -65,15 +67,14 @@ class FinOpsService:
             { "id": 'price-k8s-sec', "name": 'Kubernetes Security', "unit": 'per_cluster_mo', "price": 100.00, "category": 'Security', "description": 'Container and K8s workload protection.' },
             { "id": 'price-api-sec', "name": 'API Security', "unit": 'per_api_mo', "price": 20.00, "category": 'Security', "description": 'API threat detection and rate limiting.' },
             { "id": 'price-supply-chain', "name": 'Supply Chain Security', "unit": 'per_artifact', "price": 0.10, "category": 'Security', "description": 'Third-party dependency risk assessment.' },
-            # Compliance
-            { "id": 'price-compliance', "name": 'Compliance Automation', "unit": 'per_framework_mo', "price": 200.00, "category": 'Compliance', "description": 'Automated compliance evidence collection.' },
-            { "id": 'price-soc2', "name": 'SOC 2 Automation', "unit": 'per_month', "price": 500.00, "category": 'Compliance', "description": 'SOC 2 Type II evidence management.' },
-            { "id": 'price-pci-dss', "name": 'PCI-DSS Compliance', "unit": 'per_month', "price": 750.00, "category": 'Compliance', "description": 'PCI DSS control monitoring.' },
+            # Compliance: one price per framework, see compliance_purchases.
             # AI & ML
             { "id": 'price-ai-chat', "name": 'AI Assistant Queries', "unit": 'per_1000_queries', "price": 5.00, "category": 'AI Governance', "description": 'AI-powered security assistant.' },
             { "id": 'price-mlops', "name": 'MLOps Pipeline', "unit": 'per_model_deploy', "price": 50.00, "category": 'AI Governance', "description": 'ML model lifecycle management.' },
         ]
         
+        self._defaults = [dict(e) for e in self.service_pricing]
+
     async def calculate_current_spend(self, tenant_id: str = None) -> Dict[str, Any]:
         """
         Aggregate current month's spend based on service pricing and usage records.
@@ -359,27 +360,97 @@ class FinOpsService:
         return self.recalculate_tenant_costs(tenant_id)
 
     # --- Service Pricing Logic ---
-    def get_service_pricing(self) -> List[Dict[str, Any]]:
+    # The price list lives in the global service_pricing collection so edits survive
+    # restarts; the built-in list above seeds it. Compliance frameworks are priced one
+    # entry per framework (compliance_purchases): $5.00 per tenant per month until the
+    # Super Admin changes it, never less, and they can be repriced but not removed.
+    # self.service_pricing stays a cache of the last full read (calculate_current_spend).
+    async def _ensure_seeded(self, raw) -> None:
+        for entry in self._defaults:
+            await raw.service_pricing.update_one({"id": entry["id"]}, {"$setOnInsert": dict(entry)}, upsert=True)
+
+    async def get_service_pricing(self, db) -> List[Dict[str, Any]]:
+        raw = getattr(db, "_db", db)
+        if not await raw.service_pricing.count_documents({"frameworkId": {"$exists": False}}):
+            await self._ensure_seeded(raw)
+        services = await raw.service_pricing.find(
+            {"frameworkId": {"$exists": False}, "id": {"$nin": sorted(compliance_purchases.LEGACY_PRICE_IDS)}},
+            {"_id": 0}).to_list(length=2000)
+        frameworks = sorted((await compliance_purchases.framework_prices(raw)).values(), key=lambda e: e["name"])
+        self.service_pricing = services + frameworks
         return self.service_pricing
 
-    def create_service_pricing(self, service_data: Dict[str, Any]) -> Dict[str, Any]:
-        self.service_pricing.append(service_data)
-        return service_data
+    async def _framework_entry(self, raw, service_id: str):
+        for entry in (await compliance_purchases.framework_prices(raw)).values():
+            if entry["id"] == service_id:
+                return entry
+        return None
 
-    def update_service_pricing(self, service_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
-        for i, service in enumerate(self.service_pricing):
-            if service["id"] == service_id:
-                self.service_pricing[i].update(updates)
-                self.service_pricing[i]["updatedAt"] = datetime.now().isoformat()
-                return self.service_pricing[i]
-        raise HTTPException(status_code=404, detail="Service not found")
+    async def create_service_pricing(self, db, service_data: Dict[str, Any]) -> Dict[str, Any]:
+        raw = getattr(db, "_db", db)
+        entry = {k: v for k, v in service_data.items() if k not in ("_id", "frameworkId")}
+        missing = {"id", "name", "price", "unit", "category"} - entry.keys()
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Missing fields: {', '.join(sorted(missing))}")
+        _checked(entry)
+        await self.get_service_pricing(db)  # seed the defaults before the first write
+        if (await raw.service_pricing.find_one({"id": entry["id"]})
+                or await self._framework_entry(raw, entry["id"])):
+            raise HTTPException(status_code=409, detail=f"A service with id {entry['id']!r} already exists")
+        entry["createdAt"] = datetime.now(timezone.utc).isoformat()
+        await raw.service_pricing.insert_one(dict(entry))
+        await self.get_service_pricing(db)
+        return entry
 
-    def delete_service_pricing(self, service_id: str) -> Dict[str, Any]:
-        for i, service in enumerate(self.service_pricing):
-            if service["id"] == service_id:
-                deleted = self.service_pricing.pop(i)
-                return deleted
-        raise HTTPException(status_code=404, detail="Service not found")
+    async def update_service_pricing(self, db, service_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        raw = getattr(db, "_db", db)
+        await self.get_service_pricing(db)
+        current = (await raw.service_pricing.find_one({"id": service_id}, {"_id": 0})
+                   or await self._framework_entry(raw, service_id))
+        if current is None:
+            raise HTTPException(status_code=404, detail="Service not found")
+        locked = {"_id", "id", "frameworkId"} | ({"category", "unit"} if current.get("frameworkId") else set())
+        merged = {**current, **{k: v for k, v in updates.items() if k not in locked}}
+        _checked(merged)
+        merged["updatedAt"] = datetime.now(timezone.utc).isoformat()
+        await raw.service_pricing.update_one({"id": service_id}, {"$set": merged}, upsert=True)
+        await self.get_service_pricing(db)
+        return merged
+
+    async def delete_service_pricing(self, db, service_id: str) -> Dict[str, Any]:
+        raw = getattr(db, "_db", db)
+        if await self._framework_entry(raw, service_id):
+            raise HTTPException(status_code=400, detail="Compliance framework prices can be changed but not removed")
+        await self.get_service_pricing(db)
+        deleted = await raw.service_pricing.find_one_and_delete({"id": service_id}, {"_id": 0})
+        if deleted is None:
+            raise HTTPException(status_code=404, detail="Service not found")
+        await self.get_service_pricing(db)
+        return deleted
+
+    async def save_service_pricing(self, db, pricing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Bulk save: every entry is validated first, then each is created or updated."""
+        raw = getattr(db, "_db", db)
+        await self.get_service_pricing(db)
+        for entry in pricing:
+            if not {"id", "name", "price", "unit", "category"} <= entry.keys():
+                raise HTTPException(status_code=400, detail="Each pricing entry must contain: id, name, price, unit, category")
+            framework = await self._framework_entry(raw, entry["id"])
+            _checked({**entry, "frameworkId": framework["frameworkId"]} if framework else entry)
+        for entry in pricing:
+            if await self._framework_entry(raw, entry["id"]) or await raw.service_pricing.find_one({"id": entry["id"]}):
+                await self.update_service_pricing(db, entry["id"], entry)
+            else:
+                await self.create_service_pricing(db, entry)
+        return await self.get_service_pricing(db)
+
+
+def _checked(entry: Dict[str, Any]) -> None:
+    try:
+        compliance_purchases.check_price(entry)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
 
 # Global instance
 finops_service = FinOpsService()

@@ -29,7 +29,7 @@ async def list_frameworks() -> List[Dict[str, str]]:
     """List all compliance frameworks available for this tenant"""
     db = get_database()
     tenant_id = get_tenant_id()
-    frameworks = await db._db.compliance_frameworks.find(
+    frameworks = await db.compliance_frameworks.find(
         {"$or": [
             {"tenant_id": {"$exists": False}},
             {"tenant_id": ""},
@@ -91,7 +91,7 @@ async def get_compliance_score(framework: str) -> Dict[str, Any]:
     """Get overall compliance score for a framework"""
     db = get_database()
     tenant_id = get_tenant_id()
-    fw = await db._db.compliance_frameworks.find_one({"id": framework}, {"_id": 0})
+    fw = await db.compliance_frameworks.find_one({"id": framework}, {"_id": 0})
     if not fw:
         raise HTTPException(status_code=404, detail=f"Unknown framework '{framework}'")
     control_ids = [c.get("id") for c in fw.get("controls", []) if c.get("id")]

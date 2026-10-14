@@ -18,12 +18,18 @@ interface ServicePricing {
     unit: string;
     price: number;
     description: string;
+    frameworkId?: string;  // set on a compliance framework's price (one per framework)
     createdAt?: string;
     updatedAt?: string;
 }
 
-const CATEGORY_OPTIONS = ['Infrastructure', 'Security', 'Software', 'Support', 'Network', 'Storage', 'AI Governance', 'Automation', 'Observability', 'Developer Tools', 'Management & Settings', 'Other'];
+const CATEGORY_OPTIONS = ['Infrastructure', 'Security', 'Compliance', 'Software', 'Support', 'Network', 'Storage', 'AI Governance', 'Automation', 'Observability', 'Developer Tools', 'Management & Settings', 'Other'];
+// Compliance prices (every framework, and any Compliance service) are at least this much;
+// the server enforces the same floor (backend/compliance_purchases.py).
+const COMPLIANCE_MIN_PRICE = 5;
+const withCurrent = (options: string[], current: string) => (options.includes(current) ? options : [current, ...options]);
 const UNIT_OPTIONS = [
+    'per_tenant_per_month',
     'per_agent_per_month',
     'per_core_per_hour',
     'per_gb_per_month',
@@ -106,9 +112,18 @@ export const ServicePricingPage: React.FC = () => {
         setError('');
     };
 
+    const isFrameworkPrice = !!editingService?.frameworkId;
+    const minPrice = isFrameworkPrice || formData.category === 'Compliance' ? COMPLIANCE_MIN_PRICE : 0;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        if (!(formData.price >= minPrice)) {
+            setError(minPrice > 0
+                ? `Compliance prices must be at least $${COMPLIANCE_MIN_PRICE.toFixed(2)} per tenant per month.`
+                : 'Price must be zero or more.');
+            return;
+        }
 
         try {
             if (modalMode === 'create') {
@@ -223,13 +238,15 @@ export const ServicePricingPage: React.FC = () => {
                                                 >
                                                     <EditIcon size={16} />
                                                 </button>
-                                                <button
-                                                    onClick={() => handleDelete(service)}
-                                                    className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
-                                                    title="Delete Service"
-                                                >
-                                                    <TrashIcon size={16} />
-                                                </button>
+                                                {!service.frameworkId && (
+                                                    <button
+                                                        onClick={() => handleDelete(service)}
+                                                        className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                                                        title="Delete Service"
+                                                    >
+                                                        <TrashIcon size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -293,10 +310,11 @@ export const ServicePricingPage: React.FC = () => {
                                     <select
                                         value={formData.category}
                                         onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
+                                        disabled={isFrameworkPrice}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 disabled:opacity-50"
                                         required
                                     >
-                                        {CATEGORY_OPTIONS.map(cat => (
+                                        {withCurrent(CATEGORY_OPTIONS, formData.category).map(cat => (
                                             <option key={cat} value={cat}>{cat}</option>
                                         ))}
                                     </select>
@@ -309,10 +327,11 @@ export const ServicePricingPage: React.FC = () => {
                                     <select
                                         value={formData.unit}
                                         onChange={e => setFormData({ ...formData, unit: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
+                                        disabled={isFrameworkPrice}
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 disabled:opacity-50"
                                         required
                                     >
-                                        {UNIT_OPTIONS.map(unit => (
+                                        {withCurrent(UNIT_OPTIONS, formData.unit).map(unit => (
                                             <option key={unit} value={unit}>{unit.replace(/_/g, ' ')}</option>
                                         ))}
                                     </select>
@@ -325,13 +344,18 @@ export const ServicePricingPage: React.FC = () => {
                                     <input
                                         type="number"
                                         step="0.01"
-                                        min="0"
+                                        min={minPrice}
                                         value={formData.price}
                                         onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700"
                                         placeholder="0.00"
                                         required
                                     />
+                                    {minPrice > 0 && (
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            Compliance prices are at least ${COMPLIANCE_MIN_PRICE.toFixed(2)} per tenant per month.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="md:col-span-2">

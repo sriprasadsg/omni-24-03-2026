@@ -1166,11 +1166,11 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveTenantFeatures = (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier }) => {
-    api.updateTenantFeatures(tenantId, updates.features, updates.tier).then(updatedTenant => {
+  const handleSaveTenantFeatures = (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier, purchasedFrameworks?: string[] }) => {
+    api.updateTenantFeatures(tenantId, updates.features, updates.tier, updates.purchasedFrameworks).then(updatedTenant => {
       setTenants(prev => prev.map(t => t.id === tenantId ? updatedTenant : t));
       setManagingTenant(null);
-    });
+    }).catch((e: Error) => showToast(e.message || 'Failed to update tenant', 'error'));
   };
 
   // FIX: Create an adapter function to handle calls from TenantFeatureManagement which doesn't provide a tier.

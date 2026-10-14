@@ -414,6 +414,7 @@ class TestNarrativeServiceShim:
         db._db = MagicMock()
         db._db.compliance_frameworks = MagicMock()
         db._db.compliance_frameworks.find = MagicMock(return_value=_cursor([_KNOWN_FRAMEWORK]))
+        db.compliance_frameworks = db._db.compliance_frameworks
         db.asset_compliance = MagicMock()
         db.asset_compliance.find = MagicMock(return_value=_cursor([]))
 
@@ -440,6 +441,7 @@ class TestNarrativeServiceShim:
         db._db = MagicMock()
         db._db.compliance_frameworks = MagicMock()
         db._db.compliance_frameworks.find = MagicMock(return_value=_cursor([_KNOWN_FRAMEWORK]))
+        db.compliance_frameworks = db._db.compliance_frameworks
         db.asset_compliance = MagicMock()
         db.asset_compliance.find = MagicMock(return_value=_cursor([]))
 

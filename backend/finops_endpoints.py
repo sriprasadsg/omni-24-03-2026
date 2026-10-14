@@ -168,8 +168,8 @@ async def recalculate_costs(
 async def get_pricing(
     current_user: dict = Depends(require_permission("view:settings"))
 ):
-    """Get service pricing configuration."""
-    return finops_service.get_service_pricing()
+    """Get service pricing configuration (includes one $5+ entry per compliance framework)."""
+    return await finops_service.get_service_pricing(get_database())
 
 # Service pricing applies to every tenant, so its writes are platform super-admin only.
 @router.post("/pricing")
@@ -177,30 +177,8 @@ async def update_pricing_bulk(
     pricing: List[Dict[str, Any]],
     current_user: dict = Depends(require_super_admin)
 ):
-    """Bulk update service pricing — persisted to MongoDB and reflected in-memory."""
-    pricing = pricing[:500]
-    _REQUIRED = {"id", "name", "price", "unit", "category"}
-    for entry in pricing:
-        if not _REQUIRED.issubset(entry.keys()):
-            raise HTTPException(status_code=400, detail=f"Each pricing entry must contain: {_REQUIRED}")
-        try:
-            price = float(entry["price"])
-            if price < 0:
-                raise ValueError
-        except (ValueError, TypeError):
-            raise HTTPException(status_code=400, detail="price must be a non-negative number")
-    # Persist to DB so changes survive server restarts
-    db = get_database()
-    now = datetime.now(timezone.utc).isoformat()
-    for entry in pricing:
-        await db.service_pricing.update_one(
-            {"id": entry["id"]},
-            {"$set": {**entry, "updated_at": now}},
-            upsert=True,
-        )
-    # Also update in-memory cache for current process
-    finops_service.service_pricing = pricing
-    return pricing
+    """Bulk create/update service pricing (persisted; compliance framework prices >= $5)."""
+    return await finops_service.save_service_pricing(get_database(), pricing[:500])
 
 @router.post("/pricing/service")
 async def create_service(
@@ -208,7 +186,7 @@ async def create_service(
     current_user: dict = Depends(require_super_admin)
 ):
     """Create a new service pricing entry."""
-    return finops_service.create_service_pricing(service_data)
+    return await finops_service.create_service_pricing(get_database(), service_data)
 
 @router.patch("/pricing/service/{service_id}")
 async def update_service(
@@ -216,14 +194,14 @@ async def update_service(
     updates: Dict[str, Any],
     current_user: dict = Depends(require_super_admin)
 ):
-    """Update a specific service pricing."""
-    return finops_service.update_service_pricing(service_id, updates)
+    """Update a specific service pricing (a compliance framework's price stays >= $5)."""
+    return await finops_service.update_service_pricing(get_database(), service_id, updates)
 
 @router.delete("/pricing/service/{service_id}")
 async def delete_service(
     service_id: str,
     current_user: dict = Depends(require_super_admin)
 ):
-    """Delete a service pricing entry."""
-    return finops_service.delete_service_pricing(service_id)
+    """Delete a service pricing entry (compliance framework prices cannot be removed)."""
+    return await finops_service.delete_service_pricing(get_database(), service_id)
 

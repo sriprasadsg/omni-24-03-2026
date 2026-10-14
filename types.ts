@@ -391,6 +391,9 @@ export type Tenant = {
   finOpsData?: FinOpsData;
   voiceBotSettings?: VoiceBotSettings;
   agentCount?: number;
+  // Catalogue compliance frameworks the tenant purchased (set by the Super Admin in
+  // Manage Tenant; billed monthly; the tenant's users see only these).
+  purchasedFrameworks?: string[];
   // Bundle-based feature entitlement (new)
   assignedBundles?: string[];
   customFeatures?: string[];
