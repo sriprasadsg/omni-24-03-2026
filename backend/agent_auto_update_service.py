@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger("agent_auto_update_service")
 
-_LATEST_AGENT_VERSION = "2.1.13"
+_LATEST_AGENT_VERSION = "2.1.14"
 _MIN_SELF_UPDATE_VERSION = (2, 0, 5)
 
 
