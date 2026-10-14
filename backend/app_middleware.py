@@ -210,6 +210,9 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
 
     from tenant_middleware import TenantMiddleware
     from usage_middleware import UsageTrackingMiddleware
+    from audit_middleware import AuditMiddleware
+    # Added before TenantMiddleware, so it runs inside it and sees the tenant (spec C5).
+    app.add_middleware(AuditMiddleware)
     app.add_middleware(TenantMiddleware)
     app.add_middleware(UsageTrackingMiddleware)
 

@@ -358,3 +358,23 @@ async def license_seat_maintenance_loop():
             _log.error("License seat maintenance failed: %s", exc)
         runs += 1
         await asyncio.sleep(3600)
+
+
+async def audit_maintenance_loop():
+    """Audit ledger upkeep (spec C5): every 10 minutes replay entries spooled while the
+    database was unreachable; daily, purge entries past each tenant's retention."""
+    import audit_ledger
+
+    _log = logging.getLogger(__name__ + ".audit")
+    runs = 0
+    while True:
+        try:
+            await audit_ledger.replay_spool()
+            if runs % 144 == 0:
+                purged = await audit_ledger.purge_expired()
+                if purged:
+                    _log.info("Purged %d audit entries past retention", purged)
+        except Exception as exc:
+            _log.error("Audit maintenance failed: %s", exc)
+        runs += 1
+        await asyncio.sleep(600)

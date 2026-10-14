@@ -11,6 +11,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # runs as "test" unless a test deliberately overrides it.
 os.environ.setdefault("ENVIRONMENT", "test")
 
+# Audit entries that cannot be written spool here, never into the live logs/ spool (spec C5).
+import tempfile as _tempfile
+os.environ["AUDIT_SPOOL_PATH"] = os.path.join(_tempfile.mkdtemp(prefix="omni_test_audit_"), "audit-spool.ndjson")
+
 # Process-global sentinel recording whether AI_ROUTER_URL was set in the REAL
 # shell environment when pytest started. Several Phase 39 eval test modules
 # transitively import `database.py`, whose module-level `load_dotenv()` leaks

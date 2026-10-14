@@ -1,3 +1,4 @@
+import audit_ledger
 import os
 import secrets
 import shutil
@@ -183,7 +184,7 @@ async def download_agent(
     try:
         from database import get_database as _gdb
         _db = _gdb()
-        await _db.audit_logs.insert_one({
+        await audit_ledger.record_legacy(_db, {
             "action": "agent.downloaded", "actor": role, "target": tenant_id,
             "tenant_id": ut or tenant_id, "platform": platform or "linux",
             "ip": request.client.host if request.client else "unknown",
@@ -278,7 +279,7 @@ async def download_rust_binary(
 
     try:
         from database import get_database as _gdb
-        await _gdb().audit_logs.insert_one({
+        await audit_ledger.record_legacy(_gdb(), {
             "action": "agent.binary_downloaded", "actor": role, "target": tenant_id,
             "tenant_id": ut or tenant_id, "platform": "windows-rust-raw",
             "ip": request.client.host if request.client else "unknown",

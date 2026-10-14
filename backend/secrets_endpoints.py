@@ -4,6 +4,7 @@ Secrets Management API Endpoints
 Provides API for centralized secrets management, rotation, and auditing.
 """
 
+import audit_ledger
 import logging
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request, Response
 from rate_limiter import limiter
@@ -242,7 +243,7 @@ async def get_secret_value(
         )
 
         from datetime import timezone as _tz
-        await db.audit_logs.insert_one({
+        await audit_ledger.record_legacy(db, {
             "action": "secret.read",
             "actor": user,
             "target": name,

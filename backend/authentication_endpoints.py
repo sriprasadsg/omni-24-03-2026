@@ -141,6 +141,16 @@ async def _run_ueba_analysis(db, user_id: str, ip_address: str, user_agent: str)
         logger.debug("UEBA analysis failed (non-fatal): %s", e)
 
 
+async def _audit_login(request: Request, action: str, identifier: str, user, outcome: str, **fields) -> None:
+    """Explicit login events (spec C5): the email tried and the IP, never the password."""
+    import audit_ledger
+    await audit_ledger.event(
+        action, (user or {}).get("tenantId") or "platform-admin", outcome=outcome,
+        actor={"userId": (user or {}).get("id"), "email": identifier, "role": (user or {}).get("role")},
+        email=identifier, ip=request.client.host if request.client else None,
+        userAgent=(request.headers.get("user-agent") or "")[:300] or None, **fields)
+
+
 @router.post("/login")
 @limiter.limit("10/minute")
 async def login_for_access_token(request: Request, response: Response, login_request: LoginRequest):  # noqa: ARG001
@@ -162,6 +172,7 @@ async def login_for_access_token(request: Request, response: Response, login_req
     stored_hash = user.get('password') or user.get('hashed_password') if user else None
     if not user or not stored_hash or not verify_password(login_request.password, stored_hash):
         await _record_login_failure(db, identifier)
+        await _audit_login(request, "login.failure", identifier, user, "denied", reason="invalid_credentials")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -172,6 +183,7 @@ async def login_for_access_token(request: Request, response: Response, login_req
     # A disabled account gets no session (and no MFA step). Only reachable
     # with the right password, so naming the reason leaks nothing new.
     if not account_is_active(user):
+        await _audit_login(request, "login.failure", identifier, user, "denied", reason="account_disabled")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is disabled. Contact your administrator.")
 
     # 3. If MFA is enabled — return short-lived session token instead of full JWT
@@ -180,6 +192,7 @@ async def login_for_access_token(request: Request, response: Response, login_req
         try:
             import mfa_service
             session_token = await mfa_service.create_mfa_session(user["email"])
+            await _audit_login(request, "mfa.challenge", identifier, user, "success")
             return {
                 "access_token": "",
                 "token_type": "mfa_required",
@@ -234,6 +247,7 @@ async def login_for_access_token(request: Request, response: Response, login_req
     _asyncio.create_task(_run_ueba_analysis(db._db, user["email"], client_ip, client_ua))
 
     set_refresh_cookie(response, request, refresh_token)
+    await _audit_login(request, "login.success", identifier, user, "success")
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -509,6 +523,13 @@ async def logout(
     db = get_database()
     if token:
         await _revoke_presented_token(db, token, want_refresh=False)
+        try:
+            import jwt as _jwt
+            claims = _jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+            await _audit_login(request, "logout", claims.get("sub") or "", {"tenantId": claims.get("tenant_id"),
+                               "role": claims.get("role")}, "success")
+        except Exception:
+            pass  # an unreadable token signs out all the same
     refresh_token = request.cookies.get(REFRESH_COOKIE)
     if refresh_token:
         await _revoke_presented_token(db, refresh_token, want_refresh=True)

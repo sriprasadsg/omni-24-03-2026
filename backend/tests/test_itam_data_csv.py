@@ -18,6 +18,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from tests import audit_chain_test_support
 from httpx import AsyncClient, ASGITransport
 
 from tests.conftest import make_test_app, make_token_data, _make_col
@@ -78,11 +80,13 @@ class MockTenantIsolatedCollection:
 
 class MockTenantIsolatedDatabase:
     def __init__(self, raw_db_mock, tenant_id):
-        self._raw_db = raw_db_mock
+        # self._db, like the real TenantIsolatedDatabase, so the audit ledger's unwrap to the
+        # raw handle (spec C5) reaches the mock rather than a tenant-wrapped collection.
+        self._db = raw_db_mock
         self._tenant_id = tenant_id
 
     def __getattr__(self, name):
-        return MockTenantIsolatedCollection(name, self._tenant_id, getattr(self._raw_db, name))
+        return MockTenantIsolatedCollection(name, self._tenant_id, getattr(self._db, name))
 
     def __getitem__(self, name):
         return self.__getattr__(name)
@@ -154,6 +158,8 @@ def mock_db():
         return MagicMock(inserted_id=doc.get("id"))
 
     db.audit_logs.insert_one = AsyncMock(side_effect=_audit_insert_one)
+    # The audit ledger chains entries through a per-tenant head (spec C5).
+    audit_chain_test_support.install(db)
 
     return db
 

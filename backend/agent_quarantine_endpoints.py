@@ -4,6 +4,7 @@ Allows admins to isolate a compromised agent so its heartbeats are rejected
 and commands are not dispatched to it until it is explicitly released.
 """
 from __future__ import annotations
+import audit_ledger
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -53,7 +54,7 @@ async def quarantine_agent(
         "status": "Quarantined",
     }})
 
-    await db.audit_logs.insert_one({
+    await audit_ledger.record_legacy(db, {
         "action": "agent_quarantined",
         "agent_id": agent_id,
         "hostname": agent.get("hostname"),
@@ -113,7 +114,7 @@ async def release_agent(
         "status": "Offline",
     }})
 
-    await db.audit_logs.insert_one({
+    await audit_ledger.record_legacy(db, {
         "action": "agent_released",
         "agent_id": agent_id,
         "performed_by": caller,

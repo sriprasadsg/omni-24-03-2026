@@ -1,7 +1,4 @@
-import hashlib
 import logging
-import uuid
-from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from database import get_database
 
@@ -11,69 +8,35 @@ class AuditService:
     Implements SHA-256 Hash Chaining for Immutable Ledger.
     """
     
-    def _compute_hash(self, entry: Dict[str, Any], previous_hash: str) -> str:
-        """Compute SHA-256 hash of the entry + previous hash"""
-        # Create a canonical string representation
-        # We include critical fields: timestamp, action, user, resource, previous_hash
-        # Details and PreviousState are included if present
-        payload = f"{entry['timestamp']}|{entry['userName']}|{entry['action']}|{entry['resourceType']}|{entry['resourceId']}|{previous_hash}"
-        return hashlib.sha256(payload.encode()).hexdigest()
-
     def log_action(self, *args, **kwargs):
         raise RuntimeError(
             "AuditService.log_action() is a no-op stub. "
             "Use await log_action_async(...) to persist audit entries."
         )
 
-    async def log_action_async(self, 
-                   user_name: str, 
-                   action: str, 
-                   resource_type: str, 
-                   resource_id: str, 
-                   details: str, 
+    async def log_action_async(self,
+                   user_name: str,
+                   action: str,
+                   resource_type: str,
+                   resource_id: str,
+                   details: str,
                    previous_state: Optional[Dict[str, Any]] = None,
                    tenant_id: str = "default-tenant") -> Dict[str, Any]:
-         
-        # 1. Prepare base entry
-        log_entry = {
-            "id": str(uuid.uuid4()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "userName": user_name,
-            "action": action,
-            "resourceType": resource_type,
-            "resourceId": resource_id,
-            "details": details,
-            "previousState": previous_state,
-            "tenantId": tenant_id
-        }
-        
-        try:
+        """Adapter onto audit_ledger.record (spec C5): one schema, one atomic chain."""
+        import audit_ledger
+        entry = audit_ledger.build(
+            action, tenant_id, actor={"email": user_name},
+            userName=user_name, resourceType=resource_type, resourceId=resource_id,
+            details=details, previousState=previous_state)
+        try:  # this module's get_database, so callers and tests that scope it are honoured
             db = get_database()
-            
-            # 2. Get Previous Hash (Chain)
-            # Find the last log for this tenant
-            last_log = await db.audit_logs.find_one(
-                {"tenantId": tenant_id},
-                sort=[("timestamp", -1)]
-            )
-            
-            previous_hash = last_log.get("hash", "0" * 64) if last_log else "0" * 64
-            
-            # 3. Compute Current Hash
-            current_hash = self._compute_hash(log_entry, previous_hash)
-            
-            # 4. Attach Hash info
-            log_entry["hash"] = current_hash
-            log_entry["previousHash"] = previous_hash
-            
-            await db.audit_logs.insert_one(log_entry)
-            
-        except Exception as e:
-            logging.error(f"Failed to persist audit log: {e}")
-            # Fallback: still return entry but without hash persistence confirmation
-            
-        logging.info(f"[AUDIT] {user_name} performed {action} on {resource_type} {resource_id} [Hash: {log_entry.get('hash', 'N/A')[:8]}...]")
-        return log_entry
+            raw = getattr(db, "_db", None)
+            db = raw if raw is not None and hasattr(raw, "audit_logs") else db
+        except Exception:
+            db = None
+        await audit_ledger.record(entry, db=db)
+        logging.info(f"[AUDIT] {user_name} performed {action} on {resource_type} {resource_id} [Hash: {entry.get('hash', 'spooled')[:8]}...]")
+        return entry
 
     async def get_logs(
         self,
@@ -83,6 +46,7 @@ class AuditService:
         resource_id: Optional[str] = None,
         limit: int = 100,
         skip: int = 0,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve logs filtered by tenant.
@@ -102,6 +66,9 @@ class AuditService:
             logging.warning("[AUDIT] get_logs called without tenant_id by non-super-admin — returning empty list")
             return []
 
+        for key, value in (filters or {}).items():  # extra equality/range terms (spec C5)
+            if key != "tenantId":  # never widens the tenant scope
+                query[key] = value
         if resource_type:
             query["resourceType"] = resource_type
         if resource_id:
@@ -153,55 +120,9 @@ class AuditService:
         return log_entry["previousState"]
 
     async def verify_integrity(self, tenant_id: str) -> Dict[str, Any]:
-        """
-        Verify the cryptographic integrity of the audit ledger for a tenant.
-        Returns report of any broken chains.
-        """
-        db = get_database()
-        
-        # Get all logs sorted by timestamp ASCENDING (oldest first) to walk the chain
-        logs = await db.audit_logs.find(
-            {"tenantId": tenant_id},
-            {"_id": 0}
-        ).sort("timestamp", 1).to_list(length=1000)
-        
-        if not logs:
-            return {"status": "empty", "valid": True}
-            
-        broken_links = []
-        expected_prev_hash = "0" * 64
-        
-        for log in logs:
-            # 1. Check if previous hash matches expected
-            stored_prev_hash = log.get("previousHash")
-            if stored_prev_hash != expected_prev_hash:
-                broken_links.append({
-                    "id": log["id"],
-                    "timestamp": log["timestamp"],
-                    "reason": "Previous Hash Mismatch",
-                    "expected": expected_prev_hash,
-                    "found": stored_prev_hash
-                })
-                
-            # 2. Re-compute hash and check integrity
-            computed_hash = self._compute_hash(log, stored_prev_hash)
-            if computed_hash != log.get("hash"):
-                broken_links.append({
-                    "id": log["id"],
-                    "timestamp": log["timestamp"],
-                    "reason": "Data Integrity Failure (Hash Mismatch)",
-                    "expected": computed_hash,
-                    "found": log.get("hash")
-                })
-                
-            # Set expectation for next link
-            expected_prev_hash = log.get("hash")
-            
-        return {
-             "valid": len(broken_links) == 0,
-             "total_records": len(logs),
-             "broken_links": broken_links
-        }
+        """Walk the tenant's chain by seq (audit_ledger.verify)."""
+        import audit_ledger
+        return await audit_ledger.verify(tenant_id)
 
 # Global singleton
 _audit_service = AuditService()

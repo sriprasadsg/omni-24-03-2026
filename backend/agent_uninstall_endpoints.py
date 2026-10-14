@@ -13,6 +13,7 @@ Uninstalled, raises an alert and rotates the code, so each code works once.
 A local administrator can still stop or delete the service by hand; that shows
 up as the agent going Offline (app_background_tasks.monitor_agent_status).
 """
+import audit_ledger
 import hashlib
 import hmac
 import secrets
@@ -85,7 +86,7 @@ async def heartbeat_uninstall_protection(db, agent_filter: Dict[str, Any]) -> Op
 
 
 async def _audit(db, action: str, agent: Dict[str, Any], user: Any, **extra) -> None:
-    await db.audit_logs.insert_one({
+    await audit_ledger.record_legacy(db, {
         "action": action,
         "agent_id": agent.get("id"),
         "hostname": agent.get("hostname"),

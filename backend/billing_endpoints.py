@@ -3,6 +3,7 @@ Billing Invoice Endpoints — Phase 7
 Provides invoice CRUD and PDF download functionality.
 Integrates with Stripe for live invoice data and invoice_generator.py for PDFs.
 """
+import audit_ledger
 import os
 import uuid
 import logging
@@ -90,7 +91,7 @@ async def generate_invoice_alias(
                 from database import get_database as _gdb
                 from datetime import datetime as _dt, timezone as _tz
                 _db = _gdb()
-                await _db.audit_logs.insert_one({
+                await audit_ledger.record_legacy(_db, {
                     "action": "super_admin_tenant_impersonation",
                     "target_tenant_id": tenant_id,
                     "performed_by": getattr(current_user, "username", str(current_user)),
@@ -190,7 +191,7 @@ async def mark_invoice_paid(invoice_id: str, current_user=Depends(get_current_us
         raise HTTPException(status_code=400, detail=f"Invoice cannot be marked paid (status: {existing.get('status')})")
     # Audit log
     try:
-        await db.audit_logs.insert_one({
+        await audit_ledger.record_legacy(db, {
             "action": "invoice_marked_paid",
             "invoice_id": invoice_id,
             "tenant_id": tenant_id,

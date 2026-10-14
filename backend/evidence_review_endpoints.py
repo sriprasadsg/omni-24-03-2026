@@ -10,6 +10,7 @@ Role gating:
   - GET pending:        any authenticated user (own tenant)
 """
 from __future__ import annotations
+import audit_ledger
 
 import logging
 from datetime import datetime, timezone
@@ -173,7 +174,7 @@ async def update_evidence_review(
     # write failure must not surface as a 500 for an action that actually
     # succeeded (WR-03).
     try:
-        await db.audit_logs.insert_one({
+        await audit_ledger.record_legacy(db, {
             "action": "evidence_review_decision",
             "tenantId": tenant_id,
             "evidence_id": evidence_id,

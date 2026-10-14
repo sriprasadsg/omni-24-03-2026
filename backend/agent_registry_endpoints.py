@@ -1,3 +1,4 @@
+import audit_ledger
 from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Request, Response
 from catalogue_mounts_agents import AGENTS_GUARD
 from typing import Dict, Any
@@ -478,7 +479,7 @@ async def delete_agent(
     if agent.get("status") not in licensing.NON_SEAT_STATUSES:
         await licensing.release_seats(db, agent["tenantId"])
 
-    await db.audit_logs.insert_one({
+    await audit_ledger.record_legacy(db, {
         "action": "DELETE_AGENT",
         "agent_id": agent_id,
         "performed_by": getattr(current_user, "username", str(current_user)),

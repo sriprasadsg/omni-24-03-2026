@@ -21,6 +21,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import audit_service
+from tests import audit_chain_test_support
 import user_endpoints
 
 
@@ -69,6 +70,7 @@ class _AuditLogs:
 class _DB:
     def __init__(self):
         self.audit_logs = _AuditLogs()
+        audit_chain_test_support.install(self)  # the ledger's chain head (spec C5)
 
 
 async def test_user_created_audit_entry_is_visible_to_its_tenant():

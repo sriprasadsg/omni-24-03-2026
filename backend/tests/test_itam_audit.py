@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from tests import audit_chain_test_support
 from httpx import AsyncClient, ASGITransport
 
 from tests.conftest import make_test_app, make_token_data, _make_col
@@ -142,6 +144,9 @@ def mock_db():
     db.audit_logs.insert_one = AsyncMock(side_effect=_audit_insert_one)
     db.audit_logs.find = MagicMock(side_effect=_audit_find)
     db.audit_logs.find_one = AsyncMock(side_effect=_audit_find_one)
+
+    # The audit ledger chains entries through a per-tenant head (spec C5).
+    audit_chain_test_support.install(db)
     return db
 
 

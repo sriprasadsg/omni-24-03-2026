@@ -2,6 +2,7 @@
 Background scheduler for periodic tasks.
 Includes FinOps cost recalculation for all tenants.
 """
+import audit_ledger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timezone
@@ -89,7 +90,7 @@ async def recalculate_all_finops_costs():
         
         # Create audit log
         try:
-            await db.audit_logs.insert_one({
+            await audit_ledger.record_legacy(db, {
                 "id": f"audit-{datetime.now(timezone.utc).timestamp()}",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "action": "finops_recalculation",
