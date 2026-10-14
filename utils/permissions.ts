@@ -16,6 +16,24 @@ export function screenAllowed(view: string, hasPermission: (permission: Permissi
   return !hasPermission(`screen-off:${view}` as Permission);
 }
 
+// Screens whose routes serve other screens too: switched off, they are hidden but still answer.
+const HIDE_ONLY_SCREENS = new Set(featureSwitches.groups.flatMap(g => g.features)
+  .filter(f => (f as { hideOnly?: boolean }).hideOnly).map(f => f.permission.slice('screen:'.length)));
+
+/**
+ * False when the tenant's switches take `view` (which needs `permission`) away from this user: the
+ * permission is switch-governed and neither it nor its manage: twin was delivered, or the server
+ * marked the screen off and refuses its routes (hide-only screens keep them). App skips the startup
+ * fetches the server would only answer with 403. Callers skip it for platform roles.
+ */
+export function switchedOnFor(view: string, permission: string, hasPermission: (permission: Permission) => boolean): boolean {
+  const manageTwin = permission.replace(/^view:/, 'manage:');
+  if (isTenantSwitchable(permission) && !hasPermission(permission as Permission) && !hasPermission(manageTwin as Permission)) {
+    return false;
+  }
+  return HIDE_ONLY_SCREENS.has(view) || screenAllowed(view, hasPermission);
+}
+
 /**
  * True when a Super Admin's per-tenant feature switch decides whether a tenant user holds `permission`,
  * or (given the sidebar `view`) whether the user sees that item through its screen switch.

@@ -14,7 +14,7 @@ vi.mock('../../services/socketService', () => ({ socketService: { on: vi.fn(), o
 
 import { Sidebar } from '../../components/Sidebar';
 import { UserContext } from '../../contexts/UserContext';
-import { isTenantSwitchable } from '../../utils/permissions';
+import { isTenantSwitchable, switchedOnFor } from '../../utils/permissions';
 
 // The server already removed switched-off features from this list (backend/tenant_features.py).
 const granted = new Set(['view:dashboard', 'view:profile', 'view:mlops', 'view:agents']);
@@ -87,5 +87,18 @@ describe('Per-screen switches (spec C6)', () => {
       granted.delete('view:security');
       granted.delete('screen-off:alertManagement');
     }
+  });
+});
+
+describe('Startup fetches skip what the tenant switches took away (spec C6)', () => {
+  const holding = (...perms: string[]) => (p: string) => perms.includes(p);
+  it('skips a switched-off feature and a switched-off screen, never a role-only or hide-only one', () => {
+    expect(switchedOnFor('chaosEngineering', 'view:chaos', holding())).toBe(false);                 // switch off
+    expect(switchedOnFor('chaosEngineering', 'view:chaos', holding('manage:chaos'))).toBe(true);    // the guard accepts the twin
+    expect(switchedOnFor('distributedTracing', 'view:tracing',
+      holding('view:tracing', 'screen-off:distributedTracing'))).toBe(false);                        // screen off
+    expect(switchedOnFor('distributedTracing', 'view:tracing', holding('view:tracing'))).toBe(true);
+    expect(switchedOnFor('agents', 'view:agents', holding('view:agents', 'screen-off:agents'))).toBe(true); // hide-only
+    expect(switchedOnFor('dashboard', 'view:dashboard', holding())).toBe(true);                      // no switch: unchanged
   });
 });

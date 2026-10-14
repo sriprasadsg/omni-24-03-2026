@@ -112,7 +112,7 @@
     {"view": "devsecops", "label": "DevSecOps", "group": "devsecops", "nav": true, "permission": "view:devsecops", "routes": [], "noBackendReason": "dashboard aggregates SBOM, SAST and supply-chain data from catalogues that own those routes"},
     {"view": "doraMetrics", "label": "DORA Metrics", "group": "devsecops", "nav": true, "permission": "view:dora_metrics", "routes": ["/api/dora"]},
     {"view": "sbom", "label": "SBOM", "group": "devsecops", "nav": true, "permission": "view:sbom", "routes": ["/api/sboms", "/api/sbom"]},
-    {"view": "sast", "label": "SAST", "group": "devsecops", "nav": true, "permission": "view:security", "routes": ["/api/sast"]},
+    {"view": "sast", "label": "SAST", "group": "devsecops", "nav": true, "permission": "view:devsecops", "routes": ["/api/sast"]},
     {"view": "codeReviewGraph", "label": "Code Review Graph", "group": "devsecops", "nav": true, "permission": "view:devsecops", "routes": ["/api/code-review"]},
     {"view": "pipelineSecurity", "label": "Pipeline Security", "group": "devsecops", "nav": true, "permission": "view:devsecops", "routes": ["/api/pipeline-security"]},
     {"view": "iacSecurity", "label": "IaC Security", "group": "devsecops", "nav": true, "permission": "view:devsecops", "routes": ["/api/iac-security"]},

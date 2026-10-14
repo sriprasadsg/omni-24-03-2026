@@ -235,7 +235,7 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './utils/permissions';
+import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, screenAllowed, switchedOnFor } from './utils/permissions';
 import { NAV_GROUPS, viewForHash, viewPermission } from './utils/catalogueAccess';
 
 const API_BASE = '/api';
@@ -271,6 +271,9 @@ const App: React.FC = () => {
   // Global App State
   // Global App State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // The latest signed-in user for loadAllData (a stable callback); sign-in paths set it before loading.
+  const currentUserRef = useRef<User | null>(null);
+  currentUserRef.current = currentUser;
   // Admin-tier sessions that haven't passed MFA see only the MFA screen:
   // 'enroll' to set it up, 'verify' to confirm a code for this session.
   const [mfaGate, setMfaGate] = useState<'enroll' | 'verify' | null>(null);
@@ -486,30 +489,42 @@ const App: React.FC = () => {
     const _jwtPayload = (() => { try { return JSON.parse(atob(token.split('.')[1])); } catch { return {}; } })();
     const _isSuperAdmin = ['Super Admin', 'superadmin', 'super_admin', 'platform-admin'].includes(_jwtPayload.role || '');
 
+    // A feature the Super Admin switched off for this tenant (spec C6) is not requested at all: each
+    // fetch names the catalogue that owns its route, and one the switches took away resolves to
+    // SKIPPED (its fallback) instead of a 403 logged as "Backend offline".
+    const user = currentUserRef.current;
+    const { hasPermission: holds } = derivePermissionState(user);
+    const SKIPPED = Symbol('switched off for this tenant');
+    const ifOn = <T,>(view: AppView, fetch: () => Promise<T>): Promise<T | typeof SKIPPED> =>
+      !user || isPlatformRoleName(user.role) || switchedOnFor(view, viewPermission(view) ?? '', holds) ? fetch() : Promise.resolve(SKIPPED);
+
     try {
       const results = await Promise.allSettled([
         api.fetchUsers(), api.fetchRoles(), _isSuperAdmin ? api.fetchTenants() : Promise.resolve([]), api.fetchMetrics(),
-        api.fetchAlerts(), api.fetchComplianceFrameworks(), api.fetchAiSystems(),
-        api.fetchAssets(), api.fetchPatches(), api.fetchSecurityCases(),
-        api.fetchPlaybooks(), api.fetchSecurityEvents(), api.fetchCloudAccounts(),
-        api.fetchCspmFindings(), api.fetchAuditLogs(),
-        api.fetchIntegrations(), api.fetchAlertRules(), api.fetchHistoricalData(viewingTenantId || undefined),
-        api.fetchAgents(), api.fetchInfrastructure(), api.fetchDataSources(),
-        api.fetchSboms(), api.fetchSoftwareComponents(),
-        api.fetchAgentUpgradeJobs(), api.fetchPatchDeploymentJobs(), api.fetchVulnerabilityScanJobs(), api.fetchLogs(), api.fetchUebaFindings(),
-        api.fetchModelExperiments(), api.fetchRegisteredModels(), api.fetchAutomationPolicies(),
-        api.fetchSastFindings(), api.fetchCodeRepositories(), api.fetchApiDocs(),
-        api.fetchSensitiveDataFindings(),
-        api.fetchAttackPaths(), api.fetchServiceTemplates(), api.fetchProvisionedServices(),
-        api.fetchDoraMetrics(), api.fetchChaosExperiments(), api.fetchProactiveInsights(),
-        api.fetchTraces(), api.fetchServiceMap(), api.fetchThreatIntelFeed(), api.fetchNetworkDevices(),
-        api.fetchGlobalComplianceData(), api.fetchTasks(),
+        ifOn('alertManagement', api.fetchAlerts), ifOn('compliance', api.fetchComplianceFrameworks), ifOn('aiGovernance', api.fetchAiSystems),
+        ifOn('assetManagement', api.fetchAssets), ifOn('patchManagement', api.fetchPatches), ifOn('incidentResponse', api.fetchSecurityCases),
+        ifOn('playbooks', api.fetchPlaybooks), ifOn('incidentResponse', api.fetchSecurityEvents), ifOn('cloudAccounts', api.fetchCloudAccounts),
+        ifOn('cloudSecurity', api.fetchCspmFindings), ifOn('auditLog', api.fetchAuditLogs),
+        ifOn('integrations', api.fetchIntegrations), ifOn('alertManagement', api.fetchAlertRules),
+        ifOn('advancedBi', () => api.fetchHistoricalData(viewingTenantId || undefined)),
+        ifOn('agents', api.fetchAgents), ifOn('settings', api.fetchInfrastructure), ifOn('settings', api.fetchDataSources),
+        ifOn('sbom', api.fetchSboms), ifOn('sbom', api.fetchSoftwareComponents),
+        ifOn('agents', api.fetchAgentUpgradeJobs), ifOn('patchManagement', api.fetchPatchDeploymentJobs),
+        ifOn('vulnerabilityManagement', api.fetchVulnerabilityScanJobs), ifOn('logExplorer', api.fetchLogs), ifOn('ueba', api.fetchUebaFindings),
+        ifOn('mlops', api.fetchModelExperiments), ifOn('mlops', api.fetchRegisteredModels), ifOn('automation', api.fetchAutomationPolicies),
+        ifOn('sast', api.fetchSastFindings), ifOn('sast', api.fetchCodeRepositories), ifOn('developer_hub', api.fetchApiDocs),
+        ifOn('dlp', api.fetchSensitiveDataFindings),
+        ifOn('attackPath', api.fetchAttackPaths), ifOn('serviceCatalog', api.fetchServiceTemplates), ifOn('serviceCatalog', api.fetchProvisionedServices),
+        ifOn('doraMetrics', api.fetchDoraMetrics), ifOn('chaosEngineering', api.fetchChaosExperiments), ifOn('proactiveInsights', api.fetchProactiveInsights),
+        ifOn('distributedTracing', api.fetchTraces), ifOn('distributedTracing', api.fetchServiceMap),
+        ifOn('threatIntelligence', api.fetchThreatIntelFeed), ifOn('networkTopology', api.fetchNetworkDevices),
+        ifOn('compliance', api.fetchGlobalComplianceData), ifOn('tasks', api.fetchTasks),
       ]);
 
       const getResult = <T,>(index: number, fallback: T): T => {
         const result = results[index];
         if (result.status === 'fulfilled') {
-          return result.value as T;
+          return result.value === SKIPPED ? fallback : result.value as T;
         } else {
           console.warn(`Data fetch failed for index ${index}, using fallback. Reason:`, result.reason);
           return fallback;
@@ -598,7 +613,9 @@ const App: React.FC = () => {
         }
 
         // Merge subscriptionTier from tenant into user object so badge can read it across all roles
-        setCurrentUser({ ...data.user, subscriptionTier: data.tenant?.subscriptionTier || 'Free' });
+        const signedIn = { ...data.user, subscriptionTier: data.tenant?.subscriptionTier || 'Free' };
+        setCurrentUser(signedIn);
+        currentUserRef.current = signedIn;  // loadAllData below runs before the re-render
         setViewingTenantId((data.user.role === 'Super Admin' || data.user.role === 'superadmin' || data.user.role === 'super_admin') ? null : data.user.tenantId);
         setCurrentView('dashboard');
         api.startTokenRefreshCycle();
@@ -643,10 +660,9 @@ const App: React.FC = () => {
         }
 
         // Merge subscriptionTier from tenant into user object
-        setCurrentUser({ 
-          ...data.user, 
-          subscriptionTier: data.tenant?.subscriptionTier || 'Free' 
-        });
+        const signedUp = { ...data.user, subscriptionTier: data.tenant?.subscriptionTier || 'Free' };
+        setCurrentUser(signedUp);
+        currentUserRef.current = signedUp;  // loadAllData below runs before the re-render
 
         // Set viewing tenant id
         setViewingTenantId(data.tenant?.id || data.user?.tenantId || null);
@@ -739,6 +755,7 @@ const App: React.FC = () => {
       }
       if (user) {
         setCurrentUser(user);
+        currentUserRef.current = user;  // loadAllData below runs before the re-render
         setViewingTenantId((user.role === 'Super Admin' || user.role === 'superadmin' || user.role === 'super_admin') ? null : user.tenantId);
         // Fetch server-confirmed feature flags
         api.fetchPlatformFeatures().then(f => setServerLockedFeatures(f.locked)).catch(() => {});

@@ -373,11 +373,6 @@
           "parent": "view:security"
         },
         {
-          "permission": "screen:sast",
-          "label": "SAST",
-          "parent": "view:security"
-        },
-        {
           "permission": "screen:problemManagement",
           "label": "Problem Management",
           "parent": "view:security"
@@ -562,6 +557,11 @@
         {
           "permission": "screen:apiExtensions",
           "label": "API Extensions (MCP/OCSF)",
+          "parent": "view:devsecops"
+        },
+        {
+          "permission": "screen:sast",
+          "label": "SAST",
           "parent": "view:devsecops"
         },
         {

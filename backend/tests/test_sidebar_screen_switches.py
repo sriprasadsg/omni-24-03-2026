@@ -123,3 +123,20 @@ async def test_migration_019_adds_only_the_new_screens(mongo_db):
     assert {"screen:dashboard", "screen:internalTickets", "screen:agents", "screen:chat"} <= set(features)
     assert "screen:edr" not in features and "screen:reporting" not in features
     assert len(features) == len(set(features))
+
+
+async def test_sast_is_a_devsecops_screen(mongo_db):
+    """protects=the SAST item needs view:devsecops, the permission every SAST route checks, and sits
+    under DevSecOps; migration 021 switches SAST on for tenants with DevSecOps and nobody else;
+    fails_when=a tenant with Security on and DevSecOps off sees SAST again (every request 403s) or a
+    DevSecOps tenant loses SAST on deploy; no_claim=the SAST handlers themselves."""
+    import importlib
+    assert tf.SCREEN_SWITCHES["sast"] == "view:devsecops" and tf.SWITCH_PARENTS["screen:sast"] == "view:devsecops"
+    assert tf.screen_permissions(["view:devsecops"], ["view:security", "screen:sast"]) == []
+    await mongo_db.tenants.insert_many([{"id": "dev", "enabledFeatures": ["view:devsecops"]},
+                                        {"id": "sec", "enabledFeatures": ["view:security", "screen:sast"]}])
+    migration = importlib.import_module("migrations.021_sast_screen_under_devsecops")
+    await migration.up(mongo_db)
+    await migration.up(mongo_db)
+    features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
+    assert features == {"dev": ["view:devsecops", "screen:sast"], "sec": ["view:security", "screen:sast"]}
