@@ -17,7 +17,8 @@ from auth_types import TokenData
 from authentication_service import get_current_user
 from tests.rbac_test_support import role_store, shared_role_docs
 
-BUILTIN_NAMES = [r.name for r in rbac_defaults.BUILTIN_ROLES if r.key != "super_admin"]
+BUILTIN_NAMES = [r.name for r in rbac_defaults.BUILTIN_ROLES if r.key not in rbac_defaults.PLATFORM_ROLE_KEYS]
+PLATFORM_NAMES = [r.name for r in rbac_defaults.BUILTIN_ROLES if r.key in rbac_defaults.PLATFORM_ROLE_KEYS]
 
 
 def _custom(name, tenant, permissions, **extra):
@@ -69,7 +70,8 @@ def test_tenant_admin_lists_every_builtin_role_including_itam(client):
         assert expected in names
     for itam in ("itam_admin", "itam_user", "itam_viewer"):
         assert itam in names
-    assert "Super Admin" not in names
+    for platform in PLATFORM_NAMES:  # spec C1: platform roles are listed for the owner only
+        assert platform not in names
 
 
 @pytest.mark.asyncio
@@ -116,6 +118,7 @@ def test_super_admin_sees_super_admin_entry(client):
     assert res.status_code == 200
     by_name = {r["name"]: r for r in res.json()}
     assert by_name["Super Admin"]["permissions"] == ["*"]
+    assert set(PLATFORM_NAMES) <= set(by_name)
 
 
 def test_every_entry_has_the_role_shape_and_no_all_permission(client):

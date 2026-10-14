@@ -11,6 +11,7 @@ import socket
 import uuid
 import datetime
 from urllib.parse import urlparse
+from auth_roles import tenant_admin_roles
 
 _BLOCKED_HOSTS = {
     "169.254.169.254",       # AWS/Azure/GCP instance metadata
@@ -36,7 +37,7 @@ def _is_safe_host(host: str) -> bool:
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
-_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_SETTINGS_ADMIN_ROLES = tenant_admin_roles()
 
 
 def _require_admin(user: TokenData) -> None:

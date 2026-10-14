@@ -14,12 +14,13 @@ from pydantic import BaseModel, Field
 from authentication_service import get_optional_user
 from compliance_evidence_processor import process_automated_evidence
 from database import get_database
+from auth_roles import platform_scope_roles
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Roles that bypass cross-tenant tenant-mismatch guard
-_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_SUPER_ROLES = platform_scope_roles()
 
 
 # ---------------------------------------------------------------------------

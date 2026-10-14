@@ -32,6 +32,7 @@ from evidence_review_service import (
     requires_comment,
     EvidenceNotFoundError,
 )
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -44,7 +45,7 @@ router = APIRouter()
 # change — a shared source (constants module or an existing /api/config
 # response) would remove this manual-sync requirement but is out of scope
 # for this fix pass.
-_REVIEWER_ROLES = {"admin", "super_admin", "compliance_reviewer"}
+_REVIEWER_ROLES = tenant_admin_roles("compliance_reviewer")
 
 
 # ── Request / Response models ──────────────────────────────────────────────────

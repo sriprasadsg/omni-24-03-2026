@@ -6,11 +6,12 @@ from typing import List, Optional
 from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/automation-policies", tags=["Automation"])
 
 _AUTOMATION_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
-_AUTOMATION_MANAGE_ROLES = _AUTOMATION_SUPER_ROLES | {"Tenant Admin", "admin", "security_analyst"}
+_AUTOMATION_MANAGE_ROLES = tenant_admin_roles("security_analyst")
 
 _VALID_TRIGGERS = {"agent.error", "alert.critical"}
 _VALID_ACTIONS = {"remediate.agent", "create.case"}

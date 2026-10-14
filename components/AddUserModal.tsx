@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Role, Tenant } from '../types';
 import { showToast } from '../utils/toast';
+import { useUser } from '../contexts/UserContext';
+import { isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
 import { Modal } from './Modal';
 
 interface AddUserModalProps {
@@ -12,7 +14,12 @@ interface AddUserModalProps {
 }
 
 export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onSave, tenants, roles }) => {
-    const availableTenants = useMemo(() => tenants.filter(t => t.id !== 'platform-admin'), [tenants]);
+    const { currentUser } = useUser();
+    const availableTenants = useMemo(() => tenants.filter(t => t.id !== PLATFORM_TENANT_ID), [tenants]);
+    // Platform roles (spec C1) are offered only to a Platform Owner; the server enforces the same.
+    const assignableRoles = useMemo(
+        () => isSuperAdminRoleName(currentUser?.role) ? roles : roles.filter(r => !isPlatformRoleName(r.name)),
+        [roles, currentUser]);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -21,18 +28,19 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
 
     useEffect(() => {
         if(isOpen) {
-            const defaultRole = roles.find(r => r.name === 'Tenant Admin')?.name || roles[0]?.name || '';
+            const defaultRole = assignableRoles.find(r => r.name === 'Tenant Admin')?.name || assignableRoles[0]?.name || '';
             const defaultTenant = availableTenants[0]?.id || '';
             setSelectedRole(defaultRole);
             setSelectedTenantId(defaultTenant);
             setName('');
             setEmail('');
         }
-    }, [isOpen, roles, availableTenants]);
+    }, [isOpen, assignableRoles, availableTenants]);
 
 
-    const isSuperAdminRole = selectedRole === 'Super Admin';
-    const finalTenantId = isSuperAdminRole ? 'platform-admin' : selectedTenantId;
+    // A platform role lives only in the Platform tenant; a tenant role never does.
+    const isPlatformRole = isPlatformRoleName(selectedRole);
+    const finalTenantId = isPlatformRole ? PLATFORM_TENANT_ID : selectedTenantId;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -74,14 +82,14 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
                 <div>
                     <label htmlFor="add-user-role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
                     <select id="add-user-role" value={selectedRole} onChange={e => setSelectedRole(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm">
-                        {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                        {assignableRoles.map(r => <option key={r.id} value={r.name}>{roleLabel(r.name)}</option>)}
                     </select>
                 </div>
                 <div>
                     <label htmlFor="add-user-tenant" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tenant</label>
-                    <select id="add-user-tenant" value={selectedTenantId} onChange={e => setSelectedTenantId(e.target.value)} disabled={isSuperAdminRole} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50">
-                        {isSuperAdminRole
-                            ? <option value="platform-admin">Platform</option>
+                    <select id="add-user-tenant" value={selectedTenantId} onChange={e => setSelectedTenantId(e.target.value)} disabled={isPlatformRole} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50">
+                        {isPlatformRole
+                            ? <option value={PLATFORM_TENANT_ID}>Platform</option>
                             : availableTenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
                         }
                     </select>

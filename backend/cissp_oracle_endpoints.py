@@ -18,10 +18,11 @@ from datetime import datetime, timezone
 from local_ip import ollama_default_url
 from authentication_service import get_current_user
 import uuid
+from auth_roles import platform_scope_roles
 
 logger = logging.getLogger(__name__)
 
-_CISSP_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_CISSP_SUPER_ROLES = platform_scope_roles()
 
 router = APIRouter(prefix="/api/cissp", tags=["CISSP Oracle"])
 

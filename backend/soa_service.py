@@ -2,8 +2,9 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
+from auth_roles import platform_scope_roles
 
-_SOA_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_SOA_SUPER_ROLES = platform_scope_roles()
 
 # Default control domains seeded when a new SoA is generated
 _FRAMEWORK_DOMAINS = {

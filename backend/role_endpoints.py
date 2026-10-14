@@ -45,8 +45,9 @@ async def list_roles(current_user: TokenData = Depends(_require_role_list_access
     D-15: every built-in role from the single table in ``rbac_defaults`` plus the
     role documents of the caller's own tenant (never another tenant's), each with
     permissions computed by ``rbac_service.effective_permissions``, the same
-    resolver ``/api/auth/me`` uses. Super Admin is listed for super-admin callers
-    only. D-16: requires manage:users or manage:rbac.
+    resolver ``/api/auth/me`` uses. The platform roles (Super Admin, Platform Support,
+    Platform Billing) are listed for super-admin callers only. D-16: requires
+    manage:users or manage:rbac.
     """
     db = get_database()
     tenant_id = current_user.tenant_id
@@ -54,8 +55,8 @@ async def list_roles(current_user: TokenData = Depends(_require_role_list_access
     roles: List[dict] = []
     try:
         for builtin in rbac_defaults.BUILTIN_ROLES:
-            if builtin.key == rbac_defaults.SUPER_ADMIN_KEY and not caller_is_super:
-                continue
+            if builtin.key in rbac_defaults.PLATFORM_ROLE_KEYS and not caller_is_super:
+                continue  # platform roles (spec C1) are listed and assignable by the owner only
             roles.append({
                 "id": builtin.role_id,
                 "name": builtin.name,

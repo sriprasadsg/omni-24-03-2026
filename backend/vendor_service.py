@@ -4,8 +4,9 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import uuid
 from database import get_database
+from auth_roles import platform_scope_roles
 
-_VENDOR_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_VENDOR_SUPER_ROLES = platform_scope_roles()
 
 
 class VendorAssessment(BaseModel):

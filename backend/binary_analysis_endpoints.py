@@ -12,6 +12,7 @@ from auth_types import TokenData
 from binary_analysis_service import binary_analysis_service
 import asyncio
 import uuid
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/analysis", tags=["Binary Analysis"])
 
@@ -124,10 +125,7 @@ async def _run_analysis(job_id: str, content: bytes, filename: str, run_sandbox:
 # ------------------------------------------------------------------
 
 _ANALYSIS_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
-_YARA_WRITE_ROLES = {
-    "Super Admin", "super_admin", "platform-admin",
-    "Tenant Admin", "admin", "security_analyst",
-}
+_YARA_WRITE_ROLES = tenant_admin_roles("security_analyst")
 
 
 @router.get("/report/{job_id}")

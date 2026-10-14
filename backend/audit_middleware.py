@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import audit_exempt
 import audit_ledger
+import rbac_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,8 @@ def actor_of(scope) -> Tuple[Optional[Dict[str, Any]], bool]:
     if is_agent_payload(payload):
         return {"userId": payload.get("sub"), "role": "agent", "tenantId": payload.get("tenant_id")}, True
     return {"userId": payload.get("user_id") or payload.get("sub"), "email": payload.get("sub"),
-            "role": payload.get("role"), "tenantId": payload.get("tenant_id"), "platformTier": None}, False
+            "role": payload.get("role"), "tenantId": payload.get("tenant_id"),
+            "platformTier": rbac_defaults.platform_tier(payload.get("role"))}, False
 
 
 def body_keys(body: bytes, content_type: str) -> Optional[List[str]]:

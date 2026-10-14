@@ -18,10 +18,11 @@ from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from tenant_context import get_tenant_id
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
 
-_BILLING_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_BILLING_ADMIN_ROLES = tenant_admin_roles()
 
 
 def _tid(user) -> str:

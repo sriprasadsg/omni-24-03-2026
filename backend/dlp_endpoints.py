@@ -6,6 +6,7 @@ from rbac_utils import require_permission
 from database import get_database
 import dlp_service
 from typing import Optional
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/dlp", tags=["DLP"])
 
@@ -36,7 +37,7 @@ async def list_incidents(status: Optional[str] = None, current_user=Depends(get_
 async def list_policies(current_user=Depends(get_current_user)):
     return await dlp_service.get_policies(current_user.tenant_id or None)
 
-_ADMIN_ROLES = {"Admin", "admin", "Super Admin", "superadmin", "super_admin", "platform-admin"}
+_ADMIN_ROLES = tenant_admin_roles()
 
 @router.post("/policies")
 async def create_policy(req: PolicyRequest, current_user=Depends(get_current_user)):

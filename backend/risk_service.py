@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import uuid
+from auth_roles import platform_scope_roles
 
 class Risk(BaseModel):
     id: str
@@ -31,7 +32,7 @@ class Risk(BaseModel):
     fair_inputs: Optional[Dict[str, Any]] = None
     fair_results: Optional[Dict[str, Any]] = None
 
-_RISK_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_RISK_SUPER_ROLES = platform_scope_roles()
 
 
 class RiskService:

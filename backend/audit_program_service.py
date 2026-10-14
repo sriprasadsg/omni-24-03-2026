@@ -2,8 +2,9 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
+from auth_roles import platform_scope_roles
 
-_AP_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_AP_SUPER_ROLES = platform_scope_roles()
 _AP_STATUSES = ["Planning", "Fieldwork", "Review", "Remediation", "Closed"]
 _AP_TRANSITIONS = {
     "Planning": {"Fieldwork"},

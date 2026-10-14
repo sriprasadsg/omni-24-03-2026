@@ -33,13 +33,14 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from notification_service import get_notification_service
+from auth_roles import TENANT_ADMIN_ROLE_NAMES
 
 logger = logging.getLogger(__name__)
 
 # Tenant-admin recipient role set for escalation notifications (D-03,
-# RESEARCH.md Open Question 1) — kept identical to notification_manager.py's
-# set; do not introduce a third variant.
-_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "Super Admin", "super_admin", "platform-admin"}
+# RESEARCH.md Open Question 1) — the same names notification_manager.py uses
+# (auth_roles.TENANT_ADMIN_ROLE_NAMES); do not introduce a third variant.
+_ADMIN_ROLES = frozenset(TENANT_ADMIN_ROLE_NAMES)
 
 # Escalation tier boundaries in days-past-due -> escalation_level 1/2/3 (D-04).
 # A small, justified default confirmed reasonable during planning (CONTEXT.md);

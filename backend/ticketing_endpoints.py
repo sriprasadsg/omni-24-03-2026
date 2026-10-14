@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 import ticketing_service
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/ticketing", tags=["Ticketing"])
 
@@ -65,7 +66,7 @@ async def get_config(current_user=Depends(get_current_user)):
 
 @router.post("/config")
 async def save_config(req: TicketingConfigRequest, current_user=Depends(get_current_user)):
-    if current_user.role not in ("admin", "super_admin"):
+    if current_user.role not in tenant_admin_roles():
         raise HTTPException(status_code=403, detail="Admin only")
     return await ticketing_service.save_ticketing_config(
         current_user.tenant_id or None, req.dict()

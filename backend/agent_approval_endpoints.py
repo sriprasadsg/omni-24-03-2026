@@ -15,12 +15,13 @@ import uuid
 from agent_auth import verify_agent_key
 from rate_limiter import limiter
 import logging
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_approval_endpoints")
 
 APPROVALS_COLLECTION = "agent_approvals"
-_TASK_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_TASK_SUPER_ROLES = platform_scope_roles()
 
 
 class ApprovalRequestModel(BaseModel):

@@ -97,4 +97,5 @@ async def test_all_steps_succeed_when_nothing_fails(monkeypatch):
     assert set(role_names_written) == {
         "Super Admin", "Tenant Admin", "admin", "analyst", "security_analyst",
         "incident_responder", "user", "viewer", "itam_admin", "itam_user", "itam_viewer",
+        "Platform Support", "Platform Billing",
     }

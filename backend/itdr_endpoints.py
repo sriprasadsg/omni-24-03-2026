@@ -11,6 +11,7 @@ from rbac_utils import require_permission
 from auth_types import TokenData
 from itdr_service import itdr_service
 from integration_service import get_integration_service
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/itdr", tags=["ITDR - Identity Threat Detection"])
 
@@ -66,8 +67,7 @@ async def get_itdr_summary(current_user: TokenData = Depends(get_current_user)):
         "by_type": by_type,
     }
 
-_ITDR_SUSPEND_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin",
-                       "Tenant Admin", "security_analyst", "incident_responder"}
+_ITDR_SUSPEND_ROLES = tenant_admin_roles("security_analyst", "incident_responder")
 
 class SuspendUserRequest(BaseModel):
     idp_provider: str  # 'okta' or 'entra'

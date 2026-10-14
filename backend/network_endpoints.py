@@ -13,12 +13,13 @@ from authentication_service import get_current_user
 from rbac_utils import require_permission, require_super_admin
 import datetime
 import uuid
+from auth_roles import platform_scope_roles
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/network-devices", tags=["Network"])
 
-_NET_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_NET_SUPER_ROLES = platform_scope_roles()
 
 @router.get("")
 async def get_network_devices(

@@ -9,6 +9,7 @@ from ml_service import get_ml_service
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,7 @@ async def configure_integration(
 ):
     """Configure external integration. Admin only."""
     role = getattr(current_user, "role", "") or ""
-    if role not in _SUPER_ADMIN_ROLES | {"Admin", "admin"}:
+    if role not in tenant_admin_roles():
         raise HTTPException(status_code=403, detail="Admin access required")
     try:
         db = get_database()

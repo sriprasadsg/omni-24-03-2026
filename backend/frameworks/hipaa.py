@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
+from auth_roles import TENANT_ADMIN_ROLE_NAMES
+
 FRAMEWORK_ID = "hipaa"
 FRAMEWORK_NAME = "HIPAA / HITECH"
 FRAMEWORK_VERSION = "2013/2021"
@@ -123,7 +125,7 @@ async def _run_check(db, ctrl: Dict[str, Any]):
                 return "pass", f"Security role holder found: {officer.get('username', 'unknown')}"
             # Fallback: check for admin roles
             admin = await db.users.find_one(
-                {"role": {"$in": ["admin", "super_admin", "Super Admin"]}}, {"_id": 0}
+                {"role": {"$in": list(TENANT_ADMIN_ROLE_NAMES)}}, {"_id": 0}
             )
             if admin:
                 return "partial", "No dedicated security officer; admin role identified as fallback"

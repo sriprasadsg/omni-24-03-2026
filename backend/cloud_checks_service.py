@@ -4,7 +4,7 @@ Combines per-provider check definitions into a single CLOUD_CHECKS list.
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
-from auth_roles import SUPER_AND_ADMIN_ROLES as _CC_SUPER_ROLES
+from auth_roles import platform_scope_roles
 
 from cloud_checks_aws import AWS_CHECKS
 from cloud_checks_azure import AZURE_CHECKS
@@ -15,6 +15,8 @@ from cloud_checks_mongodb_atlas import MONGODB_ATLAS_CHECKS
 from cloud_checks_oci import OCI_CHECKS
 from cloud_checks_alibaba import ALIBABA_CHECKS
 from cloud_checks_cloudflare import CLOUDFLARE_CHECKS
+
+_CC_SUPER_ROLES = platform_scope_roles()  # spec C1: a tenant admin stays in its own tenant
 
 # DigitalOcean checks
 DO_CHECKS: List[Dict[str, Any]] = [

@@ -17,13 +17,14 @@ from authentication_service import get_current_user
 from agent_location_history_service import get_track_agent_location
 import logging
 from datetime import datetime, timezone
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 # Admin roles for settings-mutation gating
-_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin", "Tenant Admin"}
+_SETTINGS_ADMIN_ROLES = tenant_admin_roles()
 
 
 def _require_admin(user) -> None:

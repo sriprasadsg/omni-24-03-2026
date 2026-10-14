@@ -13,10 +13,11 @@ from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agent", tags=["Agentic AI"])
 
-_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_SUPER_ROLES = platform_scope_roles()
 
 
 class AnalyzeRequest(BaseModel):

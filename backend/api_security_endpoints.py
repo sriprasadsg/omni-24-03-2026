@@ -2,13 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from auth_utils import require_auth
 from database import get_db
 from api_security_service import APISecurityService
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/api-security", tags=["api-security"])
 
-_API_SEC_ANALYST_ROLES = {
-    "Super Admin", "super_admin", "platform-admin",
-    "Tenant Admin", "admin", "security_analyst",
-}
+_API_SEC_ANALYST_ROLES = tenant_admin_roles("security_analyst")
 
 
 def get_svc(db=Depends(get_db)):

@@ -21,9 +21,10 @@ from skill_handlers_queries import (
     handle_cost_snapshot,
 )
 
-from auth_roles import SUPER_AND_ADMIN_ROLES as _SKILL_SUPER_ROLES
+from auth_roles import platform_scope_roles
 
 logger = logging.getLogger(__name__)
+_SKILL_SUPER_ROLES = platform_scope_roles()  # spec C1: a tenant admin stays in its own tenant
 
 
 async def handle_help() -> str:

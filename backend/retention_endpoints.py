@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from auth_utils import require_auth
+from auth_roles import tenant_admin_roles
 
-_RETENTION_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_RETENTION_ADMIN_ROLES = tenant_admin_roles()
 from retention_service import RetentionService
 from database import get_db, get_database
 from datetime import datetime, timezone

@@ -14,17 +14,16 @@ from database import get_database
 from authentication_service import get_current_user
 from cache_service import invalidate_cache
 from catalogue_mounts_assets import ASSETS_GUARD
+from auth_roles import platform_scope_roles, tenant_admin_roles
 
 router = APIRouter()
 
-_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_SUPER_ROLES = platform_scope_roles()
 
 # Roles permitted to override compliance status (mirrors _WRITE_ROLES in
 # compliance_bulk_evidence_endpoints.py). Read-only tenant members (e.g.
 # "viewer", "analyst") must not be able to mutate compliance status.
-_WRITE_ROLES: frozenset[str] = frozenset({
-    "admin", "Admin", "Super Admin", "superadmin", "super_admin", "platform-admin"
-})
+_WRITE_ROLES = tenant_admin_roles()
 
 
 class ComplianceStatusUpdate(BaseModel):

@@ -8,6 +8,7 @@ import hashlib
 
 from database import get_database
 from authentication_service import get_current_user
+from auth_roles import tenant_admin_roles
 
 _REPO_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
@@ -28,7 +29,7 @@ async def upload_package(
     Only allows administrators.
     """
     role = getattr(current_user, "role", None)
-    if role not in ("Super Admin", "Tenant Admin"):
+    if role not in tenant_admin_roles():
         raise HTTPException(status_code=403, detail="Unauthorised. Admins only.")
 
     tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None) or None
@@ -121,7 +122,7 @@ async def list_packages(current_user: Any = Depends(get_current_user)):
 async def delete_package(filename: str, current_user: Any = Depends(get_current_user)):
     """ Remove a package from the local repository. """
     role = getattr(current_user, "role", None)
-    if role not in ("Super Admin", "Tenant Admin"):
+    if role not in tenant_admin_roles():
         raise HTTPException(status_code=403, detail="Unauthorised. Admins only.")
 
     tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None) or None

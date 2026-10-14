@@ -241,7 +241,24 @@ class TestCreateUser:
         assert r.status_code == 403, r.text
 
     @pytest.mark.asyncio
-    async def test_super_admin_can_assign_super_admin_role(self, app):
+    async def test_super_admin_can_assign_super_admin_role(self, app, fake_db):
+        fake_db.tenants.docs.append({"id": "platform-admin", "name": "Platform"})
+        super_admin = make_token_data(username="root@platform.com", role="Super Admin", tenant_id="platform-admin")
+        _override_user(app, super_admin)
+
+        async with await _client(app) as ac:
+            r = await ac.post("/api/users", json={
+                "email": "newsuper@platform.com", "password": "Str0ng!Passw0rd",
+                "full_name": "New Super", "role": "super_admin", "tenantId": "platform-admin",
+            })
+        assert r.status_code == 201, r.text
+        # Spec C1: platform roles are stored under their built-in name.
+        assert r.json()["role"] == "Super Admin"
+
+    @pytest.mark.asyncio
+    async def test_platform_role_outside_the_platform_tenant_is_refused(self, app):
+        """protects=platform roles live only in the Platform tenant; fails_when=a super admin
+        is created inside a customer tenant; no_claim=FakeDB stands in for Mongo."""
         super_admin = make_token_data(username="root@platform.com", role="Super Admin", tenant_id="platform-admin")
         _override_user(app, super_admin)
 
@@ -250,7 +267,7 @@ class TestCreateUser:
                 "email": "newsuper@tenant-a.com", "password": "Str0ng!Passw0rd",
                 "full_name": "New Super", "role": "super_admin", "tenantId": "tenant-a",
             })
-        assert r.status_code == 201, r.text
+        assert r.status_code == 400, r.text
 
     @pytest.mark.asyncio
     async def test_create_user_nonexistent_tenant_rejected(self, app):

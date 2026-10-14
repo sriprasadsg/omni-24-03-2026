@@ -2,7 +2,9 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
-from auth_roles import SUPER_AND_ADMIN_ROLES as _M_SUPER_ROLES
+from auth_roles import platform_scope_roles
+
+_M_SUPER_ROLES = platform_scope_roles()  # spec C1: a tenant admin stays in its own tenant
 
 MATURITY_LEVELS = {
     1: "Initial",

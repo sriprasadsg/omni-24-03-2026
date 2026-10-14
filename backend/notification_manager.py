@@ -47,10 +47,10 @@ class NotificationManager:
                 print("[NotificationManager] No SMTP settings found. Skipping email.")
                 return
 
-            # Get Recipients — admin roles only to prevent security alerts leaking to all users
-            _ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "Super Admin", "super_admin", "platform-admin"}
+            # Get Recipients — the tenant's admins only, so security alerts never reach every user
+            from auth_roles import TENANT_ADMIN_ROLE_NAMES
             users = await db.users.find(
-                {"tenantId": tenant_id, "role": {"$in": list(_ADMIN_ROLES)}}
+                {"tenantId": tenant_id, "role": {"$in": list(TENANT_ADMIN_ROLE_NAMES)}}
             ).to_list(length=100)
             recipients = [u['email'] for u in users if u.get('email')]
             

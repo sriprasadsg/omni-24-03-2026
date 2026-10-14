@@ -22,6 +22,7 @@ from database import get_database
 from notification_service import get_notification_service
 from rate_limiter import limiter
 from control_comments_service import add_comment, list_comments, resolve_mentions
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,7 +31,7 @@ router = APIRouter()
 # components/ControlCommentsPanel.tsx. The backend always re-enforces
 # authorization server-side regardless of the frontend list, so drift here
 # is a UI-confusion risk (composer visibility), not an authz bypass.
-_COMMENT_AUTHOR_ROLES = {"admin", "super_admin", "compliance_reviewer"}
+_COMMENT_AUTHOR_ROLES = tenant_admin_roles("compliance_reviewer")
 
 
 # ── Request models ───────────────────────────────────────────────────────────

@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 JIT_STATES = ("pending", "approved", "active", "expired", "revoked", "denied")
 
 DEFAULT_MAX_DURATION_HOURS = 8
-PRIVILEGED_ROLES = ["admin", "super_admin", "security_analyst", "incident_responder"]
+# Tenant roles only: a tenant user can never request a platform role (spec C1).
+PRIVILEGED_ROLES = ["admin", "security_analyst", "incident_responder"]
 
 JIT_REQUEST_REASONS = [
     "incident_response",

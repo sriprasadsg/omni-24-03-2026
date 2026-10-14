@@ -2,8 +2,9 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
+from auth_roles import platform_scope_roles
 
-_Q_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_Q_SUPER_ROLES = platform_scope_roles()
 _Q_TYPES = {"Vendor", "Internal", "Gap Analysis", "Security Assessment", "Audit"}
 _Q_STATUSES = {"Draft", "Active", "Closed"}
 _QUESTION_TYPES = {"text", "yes_no", "multiple_choice", "scale", "date", "file"}

@@ -5,10 +5,11 @@ from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
 from tenant_context import set_tenant_id
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
-_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_ADMIN_ROLES = platform_scope_roles()
 
 
 @router.get("/historical")

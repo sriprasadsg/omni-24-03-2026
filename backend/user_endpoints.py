@@ -17,7 +17,8 @@ from rbac_utils import is_super_admin
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from rbac_service import rbac_service
 import rbac_defaults
-from role_assignment import assert_can_assign_role, assert_can_manage_account
+from role_assignment import (assert_can_assign_role, assert_can_manage_account, assert_not_last_platform_owner,
+                             assert_role_fits_tenant, stored_role_name)
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from audit_service import get_audit_service
@@ -284,6 +285,7 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
 
     if not target_tenant_id or not await _tenant_exists(db, target_tenant_id):
         raise HTTPException(status_code=400, detail=f"Tenant '{target_tenant_id}' does not exist")
+    assert_role_fits_tenant(user.role, target_tenant_id)
 
     # Check existing
     existing = await db.users.find_one({"email": user.email, "tenantId": target_tenant_id})
@@ -302,7 +304,7 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
         "email": user.email,
         "hashed_password": get_password_hash(user.password),
         "full_name": user.full_name,
-        "role": user.role,
+        "role": stored_role_name(user.role),
         "tenantId": target_tenant_id,
         "status": _normalize_status(user.status),
         "createdAt": now,
@@ -366,7 +368,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
             target_email=target_user.get("email"),
             current_role=target_user.get("role"),
         )
-        update_data["role"] = updates.role
+        update_data["role"] = stored_role_name(updates.role)
     if updates.password is not None:
         # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are
         # blocked for LDAP-sourced users — LDAP is the source of truth for
@@ -398,6 +400,12 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
     if not update_data:
         # Just return the current user if no updates provided
         return _to_response(target_user)
+    if "role" in update_data or "tenantId" in update_data:
+        assert_role_fits_tenant(update_data.get("role", target_user.get("role")),
+                                update_data.get("tenantId", target_user.get("tenantId")))
+    await assert_not_last_platform_owner(db, target_user, new_role=update_data.get("role"),
+                                         new_status=update_data.get("status"),
+                                         new_tenant_id=update_data.get("tenantId"))
 
     update_data["updatedAt"] = datetime.datetime.now(timezone.utc).isoformat()
     update_op = {"$set": update_data}
@@ -458,6 +466,8 @@ async def delete_user(user_id: str, current_user: TokenData = Depends(_require_i
     # Cannot delete yourself
     if getattr(current_user, "username", "") == target_user.get("email"):
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    await assert_not_last_platform_owner(db, target_user, deleting=True)
 
     # Revoke first so a failed cutoff write leaves the account (and its audit trail) intact (WR-05).
     if target_user.get("email"):

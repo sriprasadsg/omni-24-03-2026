@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from database import get_database
 from authentication_service import get_current_user
-from auth_roles import SUPER_ROLES
+from auth_roles import SUPER_ROLES, tenant_admin_roles
 from evidence_staleness import get_staleness_threshold
 import logging
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Admin roles — copied verbatim from settings_endpoints.py (self-contained, do not import)
-_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin", "Tenant Admin"}
+_SETTINGS_ADMIN_ROLES = tenant_admin_roles()
 
 # Super roles — for CoC tenant-isolation gate
 # Kept in sync with compliance_evidence_endpoints._SUPER_ROLES (WR-02): both

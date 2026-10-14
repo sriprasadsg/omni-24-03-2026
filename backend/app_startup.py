@@ -223,7 +223,7 @@ async def seed_database():
     """Create or refresh the super admin user, platform tenant and built-in roles.
 
     Steps: migrations, super admin user, platform tenant, one step that mirrors
-    rbac_defaults into the 11 shared role documents (each document written
+    rbac_defaults into the 13 shared role documents (each document written
     independently), then the ITAM enabledFeatures backfill.
 
     ARCH-018 (2026-08-25 audit): this used to be one try/except wrapping
@@ -314,7 +314,7 @@ async def seed_database():
         logger.error("[Seed] Platform tenant seeding failed: %s", e)
 
     try:
-        # D-12/D-13/D-25: every boot mirrors the single table (rbac_defaults) into the 11
+        # D-12/D-13/D-25: every boot mirrors the single table (rbac_defaults) into the 13
         # shared role documents. The raw handle bypasses the tenant wrapper, which under the
         # platform-admin context passes a bare name filter through to every tenant's documents;
         # the {name, tenantId} filter keeps a tenant's own same-named document out of reach.

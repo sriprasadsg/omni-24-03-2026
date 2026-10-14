@@ -22,6 +22,7 @@ import license_rules
 import licensing
 import pending_agents
 import seat_identity
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_registry_endpoints")
@@ -421,7 +422,7 @@ async def link_agent_to_asset(
         raise HTTPException(status_code=400, detail="assetId is required")
 
     agent_query = {"id": agent_id}
-    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if current_user.role not in platform_scope_roles():
         agent_query["tenantId"] = current_user.tenant_id
 
     agent = await db.agents.find_one(agent_query)
@@ -429,7 +430,7 @@ async def link_agent_to_asset(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     asset_query = {"id": asset_id}
-    if current_user.role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if current_user.role not in platform_scope_roles():
         asset_query["tenantId"] = current_user.tenant_id
 
     asset = await db.assets.find_one(asset_query)
@@ -457,7 +458,7 @@ async def delete_agent(
     """Delete an agent and its linked asset. Requires Admin or Tenant Admin."""
     user_role = getattr(current_user, "role", None)
     tenant_id = getattr(current_user, "tenant_id", None)
-    is_admin = user_role in ["Super Admin", "superadmin", "super_admin", "admin", "platform-admin"]
+    is_admin = user_role in platform_scope_roles()
 
     query: dict = {"id": agent_id}
     if not is_admin:
@@ -556,7 +557,7 @@ async def update_agent(
     db = get_database()
     user_role = getattr(current_user, "role", None)
     tenant_id = getattr(current_user, "tenant_id", None)
-    is_admin = user_role in ["Super Admin", "super_admin", "admin", "platform-admin"]
+    is_admin = user_role in platform_scope_roles()
 
     query: dict = {"id": agent_id}
     if not is_admin:

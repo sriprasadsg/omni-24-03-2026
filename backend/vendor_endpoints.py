@@ -4,10 +4,11 @@ from vendor_service import vendor_service
 from pydantic import BaseModel
 from authentication_service import get_current_user
 from auth_types import TokenData
+from auth_roles import platform_scope_roles, tenant_admin_roles
 
 router = APIRouter(prefix="/api/vendors", tags=["Vendor Management"])
 
-_VENDOR_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin", "Tenant Admin"}
+_VENDOR_ADMIN_ROLES = tenant_admin_roles()
 
 
 class SubprocessorCreate(BaseModel):
@@ -44,7 +45,7 @@ def _v_ctx(current_user: TokenData):
 @router.get("")
 async def get_vendors(current_user: TokenData = Depends(get_current_user)):
     tid, role = _v_ctx(current_user)
-    if not tid and role not in _VENDOR_ADMIN_ROLES:
+    if not tid and role not in platform_scope_roles():
         raise HTTPException(status_code=403, detail="Tenant context required")
     return await vendor_service.get_all_vendors(tenant_id=tid, role=role)
 

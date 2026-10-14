@@ -10,10 +10,11 @@ from authentication_service import get_current_user
 from auth_types import TokenData
 from rate_limiter import limiter
 from tenant_context import set_tenant_id
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 
-_TRUST_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_TRUST_ADMIN_ROLES = tenant_admin_roles()
 
 router = APIRouter(prefix="/api/trust-center", tags=["Trust Center"])
 

@@ -17,6 +17,7 @@ from rbac_utils import require_permission
 from auth_types import TokenData
 from database import get_database
 from feature_flags import get_enabled_features, FEATURE_TIERS, TIER_ORDER
+from auth_roles import platform_scope_roles, tenant_admin_roles
 
 _SSL_VERIFY = _os.getenv("DISABLE_SSL_VERIFY", "").lower() not in ("1", "true", "yes")
 
@@ -54,7 +55,7 @@ async def get_tenant_features(current_user: TokenData = Depends(get_current_user
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-_PLATFORM_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_PLATFORM_SUPER_ROLES = platform_scope_roles()
 
 def _plat_tenant(current_user) -> str:
     tid = getattr(current_user, "tenant_id", None) or None
@@ -324,8 +325,8 @@ async def create_service_template(
     template: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(get_current_user),
 ):
-    if getattr(current_user, "role", "") not in _PLATFORM_SUPER_ROLES:
-        raise HTTPException(status_code=403, detail="Platform admin role required to create service templates")
+    if getattr(current_user, "role", "") not in tenant_admin_roles():
+        raise HTTPException(status_code=403, detail="Admin role required to create service templates")
     db = get_database()
     template.setdefault("id", str(uuid.uuid4()))
     template.setdefault("createdAt", _now())

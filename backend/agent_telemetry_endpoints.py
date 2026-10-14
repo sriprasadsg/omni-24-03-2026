@@ -11,6 +11,7 @@ from authentication_service import get_current_user
 from datetime import datetime, timezone
 import uuid
 from agent_auth import verify_agent_key
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 
@@ -176,7 +177,7 @@ async def get_telemetry(
     if kind:
         query["kind"] = kind
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if user_role not in platform_scope_roles():
         query["tenantId"] = getattr(current_user, "tenant_id", None)
     events = await db.agent_telemetry.find(query, {"_id": 0}).sort("received_at", -1).to_list(length=limit)
     return events
@@ -195,7 +196,7 @@ async def get_detections(
     if severity:
         query["severity"] = severity.lower()
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if user_role not in platform_scope_roles():
         query["tenantId"] = getattr(current_user, "tenant_id", None)
     dets = await db.agent_detections.find(query, {"_id": 0}).sort("received_at", -1).to_list(length=limit)
     return dets

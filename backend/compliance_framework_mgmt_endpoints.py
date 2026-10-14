@@ -10,13 +10,14 @@ from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from rebac_service import get_reback_service, ReBACService
+from auth_roles import platform_scope_roles
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 rebac: ReBACService = get_reback_service()
 
-_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_SUPER_ROLES = platform_scope_roles()
 
 
 def _now_date() -> str:

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user, get_current_user_or_agent
 from auth_types import TokenData
-from auth_roles import SUPER_ROLES
+from auth_roles import SUPER_ROLES, tenant_admin_roles
 from database import get_database
 from agent_auth import verify_agent_key, caller_agent_id, require_agent_named
 
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/agent-chat", tags=["Agent Chat"])
 _SUPER_ROLES = SUPER_ROLES
 # "admin" is a tenant-scoped role (tenant admins can assign it), so it is an
 # in-tenant admin here, never a cross-tenant super role.
-_ADMIN_ROLES = {"Tenant Admin", "tenant_admin", "admin"} | _SUPER_ROLES
+_ADMIN_ROLES = tenant_admin_roles()
 
 
 def _now() -> str:

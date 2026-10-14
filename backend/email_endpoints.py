@@ -6,11 +6,12 @@ from email_service import email_service
 from authentication_service import get_current_user
 from auth_types import TokenData
 from datetime import datetime, timezone
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/email", tags=["Email Service"])
 logger = logging.getLogger(__name__)
 
-_ADMIN_ROLES = {"Admin", "admin", "Super Admin", "superadmin", "super_admin", "platform-admin"}
+_ADMIN_ROLES = tenant_admin_roles()
 
 
 @router.get("/config")

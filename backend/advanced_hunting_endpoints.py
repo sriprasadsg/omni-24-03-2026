@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 import re
 import uuid
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/advanced-hunting", tags=["Advanced Hunting"])
 
@@ -323,7 +324,7 @@ async def get_templates(current_user: TokenData = Depends(get_current_user)):
 # Geographic attack map + attack timeline (aggregations over security_events)
 # ---------------------------------------------------------------------------
 
-_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_SUPER_ROLES = platform_scope_roles()
 _SEV_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 _GEO_FIELDS = ("country_code", "source_country", "countryCode", "geo_country")
 

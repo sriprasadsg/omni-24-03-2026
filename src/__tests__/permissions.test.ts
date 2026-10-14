@@ -4,7 +4,7 @@
  * apiService cache rules; no DOM rendering.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { derivePermissionState, isSuperAdminRoleName } from '../../utils/permissions';
+import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, platformTier, roleLabel } from '../../utils/permissions';
 import { fetchRoles, fetchUsers, logoutSession } from '../../services/apiService';
 import type { Permission, Tenant, User } from '../../types';
 
@@ -84,6 +84,27 @@ describe('derivePermissionState (D-17)', () => {
     expect(isSuperAdminRoleName('Tenant Admin')).toBe(false);
     expect(isSuperAdminRoleName(undefined)).toBe(false);
     expect(isSuperAdminRoleName(null)).toBe(false);
+  });
+});
+
+describe('platform roles (spec C1)', () => {
+  it('names the three platform tiers and no tenant role', () => {
+    expect(platformTier('Platform Owner')).toBe('owner');
+    expect(platformTier('Super Admin')).toBe('owner');
+    expect(platformTier('Platform Support')).toBe('support');
+    expect(platformTier('platform_billing')).toBe('billing');
+    for (const role of ['admin', 'Tenant Admin', 'viewer', '', null]) {
+      expect(isPlatformRoleName(role)).toBe(false);
+    }
+    expect(roleLabel('Super Admin')).toBe('Platform Owner');
+    expect(roleLabel('Platform Support')).toBe('Platform Support');
+  });
+
+  it("support is not narrowed by the Platform tenant's empty feature list", () => {
+    const support = user({ role: 'Platform Support', tenantId: 'platform-admin', permissions: [perm('view:agents')] });
+    const state = derivePermissionState(support, [tenant({ id: 'platform-admin', enabledFeatures: [] })]);
+    expect(state.hasPermission(perm('view:agents'))).toBe(true);
+    expect(state.hasPermission(perm('manage:agents'))).toBe(false);
   });
 });
 

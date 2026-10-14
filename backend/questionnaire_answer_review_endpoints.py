@@ -13,6 +13,7 @@ from questionnaire_answer_review_service import (
     QUESTIONNAIRE_ANSWER_DRAFTS_COL,
 )
 from database import get_database
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/questionnaire-answer-drafts", tags=["Questionnaire Answer Review"])
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/api/questionnaire-answer-drafts", tags=["Questionnai
 # and components/QuestionnaireAnswerReviewPanel.tsx (_REVIEWER_ROLES).
 # Includes the platform's title-case role names ("Tenant Admin"/"Super Admin",
 # assigned at signup/seed) alongside the snake_case variants.
-_REVIEWER_ROLES = {"admin", "super_admin", "compliance_reviewer", "Tenant Admin", "Super Admin"}
+_REVIEWER_ROLES = tenant_admin_roles("compliance_reviewer")
 
 async def _tenant(user: User = Depends(get_current_user)) -> str:
     if not user.tenant_id:

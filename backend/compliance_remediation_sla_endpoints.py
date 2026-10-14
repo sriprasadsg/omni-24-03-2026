@@ -16,6 +16,7 @@ from database import get_database
 from authentication_service import get_current_user
 from compliance_remediation_sla_service import get_sla_at_risk_window
 import logging
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ router = APIRouter()
 # (cloned from compliance_evidence_lifecycle_endpoints._SETTINGS_ADMIN_ROLES),
 # not notification_manager.py's _ADMIN_ROLES set (that set is reserved for
 # escalation notification recipients, a different purpose).
-_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin", "Tenant Admin"}
+_SETTINGS_ADMIN_ROLES = tenant_admin_roles()
 
 
 def _require_admin(user) -> None:

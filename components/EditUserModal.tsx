@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role } from '../types';
 import { useUser } from '../contexts/UserContext';
+import { isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
 import { Modal } from './Modal';
 
 interface EditUserModalProps {
@@ -35,6 +36,12 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClo
     };
 
     const isCurrentUser = currentUser?.id === user.id;
+    const isOwnerAccount = isSuperAdminRoleName(user.role);
+    // Platform accounts take only platform roles and tenant accounts only tenant roles (spec C1);
+    // platform roles are offered only to a Platform Owner.
+    const inPlatformTenant = user.tenantId === PLATFORM_TENANT_ID;
+    const roleOptions = roles.filter(r => isPlatformRoleName(r.name) === inPlatformTenant
+        && (!inPlatformTenant || isSuperAdminRoleName(currentUser?.role)));
 
     const footer = (
         <>
@@ -56,12 +63,13 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClo
                             id="role"
                             value={selectedRole}
                             onChange={(e) => setSelectedRole(e.target.value)}
-                            disabled={isCurrentUser && user.role === 'Super Admin'}
+                            disabled={isCurrentUser && isOwnerAccount}
                             className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50"
                         >
-                            {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                            {!roleOptions.some(r => r.name === user.role) && <option value={user.role}>{roleLabel(user.role)}</option>}
+                            {roleOptions.map(r => <option key={r.id} value={r.name}>{roleLabel(r.name)}</option>)}
                         </select>
-                         {isCurrentUser && user.role === 'Super Admin' && <p className="text-xs text-gray-400 mt-1">The Super Admin role cannot be changed.</p>}
+                         {isCurrentUser && isOwnerAccount && <p className="text-xs text-gray-400 mt-1">You cannot change your own Platform Owner role.</p>}
                     </div>
                      <div>
                         <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from database import get_database, mongodb
 from authentication_service import get_current_user, revoke_user_sessions
 from rbac_utils import require_permission
-from rbac_utils import is_super_admin
+from rbac_utils import can_read_all_tenants, has_platform_permission, is_super_admin
 import license_rules
 import licensing
 from rate_limiter import limiter
@@ -29,6 +29,19 @@ def _assert_tenant_access(current_user, tenant_id: str) -> None:
     if caller_tenant != tenant_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this tenant")
 
+
+async def _require_platform_permission(current_user, permission: str) -> None:
+    """Raise 403 unless platform staff hold ``permission`` (spec C1; a tenant user never does)."""
+    if not await has_platform_permission(current_user, permission):
+        raise HTTPException(status_code=403, detail=f"Platform permission required: {permission}")
+
+
+def _assert_tenant_read(current_user, tenant_id: str) -> None:
+    """Raise 403 unless caller is platform staff (any tenant, read only) or owns the tenant."""
+    if can_read_all_tenants(current_user):
+        return
+    _assert_tenant_access(current_user, tenant_id)
+
 class TenantCreate(BaseModel):
     name: str
     subscriptionTier: str = "Free"
@@ -48,9 +61,8 @@ class TenantCreate(BaseModel):
 
 @router.get("")
 async def get_tenants(current_user = Depends(get_current_user)):
-    """List all tenants. Super Admin only."""
-    if not is_super_admin(getattr(current_user, "role", "")):
-        raise HTTPException(status_code=403, detail="Super Admin access required")
+    """List all tenants. Platform staff only (view:tenants, spec C1)."""
+    await _require_platform_permission(current_user, "view:tenants")
     tenants = await mongodb.db.tenants.find({}, {"_id": 0}).to_list(length=1000)
 
     # Batch agent counts via a single aggregation instead of one query per tenant.
@@ -670,8 +682,8 @@ class LicenseUpdate(BaseModel):
 
 @router.get("/{tenant_id}/license")
 async def get_tenant_license(tenant_id: str, current_user=Depends(get_current_user)):
-    """Seat limit and usage. Super admins read any tenant; others only their own."""
-    _assert_tenant_access(current_user, tenant_id)
+    """Seat limit and usage. Platform staff read any tenant; others only their own."""
+    _assert_tenant_read(current_user, tenant_id)
     if not await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1}):
         raise HTTPException(status_code=404, detail="Tenant not found")
     return await licensing.license_summary(mongodb.db, tenant_id)
@@ -679,11 +691,10 @@ async def get_tenant_license(tenant_id: str, current_user=Depends(get_current_us
 
 @router.patch("/{tenant_id}/license")
 async def update_tenant_license(tenant_id: str, data: LicenseUpdate, current_user=Depends(get_current_user)):
-    """Change a tenant's agent seat limit or reclaim window. Super Admin only; lowering the
-    limit below seats in use is allowed (running agents keep their seats, new enrollments
-    are refused until seats free up)."""
-    if not is_super_admin(getattr(current_user, "role", "")):
-        raise HTTPException(status_code=403, detail="Only Super Admin can change agent licenses")
+    """Change a tenant's agent seat limit or reclaim window. Platform Owner or Billing
+    (manage:tenant_license); lowering the limit below seats in use is allowed (running agents
+    keep their seats, new enrollments are refused until seats free up)."""
+    await _require_platform_permission(current_user, "manage:tenant_license")
     given = data.model_fields_set
     if not given:
         raise HTTPException(status_code=400, detail="Nothing to update")

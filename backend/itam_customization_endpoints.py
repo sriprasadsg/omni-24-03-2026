@@ -25,13 +25,14 @@ from itam_customization_service import (
     merge_with_defaults,
     validate_itam_settings,
 )
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/itam/settings", tags=["ITAM Settings"])
 
 # Copied character-for-character from settings_endpoints.py's _SETTINGS_ADMIN_ROLES
 # (65-RESEARCH.md Pitfall 4 — three near-duplicate role sets already exist; this must not
 # become a fourth that differs).
-_SETTINGS_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_SETTINGS_ADMIN_ROLES = tenant_admin_roles()
 
 
 def _require_admin(user: TokenData) -> None:

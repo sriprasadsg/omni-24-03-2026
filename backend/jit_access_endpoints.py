@@ -9,6 +9,7 @@ import logging
 from auth_utils import get_current_user
 from auth_types import TokenData
 import jit_access_service as svc
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/jit", tags=["JIT Access"])
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ async def approve_request(
     current_user: TokenData = Depends(get_current_user),
 ):
     role = current_user.role or ""
-    if role not in ("admin", "super_admin", "security_manager"):
+    if role not in tenant_admin_roles("security_manager"):
         raise HTTPException(status_code=403, detail="Only admins can approve JIT requests")
 
     try:
@@ -98,7 +99,7 @@ async def deny_request(
     current_user: TokenData = Depends(get_current_user),
 ):
     role = current_user.role or ""
-    if role not in ("admin", "super_admin", "security_manager"):
+    if role not in tenant_admin_roles("security_manager"):
         raise HTTPException(status_code=403, detail="Only admins can deny JIT requests")
 
     success = await svc.deny_jit_request(
@@ -120,7 +121,7 @@ async def revoke_request(
     current_user: TokenData = Depends(get_current_user),
 ):
     role = current_user.role or ""
-    if role not in ("admin", "super_admin", "security_manager"):
+    if role not in tenant_admin_roles("security_manager"):
         raise HTTPException(status_code=403, detail="Only admins can revoke JIT access")
 
     success = await svc.revoke_jit_request(

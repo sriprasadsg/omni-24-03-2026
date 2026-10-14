@@ -24,6 +24,35 @@ def is_super_admin(role: Optional[str]) -> bool:
     return _rbac_service._normalize_role(role) == "super_admin"
 
 
+# Spec C1 platform tiers: owner (the super_admin key), support, billing.
+platform_tier = rbac_defaults.platform_tier
+is_platform_role = rbac_defaults.is_platform_role
+is_tenant_admin = rbac_defaults.is_tenant_admin
+
+
+def _tenant_of(user) -> Optional[str]:
+    return getattr(user, "tenant_id", None) or getattr(user, "tenantId", None)
+
+
+def can_read_all_tenants(user) -> bool:
+    """True for platform staff: the owner anywhere, support and billing in the platform tenant."""
+    role = getattr(user, "role", None)
+    if is_super_admin(role):
+        return True
+    return is_platform_role(role) and _tenant_of(user) == rbac_defaults.PLATFORM_TENANT_ID
+
+
+async def has_platform_permission(user, permission: str) -> bool:
+    """True when platform staff hold ``permission`` (the owner always does).
+
+    A tenant user never passes, whatever its role documents say, so platform-wide
+    routes (licenses, Pending decisions, the tenant list) stay platform-only.
+    """
+    if is_super_admin(getattr(user, "role", None)):
+        return True
+    return can_read_all_tenants(user) and await verify_permission(user, permission)
+
+
 class Permission(str, Enum):
     # Dashboard & reporting
     VIEW_DASHBOARD = "view:dashboard"

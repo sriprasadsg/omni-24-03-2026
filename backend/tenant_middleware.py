@@ -1,10 +1,77 @@
+import json
 import logging
+import re
+from typing import Optional
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
+import rbac_defaults
 from tenant_context import set_tenant_id, reset_tenant_id, get_tenant_id
 
 logger = logging.getLogger(__name__)
+
+# ── Read-only platform tiers (spec C1) ────────────────────────────────────────
+# Platform Support and Platform Billing live in the platform-admin tenant, whose
+# context makes the DB wrapper skip tenant scoping for reads AND writes. Their
+# permissions already refuse writes; this guard is the second wall: an /api/ write
+# is refused unless it is the caller's own sign-in/MFA/profile, or (billing) a
+# seat-license or Pending-agent decision.
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_SELF_SERVICE_WRITES = (re.compile(r"^/api/(auth|mfa|passkey)/"), re.compile(r"^/api/users/me/"))
+_BILLING_WRITES = (  # exactly the license, enrollment-control and Pending-decision routes
+    re.compile(r"^/api/tenants/[^/]+/license$"),
+    re.compile(r"^/api/tenants/[^/]+/(allowlist|allowlist/import|allowlist/[^/]+|enrollment-keys"
+               r"|enrollment-keys/[^/]+/revoke)$"),
+    re.compile(r"^/api/agents/pending/(bulk|[^/]+/approve|[^/]+/reject)$"),
+)
+
+
+def platform_write_refusal(role: Optional[str], method: str, path: str) -> Optional[str]:
+    """Why this write is refused to a read-only platform tier, or None when it may proceed."""
+    tier = rbac_defaults.platform_tier(role)
+    if tier not in ("support", "billing") or method.upper() in _SAFE_METHODS or not path.startswith("/api/"):
+        return None
+    if any(p.match(path) for p in _SELF_SERVICE_WRITES):
+        return None
+    if tier == "billing" and any(p.match(path) for p in _BILLING_WRITES):
+        return None
+    return f"Platform {tier.capitalize()} is read-only here: this change needs a Platform Owner"
+
+
+class PlatformReadOnlyMiddleware:
+    """Pure ASGI middleware applying platform_write_refusal to every HTTP request."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or scope.get("method", "GET").upper() in _SAFE_METHODS:
+            return await self.app(scope, receive, send)
+        role = _bearer_role(scope)
+        reason = platform_write_refusal(role, scope.get("method", ""), scope.get("path", "")) if role else None
+        if not reason:
+            return await self.app(scope, receive, send)
+        logger.info("Refused %s %s to read-only platform role %r", scope.get("method"), scope.get("path"), role)
+        body = json.dumps({"error": reason, "status_code": 403}).encode()
+        await send({"type": "http.response.start", "status": 403,
+                    "headers": [(b"content-type", b"application/json"),
+                                (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
+
+
+def _bearer_role(scope) -> Optional[str]:
+    """The role claim of a valid bearer JWT; None for no token or an invalid one (the route rejects it)."""
+    auth = next((v.decode("latin-1") for k, v in scope.get("headers") or [] if k == b"authorization"), "")
+    if not auth.startswith("Bearer "):
+        return None
+    try:
+        import jwt
+        from authentication_service import ALGORITHM, SECRET_KEY
+        return jwt.decode(auth[7:], SECRET_KEY, algorithms=[ALGORITHM]).get("role")
+    except Exception:
+        return None
 
 # Paths exempt from IP-ban enforcement (auth flows must remain accessible
 # so admins can still log in to manage bans)
@@ -82,7 +149,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 role = payload.get("role", "user")
 
                 override_tenant = request.headers.get("X-Tenant-ID")
-                if override_tenant and role in ["super_admin", "Super Admin", "superadmin"]:
+                if override_tenant and rbac_defaults.platform_tier(role) == "owner":
                     logger.info(
                         "Tenant override by super admin: user=%s from=%s to=%s path=%s",
                         payload.get("sub", "unknown"),

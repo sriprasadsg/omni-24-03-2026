@@ -12,7 +12,7 @@ import audit_ledger
 from audit_service import get_audit_service
 from auth_types import TokenData
 from database import mongodb
-from rbac_utils import is_super_admin, require_permission
+from rbac_utils import can_read_all_tenants, is_super_admin, require_permission
 from tenant_context import get_tenant_id
 
 router = APIRouter(
@@ -26,9 +26,9 @@ _CSV_FIELDS = ("timestamp", "seq", "tenantId", "action", "outcome", "statusCode"
 
 
 def _scope(current_user: TokenData, tenant_id_param: Optional[str]) -> Dict[str, Any]:
-    """Tenant users see their own tenant only, whatever tenantId they pass; super admins
-    see all tenants or the one they name (spec C5)."""
-    if is_super_admin(getattr(current_user, "role", "")):
+    """Tenant users see their own tenant only, whatever tenantId they pass; platform staff
+    see all tenants or the one they name (spec C5, C1)."""
+    if can_read_all_tenants(current_user):
         ambient = get_tenant_id()
         tenant = tenant_id_param or (None if ambient == "platform-admin" else ambient)
         return {"tenant_id": tenant, "is_super_admin": True}
@@ -124,10 +124,9 @@ class RetentionUpdate(BaseModel):
 
 @router.put("/retention")
 async def set_retention(body: RetentionUpdate, current_user: TokenData = Depends(require_permission("view:audit_log"))):
-    """Days of audit history kept for a tenant (default 365). Super Admin only (spec C1 will
-    narrow this to platform owners)."""
+    """Days of audit history kept for a tenant (default 365). Platform Owner only (spec C1)."""
     if not is_super_admin(getattr(current_user, "role", "")):
-        raise HTTPException(status_code=403, detail="Only Super Admin can change audit retention")
+        raise HTTPException(status_code=403, detail="Only the Platform Owner can change audit retention")
     res = await mongodb.db.tenants.update_one({"id": body.tenantId}, {"$set": {"auditRetentionDays": body.days}})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")

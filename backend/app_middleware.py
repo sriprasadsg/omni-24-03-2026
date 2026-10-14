@@ -208,9 +208,11 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
         ],
     )
 
-    from tenant_middleware import TenantMiddleware
+    from tenant_middleware import PlatformReadOnlyMiddleware, TenantMiddleware
     from usage_middleware import UsageTrackingMiddleware
     from audit_middleware import AuditMiddleware
+    # Innermost of the three, so a write refused to Platform Support/Billing is still audited (spec C1).
+    app.add_middleware(PlatformReadOnlyMiddleware)
     # Added before TenantMiddleware, so it runs inside it and sees the tenant (spec C5).
     app.add_middleware(AuditMiddleware)
     app.add_middleware(TenantMiddleware)

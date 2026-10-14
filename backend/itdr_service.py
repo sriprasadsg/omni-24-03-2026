@@ -12,6 +12,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Optional, List
 from database import get_database
+import rbac_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,11 @@ IMPOSSIBLE_TRAVEL_HOURS = 1
 BUSINESS_HOURS_START = 8    # 08:00
 BUSINESS_HOURS_END = 20     # 20:00
 MAX_CONCURRENT_IPS = 3
+
+
+def _is_elevated(role: Optional[str]) -> bool:
+    """Tenant administrator or any platform role, under any spelling."""
+    return rbac_defaults.is_tenant_admin(role) or rbac_defaults.is_platform_role(role)
 
 
 class ITDRService:
@@ -121,8 +127,7 @@ class ITDRService:
         current_hour = now.hour
 
         # Check if elevated role
-        elevated_roles = {"Super Admin", "superadmin", "admin", "Admin"}
-        is_escalation = new_role in elevated_roles and old_role not in elevated_roles
+        is_escalation = _is_elevated(new_role) and not _is_elevated(old_role)
 
         if is_escalation and not (BUSINESS_HOURS_START <= current_hour < BUSINESS_HOURS_END):
             alert = await self._create_alert(

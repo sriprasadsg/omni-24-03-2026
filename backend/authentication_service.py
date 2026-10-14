@@ -69,7 +69,8 @@ def _cut_off(username: str, iat: float) -> bool:
 # the routes behind get_current_user_mfa_pending (who am I, MFA status,
 # enroll, step up) until it does.
 MFA_REQUIRED_DETAIL = "Two-factor authentication is required for your role. Set it up or confirm it to continue."
-_MFA_REQUIRED_ROLE_KEYS = frozenset({"super_admin", "tenant_admin", "admin", "itam_admin"})
+_MFA_REQUIRED_ROLE_KEYS = frozenset({"super_admin", "platform_support", "platform_billing",
+                                     "tenant_admin", "admin", "itam_admin"})
 
 
 def mfa_required_for(role: Optional[str]) -> bool:
@@ -422,16 +423,5 @@ async def require_mfa(user: TokenData = Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="MFA verification required for this action"
-        )
-    return user
-
-async def require_admin(user: TokenData = Depends(get_current_user)):
-    """
-    Dependency to require admin role.
-    """
-    if user.role != "admin" and user.role != "super_admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
         )
     return user

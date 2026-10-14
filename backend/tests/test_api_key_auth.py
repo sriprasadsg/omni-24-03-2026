@@ -158,7 +158,7 @@ async def test_dependency_jwt_path_delegates_to_verify_token():
 
 def test_dependency_api_integration_role_is_not_super():
     assert "api-integration" not in auth_roles.SUPER_ROLES
-    assert "api-integration" not in auth_roles.SUPER_AND_ADMIN_ROLES
+    assert "api-integration" not in auth_roles.platform_scope_roles()
 
 
 # ─── Task 2: webhook routes accept the API-key path, tenant-scoped ───────────

@@ -23,7 +23,7 @@ from database import get_database
 # reading/writing ITAM assets — this surface stays session-auth-only.
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from rbac_utils import is_super_admin
-from role_assignment import assert_can_assign_role
+from role_assignment import assert_can_assign_role, refuse_directory_platform_role
 from rate_limiter import limiter
 from tenant_context import get_tenant_id
 
@@ -178,6 +178,7 @@ async def upsert_group_mapping(mapping: GroupMappingIn, current_user: TokenData 
         get_database(), current_user, mapping.role,
         target_tenant_id=tenant_id or current_user.tenant_id,
     )
+    refuse_directory_platform_role(mapping.role)
     try:
         return await LDAPGroupMapper.upsert_mapping(
             mapping.group_dn, mapping.role, tenant_id=tenant_id, priority=mapping.priority or 100,

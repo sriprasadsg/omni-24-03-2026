@@ -11,9 +11,6 @@ import ip_ban_service
 
 router = APIRouter(prefix="/api/security/ip-bans", tags=["IP Bans"])
 
-_ADMIN_ROLES = {"admin", "Admin", "Tenant Admin", "Super Admin", "super_admin", "platform-admin"}
-
-
 class BanRequest(BaseModel):
     ip: str
     reason: str

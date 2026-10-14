@@ -2,8 +2,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 import uuid
+from auth_roles import platform_scope_roles
 
-_AR_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_AR_SUPER_ROLES = platform_scope_roles()
 _FREQUENCIES = {"Weekly": 7, "Monthly": 30, "Quarterly": 90, "Semi-Annual": 180, "Annual": 365}
 _AR_TYPES = {"User Access", "Privileged Access", "Vendor Access", "Application Access", "Service Account"}
 _AR_STATUSES = {"Scheduled", "In Progress", "Completed", "Overdue", "Cancelled"}

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from authentication_service import get_current_user
 from auth_types import TokenData
-from auth_roles import SUPER_ROLES
+from auth_roles import SUPER_ROLES, TENANT_ADMIN_ROLE_NAMES, tenant_admin_roles
 from database import get_database
 import logging
 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/support", tags=["Support Chat"])
 _SUPER_ROLES = SUPER_ROLES
 # "admin" is a tenant-scoped role (tenant admins can assign it), so it is an
 # in-tenant admin here, never a cross-tenant super role.
-_ADMIN_ROLES  = {"Tenant Admin", "tenant_admin", "admin"} | _SUPER_ROLES
+_ADMIN_ROLES = tenant_admin_roles()
 
 
 def _now() -> str:
@@ -384,7 +384,7 @@ async def list_tenant_users(
         raise HTTPException(status_code=403, detail="Admin access required")
     db = get_database()
     tenant_id = current_user.tenant_id or ""
-    query: Dict[str, Any] = {"role": {"$nin": list(_ADMIN_ROLES)}}
+    query: Dict[str, Any] = {"role": {"$nin": [*TENANT_ADMIN_ROLE_NAMES, *_SUPER_ROLES]}}
     if not _is_super(current_user.role or ""):
         query["tenantId"] = tenant_id
     users = await db._db.users.find(

@@ -2026,51 +2026,57 @@ export const addUser = async (user: NewUserPayload) => {
     }
 };
 
+// Server refusals the user can act on, in words (spec C1 last-owner guard).
+const USER_ERROR_TEXT: Record<string, string> = {
+    last_platform_owner: "This is the last active Platform Owner. Add another Platform Owner first.",
+};
+
+const userApiError = async (response: Response, fallback: string): Promise<Error> => {
+    const errorData = await response.json().catch(() => ({}));
+    const code = errorData.error || errorData.detail || fallback;
+    return new Error(USER_ERROR_TEXT[code] || code);
+};
+
 export const updateUser = async (userId: string, updates: Partial<User>) => {
+    const payload = {
+        full_name: updates.name,
+        role: updates.role,
+        password: updates.password,
+        status: updates.status === 'Disabled' ? 'inactive' : updates.status === 'Active' ? 'active' : undefined,
+    };
+    let response: Response;
     try {
-        const payload = {
-            full_name: updates.name,
-            role: updates.role,
-            password: updates.password
-        };
-        const response = await authFetch(`${API_BASE}/users/${userId}`, {
+        response = await authFetch(`${API_BASE}/users/${userId}`, {
             method: 'PUT',
             body: JSON.stringify(payload)
         });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || "Failed to update user");
-        }
-
-        const updatedUser = await response.json();
-        USERS = USERS.map(u => u.id === userId ? updatedUser : u);
-        return USERS;
     } catch (e) {
         console.warn("Backend update failed, falling back to local.");
         USERS = USERS.map(u => u.id === userId ? { ...u, ...updates } : u);
         return USERS;
     }
+    // A refusal is reported, never shown as a local success.
+    if (!response.ok) throw await userApiError(response, "Failed to update user");
+    const updatedUser = await response.json();
+    USERS = USERS.map(u => u.id === userId ? updatedUser : u);
+    return USERS;
 };
 
 export const deleteUser = async (userId: string) => {
+    let response: Response;
     try {
-        const response = await authFetch(`${API_BASE}/users/${userId}`, {
+        response = await authFetch(`${API_BASE}/users/${userId}`, {
             method: 'DELETE'
         });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || "Failed to delete user");
-        }
-
-        USERS = USERS.filter(u => u.id !== userId);
-        return USERS;
     } catch (e) {
         console.warn("Backend delete failed, falling back to local.");
         USERS = USERS.filter(u => u.id !== userId);
         return USERS;
     }
+    // A refusal is reported, never shown as a local success.
+    if (!response.ok) throw await userApiError(response, "Failed to delete user");
+    USERS = USERS.filter(u => u.id !== userId);
+    return USERS;
 };
 
 export const signupNewUser = async (payload: { companyName: string; name: string; email: string; password: string }) => {

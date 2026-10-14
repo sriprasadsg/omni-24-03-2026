@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 from typing import Dict, Set
 from datetime import datetime, timezone
 
-from auth_roles import SUPER_ROLES
+from auth_roles import SUPER_ROLES, tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 
@@ -530,7 +530,7 @@ async def get_connected_agents() -> list:
 _SUPER_ROLES = SUPER_ROLES
 # "admin" is a tenant-scoped role (tenant admins can assign it), so it is an
 # in-tenant admin here, never a cross-tenant super role.
-_ADMIN_ROLES = {"Tenant Admin", "tenant_admin", "admin"} | _SUPER_ROLES
+_ADMIN_ROLES = tenant_admin_roles()
 
 
 async def broadcast_support_event(

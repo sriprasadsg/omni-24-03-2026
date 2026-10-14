@@ -18,6 +18,19 @@ from typing import Dict, FrozenSet, Iterable, List, NamedTuple, Optional, Tuple
 
 SUPER_ADMIN_KEY = "super_admin"
 
+# Spec C1: three platform roles. The owner keeps the internal key super_admin
+# ("Platform Owner" in the UI), so every is_super_admin check keeps meaning
+# "owner"; support and billing are new, read-only or narrowly writing tiers.
+PLATFORM_SUPPORT_KEY = "platform_support"
+PLATFORM_BILLING_KEY = "platform_billing"
+PLATFORM_ROLE_KEYS: FrozenSet[str] = frozenset({SUPER_ADMIN_KEY, PLATFORM_SUPPORT_KEY, PLATFORM_BILLING_KEY})
+_PLATFORM_TIERS: Dict[str, str] = {
+    SUPER_ADMIN_KEY: "owner", PLATFORM_SUPPORT_KEY: "support", PLATFORM_BILLING_KEY: "billing",
+}
+# Platform staff live in this tenant; its context makes the DB wrapper skip tenant scoping.
+PLATFORM_TENANT_ID = "platform-admin"
+TENANT_ADMIN_KEY = "tenant_admin"
+
 # Keyed by the RBACService._normalize_role output. Tuples are sorted and unique.
 ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
     # Tenant administrator (alias: admin, D-01). Excludes manage:tenants (D-06) and the D-03 catalogues.
@@ -100,6 +113,34 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
     "itam_viewer": (
         "view:assets", "view:itam", "view:licenses", "view:profile",
     ),
+    # Platform Support (spec C1): reads every tenant, changes nothing. Every view: permission
+    # in shared/catalogue-access.json except the super-admin-only screens and
+    # view:remote_access (watching a customer's screen is an action, not a read).
+    "platform_support": (
+        "view:active_response", "view:advanced_bi", "view:advanced_hunting",
+        "view:agent_capabilities", "view:agent_groups", "view:agents", "view:ai_governance",
+        "view:analytics", "view:android_enterprise", "view:app_catalog", "view:asset_intelligence",
+        "view:assets", "view:attack_path", "view:attack_timeline", "view:audit_log",
+        "view:automation", "view:automl", "view:autopilot", "view:branch_sites", "view:chaos",
+        "view:cloud_security", "view:compliance", "view:conditional_access", "view:config_drift",
+        "view:connectors_hub", "view:cxo_dashboard", "view:dashboard", "view:detection_rules",
+        "view:developer_hub", "view:device_config_profiles", "view:devsecops", "view:dora_metrics",
+        "view:dspm", "view:fim", "view:finops", "view:firmware_drivers", "view:geographic_map",
+        "view:governance", "view:insights", "view:integrations", "view:itam", "view:llmops",
+        "view:logs", "view:mam", "view:mdm", "view:mdr", "view:mlops", "view:mssp", "view:network",
+        "view:patching", "view:persistence", "view:platform_alerts", "view:profile",
+        "view:reporting", "view:retention_policies", "view:sbom", "view:sca", "view:secrets",
+        "view:security", "view:security_audit", "view:security_copilot", "view:service_catalog",
+        "view:software_deployment", "view:software_updates", "view:sustainability", "view:swarm",
+        "view:tenants", "view:threat_hunting", "view:threat_intel", "view:tracing",
+        "view:unified_ops", "view:vulnerabilities", "view:web_monitoring", "view:xai", "view:xdr",
+        "view:zero_trust",
+    ),
+    # Platform Billing (spec C1): reads tenants; writes only seat licenses and Pending agents.
+    "platform_billing": (
+        "manage:pending_agents", "manage:tenant_license", "view:audit_log", "view:platform_alerts",
+        "view:platform_cost", "view:profile", "view:tenants",
+    ),
 }
 
 # D-01: `admin` and `Tenant Admin` carry the identical permission set.
@@ -116,6 +157,17 @@ SUPER_ADMIN_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
     "view:predictive_health",
     "view:vector_db",
     "view:webgpu_inference",
+})
+
+
+# Spec C1: held only by the platform roles above, never by a tenant role, and never
+# added by a role document (effective_permissions drops them like the set above).
+PLATFORM_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
+    "manage:pending_agents",
+    "manage:tenant_license",
+    "view:platform_alerts",
+    "view:platform_cost",
+    "view:tenants",
 })
 
 
@@ -155,7 +207,39 @@ BUILTIN_ROLES: Tuple[BuiltinRole, ...] = (
                 "Views assets and licenses and requests assets.", False, "all"),
     BuiltinRole("itam_viewer", "itam_viewer", "role-itam-viewer", "ITAM Viewer",
                 "Read-only access to assets and licenses.", False, "all"),
+    BuiltinRole("platform_support", "Platform Support", "role-platform-support", None,
+                "Platform staff: reads every tenant and changes nothing.", False, "platform"),
+    BuiltinRole("platform_billing", "Platform Billing", "role-platform-billing", None,
+                "Platform staff: reads tenants and manages agent seat licenses and Pending agents.",
+                False, "platform"),
 )
+
+
+def normalize_role(name: Optional[str]) -> str:
+    """Canonicalize a role name to its snake_case key, e.g. 'Super Admin' -> 'super_admin'.
+
+    The single normalization rule (RESEARCH.md Pitfall 3 / ITAM-USR-02);
+    ``RBACService._normalize_role`` delegates here. Every super-admin spelling,
+    including "platform-admin" and "Platform Owner", folds into super_admin.
+    """
+    normalized = (name or "").lower().strip().replace(" ", "_").replace("-", "_")
+    if normalized in ("superadmin", "platform_admin", "platform_owner"):
+        return SUPER_ADMIN_KEY
+    return normalized
+
+
+def platform_tier(role: Optional[str]) -> Optional[str]:
+    """"owner", "support" or "billing" for a platform role; None for every tenant role."""
+    return _PLATFORM_TIERS.get(normalize_role(role))
+
+
+def is_platform_role(role: Optional[str]) -> bool:
+    return platform_tier(role) is not None
+
+
+def is_tenant_admin(role: Optional[str]) -> bool:
+    """True for the tenant administrator under any spelling (admin, Admin, Tenant Admin)."""
+    return canonical_key(normalize_role(role)) == TENANT_ADMIN_KEY
 
 
 def canonical_key(normalized_key: str) -> str:

@@ -6,11 +6,12 @@ from tenant_context import get_tenant_id
 from authentication_service import get_current_user
 from database import get_database
 from datetime import datetime, timezone
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dr", tags=["Disaster Recovery"])
 
-_DR_FAILOVER_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_DR_FAILOVER_ROLES = tenant_admin_roles()
 
 @router.get("/status")
 async def get_dr_status(tenant_id: str = Depends(get_tenant_id), _user=Depends(get_current_user)):

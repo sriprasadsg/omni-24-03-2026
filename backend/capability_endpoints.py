@@ -8,6 +8,7 @@ from tenant_context import get_tenant_id
 from rbac_service import rbac_service
 from datetime import datetime
 import logging
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agent Capabilities"])
 logger = logging.getLogger(__name__)
@@ -216,7 +217,7 @@ async def update_agent_capabilities_simple(
     Body: { enable: ["yara_scan", ...], disable: ["fim", ...] }
     """
     db = get_database()
-    _CAP_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+    _CAP_SUPER_ROLES = platform_scope_roles()
     caller_role = getattr(current_user, "role", "")
     caller_tenant = getattr(current_user, "tenant_id", None)
     agent_filter: dict = {"id": agent_id}

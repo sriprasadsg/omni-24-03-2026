@@ -9,12 +9,13 @@ from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
+from auth_roles import platform_scope_roles
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/patches", tags=["Patch Management"])
 
-_PATCH_ADMIN_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_PATCH_ADMIN_ROLES = platform_scope_roles()
 
 
 # ── Shared request models ─────────────────────────────────────────────────────

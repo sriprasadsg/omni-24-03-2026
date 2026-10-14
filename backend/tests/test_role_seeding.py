@@ -1,4 +1,4 @@
-"""SC4 (ACC-02): startup mirrors rbac_defaults into the 11 shared role documents.
+"""SC4 (ACC-02): startup mirrors rbac_defaults into the 13 shared role documents (11 + spec C1's two platform roles).
 
 Runs the real seed_database() over the real TenantIsolatedDatabase wrapper (in-memory
 collections) inside the platform-admin tenant context, exactly as the app lifespan does.
@@ -17,6 +17,7 @@ from tests.rbac_test_support import StoreCollection, make_user, role_store
 SHARED_NAMES = {
     "Super Admin", "Tenant Admin", "admin", "analyst", "security_analyst",
     "incident_responder", "user", "viewer", "itam_admin", "itam_user", "itam_viewer",
+    "Platform Support", "Platform Billing",
 }
 SHARED_TENANTS = {"platform", "all"}
 
@@ -53,18 +54,20 @@ def _by_name(raw):
     return {d["name"]: d for d in _shared(raw)}
 
 
-def test_seeds_eleven_shared_documents_and_leaves_tenant_document_untouched(monkeypatch):
+def test_seeds_thirteen_shared_documents_and_leaves_tenant_document_untouched(monkeypatch):
     db, raw = _seed_store([copy.deepcopy(TENANT_VIEWER)])
     _run_seed(monkeypatch, db)
     shared = _shared(raw)
-    assert len(shared) == 11
+    assert len(shared) == 13
     assert {d["name"] for d in shared} == SHARED_NAMES
     tenant_docs = [d for d in raw.roles.docs if d.get("tenantId") == "tenant_x"]
     assert tenant_docs == [TENANT_VIEWER]
     by_name = _by_name(raw)
-    assert by_name["Super Admin"]["tenantId"] == "platform"
+    platform_names = {"Super Admin", "Platform Support", "Platform Billing"}
+    for name in platform_names:  # spec C1: platform roles live in the "platform" catalogue
+        assert by_name[name]["tenantId"] == "platform"
     assert by_name["Super Admin"]["permissions"] == ["*"]
-    for name in SHARED_NAMES - {"Super Admin"}:
+    for name in SHARED_NAMES - platform_names:
         assert by_name[name]["tenantId"] == "all"
 
 
@@ -83,8 +86,8 @@ def test_seeding_twice_is_idempotent(monkeypatch):
     db, raw = _seed_store()
     _run_seed(monkeypatch, db)
     _run_seed(monkeypatch, db)
-    assert len(_shared(raw)) == 11
-    assert len(raw.roles.docs) == 11
+    assert len(_shared(raw)) == 13
+    assert len(raw.roles.docs) == 13
 
 
 def test_live_shaped_super_admin_updated_in_place(monkeypatch):
@@ -111,7 +114,7 @@ def test_manual_edit_of_shared_document_is_reverted(monkeypatch):
 def test_seeding_without_tenant_context_still_writes_all_documents(monkeypatch):
     db, raw = _seed_store([copy.deepcopy(TENANT_VIEWER)])
     _run_seed(monkeypatch, db, tenant=None)
-    assert len(_shared(raw)) == 11
+    assert len(_shared(raw)) == 13
     assert [d for d in raw.roles.docs if d.get("tenantId") == "tenant_x"] == [TENANT_VIEWER]
 
 

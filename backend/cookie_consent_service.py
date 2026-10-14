@@ -2,8 +2,9 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import uuid
+from auth_roles import platform_scope_roles
 
-_CC_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_CC_SUPER_ROLES = platform_scope_roles()
 
 DEFAULT_CATEGORIES = [
     {

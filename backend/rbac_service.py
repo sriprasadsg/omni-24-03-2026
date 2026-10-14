@@ -80,7 +80,8 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     A missing role, or an unknown role with no document, resolves to ``[]``.
     Role documents can only add ordinary permissions: a ``*`` or a
     ``SUPER_ADMIN_ONLY_PERMISSIONS`` entry found in a document is ignored, so the
-    super-admin tier stays reachable only through the super-admin role name (D-03/D-06).
+    super-admin tier stays reachable only through the super-admin role name (D-03/D-06);
+    a ``PLATFORM_ONLY_PERMISSIONS`` entry is ignored on every non-platform role (spec C1).
     Documents are matched under every spelling of a built-in role (see
     ``_role_document_names``), so a tenant override applies however the user's role
     was typed. Merging is union-only: a document adds permissions, never removes them.
@@ -93,6 +94,8 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
         return []
     perms: List[str] = list(rbac_defaults.defaults_for(key))
     banned = rbac_defaults.SUPER_ADMIN_ONLY_PERMISSIONS | {"*"}
+    if key not in rbac_defaults.PLATFORM_ROLE_KEYS:
+        banned |= rbac_defaults.PLATFORM_ONLY_PERMISSIONS  # spec C1: never on a tenant role
     for name in _role_document_names(role, key):
         for doc in await _role_docs(db, name, tenant_id):
             perms.extend(p for p in (doc.get("permissions") or []) if p and p not in banned)
@@ -148,19 +151,12 @@ class RBACService:
     def _normalize_role(name: str) -> str:
         """Canonicalize role names to snake_case, e.g. 'Super Admin' / 'superadmin' → 'super_admin'.
 
-        Single source of truth for role normalization (RESEARCH.md Pitfall 3 /
-        ITAM-USR-02): "platform-admin" is treated as a super-admin role variant
-        everywhere else in the codebase (auth_roles.SUPER_ROLES, rbac_utils),
-        but previously normalized to the distinct key "platform_admin" here —
-        the "platform-admin gap" — instead of "super_admin". Folding it in here
-        means every caller that routes through this method (has_permission,
-        require_role, get_user_permissions, rbac_utils.is_super_admin) now
-        agrees on a single answer for platform-admin callers.
+        Delegates to ``rbac_defaults.normalize_role``, the single normalization rule
+        (RESEARCH.md Pitfall 3 / ITAM-USR-02), which lives in the pure module so
+        stdlib-only callers (auth_roles, tenant_middleware) agree with this method:
+        "platform-admin", "superadmin" and "Platform Owner" all fold into "super_admin".
         """
-        normalized = (name or "").lower().strip().replace(" ", "_").replace("-", "_")
-        if normalized in ("superadmin", "platform_admin"):
-            return "super_admin"
-        return normalized
+        return rbac_defaults.normalize_role(name)
 
     def get_permissions_for_role(self, role: str) -> List[str]:
         """Static (non-DB) permission list for a role name, for frontend UI role-matrix rendering.
@@ -175,7 +171,7 @@ class RBACService:
     def can_assign_role(self, caller_role: str, target_role: str) -> bool:
         """Table-only form of the D-20 assignment ceiling.
 
-        A super-admin target needs a super-admin caller (decided by role name,
+        A platform-role target needs a super-admin caller (decided by role name,
         never by a `*` appearing in a document); a super-admin caller may assign
         anything; otherwise the target's defaults must fit the caller's defaults
         under the manage:X implies view:X and request:X closure. The request-time
@@ -184,7 +180,7 @@ class RBACService:
         """
         target_key = self._normalize_role(target_role)
         caller_key = self._normalize_role(caller_role)
-        if target_key == rbac_defaults.SUPER_ADMIN_KEY:
+        if target_key in rbac_defaults.PLATFORM_ROLE_KEYS:
             return caller_key == rbac_defaults.SUPER_ADMIN_KEY
         if caller_key == rbac_defaults.SUPER_ADMIN_KEY:
             return True

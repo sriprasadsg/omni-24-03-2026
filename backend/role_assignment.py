@@ -6,7 +6,7 @@ variant; this helper additionally sees tenant-scoped role documents because both
 sides of the comparison come from ``rbac_service.effective_permissions``.
 """
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
 
@@ -15,6 +15,81 @@ from auth_types import TokenData
 from rbac_service import RBACService, effective_permissions
 
 logger = logging.getLogger(__name__)
+
+# Every stored spelling that normalizes to the platform owner (super_admin key).
+_OWNER_ROLE_PATTERN = r"^\s*(super[\s_-]*admin|platform[\s_-]*(admin|owner))\s*$"
+
+# Stored name for each platform role, whatever spelling the request used, so raw
+# role-name checks across the backend keep recognising the account (spec C1).
+_PLATFORM_ROLE_STORED_NAME = {
+    builtin.key: builtin.name for builtin in rbac_defaults.BUILTIN_ROLES if builtin.key in rbac_defaults.PLATFORM_ROLE_KEYS
+}
+
+
+def stored_role_name(role: str) -> str:
+    """``role`` as it is written to a user document: platform roles get their built-in name."""
+    return _PLATFORM_ROLE_STORED_NAME.get(rbac_defaults.normalize_role(role), role)
+
+
+def assert_role_fits_tenant(role: Optional[str], tenant_id: Optional[str]) -> None:
+    """400 unless platform roles live in the platform tenant and tenant roles outside it (spec C1).
+
+    The platform tenant's context switches off the DB wrapper's tenant scoping, so a
+    tenant role there would act on every tenant, and a platform role anywhere else
+    would hold platform powers inside one customer's tenant.
+    """
+    in_platform_tenant = tenant_id == rbac_defaults.PLATFORM_TENANT_ID
+    if rbac_defaults.is_platform_role(role) and not in_platform_tenant:
+        raise HTTPException(status_code=400,
+                            detail=f"Role '{role}' is a platform role and can only be held in the Platform tenant")
+    if in_platform_tenant and not rbac_defaults.is_platform_role(role):
+        raise HTTPException(status_code=400,
+                            detail="Users in the Platform tenant must hold a platform role")
+
+
+def refuse_directory_platform_role(role: Optional[str]) -> None:
+    """400 for an LDAP/SAML mapping to a platform role: directory sync writes users into a
+    customer tenant, and platform roles are only held in the Platform tenant (spec C1)."""
+    if rbac_defaults.is_platform_role(role):
+        raise HTTPException(status_code=400,
+                            detail=f"Role '{role}' is a platform role and cannot be mapped from a directory")
+
+
+def _is_active_owner(user: Dict[str, Any]) -> bool:
+    from authentication_service import account_is_active
+    return rbac_defaults.platform_tier(user.get("role")) == "owner" and account_is_active(user)
+
+
+async def assert_not_last_platform_owner(db, target_user: Dict[str, Any], *, deleting: bool = False,
+                                         new_role: Optional[str] = None, new_status: Optional[str] = None,
+                                         new_tenant_id: Optional[str] = None) -> None:
+    """409 ``last_platform_owner`` when the change leaves no active Platform Owner (spec C1).
+
+    Deleting, demoting, disabling or moving the account out of the platform tenant all
+    count as removing an owner. Two simultaneous removals of the last two owners can
+    both pass this check (it is read-then-write); the next one is refused.
+    """
+    if not _is_active_owner(target_user):
+        return
+    after = dict(target_user)
+    if new_role is not None:
+        after["role"] = new_role
+    if new_status is not None:
+        after["status"] = new_status
+    if new_tenant_id is not None:
+        after["tenantId"] = new_tenant_id
+    still_owner = (not deleting and _is_active_owner(after)
+                   and after.get("tenantId") == target_user.get("tenantId"))
+    if still_owner:
+        return
+    users = getattr(db, "_db", db).users
+    candidates = await users.find(
+        {"role": {"$regex": _OWNER_ROLE_PATTERN, "$options": "i"}},
+        {"_id": 1, "role": 1, "status": 1, "is_active": 1},
+    ).to_list(length=1000)
+    others = [u for u in candidates if u.get("_id") != target_user.get("_id") and _is_active_owner(u)]
+    if not others:
+        raise HTTPException(status_code=409, detail="last_platform_owner")
 
 
 async def assert_can_assign_role(
@@ -29,8 +104,9 @@ async def assert_can_assign_role(
     """Raise ``HTTPException`` unless ``caller`` may give ``target_role`` to the target user.
 
     Rules, in order:
-      1. The super-admin tier is assignable only by a super-admin, decided by role-name
-         normalization and never by a ``*`` inside a role document.
+      1. The platform roles (super-admin tier, Platform Support, Platform Billing) are
+         assignable only by a super-admin, decided by role-name normalization and never
+         by a ``*`` inside a role document.
       2. Nobody changes their own account's role (re-sending the same role is not a change).
       3. A super-admin caller may assign any other role.
       4. Otherwise the target's effective permissions must be a subset of the caller's
@@ -42,7 +118,7 @@ async def assert_can_assign_role(
     target_key = normalize(target_role or "")
     caller_is_super = normalize(caller.role or "") == super_key
 
-    if target_key == super_key and not caller_is_super:
+    if target_key in rbac_defaults.PLATFORM_ROLE_KEYS and not caller_is_super:
         raise HTTPException(status_code=403,
                             detail=f"Only a platform super-admin can assign role '{target_role}'")
 
@@ -84,8 +160,8 @@ async def assert_can_manage_account(
     handing out its role, so the same ceiling applies to the account's
     *current* role. Rules, in order:
       1. A super-admin caller may manage any account.
-      2. A super-admin-tier account is managed only by a super-admin, decided by
-         role-name normalization and never by a ``*`` inside a role document.
+      2. A platform-role account (owner, support, billing) is managed only by a
+         super-admin, decided by role-name normalization, never by a ``*`` in a document.
       3. Otherwise the account's effective permissions must be a subset of the
          caller's under the manage:X implies view:X and request:X closure
          (an account of an equal role is manageable; a higher one is not).
@@ -96,9 +172,9 @@ async def assert_can_manage_account(
     if normalize(caller.role or "") == super_key:
         return
 
-    if normalize(target_role or "") == super_key:
+    if normalize(target_role or "") in rbac_defaults.PLATFORM_ROLE_KEYS:
         raise HTTPException(status_code=403,
-                            detail="Only a platform super-admin can modify a super-admin account")
+                            detail="Only a platform super-admin can modify a platform account")
 
     try:
         caller_perms = await effective_permissions(db, caller.role, caller.tenant_id)

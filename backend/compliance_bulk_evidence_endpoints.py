@@ -22,6 +22,7 @@ from evidence_coc import _append_coc_entry
 from database import get_database
 from authentication_service import get_current_user
 from cache_service import invalidate_cache
+from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +32,9 @@ MAX_BULK_FILES = 50
 MAX_BULK_BYTES = 200 * 1024 * 1024  # 200 MB
 MAX_ENTRY_BYTES = 25 * 1024 * 1024  # 25 MB per file
 
-_WRITE_ROLES: frozenset[str] = frozenset({
-    "admin", "Admin", "Super Admin", "superadmin", "super_admin", "platform-admin"
-})
-# WR-06: normalized (lower-cased, whitespace/separator-stripped) form of
-# _WRITE_ROLES used for comparison so role strings like "ADMIN" or
-# "SuperAdmin" aren't silently denied due to casing/spacing drift.
-_WRITE_ROLES_NORMALIZED: frozenset[str] = frozenset(
-    r.lower().replace(" ", "").replace("_", "").replace("-", "") for r in _WRITE_ROLES
-)
+# WR-06: membership normalizes the role first, so "ADMIN" or "SuperAdmin" are
+# not silently denied due to casing/spacing drift (spec C1: tenant admin + owner).
+_WRITE_ROLES = tenant_admin_roles()
 
 _EXT_TO_MIME: dict[str, str] = {
     ".pdf":  "application/pdf",
@@ -68,8 +63,7 @@ async def bulk_upload_evidence(
         uploader = getattr(current_user, "username", "unknown")
 
         user_role = getattr(current_user, "role", "")
-        normalized_role = (user_role or "").lower().replace(" ", "").replace("_", "").replace("-", "")
-        if normalized_role not in _WRITE_ROLES_NORMALIZED:
+        if user_role not in _WRITE_ROLES:
             raise HTTPException(status_code=403, detail="Insufficient permissions to upload evidence")
 
         # --- Pass 0a: parse and validate manifest ---

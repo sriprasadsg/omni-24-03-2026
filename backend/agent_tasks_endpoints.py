@@ -11,11 +11,12 @@ from tunnel_endpoints import deliverable_payload
 from rate_limiter import limiter
 from tickets_service import tickets_service
 import logging
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_tasks_endpoints")
 
-_TASK_SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+_TASK_SUPER_ROLES = platform_scope_roles()
 
 
 

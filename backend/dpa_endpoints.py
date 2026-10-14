@@ -4,11 +4,12 @@ from rbac_utils import require_permission
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from auth_utils import get_current_user
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/dpa", tags=["DPA Management"])
 
 _DPA_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
-_DPA_ADMIN_ROLES = {"Super Admin", "super_admin", "platform-admin", "admin"}
+_DPA_ADMIN_ROLES = tenant_admin_roles()
 
 
 async def _db():

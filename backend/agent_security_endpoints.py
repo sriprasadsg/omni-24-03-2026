@@ -7,6 +7,7 @@ import asyncio
 import uuid
 from agent_auth import verify_agent_key
 import logging
+from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_security_endpoints")
@@ -105,7 +106,7 @@ async def list_fim_events(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Retrieve FIM events for a given agent (operator view)."""
-    _SUPER_ROLES = {"Super Admin", "super_admin", "admin", "platform-admin"}
+    _SUPER_ROLES = platform_scope_roles()
     user_role = getattr(current_user, "role", "")
     tenant_id = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
     query: Dict[str, Any] = {"agent_id": agent_id}
@@ -187,7 +188,7 @@ async def get_shadow_ai_scans(
     db = get_database()
     query: Dict[str, Any] = {"agent_id": agent_id}
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if user_role not in platform_scope_roles():
         query["tenantId"] = getattr(current_user, "tenant_id", None)
     scans = await db.shadow_ai_scans.find(query, {"_id": 0}).sort("scanned_at", -1).to_list(length=limit)
     return scans
@@ -255,7 +256,7 @@ async def get_vulnerability_scans(
     db = get_database()
     query: Dict[str, Any] = {"agent_id": agent_id}
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if user_role not in platform_scope_roles():
         query["tenantId"] = getattr(current_user, "tenant_id", None)
     scans = await db.agent_vulnerability_scans.find(query, {"_id": 0}).sort("scanned_at", -1).to_list(length=limit)
     return scans
@@ -338,7 +339,7 @@ async def get_malware_scans(
     db = get_database()
     query: Dict[str, Any] = {"agent_id": agent_id}
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if user_role not in platform_scope_roles():
         query["tenantId"] = getattr(current_user, "tenant_id", None)
     scans = await db.agent_malware_scans.find(query, {"_id": 0}).sort("scanned_at", -1).to_list(length=limit)
     return scans
@@ -402,7 +403,7 @@ async def get_persistence_findings(
     db = get_database()
     query: Dict[str, Any] = {"agent_id": agent_id}
     user_role = getattr(current_user, "role", "user")
-    if user_role not in ["Super Admin", "super_admin", "admin", "platform-admin"]:
+    if user_role not in platform_scope_roles():
         query["tenantId"] = getattr(current_user, "tenant_id", None)
     findings = await db.agent_persistence_findings.find(query, {"_id": 0}).sort("scanned_at", -1).to_list(length=limit)
     return findings

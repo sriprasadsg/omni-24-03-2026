@@ -83,10 +83,36 @@ GOLDEN = {
     "itam_viewer": frozenset({
         "view:assets", "view:itam", "view:licenses", "view:profile",
     }),
+    # Spec C1 platform roles.
+    "platform_support": frozenset({
+        "view:active_response", "view:advanced_bi", "view:advanced_hunting",
+        "view:agent_capabilities", "view:agent_groups", "view:agents", "view:ai_governance",
+        "view:analytics", "view:android_enterprise", "view:app_catalog", "view:asset_intelligence",
+        "view:assets", "view:attack_path", "view:attack_timeline", "view:audit_log",
+        "view:automation", "view:automl", "view:autopilot", "view:branch_sites", "view:chaos",
+        "view:cloud_security", "view:compliance", "view:conditional_access", "view:config_drift",
+        "view:connectors_hub", "view:cxo_dashboard", "view:dashboard", "view:detection_rules",
+        "view:developer_hub", "view:device_config_profiles", "view:devsecops", "view:dora_metrics",
+        "view:dspm", "view:fim", "view:finops", "view:firmware_drivers", "view:geographic_map",
+        "view:governance", "view:insights", "view:integrations", "view:itam", "view:llmops",
+        "view:logs", "view:mam", "view:mdm", "view:mdr", "view:mlops", "view:mssp", "view:network",
+        "view:patching", "view:persistence", "view:platform_alerts", "view:profile",
+        "view:reporting", "view:retention_policies", "view:sbom", "view:sca", "view:secrets",
+        "view:security", "view:security_audit", "view:security_copilot", "view:service_catalog",
+        "view:software_deployment", "view:software_updates", "view:sustainability", "view:swarm",
+        "view:tenants", "view:threat_hunting", "view:threat_intel", "view:tracing",
+        "view:unified_ops", "view:vulnerabilities", "view:web_monitoring", "view:xai", "view:xdr",
+        "view:zero_trust",
+    }),
+    "platform_billing": frozenset({
+        "manage:pending_agents", "manage:tenant_license", "view:audit_log", "view:platform_alerts",
+        "view:platform_cost", "view:profile", "view:tenants",
+    }),
 }
 
 GOLDEN_SIZES = {"tenant_admin": 126, "user": 22, "analyst": 19, "security_analyst": 17,
-                "incident_responder": 12, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4}
+                "incident_responder": 12, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4,
+                "platform_support": 76, "platform_billing": 7}
 
 D02_VIEW = [
     "view:zero_trust", "view:attack_timeline", "view:geographic_map", "view:analytics", "view:web_monitoring",
@@ -118,7 +144,7 @@ def test_role_set_matches_golden(key):
     assert len(actual) == GOLDEN_SIZES[key], f"{key}: size {len(actual)} != {GOLDEN_SIZES[key]}"
 
 
-def test_table_has_exactly_the_nine_golden_keys():
+def test_table_has_exactly_the_eleven_golden_keys():
     assert set(d.ROLE_DEFAULTS) == set(GOLDEN)
 
 
@@ -140,8 +166,9 @@ def test_d02_catalogues_belong_to_tenant_admin_only():
     assert len(D02_VIEW) == 26 and len(D02_MANAGE) == 19
     ta = set(d.defaults_for("tenant_admin"))
     assert set(D02_VIEW) <= ta and set(D02_MANAGE) <= ta
-    for key in set(d.ROLE_DEFAULTS) - {"tenant_admin"}:
+    for key in set(d.ROLE_DEFAULTS) - {"tenant_admin"} - d.PLATFORM_ROLE_KEYS:
         assert not (set(D02_VIEW + D02_MANAGE) & set(d.ROLE_DEFAULTS[key])), key
+    assert not (set(D02_MANAGE) & set(d.defaults_for("platform_support"))), "support is read-only"
 
 
 def test_super_admin_only_catalogues_and_manage_tenants_are_never_granted():
@@ -195,13 +222,15 @@ def test_remote_access_view_and_control_are_independent():
 def test_seed_role_documents_mirror_the_table():
     docs = d.seed_role_documents()
     assert [doc["name"] for doc in docs] == [r.name for r in d.BUILTIN_ROLES]
-    assert len(docs) == 11
-    assert len({doc["id"] for doc in docs}) == 11
+    assert len(docs) == 13
+    assert len({doc["id"] for doc in docs}) == 13
     by_name = {doc["name"]: doc for doc in docs}
     assert by_name["Super Admin"]["tenantId"] == "platform"
     assert by_name["Super Admin"]["permissions"] == ["*"]
-    assert all(doc["tenantId"] == "all" for doc in docs if doc["name"] != "Super Admin")
-    non_editable = {"Super Admin", "Tenant Admin", "admin", "itam_admin", "itam_user", "itam_viewer"}
+    platform_names = {"Super Admin", "Platform Support", "Platform Billing"}
+    assert all(doc["tenantId"] == ("platform" if doc["name"] in platform_names else "all") for doc in docs)
+    non_editable = {"Super Admin", "Tenant Admin", "admin", "itam_admin", "itam_user", "itam_viewer",
+                    "Platform Support", "Platform Billing"}
     for doc in docs:
         assert doc["isEditable"] is (doc["name"] not in non_editable), doc["name"]
     for role in d.BUILTIN_ROLES:
@@ -213,7 +242,8 @@ def test_seed_role_documents_mirror_the_table():
 def test_builtin_role_keys():
     assert d.builtin_role_keys() == frozenset({
         "super_admin", "tenant_admin", "admin", "user", "analyst", "security_analyst",
-        "incident_responder", "viewer", "itam_admin", "itam_user", "itam_viewer"})
+        "incident_responder", "viewer", "itam_admin", "itam_user", "itam_viewer",
+        "platform_support", "platform_billing"})
 
 
 def test_unknown_key_has_no_defaults():

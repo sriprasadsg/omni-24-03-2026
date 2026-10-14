@@ -8,13 +8,11 @@ from typing import Dict
 from authentication_service import get_current_user
 from cloud_remediation_service import cloud_remediation
 from database import get_database
+from auth_roles import tenant_admin_roles
 
 router = APIRouter(prefix="/api/cloud/remediation", tags=["Cloud Remediation"])
 
-_REMEDIATION_ROLES = {
-    "Super Admin", "super_admin", "platform-admin",
-    "Tenant Admin", "admin", "security_analyst",
-}
+_REMEDIATION_ROLES = tenant_admin_roles("security_analyst")
 
 
 def _tenant_id(user):
