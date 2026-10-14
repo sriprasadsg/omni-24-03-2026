@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has a switch except Overview, Tickets, AI Assistant, Digital Twin, 2027 Horizon (all view:dashboard), My Tasks and Notification Prefs (view:profile). For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. \"screen:<view>\" entries switch one Security or Compliance screen (they share view:security / view:compliance): the sidebar hides a switched-off screen and the server refuses the routes it owns in the manifest. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
+  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has a switch except Overview, Tickets, AI Assistant, Digital Twin, 2027 Horizon (all view:dashboard), My Tasks and Notification Prefs (view:profile). For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. \"screen:<view>\" entries switch one Security, Compliance or System Settings screen (they share view:security / view:compliance / manage:settings): the sidebar hides a switched-off screen and the server refuses the routes it owns in the manifest. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
   "groups": [
     {
       "name": "Dashboards & Insights",
@@ -617,6 +617,101 @@
         {
           "permission": "manage:settings",
           "label": "System Settings"
+        },
+        {
+          "permission": "screen:pam",
+          "label": "Privileged Access (PAM)",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:jitAccess",
+          "label": "JIT Privileged Access",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:rollback",
+          "label": "Rollback & Checkpoints",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:changeManagement",
+          "label": "Change Management",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:paymentSettings",
+          "label": "Payment Settings",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:subscriptionManagement",
+          "label": "Subscription Plan",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:invoices",
+          "label": "Invoices",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:cloudIntegrations",
+          "label": "Cloud Integrations",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:secretsManagement",
+          "label": "Secrets Management",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:hadr",
+          "label": "HA/DR & Backups",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:retentionPolicy",
+          "label": "Data Retention",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:knowledgeBase",
+          "label": "Knowledge Base (RAG)",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:geoSecurity",
+          "label": "Geo Security",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:systemHealth",
+          "label": "System Health",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:apiStatus",
+          "label": "API Status",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:settings",
+          "label": "Settings",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:webhooks",
+          "label": "Webhooks",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:ticketing",
+          "label": "Ticketing Integration",
+          "parent": "manage:settings"
+        },
+        {
+          "permission": "screen:ticketWebhooks",
+          "label": "Ticket Webhooks",
+          "parent": "manage:settings"
         },
         {
           "permission": "view:finops",

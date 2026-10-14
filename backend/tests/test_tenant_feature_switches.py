@@ -358,3 +358,28 @@ async def test_migration_017_keeps_every_screen_a_tenant_already_had(mongo_db):
     features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
     assert {"screen:edr", "screen:alertManagement"} <= set(features["sec"]) and len(features["sec"]) == len(set(features["sec"]))
     assert features["none"] == ["view:agents"]
+
+
+def test_settings_screens_are_switched_one_by_one():
+    """protects=each System Settings screen (they share manage:settings) has its own switch, nested
+    route prefixes go to the most specific screen (API Status inside System Health, Invoices inside
+    Subscription Plan), and a settings screen is on only with System Settings on; fails_when=switching
+    off System Health also blocks API Status, or a settings screen survives its parent; no_claim=MongoDB."""
+    assert (tf.screen_of("/api/system/routes"), tf.screen_of("/api/system/info")) == ("apiStatus", "systemHealth")
+    assert (tf.screen_of("/api/payments/invoices/1"), tf.screen_of("/api/payments/plans")) == ("invoices", "subscriptionManagement")
+    assert tf.screen_permissions(["manage:settings"], ["manage:settings", "screen:pam"]) == ["screen:pam"]
+    assert tf.screen_permissions(["manage:settings"], ["screen:pam"]) == []
+    assert "screen-off:hadr" in tf.hidden_screens(["manage:settings"], ["manage:settings", "screen:pam"])
+
+
+async def test_migration_018_keeps_every_settings_screen(mongo_db):
+    """protects=on deploy a tenant with System Settings keeps all its settings screens (on top of the
+    Security/Compliance screens migration 017 gave it); fails_when=settings screens vanish; no_claim=the
+    runner bookkeeping."""
+    import importlib
+    await mongo_db.tenants.insert_many([{"id": "s", "enabledFeatures": ["manage:settings", "view:security", "screen:edr"]},
+                                        {"id": "n", "enabledFeatures": ["view:agents"]}])
+    await importlib.import_module("migrations.018_settings_screen_switches").up(mongo_db)
+    features = {t["id"]: set(t["enabledFeatures"]) async for t in mongo_db.tenants.find({}, {"_id": 0})}
+    assert {"screen:pam", "screen:settings", "screen:invoices"} <= features["s"]
+    assert features["n"] == {"view:agents"}

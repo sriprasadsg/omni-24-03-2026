@@ -50,8 +50,8 @@ SWITCHABLE: FrozenSet[str] = frozenset(SWITCH_PARENTS)
 # Resources whose every permission goes with an off view:X switch.
 _VIEW_RESOURCES: FrozenSet[str] = frozenset(p[len("view:"):] for p in SWITCHABLE if p.startswith("view:"))
 
-# Per-screen switches ("screen:<view>") for screens that share one permission (the Security and
-# Compliance screens): {view: the permission its parent switch grants}.
+# Per-screen switches ("screen:<view>") for screens that share one permission (the Security,
+# Compliance and System Settings screens): {view: the permission its parent switch grants}.
 SCREEN_PREFIX = "screen:"
 SCREEN_SWITCHES: Dict[str, str] = {p[len(SCREEN_PREFIX):]: parent for p, parent in SWITCH_PARENTS.items()
                                    if p.startswith(SCREEN_PREFIX) and parent}

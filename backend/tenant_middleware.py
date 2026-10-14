@@ -64,7 +64,7 @@ class PlatformReadOnlyMiddleware:
 
 class ScreenSwitchMiddleware:
     """Spec C6 per-screen switches: a tenant user's request to a route that a switched-off
-    Security or Compliance screen owns (tenant_features.screen_of) gets 403. Runs inside
+    Security, Compliance or System Settings screen owns (tenant_features.screen_of) gets 403. Runs inside
     TenantMiddleware, so the tenant context is already set; platform roles, requests without
     a bearer JWT and routes no switched screen owns pass through. Fails closed when the
     tenant's switches cannot be read."""
