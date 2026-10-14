@@ -12,6 +12,7 @@ from rate_limiter import limiter
 from tickets_service import tickets_service
 import logging
 from auth_roles import platform_scope_roles
+import agent_capabilities
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_tasks_endpoints")
@@ -41,6 +42,8 @@ async def get_agent_instructions(
     }
 
     instructions = await db.agent_instructions.find(query).to_list(length=10)
+    # An instruction needing a capability the tenant's agents lack is refused, never sent.
+    instructions = await agent_capabilities.hold_back(db, tenant_id, instructions)
 
     if instructions:
         ids = [i["_id"] for i in instructions]
@@ -410,6 +413,7 @@ async def create_ticket_from_agent(
     _tenant: Dict[str, Any] = Depends(verify_agent_key),
 ):
     """Agent-key-authenticated ticket creation — called by Rust/Python endpoint agents."""
+    agent_capabilities.assert_allowed(_tenant, "ticket_reporter")
     db = get_database()
     tenant_id = _tenant.get("id", "")
     agent = await db.agents.find_one({
@@ -449,6 +453,7 @@ async def report_network_scan_results(
     _tenant: Dict[str, Any] = Depends(verify_agent_key)
 ):
     """Agent reports network scan results."""
+    agent_capabilities.assert_allowed(_tenant, "network_discovery")
     db = get_database()
 
     agent = await db.agents.find_one({"id": agent_id})

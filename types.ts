@@ -394,6 +394,8 @@ export type Tenant = {
   // Catalogue compliance frameworks the tenant purchased (set by the Super Admin in
   // Manage Tenant; billed monthly; the tenant's users see only these).
   purchasedFrameworks?: string[];
+  // Agent capabilities the tenant's agents may use (shared/agent-capabilities.json; "all" = every one).
+  agentCapabilities?: string[];
   // Bundle-based feature entitlement (new)
   assignedBundles?: string[];
   customFeatures?: string[];
@@ -862,6 +864,8 @@ export interface Agent {
   lastSeen: string;
   remediationAttempts?: { timestamp: string }[];
   capabilities?: AgentCapability[];
+  /** Capabilities this agent's tenant lets its agents use (Super Admin, Manage Tenant). */
+  allowedCapabilities?: string[];
   meta?: Record<string, unknown>;
   health: AgentHealth;
 }

@@ -9,6 +9,7 @@ from rbac_service import rbac_service
 from datetime import datetime
 import logging
 from auth_roles import platform_scope_roles
+import agent_capabilities
 
 router = APIRouter(prefix="/api/agents", tags=["Agent Capabilities"])
 logger = logging.getLogger(__name__)
@@ -125,6 +126,23 @@ CAPABILITY_DEFINITIONS = {
     }
 }
 
+def _permitted_only(capability_ids, permitted) -> list:
+    """``capability_ids`` without the catalogue capabilities the tenant's agents may not use."""
+    return [c for c in capability_ids if c not in agent_capabilities.CAPABILITY_IDS or c in permitted]
+
+
+def _permitted_definitions(permitted) -> Dict[str, Any]:
+    return {cap_id: d for cap_id, d in CAPABILITY_DEFINITIONS.items()
+            if cap_id not in agent_capabilities.CAPABILITY_IDS or cap_id in permitted}
+
+
+def _refuse_unpermitted(capability_ids, permitted) -> None:
+    refused = sorted(set(capability_ids) - set(_permitted_only(capability_ids, permitted)))
+    if refused:
+        raise HTTPException(status_code=403,
+                            detail=f"Not enabled for this organization: {', '.join(refused)}")
+
+
 @router.get("/{agent_id}/capabilities", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agent_capabilities(
     agent_id: str,
@@ -141,12 +159,14 @@ async def get_agent_capabilities(
     
     # Get agent configuration
     config = agent.get("capabilityConfig", {})
-    enabled_capabilities = config.get("enabledCapabilities", list(CAPABILITY_DEFINITIONS.keys()))
+    permitted = await agent_capabilities.allowed_for(db, agent.get("tenantId"))
+    enabled_capabilities = _permitted_only(
+        config.get("enabledCapabilities", list(CAPABILITY_DEFINITIONS.keys())), permitted)
     collection_intervals = config.get("collectionIntervals", {})
     
-    # Build response with capability details
+    # Build response with capability details: only what the tenant's agents may use
     capabilities = []
-    for cap_id, cap_def in CAPABILITY_DEFINITIONS.items():
+    for cap_id, cap_def in _permitted_definitions(permitted).items():
         capabilities.append({
             "id": cap_id,
             "name": cap_def["name"],
@@ -186,6 +206,7 @@ async def configure_agent_capabilities(
     invalid_caps = [cap for cap in enabled_capabilities if cap not in CAPABILITY_DEFINITIONS]
     if invalid_caps:
         raise HTTPException(status_code=400, detail="Invalid capability IDs provided")
+    _refuse_unpermitted(enabled_capabilities, await agent_capabilities.allowed_for(db, tenant_id))
     
     # Update agent configuration
     await db.agents.update_one(
@@ -230,6 +251,7 @@ async def update_agent_capabilities_simple(
 
     enable_list: list = body.get("enable", [])
     disable_list: list = body.get("disable", [])
+    _refuse_unpermitted(enable_list, await agent_capabilities.allowed_for(db, agent.get("tenantId")))
 
     current_caps: list = agent.get("capabilities", [])
     updated_caps = list((set(current_caps) | set(enable_list)) - set(disable_list))
@@ -268,7 +290,9 @@ async def get_agent_configuration(
         }
     
     config = agent.get("capabilityConfig", {})
-    enabled_capabilities = config.get("enabledCapabilities", list(CAPABILITY_DEFINITIONS.keys()))
+    enabled_capabilities = _permitted_only(
+        config.get("enabledCapabilities", list(CAPABILITY_DEFINITIONS.keys())),
+        await agent_capabilities.allowed_for(db, agent.get("tenantId")))
     collection_intervals = config.get("collectionIntervals", {})
     capability_settings  = config.get("capabilitySettings", {})
 
@@ -316,6 +340,9 @@ async def ingest_capability_data(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     tenant_id = agent.get("tenantId")
+    if capability_id not in await agent_capabilities.allowed_for(db, tenant_id) \
+            and capability_id in agent_capabilities.CAPABILITY_IDS:
+        raise HTTPException(status_code=403, detail=f"Capability {capability_id} is not enabled for this organization")
     
     # Store capability data
     capability_record = {
@@ -337,8 +364,13 @@ async def ingest_capability_data(
 
 @router.get("/capabilities/definitions", dependencies=[Depends(AGENT_CAPABILITIES_GUARD)])
 async def get_capability_definitions(current_user: TokenData = Depends(rbac_service.has_permission("view:agents"))):
-    """Get definitions of all available capabilities"""
+    """Get definitions of the capabilities the caller's agents may use (all, for platform staff)"""
+    if getattr(current_user, "role", "") in platform_scope_roles():
+        definitions = CAPABILITY_DEFINITIONS
+    else:
+        definitions = _permitted_definitions(
+            await agent_capabilities.allowed_for(get_database(), getattr(current_user, "tenant_id", None)))
     return {
-        "capabilities": CAPABILITY_DEFINITIONS,
-        "totalCount": len(CAPABILITY_DEFINITIONS)
+        "capabilities": definitions,
+        "totalCount": len(definitions)
     }

@@ -19,6 +19,7 @@ import logging
 from agent_location_history_service import record_location_change, get_track_agent_location
 import enrollment_keys
 import license_rules
+import agent_capabilities
 import licensing
 import pending_agents
 import seat_identity
@@ -579,12 +580,14 @@ async def update_agent(
     # Resolve capabilities: 'capabilities' takes precedence over 'agentCapabilities'.
     # Both are mirrors; process once to avoid the second field overwriting the first.
     set_data: Dict[str, Any] = {}
-    if "capabilities" in update_data:
-        cap_value = _normalise_caps(update_data["capabilities"])
-        set_data["capabilities"] = cap_value
-        set_data["agentCapabilities"] = cap_value
-    elif "agentCapabilities" in update_data:
-        cap_value = _normalise_caps(update_data["agentCapabilities"])
+    cap_field = "capabilities" if "capabilities" in update_data else (
+        "agentCapabilities" if "agentCapabilities" in update_data else None)
+    if cap_field:
+        # Only capabilities the tenant's agents may use are kept (callers resend the whole agent,
+        # so one the Super Admin has since unticked is dropped rather than refused).
+        permitted = await agent_capabilities.allowed_for(db, agent.get("tenantId"))
+        cap_value = [c for c in _normalise_caps(update_data[cap_field])
+                     if c not in agent_capabilities.CAPABILITY_IDS or c in permitted]
         set_data["capabilities"] = cap_value
         set_data["agentCapabilities"] = cap_value
 

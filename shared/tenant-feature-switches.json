@@ -1,10 +1,22 @@
 {
-  "version": 2,
-  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has a switch except Overview, Tickets, AI Assistant, Digital Twin, 2027 Horizon (all view:dashboard), My Tasks and Notification Prefs (view:profile). For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. \"screen:<view>\" entries switch one Security, Compliance or System Settings screen (they share view:security / view:compliance / manage:settings): the sidebar hides a switched-off screen and the server refuses the routes it owns in the manifest. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
+  "version": 3,
+  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has its own switch: either its permission's switch (when no other item shares that permission) or a \"screen:<view>\" switch. For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. A \"screen:<view>\" switch turns one sidebar item off: the sidebar hides it and the server refuses the routes the item owns in the manifest, unless the entry is \"hideOnly\" (its routes serve other screens too). A screen with no parent hangs only on the permission its manifest entry names (Overview, Tickets, My Tasks ...). Read by backend/tenant_features.py, components/ManageTenantModal.tsx and utils/permissions.ts.",
   "groups": [
     {
       "name": "Dashboards & Insights",
       "features": [
+        {
+          "permission": "screen:dashboard",
+          "label": "Overview"
+        },
+        {
+          "permission": "screen:digitalTwin",
+          "label": "Digital Twin"
+        },
+        {
+          "permission": "screen:futureTech",
+          "label": "2027 Horizon"
+        },
         {
           "permission": "view:cxo_dashboard",
           "label": "CXO Insights"
@@ -16,6 +28,16 @@
         {
           "permission": "export:reports",
           "label": "Export Reports",
+          "parent": "view:reporting"
+        },
+        {
+          "permission": "screen:executiveSummary",
+          "label": "Executive Summary",
+          "parent": "view:reporting"
+        },
+        {
+          "permission": "screen:reporting",
+          "label": "Reporting",
           "parent": "view:reporting"
         },
         {
@@ -45,7 +67,17 @@
       "features": [
         {
           "permission": "view:tracing",
-          "label": "Distributed Tracing"
+          "label": "Tracing & APM"
+        },
+        {
+          "permission": "screen:distributedTracing",
+          "label": "Distributed Tracing",
+          "parent": "view:tracing"
+        },
+        {
+          "permission": "screen:apm",
+          "label": "APM",
+          "parent": "view:tracing"
         },
         {
           "permission": "view:logs",
@@ -53,7 +85,27 @@
         },
         {
           "permission": "view:network",
-          "label": "Network Observability"
+          "label": "Network Monitoring"
+        },
+        {
+          "permission": "screen:networkObservability",
+          "label": "Network Observability",
+          "parent": "view:network"
+        },
+        {
+          "permission": "screen:networkTopology",
+          "label": "Network Topology Map",
+          "parent": "view:network"
+        },
+        {
+          "permission": "screen:dataUtilization",
+          "label": "Data Utilization",
+          "parent": "view:network"
+        },
+        {
+          "permission": "screen:serviceMesh",
+          "label": "Service Mesh",
+          "parent": "view:network"
         },
         {
           "permission": "view:web_monitoring",
@@ -83,12 +135,33 @@
           "parent": "view:agents"
         },
         {
+          "permission": "screen:agents",
+          "label": "Agents",
+          "parent": "view:agents",
+          "hideOnly": true
+        },
+        {
+          "permission": "screen:chat",
+          "label": "Chat",
+          "parent": "view:agents"
+        },
+        {
           "permission": "view:agent_capabilities",
           "label": "Agent Capabilities"
         },
         {
           "permission": "view:assets",
           "label": "Asset Management"
+        },
+        {
+          "permission": "screen:assetManagement",
+          "label": "Assets",
+          "parent": "view:assets"
+        },
+        {
+          "permission": "screen:certificates",
+          "label": "Certificates / TLS",
+          "parent": "view:assets"
         },
         {
           "permission": "view:itam",
@@ -104,12 +177,32 @@
           "parent": "view:patching"
         },
         {
+          "permission": "screen:patchManagement",
+          "label": "Patching",
+          "parent": "view:patching"
+        },
+        {
+          "permission": "screen:deploymentApprovals",
+          "label": "Deployment Approvals",
+          "parent": "view:patching"
+        },
+        {
           "permission": "view:software_updates",
           "label": "Software Updates"
         },
         {
           "permission": "view:software_deployment",
           "label": "Software Deployment Hub"
+        },
+        {
+          "permission": "screen:softwareDeployment",
+          "label": "Software Deployment",
+          "parent": "view:software_deployment"
+        },
+        {
+          "permission": "screen:stagedDeployments",
+          "label": "Staged Deployments",
+          "parent": "view:software_deployment"
         },
         {
           "permission": "view:autopilot",
@@ -312,6 +405,26 @@
           "label": "Cloud Security"
         },
         {
+          "permission": "screen:cloudSecurity",
+          "label": "Cloud Security",
+          "parent": "view:cloud_security"
+        },
+        {
+          "permission": "screen:cloudAccounts",
+          "label": "Multi-Account Scanning",
+          "parent": "view:cloud_security"
+        },
+        {
+          "permission": "screen:cloudChecksScanner",
+          "label": "Cloud Checks Scanner",
+          "parent": "view:cloud_security"
+        },
+        {
+          "permission": "screen:iacContainer",
+          "label": "IaC & Container Security",
+          "parent": "view:cloud_security"
+        },
+        {
           "permission": "view:threat_hunting",
           "label": "Threat Hunting"
         },
@@ -323,6 +436,21 @@
           "permission": "investigate:security",
           "label": "Incident Response",
           "parent": "view:security"
+        },
+        {
+          "permission": "screen:incidentResponse",
+          "label": "Incident Response",
+          "parent": "investigate:security"
+        },
+        {
+          "permission": "screen:incidentWarRoom",
+          "label": "Incident War Room",
+          "parent": "investigate:security"
+        },
+        {
+          "permission": "screen:incidentImpact",
+          "label": "Incident Impact",
+          "parent": "investigate:security"
         },
         {
           "permission": "view:dspm",
@@ -402,6 +530,41 @@
           "label": "DevSecOps Dashboard"
         },
         {
+          "permission": "screen:supplyChain",
+          "label": "Supply Chain Security",
+          "parent": "view:devsecops"
+        },
+        {
+          "permission": "screen:devsecops",
+          "label": "DevSecOps",
+          "parent": "view:devsecops"
+        },
+        {
+          "permission": "screen:codeReviewGraph",
+          "label": "Code Review Graph",
+          "parent": "view:devsecops"
+        },
+        {
+          "permission": "screen:pipelineSecurity",
+          "label": "Pipeline Security",
+          "parent": "view:devsecops"
+        },
+        {
+          "permission": "screen:iacSecurity",
+          "label": "IaC Security",
+          "parent": "view:devsecops"
+        },
+        {
+          "permission": "screen:containerScan",
+          "label": "Container Scanning",
+          "parent": "view:devsecops"
+        },
+        {
+          "permission": "screen:apiExtensions",
+          "label": "API Extensions (MCP/OCSF)",
+          "parent": "view:devsecops"
+        },
+        {
           "permission": "view:dora_metrics",
           "label": "DORA Metrics"
         },
@@ -420,6 +583,16 @@
         {
           "permission": "view:mlops",
           "label": "MLOps / Model Monitoring"
+        },
+        {
+          "permission": "screen:mlops",
+          "label": "MLOps",
+          "parent": "view:mlops"
+        },
+        {
+          "permission": "screen:modelMonitoring",
+          "label": "Model Monitoring",
+          "parent": "view:mlops"
         },
         {
           "permission": "view:llmops",
@@ -576,6 +749,16 @@
           "parent": "view:ai_governance"
         },
         {
+          "permission": "screen:aiGovernance",
+          "label": "AI Governance",
+          "parent": "view:ai_governance"
+        },
+        {
+          "permission": "screen:approvalWorkflows",
+          "label": "Approvals",
+          "parent": "view:ai_governance"
+        },
+        {
           "permission": "view:governance",
           "label": "Data Governance"
         },
@@ -589,6 +772,18 @@
       "name": "Automation & Intelligence",
       "features": [
         {
+          "permission": "screen:tasks",
+          "label": "My Tasks"
+        },
+        {
+          "permission": "screen:internalTickets",
+          "label": "Tickets"
+        },
+        {
+          "permission": "screen:aiAssistantChat",
+          "label": "AI Assistant"
+        },
+        {
           "permission": "view:automation",
           "label": "Automation Workflows"
         },
@@ -598,8 +793,28 @@
           "parent": "view:automation"
         },
         {
+          "permission": "screen:automation",
+          "label": "Automation",
+          "parent": "view:automation"
+        },
+        {
+          "permission": "screen:notificationsRouting",
+          "label": "Notifications & Domain Scanner",
+          "parent": "view:automation"
+        },
+        {
           "permission": "manage:playbooks",
           "label": "Playbooks / SOAR Executions"
+        },
+        {
+          "permission": "screen:playbooks",
+          "label": "Playbooks",
+          "parent": "manage:playbooks"
+        },
+        {
+          "permission": "screen:soar",
+          "label": "SOAR Executions",
+          "parent": "manage:playbooks"
         },
         {
           "permission": "view:conditional_access",
@@ -608,12 +823,31 @@
         {
           "permission": "view:swarm",
           "label": "Autonomous Swarms"
+        },
+        {
+          "permission": "screen:scheduledReports",
+          "label": "Scheduled Reports",
+          "parent": "view:reporting"
+        },
+        {
+          "permission": "screen:agentApproval",
+          "label": "Agent Approvals",
+          "parent": "view:agents"
+        },
+        {
+          "permission": "screen:aiRemediation",
+          "label": "AI Remediation",
+          "parent": "view:ai_governance"
         }
       ]
     },
     {
       "name": "Management & Settings",
       "features": [
+        {
+          "permission": "screen:notificationPrefs",
+          "label": "Notification Prefs"
+        },
         {
           "permission": "manage:settings",
           "label": "System Settings"
@@ -732,6 +966,26 @@
         {
           "permission": "manage:api_keys",
           "label": "API Key Management"
+        },
+        {
+          "permission": "screen:fleetObservability",
+          "label": "Fleet Observability",
+          "parent": "view:agents"
+        },
+        {
+          "permission": "screen:fleetGeoMap",
+          "label": "Fleet Geo Map",
+          "parent": "view:agents"
+        },
+        {
+          "permission": "screen:nativeSecurity",
+          "label": "Native Security",
+          "parent": "view:active_response"
+        },
+        {
+          "permission": "screen:dataWarehouse",
+          "label": "Data Warehouse",
+          "parent": "view:reporting"
         }
       ]
     }

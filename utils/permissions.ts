@@ -8,17 +8,22 @@ const SWITCHED_VIEW_RESOURCES = new Set([...SWITCHABLE].filter(p => p.startsWith
 
 /**
  * True unless the server marked `view` as a switched-off screen for this tenant user
- * (`screen-off:<view>`, backend tenant_features.hidden_screens): the Security and Compliance
- * screens share one permission, so each has its own switch. Callers skip it for platform roles.
+ * (`screen-off:<view>`, backend tenant_features.hidden_screens): a sidebar item whose permission
+ * other items share, or that no permission switch covers, has its own screen switch. Callers skip
+ * it for platform roles.
  */
 export function screenAllowed(view: string, hasPermission: (permission: Permission) => boolean): boolean {
   return !hasPermission(`screen-off:${view}` as Permission);
 }
 
-/** True when a Super Admin's per-tenant feature switch decides whether a tenant user holds `permission`. */
-export function isTenantSwitchable(permission: string): boolean {
+/**
+ * True when a Super Admin's per-tenant feature switch decides whether a tenant user holds `permission`,
+ * or (given the sidebar `view`) whether the user sees that item through its screen switch.
+ */
+export function isTenantSwitchable(permission: string, view?: string): boolean {
   const colon = permission.indexOf(':');
-  return SWITCHABLE.has(permission) || (colon >= 0 && SWITCHED_VIEW_RESOURCES.has(permission.slice(colon + 1)));
+  return SWITCHABLE.has(permission) || (colon >= 0 && SWITCHED_VIEW_RESOURCES.has(permission.slice(colon + 1)))
+    || (!!view && SWITCHABLE.has(`screen:${view}`));
 }
 
 /**

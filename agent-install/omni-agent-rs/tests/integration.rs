@@ -107,7 +107,7 @@ fn test_capability_ids_match_expected_set() {
 #[test]
 fn test_collect_all_no_panics() {
     let mgr = CapabilityManager::new();
-    let results = mgr.collect_all(&System::new_all());
+    let results = mgr.collect_all(&System::new_all(), None);
     assert_eq!(results.len(), 18, "collect_all iterates the 18 registered collectors (not chat_window/ticket_reporter)");
     for (id, val) in &results {
         assert!(val.is_object(), "capability '{}' returned non-object: {}", id, val);
@@ -117,8 +117,8 @@ fn test_collect_all_no_panics() {
 #[test]
 fn test_capability_statuses_structure() {
     let mgr = CapabilityManager::new();
-    let results = mgr.collect_all(&System::new_all());
-    let statuses = mgr.statuses(&results);
+    let results = mgr.collect_all(&System::new_all(), None);
+    let statuses = mgr.statuses(&results, None);
     assert_eq!(statuses.len(), 18, "statuses iterates the 18 registered collectors (not chat_window/ticket_reporter)");
     for s in &statuses {
         assert!(s.get("id").is_some());

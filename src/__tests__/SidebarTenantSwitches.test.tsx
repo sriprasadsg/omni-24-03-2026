@@ -33,13 +33,27 @@ function renderSidebar(role: string) {
 const labels = (container: HTMLElement) => Array.from(container.querySelectorAll('button')).map(b => b.textContent?.trim() ?? '');
 
 describe('Sidebar for a tenant user (spec C6)', () => {
-  it('shows a switched-on feature unlocked, hides tier-gated items no switch covers, and never offers an upgrade', () => {
+  it('shows a switched-on feature unlocked, hides a switched-off one, and never offers an upgrade', () => {
     const { container } = renderSidebar('Tenant Admin');
     const shown = labels(container);
     expect(shown.some(l => l.startsWith('MLOps'))).toBe(true);           // Enterprise-gated, but switched on
-    expect(shown.some(l => l.startsWith('Digital Twin'))).toBe(false);   // Enterprise-gated, no switch
+    expect(shown.some(l => l.startsWith('Digital Twin'))).toBe(true);    // Enterprise-gated, its screen switched on
     expect(shown.some(l => l.startsWith('CXO Insights'))).toBe(false);   // switched off (not granted)
     expect(container.querySelector('[title*="click to upgrade"]')).toBeNull();
+  });
+
+  it('hides a sidebar item whose own screen switch is off, even one every role reaches', () => {
+    granted.add('screen-off:digitalTwin');
+    granted.add('screen-off:internalTickets');
+    try {
+      const shown = labels(renderSidebar('Tenant Admin').container);
+      expect(shown.some(l => l.startsWith('Digital Twin'))).toBe(false);
+      expect(shown.some(l => l.startsWith('Tickets'))).toBe(false);
+      expect(shown.some(l => l.startsWith('AI Assistant'))).toBe(true);  // same permission, still on
+    } finally {
+      granted.delete('screen-off:digitalTwin');
+      granted.delete('screen-off:internalTickets');
+    }
   });
 
   it('the Super Admin still sees everything, unlocked', () => {
@@ -54,6 +68,7 @@ describe('Sidebar for a tenant user (spec C6)', () => {
     expect(isTenantSwitchable('view:itam')).toBe(true);
     expect(isTenantSwitchable('view:dashboard')).toBe(false);
     expect(isTenantSwitchable('view:profile')).toBe(false);
+    expect(isTenantSwitchable('view:dashboard', 'digitalTwin')).toBe(true);  // its own screen switch
   });
 });
 

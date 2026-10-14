@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "description": "Per-tenant agent capabilities. A Super Admin ticks the capabilities a tenant's agents may use in Manage Tenant; the list is stored in tenants.agentCapabilities (\"all\" = every capability). For that tenant the platform drops heartbeat data of an unticked capability, refuses to hand its agents an instruction that needs one, leaves it out of the configuration agents pull, and the tenant's users see and can toggle only ticked capabilities. \"alwaysOn\" capabilities cannot be unticked (the platform keeps agents up to date). Read by backend/agent_capabilities.py, components/ManageTenantModal.tsx and components/ManageAgentCapabilitiesModal.tsx.",
+  "groups": [
+    {
+      "name": "Core Telemetry",
+      "capabilities": [
+        {
+          "id": "metrics_collection",
+          "label": "Metric Collection",
+          "description": "Collects CPU, memory, disk, and network metrics in real time."
+        },
+        {
+          "id": "log_collection",
+          "label": "Log Collection",
+          "description": "Gathers and forwards system, application, and security logs."
+        },
+        {
+          "id": "process_monitor",
+          "label": "Process Monitor",
+          "description": "Tracks running processes, parent-child chains, and resource usage."
+        },
+        {
+          "id": "log_shipper",
+          "label": "Log Shipper",
+          "description": "Forwards structured log streams to SIEM and remote backends."
+        }
+      ]
+    },
+    {
+      "name": "Security Detection",
+      "capabilities": [
+        {
+          "id": "vulnerability_scanning",
+          "label": "Vulnerability Scanning",
+          "description": "Scans installed packages and libraries for known CVEs."
+        },
+        {
+          "id": "fim",
+          "label": "File Integrity Monitoring",
+          "description": "Detects unauthorized changes to critical system files."
+        },
+        {
+          "id": "real_time_fim",
+          "label": "Real-Time FIM",
+          "description": "Streams file system changes in real time via inotify/FSEvents."
+        },
+        {
+          "id": "compliance_enforcement",
+          "label": "Compliance Enforcement",
+          "description": "Enforces security baselines and policy controls."
+        },
+        {
+          "id": "runtime_security",
+          "label": "Runtime Security (XDR)",
+          "description": "Detects and blocks malicious runtime behavior via XDR."
+        },
+        {
+          "id": "edr_realtime",
+          "label": "EDR Real-Time",
+          "description": "Continuous endpoint telemetry feeding the EDR pipeline."
+        },
+        {
+          "id": "persistence_detection",
+          "label": "Persistence Detection",
+          "description": "Identifies attacker persistence mechanisms (registry, crons, services)."
+        },
+        {
+          "id": "deception_monitor",
+          "label": "Deception Monitor",
+          "description": "Monitors honeypot and canary tokens for unauthorized access."
+        },
+        {
+          "id": "threat_intel",
+          "label": "Threat Intelligence",
+          "description": "Checks local indicators against the platform's threat intelligence feeds."
+        },
+        {
+          "id": "virustotal_scan",
+          "label": "VirusTotal Scan",
+          "description": "Scans files, URLs, hashes and IPs on request against VirusTotal."
+        }
+      ]
+    },
+    {
+      "name": "Network & Cloud",
+      "capabilities": [
+        {
+          "id": "network_discovery",
+          "label": "Network Discovery",
+          "description": "Discovers and maps local network topology and open ports."
+        },
+        {
+          "id": "cloud_metadata",
+          "label": "Cloud Metadata Collector",
+          "description": "Collects cloud instance metadata from AWS/Azure/GCP."
+        },
+        {
+          "id": "web_monitor",
+          "label": "Web Monitor",
+          "description": "Monitors web endpoint availability, TLS health, and response times."
+        },
+        {
+          "id": "remote_access",
+          "label": "Remote Access",
+          "description": "Provides secure remote terminal and desktop access to the agent host."
+        }
+      ]
+    },
+    {
+      "name": "Data & Privacy",
+      "capabilities": [
+        {
+          "id": "pii_scanner",
+          "label": "PII Data Scanner",
+          "description": "Scans file systems and memory for personally identifiable information."
+        },
+        {
+          "id": "sbom_analysis",
+          "label": "SBOM Analysis",
+          "description": "Analyzes Software Bill of Materials for supply-chain vulnerabilities."
+        },
+        {
+          "id": "compliance_evidence_collector",
+          "label": "Compliance Evidence Collector",
+          "description": "Automatically gathers and uploads compliance evidence artifacts."
+        },
+        {
+          "id": "vendor_risk",
+          "label": "Vendor Risk Scanner",
+          "description": "Assesses third-party software vendor risk on the endpoint."
+        }
+      ]
+    },
+    {
+      "name": "Advanced AI & Observability",
+      "capabilities": [
+        {
+          "id": "predictive_health",
+          "label": "Predictive Health AI",
+          "description": "Uses ML to predict agent and host health degradation."
+        },
+        {
+          "id": "ueba",
+          "label": "Behavior Analytics (UEBA)",
+          "description": "Detects insider threats and anomalous user/entity behavior."
+        },
+        {
+          "id": "ebpf_tracing",
+          "label": "eBPF Kernel Tracing",
+          "description": "Provides deep kernel-level syscall visibility using eBPF."
+        },
+        {
+          "id": "shadow_ai",
+          "label": "Shadow AI Detector",
+          "description": "Identifies unauthorized AI model usage and data leakage risks."
+        }
+      ]
+    },
+    {
+      "name": "Remediation & Management",
+      "capabilities": [
+        {
+          "id": "system_patching",
+          "label": "Autonomous Patching",
+          "description": "Automatically applies OS and package patches on schedule."
+        },
+        {
+          "id": "patch_installer",
+          "label": "Patch Installer",
+          "description": "Installs individual patches and hotfixes on demand."
+        },
+        {
+          "id": "software_management",
+          "label": "Software Management",
+          "description": "Manages software installation, updates, and removal."
+        },
+        {
+          "id": "remediation_executor",
+          "label": "Remediation Executor",
+          "description": "Runs remediation scripts and playbook actions on the endpoint."
+        },
+        {
+          "id": "autonomous_response",
+          "label": "Autonomous Response",
+          "description": "Executes automated incident containment actions without human approval."
+        },
+        {
+          "id": "agent_update",
+          "label": "Agent Self-Update",
+          "description": "Keeps the agent binary and capabilities up to date automatically.",
+          "alwaysOn": true
+        },
+        {
+          "id": "vss_manager",
+          "label": "VSS Manager",
+          "description": "Manages Volume Shadow Copy Services for backup and rollback."
+        },
+        {
+          "id": "backup_verifier",
+          "label": "Backup Verifier",
+          "description": "Verifies the integrity of local and cloud backup snapshots."
+        },
+        {
+          "id": "process_injection_simulation",
+          "label": "Injection Simulator",
+          "description": "Simulates process injection attacks to validate EDR detection."
+        }
+      ]
+    },
+    {
+      "name": "User Support",
+      "capabilities": [
+        {
+          "id": "chat_window",
+          "label": "Agent Chat Window",
+          "description": "Lets the endpoint's user chat with your support team from the agent tray."
+        },
+        {
+          "id": "ticket_reporter",
+          "label": "Ticket Reporter",
+          "description": "Lets the endpoint's user raise a support ticket from the agent tray."
+        }
+      ]
+    }
+  ]
+}

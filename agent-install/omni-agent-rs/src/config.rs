@@ -44,6 +44,10 @@ pub struct Config {
     /// agent's uninstall code (never the code itself). See uninstall.rs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uninstall_protection: Option<UninstallProtection>,
+    /// The capabilities this agent's tenant lets it use, from the last heartbeat reply.
+    /// `None` until the platform says; then collectors outside the list do not run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled_capabilities: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]

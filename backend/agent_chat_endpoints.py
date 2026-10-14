@@ -23,6 +23,7 @@ from auth_types import TokenData
 from auth_roles import SUPER_ROLES, tenant_admin_roles
 from database import get_database
 from agent_auth import verify_agent_key, caller_agent_id, require_agent_named
+import agent_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +296,7 @@ async def user_send_message(
     _tenant: Dict[str, Any] = Depends(verify_agent_key),
 ) -> Dict[str, Any]:
     """Called by the agent running on the endpoint when the user types a reply."""
+    agent_capabilities.assert_allowed(_tenant, "chat_window")
     db = get_database()
     tenant_id = _tenant.get("id", "")
     # Fast path: tenant_id stored correctly (all sessions created after the fix)
@@ -453,6 +455,7 @@ async def initiate_session(
     _tenant: Dict[str, Any] = Depends(verify_agent_key),
 ) -> Dict[str, Any]:
     """Endpoint agent starts a chat to contact an admin (reverse direction)."""
+    agent_capabilities.assert_allowed(_tenant, "chat_window")
     db = get_database()
     tenant_id = _tenant.get("id", "")
     await require_agent_named(caller_agent_id(_tenant), tenant_id, body.agent_id, db)

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from database import get_database
 from authentication_service import verify_token_async
 from tunnel_endpoints import deliverable_payload
+import agent_capabilities
 
 router = APIRouter(tags=["Deployment Results"])
 
@@ -63,6 +64,8 @@ async def get_agent_instructions(agent_id: str, request: Request, caller: dict =
     instructions = await db.agent_instructions.find(
         {"agent_id": actual_id, "status": "pending"}
     ).to_list(length=100)
+    # An instruction needing a capability the tenant's agents lack is refused, never delivered.
+    instructions = await agent_capabilities.hold_back(db, caller_tenant_id, instructions)
 
     if instructions:
         ids = [i["_id"] for i in instructions]

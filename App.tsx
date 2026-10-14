@@ -236,7 +236,7 @@ import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
 import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './utils/permissions';
-import { viewForHash, viewPermission } from './utils/catalogueAccess';
+import { NAV_GROUPS, viewForHash, viewPermission } from './utils/catalogueAccess';
 
 const API_BASE = '/api';
 
@@ -998,6 +998,15 @@ const App: React.FC = () => {
     () => derivePermissionState(currentUser),
     [currentUser]
   );
+  // A tenant user whose current screen the Super Admin switched off (Overview included, spec C6)
+  // moves to the first sidebar item still on for them; until then nothing of that screen renders.
+  const currentScreenOff = !!currentUser && !isPlatformRoleName(currentUser.role) && !screenAllowed(currentView, hasPermission);
+  useEffect(() => {
+    if (!currentScreenOff) return;
+    const next = NAV_GROUPS.flatMap(group => group.items)
+      .find(item => hasPermission(item.permission) && screenAllowed(item.view, hasPermission));
+    if (next) setCurrentView(next.view);
+  }, [currentScreenOff, hasPermission]);
 
 
 
@@ -1168,8 +1177,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveTenantFeatures = (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier, purchasedFrameworks?: string[] }) => {
-    api.updateTenantFeatures(tenantId, updates.features, updates.tier, updates.purchasedFrameworks).then(updatedTenant => {
+  const handleSaveTenantFeatures = (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier, purchasedFrameworks?: string[], agentCapabilities?: string[] }) => {
+    api.updateTenantFeatures(tenantId, updates.features, updates.tier, updates.purchasedFrameworks, updates.agentCapabilities).then(updatedTenant => {
       setTenants(prev => prev.map(t => t.id === tenantId ? updatedTenant : t));
       setManagingTenant(null);
     }).catch((e: Error) => showToast(e.message || 'Failed to update tenant', 'error'));
@@ -1565,6 +1574,7 @@ const App: React.FC = () => {
   }
 
   const renderView = () => {
+    if (currentScreenOff) return null;
     if (viewingImpactFor && currentView === 'incidentImpact' && incidentImpactGraph) {
       // Pass-through to switch case
     }

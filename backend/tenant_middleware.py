@@ -64,10 +64,11 @@ class PlatformReadOnlyMiddleware:
 
 class ScreenSwitchMiddleware:
     """Spec C6 per-screen switches: a tenant user's request to a route that a switched-off
-    Security, Compliance or System Settings screen owns (tenant_features.screen_of) gets 403. Runs inside
-    TenantMiddleware, so the tenant context is already set; platform roles, requests without
-    a bearer JWT and routes no switched screen owns pass through. Fails closed when the
-    tenant's switches cannot be read."""
+    sidebar screen owns (tenant_features.screen_of) gets 403. Runs inside TenantMiddleware, so
+    the tenant context is already set; platform roles, endpoint agents (their tenant's agent
+    capabilities govern them, see agent_capabilities.py), requests without a bearer JWT and
+    routes no switched screen owns pass through. Fails closed when the tenant's switches
+    cannot be read."""
 
     def __init__(self, app):
         self.app = app
@@ -77,11 +78,14 @@ class ScreenSwitchMiddleware:
         role = _bearer_role(scope) if view else None
         if not view or not role or not tenant_features.applies_to(role):
             return await self.app(scope, receive, send)
+        from authentication_service import AGENT_ROLE
+        if role == AGENT_ROLE:
+            return await self.app(scope, receive, send)
         try:
             from database import get_database
             enabled = await tenant_features.enabled_features(get_tenant_id(), get_database)
-            parent = tenant_features.SCREEN_SWITCHES[view]
-            allowed = f"{tenant_features.SCREEN_PREFIX}{view}" in tenant_features.screen_permissions([parent], enabled)
+            needs = tenant_features.SCREEN_SWITCHES[view]
+            allowed = f"{tenant_features.SCREEN_PREFIX}{view}" in tenant_features.screen_permissions([needs], enabled)
         except Exception as exc:
             logger.warning("Screen switch lookup failed for %s (refusing %s): %s", get_tenant_id(), scope.get("path"), exc)
             allowed = False

@@ -107,8 +107,9 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                 reported.length > 0 ? reported : allCapabilities.map(c => c.id)
             );
             setSupportedCaps(supported);
-            // Only supported capabilities can be enabled.
-            setEnabledCapabilities(new Set(enabledIds.filter(id => supported.has(id))));
+            // Only supported capabilities the agent's tenant may use can be enabled.
+            const allowed = agent.allowedCapabilities;
+            setEnabledCapabilities(new Set(enabledIds.filter(id => supported.has(id) && (!allowed || allowed.includes(id)))));
         }
     }, [agent]);
 
@@ -122,7 +123,13 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
         });
     };
 
-    const allIds = allCapabilities.map(c => c.id);
+    // Only the capabilities the agent's tenant may use (Super Admin, Manage Tenant) are listed;
+    // an agent record without the list (older API) lists everything.
+    const allowed = agent?.allowedCapabilities;
+    const visibleGroups = CAPABILITY_GROUPS
+        .map(group => ({ ...group, items: group.items.filter(c => !allowed || allowed.includes(c.id)) }))
+        .filter(group => group.items.length > 0);
+    const allIds = visibleGroups.flatMap(group => group.items).map(c => c.id);
     // Select-all / counts operate only on capabilities this agent actually supports.
     const supportedIds = allIds.filter(id => supportedCaps.has(id));
     const unsupportedCount = allIds.length - supportedIds.length;
@@ -206,7 +213,7 @@ export const ManageAgentCapabilitiesModal: React.FC<ManageAgentCapabilitiesModal
                 </div>
 
                 <div className="space-y-5">
-                    {CAPABILITY_GROUPS.map(group => {
+                    {visibleGroups.map(group => {
                         const groupSupported = group.items.filter(c => supportedCaps.has(c.id));
                         const groupAllOn = groupSupported.length > 0 && groupSupported.every(c => enabledCapabilities.has(c.id));
                         const groupSomeOn = groupSupported.some(c => enabledCapabilities.has(c.id));

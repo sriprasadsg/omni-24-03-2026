@@ -244,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                         if (!hasPermission(item.permission)) return false;
                         // Bundle mode: hide items whose feature the tenant hasn't been assigned
                         if (isBundleMode && item.featureKey && !hasFeature(item.featureKey)) return false;
-                        if (isTenantUser && tierLock(item) && !isTenantSwitchable(item.permission)) return false;
+                        if (isTenantUser && tierLock(item) && !isTenantSwitchable(item.permission, item.view)) return false;
                         if (isTenantUser && !screenAllowed(item.view, hasPermission)) return false;
                         return true;
                     })

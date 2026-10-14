@@ -2426,7 +2426,7 @@ export const addTenant = async (tenantData: { name: string; subscriptionTier?: s
     }
 };
 
-export const updateTenantFeatures = async (tenantId: string, features: Permission[], tier: SubscriptionTier, purchasedFrameworks?: string[]) => {
+export const updateTenantFeatures = async (tenantId: string, features: Permission[], tier: SubscriptionTier, purchasedFrameworks?: string[], agentCapabilities?: string[]) => {
     try {
         const res = await authFetch(`${API_BASE}/tenants/${tenantId}`, {
             method: 'PATCH',
@@ -2435,6 +2435,7 @@ export const updateTenantFeatures = async (tenantId: string, features: Permissio
                 enabledFeatures: features,
                 subscriptionTier: tier,
                 ...(purchasedFrameworks ? { purchasedFrameworks } : {}),
+                ...(agentCapabilities ? { agentCapabilities } : {}),
             })
         });
 

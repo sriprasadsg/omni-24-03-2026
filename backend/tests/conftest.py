@@ -31,6 +31,22 @@ def _tenant_features_all_on(request, monkeypatch):
 
     monkeypatch.setattr(tenant_features, "enabled_features", _all_on)
 
+
+@pytest.fixture(autouse=True)
+def _agent_capabilities_all_on(request, monkeypatch):
+    """Tests written before per-tenant agent capabilities fake tenants without an
+    agentCapabilities list; give them a tenant whose agents may use everything. Tests of the
+    capability rule carry the ``real_agent_capabilities`` marker (test_agent_capabilities.py)."""
+    if request.node.get_closest_marker("real_agent_capabilities"):
+        return
+    import agent_capabilities
+
+    async def _everything(db, tenant_id):
+        return agent_capabilities.CAPABILITY_IDS
+
+    monkeypatch.setattr(agent_capabilities, "allowed", lambda tenant: agent_capabilities.CAPABILITY_IDS)
+    monkeypatch.setattr(agent_capabilities, "allowed_for", _everything)
+
 # Process-global sentinel recording whether AI_ROUTER_URL was set in the REAL
 # shell environment when pytest started. Several Phase 39 eval test modules
 # transitively import `database.py`, whose module-level `load_dotenv()` leaks

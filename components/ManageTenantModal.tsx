@@ -8,12 +8,13 @@ import { TenantLicensePanel } from './TenantLicensePanel';
 import { TenantEnrollmentKeysPanel } from './TenantEnrollmentKeysPanel';
 import { TenantAllowlistPanel } from './TenantAllowlistPanel';
 import featureSwitches from '../shared/tenant-feature-switches.json';
+import agentCapabilityCatalogue from '../shared/agent-capabilities.json';
 
 interface ManageTenantModalProps {
   isOpen: boolean;
   onClose: () => void;
   tenant: Tenant | null;
-  onSave: (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier, purchasedFrameworks: string[] }) => void;
+  onSave: (tenantId: string, updates: { features: Permission[], tier: SubscriptionTier, purchasedFrameworks: string[], agentCapabilities: string[] }) => void;
   onDelete: (tenantId: string) => void;
 }
 
@@ -24,6 +25,30 @@ type FeatureSwitch = { permission: string; label: string; parent?: string };
 const permissionGroups: { name: string; features: FeatureSwitch[] }[] = featureSwitches.groups;
 const switchByPermission = new Map(permissionGroups.flatMap(g => g.features).map(f => [f.permission, f]));
 const allToggleableFeatures = [...switchByPermission.keys()];
+// "screen:<view>" switches: one sidebar item each (backend tenant_features.SCREEN_SWITCHES).
+const screenSwitches = allToggleableFeatures.filter(p => p.startsWith('screen:'));
+
+/** `features` plus every screen with no parent or whose parent is in it (backend with_all_screens). */
+function withAllScreens(features: Iterable<string>): Set<string> {
+  const next = new Set(features);
+  for (const screen of screenSwitches) {
+    const parent = switchByPermission.get(screen)?.parent;
+    if (!parent || next.has(parent)) next.add(screen);
+  }
+  return next;
+}
+
+// Agent capabilities a tenant's agents may use (backend agent_capabilities.py reads the same list).
+type AgentCapabilityEntry = { id: string; label: string; description: string; alwaysOn?: boolean };
+const agentCapabilityGroups: { name: string; capabilities: AgentCapabilityEntry[] }[] = agentCapabilityCatalogue.groups;
+const allAgentCapabilities = agentCapabilityGroups.flatMap(g => g.capabilities);
+const alwaysOnCapabilities = allAgentCapabilities.filter(c => c.alwaysOn).map(c => c.id);
+
+/** What the tenant's agents may use now: "all" is every capability, no list only the always-on ones. */
+function tenantAgentCapabilities(stored?: string[]): Set<string> {
+  if (stored?.includes('all')) return new Set(allAgentCapabilities.map(c => c.id));
+  return new Set([...(stored ?? []), ...alwaysOnCapabilities]);
+}
 
 export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, onClose, tenant, onSave, onDelete }) => {
   const [enabledFeatures, setEnabledFeatures] = useState<Set<string>>(new Set());
@@ -33,12 +58,14 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
   // failed price fetch can never clear them on save.
   const [purchased, setPurchased] = useState<Set<string>>(new Set());
   const [frameworkQuery, setFrameworkQuery] = useState('');
+  const [agentCaps, setAgentCaps] = useState<Set<string>>(new Set(alwaysOnCapabilities));
 
   useEffect(() => {
     if (tenant) {
       setEnabledFeatures(new Set(tenant.enabledFeatures || []));
       setCurrentTier(tenant.subscriptionTier);
       setPurchased(new Set(tenant.purchasedFrameworks || []));
+      setAgentCaps(tenantAgentCapabilities(tenant.agentCapabilities));
     }
   }, [tenant]);
 
@@ -89,6 +116,8 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
         newSet.delete(feature);
       } else {
         newSet.add(feature);
+        // Switching a feature on shows all its screens; untick the ones the tenant should not see.
+        screenSwitches.filter(screen => switchByPermission.get(screen)?.parent === feature).forEach(screen => newSet.add(screen));
       }
       return newSet;
     });
@@ -112,9 +141,10 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
     setCurrentTier(newTier);
     if (newTier !== 'Custom') {
       const tierPermissions = SUBSCRIPTION_TIERS[newTier as Exclude<SubscriptionTier, 'Custom'>].permissions;
-      // Preserve existing service selections when switching tier base
+      // Preserve existing service selections when switching tier base; the tier's features come
+      // with all their screens (tier lists name no screens, so they would otherwise all go off).
       const currentServices = Array.from(enabledFeatures).filter(f => (f as string).startsWith('service:'));
-      setEnabledFeatures(new Set([...tierPermissions, ...currentServices]));
+      setEnabledFeatures(withAllScreens([...tierPermissions, ...currentServices]));
     }
   };
 
@@ -123,7 +153,10 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
       const finalFeatures = new Set(enabledFeatures);
       finalFeatures.add('view:dashboard');
       // cast to Permission[] assuming backend accepts string[], verify Permission type if strict
-      onSave(tenant.id, { features: Array.from(finalFeatures) as Permission[], tier: currentTier, purchasedFrameworks: Array.from(purchased) });
+      onSave(tenant.id, {
+        features: Array.from(finalFeatures) as Permission[], tier: currentTier,
+        purchasedFrameworks: Array.from(purchased), agentCapabilities: Array.from(agentCaps),
+      });
     }
   };
 
@@ -148,6 +181,44 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
     if (next.has(frameworkId)) next.delete(frameworkId); else next.add(frameworkId);
     return next;
   });
+  const toggleAgentCapability = (id: string) => setAgentCaps(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const renderSwitch = (feature: FeatureSwitch, nested: boolean) => {
+    const parentOff = !!feature.parent && !enabledFeatures.has(feature.parent);
+    const parentLabel = feature.parent ? switchByPermission.get(feature.parent)?.label ?? feature.parent : '';
+    return (
+      <label key={feature.permission} className={`flex items-center space-x-3 ${parentOff ? 'opacity-50' : ''}`}
+        title={parentOff ? `Needs ${parentLabel}` : undefined}>
+        <input
+          type="checkbox"
+          checked={enabledFeatures.has(feature.permission) && !parentOff}
+          disabled={parentOff}
+          onChange={() => handleFeatureToggle(feature.permission)}
+          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+        />
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          {feature.label}
+          {feature.parent && !nested && <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">(needs {parentLabel})</span>}
+        </span>
+      </label>
+    );
+  };
+  // A switch with the switches under it in the same group, indented one level per generation.
+  const renderBranch = (feature: FeatureSwitch, siblings: FeatureSwitch[], nested: boolean): React.ReactNode => {
+    const children = siblings.filter(f => f.parent === feature.permission);
+    if (children.length === 0) return renderSwitch(feature, nested);
+    return (
+      <div key={feature.permission} className="sm:col-span-2 space-y-1">
+        {renderSwitch(feature, nested)}
+        <div className="ml-6 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+          {children.map(child => renderBranch(child, siblings, true))}
+        </div>
+      </div>
+    );
+  };
 
   const footer = (
     <>
@@ -274,10 +345,48 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
               </div>
             </div>
 
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-1">Agent Capabilities</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Tick what this tenant's agents may do. For an unticked capability the platform keeps none of its data,
+                sends its agents no instruction that needs it, and the tenant's users do not see it.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <button type="button" onClick={() => setAgentCaps(new Set(allAgentCapabilities.map(c => c.id)))}
+                  className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200">Select all</button>
+                <button type="button" onClick={() => setAgentCaps(new Set(alwaysOnCapabilities))}
+                  className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200">Clear</button>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300" aria-live="polite">
+                  {agentCaps.size} of {allAgentCapabilities.length} selected
+                </span>
+              </div>
+              <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 max-h-72 overflow-y-auto">
+                {agentCapabilityGroups.map(group => (
+                  <div key={group.name} role="group" aria-label={`Agent capabilities: ${group.name}`}>
+                    <h4 className="font-semibold text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{group.name}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                      {group.capabilities.map(cap => (
+                        <label key={cap.id} className="flex items-start space-x-3" title={cap.alwaysOn ? 'Always on: the platform keeps agents up to date' : cap.description}>
+                          <input
+                            type="checkbox"
+                            checked={cap.alwaysOn || agentCaps.has(cap.id)}
+                            disabled={cap.alwaysOn}
+                            onChange={() => toggleAgentCapability(cap.id)}
+                            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{cap.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Standard Features</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              Switched-off features are removed for everyone in this tenant, in the menu and in the API, within 30 seconds.
-              Only Overview, Tickets, AI Assistant, My Tasks and Notification Prefs follow the user's role alone.
+              Every sidebar item this tenant's users can reach is listed. Unticked items are removed for everyone in this
+              tenant, in the menu and in the API, within 30 seconds. An indented item is one screen of the feature above it.
             </p>
             <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md border border-gray-200 dark:border-gray-600">
               <label className="flex items-center space-x-3 font-semibold">
@@ -296,22 +405,9 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
                 <div key={group.name} role="group" aria-labelledby={`group-label-${group.name}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                   <h4 id={`group-label-${group.name}`} className="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-2">{group.name}</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                    {group.features.map(feature => {
-                      const parentOff = !!feature.parent && !enabledFeatures.has(feature.parent);
-                      return (
-                        <label key={feature.permission} className={`flex items-center space-x-3 ${parentOff ? 'opacity-50' : ''}`}
-                          title={parentOff ? `Needs ${switchByPermission.get(feature.parent!)?.label ?? feature.parent}` : undefined}>
-                          <input
-                            type="checkbox"
-                            checked={enabledFeatures.has(feature.permission) && !parentOff}
-                            disabled={parentOff}
-                            onChange={() => handleFeatureToggle(feature.permission)}
-                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                          />
-                          <span className="text-sm text-gray-600 dark:text-gray-400">{feature.label}</span>
-                        </label>
-                      );
-                    })}
+                    {group.features
+                      .filter(f => !f.parent || !group.features.some(p => p.permission === f.parent))
+                      .map(feature => renderBranch(feature, group.features, false))}
                   </div>
                 </div>
               ))}

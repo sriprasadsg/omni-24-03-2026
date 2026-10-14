@@ -19,6 +19,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, Depends
 
 from agent_auth import verify_agent_key
+import agent_capabilities
 from database import get_database
 
 logger = logging.getLogger("agent_security_scan_endpoints")
@@ -36,6 +37,7 @@ async def ingest_scan_result(
     agent_ctx=Depends(verify_agent_key),
 ):
     """Ingest a native scan verdict; raise a native alert on Malicious."""
+    agent_capabilities.assert_allowed(agent_ctx, "virustotal_scan")
     db = get_database()
     tenant_id = _tenant_of(agent_ctx)
     now = datetime.now(timezone.utc).isoformat()

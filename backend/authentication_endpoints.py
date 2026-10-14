@@ -51,6 +51,7 @@ import datetime
 import jwt
 import logging
 import tenant_features
+import agent_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +337,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "registrationKey": registration_key,
         "apiKeys": [],
         "enabledFeatures": tenant_features.with_all_screens(free_features),
+        "agentCapabilities": agent_capabilities.every_capability(),
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.tenants.insert_one(tenant_doc)

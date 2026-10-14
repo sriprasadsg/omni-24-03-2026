@@ -12,9 +12,12 @@ Rules, applied to every role except the platform roles (spec C1):
     the hidden read (catalogue guards accept ``manage:X`` for reads);
   * ``"all"`` in the list switches nothing off;
   * a missing tenant, a missing list or a failed lookup counts as an empty list: every
-    switch is off (fail closed). Permissions outside the catalogue are never removed; every
-    sidebar item a tenant role can reach has a switch except the view:dashboard and
-    view:profile ones (Overview, Tickets, AI Assistant, My Tasks, ...).
+    switch is off (fail closed). Permissions outside the catalogue are never removed.
+
+Every sidebar item a tenant role can reach has a switch of its own: its permission's switch
+when no other item shares that permission, else a ``screen:<view>`` switch. A screen switch
+needs the permission the item's manifest entry names; its optional parent is the switch it
+sits under in Manage Tenant.
 """
 from __future__ import annotations
 
@@ -28,39 +31,63 @@ _CATALOGUE_PATH = Path(__file__).resolve().parent.parent / "shared" / "tenant-fe
 ALL_FEATURES = "all"
 
 
-def _load_parents(path: Path = _CATALOGUE_PATH) -> Dict[str, Optional[str]]:
-    """``{permission: parent permission or None}`` for every switch in the catalogue."""
+_MANIFEST_PATH = _CATALOGUE_PATH.parent / "catalogue-access.json"
+SCREEN_PREFIX = "screen:"
+
+
+def _load_switches(path: Path = _CATALOGUE_PATH) -> List[Dict[str, Any]]:
+    """Every switch entry in the catalogue, checked: unique permissions, known parents."""
     with open(path, encoding="utf-8") as handle:
         catalogue = json.load(handle)
-    parents: Dict[str, Optional[str]] = {}
-    for group in catalogue["groups"]:
-        for feature in group["features"]:
-            perm = feature["permission"]
-            if perm in parents:
-                raise ValueError(f"duplicate feature switch {perm!r} in {path.name}")
-            parents[perm] = feature.get("parent")
-    for perm, parent in parents.items():
-        if parent is not None and parent not in parents:
-            raise ValueError(f"feature switch {perm!r} names unknown parent {parent!r}")
-    return parents
+    features = [feature for group in catalogue["groups"] for feature in group["features"]]
+    seen = set()
+    for feature in features:
+        if feature["permission"] in seen:
+            raise ValueError(f"duplicate feature switch {feature['permission']!r} in {path.name}")
+        seen.add(feature["permission"])
+    for feature in features:
+        if feature.get("parent") is not None and feature["parent"] not in seen:
+            raise ValueError(f"feature switch {feature['permission']!r} names unknown parent {feature['parent']!r}")
+    return features
 
 
-SWITCH_PARENTS: Dict[str, Optional[str]] = _load_parents()
+def _load_manifest(path: Path = _MANIFEST_PATH) -> Dict[str, Any]:
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+_SWITCHES = _load_switches()
+_MANIFEST = _load_manifest()
+SWITCH_PARENTS: Dict[str, Optional[str]] = {f["permission"]: f.get("parent") for f in _SWITCHES}
 SWITCHABLE: FrozenSet[str] = frozenset(SWITCH_PARENTS)
 # Resources whose every permission goes with an off view:X switch.
 _VIEW_RESOURCES: FrozenSet[str] = frozenset(p[len("view:"):] for p in SWITCHABLE if p.startswith("view:"))
 
-# Per-screen switches ("screen:<view>") for screens that share one permission (the Security,
-# Compliance and System Settings screens): {view: the permission its parent switch grants}.
-SCREEN_PREFIX = "screen:"
-SCREEN_SWITCHES: Dict[str, str] = {p[len(SCREEN_PREFIX):]: parent for p, parent in SWITCH_PARENTS.items()
-                                   if p.startswith(SCREEN_PREFIX) and parent}
+
+def _screen_switches() -> Dict[str, str]:
+    """``{view: the permission its manifest entry needs}`` for every "screen:<view>" switch."""
+    needs = {entry["view"]: entry["permission"] for entry in _MANIFEST["catalogues"]}
+    screens = {}
+    for perm in SWITCH_PARENTS:
+        if perm.startswith(SCREEN_PREFIX):
+            view = perm[len(SCREEN_PREFIX):]
+            if view not in needs:
+                raise ValueError(f"screen switch {perm!r} names no catalogue view")
+            screens[view] = needs[view]
+    return screens
 
 
-def _route_owners(path: Path = _CATALOGUE_PATH.parent / "catalogue-access.json") -> List[tuple]:
+# Per-screen switches ("screen:<view>"): one sidebar item whose permission other items share,
+# or that no permission switch covers (Overview, Tickets, My Tasks ...).
+SCREEN_SWITCHES: Dict[str, str] = _screen_switches()
+# Screens the sidebar hides when off but whose routes stay open: other screens call them too.
+HIDE_ONLY_SCREENS: FrozenSet[str] = frozenset(
+    f["permission"][len(SCREEN_PREFIX):] for f in _SWITCHES
+    if f["permission"].startswith(SCREEN_PREFIX) and f.get("hideOnly"))
+
+
+def _route_owners(manifest: Dict[str, Any] = _MANIFEST) -> List[tuple]:
     """(route prefix, owning view) from the sidebar manifest, longest prefix first."""
-    with open(path, encoding="utf-8") as handle:
-        manifest = json.load(handle)
     owners = [(prefix, entry["view"]) for entry in manifest["catalogues"] for prefix in entry.get("routes") or []]
     return sorted(owners, key=lambda item: -len(item[0]))
 
@@ -101,37 +128,40 @@ SCREEN_OFF_PREFIX = "screen-off:"
 
 
 def screen_permissions(perms: Iterable[str], enabled: Optional[Iterable[str]]) -> List[str]:
-    """``screen:<view>`` for every switched screen whose parent permission is in ``perms`` and whose
+    """``screen:<view>`` for every switched screen whose needed permission is in ``perms`` and whose
     switch (and parent switch) is on: what the route middleware checks."""
     held, off = set(perms), switched_off(enabled)
-    return [f"{SCREEN_PREFIX}{view}" for view, parent in SCREEN_SWITCHES.items()
-            if parent in held and f"{SCREEN_PREFIX}{view}" not in off]
+    return [f"{SCREEN_PREFIX}{view}" for view, needs in SCREEN_SWITCHES.items()
+            if needs in held and f"{SCREEN_PREFIX}{view}" not in off]
 
 
 def hidden_screens(perms: Iterable[str], enabled: Optional[Iterable[str]]) -> List[str]:
-    """``screen-off:<view>`` for every switched screen the user would otherwise reach (its parent
+    """``screen-off:<view>`` for every switched screen the user would otherwise reach (its needed
     permission is held) but that is switched off; delivered with the permissions so the UI hides
     it. A tenant with every screen on gets no markers, so its list is the role's permissions."""
     held, on = set(perms), set(screen_permissions(perms, enabled))
-    return [f"{SCREEN_OFF_PREFIX}{view}" for view, parent in SCREEN_SWITCHES.items()
-            if parent in held and f"{SCREEN_PREFIX}{view}" not in on]
+    return [f"{SCREEN_OFF_PREFIX}{view}" for view, needs in SCREEN_SWITCHES.items()
+            if needs in held and f"{SCREEN_PREFIX}{view}" not in on]
 
 
 def screen_of(path: str) -> Optional[str]:
-    """The switched screen that owns ``path`` (longest manifest route prefix), if any."""
+    """The switched screen that owns ``path`` (longest manifest route prefix), if its switch
+    guards routes (hide-only screens do not)."""
     for prefix, view in _ROUTE_OWNERS:
         if path == prefix or path.startswith(prefix + "/"):
-            return view if view in SCREEN_SWITCHES else None
+            return view if view in SCREEN_SWITCHES and view not in HIDE_ONLY_SCREENS else None
     return None
 
 
 def with_all_screens(features: Iterable[str]) -> List[str]:
-    """``features`` plus every screen switch whose parent switch is in it (new tenants and the
-    migration that introduced screen switches keep every screen of a feature they have)."""
+    """``features`` plus every screen switch that has no parent or whose parent switch is in it
+    (new tenants, and the migrations that introduced screen switches, keep every screen of a
+    feature they have)."""
     features = list(features)
     have = set(features)
-    return features + [f"{SCREEN_PREFIX}{view}" for view, parent in SCREEN_SWITCHES.items()
-                       if parent in have and f"{SCREEN_PREFIX}{view}" not in have]
+    screens = [f"{SCREEN_PREFIX}{view}" for view in SCREEN_SWITCHES]
+    return features + [s for s in screens
+                       if s not in have and (SWITCH_PARENTS[s] is None or SWITCH_PARENTS[s] in have)]
 
 
 def applies_to(role: Optional[str]) -> bool:

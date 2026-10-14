@@ -93,11 +93,15 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     }
     log::info!("Capabilities loaded: {}", cap_mgr.ids().join(", "));
 
-    // FIM setup
-    crate::capabilities::fim_baseline::check_drift_on_start(&cfg.fim_paths, &crate::capabilities::fim_baseline::baseline_dir());
+    // FIM setup, unless the platform has switched FIM off for this agent's tenant (the
+    // selection last received; a change takes effect for the watcher at the next start).
+    let fim_enabled = crate::capabilities::is_enabled(cfg.enabled_capabilities.as_deref(), "fim");
+    if fim_enabled {
+        crate::capabilities::fim_baseline::check_drift_on_start(&cfg.fim_paths, &crate::capabilities::fim_baseline::baseline_dir());
+    }
 
     // FIM watcher + drift check + background drain
-    if let Some(ref stop_rx_clone) = stop_rx {
+    if let Some(stop_rx_clone) = stop_rx.as_ref().filter(|_| fim_enabled) {
         let watcher_stop = stop_rx_clone.clone();
         if let Err(e) = crate::capabilities::fim::start_watcher(cfg.fim_paths.clone(), watcher_stop) {
             log::warn!("FIM watcher start failed: {e}");
@@ -200,6 +204,7 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
         let payload = heartbeat::build_payload(&cfg, &sys, &cap_mgr);
         if let Some(body) = heartbeat::send(&cfg, payload, &buf, &client).await {
             uninstall::update_from_heartbeat(&mut cfg, &body);
+            crate::capabilities::update_enabled_from_heartbeat(&mut cfg, &body);
         }
         if registration::admission() != registration::Admission::Admitted {
             // This beat was answered "pending" or "rejected": tell the tray, and

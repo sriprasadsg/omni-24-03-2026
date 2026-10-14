@@ -35,11 +35,16 @@ export const AgentCapabilitiesDashboard: React.FC = () => {
             setError(null);
             const data = await apiFetchAgents();
 
-            // If capabilities aren't directly on the agent root, extract them
-            const mappedAgents = data.map((a: any) => ({
-                ...a,
-                capabilities: a.capabilities || (a.meta && a.meta.capabilities) || []
-            }));
+            // If capabilities aren't directly on the agent root, extract them; list only the ones the
+            // agent's tenant may use (Super Admin, Manage Tenant).
+            const mappedAgents = data.map((a: any) => {
+                const caps = a.capabilities || (a.meta && a.meta.capabilities) || [];
+                const allowed: string[] | undefined = a.allowedCapabilities;
+                return {
+                    ...a,
+                    capabilities: allowed ? caps.filter((c: any) => allowed.includes(typeof c === 'string' ? c : c.id)) : caps,
+                };
+            });
 
             setAgents(mappedAgents);
         } catch (err: any) {

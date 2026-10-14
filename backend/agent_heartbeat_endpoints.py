@@ -17,6 +17,7 @@ from ueba_service import persist_security_alert
 from agent_uninstall_endpoints import heartbeat_uninstall_protection
 import licensing
 import pending_agents
+import agent_capabilities
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
@@ -133,6 +134,10 @@ async def report_heartbeat(
             raise HTTPException(status_code=403, detail="Hardware ID mismatch. This session has been blocked.")
         if not stored_device_id and incoming_device_id:
             await db.agents.update_one(_hb_agent_filter, {"$set": {"deviceId": incoming_device_id}})
+
+    # Data of a capability the tenant's agents may not use is dropped before anything is stored.
+    permitted_caps = agent_capabilities.allowed(_hb_tenant)
+    agent_capabilities.strip_heartbeat(payload, permitted_caps)
 
     update_data: Dict[str, Any] = {
         "status": "Online",
@@ -522,4 +527,5 @@ async def report_heartbeat(
             logger.error("ERROR processing task feedback: %s", fb_err)
 
     # Verification data for the agent's uninstallers (see agent_uninstall_endpoints).
-    return {"success": True, "uninstall_protection": await heartbeat_uninstall_protection(db, _hb_agent_filter)}
+    return {"success": True, "uninstall_protection": await heartbeat_uninstall_protection(db, _hb_agent_filter),
+            "enabledCapabilities": sorted(permitted_caps)}

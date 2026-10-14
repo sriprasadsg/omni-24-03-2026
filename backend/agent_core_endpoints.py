@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 from cache_service import cached
 from pagination_utils import paginate_mongo_query, PaginationParams
 from agent_auth import verify_agent_key
+import agent_capabilities
 from rate_limiter import limiter
 import json
 import logging
@@ -127,8 +128,12 @@ async def get_agents(
     result = await paginate_mongo_query(collection, query, pagination, sort={"lastSeen": -1}, projection={"_id": 0})
     agents = result.get("items", [])
     current_time = datetime.now(timezone.utc)
+    # What each agent's tenant lets its agents use: the capability screens show only these.
+    tenant_caps = {tid: sorted(await agent_capabilities.allowed_for(db, tid))
+                   for tid in {agent.get("tenantId") for agent in agents}}
 
     for agent in agents:
+        agent["allowedCapabilities"] = tenant_caps[agent.get("tenantId")]
         if "meta" not in agent:
             agent["meta"] = {}
 
@@ -333,6 +338,10 @@ async def get_agent_configuration(agent_id: str, _tenant: Dict[str, Any] = Depen
         raise HTTPException(status_code=404, detail="Agent not found")
 
     capabilities = agent["capabilities"] if "capabilities" in agent else _DEFAULT_CAPABILITIES
+    # Only what the tenant's agents may use (agent_capabilities); names outside the catalogue pass.
+    permitted = agent_capabilities.allowed(_tenant)
+    capabilities = [c for c in capabilities if not isinstance(c, str)
+                    or c not in agent_capabilities.CAPABILITY_IDS or c in permitted]
     intervals = agent.get("collectionIntervals", _DEFAULT_INTERVALS)
     return {"enabledCapabilities": capabilities, "collectionIntervals": intervals}
 

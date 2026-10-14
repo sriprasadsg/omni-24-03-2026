@@ -115,7 +115,7 @@ def test_a_broken_switch_catalogue_stops_startup(tmp_path, features, error):
     path = tmp_path / "switches.json"
     path.write_text(json.dumps({"groups": [{"name": "G", "features": features}]}))
     with pytest.raises(ValueError, match=error):
-        tf._load_parents(path)
+        tf._load_switches(path)
 
 
 # ── The resolver ──────────────────────────────────────────────────────────────
@@ -134,7 +134,8 @@ async def test_a_tenant_role_document_is_narrowed_too():
     fails_when=a role doc's view:security survives the switch; no_claim=none beyond protects."""
     db = _db(tenants=[_tenant(["view:agents"])],
              roles=[{"name": "Helpdesk", "tenantId": "tenant-a", "permissions": ["view:security", "view:agents"]}])
-    assert await rbac_service.granted_permissions(db, "Helpdesk", "tenant-a") == ["view:agents"]
+    granted = await rbac_service.granted_permissions(db, "Helpdesk", "tenant-a")
+    assert [p for p in granted if not p.startswith(tf.SCREEN_OFF_PREFIX)] == ["view:agents"]
 
 
 @pytest.mark.parametrize("role,expected", [("Super Admin", ["*"]), ("Platform Support", None)])
@@ -285,7 +286,9 @@ def test_screen_switch_rule():
     assert "screen:edr" in tf.screen_permissions(["view:security"], ["all"])
     assert (tf.screen_of("/api/edr/hosts"), tf.screen_of("/api/edr"), tf.screen_of("/api/agents")) == ("edr", "edr", None)
     assert set(tf.with_all_screens(["view:security"])) >= {"screen:edr", "screen:alertManagement"}
-    assert not any(s.startswith("screen:") for s in tf.with_all_screens(["view:agents"]))
+    fleet = set(tf.with_all_screens(["view:agents"]))
+    assert {"screen:agents", "screen:chat", "screen:dashboard", "screen:internalTickets"} <= fleet
+    assert not fleet & {"screen:edr", "screen:reporting"}                         # their parents are absent
 
 
 async def test_granted_permissions_mark_the_switched_off_screens():
@@ -357,7 +360,7 @@ async def test_migration_017_keeps_every_screen_a_tenant_already_had(mongo_db):
     await migration.up(mongo_db)
     features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
     assert {"screen:edr", "screen:alertManagement"} <= set(features["sec"]) and len(features["sec"]) == len(set(features["sec"]))
-    assert features["none"] == ["view:agents"]
+    assert not {"screen:edr", "screen:alertManagement"} & set(features["none"])
 
 
 def test_settings_screens_are_switched_one_by_one():
@@ -382,4 +385,4 @@ async def test_migration_018_keeps_every_settings_screen(mongo_db):
     await importlib.import_module("migrations.018_settings_screen_switches").up(mongo_db)
     features = {t["id"]: set(t["enabledFeatures"]) async for t in mongo_db.tenants.find({}, {"_id": 0})}
     assert {"screen:pam", "screen:settings", "screen:invoices"} <= features["s"]
-    assert features["n"] == {"view:agents"}
+    assert not {"screen:pam", "screen:settings", "screen:invoices"} & features["n"]

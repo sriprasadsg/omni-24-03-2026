@@ -7,6 +7,8 @@ from rbac_utils import require_permission
 from rbac_utils import can_read_all_tenants, has_platform_permission, is_super_admin
 import compliance_purchases
 import tenant_features
+import agent_capabilities
+from cache_service import invalidate_cache
 import license_rules
 import licensing
 from rate_limiter import limiter
@@ -112,6 +114,7 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
         "registrationKey": registration_key,
         # A new tenant gets every Security/Compliance screen of the features it starts with (spec C6).
         "enabledFeatures": tenant_features.with_all_screens(data.enabledFeatures),
+        "agentCapabilities": agent_capabilities.every_capability(),
         "notificationPreferences": data.notificationPreferences,
         "emailConfig": {},
         "maxAgents": data.maxAgents,
@@ -180,6 +183,8 @@ class TenantUpdate(BaseModel):
     # Catalogue compliance frameworks the tenant purchased (billed monthly; only these are
     # visible to the tenant's users). Super Admin only.
     purchasedFrameworks: List[str] | None = Field(None, max_length=500)
+    # Agent capabilities the tenant's agents may use (shared/agent-capabilities.json). Super Admin only.
+    agentCapabilities: List[str] | None = Field(None, max_length=200)
 
 
 @router.patch("/{tenant_id}")
@@ -199,10 +204,11 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
 
         # Subscription tier, feature flags and purchased frameworks are billing-controlled —
         # only super admin may change them
-        if data.subscriptionTier is not None or data.enabledFeatures is not None or data.purchasedFrameworks is not None:
+        if (data.subscriptionTier is not None or data.enabledFeatures is not None
+                or data.purchasedFrameworks is not None or data.agentCapabilities is not None):
             raise HTTPException(
                 status_code=403,
-                detail="Subscription tier, feature and compliance framework changes require Super Admin. Contact support to upgrade.",
+                detail="Subscription tier, feature, compliance framework and agent capability changes require Super Admin. Contact support to upgrade.",
             )
              
     
@@ -228,6 +234,12 @@ async def update_tenant(tenant_id: str, data: TenantUpdate, current_user =Depend
                 mongodb.db, data.purchasedFrameworks)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+    if data.agentCapabilities is not None:
+        try:
+            update_data["agentCapabilities"] = agent_capabilities.validate(data.agentCapabilities)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        invalidate_cache("agents:*")  # agent lists carry each tenant's allowed capabilities
     
     result = await mongodb.db.tenants.update_one(
         {"id": tenant_id},

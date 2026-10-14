@@ -84,3 +84,48 @@ describe('ManageTenantModal compliance frameworks', () => {
     expect(onSave.mock.calls[0][1].purchasedFrameworks).toEqual(['soc2']);
   });
 });
+
+describe('ManageTenantModal sidebar screens', () => {
+  it('switching a feature on ticks each of its screens, which can then be unticked one by one', () => {
+    const onSave = vi.fn();
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={onSave} onDelete={() => {}} />);
+    expect(switchBox('Deployment Approvals').disabled).toBe(true);
+    fireEvent.click(switchBox('Patch Management'));
+    expect(switchBox('Deployment Approvals').checked).toBe(true);
+    fireEvent.click(switchBox('Deployment Approvals'));
+    fireEvent.click(screen.getByText('Save Changes'));
+    const saved = onSave.mock.calls[0][1].features as string[];
+    expect(saved).toEqual(expect.arrayContaining(['view:patching', 'screen:patchManagement']));
+    expect(saved).not.toContain('screen:deploymentApprovals');
+  });
+
+  it('choosing a tier keeps the screens of its features on', () => {
+    const onSave = vi.fn();
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={onSave} onDelete={() => {}} />);
+    fireEvent.change(screen.getByDisplayValue('Custom'), { target: { value: 'Pro' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+    const saved = onSave.mock.calls[0][1].features as string[];
+    expect(saved).toEqual(expect.arrayContaining(['view:security', 'screen:edr', 'screen:reporting', 'screen:dashboard']));
+  });
+});
+
+describe('ManageTenantModal agent capabilities', () => {
+  it('shows what the tenant has, keeps self-update on, and saves the ticked capabilities', () => {
+    const onSave = vi.fn();
+    const chosen = { ...tenant, agentCapabilities: ['fim', 'agent_update'] } as Tenant;
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={chosen} onSave={onSave} onDelete={() => {}} />);
+    expect(switchBox('File Integrity Monitoring').checked).toBe(true);
+    expect(switchBox('PII Data Scanner').checked).toBe(false);
+    expect(switchBox('Agent Self-Update')).toMatchObject({ checked: true, disabled: true });
+    fireEvent.click(switchBox('PII Data Scanner'));
+    fireEvent.click(switchBox('File Integrity Monitoring'));
+    fireEvent.click(screen.getByText('Save Changes'));
+    expect(onSave.mock.calls[0][1].agentCapabilities.sort()).toEqual(['agent_update', 'pii_scanner']);
+  });
+
+  it('a tenant without a list shows only the always-on capability ticked', () => {
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={() => {}} onDelete={() => {}} />);
+    expect(switchBox('Autonomous Patching').checked).toBe(false);
+    expect(switchBox('Agent Self-Update').checked).toBe(true);
+  });
+});

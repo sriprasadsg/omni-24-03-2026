@@ -7,6 +7,7 @@ import asyncio
 import uuid
 from agent_auth import verify_agent_key
 import logging
+import agent_capabilities
 from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -42,6 +43,7 @@ async def ingest_fim_event(
 ):
     """Receive FIM events via HTTP. Accepts a single event or a batch
     ({"changes": [...]}); created/modified file hashes are enriched via VirusTotal."""
+    agent_capabilities.assert_allowed(_auth, "fim")
     tenant_id = _auth.get("id") or _auth.get("tenant_id") or ""
     received_at = datetime.now(timezone.utc).isoformat()
 
@@ -127,6 +129,7 @@ async def post_shadow_ai_scan(
     _tenant: Dict[str, Any] = Depends(verify_agent_key),
 ):
     """Agent posts Shadow AI detection results (local AI processes, ports, cloud connections)."""
+    agent_capabilities.assert_allowed(_tenant, "shadow_ai")
     db = get_database()
     tenant_id = _tenant.get("id") or None
     if not tenant_id:
@@ -201,6 +204,7 @@ async def post_vulnerability_scan(
     _tenant: Dict[str, Any] = Depends(verify_agent_key),
 ):
     """Agent posts its latest vulnerability scan results (OSV-backed)."""
+    agent_capabilities.assert_allowed(_tenant, "vulnerability_scanning")
     db = get_database()
     tenant_id = _tenant.get("id") or None
     if not tenant_id:
@@ -352,6 +356,7 @@ async def post_persistence_findings(
     _tenant: Dict[str, Any] = Depends(verify_agent_key),
 ):
     """Agent posts persistence mechanism findings (registry, cron, startup entries)."""
+    agent_capabilities.assert_allowed(_tenant, "persistence_detection")
     db = get_database()
     tenant_id = _tenant.get("id") or None
     if not tenant_id:
