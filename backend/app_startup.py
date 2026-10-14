@@ -224,7 +224,7 @@ async def seed_database():
 
     Steps: migrations, super admin user, platform tenant, one step that mirrors
     rbac_defaults into the 13 shared role documents (each document written
-    independently), then the ITAM enabledFeatures backfill.
+    independently). The ITAM enabledFeatures backfill is migration 016.
 
     ARCH-018 (2026-08-25 audit): this used to be one try/except wrapping
     every seeding step below. A failure partway through silently aborted every
@@ -335,20 +335,8 @@ async def seed_database():
     except Exception as e:
         logger.error("[Seed] Built-in role seeding failed: %s", e)
 
-    try:
-        # Backfill: tenants provisioned before ITAM (Phase 56-61) never had
-        # view:itam/manage:itam written into their enabledFeatures — the
-        # frontend intersects a user's role permissions against their
-        # tenant's enabledFeatures (App.tsx), so a role grant alone doesn't
-        # surface the ITAM console for pre-existing tenants without this.
-        itam_backfill = await db.tenants.update_many(
-            {"enabledFeatures": {"$nin": ["manage:itam"]}},
-            {"$addToSet": {"enabledFeatures": {"$each": ["view:itam", "manage:itam"]}}},
-        )
-        if itam_backfill.modified_count:
-            logger.info(f"Backfilled view:itam/manage:itam onto {itam_backfill.modified_count} existing tenant(s)")
-    except Exception as e:
-        logger.error("[Seed] ITAM enabledFeatures backfill failed: %s", e)
+    # The ITAM enabledFeatures backfill is migration 016 (once): ITAM is a per-tenant feature
+    # switch, so re-adding it on every startup would undo a Super Admin switching it off.
 
 
 async def _prebuild_windows_agent() -> None:

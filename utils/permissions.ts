@@ -1,4 +1,16 @@
 import type { Permission, User } from '../types';
+import featureSwitches from '../shared/tenant-feature-switches.json';
+
+// The tenant feature switches (spec C6), as backend/tenant_features.is_switchable reads them:
+// a switch's own permission, or any permission on the resource of a view:X switch.
+const SWITCHABLE = new Set<string>(featureSwitches.groups.flatMap(g => g.features.map(f => f.permission)));
+const SWITCHED_VIEW_RESOURCES = new Set([...SWITCHABLE].filter(p => p.startsWith('view:')).map(p => p.slice('view:'.length)));
+
+/** True when a Super Admin's per-tenant feature switch decides whether a tenant user holds `permission`. */
+export function isTenantSwitchable(permission: string): boolean {
+  const colon = permission.indexOf(':');
+  return SWITCHABLE.has(permission) || (colon >= 0 && SWITCHED_VIEW_RESOURCES.has(permission.slice(colon + 1)));
+}
 
 /**
  * Mirrors the backend normalizer (rbac_defaults.normalize_role): lower-case, trim,

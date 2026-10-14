@@ -22,11 +22,12 @@ import tenant_features as tf
 from auth_types import TokenData
 from authentication_service import get_current_user
 from catalogue_guards import catalogue_guard
+from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
 pytestmark = pytest.mark.real_tenant_features
 
 TENANT_ADMIN_DEFAULTS = list(rbac_defaults.defaults_for("tenant_admin"))
-ALWAYS_ON = ["view:dashboard", "view:profile", "manage:users", "view:itam", "manage:itam"]
+ALWAYS_ON = ["view:dashboard", "view:profile", "manage:users"]
 
 
 class _Collection:
@@ -251,3 +252,18 @@ def test_the_real_app_refuses_a_switched_off_feature():
     ])
     assert assets_off == 403 and agents_off == 403
     assert assets_on != 403 and agents_on != 403
+
+
+async def test_the_itam_backfill_runs_once_as_a_migration(mongo_db):
+    """protects=migration 016 gives pre-ITAM tenants ITAM once, skips the platform tenant and tenants
+    already carrying it, and seeding no longer re-adds it (so a Super Admin can switch ITAM off);
+    fails_when=the platform tenant or an untouched tenant is changed; no_claim=the runner bookkeeping."""
+    import importlib
+    await mongo_db.tenants.insert_many([
+        {"id": "old", "enabledFeatures": ["view:agents"]},
+        {"id": "has", "enabledFeatures": ["view:itam", "manage:itam"]},
+        {"id": "platform-admin", "enabledFeatures": []}])
+    await importlib.import_module("migrations.016_itam_feature_backfill_once").up(mongo_db)
+    features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
+    assert set(features["old"]) == {"view:agents", "view:itam", "manage:itam"}
+    assert features["has"] == ["view:itam", "manage:itam"] and features["platform-admin"] == []

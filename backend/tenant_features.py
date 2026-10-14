@@ -12,7 +12,9 @@ Rules, applied to every role except the platform roles (spec C1):
     the hidden read (catalogue guards accept ``manage:X`` for reads);
   * ``"all"`` in the list switches nothing off;
   * a missing tenant, a missing list or a failed lookup counts as an empty list: every
-    switch is off (fail closed). Permissions outside the catalogue are never removed.
+    switch is off (fail closed). Permissions outside the catalogue are never removed; every
+    sidebar item a tenant role can reach has a switch except the view:dashboard and
+    view:profile ones (Overview, Tickets, AI Assistant, My Tasks, ...).
 """
 from __future__ import annotations
 

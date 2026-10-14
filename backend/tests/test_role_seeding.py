@@ -118,7 +118,9 @@ def test_seeding_without_tenant_context_still_writes_all_documents(monkeypatch):
     assert [d for d in raw.roles.docs if d.get("tenantId") == "tenant_x"] == [TENANT_VIEWER]
 
 
-def test_one_failed_document_does_not_stop_others_or_itam_backfill(monkeypatch, caplog):
+def test_one_failed_document_does_not_stop_others_and_seed_never_re_adds_itam(monkeypatch, caplog):
+    # ITAM is a per-tenant feature switch (spec C6); its one-time backfill is migration 016,
+    # so seeding must not re-enable it on every startup.
     db, raw = _seed_store()
     real = raw.roles.update_one
 
@@ -140,4 +142,4 @@ def test_one_failed_document_does_not_stop_others_or_itam_backfill(monkeypatch, 
         _run_seed(monkeypatch, db)
     assert {d["name"] for d in _shared(raw)} == SHARED_NAMES - {"Super Admin"}
     assert any("Super Admin" in r.getMessage() for r in caplog.records)
-    assert calls, "ITAM enabledFeatures backfill must still run"
+    assert not [f for f in calls if "enabledFeatures" in str(f)], "seeding must not re-add ITAM features"

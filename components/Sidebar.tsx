@@ -8,6 +8,7 @@ import { useUser } from '../contexts/UserContext';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { fetchSupportUnreadCount } from '../services/apiService';
 import { socketService } from '../services/socketService';
+import { isPlatformRoleName, isTenantSwitchable } from '../utils/permissions';
 
 // Tier precedence — matches backend TIER_ORDER
 const TIER_ORDER: Record<string, number> = { Free: 0, Pro: 1, Enterprise: 2, Custom: 3 };
@@ -223,6 +224,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
         const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin';
         const userTier: string = (currentUser as any)?.subscriptionTier || 'Free';
 
+        // Tenant users see only what the Super Admin switched on for their tenant (spec C6) and
+        // never an upgrade prompt: a plan-tier-gated item shows when its feature switch is on, and
+        // stays hidden when no switch covers it (the view:dashboard extras below the tenant's tier).
+        const isTenantUser = !isSuperAdmin && !isPlatformRoleName(currentUser?.role);
+        const tierLock = (item: { featureKey?: string; minTier?: string }): string | undefined => {
+            const serverMinTier = item.featureKey ? serverLockedFeatures[item.featureKey] : undefined;
+            const clientLocked = item.minTier && !tierMeetsMin(userTier, item.minTier);
+            return serverMinTier || (clientLocked ? item.minTier : undefined);
+        };
+
         return menuGroups
             .map(group => ({
                 ...group,
@@ -233,15 +244,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                         if (!hasPermission(item.permission)) return false;
                         // Bundle mode: hide items whose feature the tenant hasn't been assigned
                         if (isBundleMode && item.featureKey && !hasFeature(item.featureKey)) return false;
+                        if (isTenantUser && tierLock(item) && !isTenantSwitchable(item.permission)) return false;
                         return true;
                     })
-                    .map(item => {
-                        if (isSuperAdmin) return { ...item, locked: undefined };
-                        const serverMinTier = item.featureKey ? serverLockedFeatures[item.featureKey] : undefined;
-                        const clientLocked = item.minTier && !tierMeetsMin(userTier, item.minTier);
-                        const locked = serverMinTier || (clientLocked ? item.minTier : undefined);
-                        return { ...item, locked };
-                    }),
+                    .map(item => (isSuperAdmin || isTenantUser ? { ...item, locked: undefined } : { ...item, locked: tierLock(item) })),
             }))
             .filter(group => group.items.length > 0);
     }, [menuGroups, isViewingTenant, currentUser, hasPermission, serverLockedFeatures, isBundleMode, hasFeature]);

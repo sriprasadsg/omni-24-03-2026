@@ -1,82 +1,403 @@
 {
-  "version": 1,
-  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. Permissions not listed here are never switched, so profile, user management and ITAM always follow the role alone. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
+  "version": 2,
+  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has a switch except Overview, Tickets, AI Assistant, Digital Twin, 2027 Horizon (all view:dashboard), My Tasks and Notification Prefs (view:profile). For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. Read by backend/tenant_features.py and components/ManageTenantModal.tsx.",
   "groups": [
     {
-      "name": "General",
+      "name": "Dashboards & Insights",
       "features": [
-        { "permission": "view:reporting", "label": "Reporting & Analytics" },
-        { "permission": "export:reports", "label": "Export Reports", "parent": "view:reporting" }
-      ]
-    },
-    {
-      "name": "Administration",
-      "features": [
-        { "permission": "manage:settings", "label": "System Settings" },
-        { "permission": "manage:rbac", "label": "Role & Permission Management" },
-        { "permission": "manage:api_keys", "label": "API Key Management" },
-        { "permission": "view:finops", "label": "FinOps & Billing" }
-      ]
-    },
-    {
-      "name": "Security & Compliance",
-      "features": [
-        { "permission": "view:security", "label": "Security Operations" },
-        { "permission": "manage:security_cases", "label": "Manage Security Cases", "parent": "view:security" },
-        { "permission": "manage:security_playbooks", "label": "Manage SOAR Playbooks", "parent": "view:security" },
-        { "permission": "investigate:security", "label": "Threat Intelligence", "parent": "view:security" },
-        { "permission": "view:cloud_security", "label": "Cloud Security" },
-        { "permission": "view:patching", "label": "Patch Management" },
-        { "permission": "manage:patches", "label": "Deploy Patches", "parent": "view:patching" },
-        { "permission": "view:threat_hunting", "label": "Threat Hunting" },
-        { "permission": "view:compliance", "label": "Compliance Management" },
-        { "permission": "manage:compliance_evidence", "label": "Manage Compliance Evidence", "parent": "view:compliance" },
-        { "permission": "view:audit_log", "label": "Audit Log" }
+        {
+          "permission": "view:cxo_dashboard",
+          "label": "CXO Insights"
+        },
+        {
+          "permission": "view:reporting",
+          "label": "Reporting & Analytics"
+        },
+        {
+          "permission": "export:reports",
+          "label": "Export Reports",
+          "parent": "view:reporting"
+        },
+        {
+          "permission": "view:unified_ops",
+          "label": "Unified Future Ops"
+        },
+        {
+          "permission": "view:insights",
+          "label": "Proactive Insights"
+        },
+        {
+          "permission": "view:advanced_bi",
+          "label": "Advanced BI"
+        },
+        {
+          "permission": "view:sustainability",
+          "label": "Sustainability"
+        },
+        {
+          "permission": "view:integrations",
+          "label": "Integrations Hub"
+        }
       ]
     },
     {
       "name": "Observability",
       "features": [
-        { "permission": "view:agents", "label": "Agent Fleet Management" },
-        { "permission": "view:software_deployment", "label": "Software Deployment Hub" },
-        { "permission": "view:agent_logs", "label": "View Agent Logs", "parent": "view:agents" },
-        { "permission": "remediate:agents", "label": "Agent Remediation", "parent": "view:agents" },
-        { "permission": "view:assets", "label": "Asset Management" },
-        { "permission": "view:logs", "label": "Log Explorer" },
-        { "permission": "view:insights", "label": "Proactive Insights" },
-        { "permission": "view:tracing", "label": "Distributed Tracing" },
-        { "permission": "view:network", "label": "Network Observability" }
+        {
+          "permission": "view:tracing",
+          "label": "Distributed Tracing"
+        },
+        {
+          "permission": "view:logs",
+          "label": "Log Explorer"
+        },
+        {
+          "permission": "view:network",
+          "label": "Network Observability"
+        },
+        {
+          "permission": "view:web_monitoring",
+          "label": "Web Monitoring"
+        },
+        {
+          "permission": "view:analytics",
+          "label": "Streaming Analytics"
+        }
       ]
     },
     {
-      "name": "AI Governance",
+      "name": "Infrastructure & Assets",
       "features": [
-        { "permission": "view:ai_governance", "label": "AI Governance" },
-        { "permission": "manage:ai_risks", "label": "Manage AI Risks", "parent": "view:ai_governance" }
+        {
+          "permission": "view:agents",
+          "label": "Agent Fleet Management"
+        },
+        {
+          "permission": "view:agent_logs",
+          "label": "View Agent Logs",
+          "parent": "view:agents"
+        },
+        {
+          "permission": "remediate:agents",
+          "label": "Agent Remediation",
+          "parent": "view:agents"
+        },
+        {
+          "permission": "view:agent_capabilities",
+          "label": "Agent Capabilities"
+        },
+        {
+          "permission": "view:assets",
+          "label": "Asset Management"
+        },
+        {
+          "permission": "view:itam",
+          "label": "IT Asset Management"
+        },
+        {
+          "permission": "view:patching",
+          "label": "Patch Management"
+        },
+        {
+          "permission": "manage:patches",
+          "label": "Deploy Patches",
+          "parent": "view:patching"
+        },
+        {
+          "permission": "view:software_updates",
+          "label": "Software Updates"
+        },
+        {
+          "permission": "view:software_deployment",
+          "label": "Software Deployment Hub"
+        },
+        {
+          "permission": "view:autopilot",
+          "label": "Windows Autopilot"
+        },
+        {
+          "permission": "view:mdm",
+          "label": "Mobile Device Mgmt"
+        },
+        {
+          "permission": "view:mam",
+          "label": "App Management (MAM)"
+        },
+        {
+          "permission": "view:android_enterprise",
+          "label": "Android Enterprise"
+        },
+        {
+          "permission": "view:branch_sites",
+          "label": "Branch Sites"
+        },
+        {
+          "permission": "view:app_catalog",
+          "label": "App Catalog"
+        },
+        {
+          "permission": "view:asset_intelligence",
+          "label": "Asset Intelligence"
+        },
+        {
+          "permission": "view:device_config_profiles",
+          "label": "Config Profiles"
+        },
+        {
+          "permission": "view:firmware_drivers",
+          "label": "Firmware & Drivers"
+        },
+        {
+          "permission": "view:service_catalog",
+          "label": "Service Catalog (IDP)"
+        },
+        {
+          "permission": "view:remote_access",
+          "label": "Remote Access"
+        }
       ]
     },
     {
-      "name": "Automation",
+      "name": "Security (SecOps)",
       "features": [
-        { "permission": "view:automation", "label": "Automation Workflows" },
-        { "permission": "manage:automation", "label": "Manage Automations", "parent": "view:automation" }
+        {
+          "permission": "view:security",
+          "label": "Security Operations"
+        },
+        {
+          "permission": "manage:security_cases",
+          "label": "Manage Security Cases",
+          "parent": "view:security"
+        },
+        {
+          "permission": "manage:security_playbooks",
+          "label": "Manage SOAR Playbooks",
+          "parent": "view:security"
+        },
+        {
+          "permission": "view:mdr",
+          "label": "Managed Detection (MDR)"
+        },
+        {
+          "permission": "view:xdr",
+          "label": "Extended Detection (XDR)"
+        },
+        {
+          "permission": "view:cloud_security",
+          "label": "Cloud Security"
+        },
+        {
+          "permission": "view:threat_hunting",
+          "label": "Threat Hunting"
+        },
+        {
+          "permission": "view:threat_intel",
+          "label": "Threat Intelligence"
+        },
+        {
+          "permission": "investigate:security",
+          "label": "Incident Response",
+          "parent": "view:security"
+        },
+        {
+          "permission": "view:dspm",
+          "label": "Data Security (DSPM)"
+        },
+        {
+          "permission": "view:attack_path",
+          "label": "Attack Path Analysis"
+        },
+        {
+          "permission": "view:zero_trust",
+          "label": "Zero Trust & Quantum"
+        },
+        {
+          "permission": "view:vulnerabilities",
+          "label": "Vulnerabilities"
+        },
+        {
+          "permission": "view:persistence",
+          "label": "Persistence Detection"
+        },
+        {
+          "permission": "view:security_audit",
+          "label": "Security Audit"
+        },
+        {
+          "permission": "view:advanced_hunting",
+          "label": "Advanced KQL Hunting"
+        },
+        {
+          "permission": "view:detection_rules",
+          "label": "Detection Rules"
+        },
+        {
+          "permission": "view:connectors_hub",
+          "label": "Connectors Hub"
+        },
+        {
+          "permission": "view:security_copilot",
+          "label": "Security Copilot"
+        },
+        {
+          "permission": "view:attack_timeline",
+          "label": "Attack Timeline"
+        },
+        {
+          "permission": "view:geographic_map",
+          "label": "Geographic Map"
+        },
+        {
+          "permission": "view:sca",
+          "label": "SCA Assessment"
+        },
+        {
+          "permission": "view:agent_groups",
+          "label": "Agent Groups"
+        },
+        {
+          "permission": "view:config_drift",
+          "label": "Config Drift"
+        },
+        {
+          "permission": "view:fim",
+          "label": "FIM"
+        },
+        {
+          "permission": "view:active_response",
+          "label": "Active Response"
+        }
       ]
     },
     {
-      "name": "Developer Tools",
+      "name": "DevSecOps & Engineering",
       "features": [
-        { "permission": "view:devsecops", "label": "DevSecOps Dashboard" },
-        { "permission": "view:developer_hub", "label": "Developer Hub" }
+        {
+          "permission": "view:devsecops",
+          "label": "DevSecOps Dashboard"
+        },
+        {
+          "permission": "view:dora_metrics",
+          "label": "DORA Metrics"
+        },
+        {
+          "permission": "view:sbom",
+          "label": "SBOM"
+        },
+        {
+          "permission": "view:chaos",
+          "label": "Chaos Engineering"
+        },
+        {
+          "permission": "view:developer_hub",
+          "label": "Developer Hub"
+        },
+        {
+          "permission": "view:mlops",
+          "label": "MLOps / Model Monitoring"
+        },
+        {
+          "permission": "view:llmops",
+          "label": "LLMOps"
+        },
+        {
+          "permission": "view:automl",
+          "label": "AutoML"
+        },
+        {
+          "permission": "manage:experiments",
+          "label": "A/B Testing"
+        },
+        {
+          "permission": "view:xai",
+          "label": "AI Explainability"
+        }
       ]
     },
     {
-      "name": "Advanced Platform",
+      "name": "Governance & Compliance",
       "features": [
-        { "permission": "view:dspm", "label": "Data Security (DSPM)" },
-        { "permission": "view:attack_path", "label": "Attack Path Analysis" },
-        { "permission": "view:service_catalog", "label": "Service Catalog (IDP)" },
-        { "permission": "view:dora_metrics", "label": "DORA Metrics" },
-        { "permission": "view:chaos", "label": "Chaos Engineering" }
+        {
+          "permission": "view:compliance",
+          "label": "Compliance Management"
+        },
+        {
+          "permission": "manage:compliance_evidence",
+          "label": "Manage Compliance Evidence",
+          "parent": "view:compliance"
+        },
+        {
+          "permission": "view:ai_governance",
+          "label": "AI Governance"
+        },
+        {
+          "permission": "manage:ai_risks",
+          "label": "Manage AI Risks",
+          "parent": "view:ai_governance"
+        },
+        {
+          "permission": "view:governance",
+          "label": "Data Governance"
+        },
+        {
+          "permission": "view:audit_log",
+          "label": "Audit Log"
+        }
+      ]
+    },
+    {
+      "name": "Automation & Intelligence",
+      "features": [
+        {
+          "permission": "view:automation",
+          "label": "Automation Workflows"
+        },
+        {
+          "permission": "manage:automation",
+          "label": "Manage Automations",
+          "parent": "view:automation"
+        },
+        {
+          "permission": "manage:playbooks",
+          "label": "Playbooks / SOAR Executions"
+        },
+        {
+          "permission": "view:conditional_access",
+          "label": "Conditional Access"
+        },
+        {
+          "permission": "view:swarm",
+          "label": "Autonomous Swarms"
+        }
+      ]
+    },
+    {
+      "name": "Management & Settings",
+      "features": [
+        {
+          "permission": "manage:settings",
+          "label": "System Settings"
+        },
+        {
+          "permission": "view:finops",
+          "label": "FinOps & Billing"
+        },
+        {
+          "permission": "view:retention_policies",
+          "label": "Retention Tiers"
+        },
+        {
+          "permission": "view:mssp",
+          "label": "MSSP Monitoring"
+        },
+        {
+          "permission": "manage:rbac",
+          "label": "Role & Permission Management"
+        },
+        {
+          "permission": "manage:api_keys",
+          "label": "API Key Management"
+        }
       ]
     }
   ]

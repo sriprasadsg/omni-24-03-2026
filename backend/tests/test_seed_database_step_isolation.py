@@ -53,7 +53,8 @@ async def test_super_admin_role_failure_does_not_block_standard_roles(monkeypatc
     assert "Tenant Admin" in role_names_written
     assert "analyst" in role_names_written
     assert "viewer" in role_names_written
-    db.tenants.update_many.assert_awaited_once()
+    # The ITAM enabledFeatures backfill is migration 016 now (spec C6): seeding must not re-add ITAM.
+    db.tenants.update_many.assert_not_awaited()
 
 
 @pytest.mark.asyncio

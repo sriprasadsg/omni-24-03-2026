@@ -277,7 +277,7 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Standard Features</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
               Switched-off features are removed for everyone in this tenant, in the menu and in the API, within 30 seconds.
-              Dashboard, profile, user management and ITAM always follow the user's role.
+              Only Overview, Tickets, AI Assistant, My Tasks and Notification Prefs follow the user's role alone.
             </p>
             <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md border border-gray-200 dark:border-gray-600">
               <label className="flex items-center space-x-3 font-semibold">
