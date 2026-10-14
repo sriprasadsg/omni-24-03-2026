@@ -3,7 +3,7 @@ from typing import Dict, Any
 from database import get_database
 from datetime import datetime, timezone
 import re
-from agent_auth import verify_agent_key
+from agent_auth import verify_agent_key, caller_agent_id, require_agent_named
 from rate_limiter import limiter, agent_limiter
 import geoip_service
 import agent_asn_service
@@ -39,6 +39,8 @@ async def report_heartbeat_legacy(
     )
     if not agent_id:
         raise HTTPException(status_code=400, detail="agent_id required in payload for legacy heartbeat")
+    # The /{agent_id}/ route gets this check from verify_agent_key's path binding.
+    await require_agent_named(caller_agent_id(_tenant), _tenant.get("id"), agent_id, get_database())
     return await report_heartbeat(request, response, agent_id, background_tasks, payload, _tenant)
 
 

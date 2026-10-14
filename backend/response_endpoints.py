@@ -11,6 +11,7 @@ from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission, verify_permission
 from auth_types import TokenData
+from agent_auth import require_agent_named
 from response_orchestrator import ResponseOrchestrator, seed_builtin_policies
 
 router = APIRouter(prefix="/api/response", tags=["Autonomous Response"])
@@ -201,6 +202,12 @@ async def get_pending_tasks(
     return await orchestrator.get_pending_tasks(agent_id, tenant_id=tenant_id)
 
 
+async def _require_own_task(current_user, task: Dict[str, Any], db) -> None:
+    """An agent may only report on response tasks queued for itself."""
+    if getattr(current_user, "role", "") == "agent":
+        await require_agent_named(current_user.username, current_user.tenant_id, task.get("agent_id"), db)
+
+
 @router.post("/tasks/{task_id}/result")
 async def submit_task_result(
     task_id: str,
@@ -212,9 +219,10 @@ async def submit_task_result(
         raise HTTPException(status_code=403, detail="Missing required permission: remediate:agents")
     tenant_id = getattr(current_user, "tenant_id", None)
     db = get_database()
-    task = await db.response_tasks.find_one({"task_id": task_id, "tenantId": tenant_id}, {"_id": 1})
+    task = await db.response_tasks.find_one({"task_id": task_id, "tenantId": tenant_id}, {"_id": 1, "agent_id": 1})
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    await _require_own_task(current_user, task, db)
     success = await orchestrator.mark_executed(task_id, result.dict())
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -233,6 +241,12 @@ async def submit_task_feedback(
     # Agents report on tasks they ran; people need remediate:agents to do it.
     if caller_role != "agent" and not await verify_permission(current_user, "remediate:agents"):
         raise HTTPException(status_code=403, detail="Missing required permission: remediate:agents")
+    if caller_role == "agent":
+        db = get_database()
+        task = await db.response_tasks.find_one({"task_id": task_id, "tenantId": caller_tenant}, {"_id": 1, "agent_id": 1})
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        await _require_own_task(current_user, task, db)
     success = await orchestrator.record_feedback(
         task_id=task_id,
         success=feedback.success,

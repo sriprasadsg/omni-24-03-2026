@@ -22,7 +22,7 @@ from authentication_service import get_current_user, get_current_user_or_agent
 from auth_types import TokenData
 from auth_roles import SUPER_ROLES
 from database import get_database
-from agent_auth import verify_agent_key
+from agent_auth import verify_agent_key, caller_agent_id, require_agent_named
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +317,8 @@ async def user_send_message(
         await db._db.agent_chat_sessions.update_one(
             {"id": session_id}, {"$set": {"tenant_id": tenant_id}}
         )
+    # Only the endpoint the session is with may post as its user.
+    await require_agent_named(caller_agent_id(_tenant), tenant_id, session.get("agent_id"), db)
     if session.get("status") != "active":
         raise HTTPException(status_code=400, detail="Session is closed")
 
@@ -397,6 +399,7 @@ async def poll_messages(
         session = raw
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    await require_agent_named(caller_agent_id(_tenant), tenant_id, session.get("agent_id"), db)
 
     all_msgs = session.get("messages", [])
     if since:
@@ -452,6 +455,7 @@ async def initiate_session(
     """Endpoint agent starts a chat to contact an admin (reverse direction)."""
     db = get_database()
     tenant_id = _tenant.get("id", "")
+    await require_agent_named(caller_agent_id(_tenant), tenant_id, body.agent_id, db)
 
     agent_filter: Dict[str, Any] = {"id": body.agent_id, "tenantId": tenant_id}
     agent = await db.agents.find_one(agent_filter, {"_id": 0, "hostname": 1})
@@ -617,7 +621,8 @@ async def close_session(
 
 
 def _get_backend_url() -> str:
-    import os, socket
+    import os
+    import socket
     platform_url = os.getenv("PLATFORM_URL", "").rstrip("/")
     if platform_url:
         return platform_url

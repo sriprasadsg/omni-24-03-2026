@@ -390,10 +390,16 @@ async def get_current_user_mfa_pending(token: str = Depends(oauth2_scheme)):
     return await verify_token_async(token, allow_agent=False, allow_mfa_pending=True)
 
 
-async def get_current_user_or_agent(token: str = Depends(oauth2_scheme)):
+async def get_current_user_or_agent(token: str = Depends(oauth2_scheme), request: Request = None):
     """Like get_current_user, but also accepts endpoint-agent tokens
-    (role="agent", username=agent id). Only for routes the agent itself calls."""
-    return await verify_token_async(token, allow_agent=True)
+    (role="agent", username=agent id). Only for routes the agent itself calls.
+    An agent named in the URL path (agent_id / hostname) must be the caller."""
+    token_data = await verify_token_async(token, allow_agent=True)
+    if token_data.role == AGENT_ROLE and request is not None:
+        from agent_auth import bind_path_agent
+        from database import get_database
+        await bind_path_agent(request, token_data.username, token_data.tenant_id, get_database())
+    return token_data
 
 async def get_optional_user(token: Optional[str] = Depends(_oauth2_optional)):
     """Like get_current_user but returns None instead of raising 401 when no token is provided.

@@ -8,6 +8,7 @@ from database import get_database
 from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission, verify_permission
 from auth_types import TokenData
+from agent_auth import require_agent_named
 
 router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
 
@@ -267,6 +268,8 @@ async def get_swarm_peers(
     can establish P2P gossip connections.
     Only agents that have reported a gossip_port are included.
     """
+    if getattr(_current_user, "role", "") == "agent":
+        await require_agent_named(_current_user.username, _current_user.tenant_id, agent_id, db)
     agent = await db.agents.find_one({"id": agent_id}, {"tenantId": 1})
     if not agent:
         return {"peers": []}
@@ -315,6 +318,9 @@ async def report_swarm_topology(
 
     if not agent_id:
         return {"success": False, "reason": "agent_id required"}
+    # An agent may only publish its own gossip endpoint.
+    if getattr(_current_user, "role", "") == "agent":
+        await require_agent_named(_current_user.username, _current_user.tenant_id, agent_id, db)
 
     await db.agents.update_one(
         {"id": agent_id},
