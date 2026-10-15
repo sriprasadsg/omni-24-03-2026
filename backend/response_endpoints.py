@@ -3,6 +3,7 @@ Autonomous Response API Endpoints
 CRUD for response policies + manual/automated response action dispatch.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from catalogue_mounts_secops import EDR_GUARD
 from fastapi.background import BackgroundTasks
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -77,7 +78,7 @@ class TaskFeedback(BaseModel):
 # Policies CRUD
 # ------------------------------------------------------------------
 
-@router.get("/policies")
+@router.get("/policies", dependencies=[Depends(EDR_GUARD)])
 async def list_policies(current_user: TokenData = Depends(get_current_user)):
     """List response policies scoped to the caller's tenant."""
     db = get_database()
@@ -87,7 +88,7 @@ async def list_policies(current_user: TokenData = Depends(get_current_user)):
     return policies
 
 
-@router.post("/policies")
+@router.post("/policies", dependencies=[Depends(EDR_GUARD)])
 async def create_policy(
     policy: ResponsePolicy,
     current_user: TokenData = Depends(get_current_user)
@@ -115,7 +116,7 @@ async def create_policy(
     return {"status": "created", "policy": doc}
 
 
-@router.patch("/policies/{policy_id}/toggle")
+@router.patch("/policies/{policy_id}/toggle", dependencies=[Depends(EDR_GUARD)])
 async def toggle_policy(
     policy_id: str,
     current_user: TokenData = Depends(require_permission("manage:active_response"))
@@ -135,7 +136,7 @@ async def toggle_policy(
     return {"policy_id": policy_id, "enabled": new_state}
 
 
-@router.delete("/policies/{policy_id}")
+@router.delete("/policies/{policy_id}", dependencies=[Depends(EDR_GUARD)])
 async def delete_policy(
     policy_id: str,
     current_user: TokenData = Depends(require_permission("manage:active_response"))
@@ -157,7 +158,7 @@ async def delete_policy(
 # Manual Response Actions
 # ------------------------------------------------------------------
 
-@router.post("/execute")
+@router.post("/execute", dependencies=[Depends(EDR_GUARD)])
 async def execute_response_action(
     action: ManualAction,
     background_tasks: BackgroundTasks,
@@ -265,7 +266,7 @@ async def submit_task_feedback(
 # Response History
 # ------------------------------------------------------------------
 
-@router.get("/history")
+@router.get("/history", dependencies=[Depends(EDR_GUARD)])
 async def get_response_history(
     agent_id: Optional[str] = None,
     limit: int = 100,
@@ -282,7 +283,7 @@ async def get_response_history(
     return tasks
 
 
-@router.get("/quarantine")
+@router.get("/quarantine", dependencies=[Depends(EDR_GUARD)])
 async def list_quarantine(
     current_user: TokenData = Depends(get_current_user)
 ):

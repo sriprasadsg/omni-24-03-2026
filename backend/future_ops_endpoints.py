@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from catalogue_mounts_secops import XDR_GUARD
 from datetime import datetime, timezone, timedelta
 from database import get_database
 from authentication_service import get_current_user
@@ -300,7 +301,7 @@ async def _seed_xdr_hunts(db):
     await db.xdr_hunts.insert_many(templates)
 
 
-@router.get("/api/xdr/automated-hunts")
+@router.get("/api/xdr/automated-hunts", dependencies=[Depends(XDR_GUARD)])
 async def get_xdr_hunts(current_user: TokenData = Depends(get_current_user)):
     """Get XDR automated hunt statistics from database."""
     db = get_database()

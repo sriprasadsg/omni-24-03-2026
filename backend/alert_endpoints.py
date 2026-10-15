@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from catalogue_mounts_secops import ALERT_MANAGEMENT_GUARD
 from typing import List, Any, Optional
 from pydantic import BaseModel, Field
 from database import get_database
@@ -24,7 +25,7 @@ def _tenant_filter(user: TokenData) -> dict:
     return {"tenantId": tid} if tid else {"tenantId": {"$exists": False}}
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def get_alerts(_current_user: TokenData = Depends(get_current_user)):
     """Get alerts scoped to the caller's tenant."""
     db = get_database()
@@ -35,7 +36,7 @@ async def get_alerts(_current_user: TokenData = Depends(get_current_user)):
 _VALID_SEVERITIES: frozenset[str] = frozenset({"Critical", "High", "Medium", "Low", "Info", "critical", "high", "medium", "low", "info"})
 
 
-@router.get("/search")
+@router.get("/search", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def search_alerts(
     q: str = Query(..., min_length=1, description="Full-text search query"),
     severity: str | None = None,
@@ -123,7 +124,7 @@ class AlertAssignRequest(BaseModel):
     assigned_to: str = Field(..., min_length=1, max_length=320)
 
 
-@router.patch("/{alert_id}/assign")
+@router.patch("/{alert_id}/assign", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def assign_alert(
     alert_id: str,
     body: AlertAssignRequest,
@@ -142,7 +143,7 @@ async def assign_alert(
     return {"alert_id": alert_id, "assigned_to": assigned_to, "assigned_at": now}
 
 
-@router.delete("/bulk")
+@router.delete("/bulk", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def bulk_delete_alerts(
     ids: List[str] = Body(..., description="List of alert IDs to delete (max 500)"),
     _current_user: TokenData = Depends(require_permission("manage:security_cases")),
@@ -156,7 +157,7 @@ async def bulk_delete_alerts(
     return {"deleted": result.deleted_count}
 
 
-@router.patch("/bulk")
+@router.patch("/bulk", dependencies=[Depends(ALERT_MANAGEMENT_GUARD)])
 async def bulk_update_alerts(
     updates: dict[str, Any] = Body(..., description='{"ids": [...], "patch": {...}}'),
     _current_user: TokenData = Depends(require_permission("manage:security_cases")),

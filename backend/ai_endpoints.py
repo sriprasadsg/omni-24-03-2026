@@ -1,5 +1,6 @@
 import json as _json
 from fastapi import APIRouter, HTTPException, Body, Depends
+from catalogue_mounts_secops import SETTINGS_GUARD, THREAT_HUNTING_GUARD
 from fastapi.responses import StreamingResponse
 from typing import Dict, Any, AsyncIterator, Optional
 from ai_playbook_service import ai_playbook_service
@@ -199,7 +200,7 @@ async def analyze_impact(
     return result
 
 
-@router.post("/threat-hunt")
+@router.post("/threat-hunt", dependencies=[Depends(THREAT_HUNTING_GUARD)])
 async def ai_threat_hunt(
     payload: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(rbac_service.has_permission("view:threat_hunting")),
@@ -374,7 +375,7 @@ class TestConnectionBody(_BM):
     ollamaUrl:  str = ""          # Alias — frontend may send either casing
 
 
-@router.post("/test-connection")
+@router.post("/test-connection", dependencies=[Depends(SETTINGS_GUARD)])
 async def test_llm_connection(
     body: TestConnectionBody,
     current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")),

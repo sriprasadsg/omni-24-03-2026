@@ -4,6 +4,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
+from catalogue_mounts_secops import SECURITY_GUARD
 from database import get_database
 from security_service import get_security_service
 from authentication_service import get_current_user, SECRET_KEY
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
-@router.post("/security/generate-keypair")
+@router.post("/security/generate-keypair", dependencies=[Depends(SECURITY_GUARD)])
 async def generate_signing_keypair(
     current_user: TokenData = Depends(get_current_user),
 ):

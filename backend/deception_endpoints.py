@@ -5,6 +5,7 @@ Deception Technology Endpoints
 import json as _json
 import re
 from fastapi import APIRouter, Depends, HTTPException, Body, Request, Response, Query
+from catalogue_mounts_secops import DECEPTION_GUARD
 from typing import Any, Dict, Optional
 import logging
 
@@ -20,18 +21,18 @@ router = APIRouter(prefix="/api/deception", tags=["Deception Technology"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(DECEPTION_GUARD)])
 async def get_summary(current_user: TokenData = Depends(get_current_user)):
     return await svc.get_deception_summary(current_user.tenant_id or "", current_user.role or "")
 
 
-@router.get("/honeytokens")
+@router.get("/honeytokens", dependencies=[Depends(DECEPTION_GUARD)])
 async def list_honeytokens(current_user: TokenData = Depends(get_current_user)):
     tokens = await svc.list_honeytokens(current_user.tenant_id or "", current_user.role or "")
     return {"honeytokens": tokens, "total": len(tokens)}
 
 
-@router.post("/honeytokens")
+@router.post("/honeytokens", dependencies=[Depends(DECEPTION_GUARD)])
 async def create_honeytoken(
     payload: Dict[str, Any] = Body(...),
     current_user: TokenData = Depends(require_permission("manage:security_cases")),
@@ -51,7 +52,7 @@ async def create_honeytoken(
     return {"honeytoken": token, "message": "Honeytoken created — deploy it in a sensitive location to detect unauthorized access"}
 
 
-@router.delete("/honeytokens/{token_id}")
+@router.delete("/honeytokens/{token_id}", dependencies=[Depends(DECEPTION_GUARD)])
 async def delete_honeytoken(token_id: str, current_user: TokenData = Depends(require_permission("manage:security_cases"))):
     success = await svc.delete_honeytoken(token_id, current_user.tenant_id or "", current_user.role or "")
     if not success:
@@ -59,7 +60,7 @@ async def delete_honeytoken(token_id: str, current_user: TokenData = Depends(req
     return {"message": "Honeytoken deleted"}
 
 
-@router.post("/honeytokens/{token_id}/deactivate")
+@router.post("/honeytokens/{token_id}/deactivate", dependencies=[Depends(DECEPTION_GUARD)])
 async def deactivate_honeytoken(token_id: str, current_user: TokenData = Depends(require_permission("manage:security_cases"))):
     success = await svc.deactivate_honeytoken(token_id, current_user.tenant_id or "", current_user.role or "")
     if not success:
@@ -67,7 +68,7 @@ async def deactivate_honeytoken(token_id: str, current_user: TokenData = Depends
     return {"message": "Honeytoken deactivated"}
 
 
-@router.get("/alerts")
+@router.get("/alerts", dependencies=[Depends(DECEPTION_GUARD)])
 async def list_alerts(
     limit: int = Query(100, ge=1, le=500),
     current_user: TokenData = Depends(get_current_user),
@@ -76,7 +77,7 @@ async def list_alerts(
     return {"alerts": alerts, "total": len(alerts)}
 
 
-@router.get("/honeytoken-types")
+@router.get("/honeytoken-types", dependencies=[Depends(DECEPTION_GUARD)])
 async def honeytoken_types(current_user: TokenData = Depends(get_current_user)):
     return {"types": [
         {"id": k, **v} for k, v in svc.HONEYTOKEN_TYPES.items()

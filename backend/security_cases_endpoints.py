@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from catalogue_mounts_secops import INCIDENT_IMPACT_GUARD, INCIDENT_RESPONSE_GUARD, VULNERABILITY_GUARD
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -20,7 +21,7 @@ def _sec_caller_tenant(current_user) -> str:
     return tid
 
 
-@router.get("/security-cases")
+@router.get("/security-cases", dependencies=[Depends(INCIDENT_RESPONSE_GUARD)])
 async def list_security_cases(
     tenant_id: str = None,
     current_user: TokenData = Depends(get_current_user),
@@ -38,7 +39,7 @@ async def list_security_cases(
     return cases
 
 
-@router.post("/security-cases")
+@router.post("/security-cases", dependencies=[Depends(INCIDENT_RESPONSE_GUARD)])
 async def create_security_case(
     case: dict,
     current_user: TokenData = Depends(require_permission("investigate:security")),
@@ -55,7 +56,7 @@ async def create_security_case(
     return case
 
 
-@router.put("/security-cases/{case_id}")
+@router.put("/security-cases/{case_id}", dependencies=[Depends(INCIDENT_RESPONSE_GUARD)])
 async def update_security_case(
     case_id: str,
     case: dict,
@@ -74,7 +75,7 @@ async def update_security_case(
     return case
 
 
-@router.get("/security-events")
+@router.get("/security-events", dependencies=[Depends(INCIDENT_RESPONSE_GUARD)])
 async def list_security_events(
     tenant_id: str = None,
     current_user: TokenData = Depends(get_current_user),
@@ -92,7 +93,7 @@ async def list_security_events(
     return events
 
 
-@router.post("/security-events")
+@router.post("/security-events", dependencies=[Depends(INCIDENT_RESPONSE_GUARD)])
 async def create_security_event(
     event: dict,
     current_user: TokenData = Depends(require_permission("investigate:security")),
@@ -108,7 +109,7 @@ async def create_security_event(
     return event
 
 
-@router.get("/vulnerability-scans")
+@router.get("/vulnerability-scans", dependencies=[Depends(VULNERABILITY_GUARD)])
 async def list_vulnerability_scans(
     tenant_id: str = None,
     current_user: TokenData = Depends(get_current_user),
@@ -126,7 +127,7 @@ async def list_vulnerability_scans(
     return scans
 
 
-@router.get("/security/incident-impact/{incident_id}")
+@router.get("/security/incident-impact/{incident_id}", dependencies=[Depends(INCIDENT_IMPACT_GUARD)])
 async def get_incident_impact(
     incident_id: str,
     current_user: TokenData = Depends(get_current_user),

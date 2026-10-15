@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from catalogue_mounts_agents import AGENTS_GUARD, SECURITY_AUDIT_GUARD
+from catalogue_mounts_secops import SECURITY_GUARD
 from database import get_database
 from security_service import get_security_service
 from authentication_service import get_current_user
@@ -85,7 +86,7 @@ async def verify_agent_integrity(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/security/encrypt")
+@router.post("/security/encrypt", dependencies=[Depends(SECURITY_GUARD)])
 async def encrypt_data(
     data: dict,
     current_user: TokenData = Depends(require_permission("manage:settings")),

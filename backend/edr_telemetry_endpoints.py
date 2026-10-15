@@ -6,6 +6,7 @@ Automatically routes each incoming alert through the response orchestrator
 so that enabled policies can trigger kill/quarantine/isolate actions.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
+from catalogue_mounts_secops import EDR_GUARD
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
@@ -199,7 +200,7 @@ async def ingest_edr_events(batch: EDREventBatch = Depends(_verify_edr_agent)):
 # Alerts
 # ------------------------------------------------------------------
 
-@router.get("/alerts")
+@router.get("/alerts", dependencies=[Depends(EDR_GUARD)])
 async def get_edr_alerts(
     agent_id: Optional[str] = None,
     severity: Optional[str] = None,
@@ -228,7 +229,7 @@ async def get_edr_alerts(
     return alerts
 
 
-@router.patch("/alerts/{alert_id}/acknowledge")
+@router.patch("/alerts/{alert_id}/acknowledge", dependencies=[Depends(EDR_GUARD)])
 async def acknowledge_alert(
     alert_id: str,
     current_user: TokenData = Depends(require_permission("investigate:security"))
@@ -250,7 +251,7 @@ async def acknowledge_alert(
 # Process Tree / Live Telemetry
 # ------------------------------------------------------------------
 
-@router.get("/process-tree/{agent_id}")
+@router.get("/process-tree/{agent_id}", dependencies=[Depends(EDR_GUARD)])
 async def get_process_tree(
     agent_id: str,
     current_user: TokenData = Depends(get_current_user)
@@ -269,7 +270,7 @@ async def get_process_tree(
     return snapshot
 
 
-@router.get("/telemetry/summary")
+@router.get("/telemetry/summary", dependencies=[Depends(EDR_GUARD)])
 async def get_telemetry_summary(
     current_user: TokenData = Depends(get_current_user)
 ):
@@ -303,7 +304,7 @@ async def get_telemetry_summary(
 # IOC Management
 # ------------------------------------------------------------------
 
-@router.post("/ioc")
+@router.post("/ioc", dependencies=[Depends(EDR_GUARD)])
 async def add_ioc(
     ioc: IOCEntry,
     current_user: TokenData = Depends(require_permission("manage:security_cases"))
@@ -319,7 +320,7 @@ async def add_ioc(
     return {"status": "IOC added", "ioc": ioc.dict()}
 
 
-@router.get("/ioc")
+@router.get("/ioc", dependencies=[Depends(EDR_GUARD)])
 async def list_ioc(current_user: TokenData = Depends(get_current_user)):
     """List all IOCs in the blocklist."""
     db = get_database()
