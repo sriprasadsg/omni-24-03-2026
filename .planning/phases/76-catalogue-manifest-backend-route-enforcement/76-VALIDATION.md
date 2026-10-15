@@ -3,9 +3,9 @@ phase: "76"
 slug: "catalogue-manifest-backend-route-enforcement"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-10-13"
 ---
 
@@ -45,15 +45,15 @@ created: "2026-10-13"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | ACC-03 | — | Manifest is the single source: every nav entry has exactly one permission, all permission strings are grantable, the 9 mismatched views resolve to the Sidebar string, `viewPermissionMap` literal is gone | unit (py) | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_manifest.py -q -p no:cacheprovider` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-03 | — | Sidebar and App.tsx read the manifest; every `AppView` has a manifest entry; every manifest permission is in the `Permission` union | unit (ts) | `npx vitest run src/__tests__/catalogueAccess.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-04 | T-76-01 Elevation of Privilege | Caller lacking `view:X` (and `manage:X`) gets 403 from guarded in-scope routes; holder gets non-403; write needs the write permission; super-admin bypass; role checked before API-key scope | unit/integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_guards.py -q -p no:cacheprovider` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-04 | T-76-02 Denial of Service | Agent enrollment/heartbeat on `/api/agents/*` and credential-in-handler routes unchanged; existing ITAM API-key callers still work | unit/integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_guards.py backend/tests/test_route_auth_baseline.py -q -p no:cacheprovider` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-04 | T-76-03 Information Disclosure | `/api/assets`, `/api/assets/search`, `/api/assets/{id}` strip purchase/finance fields without `view:itam`, keep them with it, and never mutate the cached object | unit | `backend/venv/bin/python -m pytest backend/tests/test_asset_finance_fields.py -q -p no:cacheprovider` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-04 | — | Committed gap ledger lists every still-unguarded out-of-scope router with a reason and a ratchet count; stale entries fail | unit | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-05 | T-76-01 Elevation of Privilege | Parity test fails on an unguarded in-scope route and on an unledgered unguarded router (negative controls using a synthetic app), message names router/route and expected permission | unit | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-05 | — | Frontend drift test fails when a nav item has no manifest entry or a manifest nav entry has no nav item | unit (ts) | `npx vitest run src/__tests__/catalogueAccess.test.ts` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | ACC-03/04/05 | — | Existing suites stay green after guards land | regression | `backend/venv/bin/python -m pytest backend/tests -q -p no:cacheprovider && npx vitest run src/__tests__ && npm run build` | ✅ | ⬜ pending |
+| 76-T1 | 76-02 | 2 | ACC-03 | — | Manifest is the single source: every nav entry has exactly one permission, all permission strings are grantable, the 9 mismatched views resolve to the Sidebar string, `viewPermissionMap` literal is gone | unit (py) | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_manifest.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T2 | 76-01/76-03 | 1/3 | ACC-03 | — | Sidebar and App.tsx read the manifest; every `AppView` has a manifest entry; every manifest permission is in the `Permission` union | unit (ts) | `npx vitest run src/__tests__/catalogueAccess.test.ts` | ✅ | ✅ green |
+| 76-T3 | 76-01 | 1 | ACC-04 | T-76-01 Elevation of Privilege | Caller lacking `view:X` (and `manage:X`) gets 403 from guarded in-scope routes; holder gets non-403; write needs the write permission; super-admin bypass; role checked before API-key scope | unit/integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_guards.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T4 | 76-01/76-05/76-12 | 1/3 | ACC-04 | T-76-02 Denial of Service | Agent enrollment/heartbeat on `/api/agents/*` and credential-in-handler routes unchanged; existing ITAM API-key callers still work | unit/integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_guards.py backend/tests/test_route_auth_baseline.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T5 | 76-04 | 3 | ACC-04 | T-76-03 Information Disclosure | `/api/assets`, `/api/assets/search`, `/api/assets/{id}` strip purchase/finance fields without `view:itam`, keep them with it, and never mutate the cached object | unit | `backend/venv/bin/python -m pytest backend/tests/test_asset_finance_fields.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T6 | 76-11 | 4 | ACC-04 | — | Committed gap ledger lists every still-unguarded out-of-scope router with a reason and a ratchet count; stale entries fail | unit | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T7 | 76-01/76-11 | 1/4 | ACC-05 | T-76-01 Elevation of Privilege | Parity test fails on an unguarded in-scope route and on an unledgered unguarded router (negative controls using a synthetic app), message names router/route and expected permission | unit | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T8 | 76-01/76-03 | 1/3 | ACC-05 | — | Frontend drift test fails when a nav item has no manifest entry or a manifest nav entry has no nav item | unit (ts) | `npx vitest run src/__tests__/catalogueAccess.test.ts` | ✅ | ✅ green |
+| 76-T9 | 76-06..76-12 | 3/4 | ACC-03/04/05 | — | Existing suites stay green after guards land | regression | `backend/venv/bin/python -m pytest backend/tests -q -p no:cacheprovider && npx vitest run src/__tests__ && npm run build` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -61,14 +61,14 @@ created: "2026-10-13"
 
 ## Wave 0 Requirements
 
-- [ ] `shared/catalogue-access.json` and `shared/catalogue-gaps.json` — seeded manifest (all 202 `AppView`s) and ledger skeleton
-- [ ] `backend/tests/_route_walk.py` — walker and reviewed-unauthenticated list extracted from `test_route_auth_baseline.py` (baseline must stay green)
-- [ ] `backend/tests/test_catalogue_manifest.py` — manifest sanity (ACC-03)
-- [ ] `backend/tests/test_catalogue_route_parity.py` — deny-by-default parity plus negative controls (ACC-04/05)
-- [ ] `backend/tests/test_catalogue_guards.py` — 403/200 matrix, scope narrowing, agent and API-key regression (ACC-04)
-- [ ] `backend/tests/test_asset_finance_fields.py` — D-04 strip, including cache behaviour
-- [ ] `src/__tests__/catalogueAccess.test.ts` — frontend drift test (ACC-03/05)
-- [ ] Framework install: none — pytest, vitest and testing-library already present
+- [x] `shared/catalogue-access.json` and `shared/catalogue-gaps.json` — seeded manifest (all 202 `AppView`s) and ledger skeleton
+- [x] `backend/tests/_route_walk.py` — walker and reviewed-unauthenticated list extracted from `test_route_auth_baseline.py` (baseline must stay green)
+- [x] `backend/tests/test_catalogue_manifest.py` — manifest sanity (ACC-03)
+- [x] `backend/tests/test_catalogue_route_parity.py` — deny-by-default parity plus negative controls (ACC-04/05)
+- [x] `backend/tests/test_catalogue_guards.py` — 403/200 matrix, scope narrowing, agent and API-key regression (ACC-04)
+- [x] `backend/tests/test_asset_finance_fields.py` — D-04 strip, including cache behaviour
+- [x] `src/__tests__/catalogueAccess.test.ts` — frontend drift test (ACC-03/05)
+- [x] Framework install: none — pytest, vitest and testing-library already present
 
 ---
 
@@ -84,11 +84,19 @@ created: "2026-10-13"
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s (quick) / 150s (full)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [ ] Feedback latency < 30s (quick) / 150s (full): not met. Measured 2026-10-15: the quick-run files plus the 8 slice test files (132 tests) took 8 min 22 s, because each slice file starts its own route-walk subprocess; the full backend suite takes 4-11 min. Correctness is unaffected
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** validated 2026-10-15 (validate-phase audit after all 12 plans executed). Requirement coverage: ACC-03, ACC-04, ACC-05 all COVERED by green automated tests; 0 gaps. Final runs: backend 3721 passed / 47 skipped / 0 failed (76-11), phase test set 132 passed, `catalogueAccess.test.ts` 26 passed, `npx vitest run src/__tests__` 266 passed, `npm run build` exit 0.
+
+## Validation Audit 2026-10-15
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
