@@ -8,6 +8,18 @@ from authentication_service import get_current_user
 from rbac_utils import require_permission
 from database import get_database
 from auth_types import TokenData
+from catalogue_guards import catalogue_exempt, catalogue_guard
+from catalogue_mounts_agents import AGENTS_GUARD, SETTINGS_GUARD
+from catalogue_mounts_secposture import ZERO_TRUST_GUARD
+from catalogue_mounts_settings_ops import SECRETS_GUARD
+
+# Each alias carries the guard of the catalogue that owns its path in
+# shared/catalogue-access.json (Phase 76-11, T-76-27), so an alias is never a way around the
+# canonical route's permission. Parity is checked by test_catalogue_route_parity.
+UEBA_GUARD = catalogue_guard("ueba", read=("view:security",), write=("investigate:security",))
+# The profile catalogue's own routes (/api/users/me, /api/tenants/me) are self-service: every
+# signed-in user, including custom roles, reads their own tenant record.
+SELF_SERVICE_TENANT = catalogue_exempt("self-service: caller's own tenant record")
 
 router = APIRouter(tags=["Route Aliases"])
 
@@ -157,7 +169,7 @@ async def get_cis_controls(current_user: Any = Depends(get_current_user)):
 
 # ── GET wrappers for POST-only endpoints ──────────────────────────────────────
 
-@router.get("/api/ai/test-connection")
+@router.get("/api/ai/test-connection", dependencies=[Depends(SETTINGS_GUARD)])
 async def ai_test_connection_status(current_user: Any = Depends(get_current_user)):
     """Return current LLM connection configuration (non-destructive GET variant)."""
     db = get_database()
@@ -174,7 +186,7 @@ async def ai_test_connection_status(current_user: Any = Depends(get_current_user
     }
 
 
-@router.get("/api/ueba/shadow-ai")
+@router.get("/api/ueba/shadow-ai", dependencies=[Depends(UEBA_GUARD)])
 async def get_shadow_ai_summary(current_user: Any = Depends(get_current_user)):
     """Return shadow AI detection summary (GET variant of the POST report endpoint)."""
     db = get_database()
@@ -189,7 +201,7 @@ async def get_shadow_ai_summary(current_user: Any = Depends(get_current_user)):
     }
 
 
-@router.get("/api/tenants/me")
+@router.get("/api/tenants/me", dependencies=[Depends(SELF_SERVICE_TENANT)])
 async def get_my_tenant(current_user: Any = Depends(get_current_user)):
     """Return the calling user's own tenant data."""
     from database import mongodb
@@ -202,7 +214,7 @@ async def get_my_tenant(current_user: Any = Depends(get_current_user)):
     return tenant
 
 
-@router.get("/api/agent/download-token/{tenant_id}")
+@router.get("/api/agent/download-token/{tenant_id}", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agent_download_info(
     tenant_id: str,
     current_user: Any = Depends(get_current_user),
@@ -222,7 +234,7 @@ async def get_agent_download_info(
 
 # ── Agents stats ──────────────────────────────────────────────────────────────
 
-@router.get("/api/agents/stats")
+@router.get("/api/agents/stats", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agents_stats(current_user: Any = Depends(get_current_user)):
     """Return aggregated agent statistics."""
     db = get_database()
@@ -254,7 +266,7 @@ async def get_guardrail_policy_alias(current_user: Any = Depends(get_current_use
 
 # ── Secrets findings alias ────────────────────────────────────────────────────
 
-@router.get("/api/secrets/findings")
+@router.get("/api/secrets/findings", dependencies=[Depends(SECRETS_GUARD)])
 async def get_secrets_findings(current_user: Any = Depends(get_current_user)):
     """Alias for /api/secrets/list — returns secrets scan findings."""
     from secrets_service import get_secrets_service
@@ -266,7 +278,7 @@ async def get_secrets_findings(current_user: Any = Depends(get_current_user)):
 
 # ── PQC keys alias ────────────────────────────────────────────────────────────
 
-@router.get("/api/pqc/keys")
+@router.get("/api/pqc/keys", dependencies=[Depends(ZERO_TRUST_GUARD)])
 async def get_pqc_keys(current_user: Any = Depends(get_current_user)):
     """Alias for /api/pqc/status — returns PQC key inventory."""
     from pqc_endpoints import pqc_status

@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from typing import Any, Dict, Iterable, List
 
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -36,10 +37,27 @@ ROLE_CMP = re.compile(r"[\"']role[\"'][^\n]*\)\s*(!=|==|(not\s+)?in\s)|\w*role\(
 DENIES = re.compile(r"status_code\s*=\s*(403|status\.HTTP_403)|HTTP_403_FORBIDDEN|PermissionError")
 
 
+_SCRATCH_DIRS: Dict[str, str] = {}
+
+
+def _scratch_dir(name: str) -> str:
+    if name not in _SCRATCH_DIRS:
+        _SCRATCH_DIRS[name] = tempfile.mkdtemp(prefix=f"catalogue_probe_{name}_")
+    return _SCRATCH_DIRS[name]
+
+
 def throwaway_env() -> Dict[str, str]:
-    """Environment for a child interpreter that must never reach the live database."""
+    """Environment for a child interpreter that must never reach the live database.
+
+    The ticket-attachment and file-share modules create their storage directory when they are
+    imported; a host that points them at an unwritable path would make the router registry skip
+    both routers, so the walked route table (and the committed gap ledger counts) would depend on
+    the host. Scratch directories keep the walk identical everywhere.
+    """
     env = dict(os.environ)
     env.update({
+        "TICKET_ATTACHMENT_DIR": _scratch_dir("tickets"),
+        "FILE_SHARE_DIR": _scratch_dir("shares"),
         "MONGODB_URL": "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=300",
         "MONGO_URI": "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=300",
         "MONGODB_DB_NAME": "catalogue_probe_throwaway",

@@ -273,3 +273,35 @@ def test_compliant_synthetic_app_has_no_ledger_offenders():
     ledger = _ledger(_entry(maximum=2), agent=1, exempt=1)
     assert ledger_offenders(records, LEDGER_MANIFEST, ledger) == []
 
+
+
+# --- Phase 76-11: strict whole-app gate over the production route table -------------------------
+# One walk of the production registry (cached for the session), so the verdicts do not depend
+# on test order or parallelism. None of these tests writes the committed ledger (PROH-76-03).
+
+
+def test_load_ledger_is_shaped_and_sorted():
+    ledger = load_ledger()
+    assert set(ledger) >= {"version", "agentAuthExcludedRoutes", "maxExemptRoutes", "routers"}
+    modules = [entry["module"] for entry in ledger["routers"]]
+    assert modules == sorted(modules)
+    assert all(entry["reason"].strip() and entry["group"].strip() for entry in ledger["routers"])
+
+
+def test_all_enforced_routes_guarded():
+    """D-05: every user route owned by an enforce:true catalogue carries its catalogue guard."""
+    offenders = parity_offenders(run_real_app_walk()["routes"], load_manifest())
+    assert offenders == [], "unguarded or mis-guarded enforced routes:\n" + "\n".join(offenders)
+
+
+def test_unguarded_routers_are_ledgered():
+    """D-05 deny-by-default: an unguarded router must be in the committed gap ledger with a reason."""
+    offenders = ledger_offenders(run_real_app_walk()["routes"], load_manifest(), load_ledger())
+    unledgered = [o for o in offenders if "not in shared/catalogue-gaps.json" in o]
+    assert unledgered == [], "unguarded routers missing from shared/catalogue-gaps.json:\n" + "\n".join(unledgered)
+
+
+def test_ledger_ratchets():
+    """The ledger can only shrink: no stale entries, no enforced routes, counts within ratchets."""
+    offenders = ledger_offenders(run_real_app_walk()["routes"], load_manifest(), load_ledger())
+    assert offenders == [], "gap ledger out of step with the route table:\n" + "\n".join(offenders)

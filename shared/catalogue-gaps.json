@@ -1,0 +1,547 @@
+{
+  "version": 1,
+  "agentAuthExcludedRoutes": 15,
+  "maxExemptRoutes": 34,
+  "routers": [
+    {
+      "module": "ab_testing_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 2,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "access_review_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "agent_approval_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 3,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "ai_governance_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "ai_services.training_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 2,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "ai_system_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "analytics_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 3,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "api_security_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 5,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "audit_program_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "authentication_endpoints",
+      "group": "unowned",
+      "maxUnguardedRoutes": 1,
+      "reason": "Not owned by any catalogue (unownedPrefixes): self-service session routes (current user lookup); every signed-in user needs them"
+    },
+    {
+      "module": "automation_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 3,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "baa_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "chaos_engineering_service",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 1,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "cissp_oracle_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 6,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "code_review_graph_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 3,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_artifacts_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 1,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_automation_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_bulk_evidence_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 1,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_evidence_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_evidence_lifecycle_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_framework_mgmt_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 1,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_frameworks_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_remediation_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 1,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_remediation_sla_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_report_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_reports_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_scans_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "compliance_score_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "conditional_access_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 3,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "control_comments_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "cookie_consent_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "custom_framework_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "dam_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 3,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "digital_twin_service",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 3,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "dora_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 1,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "dpa_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 6,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "evidence_review_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "export_report_endpoint",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 1,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "file_share_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 3,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "final_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 1,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "framework_mappings_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "future_ops_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 6,
+      "reason": "Dashboards & Insights and Observability groups are not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "global_search_endpoints",
+      "group": "unowned",
+      "maxUnguardedRoutes": 1,
+      "reason": "Not owned by any catalogue (unownedPrefixes): cross-catalogue global search; results are filtered per tenant and per record"
+    },
+    {
+      "module": "goal_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 3,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "iac_security_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 3,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "insights_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 1,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "jit_access_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 7,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "k8s_security_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 3,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "log_endpoints",
+      "group": "observability",
+      "maxUnguardedRoutes": 1,
+      "reason": "Observability group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "maturity_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 5,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "mcp_rest_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 1,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "mfa_endpoints",
+      "group": "unowned",
+      "maxUnguardedRoutes": 6,
+      "reason": "Not owned by any catalogue (unownedPrefixes): self-service MFA enrolment and step-up for the signed-in user"
+    },
+    {
+      "module": "network_endpoints",
+      "group": "observability",
+      "maxUnguardedRoutes": 4,
+      "reason": "Observability group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "oscal_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 1,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "passkey_endpoints",
+      "group": "unowned",
+      "maxUnguardedRoutes": 4,
+      "reason": "Not owned by any catalogue (unownedPrefixes): self-service passkey registration for the signed-in user"
+    },
+    {
+      "module": "pipeline_security_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 4,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "platform_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 2,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01); Not owned by any catalogue (unownedPrefixes): platform feature-flag plumbing read by the app shell for every signed-in user"
+    },
+    {
+      "module": "playbook_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 6,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "policy_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 1,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "predictive_health_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 4,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "privacy_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 11,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "provenance_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 2,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "questionnaire_answer_draft_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "questionnaire_answer_review_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "questionnaire_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "questionnaire_inbound_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "remediation_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 1,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "reporting_endpoints",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 5,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "risk_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 1,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "rollback_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 3,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "route_aliases",
+      "group": "governance",
+      "maxUnguardedRoutes": 11,
+      "reason": "Aliases of routes owned by Dashboards & Insights, DevSecOps & Engineering, Governance & Compliance and Observability, none of which is enforced: route guards deferred to ACC-F2 (D-01); the aliases owned by enforced catalogues carry those catalogues' guards"
+    },
+    {
+      "module": "router_registry",
+      "group": "automation",
+      "maxUnguardedRoutes": 1,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "saas_integration_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "saas_posture_checks_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 2,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "scheduled_reports_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 3,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "service_mesh_service",
+      "group": "observability",
+      "maxUnguardedRoutes": 3,
+      "reason": "Observability group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "soa_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "soar_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 2,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "stream_processing_endpoints",
+      "group": "observability",
+      "maxUnguardedRoutes": 1,
+      "reason": "Observability group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "supply_chain_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 1,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "supply_chain_security_endpoints",
+      "group": "devsecops",
+      "maxUnguardedRoutes": 6,
+      "reason": "DevSecOps & Engineering group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "sustainability_service",
+      "group": "dashboards",
+      "maxUnguardedRoutes": 2,
+      "reason": "Dashboards & Insights group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "swarm_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 3,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "tasks_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 4,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "tracing_endpoints",
+      "group": "observability",
+      "maxUnguardedRoutes": 3,
+      "reason": "Observability group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "training_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 4,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "trust_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 6,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "vendor_endpoints",
+      "group": "governance",
+      "maxUnguardedRoutes": 13,
+      "reason": "Governance & Compliance group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "voice_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 3,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "module": "webgpu_inference_endpoints",
+      "group": "automation",
+      "maxUnguardedRoutes": 6,
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    }
+  ]
+}
