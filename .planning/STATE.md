@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Completed 76-12-PLAN.md
-last_updated: "2026-10-15T20:02:12.024Z"
+stopped_at: Completed 76-11-PLAN.md
+last_updated: "2026-10-15T20:31:27.443Z"
 last_activity: 2026-10-15
 last_activity_desc: Phase 76 execution started
-state_head: e8668b6a1bc7938bfbfd405eb60e0885c63477ae
+state_head: 1365ad2a257768f44a7cfda126bee502fb9a3638
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 17
-  completed_plans: 16
+  completed_plans: 17
   percent: 0
 ---
 
@@ -426,6 +426,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-09: D-08 FinOps reads guarded by additive mount-level view:finops; finops_endpoints.py needed no edit (no view:dashboard guard existed)
 - [Phase 76]: 76-10: governance settings routes (evidence-staleness, remediation-sla) left unguarded because governance catalogues are not enforced; webhook list/create/delete/deliveries pass the tenant integration key (api-integration) through the guard
 - [Phase 76]: 76-12: agent data-plane console routes reuse the named AGENTS_GUARD from catalogue_mounts_agents per route; 15 agent ingest routes pinned by an explicit AGENT_INGEST_ROUTES list and auth-count baseline
+- [Phase 76]: 76-11: gap ledger shared/catalogue-gaps.json has two-sided ratchets (excess and slack both fail); no manifest edits, wave-3 corrections listed as human decisions; /api/tenants/me exempt as self-service
 
 ## Performance Metrics
 
@@ -564,6 +565,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P09 | 75 min | 3 tasks | 14 files |
 | Phase 76 P10 | 55 min | 3 tasks | 10 files |
 | Phase 76 P12 | 45 min | 2 tasks | 6 files |
+| Phase 76 P11 | 40 min | 3 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -598,8 +600,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-15T20:02:11.972Z
-**Stopped at:** Completed 76-12-PLAN.md
+**Last session:** 2026-10-15T20:31:27.393Z
+**Stopped at:** Completed 76-11-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -623,7 +625,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
-Plan: 7 of 12
+Plan: 8 of 12
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-15 — Phase 76 execution started
