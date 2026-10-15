@@ -22,6 +22,12 @@ PATCH_GUARD = catalogue_guard(
     write=("manage:patches",),
 )
 
+FIRMWARE_GUARD = catalogue_guard(
+    "firmwareDriverUpdates",
+    read=("view:firmware_drivers",),
+    write=("investigate:security", "manage:patches"),
+)
+
 MOUNTS = {
     # Patching (patchManagement): patch_endpoints aggregates patch_core, patch_enrichment,
     # patch_integrity and patch_software (all /api/patches); repo_endpoints is /api/repo.
@@ -40,10 +46,34 @@ MOUNTS = {
         write=("manage:settings", "view:software_deployment"),
     ),
     # software_endpoints is guarded per route with SOFTWARE_UPDATES_GUARD (agent-capable download).
-    # Device management.
+    # Device management. Every router below is user-authenticated end to end.
+    ("autopilot_endpoints", "router"): catalogue_guard(
+        "windowsAutopilot", read=("view:autopilot",), write=("manage:assets",)
+    ),
     ("mdm_endpoints", "router"): catalogue_guard(
         "mobileDeviceManagement",
         read=("view:mdm",),
         write=("manage:assets",),
     ),
+    ("mam_endpoints", "router"): catalogue_guard(
+        "mobileAppManagement", read=("view:mam",), write=("manage:assets",)
+    ),
+    ("android_enterprise_endpoints", "router"): catalogue_guard(
+        "androidEnterprise", read=("view:android_enterprise",), write=("manage:assets",)
+    ),
+    ("branch_site_endpoints", "router"): catalogue_guard(
+        "branchSites", read=("view:branch_sites",), write=("manage:agents",)
+    ),
+    ("app_catalog_endpoints", "router"): catalogue_guard(
+        "appCatalog", read=("view:app_catalog",), write=("manage:assets",)
+    ),
+    ("eol_rogue_endpoints", "router"): catalogue_guard(
+        "assetIntelligence", read=("view:asset_intelligence",), write=("manage:assets",)
+    ),
+    ("device_config_profiles_endpoints", "router"): catalogue_guard(
+        "deviceConfigProfiles", read=("view:device_config_profiles",), write=("manage:assets",)
+    ),
+    # Firmware and drivers: /api/firmware-drivers and /api/firmware-attestation share one catalogue.
+    ("firmware_driver_endpoints", "router"): FIRMWARE_GUARD,
+    ("firmware_attestation_endpoints", "router"): FIRMWARE_GUARD,
 }

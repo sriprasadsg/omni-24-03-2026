@@ -9,13 +9,6 @@ from tests.test_route_auth_baseline import REVIEWED_UNAUTHENTICATED
 
 TENANT = "tenant-a"
 
-# Patching, approval, deployment and software routers (Task 1 of the plan).
-PATCH_FAMILY = frozenset({
-    "patch_core_endpoints", "patch_enrichment_endpoints", "patch_integrity_endpoints",
-    "patch_software_endpoints", "repo_endpoints", "approval_endpoints", "deployment_endpoints",
-    "software_endpoints",
-})
-
 
 def _case(path, role, *, method="GET"):
     return {"method": method, "path": path, "role": role, "tenant_id": TENANT, "auth": "session"}
@@ -25,8 +18,8 @@ def test_devices_slice_parity():
     records = run_real_app_walk()["routes"]
     manifest = load_manifest()
     modules = slice_modules("devices", records, manifest)
-    assert "patch_core_endpoints" in modules and "mdm_endpoints" in modules
-    offenders = parity_offenders(records, manifest, [m for m in modules if m in PATCH_FAMILY])
+    assert "patch_core_endpoints" in modules and "mdm_endpoints" in modules and "autopilot_endpoints" in modules
+    offenders = parity_offenders(records, manifest, modules)
     assert offenders == [], "unguarded or mis-guarded devices-slice routes:\n" + "\n".join(offenders)
 
 
@@ -67,3 +60,15 @@ def test_devices_real_app_enforced():
     assert denied_software == 403
     assert denied_stage == 403
 
+
+
+def test_device_management_real_app_enforced():
+    paths = ["/api/autopilot/summary", "/api/mam/managed-apps", "/api/android-enterprise/profiles",
+             "/api/branch-sites", "/api/app-catalog/apps", "/api/asset-intelligence/eol",
+             "/api/device-config-profiles", "/api/firmware-drivers/inventory",
+             "/api/firmware-attestation/checks"]
+    denied = probe_real_app([_case(p, "nobody") for p in paths])
+    assert denied == [403] * len(paths), dict(zip(paths, denied))
+    # tenant_admin holds every device-management read permission and is not refused
+    allowed = probe_real_app([_case(p, "tenant_admin") for p in paths])
+    assert 403 not in allowed, dict(zip(paths, allowed))
