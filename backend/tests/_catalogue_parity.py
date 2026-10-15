@@ -13,6 +13,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MANIFEST_PATH = os.path.join(REPO_ROOT, "shared", "catalogue-access.json")
+LEDGER_PATH = os.path.join(REPO_ROOT, "shared", "catalogue-gaps.json")
+MIN_EXEMPT_REASON = 10
 
 # 98 in-scope sidebar catalogues (RESEARCH Appendix A) plus twelve enforced views with
 # no sidebar item (six identity views, two chat aliases, four security aliases). Slice
@@ -60,6 +62,12 @@ SLICES: Dict[str, Tuple[str, ...]] = {
 
 
 def load_manifest(path: str = MANIFEST_PATH) -> Dict[str, Any]:
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def load_ledger(path: str = LEDGER_PATH) -> Dict[str, Any]:
+    """Read the committed gap ledger. Read-only: no test may write or regenerate it (PROH-76-03)."""
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)
 
@@ -179,3 +187,112 @@ def slice_modules(
         if winner == slice_name:
             chosen.append(module)
     return sorted(chosen)
+
+
+def _pairs(record: Dict[str, Any]) -> List[str]:
+    return [f"{method} {record['path']}" for method in record["methods"]]
+
+
+def _is_unguarded(record: Dict[str, Any]) -> bool:
+    """Strict definition (RESEARCH A6): user route with no tag, no known guard dependency, no exemption."""
+    return (record.get("auth") == "user" and not record.get("tags")
+            and not record.get("known_guard") and not record.get("exempt"))
+
+
+def _ledger_group(records: Sequence[Dict[str, Any]], manifest: Dict[str, Any]) -> str:
+    counts: Dict[str, int] = {}
+    for record in records:
+        owner = owner_of(record["path"], manifest)
+        group = owner["group"] if owner else "unowned"
+        counts[group] = counts.get(group, 0) + len(record["methods"])
+    return max(sorted(counts), key=lambda g: counts[g]) if counts else "unowned"
+
+
+def ledger_offenders(
+    records: Iterable[Dict[str, Any]],
+    manifest: Dict[str, Any],
+    ledger: Dict[str, Any],
+) -> List[str]:
+    """Deny-by-default ledger checks (D-05): completeness, staleness, ratchets, no enforced gaps."""
+    records = list(records)
+    enforced = _enforced_groups(manifest)
+    out: List[str] = []
+
+    # --- per-module unguarded user routes, split by whether an enforced catalogue owns them
+    ledgerable: Dict[str, List[Dict[str, Any]]] = {}
+    enforced_gaps: Dict[str, List[str]] = {}
+    for record in records:
+        if not _is_unguarded(record):
+            continue
+        module = record.get("module") or "<unknown>"
+        owner = owner_of(record["path"], manifest)
+        if owner is not None and owner["group"] in enforced:
+            enforced_gaps.setdefault(module, []).extend(_pairs(record))
+        else:
+            ledgerable.setdefault(module, []).append(record)
+    mounted = {record.get("module") for record in records}
+
+    # --- ledger entries
+    seen: Dict[str, int] = {}
+    for entry in ledger.get("routers", []):
+        module = entry.get("module") or "<missing module>"
+        seen[module] = seen.get(module, 0) + 1
+        if seen[module] == 2:
+            out.append(f"{module}: duplicate ledger entries; keep one")
+        for field in ("group", "reason"):
+            if not str(entry.get(field) or "").strip():
+                out.append(f"{module}: ledger entry has an empty {field}")
+        if str(entry.get("reason") or "").strip().startswith("<"):
+            out.append(f"{module}: ledger entry still carries the placeholder reason")
+        if module in enforced_gaps:
+            out.append(f"{module}: enforced routes cannot be ledgered; guard these routes instead: "
+                       + ", ".join(sorted(enforced_gaps[module])))
+        count = sum(len(r["methods"]) for r in ledgerable.get(module, []))
+        maximum = entry.get("maxUnguardedRoutes")
+        if module in enforced_gaps and count == 0:
+            continue  # the enforced-route offender above is the whole story
+        if module not in mounted or count == 0:
+            out.append(f"{module}: stale ledger entry ({'module is not mounted' if module not in mounted else 'no unguarded user routes left'}); remove it")
+        elif not isinstance(maximum, int) or isinstance(maximum, bool):
+            out.append(f"{module}: maxUnguardedRoutes must be an integer")
+        elif count > maximum:
+            out.append(f"{module}: {count} unguarded routes, above maxUnguardedRoutes {maximum}; "
+                       "guard the new route or review a ledger change")
+        elif count < maximum and module not in enforced_gaps:
+            out.append(f"{module}: maxUnguardedRoutes {maximum} leaves slack over {count} unguarded routes; "
+                       f"lower it to {count}")
+
+    # --- routers missing from the ledger
+    for module in sorted(ledgerable):
+        if module in seen:
+            continue
+        count = sum(len(r["methods"]) for r in ledgerable[module])
+        paste = json.dumps({
+            "module": module,
+            "group": _ledger_group(ledgerable[module], manifest),
+            "maxUnguardedRoutes": count,
+            "reason": "<state why this router is unguarded>",
+        })
+        routes = ", ".join(sorted(p for r in ledgerable[module] for p in _pairs(r)))
+        out.append(f"{module}: {count} unguarded user routes and not in shared/catalogue-gaps.json "
+                   f"({routes}); guard them or add {paste}")
+
+    # --- agent-capable and exempt ratchets
+    agent = sorted(p for r in records if r.get("auth") == "agent_capable" for p in _pairs(r))
+    if len(agent) > int(ledger.get("agentAuthExcludedRoutes", 0)):
+        out.append(f"agentAuthExcludedRoutes: {len(agent)} agent-capable routes, above the ratchet "
+                   f"{ledger.get('agentAuthExcludedRoutes', 0)}: {', '.join(agent)}")
+    elif len(agent) < int(ledger.get("agentAuthExcludedRoutes", 0)):
+        out.append(f"agentAuthExcludedRoutes: ratchet {ledger['agentAuthExcludedRoutes']} leaves slack over "
+                   f"{len(agent)} agent-capable routes; lower it to {len(agent)}")
+    exempt = [(p, r["exempt"]) for r in records if r.get("exempt") for p in _pairs(r)]
+    if len(exempt) > int(ledger.get("maxExemptRoutes", 0)):
+        out.append(f"maxExemptRoutes: {len(exempt)} exempt routes, above the ratchet "
+                   f"{ledger.get('maxExemptRoutes', 0)}: {', '.join(sorted(p for p, _ in exempt))}")
+    elif len(exempt) < int(ledger.get("maxExemptRoutes", 0)):
+        out.append(f"maxExemptRoutes: ratchet {ledger['maxExemptRoutes']} leaves slack over "
+                   f"{len(exempt)} exempt routes; lower it to {len(exempt)}")
+    for pair, reason in sorted(exempt):
+        if len(str(reason).strip()) < MIN_EXEMPT_REASON:
+            out.append(f"{pair}: catalogue_exempt reason {reason!r} is shorter than {MIN_EXEMPT_REASON} characters")
+    return sorted(out)
