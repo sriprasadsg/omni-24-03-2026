@@ -22,16 +22,22 @@ interface ManageTenantModalProps {
 // (backend/tenant_features.py), which removes switched-off features from every
 // user of the tenant. A feature with a parent only counts while its parent is on.
 type FeatureSwitch = { permission: string; label: string; parent?: string };
-const permissionGroups: { name: string; features: FeatureSwitch[] }[] = featureSwitches.groups;
+const permissionGroups: { name: string; features: FeatureSwitch[]; explicitScreens?: boolean }[] = featureSwitches.groups;
 const switchByPermission = new Map(permissionGroups.flatMap(g => g.features).map(f => [f.permission, f]));
 const allToggleableFeatures = [...switchByPermission.keys()];
-// "screen:<view>" switches: one sidebar item each (backend tenant_features.SCREEN_SWITCHES).
+// "screen:<view>" switches: one sidebar item each (backend tenant_features.SCREEN_SWITCHES). The
+// Security and Compliance screens are only ever on because a Super Admin ticked them
+// (backend tenant_features.EXPLICIT_SCREENS), so they never come along with their feature.
+const explicitScreens = new Set(permissionGroups.filter(g => g.explicitScreens).flatMap(g => g.features)
+  .map(f => f.permission).filter(p => p.startsWith('screen:')));
 const screenSwitches = allToggleableFeatures.filter(p => p.startsWith('screen:'));
+const defaultScreens = screenSwitches.filter(p => !explicitScreens.has(p));
 
-/** `features` plus every screen with no parent or whose parent is in it (backend with_all_screens). */
+/** `features` plus every screen with no parent or whose parent is in it, Security and Compliance
+ * screens excepted (backend with_all_screens). */
 function withAllScreens(features: Iterable<string>): Set<string> {
   const next = new Set(features);
-  for (const screen of screenSwitches) {
+  for (const screen of defaultScreens) {
     const parent = switchByPermission.get(screen)?.parent;
     if (!parent || next.has(parent)) next.add(screen);
   }
@@ -116,8 +122,8 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
         newSet.delete(feature);
       } else {
         newSet.add(feature);
-        // Switching a feature on shows all its screens; untick the ones the tenant should not see.
-        screenSwitches.filter(screen => switchByPermission.get(screen)?.parent === feature).forEach(screen => newSet.add(screen));
+        // Switching a feature on shows its screens (Security and Compliance screens are ticked one by one).
+        defaultScreens.filter(screen => switchByPermission.get(screen)?.parent === feature).forEach(screen => newSet.add(screen));
       }
       return newSet;
     });
@@ -404,6 +410,11 @@ export const ManageTenantModal: React.FC<ManageTenantModalProps> = ({ isOpen, on
               {permissionGroups.map(group => (
                 <div key={group.name} role="group" aria-labelledby={`group-label-${group.name}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
                   <h4 id={`group-label-${group.name}`} className="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-2">{group.name}</h4>
+                  {group.explicitScreens && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1 mb-2">
+                      Tick each screen this tenant may use: screens here are never switched on with their feature.
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                     {group.features
                       .filter(f => !f.parent || !group.features.some(p => p.permission === f.parent))

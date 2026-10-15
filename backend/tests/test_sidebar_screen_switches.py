@@ -4,6 +4,7 @@ Each test states its card: protects=<observable>; fails_when=<wrong result it re
 no_claim=<what green does not prove>. In-memory fakes stand in for the tenants collection
 unless a test takes the mongo_db fixture.
 """
+import ast
 import collections
 import json
 import os
@@ -110,6 +111,31 @@ def test_new_tenants_start_with_every_screen_they_can_reach():
     assert "screen:chat" not in start
 
 
+def _signup_free_features():
+    """The ``free_features`` list the self-signup handler gives a new tenant, read from its source."""
+    with open(os.path.join(os.path.dirname(__file__), "..", "authentication_endpoints.py"), encoding="utf-8") as f:
+        tree = ast.parse(f.read())
+    lists = [ast.literal_eval(node.value) for node in ast.walk(tree) if isinstance(node, ast.Assign)
+             and any(isinstance(t, ast.Name) and t.id == "free_features" for t in node.targets)]
+    assert len(lists) == 1
+    return lists[0]
+
+
+def test_a_self_signup_tenant_sees_no_security_or_compliance_item():
+    """protects=a tenant that signs itself up starts with no Security or Compliance sidebar item (Audit Log
+    included) while keeping Overview; a Super Admin ticks those; fails_when=the free tier switches Audit Log
+    or a Security screen on again; no_claim=the signup handler's other writes."""
+    features = tf.with_all_screens(_signup_free_features())
+    granted = set(tf.narrow(TENANT_PERMS, features))
+    off = {m[len(tf.SCREEN_OFF_PREFIX):] for m in tf.hidden_screens(granted, features)}
+    visible = {c["group"]: [] for c in NAV}
+    for c in NAV:
+        if c["permission"] in granted and c["view"] not in off:
+            visible[c["group"]].append(c["label"])
+    assert visible["security"] == [] and visible["governance"] == []
+    assert "Overview" in visible["dashboards"]
+
+
 async def test_migration_019_adds_only_the_new_screens(mongo_db):
     """protects=on deploy a tenant keeps every newly switchable item it reaches, gains none for a feature
     it lacks, and a Security screen switched off earlier stays off; fails_when=Overview vanishes on deploy
@@ -140,3 +166,42 @@ async def test_sast_is_a_devsecops_screen(mongo_db):
     await migration.up(mongo_db)
     features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
     assert features == {"dev": ["view:devsecops", "screen:sast"], "sec": ["view:security", "screen:sast"]}
+
+
+def test_security_and_compliance_screens_are_ticked_by_a_super_admin():
+    """protects=every screen of the Security and Compliance sidebar sections is explicit (on only when
+    ticked), every screen switch sits in the group of its sidebar section, and a new tenant starts with no
+    Security/Compliance screen while other sections keep their default screens; fails_when=a tenant shows a
+    Security screen nobody ticked, or a Security screen hides in another Manage Tenant group; no_claim=MongoDB."""
+    title = {g["id"]: g["title"] for g in MANIFEST["groups"]}
+    section = {c["view"]: title[c["group"]] for c in MANIFEST["catalogues"]}
+    switches = json.load(open(tf._CATALOGUE_PATH))
+    for group in switches["groups"]:
+        for f in group["features"]:
+            if f["permission"].startswith(tf.SCREEN_PREFIX):
+                assert section[f["permission"][len(tf.SCREEN_PREFIX):]] == group["name"], f["permission"]
+    explicit_sections = {"Security (SecOps)", "Governance & Compliance"}
+    assert tf.EXPLICIT_SCREENS == {v for v in tf.SCREEN_SWITCHES if section[v] in explicit_sections}
+    start = set(tf.with_all_screens(["view:security", "view:compliance", "manage:settings", "view:reporting"]))
+    assert not {f"screen:{v}" for v in tf.EXPLICIT_SCREENS} & start
+    assert {"screen:reporting", "screen:settings", "screen:dashboard"} <= start
+
+
+async def test_migration_022_clears_the_auto_enabled_security_screens_and_archives_them(mongo_db):
+    """protects=on deploy every tenant loses the Security/Compliance screens the earlier migrations added,
+    keeps its feature switches and its other screens, and the removed list is archived per tenant; a second
+    run changes nothing; fails_when=a tenant still shows a Security screen nobody ticked, Security Operations
+    itself is switched off, or the removed screens are lost; no_claim=the runner bookkeeping."""
+    import importlib
+    await mongo_db.tenants.insert_many([
+        {"id": "t", "enabledFeatures": ["view:security", "view:compliance", "screen:edr", "screen:compliance",
+                                        "screen:pam", "screen:reporting", "view:mdr"]},
+        {"id": "clean", "enabledFeatures": ["view:security"]},
+    ])
+    migration = importlib.import_module("migrations.022_security_compliance_screens_explicit")
+    await migration.up(mongo_db)
+    await migration.up(mongo_db)
+    features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
+    assert features == {"t": ["view:security", "view:compliance", "screen:reporting", "view:mdr"], "clean": ["view:security"]}
+    archive = await mongo_db.tenant_switch_archive.find({}, {"_id": 0, "archivedAt": 0}).to_list(None)
+    assert archive == [{"tenantId": "t", "migration": "022", "removed": ["screen:compliance", "screen:edr", "screen:pam"]}]

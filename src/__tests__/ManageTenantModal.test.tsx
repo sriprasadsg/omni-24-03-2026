@@ -105,7 +105,21 @@ describe('ManageTenantModal sidebar screens', () => {
     fireEvent.change(screen.getByDisplayValue('Custom'), { target: { value: 'Pro' } });
     fireEvent.click(screen.getByText('Save Changes'));
     const saved = onSave.mock.calls[0][1].features as string[];
-    expect(saved).toEqual(expect.arrayContaining(['view:security', 'screen:edr', 'screen:reporting', 'screen:dashboard']));
+    expect(saved).toEqual(expect.arrayContaining(['view:security', 'screen:reporting', 'screen:dashboard']));
+    expect(saved).not.toContain('screen:edr');   // Security screens are ticked one by one
+  });
+
+  it('switching Security on ticks none of its screens; a Super Admin ticks each one', () => {
+    const onSave = vi.fn();
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={onSave} onDelete={() => {}} />);
+    expect(screen.getAllByText(/Tick each screen this tenant may use/)).toHaveLength(2);   // Security and Compliance
+    fireEvent.click(switchBox('Security Operations'));
+    expect(switchBox('EDR (Real-Time)').checked).toBe(false);
+    fireEvent.click(switchBox('EDR (Real-Time)'));
+    fireEvent.click(screen.getByText('Save Changes'));
+    const saved = onSave.mock.calls[0][1].features as string[];
+    expect(saved).toEqual(expect.arrayContaining(['view:security', 'screen:edr']));
+    expect(saved).not.toContain('screen:alertManagement');
   });
 });
 

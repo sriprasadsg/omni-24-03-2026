@@ -1,6 +1,6 @@
 {
-  "version": 3,
-  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has its own switch: either its permission's switch (when no other item shares that permission) or a \"screen:<view>\" switch. For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. A \"screen:<view>\" switch turns one sidebar item off: the sidebar hides it and the server refuses the routes the item owns in the manifest, unless the entry is \"hideOnly\" (its routes serve other screens too). A screen with no parent hangs only on the permission its manifest entry names (Overview, Tickets, My Tasks ...). Read by backend/tenant_features.py, components/ManageTenantModal.tsx and utils/permissions.ts.",
+  "version": 4,
+  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has its own switch: either its permission's switch (when no other item shares that permission) or a \"screen:<view>\" switch. For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. A \"screen:<view>\" switch turns one sidebar item off: the sidebar hides it and the server refuses the routes the item owns in the manifest, unless the entry is \"hideOnly\" (its routes serve other screens too). A screen with no parent hangs only on the permission its manifest entry names (Overview, Tickets, My Tasks ...). Read by backend/tenant_features.py, components/ManageTenantModal.tsx and utils/permissions.ts. Every screen switch sits in the group of its sidebar section. In a group marked \"explicitScreens\" (Security, Compliance) a screen is on only when a Super Admin ticks it: new tenants start with none, and switching the group's features on does not switch its screens on.",
   "groups": [
     {
       "name": "Dashboards & Insights",
@@ -358,26 +358,6 @@
           "parent": "view:security"
         },
         {
-          "permission": "screen:k8sSecurity",
-          "label": "Kubernetes Security",
-          "parent": "view:security"
-        },
-        {
-          "permission": "screen:apiSecurity",
-          "label": "API Security",
-          "parent": "view:security"
-        },
-        {
-          "permission": "screen:databaseMonitoring",
-          "label": "Database Monitor (DAM)",
-          "parent": "view:security"
-        },
-        {
-          "permission": "screen:problemManagement",
-          "label": "Problem Management",
-          "parent": "view:security"
-        },
-        {
           "permission": "manage:security_cases",
           "label": "Manage Security Cases",
           "parent": "view:security"
@@ -514,8 +494,14 @@
         {
           "permission": "view:active_response",
           "label": "Active Response"
+        },
+        {
+          "permission": "screen:pam",
+          "label": "Privileged Access (PAM)",
+          "parent": "manage:settings"
         }
-      ]
+      ],
+      "explicitScreens": true
     },
     {
       "name": "DevSecOps & Engineering",
@@ -609,6 +595,21 @@
         {
           "permission": "view:xai",
           "label": "AI Explainability"
+        },
+        {
+          "permission": "screen:k8sSecurity",
+          "label": "Kubernetes Security",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:apiSecurity",
+          "label": "API Security",
+          "parent": "view:security"
+        },
+        {
+          "permission": "screen:databaseMonitoring",
+          "label": "Database Monitor (DAM)",
+          "parent": "view:security"
         }
       ]
     },
@@ -766,7 +767,8 @@
           "permission": "view:audit_log",
           "label": "Audit Log"
         }
-      ]
+      ],
+      "explicitScreens": true
     },
     {
       "name": "Automation & Intelligence",
@@ -838,24 +840,11 @@
           "permission": "screen:aiRemediation",
           "label": "AI Remediation",
           "parent": "view:ai_governance"
-        }
-      ]
-    },
-    {
-      "name": "Management & Settings",
-      "features": [
-        {
-          "permission": "screen:notificationPrefs",
-          "label": "Notification Prefs"
         },
         {
-          "permission": "manage:settings",
-          "label": "System Settings"
-        },
-        {
-          "permission": "screen:pam",
-          "label": "Privileged Access (PAM)",
-          "parent": "manage:settings"
+          "permission": "screen:problemManagement",
+          "label": "Problem Management",
+          "parent": "view:security"
         },
         {
           "permission": "screen:jitAccess",
@@ -871,6 +860,19 @@
           "permission": "screen:changeManagement",
           "label": "Change Management",
           "parent": "manage:settings"
+        }
+      ]
+    },
+    {
+      "name": "Management & Settings",
+      "features": [
+        {
+          "permission": "screen:notificationPrefs",
+          "label": "Notification Prefs"
+        },
+        {
+          "permission": "manage:settings",
+          "label": "System Settings"
         },
         {
           "permission": "screen:paymentSettings",

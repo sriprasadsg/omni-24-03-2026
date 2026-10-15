@@ -318,11 +318,12 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     # 3. Create Tenant & User
     # Free tier features — limited set available without a paid subscription.
     # Upgrade to Pro/Enterprise unlocks advanced security, AI, cloud, and analytics features.
+    # No Security or Compliance sidebar item is on (Audit Log included): a Super Admin ticks those.
     free_features = [
         "view:dashboard", "view:profile",
         "view:agents", "view:assets",
         "view:patching", "view:security",
-        "view:compliance", "view:audit_log",
+        "view:compliance",
         "view:logs", "view:reporting",
         "view:automation", "view:finops",
         "manage:settings",

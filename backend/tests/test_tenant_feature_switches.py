@@ -285,7 +285,8 @@ def test_screen_switch_rule():
     assert tf.screen_permissions([], ["view:security", "screen:edr"]) == []        # role lacks the parent
     assert "screen:edr" in tf.screen_permissions(["view:security"], ["all"])
     assert (tf.screen_of("/api/edr/hosts"), tf.screen_of("/api/edr"), tf.screen_of("/api/agents")) == ("edr", "edr", None)
-    assert set(tf.with_all_screens(["view:security"])) >= {"screen:edr", "screen:alertManagement"}
+    # Security and Compliance screens are ticked by a Super Admin, never added with their feature.
+    assert not set(tf.with_all_screens(["view:security"])) & {"screen:edr", "screen:alertManagement"}
     fleet = set(tf.with_all_screens(["view:agents"]))
     assert {"screen:agents", "screen:chat", "screen:dashboard", "screen:internalTickets"} <= fleet
     assert not fleet & {"screen:edr", "screen:reporting"}                         # their parents are absent
@@ -359,7 +360,8 @@ async def test_migration_017_keeps_every_screen_a_tenant_already_had(mongo_db):
     await migration.up(mongo_db)
     await migration.up(mongo_db)
     features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
-    assert {"screen:edr", "screen:alertManagement"} <= set(features["sec"]) and len(features["sec"]) == len(set(features["sec"]))
+    # Since 2026-10-15 Security screens are explicit (migration 022), so 017 adds none of them.
+    assert not {"screen:edr", "screen:alertManagement"} & set(features["sec"])
     assert not {"screen:edr", "screen:alertManagement"} & set(features["none"])
 
 
@@ -384,5 +386,6 @@ async def test_migration_018_keeps_every_settings_screen(mongo_db):
                                         {"id": "n", "enabledFeatures": ["view:agents"]}])
     await importlib.import_module("migrations.018_settings_screen_switches").up(mongo_db)
     features = {t["id"]: set(t["enabledFeatures"]) async for t in mongo_db.tenants.find({}, {"_id": 0})}
-    assert {"screen:pam", "screen:settings", "screen:invoices"} <= features["s"]
+    assert {"screen:settings", "screen:invoices"} <= features["s"]
+    assert "screen:pam" not in features["s"]                                      # a Security screen: explicit
     assert not {"screen:pam", "screen:settings", "screen:invoices"} & features["n"]

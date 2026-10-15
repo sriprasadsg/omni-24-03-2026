@@ -39,7 +39,9 @@ def _load_switches(path: Path = _CATALOGUE_PATH) -> List[Dict[str, Any]]:
     """Every switch entry in the catalogue, checked: unique permissions, known parents."""
     with open(path, encoding="utf-8") as handle:
         catalogue = json.load(handle)
-    features = [feature for group in catalogue["groups"] for feature in group["features"]]
+    # Each entry remembers whether its group wants every screen ticked explicitly (_explicit).
+    features = [{**feature, "_explicit": bool(group.get("explicitScreens"))}
+                for group in catalogue["groups"] for feature in group["features"]]
     seen = set()
     for feature in features:
         if feature["permission"] in seen:
@@ -84,6 +86,11 @@ SCREEN_SWITCHES: Dict[str, str] = _screen_switches()
 HIDE_ONLY_SCREENS: FrozenSet[str] = frozenset(
     f["permission"][len(SCREEN_PREFIX):] for f in _SWITCHES
     if f["permission"].startswith(SCREEN_PREFIX) and f.get("hideOnly"))
+# Screens of the Security and Compliance sidebar sections: on only when a Super Admin ticks them,
+# never added because their feature is on (new tenants start without them).
+EXPLICIT_SCREENS: FrozenSet[str] = frozenset(
+    f["permission"][len(SCREEN_PREFIX):] for f in _SWITCHES
+    if f["permission"].startswith(SCREEN_PREFIX) and f["_explicit"])
 
 
 def _route_owners(manifest: Dict[str, Any] = _MANIFEST) -> List[tuple]:
@@ -156,10 +163,10 @@ def screen_of(path: str) -> Optional[str]:
 def with_all_screens(features: Iterable[str]) -> List[str]:
     """``features`` plus every screen switch that has no parent or whose parent switch is in it
     (new tenants, and the migrations that introduced screen switches, keep every screen of a
-    feature they have)."""
+    feature they have), except the Security and Compliance screens: a Super Admin ticks those."""
     features = list(features)
     have = set(features)
-    screens = [f"{SCREEN_PREFIX}{view}" for view in SCREEN_SWITCHES]
+    screens = [f"{SCREEN_PREFIX}{view}" for view in SCREEN_SWITCHES if view not in EXPLICIT_SCREENS]
     return features + [s for s in screens
                        if s not in have and (SWITCH_PARENTS[s] is None or SWITCH_PARENTS[s] in have)]
 
