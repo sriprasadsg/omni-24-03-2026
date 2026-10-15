@@ -194,7 +194,7 @@ Plans:
   4. A committed gap ledger lists every router that remains unguarded, and the deny-by-default route-parity test fails if an in-scope catalogue route is unguarded or an unguarded router is missing from the ledger.
   5. A frontend test fails when the sidebar and the manifest drift (for example, a nav item added with no manifest entry).
 
-**Plans**: 8/12 plans executed
+**Plans**: 9/12 plans executed
 
 Plans:
 **Wave 1**
@@ -210,7 +210,7 @@ Plans:
 - [x] 76-06-PLAN.md — Guards: patching, deployments, software, device management
 - [x] 76-07-PLAN.md — Guards: Security detection and response catalogues
 - [x] 76-08-PLAN.md — Guards: Security posture (cloud, app, data, vulnerabilities)
-- [ ] 76-09-PLAN.md — Guards: billing, FinOps, tenants, users/roles/API keys, SSO/LDAP admin
+- [x] 76-09-PLAN.md — Guards: billing, FinOps, tenants, users/roles/API keys, SSO/LDAP admin
 - [ ] 76-10-PLAN.md — Guards: settings, platform operations, integrations
 - [ ] 76-12-PLAN.md — Guards: agent data-plane routers (tasks, security scans, telemetry, agentic tasks, uninstall; agent ingest untouched)
 
@@ -280,7 +280,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
-| 76. Catalogue Manifest & Backend Route Enforcement | 8/12 | In Progress | - |
+| 76. Catalogue Manifest & Backend Route Enforcement | 9/12 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 0/TBD | Not started | - |
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
