@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Completed 76-07-PLAN.md
-last_updated: "2026-10-15T18:14:13.097Z"
+stopped_at: Completed 76-08-PLAN.md
+last_updated: "2026-10-15T18:25:09.415Z"
 last_activity: 2026-10-15
 last_activity_desc: Phase 76 execution started
-state_head: b2ca8516e2f19ba8465a0173ba68a22cdb87a65f
+state_head: c8e82d4682aedc19efe5478033ae6a43952f77dc
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 17
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -421,6 +421,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-05: route_aliases left to the 76-11 sweep; agent_chat, compliance_scans and update_endpoints guarded in the agents slice — Partition put them in the agents slice; route_aliases spans six catalogues and 76-11 owns it
 - [Phase 76]: 76-06: patch routers are mounted via the aggregator patch_endpoints (router_registry loads it, not the sub-modules); software_endpoints guarded per route because of its agent-capable download
 - [Phase 76]: 76-07: security_endpoints is an aggregator (cases, keys, ops, scans) so its sub-routers are guarded per route; ai_endpoints and threat_endpoints straddle threatHunting/threatIntelligence/settings and take the owning catalogue guard per route
+- [Phase 76]: 76-08: vuln_endpoints reuses VULNERABILITY_GUARD from the assets mount file; DevSecOps-owned routers (iac/k8s/pipeline/supply-chain/api security, dam) left unguarded per D-01
 
 ## Performance Metrics
 
@@ -555,6 +556,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P05 | 45 min | 2 tasks | 16 files |
 | Phase 76 P06 | 25 min | 2 tasks | 3 files |
 | Phase 76 P07 | 40 min | 3 tasks | 12 files |
+| Phase 76 P08 | 25 min | 2 tasks | 2 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -589,8 +591,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-15T18:14:13.043Z
-**Stopped at:** Completed 76-07-PLAN.md
+**Last session:** 2026-10-15T18:25:09.360Z
+**Stopped at:** Completed 76-08-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -614,7 +616,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
-Plan: 3 of 12
+Plan: 4 of 12
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-15 — Phase 76 execution started
