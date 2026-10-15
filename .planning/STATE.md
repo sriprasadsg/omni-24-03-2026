@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Completed 76-10-PLAN.md
-last_updated: "2026-10-15T19:37:44.234Z"
+stopped_at: Completed 76-12-PLAN.md
+last_updated: "2026-10-15T20:02:12.024Z"
 last_activity: 2026-10-15
 last_activity_desc: Phase 76 execution started
-state_head: 20ea6baf25f7365f229195ebff9968ef2ae67189
+state_head: e8668b6a1bc7938bfbfd405eb60e0885c63477ae
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
   percent: 0
 ---
 
@@ -425,6 +425,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-09: platform-staff tenant routes (GET /api/tenants, license PATCH, enrollment writes) are catalogue_exempt because manage:tenants is Super Admin only; manifest correction for 76-11
 - [Phase 76]: 76-09: D-08 FinOps reads guarded by additive mount-level view:finops; finops_endpoints.py needed no edit (no view:dashboard guard existed)
 - [Phase 76]: 76-10: governance settings routes (evidence-staleness, remediation-sla) left unguarded because governance catalogues are not enforced; webhook list/create/delete/deliveries pass the tenant integration key (api-integration) through the guard
+- [Phase 76]: 76-12: agent data-plane console routes reuse the named AGENTS_GUARD from catalogue_mounts_agents per route; 15 agent ingest routes pinned by an explicit AGENT_INGEST_ROUTES list and auth-count baseline
 
 ## Performance Metrics
 
@@ -562,6 +563,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P08 | 25 min | 2 tasks | 2 files |
 | Phase 76 P09 | 75 min | 3 tasks | 14 files |
 | Phase 76 P10 | 55 min | 3 tasks | 10 files |
+| Phase 76 P12 | 45 min | 2 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -596,8 +598,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-15T19:37:44.184Z
-**Stopped at:** Completed 76-10-PLAN.md
+**Last session:** 2026-10-15T20:02:11.972Z
+**Stopped at:** Completed 76-12-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -621,7 +623,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
-Plan: 6 of 12
+Plan: 7 of 12
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-15 — Phase 76 execution started
