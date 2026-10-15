@@ -13,6 +13,7 @@ from payment_gateway_service import PaymentGatewayFactory, PaymentGatewayType
 from encryption_service import get_encryption_service
 from datetime import datetime, timezone
 import logging
+from catalogue_mounts_billing_identity import PAYMENT_SETTINGS_GUARD
 
 router = APIRouter(prefix="/api/payments", tags=["Payments"])
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ async def get_tenant_gateway(db, tenant_id: str):
     return gateway, gateway_config
 
 
-@router.post("/setup")
+@router.post("/setup", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def setup_payment_gateway(
     setup: PaymentGatewaySetup,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -84,7 +85,7 @@ async def setup_payment_gateway(
     }
 
 
-@router.get("/configured-gateways")
+@router.get("/configured-gateways", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def get_configured_gateways(current_user: TokenData = Depends(get_current_user)):
     """Get all configured payment gateways for this tenant."""
     db = get_database()
@@ -104,7 +105,7 @@ async def get_configured_gateways(current_user: TokenData = Depends(get_current_
     return {"success": True, "gateways": gateways}
 
 
-@router.post("/gateways/{gateway_type}/activate")
+@router.post("/gateways/{gateway_type}/activate", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def activate_gateway(
     gateway_type: str,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -122,7 +123,7 @@ async def activate_gateway(
     return {"success": True, "message": f"{gateway_type.capitalize()} set as active gateway"}
 
 
-@router.delete("/gateways/{gateway_type}")
+@router.delete("/gateways/{gateway_type}", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def delete_gateway(
     gateway_type: str,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -136,7 +137,7 @@ async def delete_gateway(
     return {"success": True, "message": f"{gateway_type.capitalize()} gateway removed"}
 
 
-@router.get("/methods")
+@router.get("/methods", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def get_payment_methods(current_user: TokenData = Depends(get_current_user)):
     """List payment methods."""
     db = get_database()
@@ -152,7 +153,7 @@ async def get_payment_methods(current_user: TokenData = Depends(get_current_user
     return {"success": True, "methods": methods}
 
 
-@router.post("/methods")
+@router.post("/methods", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def add_payment_method(
     method: PaymentMethodCreate,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -178,7 +179,7 @@ async def add_payment_method(
     return {"success": True, "method": result}
 
 
-@router.delete("/methods/{method_id}")
+@router.delete("/methods/{method_id}", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def delete_payment_method(
     method_id: str,
     current_user: TokenData = Depends(require_permission("manage:settings")),

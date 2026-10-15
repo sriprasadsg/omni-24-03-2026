@@ -20,6 +20,7 @@ from rbac_utils import require_permission
 from tenant_context import get_tenant_id
 from auth_roles import tenant_admin_roles
 import compliance_purchases
+from catalogue_mounts_billing_identity import INVOICES_GUARD, PAYMENT_SETTINGS_GUARD
 
 router = APIRouter(prefix="/api/billing", tags=["Billing"])
 
@@ -46,7 +47,7 @@ class InvoiceRequest(BaseModel):
     custom_items: Optional[List[InvoiceLineItem]] = None
 
 
-@router.get("/invoices")
+@router.get("/invoices", dependencies=[Depends(INVOICES_GUARD)])
 async def list_invoices(current_user=Depends(get_current_user)):
     """List all invoices for the current tenant."""
     db = get_database()
@@ -72,7 +73,7 @@ async def list_invoices(current_user=Depends(get_current_user)):
     return {"invoices": invoices, "source": "database"}
 
 
-@router.post("/invoice")
+@router.post("/invoice", dependencies=[Depends(INVOICES_GUARD)])
 async def generate_invoice_alias(
     tenant_id: str = "",
     req: InvoiceRequest = None,
@@ -105,7 +106,7 @@ async def generate_invoice_alias(
     return await generate_invoice(req or InvoiceRequest(), current_user)
 
 
-@router.post("/invoices/generate")
+@router.post("/invoices/generate", dependencies=[Depends(INVOICES_GUARD)])
 async def generate_invoice(req: InvoiceRequest, current_user=Depends(get_current_user)):
     """Generate a new invoice for the current period."""
     caller_role = getattr(current_user, "role", "") if not isinstance(current_user, dict) else current_user.get("role", "")
@@ -151,7 +152,7 @@ async def generate_invoice(req: InvoiceRequest, current_user=Depends(get_current
     return invoice
 
 
-@router.get("/invoices/{invoice_id}/pdf")
+@router.get("/invoices/{invoice_id}/pdf", dependencies=[Depends(INVOICES_GUARD)])
 async def download_invoice_pdf(invoice_id: str, current_user=Depends(get_current_user)):
     """Download an invoice as a PDF."""
     from invoice_generator import generate_invoice_pdf
@@ -176,7 +177,7 @@ async def download_invoice_pdf(invoice_id: str, current_user=Depends(get_current
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/invoices/{invoice_id}/pay")
+@router.post("/invoices/{invoice_id}/pay", dependencies=[Depends(INVOICES_GUARD)])
 async def mark_invoice_paid(invoice_id: str, current_user=Depends(get_current_user)):
     """Mark an invoice as paid (admin action — requires invoice to currently be unpaid)."""
     if getattr(current_user, "role", None) not in _BILLING_ADMIN_ROLES:
@@ -211,7 +212,7 @@ async def mark_invoice_paid(invoice_id: str, current_user=Depends(get_current_us
     return {"success": True, "invoice_id": invoice_id, "status": "paid"}
 
 
-@router.get("/payment-methods")
+@router.get("/payment-methods", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def get_payment_methods(current_user=Depends(get_current_user)):
     """List saved payment methods for the tenant."""
     db = get_database()
@@ -254,14 +255,14 @@ async def get_payment_methods(current_user=Depends(get_current_user)):
     return {"payment_methods": [], "source": "none", "note": "Configure Stripe or PayPal to manage payment methods"}
 
 
-@router.get("/stripe-config")
+@router.get("/stripe-config", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def get_stripe_config(current_user=Depends(get_current_user)):
     """Return Stripe publishable key so the frontend can load Stripe.js. Empty string when unconfigured."""
     publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
     return {"publishable_key": publishable_key, "configured": bool(publishable_key)}
 
 
-@router.get("/paypal-config")
+@router.get("/paypal-config", dependencies=[Depends(PAYMENT_SETTINGS_GUARD)])
 async def get_paypal_config(current_user=Depends(get_current_user)):
     """Return PayPal client ID for frontend SDK. Empty when unconfigured."""
     client_id = os.getenv("PAYPAL_CLIENT_ID", "")
@@ -269,7 +270,7 @@ async def get_paypal_config(current_user=Depends(get_current_user)):
     return {"client_id": client_id, "mode": mode, "configured": bool(client_id)}
 
 
-@router.post("/paypal/order")
+@router.post("/paypal/order", dependencies=[Depends(INVOICES_GUARD)])
 async def create_paypal_order(
     plan: str,
     current_user=Depends(require_permission("manage:settings"))
@@ -325,7 +326,7 @@ async def create_paypal_order(
         raise HTTPException(status_code=500, detail="Payment order creation failed")
 
 
-@router.post("/stripe/checkout")
+@router.post("/stripe/checkout", dependencies=[Depends(INVOICES_GUARD)])
 async def create_stripe_checkout(
     price_id: str,
     current_user=Depends(require_permission("manage:settings"))

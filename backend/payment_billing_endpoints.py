@@ -16,6 +16,7 @@ import logging
 
 from payment_gateway_endpoints import get_tenant_gateway
 from billing_service import BillingService
+from catalogue_mounts_billing_identity import INVOICES_GUARD, SUBSCRIPTION_GUARD
 
 router = APIRouter(prefix="/api/payments", tags=["Payments"])
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class ChargeCreate(BaseModel):
     description: str
 
 
-@router.post("/subscribe")
+@router.post("/subscribe", dependencies=[Depends(SUBSCRIPTION_GUARD)])
 async def create_subscription(
     subscription: SubscriptionCreate,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -76,7 +77,7 @@ async def create_subscription(
     return {"success": True, "subscription": subscription_doc}
 
 
-@router.post("/charge")
+@router.post("/charge", dependencies=[Depends(SUBSCRIPTION_GUARD)])
 async def create_charge(
     charge: ChargeCreate,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -105,7 +106,7 @@ async def create_charge(
     return {"success": True, "charge": charge_doc}
 
 
-@router.get("/invoices")
+@router.get("/invoices", dependencies=[Depends(INVOICES_GUARD)])
 async def get_invoices(
     limit: int = 10,
     current_user: TokenData = Depends(get_current_user),
@@ -119,7 +120,7 @@ async def get_invoices(
     return {"success": True, "invoices": invoices}
 
 
-@router.get("/invoices/{invoice_id}/pdf")
+@router.get("/invoices/{invoice_id}/pdf", dependencies=[Depends(INVOICES_GUARD)])
 async def download_invoice_pdf(
     invoice_id: str,
     current_user: TokenData = Depends(get_current_user),
@@ -149,7 +150,7 @@ async def download_invoice_pdf(
     )
 
 
-@router.post("/cancel-subscription")
+@router.post("/cancel-subscription", dependencies=[Depends(SUBSCRIPTION_GUARD)])
 async def cancel_subscription(current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Cancel active subscription — atomic claim prevents double-cancellation."""
     db = get_database()
@@ -258,7 +259,7 @@ async def stripe_webhook(
     return {"success": True}
 
 
-@router.get("/usage")
+@router.get("/usage", dependencies=[Depends(SUBSCRIPTION_GUARD)])
 async def get_usage(
     billing_period: Optional[str] = None,
     current_user: TokenData = Depends(get_current_user),
@@ -275,7 +276,7 @@ async def get_usage(
     }
 
 
-@router.post("/generate-invoice")
+@router.post("/generate-invoice", dependencies=[Depends(SUBSCRIPTION_GUARD)])
 async def generate_invoice(
     billing_period: Optional[str] = None,
     current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -287,7 +288,7 @@ async def generate_invoice(
     return {"success": True, "invoice": invoice}
 
 
-@router.get("/subscription-info")
+@router.get("/subscription-info", dependencies=[Depends(SUBSCRIPTION_GUARD)])
 async def get_subscription_info(current_user: TokenData = Depends(get_current_user)):
     """Get current subscription information."""
     db = get_database()
