@@ -6,19 +6,14 @@ view:finops. D-09: user and role administration keep their guards. Public sign-i
 """
 import catalogue_mounts_billing_identity as billing_identity
 import rbac_defaults
+from catalogue_guards import manage_twin
 from catalogue_mounts import MOUNT_GUARDS
 from tests._catalogue_parity import (
-    load_manifest, parity_offenders, resolved_read, resolved_write, slice_modules,
+    load_manifest, owner_of, parity_offenders, resolved_read, resolved_write, slice_modules,
 )
 from tests._route_walk import probe_real_app, run_real_app_walk
 
 TENANT = "tenant-a"
-
-# Modules of the slice whose guards land in a later task of this plan; shrinks to empty.
-_PENDING = {
-    "tenant_endpoints", "tenant_enrollment_endpoints", "bundle_endpoints", "sso_endpoints",
-    "ldap_endpoints",
-}
 
 PUBLIC_PREFIXES = ("/api/sso/", "/api/auth/saml", "/api/auth/ldap")
 PUBLIC_PATHS = ("/api/tenants/lookup-key", "/api/payments/webhook/stripe")
@@ -36,7 +31,7 @@ def test_billing_identity_slice_parity():
                      "payment_billing_endpoints", "knowledge_endpoints", "user_endpoints",
                      "tenant_endpoints", "sso_endpoints", "ldap_endpoints"):
         assert expected in modules
-    offenders = parity_offenders(records, manifest, [m for m in modules if m not in _PENDING])
+    offenders = parity_offenders(records, manifest, modules)
     assert offenders == [], "unguarded or mis-guarded billing/identity routes:\n" + "\n".join(offenders)
 
 
@@ -112,3 +107,61 @@ def test_public_identity_routes_untouched():
     for record in public:
         if record["auth"] == "public":
             assert record["tags"] == [] and not record["exempt"], record
+
+
+IDENTITY_READS = ["/api/tenants", "/api/admin/sso/saml/config", "/api/admin/ldap/config", "/api/bundles"]
+# These routes also keep _require_itam_admin_session_only (manage:assets), which the catalogue tag only adds to.
+ITAM_ADMIN_PATHS = {"/api/admin/sso/saml/config", "/api/admin/ldap/config"}
+TENANT_EXEMPT_MODULES = ("tenant_endpoints", "tenant_enrollment_endpoints", "bundle_endpoints")
+
+
+def _case_for(path, role):
+    tenant = rbac_defaults.PLATFORM_TENANT_ID if role in rbac_defaults.PLATFORM_ROLE_KEYS else TENANT
+    return {"method": "GET", "path": path, "role": role, "tenant_id": tenant, "auth": "session"}
+
+
+def test_identity_admin_enforced():
+    """Tenant, bundle and SSO/LDAP administration follow the manifest owner's resolved read strings."""
+    manifest = load_manifest()
+    roles = sorted(r for r in rbac_defaults.ROLE_DEFAULTS if r != "super_admin") + ["nobody"]
+    for path in IDENTITY_READS:
+        accepted = set()
+        for perm in resolved_read(owner_of(path, manifest)):
+            accepted.update({perm, manage_twin(perm)})
+        cases = [_case_for(path, role) for role in roles]
+        statuses = probe_real_app(cases)
+        for role, status in zip(roles, statuses):
+            held = set(rbac_defaults.ROLE_DEFAULTS.get(role, ()))
+            platform_listing = path == "/api/tenants" and role in rbac_defaults.PLATFORM_ROLE_KEYS \
+                and "view:tenants" in held
+            if platform_listing:
+                # Spec C1: platform staff list tenants through view:tenants; the exemption keeps that.
+                assert status != 403, (path, role, status)
+            elif not (held & accepted):
+                assert status == 403, (path, role, status, sorted(accepted))
+            elif path not in ITAM_ADMIN_PATHS or "manage:assets" in held:
+                assert status != 403, (path, role, status)
+    owner_statuses = probe_real_app([_case_for(p, "super_admin") for p in IDENTITY_READS])
+    assert 403 not in owner_statuses, dict(zip(IDENTITY_READS, owner_statuses))
+
+
+def test_identity_admin_writes_use_tenant_settings():
+    """A tenant admin keeps changing their own tenant (manage:settings); a viewer is refused."""
+    writes = [("POST", f"/api/tenants/{TENANT}/branding"), ("PUT", f"/api/tenants/{TENANT}/email/preferences")]
+    assert 403 not in probe_real_app([_case(p, "tenant_admin", method=m) for m, p in writes])
+    assert probe_real_app([_case(p, "viewer", method=m) for m, p in writes]) == [403, 403]
+    # Deleting a tenant stays Super Admin only: the route's own check still refuses the tenant admin.
+    assert probe_real_app([_case(f"/api/tenants/{TENANT}", "tenant_admin", method="DELETE")]) == [403]
+
+
+def test_tenant_exempt_routes_reachable_by_every_role():
+    records = run_real_app_walk()["routes"]
+    exempt = [r for r in records if r["module"] in TENANT_EXEMPT_MODULES and r["exempt"]
+              and r["methods"] == ["GET"] and r["path"] != "/api/tenants"]
+    assert len(exempt) >= 6, exempt
+    roles = ["nobody", *sorted(rbac_defaults.ROLE_DEFAULTS)]
+    cases = [_case(r["path"].replace("{tenant_id}", TENANT), role) for r in exempt for role in roles
+             if role not in rbac_defaults.PLATFORM_ROLE_KEYS]
+    statuses = probe_real_app(cases)
+    refused = [(c["role"], c["path"]) for c, st in zip(cases, statuses) if st == 403]
+    assert refused == [], refused

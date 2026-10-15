@@ -22,6 +22,7 @@ from database import get_database
 # sync and group-role rewriting is a materially different risk from
 # reading/writing ITAM assets — this surface stays session-auth-only.
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
+from catalogue_mounts_billing_identity import USER_MANAGEMENT_GUARD
 from rbac_utils import is_super_admin
 from role_assignment import assert_can_assign_role, refuse_directory_platform_role
 from rate_limiter import limiter
@@ -83,7 +84,7 @@ class LDAPLoginRequest(BaseModel):
 
 # ─── Config management ─────────────────────────────────────────────────────────
 
-@router.post("/api/admin/ldap/config")
+@router.post("/api/admin/ldap/config", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def save_ldap_config(config: LDAPConfigIn, current_user: TokenData = Depends(_require_itam_admin)):
     """Persist LDAP configuration. The bind password is encrypted at rest
     via encryption_service (T-64-08) — never stored in plaintext."""
@@ -102,7 +103,7 @@ async def save_ldap_config(config: LDAPConfigIn, current_user: TokenData = Depen
     return {"success": True}
 
 
-@router.get("/api/admin/ldap/config")
+@router.get("/api/admin/ldap/config", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def read_ldap_config(current_user: TokenData = Depends(_require_itam_admin)):
     """Return the saved LDAP config with the bind password masked."""
     db = get_database()
@@ -116,7 +117,7 @@ async def read_ldap_config(current_user: TokenData = Depends(_require_itam_admin
     return doc
 
 
-@router.post("/api/admin/ldap/test-connection")
+@router.post("/api/admin/ldap/test-connection", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def test_ldap_connection(current_user: TokenData = Depends(_require_itam_admin)):
     """Test LDAP connectivity and service-account bind without touching
     any user data."""
@@ -141,7 +142,7 @@ async def test_ldap_connection(current_user: TokenData = Depends(_require_itam_a
 
 # ─── Manual sync trigger ────────────────────────────────────────────────────────
 
-@router.post("/api/admin/ldap/sync")
+@router.post("/api/admin/ldap/sync", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def trigger_ldap_sync(current_user: TokenData = Depends(_require_itam_admin)):
     """Trigger a manual full user/group sync for the caller's tenant."""
     tenant_id = get_tenant_id()
@@ -164,13 +165,13 @@ async def trigger_ldap_sync(current_user: TokenData = Depends(_require_itam_admi
 
 # ─── Group -> role mapping ────────────────────────────────────────────────────────
 
-@router.get("/api/admin/ldap/group-mapping")
+@router.get("/api/admin/ldap/group-mapping", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def list_group_mappings(current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _config_scope(current_user)
     return await LDAPGroupMapper.list_mappings(tenant_id)
 
 
-@router.post("/api/admin/ldap/group-mapping")
+@router.post("/api/admin/ldap/group-mapping", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def upsert_group_mapping(mapping: GroupMappingIn, current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _config_scope(current_user)
     # D-22 write time: a mapping may not grant more than its writer holds.
@@ -187,7 +188,7 @@ async def upsert_group_mapping(mapping: GroupMappingIn, current_user: TokenData 
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.delete("/api/admin/ldap/group-mapping/{mapping_id}")
+@router.delete("/api/admin/ldap/group-mapping/{mapping_id}", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def delete_group_mapping(mapping_id: str, current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _config_scope(current_user)
     try:

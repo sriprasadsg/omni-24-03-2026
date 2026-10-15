@@ -23,6 +23,7 @@ from auth_types import TokenData
 # configuration is a materially different risk from reading/writing ITAM
 # assets — this surface stays session-auth-only.
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
+from catalogue_mounts_billing_identity import USER_MANAGEMENT_GUARD
 from rbac_utils import is_super_admin
 from role_assignment import assert_can_assign_role, refuse_directory_platform_role
 from tenant_context import get_tenant_id
@@ -297,7 +298,7 @@ class SAMLAttributeMappingIn(BaseModel):
 
 # ─── Admin: config management ──────────────────────────────────────────────
 
-@saml_router.post("/api/admin/sso/saml/config")
+@saml_router.post("/api/admin/sso/saml/config", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def save_saml_config(config: SAMLConfigIn, current_user: TokenData = Depends(_require_itam_admin)):
     """Persist SAML configuration. The SP private key is encrypted at rest
     via encryption_service (T-64-14) — never stored in plaintext."""
@@ -316,7 +317,7 @@ async def save_saml_config(config: SAMLConfigIn, current_user: TokenData = Depen
     return {"success": True}
 
 
-@saml_router.get("/api/admin/sso/saml/config")
+@saml_router.get("/api/admin/sso/saml/config", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def read_saml_config(current_user: TokenData = Depends(_require_itam_admin)):
     """Return the saved SAML config with the SP private key masked."""
     db = get_database()
@@ -330,7 +331,7 @@ async def read_saml_config(current_user: TokenData = Depends(_require_itam_admin
     return doc
 
 
-@saml_router.get("/api/admin/sso/saml/metadata")
+@saml_router.get("/api/admin/sso/saml/metadata", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def admin_saml_metadata(current_user: TokenData = Depends(_require_itam_admin)):
     """Admin preview of the SP metadata XML for the caller's configured scope
     (same content the public /api/auth/saml/metadata serves, gated here for
@@ -344,7 +345,7 @@ async def admin_saml_metadata(current_user: TokenData = Depends(_require_itam_ad
     return Response(content=metadata_xml, media_type="application/xml")
 
 
-@saml_router.post("/api/admin/sso/saml/test")
+@saml_router.post("/api/admin/sso/saml/test", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def test_saml_config(current_user: TokenData = Depends(_require_itam_admin)):
     """Validate the caller's SAML configuration is complete and produces
     valid SP metadata (catches config typos — required fields, cert
@@ -364,13 +365,13 @@ async def test_saml_config(current_user: TokenData = Depends(_require_itam_admin
 
 # ─── Admin: attribute (group) -> role mapping ──────────────────────────────
 
-@saml_router.get("/api/admin/sso/saml/attribute-mapping")
+@saml_router.get("/api/admin/sso/saml/attribute-mapping", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def list_attribute_mappings(current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _saml_config_scope(current_user)
     return await SAMLGroupMapper.list_mappings(tenant_id)
 
 
-@saml_router.post("/api/admin/sso/saml/attribute-mapping")
+@saml_router.post("/api/admin/sso/saml/attribute-mapping", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def upsert_attribute_mapping(mapping: SAMLAttributeMappingIn, current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _saml_config_scope(current_user)
     # D-22 write time: a mapping may not grant more than its writer holds.
@@ -387,7 +388,7 @@ async def upsert_attribute_mapping(mapping: SAMLAttributeMappingIn, current_user
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@saml_router.delete("/api/admin/sso/saml/attribute-mapping/{mapping_id}")
+@saml_router.delete("/api/admin/sso/saml/attribute-mapping/{mapping_id}", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def delete_attribute_mapping(mapping_id: str, current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _saml_config_scope(current_user)
     try:

@@ -17,6 +17,7 @@ from authentication_service import get_current_user
 from database import mongodb
 from rbac_utils import has_platform_permission
 from tenant_endpoints import _assert_tenant_read
+from catalogue_mounts_billing_identity import TENANT_OWN_SCOPE, TENANT_PLATFORM_STAFF
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tenants", tags=["Tenant Management"])
@@ -63,7 +64,7 @@ class AllowlistImport(BaseModel):
     csv: str = Field(..., max_length=MAX_CSV_CHARS)
 
 
-@router.get("/{tenant_id}/allowlist")
+@router.get("/{tenant_id}/allowlist", dependencies=[Depends(TENANT_OWN_SCOPE)])
 async def get_allowlist(tenant_id: str, skip: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=1000),
                         current_user=Depends(get_current_user)):
     _assert_tenant_read(current_user, tenant_id)
@@ -71,7 +72,7 @@ async def get_allowlist(tenant_id: str, skip: int = Query(0, ge=0), limit: int =
     return await agent_allowlist.list_entries(mongodb.db, tenant_id, skip, limit)
 
 
-@router.post("/{tenant_id}/allowlist", status_code=201)
+@router.post("/{tenant_id}/allowlist", status_code=201, dependencies=[Depends(TENANT_PLATFORM_STAFF)])
 async def add_allowlist_entry(tenant_id: str, body: AllowlistEntry, current_user=Depends(get_current_user)):
     await _require_license_manager(current_user)
     await _tenant_or_404(tenant_id)
@@ -84,7 +85,7 @@ async def add_allowlist_entry(tenant_id: str, body: AllowlistEntry, current_user
     return doc
 
 
-@router.delete("/{tenant_id}/allowlist/{entry_id}")
+@router.delete("/{tenant_id}/allowlist/{entry_id}", dependencies=[Depends(TENANT_PLATFORM_STAFF)])
 async def delete_allowlist_entry(tenant_id: str, entry_id: str, current_user=Depends(get_current_user)):
     await _require_license_manager(current_user)
     if not await agent_allowlist.remove(mongodb.db, tenant_id, entry_id):
@@ -93,7 +94,7 @@ async def delete_allowlist_entry(tenant_id: str, entry_id: str, current_user=Dep
     return {"success": True}
 
 
-@router.post("/{tenant_id}/allowlist/import")
+@router.post("/{tenant_id}/allowlist/import", dependencies=[Depends(TENANT_PLATFORM_STAFF)])
 async def import_allowlist(tenant_id: str, body: AllowlistImport, current_user=Depends(get_current_user)):
     """CSV ``serial,uuid,mac,note`` (header optional, at most 10,000 rows). Bad, repeated
     or already-listed rows are reported with their line number and skipped."""
@@ -117,14 +118,14 @@ class KeyCreate(BaseModel):
     defaultGroupId: Optional[str] = Field(None, max_length=64)
 
 
-@router.get("/{tenant_id}/enrollment-keys")
+@router.get("/{tenant_id}/enrollment-keys", dependencies=[Depends(TENANT_OWN_SCOPE)])
 async def get_enrollment_keys(tenant_id: str, current_user=Depends(get_current_user)):
     _assert_tenant_read(current_user, tenant_id)
     await _tenant_or_404(tenant_id)
     return {"keys": await enrollment_keys.list_keys(mongodb.db, tenant_id)}
 
 
-@router.post("/{tenant_id}/enrollment-keys", status_code=201)
+@router.post("/{tenant_id}/enrollment-keys", status_code=201, dependencies=[Depends(TENANT_PLATFORM_STAFF)])
 async def create_enrollment_key(tenant_id: str, body: KeyCreate, current_user=Depends(get_current_user)):
     """Returns the key once (``key``); only its hash is stored."""
     await _require_license_manager(current_user)
@@ -146,7 +147,7 @@ async def create_enrollment_key(tenant_id: str, body: KeyCreate, current_user=De
     return created
 
 
-@router.post("/{tenant_id}/enrollment-keys/{key_id}/revoke")
+@router.post("/{tenant_id}/enrollment-keys/{key_id}/revoke", dependencies=[Depends(TENANT_PLATFORM_STAFF)])
 async def revoke_enrollment_key(tenant_id: str, key_id: str, current_user=Depends(get_current_user)):
     """The key stops enrolling new agents; agents it already enrolled keep working."""
     await _require_license_manager(current_user)

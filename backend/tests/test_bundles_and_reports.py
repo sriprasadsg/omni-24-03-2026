@@ -89,38 +89,43 @@ class TestBundleEndpoints:
         self.app = _app_with_limiter(mod.router, tenant_user)
         self.client = TestClient(self.app)
 
-    def test_list_bundles_returns_200(self):
+    def test_list_bundles_returns_200(self, super_admin_user):
+        client = TestClient(_app_with_limiter(self.mod.router, super_admin_user))  # bundleManagement needs manage:tenants
         with patch("bundle_endpoints.get_current_user", return_value=True):
-            resp = self.client.get("/api/bundles")
+            resp = client.get("/api/bundles")
         assert resp.status_code == 200
         body = resp.json()
         assert "bundles" in body
         assert isinstance(body["bundles"], list)
         assert body["total"] > 0
 
-    def test_list_bundles_includes_ticketing_only(self):
+    def test_list_bundles_includes_ticketing_only(self, super_admin_user):
+        client = TestClient(_app_with_limiter(self.mod.router, super_admin_user))  # bundleManagement needs manage:tenants
         with patch("bundle_endpoints.get_current_user", return_value=True):
-            resp = self.client.get("/api/bundles")
+            resp = client.get("/api/bundles")
         keys = [b["key"] for b in resp.json()["bundles"]]
         assert "ticketing_only" in keys
 
-    def test_get_bundle_detail(self):
+    def test_get_bundle_detail(self, super_admin_user):
+        client = TestClient(_app_with_limiter(self.mod.router, super_admin_user))  # bundleManagement needs manage:tenants
         with patch("bundle_endpoints.get_current_user", return_value=True):
-            resp = self.client.get("/api/bundles/security")
+            resp = client.get("/api/bundles/security")
         assert resp.status_code == 200
         body = resp.json()
         assert body["key"] == "security"
         assert "features" in body
         assert len(body["features"]) > 0
 
-    def test_get_unknown_bundle_returns_404(self):
+    def test_get_unknown_bundle_returns_404(self, super_admin_user):
+        client = TestClient(_app_with_limiter(self.mod.router, super_admin_user))  # bundleManagement needs manage:tenants
         with patch("bundle_endpoints.get_current_user", return_value=True):
-            resp = self.client.get("/api/bundles/nonexistent_bundle_xyz")
+            resp = client.get("/api/bundles/nonexistent_bundle_xyz")
         assert resp.status_code == 404
 
-    def test_catalog_returns_grouped_features(self):
+    def test_catalog_returns_grouped_features(self, super_admin_user):
+        client = TestClient(_app_with_limiter(self.mod.router, super_admin_user))  # bundleManagement needs manage:tenants
         with patch("bundle_endpoints.get_current_user", return_value=True):
-            resp = self.client.get("/api/bundles/catalog")
+            resp = client.get("/api/bundles/catalog")
         assert resp.status_code == 200
         body = resp.json()
         assert "catalog" in body

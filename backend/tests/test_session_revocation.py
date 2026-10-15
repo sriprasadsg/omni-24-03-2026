@@ -238,6 +238,8 @@ def _users_client(target):
     app = FastAPI()
     app.include_router(ue.router)
     app.dependency_overrides[_require_itam_admin_session_only] = lambda: ADMIN
+    # The manifest tag (Phase 76-09, userManagement) sits next to the admin check; ADMIN holds it.
+    app.dependency_overrides[ue.USER_MANAGEMENT_GUARD] = lambda: ADMIN
     return TestClient(app), db, ue
 
 

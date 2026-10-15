@@ -22,6 +22,7 @@ from feature_bundles import (
     resolve_tenant_features,
 )
 from rbac_utils import is_super_admin, require_super_admin
+from catalogue_mounts_billing_identity import BUNDLE_MANAGEMENT_GUARD, TENANT_OWN_FEATURES
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bundles", tags=["Bundles"])
@@ -52,14 +53,14 @@ def _reject_unknown_features(keys: Optional[List[str]]) -> None:
 
 # ── Bundle catalogue routes ───────────────────────────────────────────────────
 
-@router.get("")
+@router.get("", dependencies=[Depends(BUNDLE_MANAGEMENT_GUARD)])
 @limiter.limit("60/minute")
 async def list_bundles(request: Request, response: Response, _=Depends(get_current_user)):
     """Return all predefined bundles with their feature lists."""
     return {"bundles": get_bundle_list(), "total": len(PREDEFINED_BUNDLES)}
 
 
-@router.get("/catalog")
+@router.get("/catalog", dependencies=[Depends(BUNDLE_MANAGEMENT_GUARD)])
 @limiter.limit("30/minute")
 async def list_feature_catalog(request: Request, response: Response, _=Depends(get_current_user)):
     """Return the full feature catalog grouped by category."""
@@ -71,7 +72,7 @@ async def list_feature_catalog(request: Request, response: Response, _=Depends(g
     return {"catalog": grouped, "total": len(features)}
 
 
-@router.get("/{bundle_key}")
+@router.get("/{bundle_key}", dependencies=[Depends(BUNDLE_MANAGEMENT_GUARD)])
 @limiter.limit("60/minute")
 async def get_bundle(request: Request, response: Response, bundle_key: str, _=Depends(get_current_user)):
     """Return details for a single predefined bundle."""
@@ -88,7 +89,7 @@ async def get_bundle(request: Request, response: Response, bundle_key: str, _=De
 
 # ── Tenant feature assignment routes ─────────────────────────────────────────
 
-@router.get("/tenant/{tenant_id}/features")
+@router.get("/tenant/{tenant_id}/features", dependencies=[Depends(TENANT_OWN_FEATURES)])
 @limiter.limit("60/minute")
 async def get_tenant_features(
     request: Request,
@@ -132,7 +133,7 @@ async def get_tenant_features(
     }
 
 
-@router.put("/tenant/{tenant_id}/assign")
+@router.put("/tenant/{tenant_id}/assign", dependencies=[Depends(BUNDLE_MANAGEMENT_GUARD)])
 @limiter.limit("20/minute")
 async def assign_bundles_to_tenant(
     request: Request,
@@ -182,7 +183,7 @@ async def assign_bundles_to_tenant(
     }
 
 
-@router.patch("/tenant/{tenant_id}/assign")
+@router.patch("/tenant/{tenant_id}/assign", dependencies=[Depends(BUNDLE_MANAGEMENT_GUARD)])
 @limiter.limit("20/minute")
 async def patch_tenant_bundles(
     request: Request,
@@ -231,7 +232,7 @@ async def patch_tenant_bundles(
     }
 
 
-@router.delete("/tenant/{tenant_id}/assign")
+@router.delete("/tenant/{tenant_id}/assign", dependencies=[Depends(BUNDLE_MANAGEMENT_GUARD)])
 @limiter.limit("10/minute")
 async def clear_tenant_bundles(
     request: Request,
