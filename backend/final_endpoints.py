@@ -9,6 +9,7 @@ from ml_service import get_ml_service
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
+from catalogue_mounts_settings_ops import INTEGRATIONS_GUARD
 from auth_roles import tenant_admin_roles
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ class RecommendActionRequest(BaseModel):
 
 # ── Phase 8: Integration Endpoints ───────────────────────────────────────────
 
-@router.post("/api/integrations/siem/send")
+@router.post("/api/integrations/siem/send", dependencies=[Depends(INTEGRATIONS_GUARD)])
 async def send_to_siem(
     data: SIEMEvent,
     current_user: TokenData = Depends(require_permission("manage:settings"))
@@ -84,7 +85,7 @@ async def send_to_siem(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/api/integrations/cmdb/sync")
+@router.post("/api/integrations/cmdb/sync", dependencies=[Depends(INTEGRATIONS_GUARD)])
 async def sync_to_cmdb(
     data: CMDBSync,
     current_user: TokenData = Depends(require_permission("manage:settings"))
@@ -104,7 +105,7 @@ async def sync_to_cmdb(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/api/integrations/ticketing/create")
+@router.post("/api/integrations/ticketing/create", dependencies=[Depends(INTEGRATIONS_GUARD)])
 async def create_ticket(
     data: TicketCreate,
     current_user: TokenData = Depends(require_permission("manage:settings"))
@@ -126,7 +127,7 @@ async def create_ticket(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/api/integrations/config")
+@router.post("/api/integrations/config", dependencies=[Depends(INTEGRATIONS_GUARD)])
 async def configure_integration(
     data: IntegrationConfigModel,
     current_user: TokenData = Depends(get_current_user)

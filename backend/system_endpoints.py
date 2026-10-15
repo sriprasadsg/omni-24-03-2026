@@ -4,13 +4,14 @@ import logging
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
+from catalogue_mounts_settings_ops import API_STATUS_GUARD, SYSTEM_HEALTH_GUARD
 
 # Setup Logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/system", tags=["System Health"])
 
-@router.get("/routes")
+@router.get("/routes", dependencies=[Depends(API_STATUS_GUARD)])
 async def get_routes(request: Request, current_user: TokenData = Depends(get_current_user)):
     """List all registered API routes with their handler status."""
     routes = []
@@ -27,7 +28,7 @@ async def get_routes(request: Request, current_user: TokenData = Depends(get_cur
         })
     return routes
 
-@router.post("/remediate")
+@router.post("/remediate", dependencies=[Depends(SYSTEM_HEALTH_GUARD)])
 async def remediate_route(data: Dict[str, Any], current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Analyze a failed route and suggest a fix using AI."""
     route = data.get("route", "unknown")

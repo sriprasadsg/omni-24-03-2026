@@ -215,8 +215,9 @@ class TestToggleGet:
         assert endpoints_mod is not None, "agent_location_history_endpoints not yet created (46-04)"
         db = _mock_db()
 
+        # geoSecurity (76-10) needs manage:settings, which the plain "user" role lacks.
         with patch.object(endpoints_mod, "get_database", return_value=db):
-            with TestClient(_app_for(_TENANT_A_USER)) as client:
+            with TestClient(_app_for(_TENANT_A_ADMIN)) as client:
                 r = client.get("/api/settings/agent-location-tracking")
 
         assert r.status_code == 200

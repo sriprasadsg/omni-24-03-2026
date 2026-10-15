@@ -5,6 +5,7 @@ from authentication_service import get_current_user
 from rbac_utils import require_permission, verify_permission
 from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
+from catalogue_mounts_settings_ops import WEBHOOKS_GUARD, WEBHOOKS_SESSION_GUARD
 from datetime import datetime, timezone
 import uuid
 import hmac
@@ -99,7 +100,7 @@ async def handle_zoho_webhook(request: Request, payload: Dict[str, Any]):
         
     return result
 
-@router.get("")
+@router.get("", dependencies=[Depends(WEBHOOKS_GUARD)])
 async def get_webhooks(current_user: TokenData = Depends(get_current_user_or_api_key)):
     """Get all configured webhooks"""
     db = get_database()
@@ -112,7 +113,7 @@ async def get_webhooks(current_user: TokenData = Depends(get_current_user_or_api
     cursor = db.webhooks.find(query, {"_id": 0, "secret": 0})
     return await cursor.to_list(length=100)
 
-@router.post("")
+@router.post("", dependencies=[Depends(WEBHOOKS_GUARD)])
 async def create_webhook(
     webhook_data: Dict[str, Any],
     current_user: TokenData = Depends(get_current_user_or_api_key)
@@ -147,7 +148,7 @@ async def create_webhook(
     await db.webhooks.insert_one(dict(new_webhook))
     return new_webhook
 
-@router.delete("/{webhook_id}")
+@router.delete("/{webhook_id}", dependencies=[Depends(WEBHOOKS_GUARD)])
 async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_current_user_or_api_key)):
     """Delete a webhook"""
     # Tenant integration keys (role api-integration) are issued by tenant admins for this
@@ -162,7 +163,7 @@ async def delete_webhook(webhook_id: str, current_user: TokenData = Depends(get_
         raise HTTPException(status_code=404, detail="Webhook not found")
     return {"success": True}
 
-@router.put("/{webhook_id}")
+@router.put("/{webhook_id}", dependencies=[Depends(WEBHOOKS_SESSION_GUARD)])
 async def update_webhook(
     webhook_id: str, 
     data: Dict[str, Any], 
@@ -200,7 +201,7 @@ async def update_webhook(
     updated_webhook = await db.webhooks.find_one(query, {"_id": 0, "secret": 0})
     return updated_webhook
 
-@router.get("/{webhook_id}/deliveries")
+@router.get("/{webhook_id}/deliveries", dependencies=[Depends(WEBHOOKS_GUARD)])
 async def get_webhook_deliveries(
     webhook_id: str,
     limit: int = 50,
@@ -248,7 +249,7 @@ async def _record_delivery(db, webhook_id: str, event: str, payload: dict,
         pass  # delivery logging must never break the caller
 
 
-@router.post("/{webhook_id}/test")
+@router.post("/{webhook_id}/test", dependencies=[Depends(WEBHOOKS_SESSION_GUARD)])
 async def test_webhook(webhook_id: str, current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Test a webhook by sending a ping event and recording the delivery."""
     db = get_database()

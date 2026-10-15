@@ -11,6 +11,7 @@ from ai_guardrails import scan_text
 from local_ip import ollama_default_url
 from rbac_utils import require_permission
 from auth_types import TokenData
+from catalogue_mounts_settings_ops import SETTINGS_GUARD
 from fastapi import Depends
 import httpx
 
@@ -330,7 +331,7 @@ async def ai_chat(req: ChatRequest, current_user: TokenData = Depends(require_pe
         "configured": True
     }
 
-@chat_router.get("/config")
+@chat_router.get("/config", dependencies=[Depends(SETTINGS_GUARD)])
 async def get_ai_config(current_user: TokenData = Depends(require_permission("manage:settings"))):
     """Get current AI configuration status."""
     db = get_database()

@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user
+from catalogue_mounts_settings_ops import AGENTS_GUARD, GEO_SECURITY_GUARD
 from agent_location_history_service import get_track_agent_location
 import logging
 from datetime import datetime, timezone
@@ -40,7 +41,7 @@ class AgentLocationTrackingUpdate(BaseModel):
 # GET /api/agents/{agent_id}/location-history  (GAUD-02)
 # ---------------------------------------------------------------------------
 
-@router.get("/api/agents/{agent_id}/location-history")
+@router.get("/api/agents/{agent_id}/location-history", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agent_location_history(
     agent_id: str,
     current_user=Depends(get_current_user),
@@ -90,7 +91,7 @@ async def get_agent_location_history(
 # GET/PATCH /api/settings/agent-location-tracking (D-02)
 # ---------------------------------------------------------------------------
 
-@router.get("/api/settings/agent-location-tracking")
+@router.get("/api/settings/agent-location-tracking", dependencies=[Depends(GEO_SECURITY_GUARD)])
 async def get_agent_location_tracking_settings(current_user=Depends(get_current_user)):
     try:
         db = get_database()
@@ -102,7 +103,7 @@ async def get_agent_location_tracking_settings(current_user=Depends(get_current_
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.patch("/api/settings/agent-location-tracking")
+@router.patch("/api/settings/agent-location-tracking", dependencies=[Depends(GEO_SECURITY_GUARD)])
 async def patch_agent_location_tracking_settings(body: AgentLocationTrackingUpdate, current_user=Depends(get_current_user)):
     try:
         _require_admin(current_user)
