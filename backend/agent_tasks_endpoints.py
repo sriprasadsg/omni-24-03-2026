@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 from database import get_database, mongodb
 from authentication_service import get_current_user, get_current_user_or_agent
+from catalogue_mounts_agents import AGENTS_GUARD
 from rbac_utils import require_permission
 from datetime import datetime, timezone
 import uuid
@@ -167,7 +168,7 @@ async def report_instruction_result(
     return {"status": "ok"}
 
 
-@router.post("/dispatch")
+@router.post("/dispatch", dependencies=[Depends(AGENTS_GUARD)])
 async def dispatch_agent_task(
     task: Dict[str, Any] = Body(...),
     current_user: dict = Depends(require_permission("manage:agents"))
@@ -186,7 +187,7 @@ async def dispatch_agent_task(
     return {"success": True, "taskId": task_id}
 
 
-@router.get("/tasks/{task_id}")
+@router.get("/tasks/{task_id}", dependencies=[Depends(AGENTS_GUARD)])
 async def get_task_status(task_id: str, current_user=Depends(get_current_user)):
     """Frontend polls this for deployment task status."""
     db = get_database()
@@ -214,7 +215,7 @@ async def get_task_status(task_id: str, current_user=Depends(get_current_user)):
     raise HTTPException(status_code=404, detail="Task not found")
 
 
-@router.post("/{agent_id}/update")
+@router.post("/{agent_id}/update", dependencies=[Depends(AGENTS_GUARD)])
 async def trigger_agent_update(
     agent_id: str,
     current_user: Any = Depends(get_current_user),
@@ -245,7 +246,7 @@ async def trigger_agent_update(
     return {"success": True, "instruction_id": instr_id, "message": "Update instruction dispatched"}
 
 
-@router.get("/{agent_id}/instructions/history")
+@router.get("/{agent_id}/instructions/history", dependencies=[Depends(AGENTS_GUARD)])
 async def get_agent_instruction_history(
     agent_id: str,
     limit: int = 50,
@@ -287,7 +288,7 @@ async def get_agent_instruction_history(
     ]
 
 
-@router.post("/{agent_id}/discovery/scan")
+@router.post("/{agent_id}/discovery/scan", dependencies=[Depends(AGENTS_GUARD)])
 async def trigger_network_scan(
     agent_id: str,
     current_user: Any = Depends(get_current_user)
