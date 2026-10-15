@@ -12,6 +12,7 @@ from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission
 from database import get_database
 from rate_limiter import limiter
+from catalogue_mounts_devices import SOFTWARE_UPDATES_GUARD
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def _safe_filename(raw: str) -> str:
     return name
 
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(SOFTWARE_UPDATES_GUARD)])
 @limiter.limit("20/hour")
 async def upload_software(
     request: Request,
@@ -87,7 +88,7 @@ async def upload_software(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/repository")
+@router.get("/repository", dependencies=[Depends(SOFTWARE_UPDATES_GUARD)])
 async def list_repository_files(current_user=Depends(get_current_user)):
     """List all files in the software repository."""
     files = []
@@ -132,7 +133,7 @@ class DeployRequest(BaseModel):
     installArgs: str = Field(None, max_length=500)
 
 
-@router.post("/deploy")
+@router.post("/deploy", dependencies=[Depends(SOFTWARE_UPDATES_GUARD)])
 async def deploy_software(
     payload: DeployRequest,
     current_user=Depends(require_permission("manage:patches")),
@@ -241,7 +242,7 @@ async def deploy_software(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/inventory")
+@router.get("/inventory", dependencies=[Depends(SOFTWARE_UPDATES_GUARD)])
 async def get_software_inventory(current_user=Depends(get_current_user)):
     """Return all installed software across all tenant agents, grouped by package name."""
     from collections import defaultdict
@@ -291,7 +292,7 @@ async def get_software_inventory(current_user=Depends(get_current_user)):
     return result
 
 
-@router.post("/updates/deploy")
+@router.post("/updates/deploy", dependencies=[Depends(SOFTWARE_UPDATES_GUARD)])
 async def deploy_software_updates(
     data: dict,
     current_user=Depends(require_permission("manage:patches")),
@@ -449,7 +450,7 @@ def _get_database():
     return _gd()
 
 
-@router.get("/deployment-jobs")
+@router.get("/deployment-jobs", dependencies=[Depends(SOFTWARE_UPDATES_GUARD)])
 async def get_software_deployment_jobs(current_user=Depends(get_current_user)):
     """Get software deployment jobs scoped to the caller's tenant."""
     try:
@@ -466,7 +467,7 @@ async def get_software_deployment_jobs(current_user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/tasks")
+@router.get("/tasks", dependencies=[Depends(SOFTWARE_UPDATES_GUARD)])
 async def get_software_tasks(current_user=Depends(get_current_user)):
     """Return recent software deployment tasks scoped to the caller's tenant."""
     try:
