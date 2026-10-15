@@ -10,6 +10,7 @@ from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
 from auth_types import TokenData
+from catalogue_mounts_settings_ops import NOTIFICATIONS_GUARD
 from reporting_service import get_reporting_service
 from notification_service import get_notification_service
 from tenant_context import set_tenant_id
@@ -173,7 +174,7 @@ async def get_report_schedules(
 
 # ── Notifications ─────────────────────────────────────────────────────────────
 
-@router.post("/api/notifications/send")
+@router.post("/api/notifications/send", dependencies=[Depends(NOTIFICATIONS_GUARD)])
 async def send_notification(
     data: dict,
     _current_user: TokenData = Depends(require_permission("manage:settings")),
@@ -198,7 +199,7 @@ async def send_notification(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/api/notifications/history")
+@router.get("/api/notifications/history", dependencies=[Depends(NOTIFICATIONS_GUARD)])
 async def get_notification_history(
     limit: int = Query(50, ge=1, le=500),
     severity: str = None,

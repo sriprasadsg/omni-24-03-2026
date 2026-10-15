@@ -14,6 +14,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 
 from authentication_service import TokenData
+from catalogue_mounts_settings_ops import TICKET_WEBHOOKS_GUARD
 from database import get_database
 from rbac_service import rbac_service
 from ticket_webhook_service import delete_webhook, get_webhooks, register_webhook
@@ -131,7 +132,7 @@ async def merge_ticket(
 
 # ── Webhook CRUD ──────────────────────────────────────────────────────────────
 
-@router.get("/webhooks")
+@router.get("/webhooks", dependencies=[Depends(TICKET_WEBHOOKS_GUARD)])
 async def list_webhooks(
     current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")),
 ) -> Dict[str, Any]:
@@ -139,7 +140,7 @@ async def list_webhooks(
     return {"webhooks": hooks}
 
 
-@router.post("/webhooks")
+@router.post("/webhooks", dependencies=[Depends(TICKET_WEBHOOKS_GUARD)])
 async def create_webhook(
     body: WebhookRequest,
     current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")),
@@ -153,7 +154,7 @@ async def create_webhook(
     return hook
 
 
-@router.delete("/webhooks/{webhook_id}")
+@router.delete("/webhooks/{webhook_id}", dependencies=[Depends(TICKET_WEBHOOKS_GUARD)])
 async def delete_webhook_endpoint(
     webhook_id: str,
     current_user: TokenData = Depends(rbac_service.has_permission("manage:settings")),
