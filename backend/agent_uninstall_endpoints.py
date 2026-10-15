@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from authentication_service import get_current_user_or_agent
+from catalogue_mounts_agents import AGENTS_GUARD
 from database import get_database
 import licensing
 from rbac_utils import require_permission
@@ -116,7 +117,7 @@ def _reveal(agent: Dict[str, Any], protection: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
-@router.get("/{agent_id}/uninstall-code")
+@router.get("/{agent_id}/uninstall-code", dependencies=[Depends(AGENTS_GUARD)])
 async def reveal_uninstall_code(agent_id: str, current_user=Depends(require_permission("manage:agents"))):
     """Show the code an administrator types into the agent's uninstaller."""
     db = get_database()
@@ -126,7 +127,7 @@ async def reveal_uninstall_code(agent_id: str, current_user=Depends(require_perm
     return _reveal(agent, protection)
 
 
-@router.post("/{agent_id}/uninstall-code/rotate")
+@router.post("/{agent_id}/uninstall-code/rotate", dependencies=[Depends(AGENTS_GUARD)])
 async def rotate_uninstall_code(agent_id: str, current_user=Depends(require_permission("manage:agents"))):
     """Replace the code (e.g. after it was shared); the agent picks up the new
     one with its next heartbeat."""

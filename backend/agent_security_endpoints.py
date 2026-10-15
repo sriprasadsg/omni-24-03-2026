@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Dict, Any, List
 from database import get_database
 from authentication_service import get_current_user
+from catalogue_mounts_agents import AGENTS_GUARD
 from datetime import datetime, timezone
 import asyncio
 import uuid
@@ -100,7 +101,7 @@ async def ingest_fim_event(
     return {"ok": True, "event_ids": stored, "malicious_count": malicious_count}
 
 
-@router.get("/{agent_id}/fim-events")
+@router.get("/{agent_id}/fim-events", dependencies=[Depends(AGENTS_GUARD)])
 async def list_fim_events(
     agent_id: str,
     limit: int = 100,
@@ -181,7 +182,7 @@ async def post_shadow_ai_scan(
     return {"success": True, "detected_count": doc["detected_count"]}
 
 
-@router.get("/{agent_id}/shadow-ai-scans")
+@router.get("/{agent_id}/shadow-ai-scans", dependencies=[Depends(AGENTS_GUARD)])
 async def get_shadow_ai_scans(
     agent_id: str,
     limit: int = Query(10, ge=1, le=100),
@@ -250,7 +251,7 @@ async def post_vulnerability_scan(
     return {"success": True, "scan_id": str(doc.get("_id", "")), "total_cves": doc["total_cves"]}
 
 
-@router.get("/{agent_id}/vulnerability-scans")
+@router.get("/{agent_id}/vulnerability-scans", dependencies=[Depends(AGENTS_GUARD)])
 async def get_vulnerability_scans(
     agent_id: str,
     limit: int = Query(10, ge=1, le=100),
@@ -333,7 +334,7 @@ async def post_malware_scan(
     return {"success": True, "scan_id": doc["id"], "match_count": len(matches), "malicious_count": malicious_count}
 
 
-@router.get("/{agent_id}/malware-scans")
+@router.get("/{agent_id}/malware-scans", dependencies=[Depends(AGENTS_GUARD)])
 async def get_malware_scans(
     agent_id: str,
     limit: int = Query(10, ge=1, le=100),
@@ -398,7 +399,7 @@ async def post_persistence_findings(
     return {"success": True, "critical_count": doc["critical_count"], "high_count": doc["high_count"]}
 
 
-@router.get("/{agent_id}/persistence-findings")
+@router.get("/{agent_id}/persistence-findings", dependencies=[Depends(AGENTS_GUARD)])
 async def get_persistence_findings(
     agent_id: str,
     limit: int = Query(10, ge=1, le=100),

@@ -85,16 +85,22 @@ def test_dataplane_agent_routes_untouched():
 
 
 def test_dataplane_real_app_enforced():
-    (viewer_history, analyst_history, viewer_task, analyst_task) = probe_real_app([
-        _case("/api/agents/agent-1/instructions/history", "viewer"),   # view:dashboard only
-        _case("/api/agents/agent-1/instructions/history", "analyst"),  # holds view:agents
-        _case("/api/agents/tasks/task-1", "viewer"),
-        _case("/api/agents/tasks/task-1", "analyst"),
-    ])
-    for name, status in (("instruction history", viewer_history), ("task status", viewer_task)):
-        assert status == 403, f"a role without view:agents must be refused on {name}"
-    for name, status in (("instruction history", analyst_history), ("task status", analyst_task)):
-        assert status != 403, f"a role holding view:agents must not be refused on {name}"
+    paths = (
+        ("instruction history", "/api/agents/agent-1/instructions/history"),
+        ("task status", "/api/agents/tasks/task-1"),
+        ("telemetry", "/api/agents/agent-1/telemetry"),
+        ("vulnerability scans", "/api/agents/agent-1/vulnerability-scans"),
+        ("agentic-task decisions", "/api/agents/agent-1/agentic-tasks/decisions"),
+    )
+    cases = []
+    for _name, path in paths:
+        cases.append(_case(path, "viewer"))    # view:dashboard only
+        cases.append(_case(path, "analyst"))   # holds view:agents
+    statuses = probe_real_app(cases)
+    for index, (name, _path) in enumerate(paths):
+        viewer, analyst = statuses[2 * index], statuses[2 * index + 1]
+        assert viewer == 403, f"a role without view:agents must be refused on {name}"
+        assert analyst != 403, f"a role holding view:agents must not be refused on {name}"
 
 
 def test_dataplane_agent_auth_unchanged():

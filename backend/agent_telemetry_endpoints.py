@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Body
 from typing import Dict, Any, List
 from database import get_database
 from authentication_service import get_current_user
+from catalogue_mounts_agents import AGENTS_GUARD
 from datetime import datetime, timezone
 import uuid
 from agent_auth import verify_agent_key
@@ -164,7 +165,7 @@ async def ingest_raw_logs(
     return {"ok": True, "stored": len(docs)}
 
 
-@router.get("/{agent_id}/telemetry")
+@router.get("/{agent_id}/telemetry", dependencies=[Depends(AGENTS_GUARD)])
 async def get_telemetry(
     agent_id: str,
     kind: str = Query(None),
@@ -183,7 +184,7 @@ async def get_telemetry(
     return events
 
 
-@router.get("/{agent_id}/detections")
+@router.get("/{agent_id}/detections", dependencies=[Depends(AGENTS_GUARD)])
 async def get_detections(
     agent_id: str,
     severity: str = Query(None),
