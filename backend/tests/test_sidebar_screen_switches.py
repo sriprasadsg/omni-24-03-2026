@@ -121,19 +121,36 @@ def _signup_free_features():
     return lists[0]
 
 
-def test_a_self_signup_tenant_sees_no_security_or_compliance_item():
-    """protects=a tenant that signs itself up starts with no Security or Compliance sidebar item (Audit Log
-    included) while keeping Overview; a Super Admin ticks those; fails_when=the free tier switches Audit Log
-    or a Security screen on again; no_claim=the signup handler's other writes."""
-    features = tf.with_all_screens(_signup_free_features())
+def _visible_by_section(start_list):
+    """``{sidebar section: [labels]}`` a tenant role sees when its tenant is created with ``start_list``."""
+    features = tf.with_all_screens(start_list)
     granted = set(tf.narrow(TENANT_PERMS, features))
     off = {m[len(tf.SCREEN_OFF_PREFIX):] for m in tf.hidden_screens(granted, features)}
     visible = {c["group"]: [] for c in NAV}
     for c in NAV:
         if c["permission"] in granted and c["view"] not in off:
             visible[c["group"]].append(c["label"])
+    return visible
+
+
+def test_a_self_signup_tenant_sees_no_security_or_compliance_item():
+    """protects=a tenant that signs itself up starts with no Security or Compliance sidebar item (Audit Log
+    included) while keeping Overview; a Super Admin ticks those; fails_when=the free tier switches Audit Log
+    or a Security screen on again; no_claim=the signup handler's other writes."""
+    visible = _visible_by_section(_signup_free_features())
     assert visible["security"] == [] and visible["governance"] == []
     assert "Overview" in visible["dashboards"]
+
+
+def test_a_tenant_the_super_admin_creates_sees_no_security_or_compliance_item():
+    """protects=a tenant a Super Admin creates without a list (the UI sends none) starts with no Security or
+    Compliance sidebar item (Audit Log included) while keeping Overview and Settings; fails_when=the create
+    default switches Audit Log or a Security item (Threat Hunting, DSPM ...) on again; no_claim=the create
+    handler's other writes."""
+    import tenant_endpoints
+    visible = _visible_by_section(tenant_endpoints.TenantCreate(name="t").enabledFeatures)
+    assert visible["security"] == [] and visible["governance"] == []
+    assert "Overview" in visible["dashboards"] and "Settings" in visible["mgmt"]
 
 
 async def test_migration_019_adds_only_the_new_screens(mongo_db):

@@ -2393,20 +2393,12 @@ export const addTenant = async (tenantData: { name: string; subscriptionTier?: s
     try {
         const response = await authFetch(`${API_BASE}/tenants`, {
             method: 'POST',
+            // Without a list the server's default applies: no Security or Compliance item is on
+            // until a Super Admin ticks it in Manage Tenant (spec C6).
             body: JSON.stringify({
                 name: tenantData.name,
                 subscriptionTier: tenantData.subscriptionTier || 'Enterprise',
-                enabledFeatures: tenantData.enabledFeatures || [
-                    "view:dashboard", "view:cxo_dashboard", "view:profile", "view:insights",
-                    "view:tracing", "view:logs", "view:network", "view:agents", "view:assets",
-                    "view:patching", "view:security", "view:cloud_security", "view:threat_hunting",
-                    "view:dspm", "view:attack_path", "view:sbom", "view:persistence",
-                    "view:vulnerabilities", "view:devsecops", "view:dora_metrics", "view:service_catalog",
-                    "view:chaos", "view:compliance", "view:ai_governance", "view:security_audit",
-                    "view:audit_log", "view:reporting", "view:automation", "view:finops",
-                    "view:developer_hub", "view:advanced_bi", "view:llmops", "view:unified_ops",
-                    "view:swarm", "manage:settings", "manage:tenants"
-                ]
+                ...(tenantData.enabledFeatures ? { enabledFeatures: tenantData.enabledFeatures } : {}),
             })
         });
 

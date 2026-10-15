@@ -49,16 +49,17 @@ def _assert_tenant_read(current_user, tenant_id: str) -> None:
 class TenantCreate(BaseModel):
     name: str
     subscriptionTier: str = "Free"
+    # The default when the Super Admin's create call sends no list (the UI sends none). No Security
+    # or Compliance sidebar item is on (Audit Log included): a Super Admin ticks those (spec C6).
     enabledFeatures: List[str] = [
-        "view:dashboard", "view:cxo_dashboard", "view:profile", "view:insights", 
-        "view:tracing", "view:logs", "view:network", "view:agents", "view:assets", 
-        "view:patching", "view:security", "view:cloud_security", "view:threat_hunting", 
-        "view:dspm", "view:attack_path", "view:sbom", "view:persistence", 
-        "view:vulnerabilities", "view:devsecops", "view:dora_metrics", "view:service_catalog", 
-        "view:chaos", "view:compliance", "view:ai_governance", "view:security_audit", 
-        "view:audit_log", "view:reporting", "view:automation", "view:finops", 
+        "view:dashboard", "view:cxo_dashboard", "view:profile", "view:insights",
+        "view:tracing", "view:logs", "view:network", "view:agents", "view:assets",
+        "view:patching", "view:security", "view:cloud_security", "view:sbom",
+        "view:devsecops", "view:dora_metrics", "view:service_catalog",
+        "view:chaos", "view:compliance", "view:ai_governance",
+        "view:reporting", "view:automation", "view:finops",
         "view:developer_hub", "view:advanced_bi", "view:llmops", "view:unified_ops",
-        "view:swarm", "view:itam", "manage:itam"
+        "view:swarm", "view:itam", "manage:itam", "manage:settings"
     ]
     notificationPreferences: Dict[str, Any] = {}
     maxAgents: int = Field(licensing.DEFAULT_MAX_AGENTS, ge=0, le=licensing.MAX_AGENTS_CEILING)
@@ -112,7 +113,8 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
         "name": data.name,
         "subscriptionTier": data.subscriptionTier,
         "registrationKey": registration_key,
-        # A new tenant gets every Security/Compliance screen of the features it starts with (spec C6).
+        # A new tenant gets every screen of the features it starts with, except the Security and
+        # Compliance screens: a Super Admin ticks those (spec C6).
         "enabledFeatures": tenant_features.with_all_screens(data.enabledFeatures),
         "agentCapabilities": agent_capabilities.every_capability(),
         "notificationPreferences": data.notificationPreferences,

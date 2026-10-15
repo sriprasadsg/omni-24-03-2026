@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, platformTier, roleLabel } from '../../utils/permissions';
-import { fetchRoles, fetchUsers, logoutSession } from '../../services/apiService';
+import { addTenant, fetchRoles, fetchUsers, logoutSession } from '../../services/apiService';
 import type { Permission, User } from '../../types';
 
 const user = (over: Partial<User>): User =>
@@ -151,5 +151,18 @@ describe('role-list cache hygiene (D-26)', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
     const roles = await fetchRoles();
     expect(roles).toEqual([{ name: 'cached-role' }]);
+  });
+});
+
+describe('addTenant (spec C6)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('sends no feature list unless given one, so the server default (no Security/Compliance item) applies', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response('{"id":"t1"}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await addTenant({ name: 'Acme', subscriptionTier: 'Pro' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ name: 'Acme', subscriptionTier: 'Pro' });
+    await addTenant({ name: 'Beta', enabledFeatures: ['view:dashboard'] });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).enabledFeatures).toEqual(['view:dashboard']);
   });
 });
