@@ -19,7 +19,8 @@ from catalogue_guards import catalogue_exempt, catalogue_guard
 
 __all__ = [
     "FINOPS_GUARD", "INVOICES_GUARD", "PAYMENT_SETTINGS_GUARD", "SUBSCRIPTION_GUARD",
-    "KNOWLEDGE_GUARD", "MOUNTS",
+    "KNOWLEDGE_GUARD", "USER_MANAGEMENT_GUARD", "ROLE_MANAGEMENT_GUARD", "API_KEYS_GUARD",
+    "SELF_SERVICE_PROFILE", "SELF_SERVICE_API_KEYS", "MOUNTS",
 ]
 
 _SETTINGS = ("manage:settings",)
@@ -31,7 +32,24 @@ PAYMENT_SETTINGS_GUARD = catalogue_guard("paymentSettings", read=_SETTINGS, writ
 SUBSCRIPTION_GUARD = catalogue_guard("subscriptionManagement", read=_SETTINGS, write=_SETTINGS)
 KNOWLEDGE_GUARD = catalogue_guard("knowledgeBase", read=_SETTINGS, write=_SETTINGS)
 
+# --- Task 2: users, roles and API keys (D-09) -----------------------------------------------
+# Read is manage:users OR manage:rbac for both catalogues so itam_admin (manage:users) and
+# tenant_admin (both) can still list users and roles. The routes keep _require_itam_admin, the
+# Phase 75 assignment ceiling and _require_role_list_access; these guards only add the tag.
+_USER_READ = ("manage:users", "manage:rbac")
+USER_MANAGEMENT_GUARD = catalogue_guard("userManagement", read=_USER_READ, write=("manage:assets",))
+ROLE_MANAGEMENT_GUARD = catalogue_guard("roleManagement", read=_USER_READ, write=("manage:rbac",))
+API_KEYS_GUARD = catalogue_guard(
+    "apiKeys", read=("manage:api_keys",), write=("manage:api_keys", "manage:assets")
+)
+
+# Self-service: each of these acts on the signed-in caller's own record only.
+SELF_SERVICE_PROFILE = catalogue_exempt("self-service: caller's own profile and notification preferences")
+SELF_SERVICE_API_KEYS = catalogue_exempt("self-service: caller's own API keys")
+
 MOUNTS = {
     ("finops_endpoints", "router"): FINOPS_GUARD,
     ("knowledge_endpoints", "router"): KNOWLEDGE_GUARD,
+    ("role_endpoints", "router"): ROLE_MANAGEMENT_GUARD,
+    ("api_key_endpoints", "admin_router"): API_KEYS_GUARD,
 }

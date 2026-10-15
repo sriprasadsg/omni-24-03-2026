@@ -5,6 +5,7 @@ view:finops. D-09: user and role administration keep their guards. Public sign-i
 (SSO, SAML, LDAP, tenant lookup-key, Stripe webhook) never carry a guard (D-02).
 """
 import catalogue_mounts_billing_identity as billing_identity
+import rbac_defaults
 from catalogue_mounts import MOUNT_GUARDS
 from tests._catalogue_parity import (
     load_manifest, parity_offenders, resolved_read, resolved_write, slice_modules,
@@ -15,8 +16,8 @@ TENANT = "tenant-a"
 
 # Modules of the slice whose guards land in a later task of this plan; shrinks to empty.
 _PENDING = {
-    "user_endpoints", "role_endpoints", "api_key_endpoints", "tenant_endpoints",
-    "tenant_enrollment_endpoints", "bundle_endpoints", "sso_endpoints", "ldap_endpoints",
+    "tenant_endpoints", "tenant_enrollment_endpoints", "bundle_endpoints", "sso_endpoints",
+    "ldap_endpoints",
 }
 
 PUBLIC_PREFIXES = ("/api/sso/", "/api/auth/saml", "/api/auth/ldap")
@@ -75,6 +76,28 @@ def test_d08_finops_requires_view_finops():
     # viewer holds view:finops and view:reporting; the catalogue guard must not refuse it
     allowed = probe_real_app([_case("/api/finops/costs", "viewer"), _case("/api/finops/costs", "tenant_admin")])
     assert 403 not in allowed, allowed
+
+
+def test_d09_user_and_role_admin():
+    """User and role administration keep their guards; the tag adds manage:users OR manage:rbac."""
+    admin_reads = ["/api/users", "/api/roles"]
+    for role in ("itam_admin", "tenant_admin"):
+        allowed = probe_real_app([_case(p, role) for p in admin_reads])
+        assert 403 not in allowed, (role, dict(zip(admin_reads, allowed)))
+    for role in ("nobody", "viewer", "analyst"):
+        denied = probe_real_app([_case(p, role) for p in admin_reads])
+        assert denied == [403] * len(admin_reads), (role, dict(zip(admin_reads, denied)))
+    # Self-service stays reachable by every signed-in role.
+    self_service = ["/api/users/me", "/api/users/me/notification-preferences", "/api/api-keys",
+                    "/api/api-keys/scopes"]
+    roles = ["nobody", *sorted(rbac_defaults.builtin_role_keys())]
+    cases = [_case(p, r) for r in roles for p in self_service]
+    statuses = probe_real_app(cases)
+    refused = [(c["role"], c["path"]) for c, st in zip(cases, statuses) if st == 403]
+    assert refused == [], refused
+    # Admin API-key listing needs the apiKeys read string on top of the ITAM admin check.
+    assert probe_real_app([_case("/api/admin/api-keys", "tenant_admin")])[0] != 403
+    assert probe_real_app([_case("/api/admin/api-keys", "viewer")])[0] == 403
 
 
 def test_public_identity_routes_untouched():

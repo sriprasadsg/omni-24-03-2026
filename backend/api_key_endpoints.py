@@ -22,6 +22,7 @@ from authentication_service import get_current_user
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from api_key_auth import AVAILABLE_SCOPES, api_key_service
 from database import mongodb
+from catalogue_mounts_billing_identity import SELF_SERVICE_API_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def _validate_scopes(scopes: List[str]) -> None:
 
 # ── User-scoped routes ────────────────────────────────────────────────────────
 
-@router.post("")
+@router.post("", dependencies=[Depends(SELF_SERVICE_API_KEYS)])
 async def create_api_key(
     body: APIKeyCreateRequest,
     current_user: TokenData = Depends(get_current_user),
@@ -75,20 +76,20 @@ async def create_api_key(
     }
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(SELF_SERVICE_API_KEYS)])
 async def list_api_keys(current_user: TokenData = Depends(get_current_user)):
     """List the calling user's own tokens. Never includes keyHash."""
     keys = await api_key_service.list_keys(current_user.username)
     return [k.to_public_dict() for k in keys]
 
 
-@router.get("/scopes")
+@router.get("/scopes", dependencies=[Depends(SELF_SERVICE_API_KEYS)])
 async def list_available_scopes(current_user: TokenData = Depends(get_current_user)):
     """Catalog of scopes a token may be created with."""
     return [{"scope": scope, "description": desc} for scope, desc in AVAILABLE_SCOPES.items()]
 
 
-@router.delete("/{key_id}")
+@router.delete("/{key_id}", dependencies=[Depends(SELF_SERVICE_API_KEYS)])
 async def revoke_api_key_route(
     key_id: str,
     current_user: TokenData = Depends(get_current_user),

@@ -22,6 +22,7 @@ from role_assignment import (assert_can_assign_role, assert_can_manage_account, 
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from audit_service import get_audit_service
+from catalogue_mounts_billing_identity import SELF_SERVICE_PROFILE, USER_MANAGEMENT_GUARD
 import datetime
 from pymongo.errors import DuplicateKeyError
 
@@ -125,7 +126,7 @@ class UserResponse(BaseModel):
     lastLogin: Optional[str] = None
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse, dependencies=[Depends(SELF_SERVICE_PROFILE)])
 async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
     """
     Return the caller's own profile. Unlike the rest of this router, this
@@ -173,6 +174,7 @@ def _own_user_filter(current_user: TokenData) -> dict:
     "/me/notification-preferences",
     response_model=NotificationPreferences,
     responses={204: {"description": "No preferences saved yet; the client uses its defaults"}},
+    dependencies=[Depends(SELF_SERVICE_PROFILE)],
 )
 async def get_my_notification_preferences(current_user: TokenData = Depends(get_current_user)):
     """The caller's saved notification preferences, or 204 until first saved.
@@ -190,7 +192,7 @@ async def get_my_notification_preferences(current_user: TokenData = Depends(get_
     return prefs
 
 
-@router.put("/me/notification-preferences", response_model=NotificationPreferences)
+@router.put("/me/notification-preferences", response_model=NotificationPreferences, dependencies=[Depends(SELF_SERVICE_PROFILE)])
 async def update_my_notification_preferences(
     prefs: NotificationPreferences,
     current_user: TokenData = Depends(get_current_user),
@@ -210,7 +212,7 @@ async def update_my_notification_preferences(
     return prefs
 
 
-@router.get("", response_model=List[UserResponse])
+@router.get("", response_model=List[UserResponse], dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def list_users(
     response: Response,
     skip: int = 0,
@@ -260,7 +262,7 @@ async def list_users(
     response.headers["X-Total-Count"] = str(total)
     return [_to_response(u) for u in users]
 
-@router.post("", response_model=UserResponse, status_code=201)
+@router.post("", response_model=UserResponse, status_code=201, dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def create_user(user: UserCreate, current_user: TokenData = Depends(_require_itam_admin)):
     """
     Create a new user.
@@ -321,7 +323,7 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
                  user.email, target_tenant_id)
     return _to_response(new_user)
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData = Depends(_require_itam_admin)):
     """
     Update an existing user.
@@ -432,7 +434,7 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
     updated_user = await db.users.find_one({"_id": obj_id}, {"password": 0, "hashed_password": 0})
     return _to_response(updated_user)
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def delete_user(user_id: str, current_user: TokenData = Depends(_require_itam_admin)):
     """
     Delete a user.
