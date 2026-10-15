@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Completed 76-05-PLAN.md
-last_updated: "2026-10-13T08:13:33.223Z"
-last_activity: 2026-10-13
+stopped_at: Completed 76-06-PLAN.md
+last_updated: "2026-10-15T18:02:04.035Z"
+last_activity: 2026-10-15
 last_activity_desc: Phase 76 execution started
-state_head: f72217470c2748d61189059bb973deff33b3aed7
+state_head: 78557f6ef7b2a49ec462e885ffc5243a8c30731e
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 17
-  completed_plans: 10
+  completed_plans: 11
   percent: 0
 ---
 
@@ -419,6 +419,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-04: catalogue_guard lets an API key's write scope authorise reads (safe methods only) — _require_itam_viewer always accepted manage:assets keys; keeps D-02
 - [Phase 76]: 76-05: /api/support conversation routes are catalogue_exempt self-service; only tenant-users takes the chat guard — Every signed-in user uses support chat (sidebar badge, global window, supportChat on view:dashboard) and each route already scopes to the caller
 - [Phase 76]: 76-05: route_aliases left to the 76-11 sweep; agent_chat, compliance_scans and update_endpoints guarded in the agents slice — Partition put them in the agents slice; route_aliases spans six catalogues and 76-11 owns it
+- [Phase 76]: 76-06: patch routers are mounted via the aggregator patch_endpoints (router_registry loads it, not the sub-modules); software_endpoints guarded per route because of its agent-capable download
 
 ## Performance Metrics
 
@@ -551,6 +552,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P03 | 9 min | 3 tasks | 5 files |
 | Phase 76 P04 | 30 min | 3 tasks | 14 files |
 | Phase 76 P05 | 45 min | 2 tasks | 16 files |
+| Phase 76 P06 | 25 min | 2 tasks | 3 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -585,8 +587,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-13T08:13:33.176Z
-**Stopped at:** Completed 76-05-PLAN.md
+**Last session:** 2026-10-15T18:02:03.985Z
+**Stopped at:** Completed 76-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -610,10 +612,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
-Plan: 6 of 12
+Plan: 2 of 12
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
-Last activity: 2026-10-13 — Phase 76 execution started
+Last activity: 2026-10-15 — Phase 76 execution started
 
 Next: `/gsd-plan-phase 75`
 
