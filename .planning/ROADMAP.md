@@ -194,7 +194,7 @@ Plans:
   4. A committed gap ledger lists every router that remains unguarded, and the deny-by-default route-parity test fails if an in-scope catalogue route is unguarded or an unguarded router is missing from the ledger.
   5. A frontend test fails when the sidebar and the manifest drift (for example, a nav item added with no manifest entry).
 
-**Plans**: 12/15 plans executed (3 gap-closure plans pending)
+**Plans**: 13/15 plans executed (3 gap-closure plans pending)
 
 Plans:
 **Wave 1**
@@ -218,7 +218,7 @@ Plans:
 - [x] 76-11-PLAN.md — Gap ledger, strict deny-by-default parity, final regression
 
 **Wave 5 (gap closure)** *(blocked on Wave 4 completion)*
-- [ ] 76-13-PLAN.md — WR-01 routes: agent-tolerant and platform-read guard variants; agent-tolerant guards on the agent-capable reads (installer download, response-task poll, agent-chat list)
+- [x] 76-13-PLAN.md — WR-01 routes: agent-tolerant and platform-read guard variants; agent-tolerant guards on the agent-capable reads (installer download, response-task poll, agent-chat list)
 
 **Wave 6 (gap closure)** *(blocked on Wave 5 completion)*
 - [ ] 76-14-PLAN.md — WR-01 gate: parity gate covers agent-capable routes; reviewed agentCapableRoutes and exemptRoutes lists in the ledger
@@ -289,7 +289,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
-| 76. Catalogue Manifest & Backend Route Enforcement | 12/12 | In Progress | - |
+| 76. Catalogue Manifest & Backend Route Enforcement | 13/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 0/TBD | Not started | - |
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
