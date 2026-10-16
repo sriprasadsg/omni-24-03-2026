@@ -9,8 +9,7 @@ import re
 
 from fastapi import APIRouter, Depends, FastAPI
 
-from catalogue_guards import catalogue_guard
-from catalogue_guards import catalogue_exempt
+from catalogue_guards import agent_tolerant, catalogue_exempt, catalogue_guard
 from tests._catalogue_parity import (
     REPO_ROOT, SLICES, ledger_offenders, load_ledger, load_manifest, owner_of, parity_offenders,
     slice_modules,
@@ -126,9 +125,14 @@ LEDGER_MANIFEST = {
 }
 
 
-def _ledger(*routers, agent=0, exempt=0):
-    return {"version": 1, "agentAuthExcludedRoutes": agent, "maxExemptRoutes": exempt,
-            "routers": sorted(routers, key=lambda e: e["module"])}
+def _ledger(*routers, agent=0, exempt=0, agent_routes=None, exempt_routes=None):
+    ledger = {"version": 1, "agentAuthExcludedRoutes": agent, "maxExemptRoutes": exempt,
+              "routers": sorted(routers, key=lambda e: e["module"])}
+    if agent_routes is not None:
+        ledger["agentCapableRoutes"] = agent_routes
+    if exempt_routes is not None:
+        ledger["exemptRoutes"] = exempt_routes
+    return ledger
 
 
 def _entry(module="gov_mod", group="governance", maximum=2, reason="Governance group: guards deferred (D-01)"):
@@ -136,11 +140,13 @@ def _entry(module="gov_mod", group="governance", maximum=2, reason="Governance g
 
 
 def _walk(*specs):
-    """Walk a synthetic app. Spec: (path, module, extra dependencies, auth function name)."""
+    """Walk a synthetic app. Spec: (path, module, extra dependencies, auth function name[, methods])."""
     import authentication_service as auth
     app = FastAPI()
     router = APIRouter()
-    for index, (path, module, deps, auth_name) in enumerate(specs):
+    for index, spec in enumerate(specs):
+        path, module, deps, auth_name = spec[:4]
+        methods = list(spec[4]) if len(spec) > 4 else ["GET"]
         user_auth = getattr(auth, auth_name)
 
         def endpoint(user=Depends(user_auth)):
@@ -148,13 +154,13 @@ def _walk(*specs):
 
         endpoint.__module__ = module
         endpoint.__name__ = f"endpoint_{index}"
-        router.add_api_route(path, endpoint, methods=["GET"], dependencies=list(deps))
+        router.add_api_route(path, endpoint, methods=methods, dependencies=list(deps))
     app.include_router(router)
     return walk_app(app)["routes"]
 
 
-def _gov(path, module="gov_mod", deps=(), auth_name="get_current_user"):
-    return (path, module, deps, auth_name)
+def _gov(path, module="gov_mod", deps=(), auth_name="get_current_user", methods=("GET",)):
+    return (path, module, deps, auth_name, methods)
 
 
 def test_ledger_offender_for_unledgered_router():
@@ -282,10 +288,16 @@ def test_compliant_synthetic_app_has_no_ledger_offenders():
 
 def test_load_ledger_is_shaped_and_sorted():
     ledger = load_ledger()
-    assert set(ledger) >= {"version", "agentAuthExcludedRoutes", "maxExemptRoutes", "routers"}
+    assert set(ledger) >= {"version", "agentAuthExcludedRoutes", "maxExemptRoutes", "routers",
+                           "agentCapableRoutes"}
     modules = [entry["module"] for entry in ledger["routers"]]
     assert modules == sorted(modules)
     assert all(entry["reason"].strip() and entry["group"].strip() for entry in ledger["routers"])
+    listed = ledger["agentCapableRoutes"]
+    routes = [entry["route"] for entry in listed]
+    assert routes == sorted(routes)
+    assert all(entry["reason"].strip() for entry in listed)
+    assert len(listed) == ledger["agentAuthExcludedRoutes"]
 
 
 def test_all_enforced_routes_guarded():
@@ -305,3 +317,110 @@ def test_ledger_ratchets():
     """The ledger can only shrink: no stale entries, no enforced routes, counts within ratchets."""
     offenders = ledger_offenders(run_real_app_walk()["routes"], load_manifest(), load_ledger())
     assert offenders == [], "gap ledger out of step with the route table:\n" + "\n".join(offenders)
+
+
+# --- Phase 76-14: agent-capable routes in the parity scope and the reviewed agentCapableRoutes list ---
+# (WR-01 gate half, D-05, D-02). Synthetic apps only; the committed ledger is never written (PROH-76-03).
+
+MDM_TOLERANT = agent_tolerant(catalogue_guard("mobileDeviceManagement", read=("view:mdm",), write=("manage:assets",)))
+MDM_PLAIN = catalogue_guard("mobileDeviceManagement", read=("view:mdm",), write=("manage:assets",))
+
+
+def _agent_route(path="/api/mdm/a", deps=(), methods=("GET",), module="agent_mod"):
+    return _gov(path, module=module, deps=deps, auth_name="get_current_user_or_agent", methods=methods)
+
+
+def test_untagged_agent_capable_read_in_enforced_catalogue_is_a_parity_offender():
+    offenders = parity_offenders(_walk(_agent_route()), LEDGER_MANIFEST)
+    assert len(offenders) == 1
+    text = offenders[0]
+    assert "GET /api/mdm/a (agent_mod)" in text
+    assert 'agent_tolerant(catalogue_guard("mobileDeviceManagement", read=[\'view:mdm\'], write=[\'manage:assets\']))' in text
+
+
+def test_agent_tolerant_tag_on_agent_capable_read_is_not_an_offender():
+    records = _walk(_agent_route(deps=[Depends(MDM_TOLERANT)]))
+    assert parity_offenders(records, LEDGER_MANIFEST) == []
+
+
+def test_plain_guard_on_agent_capable_route_would_refuse_the_agent():
+    offenders = parity_offenders(_walk(_agent_route(deps=[Depends(MDM_PLAIN)])), LEDGER_MANIFEST)
+    assert len(offenders) == 1
+    assert "refuse the agent" in offenders[0] and "agent_tolerant" in offenders[0]
+    assert "GET /api/mdm/a" in offenders[0]
+
+
+def test_plain_guard_on_agent_capable_route_is_refused_outside_enforced_catalogues_too():
+    plain = catalogue_guard("compliance", read=("view:compliance",), write=("manage:compliance",))
+    records = _walk(_agent_route(path="/api/compliance/a", deps=[Depends(plain)], methods=("POST",)))
+    offenders = parity_offenders(records, LEDGER_MANIFEST)
+    assert len(offenders) == 1 and "refuse the agent" in offenders[0]
+
+
+def test_untagged_agent_capable_write_is_not_a_parity_offender():
+    assert parity_offenders(_walk(_agent_route(methods=("POST",))), LEDGER_MANIFEST) == []
+
+
+def test_agent_capable_route_under_unenforced_catalogue_is_not_a_parity_offender():
+    assert parity_offenders(_walk(_agent_route(path="/api/compliance/a")), LEDGER_MANIFEST) == []
+
+
+def test_slice_modules_ignores_agent_capable_records():
+    records = _walk(_agent_route(), _gov("/api/mdm/b", module="user_mod"))
+    modules = [m for name in SLICES for m in slice_modules(name, records, LEDGER_MANIFEST)]
+    assert modules == ["user_mod"]
+
+
+def test_ledger_offender_for_unlisted_agent_capable_route_is_paste_ready():
+    records = _walk(_agent_route(methods=("POST",)))
+    offenders = ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1, agent_routes=[]))
+    assert len(offenders) == 1
+    assert "POST /api/mdm/a" in offenders[0] and "agentCapableRoutes" in offenders[0]
+    assert '{"route": "POST /api/mdm/a", "reason": ' in offenders[0]
+
+
+def test_listed_agent_capable_route_with_reason_is_clean():
+    records = _walk(_agent_route(methods=("POST",)))
+    listed = [{"route": "POST /api/mdm/a", "reason": "agent ingest: people need manage:agents"}]
+    assert ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1, agent_routes=listed)) == []
+
+
+def test_ledger_refuses_a_listed_agent_capable_read_under_an_enforced_catalogue():
+    records = _walk(_agent_route())
+    listed = [{"route": "GET /api/mdm/a", "reason": "agent reads the installer package"}]
+    offenders = ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1, agent_routes=listed))
+    assert len(offenders) == 1
+    assert "GET /api/mdm/a" in offenders[0] and "agent_tolerant" in offenders[0]
+
+
+def test_ledger_offender_for_stale_agent_capable_entry():
+    records = _walk(_agent_route(methods=("POST",)))
+    listed = [{"route": "POST /api/mdm/a", "reason": "agent ingest: people need manage:agents"},
+              {"route": "POST /api/mdm/ghost", "reason": "agent ingest: route was removed"}]
+    offenders = ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1, agent_routes=listed))
+    assert len(offenders) == 1
+    assert "stale" in offenders[0] and "/api/mdm/ghost" in offenders[0]
+
+
+def test_ledger_offender_for_tagged_route_left_in_agent_capable_list():
+    records = _walk(_agent_route(deps=[Depends(MDM_TOLERANT)]))
+    listed = [{"route": "GET /api/mdm/a", "reason": "agent reads the installer package"}]
+    offenders = ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=0, agent_routes=listed))
+    assert len(offenders) == 1 and "stale" in offenders[0]
+
+
+def test_ledger_offender_for_short_placeholder_or_duplicate_agent_capable_reason():
+    records = _walk(_agent_route(methods=("POST",)))
+    for reason in ("short", "<state why this agent-capable route carries no catalogue tag>"):
+        listed = [{"route": "POST /api/mdm/a", "reason": reason}]
+        offenders = ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1, agent_routes=listed))
+        assert len(offenders) == 1 and "POST /api/mdm/a" in offenders[0] and "reason" in offenders[0]
+    twice = [{"route": "POST /api/mdm/a", "reason": "agent ingest: people need manage:agents"}] * 2
+    offenders = ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1, agent_routes=twice))
+    assert any("duplicate" in o and "POST /api/mdm/a" in o for o in offenders)
+
+
+def test_agent_ratchet_counts_only_untagged_agent_capable_routes():
+    records = _walk(_agent_route(), _agent_route(path="/api/mdm/b", deps=[Depends(MDM_TOLERANT)]))
+    assert ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1)) == []
+    assert any("agentAuthExcludedRoutes" in o for o in ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=2)))
