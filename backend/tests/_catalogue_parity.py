@@ -341,6 +341,8 @@ def ledger_offenders(
     # --- reviewed lists (optional keys, so ledgers built without them keep their old meaning)
     if "agentCapableRoutes" in ledger:
         out.extend(_agent_capable_list_offenders(untagged_agent, manifest, ledger["agentCapableRoutes"]))
+    if "exemptRoutes" in ledger:
+        out.extend(_exempt_list_offenders(dict(exempt), ledger["exemptRoutes"]))
     return sorted(out)
 
 
@@ -395,4 +397,22 @@ def _agent_capable_list_offenders(
         paste = json.dumps({"route": route, "reason": "<state why this agent-capable route carries no catalogue tag>"})
         out.append(f"agentCapableRoutes: {route} ({record.get('module')}) is an agent-capable route without a "
                    f"catalogue tag and not in shared/catalogue-gaps.json; tag it or add {paste}")
+    return out
+
+
+def _exempt_list_offenders(exempt: Dict[str, str], entries: Any) -> List[str]:
+    """The exempt routes on the app equal the listed routes, reason for reason (exemption review)."""
+    index, duplicates = _listed(entries, "exemptRoutes")
+    out = [f"exemptRoutes: duplicate entries for {route}; keep one" for route in duplicates]
+    for route, entry in index.items():
+        if route not in exempt:
+            out.append(f"exemptRoutes: stale entry {route} (not a catalogue_exempt route); remove it")
+        elif str(entry.get("reason")) != str(exempt[route]):
+            out.append(f"exemptRoutes: {route} reason differs from the app; listed {entry.get('reason')!r}, "
+                       f"app {exempt[route]!r}; review the change and edit the ledger")
+    for route, reason in sorted(exempt.items()):
+        if route not in index:
+            paste = json.dumps({"route": route, "reason": reason})
+            out.append(f"exemptRoutes: {route} is catalogue_exempt and not in shared/catalogue-gaps.json; "
+                       f"review it and add {paste}")
     return out

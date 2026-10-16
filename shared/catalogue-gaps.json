@@ -52,6 +52,144 @@
       "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
     }
   ],
+  "exemptRoutes": [
+    {
+      "route": "DELETE /api/api-keys/{key_id}",
+      "reason": "self-service: caller's own API keys"
+    },
+    {
+      "route": "DELETE /api/tenants/{tenant_id}/allowlist/{entry_id}",
+      "reason": "platform staff: gated by has_platform_permission (view:tenants / manage:tenant_license, spec C1-C4)"
+    },
+    {
+      "route": "GET /api/agents/pending",
+      "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
+    },
+    {
+      "route": "GET /api/api-keys",
+      "reason": "self-service: caller's own API keys"
+    },
+    {
+      "route": "GET /api/api-keys/scopes",
+      "reason": "self-service: caller's own API keys"
+    },
+    {
+      "route": "GET /api/bundles/tenant/{tenant_id}/features",
+      "reason": "app-shell: the caller's own tenant feature list, loaded by FeaturesContext for every signed-in user"
+    },
+    {
+      "route": "GET /api/support/conversations",
+      "reason": "self-service: caller's own support conversation"
+    },
+    {
+      "route": "GET /api/support/conversations/{convo_id}",
+      "reason": "self-service: caller's own support conversation"
+    },
+    {
+      "route": "GET /api/support/presence",
+      "reason": "self-service: online status of the caller's support-chat partners"
+    },
+    {
+      "route": "GET /api/support/unread-count",
+      "reason": "self-service: caller's own support conversation"
+    },
+    {
+      "route": "GET /api/tenants",
+      "reason": "platform staff: gated by has_platform_permission (view:tenants / manage:tenant_license, spec C1-C4)"
+    },
+    {
+      "route": "GET /api/tenants/me",
+      "reason": "self-service: caller's own tenant record"
+    },
+    {
+      "route": "GET /api/tenants/{tenant_id}/allowlist",
+      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
+    },
+    {
+      "route": "GET /api/tenants/{tenant_id}/branding",
+      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
+    },
+    {
+      "route": "GET /api/tenants/{tenant_id}/email/config",
+      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
+    },
+    {
+      "route": "GET /api/tenants/{tenant_id}/email/preferences",
+      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
+    },
+    {
+      "route": "GET /api/tenants/{tenant_id}/enrollment-keys",
+      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
+    },
+    {
+      "route": "GET /api/tenants/{tenant_id}/license",
+      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
+    },
+    {
+      "route": "GET /api/users/me",
+      "reason": "self-service: caller's own profile and notification preferences"
+    },
+    {
+      "route": "GET /api/users/me/notification-preferences",
+      "reason": "self-service: caller's own profile and notification preferences"
+    },
+    {
+      "route": "PATCH /api/support/conversations/{convo_id}/status",
+      "reason": "self-service: caller's own support conversation"
+    },
+    {
+      "route": "PATCH /api/tenants/{tenant_id}/license",
+      "reason": "platform staff: gated by has_platform_permission (view:tenants / manage:tenant_license, spec C1-C4)"
+    },
+    {
+      "route": "POST /api/agents/pending/bulk",
+      "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
+    },
+    {
+      "route": "POST /api/agents/pending/{agent_id}/approve",
+      "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
+    },
+    {
+      "route": "POST /api/agents/pending/{agent_id}/reject",
+      "reason": "platform staff decide Pending agents across tenants (manage:pending_agents); tenant users get the agents catalogue check in pending_agent_endpoints._require_pending_access"
+    },
+    {
+      "route": "POST /api/api-keys",
+      "reason": "self-service: caller's own API keys"
+    },
+    {
+      "route": "POST /api/support/conversations",
+      "reason": "self-service: caller's own support conversation"
+    },
+    {
+      "route": "POST /api/support/conversations/{convo_id}/messages",
+      "reason": "self-service: caller's own support conversation"
+    },
+    {
+      "route": "POST /api/support/conversations/{convo_id}/read",
+      "reason": "self-service: caller's own support conversation"
+    },
+    {
+      "route": "POST /api/tenants/{tenant_id}/allowlist",
+      "reason": "platform staff: gated by has_platform_permission (view:tenants / manage:tenant_license, spec C1-C4)"
+    },
+    {
+      "route": "POST /api/tenants/{tenant_id}/allowlist/import",
+      "reason": "platform staff: gated by has_platform_permission (view:tenants / manage:tenant_license, spec C1-C4)"
+    },
+    {
+      "route": "POST /api/tenants/{tenant_id}/enrollment-keys",
+      "reason": "platform staff: gated by has_platform_permission (view:tenants / manage:tenant_license, spec C1-C4)"
+    },
+    {
+      "route": "POST /api/tenants/{tenant_id}/enrollment-keys/{key_id}/revoke",
+      "reason": "platform staff: gated by has_platform_permission (view:tenants / manage:tenant_license, spec C1-C4)"
+    },
+    {
+      "route": "PUT /api/users/me/notification-preferences",
+      "reason": "self-service: caller's own profile and notification preferences"
+    }
+  ],
   "routers": [
     {
       "module": "ab_testing_endpoints",
