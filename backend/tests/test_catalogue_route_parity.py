@@ -4,6 +4,7 @@
 prove the parity helper names untagged and mis-tagged routes. Later plans extend the
 manifest and tighten these checks.
 """
+import json
 import os
 import re
 
@@ -289,7 +290,7 @@ def test_compliant_synthetic_app_has_no_ledger_offenders():
 def test_load_ledger_is_shaped_and_sorted():
     ledger = load_ledger()
     assert set(ledger) >= {"version", "agentAuthExcludedRoutes", "maxExemptRoutes", "routers",
-                           "agentCapableRoutes"}
+                           "agentCapableRoutes", "exemptRoutes"}
     modules = [entry["module"] for entry in ledger["routers"]]
     assert modules == sorted(modules)
     assert all(entry["reason"].strip() and entry["group"].strip() for entry in ledger["routers"])
@@ -298,6 +299,11 @@ def test_load_ledger_is_shaped_and_sorted():
     assert routes == sorted(routes)
     assert all(entry["reason"].strip() for entry in listed)
     assert len(listed) == ledger["agentAuthExcludedRoutes"]
+    exempt_listed = ledger["exemptRoutes"]
+    exempt_routes = [entry["route"] for entry in exempt_listed]
+    assert exempt_routes == sorted(exempt_routes)
+    assert all(entry["reason"].strip() for entry in exempt_listed)
+    assert len(exempt_listed) == ledger["maxExemptRoutes"]
 
 
 def test_all_enforced_routes_guarded():
@@ -424,3 +430,58 @@ def test_agent_ratchet_counts_only_untagged_agent_capable_routes():
     records = _walk(_agent_route(), _agent_route(path="/api/mdm/b", deps=[Depends(MDM_TOLERANT)]))
     assert ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=1)) == []
     assert any("agentAuthExcludedRoutes" in o for o in ledger_offenders(records, LEDGER_MANIFEST, _ledger(agent=2)))
+
+
+# --- Phase 76-14: exemption review (every catalogue_exempt route is a reviewed ledger line) ----------
+
+EXEMPT_REASON = "self-service: caller's own record"
+
+
+def _exempt_records(reason=EXEMPT_REASON):
+    return _walk(_gov("/api/mdm/a", module="mdm_mod", deps=[Depends(catalogue_exempt(reason))]))
+
+
+def test_unlisted_exempt_route_is_an_offender_with_a_paste_ready_entry():
+    offenders = ledger_offenders(_exempt_records(), LEDGER_MANIFEST, _ledger(exempt=1, exempt_routes=[]))
+    assert len(offenders) == 1
+    assert "exemptRoutes" in offenders[0] and "GET /api/mdm/a" in offenders[0]
+    assert json.dumps({"route": "GET /api/mdm/a", "reason": EXEMPT_REASON}) in offenders[0]
+
+
+def test_reworded_exempt_reason_is_an_offender_showing_both_reasons():
+    listed = [{"route": "GET /api/mdm/a", "reason": "self-service: the caller's record, reworded"}]
+    offenders = ledger_offenders(_exempt_records(), LEDGER_MANIFEST, _ledger(exempt=1, exempt_routes=listed))
+    assert len(offenders) == 1
+    assert EXEMPT_REASON in offenders[0] and "reworded" in offenders[0] and "GET /api/mdm/a" in offenders[0]
+
+
+def test_stale_exempt_entry_is_an_offender():
+    listed = [{"route": "GET /api/mdm/a", "reason": EXEMPT_REASON},
+              {"route": "GET /api/mdm/ghost", "reason": "self-service: route was removed"}]
+    offenders = ledger_offenders(_exempt_records(), LEDGER_MANIFEST, _ledger(exempt=1, exempt_routes=listed))
+    assert len(offenders) == 1
+    assert "stale" in offenders[0] and "/api/mdm/ghost" in offenders[0]
+
+
+def test_identical_exempt_entry_is_clean():
+    listed = [{"route": "GET /api/mdm/a", "reason": EXEMPT_REASON}]
+    assert ledger_offenders(_exempt_records(), LEDGER_MANIFEST, _ledger(exempt=1, exempt_routes=listed)) == []
+
+
+def test_duplicate_exempt_entry_is_an_offender():
+    listed = [{"route": "GET /api/mdm/a", "reason": EXEMPT_REASON}] * 2
+    offenders = ledger_offenders(_exempt_records(), LEDGER_MANIFEST, _ledger(exempt=1, exempt_routes=listed))
+    assert any("duplicate" in o and "GET /api/mdm/a" in o for o in offenders)
+
+
+def test_ledger_without_exempt_list_keeps_the_ratchet_meaning():
+    assert ledger_offenders(_exempt_records(), LEDGER_MANIFEST, _ledger(exempt=1)) == []
+    offenders = ledger_offenders(_exempt_records(), LEDGER_MANIFEST, _ledger(exempt=0))
+    assert len(offenders) == 1 and "maxExemptRoutes" in offenders[0]
+
+
+def test_committed_exempt_list_matches_the_production_registry():
+    exempt = {pair: r["exempt"] for r in run_real_app_walk()["routes"] if r.get("exempt")
+              for pair in (f"{m} {r['path']}" for m in r["methods"])}
+    listed = {e["route"]: e["reason"] for e in load_ledger()["exemptRoutes"]}
+    assert listed == exempt
