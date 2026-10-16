@@ -35,9 +35,13 @@ def test_device_agent_routes_untouched():
         reviewed_public = any((m, record["path"]) in REVIEWED_UNAUTHENTICATED for m in record["methods"])
         if record["auth"] in ("agent", "agent_capable", "public") or reviewed_public:
             seen_public.add(record["path"])
-            if record["tags"]:
+            # Agent-capable routes may carry only agent-tolerant tags (76-13, WR-01); an agent
+            # or public route carries none (D-02).
+            tolerant = record["auth"] == "agent_capable" and all(t.get("allow_agent") is True for t in record["tags"])
+            if record["tags"] and not tolerant:
                 tagged.append(f"{','.join(record['methods'])} {record['path']} ({record['module']}, {record['auth']})")
-    assert tagged == [], "agent or public routes must not carry a catalogue guard (D-02):\n" + "\n".join(tagged)
+    assert tagged == [], ("agent or public routes must not carry a catalogue guard, and agent-capable routes "
+                          "only an agent-tolerant one (D-02):\n" + "\n".join(tagged))
     # The two routes the plan names, plus the agent-capable download, really are in the walk.
     assert "/api/patches/deployment-jobs/{job_id}/progress" in seen_public
     assert "/api/deployments/{job_id}/result" in seen_public
