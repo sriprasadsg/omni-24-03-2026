@@ -171,13 +171,10 @@ def test_tenant_exempt_routes_reachable_by_every_role():
 # WR-05: email settings, seat license, hardware allowlist and install keys are tenant
 # administration reads. Tenant roles need manage:settings; platform staff read any tenant
 # through view:tenants (spec C1-C4) on the controls paths only.
-EXEMPT_TENANT_GETS = [
-    "/api/bundles/tenant/{tenant_id}/features", "/api/tenants/{tenant_id}/allowlist",
-    "/api/tenants/{tenant_id}/branding", "/api/tenants/{tenant_id}/enrollment-keys",
-]
+EXEMPT_TENANT_GETS = ["/api/bundles/tenant/{tenant_id}/features", "/api/tenants/{tenant_id}/branding"]
 EMAIL_READS = ["/api/tenants/tenant-a/email/config", "/api/tenants/tenant-a/email/preferences"]
 CONTROL_READS = ["/api/tenants/tenant-a/license"]
-TASK2_READS: list = []
+TASK2_READS = ["/api/tenants/tenant-a/allowlist", "/api/tenants/tenant-a/enrollment-keys"]
 ROLE_MATRIX = ["nobody", "admin", "super_admin", *sorted(rbac_defaults.ROLE_DEFAULTS)]
 
 
@@ -193,7 +190,7 @@ def _expect_through(role, path, platform_reads):
 
 
 def test_tenant_settings_reads_are_role_gated():
-    """Real app: a tenant role without manage:settings gets 403 on the five tenant admin reads."""
+    """Real app: a tenant role without manage:settings gets 403 on the five tenant admin reads (email config, preferences, license, allowlist, install keys)."""
     assert len(ROLE_MATRIX) >= 14
     groups = [(EMAIL_READS, False), (CONTROL_READS + TASK2_READS, True)]
     for paths, platform_reads in groups:
