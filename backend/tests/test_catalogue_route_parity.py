@@ -485,3 +485,37 @@ def test_committed_exempt_list_matches_the_production_registry():
               for pair in (f"{m} {r['path']}" for m in r["methods"])}
     listed = {e["route"]: e["reason"] for e in load_ledger()["exemptRoutes"]}
     assert listed == exempt
+
+
+# --- Phase 76-15: a self-service exemption cannot name a tenant or user (WR-05, PROH-76-08) ----------
+
+SELF_SERVICE_RULE_TEXT = "names a tenant or user"
+
+
+def _scoped_exempt(path, reason):
+    records = _walk(_gov(path, module="mdm_mod", deps=[Depends(catalogue_exempt(reason))]))
+    listed = [{"route": f"GET {path}", "reason": reason}]
+    return ledger_offenders(records, LEDGER_MANIFEST, _ledger(exempt=1, exempt_routes=listed))
+
+
+def test_self_service_exemption_on_a_tenant_path_is_an_offender():
+    offenders = _scoped_exempt("/api/mdm/{tenant_id}/x", "self-service: caller's own tenant settings")
+    assert len(offenders) == 1
+    assert "GET /api/mdm/{tenant_id}/x" in offenders[0] and SELF_SERVICE_RULE_TEXT in offenders[0]
+    assert "self-service" in offenders[0]
+
+
+def test_self_service_exemption_on_a_path_without_ids_is_clean():
+    assert _scoped_exempt("/api/mdm/me", "self-service: caller's own tenant settings") == []
+
+
+def test_platform_staff_exemption_on_a_tenant_path_is_not_flagged_by_the_self_service_rule():
+    offenders = _scoped_exempt("/api/mdm/{tenant_id}/x", "platform staff: gated by has_platform_permission")
+    assert not any(SELF_SERVICE_RULE_TEXT in o for o in offenders)
+    assert offenders == []
+
+
+def test_self_service_exemption_on_a_user_id_path_is_an_offender():
+    offenders = _scoped_exempt("/api/mdm/{user_id}", "Self-service: caller's own record")
+    assert len(offenders) == 1
+    assert "GET /api/mdm/{user_id}" in offenders[0] and SELF_SERVICE_RULE_TEXT in offenders[0]
