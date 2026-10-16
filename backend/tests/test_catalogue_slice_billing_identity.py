@@ -155,13 +155,53 @@ def test_identity_admin_writes_use_tenant_settings():
 
 
 def test_tenant_exempt_routes_reachable_by_every_role():
+    """Among the tenant GETs only branding and the bundle feature list stay exempt (WR-05)."""
     records = run_real_app_walk()["routes"]
     exempt = [r for r in records if r["module"] in TENANT_EXEMPT_MODULES and r["exempt"]
               and r["methods"] == ["GET"] and r["path"] != "/api/tenants"]
-    assert len(exempt) >= 6, exempt
+    assert sorted(r["path"] for r in exempt) == EXEMPT_TENANT_GETS, exempt
     roles = ["nobody", *sorted(rbac_defaults.ROLE_DEFAULTS)]
     cases = [_case(r["path"].replace("{tenant_id}", TENANT), role) for r in exempt for role in roles
              if role not in rbac_defaults.PLATFORM_ROLE_KEYS]
     statuses = probe_real_app(cases)
     refused = [(c["role"], c["path"]) for c, st in zip(cases, statuses) if st == 403]
     assert refused == [], refused
+
+
+# WR-05: email settings, seat license, hardware allowlist and install keys are tenant
+# administration reads. Tenant roles need manage:settings; platform staff read any tenant
+# through view:tenants (spec C1-C4) on the controls paths only.
+EXEMPT_TENANT_GETS = [
+    "/api/bundles/tenant/{tenant_id}/features", "/api/tenants/{tenant_id}/allowlist",
+    "/api/tenants/{tenant_id}/branding", "/api/tenants/{tenant_id}/enrollment-keys",
+]
+EMAIL_READS = ["/api/tenants/tenant-a/email/config", "/api/tenants/tenant-a/email/preferences"]
+CONTROL_READS = ["/api/tenants/tenant-a/license"]
+TASK2_READS: list = []
+ROLE_MATRIX = ["nobody", "admin", "super_admin", *sorted(rbac_defaults.ROLE_DEFAULTS)]
+
+
+def _holds(role, permission):
+    key = rbac_defaults.canonical_key(rbac_defaults.normalize_role(role))
+    return permission in rbac_defaults.ROLE_DEFAULTS.get(key, ())
+
+
+def _expect_through(role, path, platform_reads):
+    if role == "super_admin" or _holds(role, "manage:settings"):
+        return True
+    return platform_reads and role in rbac_defaults.PLATFORM_ROLE_KEYS and _holds(role, "view:tenants")
+
+
+def test_tenant_settings_reads_are_role_gated():
+    """Real app: a tenant role without manage:settings gets 403 on the five tenant admin reads."""
+    assert len(ROLE_MATRIX) >= 14
+    groups = [(EMAIL_READS, False), (CONTROL_READS + TASK2_READS, True)]
+    for paths, platform_reads in groups:
+        for path in paths:
+            cases = [_case_for(path, role) for role in ROLE_MATRIX]
+            statuses = probe_real_app(cases)
+            for role, status in zip(ROLE_MATRIX, statuses):
+                if _expect_through(role, path, platform_reads):
+                    assert status not in (401, 403), f"{role} {path} -> {status}, expected to pass"
+                else:
+                    assert status == 403, f"{role} {path} -> {status}, expected 403"
