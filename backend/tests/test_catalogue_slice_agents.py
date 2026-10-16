@@ -44,9 +44,15 @@ def test_agent_routes_untouched():
         if owner is None or owner["view"] not in agents_views:
             continue
         reviewed_public = any((m, record["path"]) in REVIEWED_UNAUTHENTICATED for m in record["methods"])
-        if (record["auth"] in ("agent", "agent_capable", "public") or reviewed_public) and record["tags"]:
-            tagged.append(f"{','.join(record['methods'])} {record['path']} ({record['module']}, {record['auth']})")
-    assert tagged == [], "agent or public routes must not carry a catalogue guard (D-02):\n" + "\n".join(tagged)
+        if not (record["auth"] in ("agent", "agent_capable", "public") or reviewed_public) or not record["tags"]:
+            continue
+        # Agent-capable routes may carry only agent-tolerant tags (76-13, WR-01); an agent or
+        # public route carries none (D-02).
+        if record["auth"] == "agent_capable" and all(t.get("allow_agent") is True for t in record["tags"]):
+            continue
+        tagged.append(f"{','.join(record['methods'])} {record['path']} ({record['module']}, {record['auth']})")
+    assert tagged == [], ("agent or public routes must not carry a catalogue guard, and agent-capable routes "
+                          "only an agent-tolerant one (D-02):\n" + "\n".join(tagged))
 
 
 def test_agents_real_app_enforced():

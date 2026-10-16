@@ -6,6 +6,8 @@ production registry. Every new failure mode has a negative control so the verdic
 depend on test order.
 """
 
+import types
+
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -231,3 +233,79 @@ def test_download_on_the_real_app():
     ])
     assert (agent, admin, support) == (404, 404, 404), "the handler must be reached (file missing)"
     assert (viewer, itam_viewer, nobody) == (403, 403, 403)
+
+
+# ---------------------------------------------------------------------------
+# Response-task poll (response_endpoints) mounted alone
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def response_app(monkeypatch):
+    import response_endpoints
+
+    class _Agents:
+        async def find_one(self, *args, **kwargs):
+            return {"_id": 1}
+
+    async def _no_tasks(agent_id, tenant_id=None):
+        return []
+
+    monkeypatch.setattr(response_endpoints, "get_database", lambda: types.SimpleNamespace(agents=_Agents()))
+    monkeypatch.setattr(response_endpoints.orchestrator, "get_pending_tasks", _no_tasks)
+
+    def _build(role):
+        app = FastAPI()
+        app.include_router(response_endpoints.router)
+        user = _user(role)
+        app.dependency_overrides[get_current_user_or_agent] = lambda: user
+        app.dependency_overrides[get_current_user] = lambda: user
+        return TestClient(app, raise_server_exceptions=False)
+    return _build
+
+
+@pytest.mark.parametrize("role", [AGENT_ROLE, "tenant_admin", "analyst"])
+def test_task_poll_serves_agent_and_security_readers(response_app, role):
+    resp = response_app(role).get("/api/response/tasks/agent-1")
+    assert resp.status_code == 200, role
+    assert resp.json() == []
+
+
+@pytest.mark.parametrize("role", ["viewer", "itam_viewer", "nobody"])
+def test_task_poll_refuses_people_without_view_security(response_app, role):
+    assert response_app(role).get("/api/response/tasks/agent-1").status_code == 403
+
+
+def _route_guard_tags(module, method, path):
+    route = next(r for r in module.router.routes if r.path == path and method in r.methods)
+    return [dict(d.call.__catalogue_guard__) for d in route.dependant.dependencies
+            if hasattr(d.call, "__catalogue_guard__")]
+
+
+def test_only_the_polling_and_listing_reads_gained_a_guard():
+    import agent_chat_endpoints
+    import response_endpoints
+    assert [t["catalogue"] for t in _route_guard_tags(response_endpoints, "GET", "/api/response/tasks/{agent_id}")] == ["edr"]
+    assert [t["catalogue"] for t in _route_guard_tags(agent_chat_endpoints, "GET", "/api/agent-chat/sessions")] == ["chat"]
+    for module, method, path in (
+        (response_endpoints, "POST", "/api/response/tasks/{task_id}/result"),
+        (response_endpoints, "POST", "/api/response/tasks/{task_id}/feedback"),
+        (agent_chat_endpoints, "POST", "/api/agent-chat/sessions"),
+        (agent_chat_endpoints, "PATCH", "/api/agent-chat/sessions/{session_id}/close"),
+    ):
+        assert _route_guard_tags(module, method, path) == [], f"{method} {path} must carry no new guard"
+
+
+def test_task_poll_and_chat_list_on_the_real_app():
+    def case(path, role):
+        return {"method": "GET", "path": path, "role": role, "tenant_id": "tenant-a", "auth": "agent_capable"}
+    poll = ["/api/response/tasks/agent-1"] * 5
+    poll_roles = [AGENT_ROLE, "security_analyst", "viewer", "itam_viewer", "nobody"]
+    chat_roles = ["viewer", "tenant_admin", AGENT_ROLE]
+    out = probe_real_app([case(p, r) for p, r in zip(poll, poll_roles)]
+                         + [case("/api/agent-chat/sessions", r) for r in chat_roles])
+    agent, analyst, viewer, itam_viewer, nobody, chat_viewer, chat_admin, chat_agent = out
+    assert agent not in (401, 403) and analyst not in (401, 403), "agent and view:security holders reach the handler"
+    assert (viewer, itam_viewer, nobody) == (403, 403, 403)
+    assert chat_viewer == 403
+    assert chat_admin not in (401, 403)
+    assert chat_agent == 403, "the handler's own admin check still refuses the agent identity"

@@ -60,9 +60,11 @@ def test_secops_public_routes_untouched():
         if record["auth"] in ("agent", "agent_capable", "public") or reviewed_public:
             for method in record["methods"]:
                 seen.add((method, record["path"]))
-            if record["tags"]:
+            tolerant = record["auth"] == "agent_capable" and all(t.get("allow_agent") is True for t in record["tags"])
+            if record["tags"] and not tolerant:
                 tagged.append(f"{','.join(record['methods'])} {record['path']} ({record['module']}, {record['auth']})")
-    assert tagged == [], "agent or public routes must not carry a catalogue guard (D-02):\n" + "\n".join(tagged)
+    assert tagged == [], ("agent or public routes must not carry a catalogue guard, and agent-capable routes "
+                          "only an agent-tolerant one (D-02):\n" + "\n".join(tagged))
     for route in PUBLIC_ROUTES:
         assert route in seen, f"{route} missing from the route walk"
     assert ("POST", "/api/alerts") in seen
