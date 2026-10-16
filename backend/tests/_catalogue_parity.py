@@ -114,36 +114,77 @@ def _in_scope(record: Dict[str, Any], manifest: Dict[str, Any]) -> Optional[Dict
     return owner
 
 
+SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+
+
+def _parity_scope(record: Dict[str, Any], manifest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Owning catalogue when the record must carry its catalogue guard (D-05, WR-01).
+
+    User routes as in ``_in_scope``. Agent-capable routes join the scope under an enforce:true
+    group when they have a safe method (an unguarded read leaks to any viewer) or already carry a
+    tag (it must then be the right one). Untagged agent-capable writes stay with the reviewed
+    ``agentCapableRoutes`` list instead. ``slice_modules`` keeps ``_in_scope``.
+    """
+    if record.get("auth") == "agent_capable":
+        owner = owner_of(record["path"], manifest)
+        if owner is None or owner["group"] not in _enforced_groups(manifest):
+            return None
+        safe = any(m.upper() in SAFE_METHODS for m in record["methods"])
+        return owner if safe or record.get("tags") else None
+    return _in_scope(record, manifest)
+
+
+def _refusing_tags(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Tags on an agent-capable record that would refuse the agent identity (D-02, PROH-76-06)."""
+    if record.get("auth") != "agent_capable":
+        return []
+    return [t for t in record.get("tags") or [] if t.get("allow_agent") is not True]
+
+
 def parity_offenders(
     records: Iterable[Dict[str, Any]],
     manifest: Dict[str, Any],
     modules: Optional[Iterable[str]] = None,
 ) -> List[str]:
-    """One line per method for every in-scope route without a matching guard tag."""
+    """One line per method for every in-scope route without a matching guard tag.
+
+    Agent-capable routes must carry the owning catalogue's agent-tolerant tag, and any tag on an
+    agent-capable route that would refuse the agent identity is an offender wherever it sits.
+    """
     wanted = set(modules) if modules is not None else None
     out: List[str] = []
     for record in records:
         if wanted is not None and record.get("module") not in wanted:
             continue
-        owner = _in_scope(record, manifest)
-        if owner is None or record.get("exempt"):
-            continue
-        read, write = resolved_read(owner), resolved_write(owner)
-        matched = any(
-            tag.get("catalogue") == owner["view"]
-            and sorted(tag.get("read") or []) == sorted(read)
-            and sorted(tag.get("write") or []) == sorted(write)
-            for tag in record.get("tags") or []
-        )
-        if matched:
+        agent_capable = record.get("auth") == "agent_capable"
+        owner = _parity_scope(record, manifest)
+        if owner is not None and record.get("exempt"):
+            owner = None
+        refusing = _refusing_tags(record)
+        expected = ""
+        if owner is not None:
+            read, write = resolved_read(owner), resolved_write(owner)
+            matched = any(
+                tag.get("catalogue") == owner["view"]
+                and sorted(tag.get("read") or []) == sorted(read)
+                and sorted(tag.get("write") or []) == sorted(write)
+                and (not agent_capable or tag.get("allow_agent") is True)
+                for tag in record.get("tags") or []
+            )
+            if not matched:
+                call = _call(owner["view"], read, write)
+                expected = f"expected agent_tolerant({call})" if agent_capable else f"expected {call}"
+        if not expected and not refusing:
             continue
         found = "".join(
             f"; found {_call(t.get('catalogue'), t.get('read') or [], t.get('write') or [])}"
             for t in record.get("tags") or []
         )
+        why = ("; this tag would refuse the agent identity, wrap the guard in agent_tolerant(...) (D-02)"
+               if refusing else "")
         for method in record["methods"]:
-            out.append(f"{method} {record['path']} ({record.get('module')}): "
-                       f"expected {_call(owner['view'], read, write)}{found}")
+            head = f"{method} {record['path']} ({record.get('module')}): "
+            out.append(head + (expected or "tag mismatch") + found + why)
     return sorted(out)
 
 
@@ -278,13 +319,14 @@ def ledger_offenders(
                    f"({routes}); guard them or add {paste}")
 
     # --- agent-capable and exempt ratchets
-    agent = sorted(p for r in records if r.get("auth") == "agent_capable" for p in _pairs(r))
+    untagged_agent = [r for r in records if r.get("auth") == "agent_capable" and not r.get("tags")]
+    agent = sorted(p for r in untagged_agent for p in _pairs(r))
     if len(agent) > int(ledger.get("agentAuthExcludedRoutes", 0)):
-        out.append(f"agentAuthExcludedRoutes: {len(agent)} agent-capable routes, above the ratchet "
+        out.append(f"agentAuthExcludedRoutes: {len(agent)} untagged agent-capable routes, above the ratchet "
                    f"{ledger.get('agentAuthExcludedRoutes', 0)}: {', '.join(agent)}")
     elif len(agent) < int(ledger.get("agentAuthExcludedRoutes", 0)):
         out.append(f"agentAuthExcludedRoutes: ratchet {ledger['agentAuthExcludedRoutes']} leaves slack over "
-                   f"{len(agent)} agent-capable routes; lower it to {len(agent)}")
+                   f"{len(agent)} untagged agent-capable routes; lower it to {len(agent)}")
     exempt = [(p, r["exempt"]) for r in records if r.get("exempt") for p in _pairs(r)]
     if len(exempt) > int(ledger.get("maxExemptRoutes", 0)):
         out.append(f"maxExemptRoutes: {len(exempt)} exempt routes, above the ratchet "
@@ -295,4 +337,62 @@ def ledger_offenders(
     for pair, reason in sorted(exempt):
         if len(str(reason).strip()) < MIN_EXEMPT_REASON:
             out.append(f"{pair}: catalogue_exempt reason {reason!r} is shorter than {MIN_EXEMPT_REASON} characters")
+
+    # --- reviewed lists (optional keys, so ledgers built without them keep their old meaning)
+    if "agentCapableRoutes" in ledger:
+        out.extend(_agent_capable_list_offenders(untagged_agent, manifest, ledger["agentCapableRoutes"]))
     return sorted(out)
+
+
+def _listed(entries: Any, key: str) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    """Index a reviewed list by route; return (first entry per route, duplicate routes)."""
+    index: Dict[str, Dict[str, Any]] = {}
+    duplicates: List[str] = []
+    for entry in entries or []:
+        route = str(entry.get("route") or "<missing route>")
+        if route in index:
+            if route not in duplicates:
+                duplicates.append(route)
+            continue
+        index[route] = entry
+    return index, duplicates
+
+
+def _agent_capable_list_offenders(
+    untagged_agent: Sequence[Dict[str, Any]],
+    manifest: Dict[str, Any],
+    entries: Any,
+) -> List[str]:
+    """Every untagged agent-capable route is individually listed with a reason (D-05)."""
+    enforced = _enforced_groups(manifest)
+    index, duplicates = _listed(entries, "agentCapableRoutes")
+    actual: Dict[str, Dict[str, Any]] = {}
+    for record in untagged_agent:
+        for pair in _pairs(record):
+            actual[pair] = record
+    out = [f"agentCapableRoutes: duplicate entries for {route}; keep one" for route in duplicates]
+    for route, entry in index.items():
+        record = actual.get(route)
+        reason = str(entry.get("reason") or "").strip()
+        if record is None:
+            out.append(f"agentCapableRoutes: stale entry {route} (not an untagged agent-capable route); remove it")
+            continue
+        owner = owner_of(record["path"], manifest)
+        method = route.split(" ", 1)[0].upper()
+        if owner is not None and owner["group"] in enforced and method in SAFE_METHODS:
+            out.append(f"agentCapableRoutes: {route} is a read under the enforced {owner['view']} catalogue; "
+                       "reads must carry agent_tolerant(catalogue_guard(...)), a ledger entry cannot excuse it")
+        if len(reason) < MIN_EXEMPT_REASON or reason.startswith("<"):
+            out.append(f"agentCapableRoutes: {route} reason {reason!r} is a placeholder or shorter than "
+                       f"{MIN_EXEMPT_REASON} characters")
+    for route, record in sorted(actual.items()):
+        if route in index:
+            continue
+        owner = owner_of(record["path"], manifest)
+        method = route.split(" ", 1)[0].upper()
+        if owner is not None and owner["group"] in enforced and method in SAFE_METHODS:
+            continue  # parity_offenders names this read and the guard it needs
+        paste = json.dumps({"route": route, "reason": "<state why this agent-capable route carries no catalogue tag>"})
+        out.append(f"agentCapableRoutes: {route} ({record.get('module')}) is an agent-capable route without a "
+                   f"catalogue tag and not in shared/catalogue-gaps.json; tag it or add {paste}")
+    return out

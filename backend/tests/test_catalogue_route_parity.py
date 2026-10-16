@@ -322,8 +322,8 @@ def test_ledger_ratchets():
 # --- Phase 76-14: agent-capable routes in the parity scope and the reviewed agentCapableRoutes list ---
 # (WR-01 gate half, D-05, D-02). Synthetic apps only; the committed ledger is never written (PROH-76-03).
 
-MDM_TOLERANT = agent_tolerant(catalogue_guard("mobileDeviceManagement", read=("view:mdm",), write=("manage:assets",)))
-MDM_PLAIN = catalogue_guard("mobileDeviceManagement", read=("view:mdm",), write=("manage:assets",))
+MDM_TOLERANT = agent_tolerant(catalogue_guard("mobileDeviceManagement", read=("view:mdm",), write=("manage:mdm",)))
+MDM_PLAIN = catalogue_guard("mobileDeviceManagement", read=("view:mdm",), write=("manage:mdm",))
 
 
 def _agent_route(path="/api/mdm/a", deps=(), methods=("GET",), module="agent_mod"):
@@ -335,7 +335,7 @@ def test_untagged_agent_capable_read_in_enforced_catalogue_is_a_parity_offender(
     assert len(offenders) == 1
     text = offenders[0]
     assert "GET /api/mdm/a (agent_mod)" in text
-    assert 'agent_tolerant(catalogue_guard("mobileDeviceManagement", read=[\'view:mdm\'], write=[\'manage:assets\']))' in text
+    assert 'agent_tolerant(catalogue_guard("mobileDeviceManagement", read=[\'view:mdm\'], write=[\'manage:mdm\']))' in text
 
 
 def test_agent_tolerant_tag_on_agent_capable_read_is_not_an_offender():

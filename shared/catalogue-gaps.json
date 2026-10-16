@@ -1,7 +1,57 @@
 {
   "version": 1,
-  "agentAuthExcludedRoutes": 15,
+  "agentAuthExcludedRoutes": 12,
   "maxExemptRoutes": 34,
+  "agentCapableRoutes": [
+    {
+      "route": "GET /api/swarm/peers",
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "route": "PATCH /api/agent-chat/sessions/{session_id}/close",
+      "reason": "admin-only: close_session refuses every role outside the tenant admin roles, agents included (403)"
+    },
+    {
+      "route": "POST /api/agent-chat/sessions",
+      "reason": "admin-only: start_session refuses every role outside the tenant admin roles, agents included (403)"
+    },
+    {
+      "route": "POST /api/agents/{agent_id}/metrics",
+      "reason": "agent ingest: an agent reports only its own metrics; people need manage:agents, checked in record_agent_metrics"
+    },
+    {
+      "route": "POST /api/agents/{agent_id}/raise-ticket",
+      "reason": "agent ingest: the agent raises a ticket for its own machine; people are pinned to their tenant in raise_ticket_via_agent but hold no permission check (write path, not a read)"
+    },
+    {
+      "route": "POST /api/agents/{agent_id}/uninstall-report",
+      "reason": "agent-only: report_uninstall refuses every caller except the named agent (403)"
+    },
+    {
+      "route": "POST /api/alerts",
+      "reason": "agent ingest: agents raise alerts; people need investigate:security, checked in create_alert"
+    },
+    {
+      "route": "POST /api/remote/session/{session_id}/consent",
+      "reason": "agent-only: report_consent refuses every non-agent caller (401) and any agent that does not own the session (403)"
+    },
+    {
+      "route": "POST /api/response/tasks/{task_id}/feedback",
+      "reason": "agent ingest: an agent reports on its own task (_require_own_task); people need remediate:agents, checked in submit_task_feedback"
+    },
+    {
+      "route": "POST /api/response/tasks/{task_id}/result",
+      "reason": "agent ingest: an agent reports on its own task (_require_own_task); people need remediate:agents, checked in submit_task_result"
+    },
+    {
+      "route": "POST /api/stream/publish/{topic}",
+      "reason": "Observability group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    },
+    {
+      "route": "POST /api/swarm/report",
+      "reason": "Automation & Intelligence group is not enforced: route guards deferred to ACC-F2 (D-01)"
+    }
+  ],
   "routers": [
     {
       "module": "ab_testing_endpoints",
