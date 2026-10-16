@@ -21,7 +21,7 @@ __all__ = [
     "FINOPS_GUARD", "INVOICES_GUARD", "PAYMENT_SETTINGS_GUARD", "SUBSCRIPTION_GUARD",
     "KNOWLEDGE_GUARD", "USER_MANAGEMENT_GUARD", "ROLE_MANAGEMENT_GUARD", "API_KEYS_GUARD",
     "SELF_SERVICE_PROFILE", "SELF_SERVICE_API_KEYS", "TENANT_MANAGEMENT_GUARD",
-    "BUNDLE_MANAGEMENT_GUARD", "TENANT_OWN_SCOPE", "TENANT_PLATFORM_STAFF", "TENANT_OWN_FEATURES",
+    "BUNDLE_MANAGEMENT_GUARD", "TENANT_PLATFORM_STAFF", "TENANT_OWN_FEATURES",
     "TENANT_CONTROLS_READ_GUARD", "TENANT_BRANDING_DISPLAY",
     "MOUNTS",
 ]
@@ -71,9 +71,6 @@ TENANT_BRANDING_DISPLAY = catalogue_exempt(
     "get_tenant_branding pins the caller's tenant"
 )
 
-TENANT_OWN_SCOPE = catalogue_exempt(
-    "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
-)
 # Platform staff (spec C1-C4) pass has_platform_permission, never manage:tenants, which only the
 # Super Admin holds; guarding these with the manifest string would lock Platform Support/Billing out.
 TENANT_PLATFORM_STAFF = catalogue_exempt(

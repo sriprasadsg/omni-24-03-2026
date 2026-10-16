@@ -1,8 +1,8 @@
 """Enrollment controls API (spec C4): hardware allowlist and limited-use install keys.
 
 The Platform Owner and Platform Billing (manage:tenant_license, spec C1) manage every
-tenant, like the license PATCH; platform staff read every tenant; tenant users read their
-own tenant only.
+tenant, like the license PATCH; platform staff read every tenant; tenant administrators
+(manage:settings) read their own tenant only, every other tenant role is refused (WR-05).
 """
 import logging
 from datetime import datetime, timezone
@@ -17,7 +17,7 @@ from authentication_service import get_current_user
 from database import mongodb
 from rbac_utils import has_platform_permission
 from tenant_endpoints import _assert_tenant_read
-from catalogue_mounts_billing_identity import TENANT_OWN_SCOPE, TENANT_PLATFORM_STAFF
+from catalogue_mounts_billing_identity import TENANT_CONTROLS_READ_GUARD, TENANT_PLATFORM_STAFF
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tenants", tags=["Tenant Management"])
@@ -64,7 +64,7 @@ class AllowlistImport(BaseModel):
     csv: str = Field(..., max_length=MAX_CSV_CHARS)
 
 
-@router.get("/{tenant_id}/allowlist", dependencies=[Depends(TENANT_OWN_SCOPE)])
+@router.get("/{tenant_id}/allowlist", dependencies=[Depends(TENANT_CONTROLS_READ_GUARD)])
 async def get_allowlist(tenant_id: str, skip: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=1000),
                         current_user=Depends(get_current_user)):
     _assert_tenant_read(current_user, tenant_id)
@@ -118,7 +118,7 @@ class KeyCreate(BaseModel):
     defaultGroupId: Optional[str] = Field(None, max_length=64)
 
 
-@router.get("/{tenant_id}/enrollment-keys", dependencies=[Depends(TENANT_OWN_SCOPE)])
+@router.get("/{tenant_id}/enrollment-keys", dependencies=[Depends(TENANT_CONTROLS_READ_GUARD)])
 async def get_enrollment_keys(tenant_id: str, current_user=Depends(get_current_user)):
     _assert_tenant_read(current_user, tenant_id)
     await _tenant_or_404(tenant_id)
