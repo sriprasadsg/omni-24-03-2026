@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from catalogue_guards import agent_tolerant
 from catalogue_mounts_agents import CHAT_GUARD
 from pydantic import BaseModel, Field
 
@@ -28,6 +29,10 @@ import agent_capabilities
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/agent-chat", tags=["Agent Chat"])
+
+# GET /sessions authenticates people and agents through get_current_user_or_agent (76-13, WR-01, D-02).
+# Every role its admin check admits holds manage:agents, so no built-in role's outcome changes.
+CHAT_AGENT_GUARD = agent_tolerant(CHAT_GUARD)
 
 _SUPER_ROLES = SUPER_ROLES
 # "admin" is a tenant-scoped role (tenant admins can assign it), so it is an
@@ -171,7 +176,7 @@ async def start_session(
 
 # ── Admin: list sessions ──────────────────────────────────────────────────────
 
-@router.get("/sessions")
+@router.get("/sessions", dependencies=[Depends(CHAT_AGENT_GUARD)])
 async def list_sessions(
     status: Optional[str] = Query(None),
     current_user: TokenData = Depends(get_current_user_or_agent),

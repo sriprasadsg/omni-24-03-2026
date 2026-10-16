@@ -3,6 +3,7 @@ Autonomous Response API Endpoints
 CRUD for response policies + manual/automated response action dispatch.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from catalogue_guards import agent_tolerant
 from catalogue_mounts_secops import EDR_GUARD
 from fastapi.background import BackgroundTasks
 from typing import List, Optional, Dict, Any
@@ -17,6 +18,10 @@ from response_orchestrator import ResponseOrchestrator, seed_builtin_policies
 
 router = APIRouter(prefix="/api/response", tags=["Autonomous Response"])
 orchestrator = ResponseOrchestrator()
+
+# The task poll is called by the endpoint agent and by people (76-13, WR-01, D-02): people need
+# the edr read permission, the agent identity is never permission-checked.
+EDR_AGENT_GUARD = agent_tolerant(EDR_GUARD)
 
 _SUPER_ADMIN_ROLES = {"Super Admin", "superadmin", "super_admin", "platform-admin"}
 
@@ -189,7 +194,7 @@ async def execute_response_action(
     return {"status": "queued", "task": task}
 
 
-@router.get("/tasks/{agent_id}")
+@router.get("/tasks/{agent_id}", dependencies=[Depends(EDR_AGENT_GUARD)])
 async def get_pending_tasks(
     agent_id: str,
     current_user: TokenData = Depends(get_current_user_or_agent)
