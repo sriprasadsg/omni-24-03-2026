@@ -222,11 +222,17 @@ register_all_routers(app)
 out = []
 for case in json.loads(sys.argv[1]):
     _switches["list"] = case.get("tenant_features", [tenant_features.ALL_FEATURES])
-    api_key = case.get("auth", "session") == "api_key"
+    mode = case.get("auth", "session")
+    api_key = mode == "api_key"
     td = TokenData(username="probe@example.com", role=case["role"], tenant_id=case["tenant_id"],
                    scopes=case.get("scopes"), auth_source="api_key" if api_key else "session")
     app.dependency_overrides.clear()
-    target = api_key_auth.get_current_user_or_api_key if api_key else auth.get_current_user
+    if api_key:
+        target = api_key_auth.get_current_user_or_api_key
+    elif mode == "agent_capable":
+        target = auth.get_current_user_or_agent
+    else:
+        target = auth.get_current_user
     app.dependency_overrides[target] = lambda td=td: td
     client = TestClient(app, raise_server_exceptions=False)
     out.append(client.request(case["method"], case["path"]).status_code)
@@ -237,7 +243,9 @@ json.dump(out, sys.stdout)
 def probe_real_app(cases: List[Dict[str, Any]]) -> List[int]:
     """Status code per case on the real app (fresh interpreter, throwaway Mongo env).
 
-    Case keys: method, path, role, tenant_id, scopes (optional), auth ("session" or "api_key"),
+    Case keys: method, path, role, tenant_id, scopes (optional), auth ("session", "api_key" or
+    "agent_capable": the case's TokenData replaces get_current_user_or_agent only, for routes that
+    authenticate people and endpoint agents through it; role "agent" is then the agent identity),
     tenant_features (optional: the tenant's feature-switch list, spec C6; default every feature on).
     """
     raw = subprocess.run([sys.executable, "-c", _PROBE, json.dumps(cases)], cwd=BACKEND_DIR,

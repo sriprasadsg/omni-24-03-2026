@@ -12,11 +12,16 @@ from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission
 from database import get_database
 from rate_limiter import limiter
+from catalogue_guards import agent_tolerant
 from catalogue_mounts_devices import SOFTWARE_UPDATES_GUARD
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/software", tags=["Software Repository"])
+
+# The installer download is also called by the endpoint agent (76-13, WR-01, D-02): people need the
+# softwareUpdates read permission, the agent identity is never permission-checked.
+SOFTWARE_UPDATES_AGENT_GUARD = agent_tolerant(SOFTWARE_UPDATES_GUARD)
 
 UPLOAD_DIR = Path("uploads/repo")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -110,7 +115,7 @@ async def list_repository_files(current_user=Depends(get_current_user)):
         return []
 
 
-@router.get("/download/{filename}")
+@router.get("/download/{filename}", dependencies=[Depends(SOFTWARE_UPDATES_AGENT_GUARD)])
 async def download_software(filename: str, current_user=Depends(get_current_user_or_agent)):
     """Download a file from the repository."""
     safe_name = _safe_filename(filename)

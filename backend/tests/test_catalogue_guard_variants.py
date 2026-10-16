@@ -16,16 +16,11 @@ import rbac_utils
 import tenant_features
 from auth_types import TokenData
 from authentication_service import AGENT_ROLE, get_current_user, get_current_user_or_agent
-from catalogue_guards import catalogue_guard, check_catalogue_access
+from catalogue_guards import agent_tolerant, catalogue_guard, check_catalogue_access
 from catalogue_mounts_devices import SOFTWARE_UPDATES_GUARD
 from tests._route_walk import probe_real_app
 
 PLATFORM = rbac_defaults.PLATFORM_TENANT_ID
-
-
-def agent_tolerant(guard):
-    return catalogue_guards.agent_tolerant(guard)
-
 
 DEMO = dict(read=("manage:settings",), write=("manage:settings",))
 
