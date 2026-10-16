@@ -12,7 +12,10 @@ from cache_service import invalidate_cache
 import license_rules
 import licensing
 from rate_limiter import limiter
-from catalogue_mounts_billing_identity import TENANT_MANAGEMENT_GUARD, TENANT_OWN_SCOPE, TENANT_PLATFORM_STAFF
+from catalogue_mounts_billing_identity import (
+    TENANT_BRANDING_DISPLAY, TENANT_CONTROLS_READ_GUARD, TENANT_MANAGEMENT_GUARD, TENANT_PLATFORM_STAFF,
+)
+from catalogue_mounts_settings_ops import SETTINGS_GUARD
 from datetime import datetime, timezone
 import hashlib
 import uuid
@@ -351,7 +354,7 @@ class BrandingConfig(BaseModel):
     primaryColor: Optional[str] = None
     companyName: Optional[str] = None
 
-@router.get("/{tenant_id}/branding", dependencies=[Depends(TENANT_OWN_SCOPE)])
+@router.get("/{tenant_id}/branding", dependencies=[Depends(TENANT_BRANDING_DISPLAY)])
 async def get_tenant_branding(tenant_id: str, current_user=Depends(get_current_user)):
     caller_tenant = getattr(current_user, "tenant_id", None) or getattr(current_user, "tenantId", None)
     if not is_super_admin(getattr(current_user, "role", "")) and caller_tenant != tenant_id:
@@ -486,7 +489,7 @@ async def generate_api_key(
 
 # ── Email Configuration ───────────────────────────────────────────────────────
 
-@router.get("/{tenant_id}/email/config", dependencies=[Depends(TENANT_OWN_SCOPE)])
+@router.get("/{tenant_id}/email/config", dependencies=[Depends(SETTINGS_GUARD)])
 async def get_email_config(tenant_id: str, current_user=Depends(get_current_user)):
     _assert_tenant_access(current_user, tenant_id)
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"emailConfig": 1, "_id": 0})
@@ -511,7 +514,7 @@ def _encrypt_smtp_password(plaintext: str) -> str:
         ) from exc
 
 
-@router.post("/{tenant_id}/email/config", dependencies=[Depends(TENANT_MANAGEMENT_GUARD)])
+@router.post("/{tenant_id}/email/config", dependencies=[Depends(TENANT_MANAGEMENT_GUARD), Depends(SETTINGS_GUARD)])
 async def save_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(require_permission("manage:settings"))):
     _assert_tenant_access(current_user, tenant_id)
     logger.info(f"save_email_config called for tenant_id={tenant_id}, data_keys={list(data.keys())}")
@@ -575,7 +578,7 @@ async def save_email_config(tenant_id: str, data: Dict[str, Any], current_user=D
     return {"success": True, "message": "Email configuration saved"}
 
 
-@router.post("/{tenant_id}/email/test", dependencies=[Depends(TENANT_MANAGEMENT_GUARD)])
+@router.post("/{tenant_id}/email/test", dependencies=[Depends(TENANT_MANAGEMENT_GUARD), Depends(SETTINGS_GUARD)])
 async def test_email_config(tenant_id: str, data: Dict[str, Any], current_user=Depends(require_permission("manage:settings"))):
     _assert_tenant_access(current_user, tenant_id)
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
@@ -619,7 +622,7 @@ async def test_email_config(tenant_id: str, data: Dict[str, Any], current_user=D
     return {"success": True, "message": f"SMTP connection verified{' and test email sent to ' + test_email if test_email else ''} via {cfg['smtpHost']}"}
 
 
-@router.get("/{tenant_id}/email/preferences", dependencies=[Depends(TENANT_OWN_SCOPE)])
+@router.get("/{tenant_id}/email/preferences", dependencies=[Depends(SETTINGS_GUARD)])
 async def get_email_preferences(tenant_id: str, current_user=Depends(get_current_user)):
     _assert_tenant_access(current_user, tenant_id)
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"notificationPreferences": 1, "_id": 0})
@@ -634,7 +637,7 @@ async def get_email_preferences(tenant_id: str, current_user=Depends(get_current
     return {"success": True, "preferences": {**defaults, **prefs}}
 
 
-@router.put("/{tenant_id}/email/preferences", dependencies=[Depends(TENANT_MANAGEMENT_GUARD)])
+@router.put("/{tenant_id}/email/preferences", dependencies=[Depends(TENANT_MANAGEMENT_GUARD), Depends(SETTINGS_GUARD)])
 async def save_email_preferences(tenant_id: str, data: Dict[str, Any], current_user=Depends(require_permission("manage:settings"))):
     _assert_tenant_access(current_user, tenant_id)
     result = await mongodb.db.tenants.update_one(
@@ -708,7 +711,7 @@ class LicenseUpdate(BaseModel):
     expiresAt: Optional[datetime] = None
 
 
-@router.get("/{tenant_id}/license", dependencies=[Depends(TENANT_OWN_SCOPE)])
+@router.get("/{tenant_id}/license", dependencies=[Depends(TENANT_CONTROLS_READ_GUARD)])
 async def get_tenant_license(tenant_id: str, current_user=Depends(get_current_user)):
     """Seat limit and usage. Platform staff read any tenant; others only their own."""
     _assert_tenant_read(current_user, tenant_id)

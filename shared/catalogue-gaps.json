@@ -1,7 +1,7 @@
 {
   "version": 1,
   "agentAuthExcludedRoutes": 12,
-  "maxExemptRoutes": 34,
+  "maxExemptRoutes": 31,
   "agentCapableRoutes": [
     {
       "route": "GET /api/swarm/peers",
@@ -107,22 +107,10 @@
     },
     {
       "route": "GET /api/tenants/{tenant_id}/branding",
-      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
-    },
-    {
-      "route": "GET /api/tenants/{tenant_id}/email/config",
-      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
-    },
-    {
-      "route": "GET /api/tenants/{tenant_id}/email/preferences",
-      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
+      "reason": "tenant display data: logo URL, colour and company name shown to every signed-in user of the tenant; get_tenant_branding pins the caller's tenant"
     },
     {
       "route": "GET /api/tenants/{tenant_id}/enrollment-keys",
-      "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
-    },
-    {
-      "route": "GET /api/tenants/{tenant_id}/license",
       "reason": "self-service: caller's own tenant settings, pinned by _assert_tenant_access / _assert_tenant_read"
     },
     {

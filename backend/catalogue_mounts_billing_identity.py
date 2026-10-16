@@ -22,6 +22,7 @@ __all__ = [
     "KNOWLEDGE_GUARD", "USER_MANAGEMENT_GUARD", "ROLE_MANAGEMENT_GUARD", "API_KEYS_GUARD",
     "SELF_SERVICE_PROFILE", "SELF_SERVICE_API_KEYS", "TENANT_MANAGEMENT_GUARD",
     "BUNDLE_MANAGEMENT_GUARD", "TENANT_OWN_SCOPE", "TENANT_PLATFORM_STAFF", "TENANT_OWN_FEATURES",
+    "TENANT_CONTROLS_READ_GUARD", "TENANT_BRANDING_DISPLAY",
     "MOUNTS",
 ]
 
@@ -57,6 +58,17 @@ TENANT_MANAGEMENT_GUARD = catalogue_guard(
 )
 BUNDLE_MANAGEMENT_GUARD = catalogue_guard(
     "bundleManagement", read=("manage:tenants",), write=("manage:tenants",)
+)
+
+# WR-05: tenant administrators (manage:settings) read their own tenant's email settings, seat license,
+# hardware allowlist and install keys; platform staff (view:tenants, spec C1) read any tenant; every
+# other tenant role is refused. The handlers' _assert_tenant_read still pins the tenant.
+TENANT_CONTROLS_READ_GUARD = catalogue_guard(
+    "settings", read=_SETTINGS, write=_SETTINGS, platform_read=("view:tenants",)
+)
+TENANT_BRANDING_DISPLAY = catalogue_exempt(
+    "tenant display data: logo URL, colour and company name shown to every signed-in user of the tenant; "
+    "get_tenant_branding pins the caller's tenant"
 )
 
 TENANT_OWN_SCOPE = catalogue_exempt(
