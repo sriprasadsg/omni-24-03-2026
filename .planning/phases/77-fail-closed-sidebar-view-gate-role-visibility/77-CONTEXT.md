@@ -40,6 +40,19 @@ Phase 76 (backend route enforcement) is committed but not deployed; this phase i
 ### Fail-closed sidebar (ACC-06, from the requirement)
 - The sidebar's fail-open fallback is removed: `components/Sidebar.tsx:181` `userContext?.hasPermission || (() => true)` becomes deny when the context or permissions are missing or unknown.
 
+### Post-research amendments (2026-10-18, user-approved after 77-RESEARCH.md)
+- **D-12 (refines D-06):** landing preference is `['dashboard', 'itam']`, then the first allowed sidebar item in menu order. Menu order alone would land all three ITAM roles on Assets (`assetManagement` precedes `itam` in `shared/catalogue-access.json`); the ITAM roles land in the ITAM console as 75 D-09 intended. The manifest order is not changed.
+- **D-13:** a custom role's **name is fixed** after creation; description and permissions stay editable. Renaming means creating a new role and reassigning (users store the role by name). The server refuses a changed name and the editor disables the name field when editing.
+- **D-14 (MFA):** MFA becomes **permission-based**: any user whose role's effective set holds an admin-tier permission requires MFA, the same as the built-in admin roles. This replaces the name-keyed `_MFA_REQUIRED_ROLE_KEYS` in `backend/authentication_service.py` (~line 72) as the source of truth, so a custom role cannot be a way around MFA; the built-in admin roles keep requiring it. The admin-tier set is defined once in `backend/rbac_defaults.py`. — **Reversibility:** costly — users who never enrolled MFA but hold an admin-tier custom role are prompted to enroll on next sign-in.
+- **D-15 (extends D-03):** deleting a custom role is also refused while the tenant's SAML/LDAP group mappings name it; the refusal lists those mappings next to the users who hold it.
+- **D-16 (Claude's call on research Open Question 5):** the server emits a `screen-off:<view>` marker for every nav screen the role grants but the tenant switched off (research Pattern 9), so the UI-SPEC `switched_off` and `role` copy variants can be told apart.
+- **D-17 (research Open Questions 6-8):** a Super Admin with no tenant selected sees the built-in roles unnarrowed, with the basis line saying no tenant is selected; custom roles need a selected tenant. Custom roles may contain only permission strings known to the role table, manifest or switch catalogue. D-08's widget hiding covers the app shell (startup fetches, `NotificationCenter`, dashboard widgets that read gated data, a reusable `canReadView`); ITAM console tab gating stays deferred as ACC-F1.
+- **D-18 (research constraints):**
+  - Reserve custom-role names whose normalized key is a built-in key, equals `AGENT_ROLE` (`agent`), or is empty.
+  - Add a `builtIn` flag to the role response instead of reusing `isEditable` (five built-ins are seeded `isEditable: true`).
+  - When a Super Admin moves a user to another tenant, validate the user's role against the destination tenant.
+  - Give Sign out a fetch timeout so it never waits on Retry or a hung backend.
+
 ### Claude's Discretion
 - Role-write API shape (routes, payload, validation messages), audit-ledger entries for role create/edit/delete, and how the role editor shows implied permissions when `manage:X` is ticked.
 - Where the closure is computed (resolver vs delivery layer), as long as `/me` delivery and backend enforcement cannot diverge.
@@ -113,6 +126,7 @@ Phase 76 (backend route enforcement) is committed but not deployed; this phase i
 
 - **Narrowing built-in roles per tenant** (a tenant override that removes permissions from a built-in role): not chosen; the resolver unions tenant documents with defaults, so it needs a resolver change. Future phase if wanted.
 - **Roles × screens comparison matrix**: not chosen; the per-role panel (D-09) ships first.
+- **Unique index on custom role names (optional migration 023, research Pitfall 15):** deferred. It would run on the user's next backend restart; this phase relies on an application-level name check with a read-after-write check for this admin-only action.
 - **Phase 76-11 "Needs a human decision" manifest items** (retentionPolicy/PAM `manage:settings`, platform_support vs secrets/integrations reads, fleetGeoMap/Observability `manage:agents`, hadr `view:backups`, write lists with view strings, detection rules/FIM for analysts, tenant/bundle management reads, knowledge base read): not discussed here. The D-10 view will show whatever the manifest says, so they stay open policy questions for the user.
 
 ### Reviewed Todos (not folded)

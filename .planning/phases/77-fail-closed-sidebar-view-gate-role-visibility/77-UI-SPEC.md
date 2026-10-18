@@ -195,6 +195,7 @@ Role list (`SettingsRolesTab.tsx`), table keeps current structure and gains:
 - Row pending states: while a delete is in flight the row is `opacity-60 pointer-events-none` and the trash button shows a 14px spinner; saving a role keeps the row unchanged until the server confirms, then updates in place.
 
 Role editor (`RoleEditorModal`, `Modal size="2xl"`, same form structure), changes only:
+- Name field is editable on create only; on edit it is `disabled` with helper text (12/400 muted) `A role's name can't be changed. To rename, create a new role and reassign its users.` (D-13).
 - Title unchanged: `Create New Role` / `Edit Role: {name}`. Submit labels unchanged: `Create Role` / `Save Changes`. Pending: button `disabled`, label `Saving...`; Cancel remains enabled; inputs `disabled`.
 - Ceiling banner for every non-Super-Admin editor, top of form, blue info style (same as the built-in banner): `You can only grant permissions you hold yourself.` Super Admin sees no banner.
 - The permission list is the editor's own effective set with the `manage:X => view:X, request:X` closure applied (server-delivered, replaces the `enabledFeatures` filter). Permissions the editor does not hold are not listed. `PLATFORM_ONLY_PERMISSIONS` and `manage:tenants` are never listed, for anyone.
@@ -210,7 +211,7 @@ Role editor (`RoleEditorModal`, `Modal size="2xl"`, same form structure), change
 
 Delete flow:
 1. Trash click opens `ConfirmationModal` with `isDestructive`. Title `Delete role`. Message `Delete the custom role "{name}"? This can't be undone.` Confirm text `Delete role`. Cancel text `Keep role`.
-2. Server refuses because users still hold the role (409 with holders): open a `Modal size="md"` titled `Can't delete "{name}" yet`. Body 14/400: `1 user still holds this role.` or `{N} users still hold this role.`, then `Reassign them to another role, then delete it.` Then a scrollable list (`max-h-48 overflow-y-auto`, 192px, `divide-y`, `role="list"`): per holder, name 14/600 (`truncate`) over email 12/400 muted (`truncate`); a holder with no name shows the email as the bold line only. More than 50 holders: show 50 and a final row `and {N-50} more`. Footer: `Close` (secondary) and `Go to User Management` (primary, switches the Settings tab to `users` and closes the dialog). Focus lands on the dialog heading.
+2. Server refuses because users still hold the role (409 with holders): open a `Modal size="md"` titled `Can't delete "{name}" yet`. Body 14/400: `1 user still holds this role.` or `{N} users still hold this role.`, then `Reassign them to another role, then delete it.` When SAML/LDAP group mappings name the role (D-15), a second sub-list follows the holders with the sub-heading `Sign-in mappings` (12/600): per mapping, the directory group name 14/600 over `SAML` or `LDAP` 12/400 muted, same scroll and 50-row rules. Then a scrollable list (`max-h-48 overflow-y-auto`, 192px, `divide-y`, `role="list"`): per holder, name 14/600 (`truncate`) over email 12/400 muted (`truncate`); a holder with no name shows the email as the bold line only. More than 50 holders: show 50 and a final row `and {N-50} more`. Footer: `Close` (secondary) and `Go to User Management` (primary, switches the Settings tab to `users` and closes the dialog). Focus lands on the dialog heading.
 3. Success: row removed, `showToast('Role "{name}" deleted.', 'success')`.
 4. Other failure: `showToast('Couldn't delete the role: {server message}. Try again.', 'error')` and the row returns to idle.
 
@@ -222,7 +223,7 @@ Panel container: `bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:b
 
 Header block:
 - Summary (18/600): `{Role name} can see {A} of {T} screens`. `A` counts screens marked View or Manage (switched-off ones excluded); `T` is total manifest nav screens.
-- Basis line (12/400 muted): `Based on this role's permissions, narrowed by the screens switched on for {tenant name}.` When a Super Admin views a platform role: `Platform role. Tenant screen switches do not narrow it.` and no Switched off section is rendered.
+- Basis line (12/400 muted): `Based on this role's permissions, narrowed by the screens switched on for {tenant name}.` When a Super Admin views a platform role: `Platform role. Tenant screen switches do not narrow it.` and no Switched off section is rendered. When a Super Admin has no tenant selected (D-17): built-in roles show unnarrowed with `No tenant selected. Tenant screen switches do not narrow it.` and no Switched off section; custom roles are not listed until a tenant is selected.
 - Legend row (`flex flex-wrap gap-2`): the three markers (View, Manage, Switched off) with a short gloss each in 12/400: `View: can open the screen`, `Manage: can also change data`, `Switched off: granted, but off for this tenant`.
 - `Expand all` / `Collapse all` text button (12/600, `text-gray-600 hover:text-gray-900 dark:text-gray-300`, not accent), right-aligned.
 
@@ -290,6 +291,9 @@ Responsive: panel is full width of the table card; the table already scrolls hor
 | Destructive confirmation | `Delete role`: `Delete the custom role "{name}"? This can't be undone.` Buttons `Delete role` / `Keep role` |
 | Delete refused, title | `Can't delete "{name}" yet` |
 | Delete refused, body | `1 user still holds this role.` / `{N} users still hold this role.` then `Reassign them to another role, then delete it.` |
+| Delete refused, mappings | sub-heading `Sign-in mappings`; body adds `and {M} sign-in mapping(s)` is replaced by: `1 sign-in mapping also uses it.` / `{M} sign-in mappings also use it.` |
+| Name locked on edit | `A role's name can't be changed. To rename, create a new role and reassign its users.` |
+| Role panel basis, no tenant selected | `No tenant selected. Tenant screen switches do not narrow it.` |
 | Delete refused, holder without a name | the email is shown as the bold line, no second line |
 | All parts of a screen hidden | `Nothing on this screen is available to your role yet.` (+ `Go to {landing label}` when the landing is another screen) |
 | Delete success toast | `Role "{name}" deleted.` |
