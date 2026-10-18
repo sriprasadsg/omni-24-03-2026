@@ -203,3 +203,135 @@ def test_create_is_audited_and_an_audit_failure_does_not_fail_it(client, audit):
     assert call_args["tenant_id"] == "tenant-a"
     audit.fail = True
     assert create(client, {**HELPDESK, "name": "Helpdesk Two"}).status_code == 201
+
+
+# --- Task 2: edit and delete -------------------------------------------------------------
+
+def _make(client, name="Helpdesk", perms=("view:agents", "view:dashboard"), **kw):
+    res = create(client, {"name": name, "description": "Desk", "permissions": list(perms)}, **kw)
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
+def _add_user(store, email, role, tenant="tenant-a", **extra):
+    store.raw.users.docs.append(make_user(email, role, tenant, **extra))
+
+
+def test_put_edits_description_and_permissions(client, store):
+    role = _make(client)
+    res = call(client, "PUT", f"/api/roles/{role['id']}",
+               json={"description": "New", "permissions": ["view:agents", "view:logs"]})
+    assert res.status_code == 200, res.text
+    assert res.json()["description"] == "New" and res.json()["permissions"] == ["view:agents", "view:logs"]
+    doc = next(d for d in stored(store, "tenant-a") if d["id"] == role["id"])
+    assert doc["updatedBy"] and doc["updatedAt"] and doc["permissions"] == ["view:agents", "view:logs"]
+
+
+def test_put_refuses_a_changed_name_and_accepts_the_same_one(client):
+    role = _make(client)
+    same = call(client, "PUT", f"/api/roles/{role['id']}", json={"name": "Helpdesk", "description": "x"})
+    assert same.status_code == 200
+    renamed = call(client, "PUT", f"/api/roles/{role['id']}", json={"name": "Help Desk"})
+    assert renamed.status_code == 400 and renamed.json()["detail"] == COPY_RENAME
+
+
+def test_put_ceiling_is_symmetric(client, store):
+    store.raw.roles.docs.append(_custom("Seccy", "tenant-a", ["view:agents", "view:security"], id="role-seccy"))
+    path = "/api/roles/role-seccy"
+    desc = call(client, "PUT", path, role="rbacmgr", json={"description": "only text"})
+    assert desc.status_code == 200, desc.text
+    removed = call(client, "PUT", path, role="rbacmgr", json={"permissions": ["view:agents"]})
+    assert removed.status_code == 403
+    added = call(client, "PUT", path, role="rbacmgr", json={"permissions": ["view:agents", "view:security"]})
+    assert added.status_code == 200
+    # adding something the editor holds while leaving the unheld one in place is allowed
+    kept = call(client, "PUT", path, role="rbacmgr", json={"permissions": ["view:agents", "view:security"]})
+    assert kept.status_code == 200
+
+
+@pytest.mark.parametrize("method", ["PUT", "DELETE"])
+def test_other_tenants_builtin_and_legacy_ids_are_404(client, store, method):
+    kw = {"json": {"description": "x"}} if method == "PUT" else {}
+    assert call(client, method, "/api/roles/custom-tenant-b-Contractor", **kw).status_code == 404
+    assert call(client, method, "/api/roles/role-viewer", **kw).status_code == 404
+    assert call(client, method, "/api/roles/custom-tenant-a-viewer", **kw).status_code == 404
+    assert any(d["name"] == "Contractor" for d in stored(store, "tenant-b"))
+
+
+def test_an_edit_reaches_the_holder_on_the_next_me_without_a_login(client, store, monkeypatch):
+    from tests.rbac_test_support import make_auth_client, me, reset_shared_limiter
+    reset_shared_limiter()
+    role = _make(client, perms=("view:agents",))
+    _add_user(store, "u@a.test", "Helpdesk")
+    auth = make_auth_client(store, monkeypatch)
+    before = me(auth, "u@a.test", "Helpdesk", "tenant-a")
+    assert before.status_code == 200 and "view:logs" not in before.json()["permissions"]
+    assert call(client, "PUT", f"/api/roles/{role['id']}", json={"permissions": ["view:agents", "view:logs"]}).status_code == 200
+    after = me(auth, "u@a.test", "Helpdesk", "tenant-a")
+    assert "view:logs" in after.json()["permissions"]
+    reset_shared_limiter()
+
+
+def test_delete_is_refused_while_a_user_holds_the_role(client, store):
+    role = _make(client)
+    _add_user(store, "u@a.test", "helpdesk", full_name="Una")
+    _add_user(store, "v@a.test", "Viewer")
+    res = call(client, "DELETE", f"/api/roles/{role['id']}")
+    assert res.status_code == 409
+    detail = res.json()["detail"]
+    assert detail["code"] == "role_in_use" and detail["holderCount"] == 1
+    assert detail["holders"] == [{"name": "Una", "email": "u@a.test"}]
+    assert detail["mappingCount"] == 0 and detail["mappings"] == []
+    assert any(d["id"] == role["id"] for d in stored(store, "tenant-a"))
+
+
+def test_holder_name_falls_back_to_the_email(client, store):
+    role = _make(client)
+    store.raw.users.docs.append({"_id": "z", "email": "z@a.test", "role": "Helpdesk", "tenantId": "tenant-a"})
+    detail = call(client, "DELETE", f"/api/roles/{role['id']}").json()["detail"]
+    assert detail["holders"] == [{"name": "z@a.test", "email": "z@a.test"}]
+
+
+def test_delete_is_refused_while_a_sign_in_mapping_names_the_role(client, store):
+    role = _make(client)
+    store.raw.ldap_group_mappings.docs.append({"group_dn": "cn=desk", "role": "Helpdesk", "tenant_id": "tenant-a"})
+    store.raw.saml_group_mappings.docs.append({"group_value": "desk", "role": "helpdesk", "tenant_id": "tenant-a"})
+    store.raw.ldap_group_mappings.docs.append({"group_dn": "cn=other", "role": "Helpdesk", "tenant_id": "tenant-b"})
+    res = call(client, "DELETE", f"/api/roles/{role['id']}")
+    assert res.status_code == 409
+    detail = res.json()["detail"]
+    assert detail["holderCount"] == 0 and detail["mappingCount"] == 2
+    assert detail["mappings"] == [{"group": "cn=desk", "source": "LDAP"}, {"group": "desk", "source": "SAML"}]
+
+
+def test_delete_listing_is_capped_but_counts_are_exact(client, store):
+    role = _make(client)
+    for i in range(60):
+        _add_user(store, f"u{i}@a.test", "Helpdesk")
+    detail = call(client, "DELETE", f"/api/roles/{role['id']}").json()["detail"]
+    assert detail["holderCount"] == 60 and len(detail["holders"]) == 50
+
+
+def test_delete_succeeds_when_nobody_holds_the_role_and_is_audited(client, store, audit):
+    role = _make(client)
+    res = call(client, "DELETE", f"/api/roles/{role['id']}")
+    assert res.status_code == 204
+    assert not any(d["id"] == role["id"] for d in stored(store, "tenant-a"))
+    entry = audit.calls[-1]
+    assert entry["action"] == "role.deleted" and entry["tenant_id"] == "tenant-a"
+    assert entry["previous_state"]["permissions"] == ["view:agents", "view:dashboard"]
+
+
+def test_put_is_audited_with_the_previous_state(client, audit):
+    role = _make(client)
+    call(client, "PUT", f"/api/roles/{role['id']}", json={"permissions": ["view:agents"]})
+    entry = audit.calls[-1]
+    assert entry["action"] == "role.updated"
+    assert entry["previous_state"]["permissions"] == ["view:agents", "view:dashboard"]
+    assert entry["previous_state"]["description"] == "Desk"
+
+
+def test_put_and_delete_need_manage_rbac(client):
+    role = _make(client)
+    assert call(client, "PUT", f"/api/roles/{role['id']}", role="viewer", json={"description": "x"}).status_code == 403
+    assert call(client, "DELETE", f"/api/roles/{role['id']}", role="viewer").status_code == 403
