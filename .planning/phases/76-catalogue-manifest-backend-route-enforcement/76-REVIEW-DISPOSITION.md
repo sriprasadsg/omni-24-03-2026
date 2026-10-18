@@ -37,7 +37,7 @@ findings:
     title: "Secrets catalogue is internally incoherent (read needs `manage:settings`, write accepts the read permission)"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`catalogue_exempt` on tenant GET routes lets any tenant role read the hardware allowlist, install-key list, SMTP config and license"
   - id: WR-06
     severity: warning
@@ -47,7 +47,7 @@ findings:
     severity: info
     disposition: open
     title: "`viewPermission(view) as Permission` can pass `undefined` into `hasPermission`"
-open: 11
+open: 10
 total: 11
 recorded: 2026-10-18T17:19:38.535Z
 ---
@@ -64,7 +64,7 @@ recorded: 2026-10-18T17:19:38.535Z
 | IN-03 | info | open | - |
 | WR-03 | warning | open | - (not in the current review) |
 | WR-04 | warning | open | - (not in the current review) |
-| WR-05 | warning | open | - (not in the current review) |
+| WR-05 | warning | fixed | 76-15 role-gated the five tenant GETs (commits eba652996, 683e6fc0c); the residual exposure of the same data through GET /api/tenants/me is CR-01 |
 | WR-06 | warning | open | - (not in the current review) |
 | IN-04 | info | open | - (not in the current review) |
 

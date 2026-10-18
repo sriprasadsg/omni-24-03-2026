@@ -95,7 +95,8 @@ Register authored at plan time (all 12 PLAN files carry a `<threat_model>`). Ver
 **Pre-existing finding, not introduced by this phase (76-05):** `GET /api/support/presence` returns online status for any requested usernames with no tenant scoping (cross-tenant presence lookup). It is catalogue_exempt as self-service; a tenant filter is still needed. Not a phase 76 threat; tracked here so it is not lost.
 
 **Observations from the gap plans, not introduced by this phase (left for WR-02 / ACC-F2):**
-- A tenant admin can assign the role string `agent` to a person, who would then pass `agent_tolerant` guards as the agent identity (accepted as T-76-40 / AR-76-03; shared by every agent-capable route).
+- Checked 2026-10-18 (code review): no supported path gives a person the role string `agent` — `rbac_defaults.builtin_role_keys()` excludes it and user create/update, SAML and LDAP mapping validate against that set; SSO defaults to `analyst`. Only a direct database write could, so T-76-40 / AR-76-03 stays an accepted low risk.
+- Code review CR-01 (2026-10-18): `GET /api/tenants/me` (route_aliases.py:204) returns the whole tenant document, including `registrationKey` (accepted as `X-Tenant-Key` by agent_auth.py:104) and `emailConfig`, to every signed-in role. Pre-existing since 2026-07-01, live in production; it undercuts T-76-44. Open, pending the user's decision.
 - `POST /api/agents/{agent_id}/raise-ticket` has no permission check for people beyond tenant pinning (recorded honestly in the agentCapableRoutes ledger reason).
 
 ---
