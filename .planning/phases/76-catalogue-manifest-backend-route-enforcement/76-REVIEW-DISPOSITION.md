@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "`GET /api/tenants/me` returns the whole tenant document to every signed-in role, bypassing the WR-05 gating and leaking the tenant registration key"
   - id: WR-01
     severity: warning
@@ -47,7 +47,7 @@ findings:
     severity: info
     disposition: open
     title: "`viewPermission(view) as Permission` can pass `undefined` into `hasPermission`"
-open: 10
+open: 9
 total: 11
 recorded: 2026-10-18T17:19:38.535Z
 ---
@@ -56,7 +56,7 @@ recorded: 2026-10-18T17:19:38.535Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
+| CR-01 | critical | fixed | b2712aef0 (red test) + 665b41941: GET /api/tenants/me returns id, name, subscriptionTier, branding only; test_tenants_me_returns_display_fields_only. Live until the user deploys; registration-key rotation is the user's call |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | IN-01 | info | open | - |
