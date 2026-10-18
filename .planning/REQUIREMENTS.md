@@ -13,10 +13,10 @@
 - [ ] **ACC-03**: A single shared catalogue manifest maps each left-nav catalogue to its required permission and its backend route(s); the frontend reads it instead of the divergent `Sidebar.tsx` / `App.tsx viewPermissionMap` tables (the 9 mismatched views reconciled).
 - [x] **ACC-04**: Backend route-permission guards are added to the priority unguarded router groups (Assets, ITAM, Settings, financial, identity, security-operations); routers not yet guarded are recorded in a committed gap ledger. Agent-authenticated `/api/agents/*` routes are excluded by design.
 - [x] **ACC-05**: A deny-by-default route-parity test fails when an in-scope catalogue's routes are not guarded per the manifest, plus a frontend test that fails on manifest/sidebar drift.
-- [x] **ACC-06**: The sidebar fails closed (a catalogue is hidden unless the user holds its permission — no fail-open fallback), a render-time gate guards the active view and every navigation path, and a user with no permitted catalogue sees a clear no-access/empty state with a guaranteed landing view and sign-out (no empty-sidebar lockout).
+- [ ] **ACC-06**: The sidebar fails closed (a catalogue is hidden unless the user holds its permission — no fail-open fallback), a render-time gate guards the active view and every navigation path, and a user with no permitted catalogue sees a clear no-access/empty state with a guaranteed landing view and sign-out (no empty-sidebar lockout).
 - [ ] **ACC-07**: An admin "what can this role see" view lists which catalogues each role can access.
 - [ ] **ACC-08**: The client refreshes its effective permissions on a 403 and on window focus, so a role-permission edit takes effect without a full re-login.
-- [x] **ACC-09**: Regression tests prove catalogue visibility and route guards hold per role and per tenant, including super-admin / `platform-admin` handling.
+- [ ] **ACC-09**: Regression tests prove catalogue visibility and route guards hold per role and per tenant, including super-admin / `platform-admin` handling.
 
 ### 2. Asset Costing (Organization & Endpoint)
 
@@ -63,10 +63,10 @@ Populated during roadmap creation (2026-10-12). Each requirement maps to exactly
 | ACC-03 | Phase 76 | Gaps Found |
 | ACC-04 | Phase 76 | Complete |
 | ACC-05 | Phase 76 | Complete |
-| ACC-06 | Phase 77 | Complete |
+| ACC-06 | Phase 77 | Pending |
 | ACC-07 | Phase 77 | Pending |
 | ACC-08 | Phase 77 | Pending |
-| ACC-09 | Phase 77 | Complete |
+| ACC-09 | Phase 77 | Pending |
 | COST-01 | Phase 78 | Pending |
 | COST-02 | Phase 78 | Pending |
 | COST-03 | Phase 78 | Pending |
