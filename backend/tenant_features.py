@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Tuple
 
 import rbac_defaults
 
@@ -149,6 +149,38 @@ def hidden_screens(perms: Iterable[str], enabled: Optional[Iterable[str]]) -> Li
     held, on = set(perms), set(screen_permissions(perms, enabled))
     return [f"{SCREEN_OFF_PREFIX}{view}" for view, needs in SCREEN_SWITCHES.items()
             if needs in held and f"{SCREEN_PREFIX}{view}" not in on]
+
+
+# Every sidebar screen of the shared manifest, in manifest order: (view, label, group id, permission).
+NAV_SCREENS: Tuple[Tuple[str, str, str, str], ...] = tuple(
+    (entry["view"], entry["label"], entry["group"], entry["permission"])
+    for entry in _MANIFEST["catalogues"] if entry.get("nav"))
+# The manifest's sidebar sections, in order: (id, title).
+NAV_GROUPS: Tuple[Tuple[str, str], ...] = tuple((group["id"], group["title"]) for group in _MANIFEST["groups"])
+
+
+def switched_off_nav_screens(perms: Iterable[str], narrowed: Iterable[str]) -> List[str]:
+    """``screen-off:<view>`` for every sidebar screen whose permission the role holds (``perms``)
+    but the tenant's switches removed (it is missing from ``narrowed``), in manifest order (D-16).
+
+    This is what lets the UI say "switched off for your organization" for a screen the role
+    would otherwise reach, instead of treating it like a screen the role lacks."""
+    held, kept = set(perms), set(narrowed)
+    return [f"{SCREEN_OFF_PREFIX}{view}" for view, _label, _group, needs in NAV_SCREENS
+            if needs in held and needs not in kept]
+
+
+def apply_tenant(perms: Iterable[str], enabled: Optional[Iterable[str]]) -> List[str]:
+    """``perms`` narrowed by the tenant's switches, followed by the D-16 ``screen-off:<view>``
+    markers (per-screen switches first, then every other switched-off sidebar screen), each
+    once, in first-seen order. A tenant with every switch on gets no markers.
+
+    The one step shared by ``rbac_service.granted_permissions`` and its fallback, and reused
+    by the role visibility view (plan 77-07)."""
+    perms = list(perms)
+    narrowed = narrow(perms, enabled)
+    markers = hidden_screens(narrowed, enabled) + switched_off_nav_screens(perms, narrowed)
+    return list(dict.fromkeys(narrowed + markers))
 
 
 def screen_of(path: str) -> Optional[str]:

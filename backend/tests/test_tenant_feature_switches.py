@@ -300,7 +300,9 @@ async def test_granted_permissions_mark_the_switched_off_screens():
     db = _db(tenants=[_tenant(["view:security", "screen:edr"])])
     granted = await rbac_service.granted_permissions(db, "Tenant Admin", "tenant-a")
     assert "screen-off:alertManagement" in granted and "screen-off:edr" not in granted
-    assert not any(p.startswith(("screen:", "screen-off:compliance")) for p in granted)
+    # D-16 (Phase 77): view:compliance is switched off, so its nav screen carries a marker too.
+    assert "screen-off:compliance" in granted and "view:compliance" not in granted
+    assert not any(p.startswith("screen:") for p in granted)
     everything = _db(tenants=[_tenant(["all"])])
     assert await rbac_service.granted_permissions(everything, "Tenant Admin", "tenant-a") == \
         await rbac_service.effective_permissions(everything, "Tenant Admin", "tenant-a")

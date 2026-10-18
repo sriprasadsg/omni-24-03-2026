@@ -111,7 +111,7 @@ async def granted_permissions(db, role: Optional[str], tenant_id: Optional[str])
     """What a user with ``role`` in ``tenant_id`` may do: ``effective_permissions`` with the
     manage:X => view:X / request:X closure applied (D-11), minus the features switched off for
     that tenant (spec C6, ``tenant_features``), plus a ``screen-off:<view>`` marker for each
-    switched-off Security/Compliance screen it would otherwise reach.
+    switched-off sidebar screen it would otherwise reach (D-16, ``tenant_features.apply_tenant``).
 
     The closure is applied here, before the tenant narrowing, so enforcement
     (``rbac_utils.verify_permission``) and delivery (``session_permissions``) share it and
@@ -127,8 +127,7 @@ async def granted_permissions(db, role: Optional[str], tenant_id: Optional[str])
     if not tenant_features.applies_to(role):
         return perms
     enabled = await tenant_features.enabled_features(tenant_id, lambda: db)
-    narrowed = tenant_features.narrow(perms, enabled)
-    return narrowed + tenant_features.hidden_screens(narrowed, enabled)
+    return tenant_features.apply_tenant(perms, enabled)
 
 
 async def _fallback_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
@@ -145,8 +144,7 @@ async def _fallback_permissions(db, role: Optional[str], tenant_id: Optional[str
         enabled = await tenant_features.enabled_features(tenant_id, lambda: db)
     except Exception:
         enabled = []
-    narrowed = tenant_features.narrow(perms, enabled)
-    return narrowed + tenant_features.hidden_screens(narrowed, enabled)
+    return tenant_features.apply_tenant(perms, enabled)
 
 
 async def session_permissions(db, role: Optional[str], tenant_id: Optional[str], *,

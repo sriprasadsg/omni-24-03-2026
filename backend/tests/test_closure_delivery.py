@@ -140,3 +140,82 @@ async def test_session_permissions_fall_back_with_the_closure_when_the_store_fai
     db, _raw = role_store(roles=_Boom())
     delivered = await rbac_service.session_permissions(db, "itam_admin", "t1")
     assert "view:assets" in delivered
+# -- D-16 switched-off markers ---------------------------------------------
+
+def _tdb(tenants=(), roles=()):
+    from tests.test_tenant_feature_switches import _db
+    return _db(tenants=list(tenants), roles=list(roles))
+
+
+def _tenant(features):
+    return {"id": "tenant-a", "name": "A", "enabledFeatures": features}
+
+
+@pytest.mark.real_tenant_features
+async def test_markers_cover_every_granted_but_switched_off_nav_screen():
+    db = _tdb(tenants=[_tenant(["view:security", "screen:edr"])])
+    granted = await rbac_service.granted_permissions(db, "Tenant Admin", "tenant-a")
+    assert "screen-off:alertManagement" in granted
+    assert "screen-off:edr" not in granted
+    assert "screen-off:compliance" in granted and "view:compliance" not in granted
+    assert not any(p.startswith("screen:") for p in granted)
+    assert len(granted) == len(set(granted))
+
+
+@pytest.mark.real_tenant_features
+async def test_no_marker_for_a_screen_the_role_never_held():
+    db = _tdb(tenants=[_tenant(["view:security", "screen:edr"])])
+    granted = await rbac_service.granted_permissions(db, "viewer", "tenant-a")
+    held_views = {c["view"] for c in tf._MANIFEST["catalogues"] if c["permission"] in rbac_defaults.defaults_for("viewer")}
+    markers = {p[len(tf.SCREEN_OFF_PREFIX):] for p in granted if p.startswith(tf.SCREEN_OFF_PREFIX)}
+    assert markers <= held_views
+
+
+@pytest.mark.real_tenant_features
+async def test_viewer_has_no_marker_for_a_permission_it_lacks():
+    db = _tdb(tenants=[_tenant(["view:security"])])
+    granted = await rbac_service.granted_permissions(db, "itam_viewer", "tenant-a")
+    assert "screen-off:agents" not in granted  # itam_viewer never held view:agents
+
+
+@pytest.mark.real_tenant_features
+async def test_all_on_tenant_gets_the_closed_set_and_no_markers():
+    db = _tdb(tenants=[_tenant(["all"])])
+    granted = await rbac_service.granted_permissions(db, "itam_admin", "tenant-a")
+    assert granted == list(rbac_defaults.defaults_for("itam_admin")) + ITAM_ADMIN_CLOSED_TAIL
+    assert not any(p.startswith(tf.SCREEN_OFF_PREFIX) for p in granted)
+
+
+@pytest.mark.real_tenant_features
+async def test_itam_admin_loses_assets_when_the_switch_is_off():
+    db = _tdb(tenants=[_tenant(["view:itam"])])
+    granted = await rbac_service.granted_permissions(db, "itam_admin", "tenant-a")
+    assert "view:assets" not in granted and "manage:assets" not in granted
+    assert "screen-off:assetManagement" in granted and "screen-off:certificates" in granted
+
+
+@pytest.mark.real_tenant_features
+async def test_fallback_emits_the_same_markers_as_granted():
+    db = _tdb(tenants=[_tenant(["view:security", "screen:edr"])])
+    granted = await rbac_service.granted_permissions(db, "Tenant Admin", "tenant-a")
+    fallback = await rbac_service._fallback_permissions(db, "Tenant Admin", "tenant-a")
+    assert fallback == granted
+
+
+@pytest.mark.real_tenant_features
+async def test_custom_role_non_marker_entries_unchanged():
+    db = _tdb(tenants=[_tenant(["view:agents"])],
+              roles=[{"name": "Helpdesk", "tenantId": "tenant-a", "permissions": ["view:security", "view:agents"]}])
+    granted = await rbac_service.granted_permissions(db, "Helpdesk", "tenant-a")
+    assert [p for p in granted if not p.startswith(tf.SCREEN_OFF_PREFIX)] == ["view:agents"]
+
+
+def test_nav_screens_and_groups_are_derived_from_the_manifest():
+    assert len(tf.NAV_SCREENS) == 188 and len(tf.NAV_GROUPS) == 8
+    assert all(len(row) == 4 for row in tf.NAV_SCREENS)
+
+
+def test_apply_tenant_has_no_duplicates():
+    perms = list(rbac_defaults.defaults_for("tenant_admin"))
+    out = tf.apply_tenant(perms, ["view:security"])
+    assert len(out) == len(set(out))
