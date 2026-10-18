@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -240,6 +241,10 @@ def _is_unguarded(record: Dict[str, Any]) -> bool:
             and not record.get("known_guard") and not record.get("exempt"))
 
 
+# WR-05 (PROH-76-08): a route whose path names a tenant or another user is not "the caller's own" data.
+_NAMES_TENANT_OR_USER = re.compile(r"\{(?:tenant_id|tenantId|user_id|userId)\}")
+
+
 def _ledger_group(records: Sequence[Dict[str, Any]], manifest: Dict[str, Any]) -> str:
     counts: Dict[str, int] = {}
     for record in records:
@@ -337,6 +342,11 @@ def ledger_offenders(
     for pair, reason in sorted(exempt):
         if len(str(reason).strip()) < MIN_EXEMPT_REASON:
             out.append(f"{pair}: catalogue_exempt reason {reason!r} is shorter than {MIN_EXEMPT_REASON} characters")
+
+    for pair, reason in sorted(exempt):
+        if str(reason).strip().lower().startswith("self-service") and _NAMES_TENANT_OR_USER.search(pair):
+            out.append(f"{pair}: catalogue_exempt claims self-service but the path names a tenant or user; "
+                       f"role-gate it or state the real reason (WR-05)")
 
     # --- reviewed lists (optional keys, so ledgers built without them keep their old meaning)
     if "agentCapableRoutes" in ledger:
