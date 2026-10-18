@@ -54,6 +54,12 @@ created: "2026-10-13"
 | 76-T7 | 76-01/76-11 | 1/4 | ACC-05 | T-76-01 Elevation of Privilege | Parity test fails on an unguarded in-scope route and on an unledgered unguarded router (negative controls using a synthetic app), message names router/route and expected permission | unit | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ✅ | ✅ green |
 | 76-T8 | 76-01/76-03 | 1/3 | ACC-05 | — | Frontend drift test fails when a nav item has no manifest entry or a manifest nav entry has no nav item | unit (ts) | `npx vitest run src/__tests__/catalogueAccess.test.ts` | ✅ | ✅ green |
 | 76-T9 | 76-06..76-12 | 3/4 | ACC-03/04/05 | — | Existing suites stay green after guards land | regression | `backend/venv/bin/python -m pytest backend/tests -q -p no:cacheprovider && npx vitest run src/__tests__ && npm run build` | ✅ | ✅ green |
+| 76-T10 | 76-13 | 5 | ACC-04 | T-76-02 Denial of Service | Agent-capable reads (installer download, response-task poll, agent-chat session list) refuse people without the catalogue permission and still answer the agent identity (token role exactly `agent`) and platform staff on safe methods | integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_guard_variants.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T11 | 76-14 | 6 | ACC-05 | T-76-42 Elevation of Privilege | Parity gate covers agent-capable routes: an untagged agent-capable read under an enforced catalogue, or a tag that would refuse the agent, is an offender; every untagged agent-capable route is a reviewed `agentCapableRoutes` line | unit/integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T12 | 76-14 | 6 | ACC-05 | T-76-48 Tampering | Every `catalogue_exempt` route is a reviewed `exemptRoutes` line whose reason equals the app's reason character for character; unlisted, stale, duplicate and re-worded entries fail | unit/integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T13 | 76-15 | 7 | ACC-04 | T-76-44 Information Disclosure | Tenant email config/preferences, license, hardware allowlist and install-key reads return 403 to nine tenant roles without `manage:settings`; tenant_admin, admin and super_admin pass; platform staff pass on license/allowlist/install keys (view:tenants) | integration | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_slice_billing_identity.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T14 | 76-15 | 7 | ACC-05 | T-76-47 Tampering | A self-service exemption on a `{tenant_id}`/`{tenantId}`/`{user_id}`/`{userId}` path is a ledger offender; the same reason on an id-less path and a platform-staff reason on a tenant path are clean | unit | `backend/venv/bin/python -m pytest backend/tests/test_catalogue_route_parity.py -q -p no:cacheprovider` | ✅ | ✅ green |
+| 76-T15 | 76-13..76-15 | 5-7 | ACC-03/04/05 | — | Existing suites stay green after the gap-closure guards | regression | `backend/venv/bin/python -m pytest backend/tests -q -p no:cacheprovider && npx vitest run src/__tests__ && npm run build` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -79,6 +85,8 @@ created: "2026-10-13"
 | Live agent enrollment and heartbeat still succeed after guards land | ACC-04 | Needs a real agent and a service restart, which the researcher/executor must not perform; the user owns restarts and deploys | After the user deploys and restarts: enroll or restart the agent on EILT0197 and confirm heartbeat in the Agents view; confirm no 401/403 in the agent log |
 | A non-ITAM user sees no purchase cost in the Assets detail UI; an ITAM user does | ACC-04 | Visual check against live data | Log in as a viewer-role user and as an `itam_viewer`, open an asset with a recorded cost, compare |
 | Sidebar still renders all groups for a super-admin after the manifest swap | ACC-03 | Visual regression of ordering, icons and tier locks | Load the app as super-admin, expand each group, compare to `sidebar-working.png` |
+| Installer download and response-task poll still work for the enrolled agent; a viewer is refused | ACC-04 | Needs a deployed backend and a real agent | After the user deploys: let the agent on EILT0197 poll and auto-update; as a viewer, `GET /api/software/download/<file>` returns 403 |
+| Tenant admin and platform staff still read the tenant controls they use | ACC-04 | Needs deployed backend and real sign-ins | After the user deploys: tenant admin opens Settings > Email (loads); Super Admin and Platform Billing open Manage Tenant for a customer tenant (license, install keys, allowlist load); a viewer gets 403 on `GET /api/tenants/<own id>/allowlist` |
 
 ---
 
@@ -90,6 +98,8 @@ created: "2026-10-13"
 - [x] No watch-mode flags
 - [ ] Feedback latency < 30s (quick) / 150s (full): not met. Measured 2026-10-15: the quick-run files plus the 8 slice test files (132 tests) took 8 min 22 s, because each slice file starts its own route-walk subprocess; the full backend suite takes 4-11 min. Correctness is unaffected
 - [x] `nyquist_compliant: true` set in frontmatter
+
+**Re-audit 2026-10-18 (after gap plans 76-13..76-15):** rows 76-T10..76-T15 added; ACC-03, ACC-04, ACC-05 still all COVERED by green automated tests; 0 gaps. Final runs at 8d1280bbe: backend 3779 passed / 47 skipped / 0 failed (11 min 36 s), `test_catalogue_route_parity.py` 50 passed, `npx vitest run src/__tests__` 266 passed, `npm run build` exit 0.
 
 **Approval:** validated 2026-10-15 (validate-phase audit after all 12 plans executed). Requirement coverage: ACC-03, ACC-04, ACC-05 all COVERED by green automated tests; 0 gaps. Final runs: backend 3721 passed / 47 skipped / 0 failed (76-11), phase test set 132 passed, `catalogueAccess.test.ts` 26 passed, `npx vitest run src/__tests__` 266 passed, `npm run build` exit 0.
 
