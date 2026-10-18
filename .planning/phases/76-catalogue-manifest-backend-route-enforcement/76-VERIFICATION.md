@@ -1,8 +1,8 @@
 ---
 phase: 76-catalogue-manifest-backend-route-enforcement
-verified: 2026-10-15T21:30:00Z
-status: gaps_found
-score: 4/5 must-haves verified
+verified: 2026-10-18T18:10:00Z
+status: human_needed
+score: 5/5 must-haves verified
 covered_files:
   - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-01-PLAN.md"
   - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-01-SUMMARY.md"
@@ -28,53 +28,95 @@ covered_files:
   - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-11-SUMMARY.md"
   - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-12-PLAN.md"
   - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-12-SUMMARY.md"
+  - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-13-PLAN.md"
+  - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-13-SUMMARY.md"
+  - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-14-PLAN.md"
+  - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-14-SUMMARY.md"
+  - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-15-PLAN.md"
+  - ".planning/phases/76-catalogue-manifest-backend-route-enforcement/76-15-SUMMARY.md"
   - "App.tsx"
+  - "backend/agent_chat_endpoints.py"
   - "backend/asset_finance_fields.py"
   - "backend/catalogue_guards.py"
   - "backend/catalogue_mounts.py"
+  - "backend/catalogue_mounts_billing_identity.py"
+  - "backend/response_endpoints.py"
+  - "backend/route_aliases.py"
   - "backend/router_registry.py"
+  - "backend/software_endpoints.py"
+  - "backend/tenant_endpoints.py"
+  - "backend/tenant_enrollment_endpoints.py"
   - "backend/tests/_catalogue_parity.py"
+  - "backend/tests/_route_walk.py"
+  - "backend/tests/test_catalogue_guard_variants.py"
   - "backend/tests/test_catalogue_route_parity.py"
+  - "backend/tests/test_catalogue_slice_billing_identity.py"
   - "components/Sidebar.tsx"
   - "shared/catalogue-access.json"
   - "shared/catalogue-gaps.json"
   - "src/__tests__/catalogueAccess.test.ts"
   - "utils/catalogueAccess.ts"
-covered_digest: "v3:sha256:60b3f6a94bdc32e08059de8b9b6b568ff93885fc4c2911da5dc73319d78396d0"
+covered_digest: "v3:sha256:36ace10acb4d2c926a9db25b499448ef3fc8697ab65de6003cfdbcaf75dcec8d"
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "A user lacking the matching view: permission receives 403, not data, from the Assets, ITAM, Settings, financial, identity, and security-operations route groups (roadmap SC2)"
-    status: partial
-    reason: "814 route methods are guarded and tested, but two agent_capable routes in enforced catalogues carry no guard at all (WR-01), and five tenant GET routes are marked catalogue_exempt although they return role-restricted admin data to any signed-in tenant role (WR-05). Neither set is visible to the parity gate, so the gate stays green while data reaches a role whose sidebar item is hidden."
-    artifacts:
-      - path: "backend/software_endpoints.py"
-        issue: "GET /api/software/download/{filename} (softwareUpdates) uses get_current_user_or_agent with no permission check; any signed-in tenant user, including a viewer without view:software_updates, can download any installer from the shared uploads/repo directory. The guarded sibling GET /api/software/repository hides the same listing from that role."
-      - path: "backend/response_endpoints.py"
-        issue: "GET /api/response/tasks/{agent_id} (edr) uses get_current_user_or_agent; checks only that the agent is in the caller's tenant, so any signed-in user can read an agent's queued response-task payloads (isolate, kill, quarantine)."
-      - path: "backend/tenant_enrollment_endpoints.py"
-        issue: "GET /api/tenants/{id}/allowlist and /enrollment-keys carry catalogue_exempt(TENANT_OWN_SCOPE); _assert_tenant_read pins the tenant, not the role, so a viewer / itam_viewer reads the enrolled-hardware allowlist (serials, SMBIOS UUIDs, MACs) and the install-key list."
-      - path: "backend/tenant_endpoints.py"
-        issue: "GET /api/tenants/{id}/email/config, /email/preferences (and /license) are exempt on the same basis; SMTP host/user config and license seat data are readable by any tenant role."
-    missing:
-      - "An agent-tolerant guard variant (skip only the agent identity, apply the catalogue check to everyone else) mounted on the two agent_capable GET routes, with the walker counting it so the parity gate covers agent_capable routes (WR-01 fix)"
-      - "A role-gated tag (for example read=manage:settings or view:agents) for the tenant allowlist, enrollment-keys and email-config GETs; keep catalogue_exempt only for branding and the app-shell license summary (WR-05 fix)"
-      - "Tighten the exemption ratchet so an exemption reason that claims 'self-service' for a route returning role-restricted admin data is reviewed (the maxExemptRoutes: 34 ratchet only length-checks reasons)"
-deferred: []
 re_verification:
-  previous_status: none
+  previous_status: gaps_found
+  previous_score: 4/5
+  gaps_closed:
+    - "SC2 / WR-01: agent-capable routes in enforced catalogues had no human-path guard (installer download, response-task poll, agent-chat session list)"
+    - "SC2 / WR-05: five tenant GETs marked catalogue_exempt returned role-restricted admin data to any signed-in tenant role"
+    - "Review CR-01: GET /api/tenants/me returned the whole tenant document (registration key, SMTP settings, API keys, seat data) to every signed-in role"
+  gaps_remaining: []
+  regressions: []
+gaps: []
+deferred: []
+advisory:
+  - finding: "Self-service exemption rule (PROH-76-08) is lexical: it matches reasons starting 'self-service' on four literal placeholders only (review WR-01)"
+    category: security
+    reason: "It could not have caught CR-01 (no placeholder in the path). The CR-01 instance is fixed and has its own test; the class is still guarded only by human review of the exemptRoutes ledger. A behavioural sentinel-secret probe over every exempt GET would close it."
+    evidence_status: "reproduced by reading backend/tests/_catalogue_parity.py; not exploitable today"
+  - finding: "agent_tolerant() rebuilds the guard without platform_read (review WR-02)"
+    category: other
+    reason: "Latent: no guard combines allow_agent with platform_read today, so nothing is refused wrongly. A future combination would silently drop platform staff."
+    evidence_status: "code read, catalogue_guards.py agent_tolerant()"
+  - finding: "Untagged agent-capable writes rely on prose reasons in agentCapableRoutes (review IN-03), e.g. POST /api/agents/{agent_id}/raise-ticket lets any tenant role raise a ticket for an agent in its tenant"
+    category: other
+    reason: "A write that creates a support ticket, not a read of restricted data; the roadmap criterion is about reads returning 403. The reason text is reviewed, not verified."
+    evidence_status: "handler agent_tasks_endpoints.raise_ticket_via_agent read: tenant-pinned, no permission check"
+  - finding: "Open older review findings WR-03, WR-04, WR-06, IN-01, IN-02, IN-04 (and WR-02 above)"
+    category: other
+    reason: "Over-refusal, test-strength and code-quality items recorded in 76-REVIEW-DISPOSITION.md as open; none lets data reach a role whose sidebar item is hidden."
+    evidence_status: "dispositions read; no new evidence of exposure"
+human_verification:
+  - test: "Enrolled agent still works after deploy (agent route group)"
+    expected: "After the backend is restarted on this checkout, an enrolled Rust agent registers, heartbeats, polls /api/agentic-tasks and /api/response/tasks/{agent_id}, downloads an installer from /api/software/download/{filename}, and posts telemetry/scan results with no 401/403; the UI agent list is unchanged."
+    why_human: "Needs a live agent, its TLS pin and the real database. The route classification and the agent_tolerant bypass are proven in-process (agent identity gets 404/handler status, never 403), but the real token path is not."
+  - test: "Tenant admin and platform staff reads of the five gated tenant GETs"
+    expected: "Signed in as a tenant admin, then as Platform Support and Platform Billing, GET /api/tenants/{id}/allowlist, /enrollment-keys, /license (and, for tenant admin only, /email/config and /email/preferences) return 200 with data and the Tenant Management and Settings screens render them."
+    why_human: "Probes on the throwaway app have an unreachable database, so the allowed side is proven only as 'not 401/403' (a 500 at the handler). Live data is needed to see a real 200."
+  - test: "Viewer, itam_viewer and analyst refusals on live data"
+    expected: "These roles receive 403 from the same five tenant GETs, the installer download, GET /api/response/tasks/{agent_id} and GET /api/agent-chat/sessions, and no screen they can still reach shows a blank page or crash because of it."
+    why_human: "Refusals are proven in-process; whether the UI handles them gracefully is visual. Phase 77 (fail-closed sidebar) is planned to precede deploy."
+  - test: "Tenant shell still renders after the GET /api/tenants/me projection (CR-01)"
+    expected: "Logged in as viewer and tenant admin, the app shell shows tenant name, tier and branding; no screen is missing a field. The endpoint now returns only id, name, subscriptionTier and branding."
+    why_human: "No frontend caller of the literal path /api/tenants/me was found by grep (the shell reads branding through /api/tenants/{id}/branding), but a dynamic caller cannot be excluded statically."
+  - test: "Registration key exposure decision (CR-01)"
+    expected: "Decide whether tenant registrationKey values were exposed to non-admin roles while the old GET /api/tenants/me was live (the backend running now still serves the old response until restart) and rotate them if so."
+    why_human: "An operational and security decision for the owner, and a live-environment fact; the fix only takes effect on restart."
 ---
 
 # Phase 76: Catalogue Manifest & Backend Route Enforcement Verification Report
 
 **Phase Goal:** Each in-scope left-nav catalogue is defined once in a shared manifest, and the backend refuses what the sidebar would hide, with a deny-by-default test that fails whenever the two drift.
-**Verified:** 2026-10-15T21:30:00Z
-**Status:** gaps_found
-**Re-verification:** No, initial verification
+**Verified:** 2026-10-18T18:10:00Z
+**Status:** human_needed
+**Re-verification:** Yes, after gap closure (plans 76-13, 76-14, 76-15 and the CR-01 fix)
 
 ## Verdict
 
-The mechanism the phase promised exists and works. One manifest, a frontend that reads it, a mount-time guard registry covering 814 route methods, a committed gap ledger, and a deny-by-default gate that is green on the real 1616-route app. The goal clause "the backend refuses what the sidebar would hide" is not fully true: two data-bearing routes in enforced catalogues have no guard, and five tenant GETs are exempted although they return admin-only data. These are narrow, nameable holes, not a broken design, and a short gap-closure plan closes them. They are reported as a partial failure of roadmap SC2 and not waved through, because the parity gate cannot see them and so cannot catch their recurrence.
+The goal is achieved in the committed code. The two reasons the previous report was `gaps_found` are closed, and the one new critical defect found by the 2026-10-18 code review (CR-01) is fixed and tested. I re-derived the evidence rather than reading the summaries: a fresh walk of the real 1616-route app, an independent probe of the eight formerly failing routes, and re-runs of the catalogue test files (191 passed, 34 frontend tests passed). What is left is live-environment confirmation that this machine cannot do (a real agent, a real database, a deploy), plus open review findings that do not let data reach a role whose sidebar item is hidden. Status is therefore `human_needed`, not `passed`.
+
+HEAD content was judged: for every file listed in `covered_files` that is not a planning document, `git diff HEAD --ignore-cr-at-eol` against the working tree is empty (the working tree differs from HEAD only by mode bits and line endings).
 
 ## Goal Achievement
 
@@ -82,115 +124,112 @@ The mechanism the phase promised exists and works. One manifest, a frontend that
 
 | # | Truth (roadmap success criterion) | Status | Evidence |
 |---|-----------------------------------|--------|----------|
-| 1 | One shared manifest maps every catalogue to its permission and routes; `Sidebar.tsx` and `App.tsx` both read it; the two divergent tables are gone; the 9 mismatched views resolve to one permission | VERIFIED | `shared/catalogue-access.json`: 202 catalogues, 188 `nav:true`, 8 groups. `Sidebar.tsx:5,211` builds `menuGroups` from `NAV_GROUPS`; `App.tsx:239,444,499,1023,1173` call `viewPermission`/`viewForHash`/`NAV_GROUPS`. No `viewPermissionMap` in repo source (the only hit is a pinned negative assertion in `catalogueAccess.test.ts:171`; the `version 1/App.tsx` hit is a stale copy outside the app). All 9 views independently confirmed in the JSON as exactly the Sidebar string (agentCapabilities `view:agent_capabilities`, jobs `view:jobs`, llmops `view:llmops`, persistenceDetection `view:persistence`, sustainability `view:sustainability`, swarm `view:swarm`, unifiedOps `view:unified_ops`, vulnerabilityManagement `view:vulnerabilities`, zeroTrustQuantum `view:zero_trust`). subscriptionManagement/invoices/knowledgeBase = `manage:settings`, finops = `view:finops` (D-08). |
-| 2 | Lacking `view:` gets 403 (not data) from Assets, ITAM, Settings, financial, identity, security-operations, while a holder still gets 200; asset reads hide purchase-cost fields without `view:itam` | FAILED (partial) | Guarded part holds: independent real-app probe returned 403 for role `nobody` on `/api/assets`, `/api/settings/llm`, `/api/finops/costs`, `/api/users`, `/api/alerts`, `/api/siem/events`, `/api/patches`, `/api/agents` and 403 for `viewer` on settings/users/alerts/siem/patches/agents; permitted roles passed the guard (500 only because the throwaway Mongo is unreachable). Finance strip verified: `asset_finance_fields.finance_filtered` wraps `get_assets`, `search_assets`, `get_asset_details`, sits outside `@cached`, builds new dicts; cache cross-caller and no-mutation tests pass. Not holding: WR-01 and WR-05 (see gaps). Every one of the 667 remaining unguarded user routes is in a non-enforced group or the ledger; every enforced-group user route is tagged (814) or exempt (34). The "holder gets 200" half is only proven as `!= 403` on the real app (WR-06); see Human Verification. |
-| 3 | Agent enrollment/heartbeat on `/api/agents/*` and API-key callers on ITAM routers keep working unchanged | VERIFIED (static; live check listed) | Walker over the real app: `POST /api/agents/register` public, `/api/agents/heartbeat` and `/{id}/heartbeat` auth `agent`, all with 0 catalogue tags and no exemption; all 29 `agent` and 15 `agent_capable` records carry 0 tags. `test_itam_api_key_unchanged` passes (`view:itam` scope reads, `view:assets` scope refused). Guard auth callable matches each route's own (`ITAM_API_KEY_GUARD` uses `get_current_user_or_api_key`). Reviewer additionally confirmed no WebSocket, Stripe, Jira/Zoho or SSO/LDAP sign-in route gained a guard. Live agent poll/report after deploy not testable here. |
-| 4 | A committed gap ledger lists every unguarded router; the parity test fails if an in-scope route is unguarded or an unguarded router is missing from the ledger | VERIFIED | `shared/catalogue-gaps.json` committed with per-router `maxUnguardedRoutes` ratchets, `agentAuthExcludedRoutes: 15`, `maxExemptRoutes: 34`. Re-ran `parity_offenders` and `ledger_offenders` on the live walk: 0 and `[]`. Negative controls exist and pass for untagged route, wrong tag, unledgered router, over-ratchet, ratchet slack, stale entry, unmounted module, enforced route in ledger, duplicate entry, agent-capable and exempt over-ratchet (`test_catalogue_route_parity.py`, 25 tests). |
-| 5 | A frontend test fails when sidebar and manifest drift | VERIFIED | `catalogueAccess.test.ts` + `SidebarAuditFixes.test.tsx`: 34 passed on re-run. `findNavDrift` is tested in both directions, `manifest nav views and presentation keys have no drift` runs on the real data, and a source-text test pins that `Sidebar.tsx` has no item-level permission literal. Because `Sidebar.tsx` builds from `NAV_GROUPS`, a nav item cannot exist without a manifest entry. |
+| 1 | One shared manifest maps every catalogue to its permission and routes; `Sidebar.tsx` and `App.tsx` both read it; the divergent tables are gone; the 9 mismatched views resolve to one permission | VERIFIED | `shared/catalogue-access.json`: 202 catalogues, 188 `nav:true`, 8 groups. `components/Sidebar.tsx:5,211` builds `menuGroups` from `NAV_GROUPS`; `App.tsx:239,444,499,1023,1173` use `viewPermission`, `viewForHash`, `NAV_GROUPS`. `viewPermissionMap` appears only as a negative assertion in `src/__tests__/catalogueAccess.test.ts:171`. No frontend file changed since 76-15 (`git diff 15ef99ad7 HEAD` outside planning touches only `backend/route_aliases.py` and one test). |
+| 2 | A user lacking `view:` gets 403, not data, from Assets, ITAM, Settings, financial, identity, security-operations, while a holder still gets 200; asset reads hide purchase-cost fields without `view:itam` | VERIFIED (live 200 and UI handling listed for humans) | See the gap-closure evidence below. Fresh walk of the real app: 822 tagged route methods, 29 exempt, 0 `user` routes in an enforced group without a tag or exemption, `parity_offenders` 0, `ledger_offenders` `[]`. Finance strip unchanged and its 11 tests pass. |
+| 3 | Agent enrollment and heartbeat on `/api/agents/*` and API-key callers on the ITAM routers keep working unchanged | VERIFIED (static and in-process; live check listed) | Walk: no `agent` or `public` route carries a catalogue tag. All 15 agent-capable routes are either untagged (12, each on the reviewed `agentCapableRoutes` list) or carry `allow_agent: True` (3). Probe with the agent identity: `GET /api/software/download/...` 404 (handler reached), `GET /api/response/tasks/a1` 500 (handler reached, unreachable DB), `GET /api/agent-chat/sessions` 403 from the handler's own admin check, which is the unchanged pre-existing behaviour (plan 76-13 truth 3). `test_itam_api_key_unchanged` and `test_route_auth_baseline` pass. PROH-76-01 re-checked: gap commits remove only decorator lines that are re-added with the same `Depends(...)` plus the new guard. |
+| 4 | A committed gap ledger lists every unguarded router; the parity test fails if an in-scope route is unguarded or an unguarded router is missing from the ledger | VERIFIED | `shared/catalogue-gaps.json` holds per-router ratchets plus the new reviewed lists `agentCapableRoutes` (12) and `exemptRoutes` (29, `maxExemptRoutes: 29`, `agentAuthExcludedRoutes: 12`). `test_catalogue_route_parity.py` (negative controls for untagged route, wrong tag, unledgered router, ratchet slack, stale entry, agent-capable and exempt lists, agent-refusing tag, self-service rule) passes. Independent re-run of the gate on a fresh walk: 0 offenders. |
+| 5 | A frontend test fails when sidebar and manifest drift | VERIFIED | `npx vitest run src/__tests__/catalogueAccess.test.ts src/__tests__/SidebarAuditFixes.test.tsx`: 34 passed. `findNavDrift` is tested in both directions on real data, and a source-text test pins that `Sidebar.tsx` has no item-level permission literal. |
 
-**Score:** 4/5 truths verified (0 present, behavior-unverified)
+**Score:** 5/5 truths verified (0 present, behavior-unverified)
+
+### Gap-closure evidence (the previously failed truth 2)
+
+| Previous gap | Now | Evidence |
+|--------------|-----|----------|
+| WR-01 `GET /api/software/download/{filename}` unguarded for humans | CLOSED | `software_endpoints.py:118` `dependencies=[Depends(SOFTWARE_UPDATES_AGENT_GUARD)]`, built as `agent_tolerant(SOFTWARE_UPDATES_GUARD)`. Probe on the real app: viewer, itam_viewer, analyst, nobody all 403; tenant_admin, platform_support and the agent identity reach the handler (404 for a missing file). |
+| WR-01 `GET /api/response/tasks/{agent_id}` | CLOSED | `response_endpoints.py:197` `EDR_AGENT_GUARD`. viewer, itam_viewer, nobody 403; analyst, tenant_admin, platform_support, agent reach the handler (500 only because the probe database is unreachable). |
+| WR-01 `GET /api/agent-chat/sessions` | CLOSED | `agent_chat_endpoints.py:179` `CHAT_AGENT_GUARD`. viewer, itam_viewer, analyst, nobody 403; tenant_admin passes the guard. |
+| WR-05 five tenant GETs | CLOSED | `tenant_endpoints.py:492,625` `SETTINGS_GUARD` (email config, preferences); `:714` and `tenant_enrollment_endpoints.py:67,121` `TENANT_CONTROLS_READ_GUARD` (license, allowlist, enrollment-keys). Probe: viewer, itam_viewer, analyst, nobody 403 on all five; tenant_admin and Super Admin reach the handler; platform_support and platform_billing (in the platform tenant) reach the three controls routes and are refused on the two email routes, which matches the handler's own `_assert_tenant_access` and the plan truth. Writes keep `TENANT_PLATFORM_STAFF` / `TENANT_MANAGEMENT_GUARD` plus the handler checks. |
+| Review CR-01 `GET /api/tenants/me` full tenant document | CLOSED | `route_aliases.py:207-221` projects to `TENANT_ME_FIELDS = (id, name, subscriptionTier, branding)` both in the query projection and in the returned dict (so a store ignoring the projection still cannot leak). `test_tenants_me_returns_display_fields_only` seeds `registrationKey`, `emailConfig`, `apiKeys`, `license` and asserts none appears for viewer, itam_viewer, user and tenant_admin. Commits b2712aef0 (red) then 665b41941 (fix). |
+| Gate blind to agent-capable and exempt routes | CLOSED | `_catalogue_parity._parity_scope` puts agent-capable safe-method routes under enforced groups in scope, `_refusing_tags` rejects any non-`allow_agent` tag on them, and `exemptRoutes` / `agentCapableRoutes` are reviewed ledger lists. |
+
+### Prohibitions
+
+| ID | Statement | Status | Evidence |
+|----|-----------|--------|----------|
+| PROH-76-05 | Only the auth layer's agent identity skips the catalogue check | VERIFIED | `catalogue_guards._require_catalogue` compares `user.role == AGENT_ROLE` (`"agent"`, `authentication_service.py:197`) exactly; `test_role_spelled_Agent_is_a_person` and `test_viewer_is_refused_on_an_agent_tolerant_guard` pass. Residual: the plan's flagged assumption that a tenant admin could assign the role string `agent` is a pre-existing auth-layer property (review confirms user roles are limited to built-in keys). |
+| PROH-76-06 | No agent route gains a guard that refuses the agent | VERIFIED | Walk: no tag on any `agent` or `public` route; the three tags on agent-capable routes all carry `allow_agent`. |
+| PROH-76-07 | Platform allowance never admits a tenant role or a non-safe method | VERIFIED | `check_catalogue_access` consults `platform_read` only when `safe`, validated against `PLATFORM_ONLY_PERMISSIONS` at construction, via `has_platform_permission`; `test_platform_support_reads_but_never_writes`, `test_platform_support_in_a_tenant_is_refused` pass. |
+| PROH-76-08 | No exemption claims self-service for a route naming another tenant or user | VERIFIED (narrowly) | Rule exists and passes on the 29 exemptions; its lexical weakness is the advisory above. The one real violation it missed (CR-01) is fixed. |
+
+The plan truth marked `verification: backstop` (the new guard paths hold no per-request or cross-request state) is directly observable: `catalogue_guards.py` has no module-level mutable state and the decision is a function of `TokenData`, method and the declared tuples.
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `shared/catalogue-access.json` | Complete manifest | VERIFIED | 202 entries, enforce:true only for infra, security, mgmt |
-| `backend/catalogue_guards.py` | `catalogue_guard`, `check_catalogue_access`, `catalogue_exempt`, `manage_twin` | VERIFIED | Substantive; role check precedes API-key scope narrowing; additive |
-| `backend/catalogue_mounts.py` + 7 slice files | Mount registry | VERIFIED | Wired through `router_registry._load` -> `mount_dependencies`; all keys resolve per review |
-| `backend/asset_finance_fields.py` | Finance strip | VERIFIED | Wired in `asset_endpoints.py:64,109,163` |
-| `backend/tests/_route_walk.py`, `_catalogue_parity.py` | Walker and parity helper | VERIFIED | Run against real app: 1616 routes |
-| `shared/catalogue-gaps.json` | Gap ledger | VERIFIED | Enforced by `test_unguarded_routers_are_ledgered`, `test_ledger_ratchets` |
-| `utils/catalogueAccess.ts`, `components/sidebarPresentation.tsx` | Frontend reader / presentation | VERIFIED | Imported by `Sidebar.tsx` and `App.tsx` |
+| `shared/catalogue-access.json` | Complete manifest | VERIFIED | 202 entries, settings catalogue owns the four nested tenant-control prefixes |
+| `backend/catalogue_guards.py` | `catalogue_guard(allow_agent, platform_read)`, `agent_tolerant`, `check_catalogue_access`, `catalogue_exempt` | VERIFIED | Substantive; construction-time validation; additive |
+| `backend/catalogue_mounts_billing_identity.py` | `TENANT_CONTROLS_READ_GUARD`, branding exemption | VERIFIED | Wired to the allowlist, enrollment-keys and license routes |
+| `backend/tests/test_catalogue_guard_variants.py` | Variant unit, router and real-app tests | VERIFIED | Present, 32 tests, passing |
+| `shared/catalogue-gaps.json` | Ledger with reviewed lists | VERIFIED | 12 + 29 entries, sorted, counts match the walk |
+| `backend/tests/_catalogue_parity.py`, `_route_walk.py`, `test_catalogue_route_parity.py` | Gate and walker | VERIFIED | Run against the real app |
+| `backend/route_aliases.py` | Projected `/api/tenants/me` | VERIFIED | Lines 204-221 |
+| `utils/catalogueAccess.ts`, `components/Sidebar.tsx`, `App.tsx` | Frontend reader | VERIFIED | Imported and used |
 
 ### Key Link Verification
 
-| From | To | Via | Status | Details |
-|------|----|-----|--------|---------|
-| `router_registry.py` | `catalogue_mounts.py` | `mount_dependencies` at include time | WIRED | 814 tagged route methods observed on the real app |
-| `catalogue_mounts_*.py` | `catalogue_guards.py` | `catalogue_guard(...)` | WIRED | Tags attached as `__catalogue_guard__` metadata and matched by value to the manifest |
-| `_catalogue_parity.py` | `shared/catalogue-access.json` | `json.load`, tag equality | WIRED | Tag read/write lists must equal manifest-resolved lists |
-| `Sidebar.tsx`, `App.tsx` | `utils/catalogueAccess.ts` | `NAV_GROUPS`, `viewPermission`, `viewForHash` | WIRED | Confirmed by grep and by `catalogueAccess.test.ts` |
-| `asset_endpoints.py` | `asset_finance_fields.py` | `@finance_filtered` | WIRED | |
+| From | To | Via | Status |
+|------|----|-----|--------|
+| `software_endpoints.py` | `catalogue_guards.py` | `agent_tolerant(SOFTWARE_UPDATES_GUARD)` on GET `/download/{filename}` | WIRED |
+| `response_endpoints.py` | `catalogue_guards.py` | `agent_tolerant(EDR_GUARD)` on GET `/tasks/{agent_id}` | WIRED |
+| `agent_chat_endpoints.py` | `catalogue_guards.py` | `agent_tolerant(CHAT_GUARD)` on GET `/sessions` | WIRED |
+| `tenant_enrollment_endpoints.py`, `tenant_endpoints.py` | `catalogue_mounts_*` | `Depends(TENANT_CONTROLS_READ_GUARD)` / `Depends(SETTINGS_GUARD)` | WIRED |
+| `_catalogue_parity.py` | `catalogue_guards.py` | reads the `allow_agent` tag key | WIRED |
+| `test_catalogue_slice_billing_identity.py` | `_route_walk.py` | `probe_real_app` | WIRED |
+| `Sidebar.tsx`, `App.tsx` | `utils/catalogueAccess.ts` | `NAV_GROUPS`, `viewPermission`, `viewForHash` | WIRED |
 
 ### Data-Flow Trace (Level 4)
 
 | Artifact | Data variable | Source | Real data | Status |
 |----------|---------------|--------|-----------|--------|
+| `get_my_tenant` | `tenant` | `mongodb.db.tenants.find_one({"id": tenant_id}, projection)` then field filter | Yes, real query, narrowed to four fields | FLOWING |
 | `Sidebar.tsx` `menuGroups` | `NAV_GROUPS` | JSON manifest, same file the backend tests read | Yes | FLOWING |
-| `App.tsx` `handleSetCurrentView` | `viewPermission(view)` | manifest | Yes (cast hides `undefined`, IN-04; every AppView has an entry per test) | FLOWING |
-| `finance_filtered` | caller permission via `verify_permission` | role doc / defaults | Yes | FLOWING |
 
 ### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
-| Guard, manifest, parity, all 8 slice tests, finance, route-auth baseline | `pytest tests/test_catalogue_guards.py test_catalogue_manifest.py test_catalogue_route_parity.py test_catalogue_slice_*.py test_asset_finance_fields.py test_route_auth_baseline.py` | 132 passed in 502 s | PASS |
-| Frontend drift and sidebar tests | `npx vitest run src/__tests__/catalogueAccess.test.ts src/__tests__/SidebarAuditFixes.test.tsx` | 34 passed | PASS |
-| Whole-app parity and ledger on a fresh walk | `run_real_app_walk()` + `parity_offenders` + `ledger_offenders` | 1616 routes, offenders 0 / `[]` | PASS |
-| 403 for roles lacking the permission, 9 route families | `probe_real_app` | `nobody` 403 on all nine; `viewer` 403 on settings, users, alerts, siem, patches, agents | PASS |
-| No auth dependency removed in phase 76 commits | `git show` over `(76-` commits, grep removed `Depends(`/`require_permission`/`verify_permission`/`get_current_user` | no lines | PASS (PROH-76-01) |
-| `rbac_service.py` / `rbac_defaults.py` untouched by phase 76 | `git log --grep "(76-"` on both | no commits | PASS (D-07) |
-| Full backend suite (3721 passed) and `npm run build` | not re-run; orchestrator-supplied evidence, no source change since 76-11 | n/a | accepted as given |
+| Catalogue guards, manifest, parity gate, guard variants, all slice tests, finance fields, route-auth baseline | `backend/venv/bin/python -m pytest tests/test_catalogue_guards.py tests/test_catalogue_manifest.py tests/test_catalogue_route_parity.py tests/test_catalogue_guard_variants.py tests/test_catalogue_slice_*.py tests/test_asset_finance_fields.py tests/test_route_auth_baseline.py -q -p no:cacheprovider` (temp ticket and share dirs) | 191 passed in 540 s | PASS |
+| Frontend drift and sidebar | `npx vitest run src/__tests__/catalogueAccess.test.ts src/__tests__/SidebarAuditFixes.test.tsx` | 34 passed | PASS |
+| Whole-app parity and ledger on a fresh walk | `run_real_app_walk()` + `parity_offenders` + `ledger_offenders` | 1616 routes (1515 user, 57 public, 29 agent, 15 agent-capable); 0 offenders; 822 tagged methods; 29 exempt; 0 untagged unexempt user routes in enforced groups | PASS |
+| 403 for lacking roles on the eight formerly failing routes; permitted and agent identities reach the handler | `probe_real_app` over 8 routes x up to 7 roles | see gap-closure table | PASS |
+| Full backend suite, `npm run build`, `npx vitest run src/__tests__` | not re-run; orchestrator-supplied (3780 passed / 47 skipped / 0 failed at HEAD; 266 vitest passed; build exit 0) | n/a | accepted as given. The only non-planning changes since the frontend run are `route_aliases.py` and one backend test |
 
 ### Probe Execution
 
-Step 7b/7c: no `probe-*.sh` scripts declared or present for this phase. SKIPPED. The in-process `probe_real_app` harness above is the phase's own runtime probe.
+No `probe-*.sh` scripts are declared or present for this phase. SKIPPED. The in-process `probe_real_app` harness above is the phase's own runtime probe.
 
 ### Requirements Coverage
 
 | Requirement | Source plans | Description | Status | Evidence |
 |-------------|--------------|-------------|--------|----------|
-| ACC-03 | 76-01, 76-02, 76-03 | Single shared manifest; frontend reads it; 9 mismatched views reconciled | SATISFIED | Truth 1 |
-| ACC-04 | 76-01, 76-02, 76-04 .. 76-12 | Route guards on priority router groups; gap ledger; agent routes excluded | SATISFIED with residual holes | Guards and ledger verified; exclusion of agent routes correct; WR-01 and WR-05 are leaks inside the guarded groups. REQUIREMENTS.md marks it Complete, which overstates by those routes. |
-| ACC-05 | 76-01, 76-02 (hand-off), 76-03, 76-11 | Deny-by-default parity test plus frontend drift test | SATISFIED | Truths 4 and 5. Gate scope caveat: `agent_capable` and `catalogue_exempt` routes are only ratcheted by count, not examined. |
+| ACC-03 | 76-01, 76-02, 76-03 | Single shared manifest; frontend reads it; 9 mismatched views reconciled | SATISFIED | Truth 1. REQUIREMENTS.md still shows the checkbox unchecked and "Gaps Found" (lines 13 and 63); it should read Complete. |
+| ACC-04 | 76-01, 76-02, 76-04 .. 76-15 | Route guards on priority router groups; gap ledger; agent routes excluded by design | SATISFIED | Truths 2, 3, 4. The WR-01 and WR-05 leaks that made this "satisfied with residual holes" are closed. REQUIREMENTS.md already shows Complete, which is now accurate. |
+| ACC-05 | 76-01, 76-02, 76-03, 76-11, 76-14, 76-15 | Deny-by-default parity test plus frontend drift test | SATISFIED | Truths 4, 5. Gate now covers agent-capable routes and reviews both exemption lists. REQUIREMENTS.md already shows Complete, now accurate. |
 
 All three IDs appear in plan frontmatter and in REQUIREMENTS.md. No orphaned Phase 76 requirements (ACC-06..09 map to Phase 77).
-
-### Code-Review Findings Against the Goal
-
-76-REVIEW-DISPOSITION.md lists all 10 findings as `open`. Verified by reading the code:
-
-| ID | Confirmed in code | Effect on goal |
-|----|-------------------|----------------|
-| WR-01 | Yes (`software_endpoints.py:113`, `response_endpoints.py:192`) | Breaks "backend refuses what the sidebar would hide"; gap above |
-| WR-05 | Yes (`tenant_enrollment_endpoints.py:67,121`; `_assert_tenant_read` pins tenant only) | Same; gap above. Pre-existing from spec C2-C4, but this phase chose to exempt rather than gate |
-| WR-02 | Yes (`catalogue_mounts_settings_ops.py:63-75` keys on `role == "api-integration"`; `api_key_auth.py:282` sets no distinguishing `auth_source`; role-name validation reserves only built-in keys) | Warning. A tenant admin who can already grant `manage:settings` gains little; still a role-name-based decision copied into new code |
-| WR-03 | Yes (`ITAM_READ = ("view:itam",)` vs `_require_itam_viewer` accepting `manage:assets`) | Warning. A custom role holding `manage:assets` without `view:itam`/`manage:itam` loses ITAM read; built-ins unaffected. Over-refusal, not a leak |
-| WR-04 | Per review (secrets read needs `manage:settings`, `view:secrets` holders refused; write list contains a `view:` string) | Warning. Over-refusal for `platform_support`-style roles; writes unguarded by catalogue for `view:secrets` holders |
-| WR-06 | Yes (permitted-role assertions are `!= 403`) | Weakens confidence that permitted roles reach a 200 |
-| IN-01..IN-04 | Per review | Info; quality and drift risk, no current exposure |
-
-None of WR-02..WR-06 independently fails a must-have; WR-01 and WR-05 do, for SC2.
 
 ### Anti-Patterns Found
 
 | File | Pattern | Severity | Impact |
 |------|---------|----------|--------|
-| phase files | `TBD`/`FIXME`/`XXX` markers | none found | clean |
-| `backend/catalogue_guards.py:18`, `catalogue_mounts_assets.py:14` | unused imports (IN-02) | Info | lint only |
+| phase files | `TBD` / `FIXME` / `XXX` markers | none found | clean |
+| `backend/tests/_catalogue_parity.py:353` | `_listed(entries, key)` ignores `key` (IN-02) | Info | lint only |
+| `backend/catalogue_guards.py` `agent_tolerant` | drops `platform_read` (WR-02) | Warning (latent) | see advisory |
 | `App.tsx:1173` | `viewPermission(view) as Permission` (IN-04) | Info | fails closed for non-super-admin today; Phase 77 owns |
-| `shared/catalogue-access.json` write lists with `view:dashboard` (IN-01) | guard is a no-op for writes in ~12 catalogues | Warning | each non-GET route checked by reviewer carries its own permission check |
 
 ### Human Verification Required
 
-These cannot be run here (no restarts, deploys or live DB) and do not change the status above, which is already `gaps_found`. They should be done after the gap-closure plan.
-
-1. **Enrolled Rust agent after deploy.** Test: deploy, then watch an enrolled agent register, heartbeat, poll `/api/agentic-tasks`, `/api/agents/{id}/instructions`, and post telemetry/scan results. Expected: no 401/403 on any agent route; agent list in UI unchanged. Why human: needs a live agent, TLS pin and the real DB.
-2. **Roles that lost reads see no broken pages.** Test: sign in as `viewer`, `itam_viewer`, `analyst`, and a custom role against the left nav. Expected: any page whose backend now returns 403 either is hidden or shows a handled state, not a blank or crash. Why human: visual; 76-UI-REVIEW.md scored 16/24 with frontend follow-ups routed to Phase 77.
-3. **Permitted role gets real 200s.** Test: with live data, call one read per enforced catalogue as a permitted role. Expected: 200 with data. Why human: the real-app probes run on an unreachable DB and prove only "not 403" (WR-06).
-4. **ITAM API-key caller live.** Test: call an ITAM read with an existing key scoped `view:itam`. Expected: 200. Why human: needs live key and DB.
+See the `human_verification` list in the frontmatter. In short: (1) a live enrolled agent after deploy, (2) tenant admin and platform staff reads of the gated tenant GETs return real 200s, (3) viewer / itam_viewer / analyst refusals and UI handling, (4) the app shell after the `/api/tenants/me` projection, (5) the owner's decision on rotating tenant registration keys. All depend on a deploy that is the user's call; Phase 77 is planned to precede it.
 
 ### Gaps Summary
 
-One gap, affecting roadmap SC2 and, through it, the "backend refuses what the sidebar would hide" clause of the goal and the completeness of ACC-04.
+No gaps. The previous report's single gap (roadmap SC2 / ACC-04: unguarded agent-capable reads and exempt tenant admin GETs) is closed by plans 76-13, 76-14 and 76-15, and the defect the code review found in that closure (CR-01) is fixed and covered by a regression test. The deny-by-default gate now sees the route classes it was previously blind to.
 
-- Two `agent_capable` GET routes (`/api/software/download/{filename}`, `/api/response/tasks/{agent_id}`) in enforced catalogues have no human-path guard.
-- Five tenant GETs (`allowlist`, `enrollment-keys`, `email/config`, `email/preferences`, plus `license`) are `catalogue_exempt` as "self-service" although they return admin-only data to any tenant role.
-- The parity gate cannot see either class (`_in_scope` returns `None` for non-`user` auth; exempt routes are count-ratcheted with length-checked reasons), so the gate's green result is true but narrower than the goal sentence implies.
-
-Nothing here is deferred: Phase 77 is frontend/role-visibility/regression tests, ACC-F2 covers only non-enforced groups, and Phase 78 builds on the ITAM guard. A single focused gap-closure plan (agent-tolerant guard variant plus role-gated tags for the tenant reads, then extend the walker to count `allow_agent` guards) is the right size. WR-02..WR-06 are worth folding into the same plan but are not blockers. 4 of 5 roadmap criteria are fully verified, ACC-03 and ACC-05 are met, and no regression of existing auth was found (no auth dependency removed, RBAC defaults untouched).
+Reconciliation of requirement statuses: ACC-03 should be marked Complete in REQUIREMENTS.md (checkbox and traceability row); ACC-04 and ACC-05 are correctly Complete. Phase 76 is not deployed, so the live backend still serves the pre-fix `/api/tenants/me` and the pre-guard routes until the user restarts it.
 
 ---
 
-_Verified: 2026-10-15T21:30:00Z_
+_Verified: 2026-10-18T18:10:00Z_
 _Verifier: Claude (gsd-verifier)_
