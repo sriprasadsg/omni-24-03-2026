@@ -194,7 +194,7 @@ Plans:
   4. A committed gap ledger lists every router that remains unguarded, and the deny-by-default route-parity test fails if an in-scope catalogue route is unguarded or an unguarded router is missing from the ledger.
   5. A frontend test fails when the sidebar and the manifest drift (for example, a nav item added with no manifest entry).
 
-**Plans**: 14/15 plans executed (3 gap-closure plans pending)
+**Plans**: 15/15 plans executed (gap-closure plans 76-13..76-15 done; re-verification pending)
 
 Plans:
 **Wave 1**
@@ -224,7 +224,7 @@ Plans:
 - [x] 76-14-PLAN.md — WR-01 gate: parity gate covers agent-capable routes; reviewed agentCapableRoutes and exemptRoutes lists in the ledger
 
 **Wave 7 (gap closure)** *(blocked on Wave 6 completion)*
-- [ ] 76-15-PLAN.md — WR-05: tenant email, license, allowlist and install-key reads role-gated (tenant admin + platform staff); branding exemption reworded; gate refuses self-service exemptions on tenant/user paths
+- [x] 76-15-PLAN.md — WR-05: tenant email, license, allowlist and install-key reads role-gated (tenant admin + platform staff); branding exemption reworded; gate refuses self-service exemptions on tenant/user paths
 
 ### Phase 77: Fail-Closed Sidebar, View Gate & Role Visibility
 
@@ -289,7 +289,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
-| 76. Catalogue Manifest & Backend Route Enforcement | 14/15 | In Progress | - |
+| 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
 | 77. Fail-Closed Sidebar, View Gate & Role Visibility | 0/TBD | Not started | - |
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |

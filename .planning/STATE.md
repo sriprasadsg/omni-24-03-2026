@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Completed 76-14-PLAN.md
-last_updated: "2026-10-16T08:01:08.153Z"
+stopped_at: Completed 76-15-PLAN.md
+last_updated: "2026-10-18T17:04:26.442Z"
 last_activity: 2026-10-16
 last_activity_desc: Phase 76 execution started
-state_head: 4f729da94628464fe9f1b41620758d25b513ad06
+state_head: 8d1280bbe28d98527f67a45f3d8c8f8e92be6d70
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
   percent: 0
 ---
 
@@ -429,6 +429,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-11: gap ledger shared/catalogue-gaps.json has two-sided ratchets (excess and slack both fail); no manifest edits, wave-3 corrections listed as human decisions; /api/tenants/me exempt as self-service
 - [Phase 76]: 76-13: agent-tolerant guard treats only token role exactly 'agent' (get_current_user_or_agent) as the agent identity; platform_read limited to PLATFORM_ONLY_PERMISSIONS and safe methods
 - [Phase 76]: 76-14: agent-capable routes join the parity scope (reads need agent_tolerant guards, tags that refuse the agent fail); untagged agent-capable routes (12) and exempt routes (34) are reviewed ledger lists
+- [Phase 76]: 76-15: the five WR-05 tenant reads are role-gated (email via SETTINGS_GUARD; license, allowlist, install keys via TENANT_CONTROLS_READ_GUARD with platform_read view:tenants); exemptRoutes 34 -> 29; the gate rejects a self-service exemption on a tenant- or user-id path — Viewer and ITAM roles read SMTP settings, seat data and hardware identifiers through exemptions that claimed self-service
 
 ## Performance Metrics
 
@@ -570,6 +571,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P11 | 40 min | 3 tasks | 5 files |
 | Phase 76 P13 | 16 min | 2 tasks | 9 files |
 | Phase 76 P14 | 45min | 2 tasks | 3 files |
+| Phase 76 P15 | 70min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -604,8 +606,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-16T08:01:08.096Z
-**Stopped at:** Completed 76-14-PLAN.md
+**Last session:** 2026-10-18T17:04:23.499Z
+**Stopped at:** Completed 76-15-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -629,7 +631,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
-Plan: 3 of 15
+Plan: 4 of 15
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-16 — Phase 76 execution started
