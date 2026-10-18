@@ -137,3 +137,13 @@ def test_role_store_error_answers_503_not_a_partial_list(client, monkeypatch):
     res = _get(client, "Tenant Admin")
     assert res.status_code == 503
     assert res.json()["detail"] == "Role store unavailable"
+
+
+def test_every_entry_carries_the_builtin_flag(client):
+    """D-18: builtIn is true for the table roles and false for tenant documents (isEditable is unchanged)."""
+    entries = _get(client, "Tenant Admin").json()
+    by_name = {r["name"]: r for r in entries}
+    assert by_name["Helpdesk"]["builtIn"] is False and by_name["Helpdesk"]["isEditable"] is True
+    assert by_name["rbacmgr"]["builtIn"] is False
+    for name in BUILTIN_NAMES:
+        assert by_name[name]["builtIn"] is True, name
