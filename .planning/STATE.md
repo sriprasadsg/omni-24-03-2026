@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v4.2
 milestone_name: Catalogue Access Control & Asset Costing
-current_phase: 76
-current_phase_name: Catalogue Manifest & Backend Route Enforcement
+current_phase: 77
+current_phase_name: Fail-Closed Sidebar, View Gate & Role Visibility
 status: executing
 stopped_at: Phase 77 UI-SPEC approved
-last_updated: "2026-10-18T20:19:32.931Z"
+last_updated: "2026-10-18T22:26:22.657Z"
 last_activity: 2026-10-16
 last_activity_desc: Phase 76 execution started
-state_head: d9be91703dfc3dfad9dc9f3c7934896b141c24dc
+state_head: 0331940f9b418bbce0f1dcebf41d8745504a0dd7
 progress:
   total_phases: 6
   completed_phases: 0
-  total_plans: 20
+  total_plans: 33
   completed_plans: 20
   percent: 0
 ---
@@ -630,7 +630,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 76 (Catalogue Manifest & Backend Route Enforcement) — EXECUTING
+Phase: 77 (Fail-Closed Sidebar, View Gate & Role Visibility) — READY TO EXECUTE
 Plan: 4 of 15
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
