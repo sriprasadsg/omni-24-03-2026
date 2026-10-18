@@ -1,213 +1,120 @@
 ---
 phase: 76-catalogue-manifest-backend-route-enforcement
-reviewed: 2026-10-15T00:00:00Z
+reviewed: 2026-10-18T00:00:00Z
 depth: standard
-files_reviewed: 90
+files_reviewed: 17
 files_reviewed_list:
-  - App.tsx
-  - backend/agent_approval_endpoints.py
   - backend/agent_chat_endpoints.py
-  - backend/agent_core_endpoints.py
-  - backend/agent_download_endpoints.py
-  - backend/agent_location_history_endpoints.py
-  - backend/agent_metrics_endpoints.py
-  - backend/agent_registry_endpoints.py
-  - backend/agent_security_endpoints.py
-  - backend/agent_tasks_endpoints.py
-  - backend/agent_telemetry_endpoints.py
-  - backend/agent_uninstall_endpoints.py
-  - backend/agentic_tasks_endpoints.py
-  - backend/ai_endpoints.py
-  - backend/alert_endpoints.py
-  - backend/api_key_endpoints.py
-  - backend/asset_endpoints.py
-  - backend/asset_finance_fields.py
-  - backend/billing_endpoints.py
-  - backend/bundle_endpoints.py
-  - backend/capability_endpoints.py
   - backend/catalogue_guards.py
-  - backend/catalogue_mounts.py
-  - backend/catalogue_mounts_agents.py
-  - backend/catalogue_mounts_assets.py
   - backend/catalogue_mounts_billing_identity.py
-  - backend/catalogue_mounts_devices.py
-  - backend/catalogue_mounts_secops.py
-  - backend/catalogue_mounts_secposture.py
-  - backend/catalogue_mounts_settings_ops.py
-  - backend/compliance_evidence_endpoints.py
-  - backend/compliance_scans_endpoints.py
-  - backend/compliance_status_endpoints.py
-  - backend/deception_endpoints.py
-  - backend/edr_telemetry_endpoints.py
-  - backend/final_endpoints.py
-  - backend/future_ops_endpoints.py
-  - backend/itam_label_endpoints.py
-  - backend/itam_lifecycle_endpoints.py
-  - backend/ldap_endpoints.py
-  - backend/llm_proxy.py
-  - backend/payment_billing_endpoints.py
-  - backend/payment_gateway_endpoints.py
-  - backend/platform_endpoints.py
-  - backend/remote_endpoints.py
-  - backend/reporting_endpoints.py
   - backend/response_endpoints.py
-  - backend/route_aliases.py
-  - backend/router_registry.py
-  - backend/security_cases_endpoints.py
-  - backend/security_keys_endpoints.py
-  - backend/security_ops_endpoints.py
-  - backend/security_scans_endpoints.py
   - backend/software_endpoints.py
-  - backend/sso_endpoints.py
-  - backend/support_endpoints.py
-  - backend/system_endpoints.py
   - backend/tenant_endpoints.py
   - backend/tenant_enrollment_endpoints.py
   - backend/tests/_catalogue_parity.py
   - backend/tests/_route_walk.py
-  - backend/tests/test_agent_location_history_endpoints.py
-  - backend/tests/test_asset_finance_fields.py
-  - backend/tests/test_bundles_and_reports.py
-  - backend/tests/test_catalogue_guards.py
-  - backend/tests/test_catalogue_manifest.py
+  - backend/tests/test_catalogue_guard_variants.py
   - backend/tests/test_catalogue_route_parity.py
   - backend/tests/test_catalogue_slice_agents.py
-  - backend/tests/test_catalogue_slice_agents_dataplane.py
-  - backend/tests/test_catalogue_slice_assets.py
   - backend/tests/test_catalogue_slice_billing_identity.py
   - backend/tests/test_catalogue_slice_devices.py
   - backend/tests/test_catalogue_slice_secops.py
-  - backend/tests/test_catalogue_slice_secposture.py
-  - backend/tests/test_catalogue_slice_settings_ops.py
-  - backend/tests/test_core_endpoints.py
-  - backend/tests/test_itam_asset_request_endpoints.py
-  - backend/tests/test_route_auth_baseline.py
-  - backend/tests/test_session_revocation.py
-  - backend/threat_endpoints.py
-  - backend/tickets_workflow_endpoints.py
-  - backend/update_endpoints.py
-  - backend/user_endpoints.py
-  - backend/webhook_endpoints.py
-  - components/Sidebar.tsx
-  - components/sidebarPresentation.tsx
   - shared/catalogue-access.json
   - shared/catalogue-gaps.json
-  - src/__tests__/catalogueAccess.test.ts
-  - utils/catalogueAccess.ts
 findings:
-  critical: 0
-  warning: 6
-  info: 4
-  total: 10
+  critical: 1
+  warning: 2
+  info: 3
+  total: 6
 status: issues_found
 ---
 
-# Phase 76: Code Review Report
+# Phase 76: Code Review Report (gap plans 76-13, 76-14, 76-15)
 
-**Reviewed:** 2026-10-15
+**Reviewed:** 2026-10-18
 **Depth:** standard
-**Files Reviewed:** 90
+**Files Reviewed:** 17 (committed HEAD content, incremental against `24fc1c59e`)
 **Status:** issues_found
 
 ## Summary
 
-The guard, mount map, manifest and parity gate hold up well under adversarial checking. I verified the following by walking the real mounted app (1616 routes) in a hermetic child interpreter, and by running `test_catalogue_guards`, `test_catalogue_manifest`, `test_catalogue_route_parity`, all `test_catalogue_slice_*` and `test_route_auth_baseline` (121 passed):
+This is an incremental review of the three gap-closure plans. It overwrites the previous report. Prior findings the gap plans did not touch (WR-02, WR-03, WR-04, WR-06, IN-01..IN-04 of the old report) are not repeated and keep their old disposition.
 
-- No route that an agent, an external system, SSO/LDAP sign-in, the Stripe webhook, the Jira/Zoho inbound hooks, the deception trigger or `/api/system/health` calls carries a catalogue guard. Every mount-level guard sits on a route whose own authentication is `get_current_user` or `get_current_user_or_api_key`. No route that was public or agent-keyed gained a user-auth requirement.
-- Guards are additive. The only auth lines removed from the endpoint files are unrelated spec C1-C6 work (finops pricing moved to `require_super_admin`, tenant `is_super_admin` check replaced by `has_platform_permission`). No existing permission dependency was replaced by a catalogue guard.
-- The guard's auth callable always matches the route's own (session guards on session routes, API-key guards on API-key routes). No API-key route sits behind a session-only guard.
-- No WebSocket route received a guard (the guard takes a `Request` parameter and would fail on a WebSocket).
-- Every `MOUNTS` key resolves to a loaded router. No stale or typo'd keys.
+I ran the venv test suites that cover the changed code: `test_catalogue_guard_variants`, `test_catalogue_route_parity` (82 passed) and the four `test_catalogue_slice_*` files in scope (22 passed).
 
-The findings below are therefore about residual holes and design inconsistencies, not about a broken ingest path. The main residual risk is that the 15 `agent_capable` routes (user or agent token) are outside the parity gate by design (D-02) and therefore give an ordinary signed-in user, with no catalogue permission, access to two data-bearing routes in enforced catalogues.
+**Prior WR-01 (agent-capable reads give any signed-in user a catalogue-free path): resolved.**
+- `GET /api/software/download/{filename}`, `GET /api/response/tasks/{agent_id}` and `GET /api/agent-chat/sessions` now carry `agent_tolerant(...)` guards.
+- The bypass keys on the exact token role `agent`, which the auth layer produces only for registered agent tokens. User roles can only be built-in keys (`user_endpoints._VALID_ROLE_KEYS`, SAML and LDAP mapping), so no person can carry the role string `agent`.
+- Every other caller, including `viewer`, `itam_viewer` and a role spelled `Agent`, gets the full catalogue check. The new real-app probes show 403 for those roles and 404 or 200 for the agent and permitted roles.
+- The parity gate now puts agent-capable reads in an enforced group in scope. It also rejects any plain, agent-refusing guard on an agent-capable route, so the hole cannot reopen silently.
+
+**Prior WR-05 (tenant GET routes exempt from role gating): partially resolved.**
+- The five named routes (`email/config`, `email/preferences`, `license`, `allowlist`, `enrollment-keys`) are now role-gated. Tenant roles need `manage:settings`. Platform staff keep their read through `platform_read=("view:tenants",)`, which is correct for both platform roles, since both hold `view:tenants`.
+- The same data is still readable by every role through another exempt route, `GET /api/tenants/me` (CR-01). WR-05's impact is therefore not removed, and the new ratchet rule cannot catch it (WR-01 below).
+
+## Critical Issues
+
+### CR-01: `GET /api/tenants/me` returns the whole tenant document to every signed-in role, bypassing the WR-05 gating and leaking the tenant registration key
+
+**File:** `backend/route_aliases.py:200-211` (route and exemption), `shared/catalogue-gaps.json` (`exemptRoutes`, `GET /api/tenants/me`). The file is outside the listed scope. It is the exempt route whose reason 76-15 left standing and the ledger now freezes.
+**Issue:** `get_my_tenant` is `catalogue_exempt("self-service: caller's own tenant record")`, authenticated by `get_current_user` only. It returns `tenants.find_one({"id": tenant_id}, {"_id": 0})`, which is every field of the tenant document. Per `create_tenant` and `agent_download_endpoints.py`, that document holds:
+- `registrationKey`. This is the tenant enrollment credential: `agent_auth.py:104` and `tunnel_endpoints.py:262` accept it as `X-Tenant-Key`, and it ships in installers. It lets a caller register agents into the tenant.
+- `emailConfig`. This includes `smtpHost`, `smtpUser`, `smtpPasswordEncrypted` and, on legacy tenants, a plaintext `smtpPassword` (the code in `get_email_config` still strips a legacy field, so it can exist).
+- `license` and `maxAgents`, plus notification preferences.
+
+A `viewer` or `itam_viewer` of the tenant can therefore read exactly the SMTP and license data that 76-15 gated on `email/config` and `license`, and also the enrollment key. Per `catalogue_exempt`, the exemption means no role check applies. The 76-15 self-service rule and the `test_tenant_exempt_routes_reachable_by_every_role` test do not see it. The rule only matches paths with `{tenant_id}` or `{user_id}`, and the test only walks `tenant_endpoints`, `tenant_enrollment_endpoints` and `bundle_endpoints` modules. `/api/tenants/me` lives in `route_aliases`.
+**Fix:** Project the response to display fields and keep the route exempt, since the app shell needs it for every role:
+```python
+SAFE_TENANT_FIELDS = {"_id": 0, "id": 1, "name": 1, "subscriptionTier": 1, "branding": 1,
+                      "enabledFeatures": 1, "createdAt": 1}
+tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, SAFE_TENANT_FIELDS)
+```
+Check the UI callers first for any field they read, such as the seat count. If one is needed, expose only that field. Gate the sensitive fields behind `TENANT_CONTROLS_READ_GUARD` routes. Add a regression test that calls `GET /api/tenants/me` as `viewer` against a tenant document seeded with `registrationKey`, `emailConfig` and `license`, and asserts none of those keys is in the body. Also assess whether the registration key has already been exposed and needs rotation.
 
 ## Warnings
 
-### WR-01: Agent-capable routes in enforced catalogues give any signed-in user a catalogue-free path
+### WR-01: The new self-service exemption rule (PROH-76-08) is lexical and does not catch the case it was written for
 
-**File:** `backend/software_endpoints.py:113`, `backend/response_endpoints.py:192`
-**Issue:** `GET /api/software/download/{filename}` (catalogue `softwareUpdates`) and `GET /api/response/tasks/{agent_id}` (catalogue `edr`) use `get_current_user_or_agent` and carry no guard. D-02 excludes them so agents keep working, and the `agentAuthExcludedRoutes: 15` ratchet counts them, but the exclusion also applies to human callers.
-- `download_software` performs no permission check at all. Any tenant user, including a `viewer` who has neither `view:software_updates` nor `manage:patches`, can download any installer in the global `uploads/repo` directory. That directory is shared across tenants. This is the same data that the guarded sibling `GET /api/software/repository` hides from that role.
-- `get_pending_tasks` checks only that the agent is in the caller's tenant. Any signed-in user can read an agent's queued response tasks (isolate, kill, quarantine payloads). Its sibling write routes do require `remediate:agents` for non-agent callers.
+**File:** `backend/tests/_catalogue_parity.py:244-246,346-349`
+**Issue:** The rule fires only when the reason starts with `self-service` and the path contains one of four literal placeholders (`{tenant_id}`, `{tenantId}`, `{user_id}`, `{userId}`). Rewording the reason, or using another placeholder (`{org_id}`, `{id}`, `{username}`) or no placeholder at all, passes. `GET /api/tenants/me` (CR-01) is a counter-example already in the repository: a self-service route with no placeholder that returns every tenant field. The exempt-route ledger only freezes the reason text, so a human still has to judge each reason. The ratchet therefore cannot detect a regression of the WR-05 class, which is what the plan claimed it would.
+**Fix:** Add a behavioural check instead of, or alongside, the lexical one. For every exempt GET, probe it on the real app as the lowest tenant role against a document seeded with sentinel secrets (`registrationKey`, `emailConfig`, `license`). Fail if any sentinel appears in the body. Keep the path rule as a cheap pre-check, but stop calling it the safeguard.
 
-The parity test cannot see this, because `_in_scope` returns `None` for any record whose auth class is not `user`.
-**Fix:** Add an agent-tolerant guard variant that skips only the agent identity and applies the catalogue check to everyone else:
+### WR-02: `agent_tolerant()` silently drops `platform_read`
+
+**File:** `backend/catalogue_guards.py:162-173`
+**Issue:** `agent_tolerant` rebuilds the guard from `meta["catalogue"]`, `meta["read"]` and `meta["write"]` only. If the wrapped guard was built with `platform_read`, the tolerant copy forgets it. The wrapped route then refuses platform staff that the original guard would have admitted, with no error at import time. No guard combines the two today, so this is latent. The two variants were introduced in the same plan and the function is documented as "the same catalogue guard".
+**Fix:** Forward the field, or refuse the combination explicitly:
 ```python
-def catalogue_guard(..., auth=get_current_user, allow_agent=False): ...
-    async def _require_catalogue(request: Request, user = Depends(auth)):
-        if allow_agent and getattr(user, "role", "") == "agent":
-            return user
-        await check_catalogue_access(user, request.method, read_t, write_t)
-        return user
+return catalogue_guard(
+    meta["catalogue"], read=tuple(meta["read"]), write=tuple(meta["write"]),
+    auth=get_current_user_or_agent, allow_agent=True,
+    platform_read=tuple(meta.get("platform_read", ())),
+)
 ```
-Mount it with `auth=get_current_user_or_agent, allow_agent=True` on these two routes, and have the walker count it as a tag so the parity gate covers `agent_capable` routes too.
-
-### WR-02: Webhook guard bypass is keyed on a role string any custom role can carry
-
-**File:** `backend/catalogue_mounts_settings_ops.py:63-75`
-**Issue:** `_webhooks_guard_with_integration_keys` returns immediately when `user.role == "api-integration"`, skipping `check_catalogue_access` entirely. That role string is produced by the legacy tenant key path (`api_key_auth.py:282`), but the TokenData it builds has the default `auth_source="session"`, so nothing distinguishes a key from a user. `role_endpoints.py:69-73` only blocks custom role names that normalise to a built-in key, so a tenant admin can create a custom role literally named `api-integration` and assign it. That user then passes the catalogue guard, and the four route-level `role != "api-integration"` checks at `webhook_endpoints.py:123,155`, for list/create/delete/deliveries without holding `manage:settings`. The phase copied the bypass into the new guard rather than closing it. The impact is limited to the tenant's own webhooks, but it is a role-name-based authorization decision.
-**Fix:** Mark the legacy key identity unambiguously and test that, not the role name:
-```python
-# api_key_auth.py
-return TokenData(tenant_id=tenant_doc["id"], role="api-integration", username="api-key", auth_source="tenant_key")
-# catalogue_mounts_settings_ops.py
-if getattr(user, "auth_source", "") == "tenant_key":
-    return user
-```
-Also reserve `api-integration` in the role-name validator.
-
-### WR-03: ITAM guard read rule drops the `manage:assets` read compatibility that the handlers and the scope check keep
-
-**File:** `backend/catalogue_mounts_assets.py:19-20,31-33`, `backend/catalogue_guards.py:63-68`
-**Issue:** `_require_itam_viewer` (`itam_asset_endpoints.py:68-93`) accepts `view:itam` or `manage:assets` for reads ("every manage:assets holder can also read"). The new ITAM guard accepts only `view:itam` and `manage:itam` for safe methods (`ITAM_READ = ("view:itam",)` plus the twin). The guard adds a compatibility rule for API-key scopes (write scopes also authorise reads), but not for roles. A tenant custom role that holds `manage:assets` but not `view:itam` or `manage:itam` could read the ITAM console before and now gets 403. The built-in roles are unaffected, because `tenant_admin` and `itam_admin` also hold `view:itam`. Roles and scopes are treated asymmetrically.
-**Fix:** Either add the write permissions to the role-side read check for the ITAM catalogue (make `read=("view:itam", "manage:assets")` in `ITAM_READ`, which the manifest then mirrors), or drop the scope-side widening and state in the manifest that ITAM reads need `view:itam` or `manage:itam`.
-
-### WR-04: Secrets catalogue is internally incoherent (read needs `manage:settings`, write accepts the read permission)
-
-**File:** `backend/catalogue_mounts_settings_ops.py:39-41`, `shared/catalogue-access.json` (`secretsManagement`)
-**Issue:** `SECRETS_GUARD` reads need `manage:settings`, writes accept `manage:secrets` or `view:secrets`. A `view:secrets` holder, for example `platform_support`, is refused `GET /api/secrets/list`, `/stats`, `/audit-log`, `/rotation/check` and `GET /api/secrets/{name}`. Each of these routes' own check is `view:secrets`, so the role the route says may read is now refused by the guard. The same role passes the guard on `POST /api/secrets/scan`. The write list containing a `view:` string means the guard never restricts mutating requests for holders of the read permission. The `write` list was evidently mined from the route-level strings rather than designed.
-**Fix:** Make the read rule `read=("manage:settings", "view:secrets")` (or accept the lockout deliberately and remove `view:secrets` from `write`), and make `write=("manage:secrets",)`. Update the manifest and the slice test together.
-
-### WR-05: `catalogue_exempt` on tenant GET routes lets any tenant role read the hardware allowlist, install-key list, SMTP config and license
-
-**File:** `backend/tenant_enrollment_endpoints.py:67,121`, `backend/tenant_endpoints.py:489,622,711`
-**Issue:** `TENANT_OWN_SCOPE` is documented as "self-service ... pinned by `_assert_tenant_access` / `_assert_tenant_read`". Those helpers pin the tenant, not the role. A `viewer` or `itam_viewer` of the tenant can therefore read the enrolled-machine hardware allowlist (serials, SMBIOS UUIDs, MACs), the install-key list with limits and notes, the SMTP host/user configuration and the license/seat summary. The catalogue guard (`manage:tenants`/`manage:settings`) would have refused them. The exemption reason is true for tenant isolation but does not justify skipping role gating. The `maxExemptRoutes: 34` ratchet cannot detect this, because the reasons are only length-checked.
-**Fix:** Give these reads a tag, for example a `TENANT_SETTINGS_READ` guard with `read=("manage:settings", "view:agents")`, and keep `TENANT_OWN_SCOPE` only for branding and the license summary the app shell needs.
-
-### WR-06: `test_tracer_mdm_enforced_on_real_app` and several slice probes assert only `!= 403` for the allowed case
-
-**File:** `backend/tests/test_catalogue_guards.py:24`, `backend/tests/test_catalogue_slice_agents_dataplane.py` (`test_dataplane_real_app_enforced`)
-**Issue:** The "role holding the permission is not refused" assertion passes for any non-403 status, including a 401, 404, 422 or 500 caused by a broken route or an unreachable database (the probe points Mongo at an unroutable port). A regression that made the guard raise 500 or 401 for permitted roles would not fail these tests. The denied side is meaningful, since 403 is what the guard raises. Separately, `test_dataplane_agent_auth_unchanged` pins agent auth by counting source-text occurrences of `Depends(verify_agent_key)`, which fails on unrelated refactors and does not detect a guard added by other means.
-**Fix:** In the probe, stub the route handler or assert a positive status class. For example, return 200 from a stub route, or accept only `status not in (401, 403, 500)` and add a case where the allowed role reaches a handler that returns 200. Replace the source-count test with the walker-based check, which `test_dataplane_agent_routes_untouched` already provides.
+Add a unit test for the combination.
 
 ## Info
 
-### IN-01: Write lists carry read-grade `view:` strings, so the guard is a no-op for writes in those catalogues
+### IN-01: New real-app probes assert only `not in (401, 403)` for the allowed case (inherits old WR-06)
 
-**File:** `shared/catalogue-access.json` (`threatHunting`, `threatIntelligence`, `remoteAccess`, `profile`, `iacContainer` (`view:dashboard`), `notifications` (`view:dashboard`), `cloudAccounts`, `zeroTrustQuantum`, `correlations`, `vulnerabilityManagement`, `softwareDeployment`, `dataWarehouse`)
-**Issue:** `catalogue_guards.py` states that non-safe methods "accept exactly the declared write permissions". For these catalogues the declared write permission is a `view:` string, in two cases `view:dashboard`, which every signed-in role holds. I checked every non-GET guarded route in these catalogues: each carries its own permission check, so there is no unprotected write today. But the catalogue guard adds no protection to those writes, and a future route that relies on the guard alone would be open. Related: the guard role-checks at request time for every route, so each guarded request also repeats the permission lookup the route's own dependency performs.
-**Fix:** Either tighten the manifest `write` lists to `manage:` strings, or add a manifest test that rejects a `view:dashboard` write entry.
+**File:** `backend/tests/test_catalogue_guard_variants.py:285-300`, `backend/tests/test_catalogue_slice_billing_identity.py` (`_expect_through`)
+**Issue:** The probe app has an unreachable Mongo, so the allowed side of `test_task_poll_and_chat_list_on_the_real_app` and `test_tenant_settings_reads_are_role_gated` passes on a 500. The denied side asserts exactly 403, so those assertions still have teeth. The router-level tests in the same file (`response_app`, `software_app`) do prove the 200 path for the agent and permitted roles.
+**Fix:** Where a positive status is reachable (the download probe uses 404 for a missing file), assert it. For the DB-backed routes, stub the handler's DB dependency in the probe or accept only the expected handler status.
 
-### IN-02: Unused imports in new modules
+### IN-02: `_listed` has an unused parameter, and `TENANT_CONTROLS_READ_GUARD` restates the `settings` read/write strings
 
-**File:** `backend/catalogue_guards.py:18`, `backend/catalogue_mounts_assets.py:14`
-**Issue:** `Dict` is imported and unused in `catalogue_guards.py`. `get_current_user` is imported and unused in `catalogue_mounts_assets.py`. Ruff F401 flags both.
-**Fix:** Remove the unused names.
+**File:** `backend/tests/_catalogue_parity.py:353` (`key` is never used), `backend/catalogue_mounts_billing_identity.py:66-68`
+**Issue:** `_listed(entries, key)` ignores `key`. `TENANT_CONTROLS_READ_GUARD` redeclares `catalogue_guard("settings", read=_SETTINGS, write=_SETTINGS, ...)` next to `SETTINGS_GUARD` in `catalogue_mounts_settings_ops`. Drift is caught by the parity test only for routes that test sees.
+**Fix:** Drop the parameter. Build the tolerant and platform variants from `SETTINGS_GUARD`'s tag, or add a one-line assertion that the two tags agree.
 
-### IN-03: Duplicate guard definitions drift silently
+### IN-03: The `agentCapableRoutes` and `exemptRoutes` reasons are prose that nothing verifies
 
-**File:** `backend/catalogue_mounts_agents.py:36` and `backend/catalogue_mounts_settings_ops.py:94` (`AGENTS_GUARD`); `backend/route_aliases.py:19` (`UEBA_GUARD`) versus the `ueba` guard in `catalogue_mounts_secops.py`
-**Issue:** The same catalogue guard is constructed in two modules as two separate dependency objects. They are equal today only because the parity test compares metadata by value. A change to the manifest needs edits in every copy. `route_aliases.py` also defines a private `UEBA_GUARD` rather than importing one.
-**Fix:** Keep one definition per catalogue, imported everywhere (settings_ops can import `AGENTS_GUARD` from `catalogue_mounts_agents`).
-
-### IN-04: `viewPermission(view) as Permission` can pass `undefined` into `hasPermission`
-
-**File:** `App.tsx` (`handleSetCurrentView`, the line `const requiredPermission = viewPermission(view) as Permission;`)
-**Issue:** The cast hides the `undefined` that `viewPermission` returns for a view with no manifest entry. `catalogueAccess.test.ts` pins that every `AppView` has an entry, and `hasPermission(undefined)` denies for non-super-admins (so it fails closed), but it returns true for a super-admin and the cast defeats the type check on future views. The comment defers this to Phase 77.
-**Fix:** Handle the `undefined` explicitly (`if (!requiredPermission) { warn; return; }`) instead of casting.
+**File:** `shared/catalogue-gaps.json` (`agentCapableRoutes`, `exemptRoutes`)
+**Issue:** The gate checks that each reason exists, is long enough and matches the app. It cannot check that the claim is true. For example, `POST /api/agents/{agent_id}/raise-ticket` is justified by "people are pinned to their tenant", so any tenant role, a viewer included, can raise a ticket for any agent in the tenant. Those reasons are the review record, so each should be verified when the list is next touched.
+**Fix:** Add an owner and a verified-on date to each entry, or back the claim with a probe like the one proposed in WR-01.
 
 ---
 
-_Reviewed: 2026-10-15_
+_Reviewed: 2026-10-18_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
