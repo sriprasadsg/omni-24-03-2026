@@ -12,7 +12,7 @@ from audit_service import get_audit_service
 from auth_types import TokenData
 from authentication_service import get_current_user
 from database import get_database
-from rbac_service import RBACService, effective_permissions
+from rbac_service import effective_permissions
 from rbac_utils import is_super_admin, verify_permission
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,8 @@ class RoleUpdate(BaseModel):
 
 
 @router.get("", response_model=List[Role])
-async def list_roles(current_user: TokenData = Depends(_require_role_list_access)):
+async def list_roles(tenantId: Optional[str] = None,
+                     current_user: TokenData = Depends(_require_role_list_access)):
     """List the roles the caller can assign.
 
     D-15: every built-in role from the single table in ``rbac_defaults`` plus the
@@ -112,10 +113,17 @@ async def list_roles(current_user: TokenData = Depends(_require_role_list_access
     manage:users or manage:rbac.
     """
     db = get_database()
-    tenant_id = current_user.tenant_id
     caller_is_super = is_super_admin(current_user.role)
     roles: List[dict] = []
     try:
+        if caller_is_super:
+            # D-17: without a tenantId a Super Admin gets the built-in roles only; with one,
+            # that (validated, existing) tenant's custom roles too.
+            tenant_id = await role_contents.resolve_target_tenant(db, current_user, tenantId) if tenantId else None
+        else:
+            if tenantId and tenantId != current_user.tenant_id:
+                raise HTTPException(status_code=403, detail="You can only list roles of your own tenant")
+            tenant_id = current_user.tenant_id
         for builtin in rbac_defaults.BUILTIN_ROLES:
             if builtin.key in rbac_defaults.PLATFORM_ROLE_KEYS and not caller_is_super:
                 continue  # platform roles (spec C1) are listed and assignable by the owner only
@@ -129,12 +137,8 @@ async def list_roles(current_user: TokenData = Depends(_require_role_list_access
                 "builtIn": True,
             })
         if tenant_id:
-            builtin_keys = rbac_defaults.builtin_role_keys()
-            docs = await db._db.roles.find({"tenantId": tenant_id}).to_list(500)
-            for doc in docs:
-                name = doc.get("name")
-                if not name or RBACService._normalize_role(name) in builtin_keys:
-                    continue
+            for doc in await role_contents.custom_role_docs(db, tenant_id):
+                name = doc["name"]
                 roles.append({
                     "id": str(doc.get("id") or doc.get("_id")),
                     "name": name,
@@ -144,10 +148,26 @@ async def list_roles(current_user: TokenData = Depends(_require_role_list_access
                     "tenantId": tenant_id,
                     "builtIn": False,
                 })
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("Role list failed: %s", exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Role store unavailable")
     return roles
+
+
+@router.get("/permission-catalogue")
+async def permission_catalogue(current_user: TokenData = Depends(_require_role_write_access)):
+    """What the editor may put in a custom role: the closure of its own effective set within the
+    grantable vocabulary (every grantable string for a Super Admin), never manage:tenants,
+    a platform-only permission or '*' (D-02, D-17)."""
+    super_admin = is_super_admin(current_user.role)
+    try:
+        held = [] if super_admin else await effective_permissions(
+            get_database(), current_user.role, current_user.tenant_id)
+    except Exception as exc:
+        raise _store_unavailable(exc)
+    return {"permissions": role_contents.grantable_for(held, super_admin=super_admin), "superAdmin": super_admin}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=Role)

@@ -147,3 +147,69 @@ def test_every_entry_carries_the_builtin_flag(client):
     assert by_name["rbacmgr"]["builtIn"] is False
     for name in BUILTIN_NAMES:
         assert by_name[name]["builtIn"] is True, name
+
+
+# --- Phase 77 plan 03, Task 3: Super Admin tenant targeting and the grantable catalogue -------
+
+def _get_path(client, path, role, tenant="tenant-a"):
+    client.app.dependency_overrides[get_current_user] = (
+        lambda: TokenData(username=f"{role}@x.test", role=role, tenant_id=tenant))
+    try:
+        return client.get(path)
+    finally:
+        client.app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+def two_tenants(store):
+    store._db.tenants.docs.extend([{"id": "tenant-a"}, {"id": "tenant-b"}])
+    return store
+
+
+def test_super_admin_with_tenant_id_sees_that_tenants_custom_roles(client, two_tenants):
+    res = _get_path(client, "/api/roles?tenantId=tenant-b", "Super Admin", "platform-admin")
+    assert res.status_code == 200, res.text
+    by_name = {r["name"]: r for r in res.json()}
+    assert by_name["Contractor"]["builtIn"] is False and by_name["Contractor"]["tenantId"] == "tenant-b"
+    assert "Helpdesk" not in by_name
+    assert set(PLATFORM_NAMES) <= set(by_name)
+
+
+def test_super_admin_without_tenant_id_gets_the_builtin_roles_only(client, two_tenants):
+    res = _get_path(client, "/api/roles", "Super Admin", "platform-admin")
+    assert res.status_code == 200
+    assert all(r["builtIn"] for r in res.json())
+    assert len(res.json()) == len(rbac_defaults.BUILTIN_ROLES)
+
+
+@pytest.mark.parametrize("target", ["platform-admin", "all", "platform", "tenant-zzz"])
+def test_super_admin_cannot_target_a_sentinel_or_unknown_tenant(client, two_tenants, target):
+    assert _get_path(client, f"/api/roles?tenantId={target}", "Super Admin", "platform-admin").status_code == 400
+
+
+def test_tenant_admin_cannot_list_another_tenant(client, two_tenants):
+    assert _get_path(client, "/api/roles?tenantId=tenant-b", "tenant_admin").status_code == 403
+    assert _get_path(client, "/api/roles?tenantId=tenant-a", "tenant_admin").status_code == 200
+
+
+def test_permission_catalogue_for_a_tenant_admin_is_its_closure_within_the_grantable_set(client, store):
+    import role_contents
+    res = _get_path(client, "/api/roles/permission-catalogue", "tenant_admin")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    effective = set(rbac_defaults.defaults_for("tenant_admin"))
+    expected = sorted(rbac_defaults.implied_closure(effective) & role_contents.GRANTABLE_PERMISSIONS)
+    assert body == {"permissions": expected, "superAdmin": False}
+    banned = {"*", "manage:tenants"} | set(rbac_defaults.PLATFORM_ONLY_PERMISSIONS)
+    assert not banned & set(body["permissions"])
+
+
+def test_permission_catalogue_for_the_super_admin_is_every_grantable_string(client, store):
+    import role_contents
+    body = _get_path(client, "/api/roles/permission-catalogue", "Super Admin", "platform-admin").json()
+    assert body == {"permissions": sorted(role_contents.GRANTABLE_PERMISSIONS), "superAdmin": True}
+
+
+@pytest.mark.parametrize("role", ["viewer", "itam_admin"])
+def test_permission_catalogue_needs_manage_rbac(client, store, role):
+    assert _get_path(client, "/api/roles/permission-catalogue", role).status_code == 403
