@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 77
 current_phase_name: Fail-Closed Sidebar, View Gate & Role Visibility
 status: executing
-stopped_at: Completed 77-01-PLAN.md
-last_updated: "2026-10-18T22:45:33.615Z"
+stopped_at: Completed 77-02-PLAN.md
+last_updated: "2026-10-18T22:50:29.381Z"
 last_activity: 2026-10-18
 last_activity_desc: Phase 77 execution started
-state_head: 467f61c434ea85472f57109ab4f5ba7b812fdf74
+state_head: d3f648776fd684168ab42c9c528e12c5a36c9a55
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 33
-  completed_plans: 21
+  completed_plans: 22
   percent: 0
 ---
 
@@ -431,6 +431,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-14: agent-capable routes join the parity scope (reads need agent_tolerant guards, tags that refuse the agent fail); untagged agent-capable routes (12) and exempt routes (34) are reviewed ledger lists
 - [Phase 76]: 76-15: the five WR-05 tenant reads are role-gated (email via SETTINGS_GUARD; license, allowlist, install keys via TENANT_CONTROLS_READ_GUARD with platform_read view:tenants); exemptRoutes 34 -> 29; the gate rejects a self-service exemption on a tenant- or user-id path — Viewer and ITAM roles read SMTP settings, seat data and hardware identifiers through exemptions that claimed self-service
 - [Phase 77]: 77-01: D-11 closure lives in granted_permissions/_fallback_permissions before tenant narrowing (effective_permissions stays un-closed), filtered to KNOWN_PERMISSIONS
+- [Phase 77]: 77-02: access decided once by evaluateViewAccess at render time (ViewGate); handleSetCurrentView no longer gates; platform roles skip screen-off reason
 
 ## Performance Metrics
 
@@ -574,6 +575,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P14 | 45min | 2 tasks | 3 files |
 | Phase 76 P15 | 70min | 3 tasks | 8 files |
 | Phase 77 P01 | 50min | 2 tasks | 8 files |
+| Phase 77 P02 | 25min | 2 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -608,8 +610,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-18T22:45:33.549Z
-**Stopped at:** Completed 77-01-PLAN.md
+**Last session:** 2026-10-18T22:50:29.317Z
+**Stopped at:** Completed 77-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -633,7 +635,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 77 (Fail-Closed Sidebar, View Gate & Role Visibility) — EXECUTING
-Plan: 2 of 13
+Plan: 3 of 13
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-18 — Phase 77 execution started
