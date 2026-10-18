@@ -297,6 +297,19 @@ def implied_closure(perms: Iterable[str]) -> FrozenSet[str]:
     return frozenset(closed)
 
 
+def deliverable_closure(perms: Iterable[str], vocabulary: Iterable[str]) -> List[str]:
+    """D-11: ``perms`` plus the ``view:X``/``request:X`` implied by each ``manage:X``, as a list.
+
+    The input keeps its order (de-duplicated); the derived strings follow, sorted, and
+    only those that are in ``vocabulary`` (so an unknown resource adds nothing). Uses the
+    same ``implied_closure`` rule as ``ceiling_allows``: never a ``control:`` string and
+    nothing derived from a ``view:`` string (PROH-77-01). Pure, standard library only.
+    """
+    given = list(dict.fromkeys(perms))
+    derived = implied_closure(given) - set(given)
+    return given + sorted(derived & set(vocabulary))
+
+
 def ceiling_allows(caller_perms: Iterable[str], target_perms: Iterable[str]) -> bool:
     """True when a caller holding ``caller_perms`` may hand out ``target_perms``.
 

@@ -5,6 +5,7 @@ from auth_types import TokenData
 from database import get_database
 from typing import Dict, List, Optional
 
+import permission_vocabulary
 import rbac_defaults
 import tenant_features
 
@@ -107,14 +108,23 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
 
 
 async def granted_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
-    """What a user with ``role`` in ``tenant_id`` may do: ``effective_permissions`` minus
-    the features switched off for that tenant (spec C6, ``tenant_features``), plus a
-    ``screen-off:<view>`` marker for each switched-off Security/Compliance screen it would otherwise reach.
+    """What a user with ``role`` in ``tenant_id`` may do: ``effective_permissions`` with the
+    manage:X => view:X / request:X closure applied (D-11), minus the features switched off for
+    that tenant (spec C6, ``tenant_features``), plus a ``screen-off:<view>`` marker for each
+    switched-off Security/Compliance screen it would otherwise reach.
+
+    The closure is applied here, before the tenant narrowing, so enforcement
+    (``rbac_utils.verify_permission``) and delivery (``session_permissions``) share it and
+    cannot diverge; ``effective_permissions`` stays the un-closed role definition. Only
+    strings in ``permission_vocabulary.KNOWN_PERMISSIONS`` are derived (PROH-77-01).
 
     Platform roles are never narrowed. Errors propagate like ``effective_permissions``.
     """
     perms = await effective_permissions(db, role, tenant_id)
-    if "*" in perms or not tenant_features.applies_to(role):
+    if "*" in perms:
+        return perms
+    perms = rbac_defaults.deliverable_closure(perms, permission_vocabulary.KNOWN_PERMISSIONS)
+    if not tenant_features.applies_to(role):
         return perms
     enabled = await tenant_features.enabled_features(tenant_id, lambda: db)
     narrowed = tenant_features.narrow(perms, enabled)
@@ -122,11 +132,14 @@ async def granted_permissions(db, role: Optional[str], tenant_id: Optional[str])
 
 
 async def _fallback_permissions(db, role: Optional[str], tenant_id: Optional[str]) -> List[str]:
-    """Built-in defaults when the role store is unreachable: never more than the table,
-    still narrowed by the tenant's feature switches, and with every switch off when
+    """Built-in defaults when the role store is unreachable: never more than the table plus its
+    D-11 closure (same as ``granted_permissions``), still narrowed by the tenant's feature switches, and with every switch off when
     those cannot be read either."""
     perms = list(rbac_defaults.defaults_for(RBACService._normalize_role(role or "")))
-    if "*" in perms or not tenant_features.applies_to(role):
+    if "*" in perms:
+        return perms
+    perms = rbac_defaults.deliverable_closure(perms, permission_vocabulary.KNOWN_PERMISSIONS)
+    if not tenant_features.applies_to(role):
         return perms
     try:
         enabled = await tenant_features.enabled_features(tenant_id, lambda: db)

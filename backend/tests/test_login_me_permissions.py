@@ -42,8 +42,10 @@ def _both(client, user):
 
 
 ITAM_EXPECTED = {
+    # D-11 (Phase 77): the 8 table defaults followed by the manage:X => view:X/request:X closure.
     "itam_admin": ["manage:assets", "manage:finance", "manage:itam", "manage:licenses",
-                   "manage:procurement", "manage:users", "view:itam", "view:profile"],
+                   "manage:procurement", "manage:users", "view:itam", "view:profile",
+                   "request:assets", "view:assets", "view:licenses"],
     "itam_user": ["request:assets", "view:assets", "view:itam", "view:licenses", "view:profile"],
     "itam_viewer": ["view:assets", "view:itam", "view:licenses", "view:profile"],
 }
@@ -57,8 +59,9 @@ def test_itam_role_gets_real_permissions_from_login_and_me(monkeypatch, role):
     assert logged_in == ITAM_EXPECTED[role]
     assert current == logged_in
     assert "view:profile" in logged_in
-    # itam_admin holds assets through manage:assets (the target set has no view:assets for it)
-    assert ("manage:assets" if role == "itam_admin" else "view:assets") in logged_in
+    # D-11: itam_admin now also receives view:assets through the manage:assets closure
+    assert "view:assets" in logged_in
+    assert ("manage:assets" in logged_in) == (role == "itam_admin")
     assert "view:dashboard" not in logged_in
 
 
@@ -83,7 +86,9 @@ def test_login_equals_me_for_every_builtin_role(monkeypatch, role, seeded):
     key = rbac_defaults.canonical_key(role.lower().replace(" ", "_"))
     assert logged_in, f"{role} logged in with an empty permission list"
     assert logged_in == current
-    assert logged_in == list(rbac_defaults.defaults_for(key))
+    # D-11 (Phase 77): the delivered list is the table plus the closure; only itam_admin gains anything.
+    expected = ITAM_EXPECTED[key] if key == "itam_admin" else list(rbac_defaults.defaults_for(key))
+    assert logged_in == expected
 
 
 def test_tenant_scoped_document_extends_both_endpoints_for_own_tenant_only(monkeypatch):

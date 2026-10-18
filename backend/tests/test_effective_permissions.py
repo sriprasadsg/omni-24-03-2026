@@ -223,7 +223,10 @@ def test_verify_permission_matches_resolver_for_every_builtin_role(monkeypatch, 
     user = _token(role)
 
     async def check():
-        delivered = set(await rbac_service.effective_permissions(db, role, "t1"))
+        # D-11 (Phase 77): enforcement and delivery both answer from granted_permissions, which
+        # applies the manage:X => view:X/request:X closure on top of effective_permissions.
+        delivered = set(await rbac_service.granted_permissions(db, role, "t1"))
+        assert set(rbac_defaults.defaults_for(key)) <= set(await rbac_service.effective_permissions(db, role, "t1"))
         assert set(rbac_defaults.defaults_for(key)) <= delivered
         for perm in _universe():
             granted = await rbac_utils.verify_permission(user, perm)
