@@ -5,11 +5,11 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 76
 current_phase_name: Catalogue Manifest & Backend Route Enforcement
 status: executing
-stopped_at: Completed 76-15-PLAN.md
-last_updated: "2026-10-18T17:04:26.442Z"
+stopped_at: Phase 77 context gathered
+last_updated: "2026-10-18T20:09:21.725Z"
 last_activity: 2026-10-16
 last_activity_desc: Phase 76 execution started
-state_head: 8d1280bbe28d98527f67a45f3d8c8f8e92be6d70
+state_head: be76393e92c7259c4b86c2181974af473b663ece
 progress:
   total_phases: 6
   completed_phases: 0
@@ -606,9 +606,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-18T17:04:23.499Z
-**Stopped at:** Completed 76-15-PLAN.md
-**Resume file:** None
+**Last session:** 2026-10-18T20:09:21.660Z
+**Stopped at:** Phase 77 context gathered
+**Resume file:** .planning/phases/77-fail-closed-sidebar-view-gate-role-visibility/77-CONTEXT.md
 
 ## Accumulated Context
 
