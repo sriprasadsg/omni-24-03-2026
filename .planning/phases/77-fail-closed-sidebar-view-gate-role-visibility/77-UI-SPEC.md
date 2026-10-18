@@ -291,7 +291,7 @@ Responsive: panel is full width of the table card; the table already scrolls hor
 | Destructive confirmation | `Delete role`: `Delete the custom role "{name}"? This can't be undone.` Buttons `Delete role` / `Keep role` |
 | Delete refused, title | `Can't delete "{name}" yet` |
 | Delete refused, body | `1 user still holds this role.` / `{N} users still hold this role.` then `Reassign them to another role, then delete it.` |
-| Delete refused, mappings | sub-heading `Sign-in mappings`; body adds `and {M} sign-in mapping(s)` is replaced by: `1 sign-in mapping also uses it.` / `{M} sign-in mappings also use it.` |
+| Delete refused, mappings | sub-heading `Sign-in mappings`; the body adds `1 sign-in mapping also uses it.` / `{M} sign-in mappings also use it.` after the holder sentence |
 | Name locked on edit | `A role's name can't be changed. To rename, create a new role and reassign its users.` |
 | Role panel basis, no tenant selected | `No tenant selected. Tenant screen switches do not narrow it.` |
 | Delete refused, holder without a name | the email is shown as the bold line, no second line |
