@@ -236,7 +236,9 @@ import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
 import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, screenAllowed, switchedOnFor } from './utils/permissions';
-import { NAV_GROUPS, viewForHash, viewPermission } from './utils/catalogueAccess';
+import { NAV_GROUPS, catalogueFor, viewForHash, viewPermission } from './utils/catalogueAccess';
+import { evaluateViewAccess, landingView } from './utils/viewAccess';
+import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
 
 const API_BASE = '/api';
 
@@ -1015,15 +1017,8 @@ const App: React.FC = () => {
     () => derivePermissionState(currentUser),
     [currentUser]
   );
-  // A tenant user whose current screen the Super Admin switched off (Overview included, spec C6)
-  // moves to the first sidebar item still on for them; until then nothing of that screen renders.
-  const currentScreenOff = !!currentUser && !isPlatformRoleName(currentUser.role) && !screenAllowed(currentView, hasPermission);
-  useEffect(() => {
-    if (!currentScreenOff) return;
-    const next = NAV_GROUPS.flatMap(group => group.items)
-      .find(item => hasPermission(item.permission) && screenAllowed(item.view, hasPermission));
-    if (next) setCurrentView(next.view);
-  }, [currentScreenOff, hasPermission]);
+  // D-06/D-12: the view a sign-in lands on and the "Go to" button targets (null when no screen is open).
+  const landing = useMemo(() => landingView(currentUser, hasPermission), [currentUser, hasPermission]);
 
 
 
@@ -1180,6 +1175,13 @@ const App: React.FC = () => {
       // Optionally show an error message to the user
     }
   }, [hasPermission, currentUser]);
+
+  // "Go to {landing}" on the no-access panel: replace (never push) the hash so Back does not loop into the panel.
+  const goToLanding = useCallback(() => {
+    if (!landing) return;
+    window.history.replaceState(null, '', '#' + landing);
+    handleSetCurrentView(landing);
+  }, [landing, handleSetCurrentView]);
 
 
 
@@ -1591,7 +1593,6 @@ const App: React.FC = () => {
   }
 
   const renderView = () => {
-    if (currentScreenOff) return null;
     if (viewingImpactFor && currentView === 'incidentImpact' && incidentImpactGraph) {
       // Pass-through to switch case
     }
@@ -1842,7 +1843,7 @@ const App: React.FC = () => {
       case 'ticketWebhooks': return <ErrorBoundary name="TicketWebhooksDashboard"><Suspense fallback={<SkeletonDashboard />}><TicketWebhooksDashboard /></Suspense></ErrorBoundary>;
       case 'notificationPrefs': return <ErrorBoundary name="NotificationPreferencesDashboard"><Suspense fallback={<SkeletonDashboard />}><NotificationPreferencesDashboard /></Suspense></ErrorBoundary>;
       case 'aiAssistantChat': return <ErrorBoundary name="AIAssistantChat"><AIAssistantChat /></ErrorBoundary>;
-      default: return <ErrorBoundary name="Dashboard"><Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} /></ErrorBoundary>;
+      default: return <NoAccessPanel reason="unmapped" screenLabel={catalogueFor(currentView)?.label ?? String(currentView)} landingLabel={landing ? catalogueFor(landing)?.label : undefined} onGoToLanding={goToLanding} />;
 
     }
   };
@@ -1895,7 +1896,7 @@ const App: React.FC = () => {
                       across views and one crash leaves every later view showing the error. */}
                   <ErrorBoundary name="MainContent" key={currentView}>
                     <Suspense fallback={<SkeletonDashboard />}>
-                      {renderView()}
+                      <ViewGate view={currentView} user={currentUser} hasPermission={hasPermission} landing={landing} onGoToLanding={goToLanding} render={renderView} />
                     </Suspense>
                   </ErrorBoundary>
                 </main>
