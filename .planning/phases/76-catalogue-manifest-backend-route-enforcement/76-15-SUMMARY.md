@@ -126,6 +126,10 @@ status: complete
 
 None in scope. Test and source files carry a pre-existing chmod-only change (644 -> 755); commits were staged with `core.fileMode=false`, so no mode change entered any commit.
 
+## Threat Flags
+
+None. T-76-44..T-76-47 are mitigated by the new guards, the role matrix and the self-service rule; no new surface beyond the plan's threat model.
+
 ## Human verification (post-deploy, user-owned)
 
 - Sign in as a tenant admin, open Settings > Email: config and preferences load.

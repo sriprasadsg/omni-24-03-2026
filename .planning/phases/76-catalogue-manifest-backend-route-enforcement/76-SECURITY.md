@@ -71,15 +71,32 @@ created: "2026-10-15"
 | T-76-36 | Elevation of Privilege | login-only posture reads | high | mitigate | test_catalogue_slice_secposture.py::test_secposture_real_app_enforced, ::test_secposture_guards_match_manifest | closed |
 | T-76-37 | Elevation of Privilege | login-only agent console reads in the data-plane routers | high | mitigate | test_catalogue_slice_agents_dataplane.py::test_dataplane_real_app_enforced | closed |
 | T-76-38 | Denial of Service | agent instructions, results, telemetry, scan uploads, tickets, uninstall reports | high | mitigate | test_catalogue_slice_agents_dataplane.py::test_dataplane_agent_routes_untouched, ::test_dataplane_agent_auth_unchanged | closed |
-| T-76-SC | Tampering | npm/pip installs | low | accept | No new dependencies were installed in any of the 12 plans; see Accepted Risks | closed |
+| T-76-39 | Information Disclosure | GET /api/software/download/{filename}, GET /api/response/tasks/{agent_id} (76-13) | high | mitigate | `agent_tolerant(SOFTWARE_UPDATES_GUARD)` / `agent_tolerant(EDR_GUARD)` on both routes (software_endpoints.py:118, response_endpoints.py:197); test_catalogue_guard_variants.py::test_download_on_the_real_app, ::test_download_refuses_roles_without_view_software_updates, ::test_task_poll_refuses_people_without_view_security, ::test_task_poll_and_chat_list_on_the_real_app | closed |
+| T-76-40 | Spoofing | agent identity check in the guard (76-13) | low | accept | Accepted (AR-76-03): identity is the auth layer's own test (role claim exactly `agent` via get_current_user_or_agent); test_role_spelled_Agent_is_a_person, ::test_plain_guard_still_refuses_agent_role_without_the_permission | closed |
+| T-76-41 | Denial of Service | agent polling and installer download (76-13) | high | mitigate | Agent identity returns before any permission lookup (catalogue_guards.py:143); test_agent_identity_skips_the_permission_lookup, ::test_download_serves_agent_and_permitted_roles, ::test_task_poll_serves_agent_and_security_readers | closed |
+| T-76-42 | Tampering | agentCapableRoutes / exemptRoutes edited to hide a gap (76-14) | medium | mitigate | Exact per-route lists with reason equality; test_catalogue_route_parity.py::test_reworded_exempt_reason_is_an_offender_showing_both_reasons, ::test_ledger_offender_for_unlisted_agent_capable_route_is_paste_ready, ::test_committed_exempt_list_matches_the_production_registry; helper never writes the ledger | closed |
+| T-76-43 | Elevation of Privilege | platform_read guard variant (76-13) | high | mitigate | Construction refuses permissions outside PLATFORM_ONLY_PERMISSIONS (catalogue_guards.py:138); runtime uses has_platform_permission on SAFE_METHODS only (catalogue_guards.py:81-85); test_platform_read_must_be_platform_only, ::test_platform_support_reads_but_never_writes, ::test_platform_support_in_a_tenant_is_refused, ::test_narrowed_scope_refuses_platform_staff | closed |
+| T-76-44 | Information Disclosure | GET allowlist, enrollment-keys, email/config, email/preferences, license (76-15) | high | mitigate | SETTINGS_GUARD (tenant_endpoints.py:492, 625) and TENANT_CONTROLS_READ_GUARD (tenant_endpoints.py:714, tenant_enrollment_endpoints.py:67, 121); test_catalogue_slice_billing_identity.py::test_tenant_settings_reads_are_role_gated (403 for nine tenant roles on all five paths) | closed |
+| T-76-45 | Elevation of Privilege | platform_read on TENANT_CONTROLS_READ_GUARD (76-15) | high | mitigate | platform_read is only `view:tenants` (catalogue_mounts_billing_identity.py:66-68), checked through has_platform_permission on safe methods (T-76-43 tests); writes keep TENANT_PLATFORM_STAFF plus _require_license_manager (test_platform_role_routes.py) | closed |
+| T-76-46 | Denial of Service | tenant admins and platform staff losing reads they use (76-15) | medium | mitigate | test_tenant_settings_reads_are_role_gated asserts not-refused for tenant_admin, admin, super_admin and (license/allowlist/install keys) platform staff; license consumer precondition grep held; live check is a post-deploy manual item | closed |
+| T-76-47 | Tampering | exemption reasons that misdescribe what a route returns (76-15) | medium | mitigate | Self-service-on-tenant/user-path rule in _catalogue_parity.ledger_offenders; test_catalogue_route_parity.py::test_self_service_exemption_on_a_tenant_path_is_an_offender, ::test_self_service_exemption_on_a_user_id_path_is_an_offender, plus two clean controls | closed |
+| T-76-48 | Information Disclosure | future agent-capable read under an enforced catalogue added without a guard (76-14) | medium | mitigate | _parity_scope puts safe-method agent-capable routes under enforce:true catalogues in parity scope; test_catalogue_route_parity.py::test_untagged_agent_capable_read_in_enforced_catalogue_is_a_parity_offender | closed |
+| T-76-49 | Denial of Service | a non-tolerant catalogue tag on an agent-capable route refusing the agent (76-14) | medium | mitigate | Parity offender for any agent_capable record with a tag lacking allow_agent True; test_catalogue_route_parity.py::test_plain_guard_on_agent_capable_route_would_refuse_the_agent | closed |
+| T-76-SC | Tampering | npm/pip installs | low | accept | No new dependencies were installed in any of the 15 plans; see Accepted Risks | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
 *Disposition: mitigate (implementation required) · accept (documented risk) · transfer (third-party)*
 
+Register authored at plan time (all 15 PLAN files carry a `<threat_model>`). Re-audited 2026-10-18 after gap plans 76-13..76-15: T-76-39..T-76-49 added, each traced to its guard and a green test; full backend suite 3779 passed, 0 failed at 8d1280bbe.
+
 Register authored at plan time (all 12 PLAN files carry a `<threat_model>`). Verified at ASVS level 1 (grep depth: each mitigation traced to its guard module or a green test). Every cited test passed on 2026-10-15: the phase test set (132 backend tests), `catalogueAccess.test.ts` (26), and the full backend suite (3721 passed, 0 failed).
 
 **Pre-existing finding, not introduced by this phase (76-05):** `GET /api/support/presence` returns online status for any requested usernames with no tenant scoping (cross-tenant presence lookup). It is catalogue_exempt as self-service; a tenant filter is still needed. Not a phase 76 threat; tracked here so it is not lost.
+
+**Observations from the gap plans, not introduced by this phase (left for WR-02 / ACC-F2):**
+- A tenant admin can assign the role string `agent` to a person, who would then pass `agent_tolerant` guards as the agent identity (accepted as T-76-40 / AR-76-03; shared by every agent-capable route).
+- `POST /api/agents/{agent_id}/raise-ticket` has no permission check for people beyond tenant pinning (recorded honestly in the agentCapableRoutes ledger reason).
 
 ---
 
@@ -88,7 +105,8 @@ Register authored at plan time (all 12 PLAN files carry a `<threat_model>`). Ver
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | AR-76-01 | T-76-10 | The sidebar hides views client-side only; that is cosmetic by design. Every enforced catalogue is refused by the backend guard, and the parity gate keeps the two in step | Plan 76-03 threat model (planner) | 2026-10-13 |
-| AR-76-02 | T-76-SC | Supply-chain risk of npm/pip installs. Low severity; no plan in this phase installed or upgraded a dependency | Plans 76-01..76-12 threat models (planner) | 2026-10-13 |
+| AR-76-02 | T-76-SC | Supply-chain risk of npm/pip installs. Low severity; no plan in this phase installed or upgraded a dependency | Plans 76-01..76-15 threat models (planner) | 2026-10-13 |
+| AR-76-03 | T-76-40 | The agent-tolerant guard trusts the auth layer's agent identity (role claim exactly `agent`, issued through get_current_user_or_agent with path binding and Pending admission). A person holding that role string is a pre-existing auth-layer property shared by every agent-capable route; fixing it belongs with WR-02 | Plan 76-13 threat model (planner) | 2026-10-16 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -99,6 +117,7 @@ Register authored at plan time (all 12 PLAN files carry a `<threat_model>`). Ver
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-10-15 | 39 | 39 | 0 | /gsd-secure-phase 76 (orchestrator, ASVS L1 short-circuit: register authored at plan time, 0 open) |
+| 2026-10-18 | 50 | 50 | 0 | /gsd-secure-phase 76 after gap plans 76-13..76-15 (orchestrator, ASVS L1 short-circuit: register authored at plan time, 0 open) |
 
 ---
 
@@ -109,4 +128,12 @@ Register authored at plan time (all 12 PLAN files carry a `<threat_model>`). Ver
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-10-15
+**Approval:** verified 2026-10-15; re-verified 2026-10-18 after gap plans 76-13..76-15 (50 threats, 50 closed, 0 open)
+
+## Security Audit 2026-10-18
+
+| Metric | Count |
+|---|---|
+| Threats found | 50 |
+| Closed | 50 |
+| Open | 0 |
