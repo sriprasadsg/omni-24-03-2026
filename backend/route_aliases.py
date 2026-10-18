@@ -201,17 +201,24 @@ async def get_shadow_ai_summary(current_user: Any = Depends(get_current_user)):
     }
 
 
+# Every signed-in role reaches /api/tenants/me, so it returns display fields only (CR-01). The
+# stored document also holds the agent registration key, SMTP settings, API keys and seat data;
+# those stay behind the settings and tenant-management guards (WR-05).
+TENANT_ME_FIELDS = ("id", "name", "subscriptionTier", "branding")
+
+
 @router.get("/api/tenants/me", dependencies=[Depends(SELF_SERVICE_TENANT)])
 async def get_my_tenant(current_user: Any = Depends(get_current_user)):
-    """Return the calling user's own tenant data."""
+    """Return the calling user's own tenant: id, name, subscription tier and branding."""
     from database import mongodb
     tenant_id = getattr(current_user, "tenant_id", None)
     if not tenant_id:
         raise HTTPException(status_code=404, detail="No tenant associated with this account")
-    tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 0})
+    projection = {"_id": 0, **{field: 1 for field in TENANT_ME_FIELDS}}
+    tenant = await mongodb.db.tenants.find_one({"id": tenant_id}, projection)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    return tenant
+    return {field: tenant[field] for field in TENANT_ME_FIELDS if field in tenant}
 
 
 @router.get("/api/agent/download-token/{tenant_id}", dependencies=[Depends(AGENTS_GUARD)])
