@@ -1,5 +1,5 @@
 import type { AppView, Permission, User } from '../types';
-import { NAV_GROUPS, catalogueFor } from './catalogueAccess';
+import { NAV_GROUPS, catalogueFor, viewForHash } from './catalogueAccess';
 import { isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './permissions';
 
 /**
@@ -59,4 +59,23 @@ export function landingView(user: User | null, has: Has): AppView | null {
 
 export function hasAnyScreen(user: User | null, has: Has): boolean {
   return landingView(user, has) !== null;
+}
+
+// Friendlier URL aliases (#assets, #helpdesk, ...) that differ from the view name.
+const HASH_ALIASES: Record<string, AppView> = {
+  assets: 'assetManagement',
+  agents: 'agents',
+  patching: 'patchManagement',
+  security: 'security',
+  compliance: 'compliance',
+  aigovernance: 'aiGovernance',
+  tickets: 'internalTickets',
+  helpdesk: 'internalTickets',
+};
+
+/** The view a URL hash names (alias first, then the manifest, case-insensitive), or undefined. */
+export function resolveHashView(hash: string): AppView | undefined {
+  const wanted = (hash ?? '').replace(/^#/, '').toLowerCase();
+  if (!wanted) return undefined;
+  return HASH_ALIASES[wanted] ?? viewForHash(wanted);
 }

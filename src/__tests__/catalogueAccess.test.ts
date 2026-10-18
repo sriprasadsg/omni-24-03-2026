@@ -164,10 +164,36 @@ describe('sidebar presentation vs manifest (D-06)', () => {
 describe('App.tsx lookups (ACC-03)', () => {
   it('resolves view permissions and hash routes from the manifest reader', () => {
     const text = read('App.tsx');
-    expect(text).toContain("from './utils/catalogueAccess'");
-    expect(text).toMatch(/viewPermission\(/);
-    expect(text).toMatch(/viewForHash\(/);
+    const reader = read('utils/viewAccess.ts');
+    expect(text).toContain("from './utils/viewAccess'");
+    expect(reader).toMatch(/catalogueFor\(/);
+    expect(reader).toMatch(/viewForHash\(/);
     expect(text).not.toMatch(/Record<AppView,\s*Permission>/);
     expect(text).not.toContain('viewPermissionMap');
+  });
+});
+
+describe('App.tsx fails closed at render time (D-05, PROH-77-02)', () => {
+  const text = () => read('App.tsx');
+
+  it('wraps renderView in ViewGate', () => {
+    expect(text()).toMatch(/<ViewGate[^>]*render=\{renderView\}/);
+  });
+
+  it('never renders the Dashboard from the renderView default branch', () => {
+    const start = text().indexOf('const renderView = ');
+    const body = text().slice(start);
+    const dflt = body.slice(body.indexOf('      default:'), body.indexOf('    }\n  };'));
+    expect(dflt).not.toContain('<Dashboard');
+    expect(dflt).toContain('reason="unmapped"');
+  });
+
+  it('hands no raw view state setter to a child as onNavigate', () => {
+    expect(text()).not.toMatch(/onNavigate=\{\(view\) => setCurrentView/);
+    expect(text()).toMatch(/onNavigate=\{\(view\) => handleSetCurrentView/);
+  });
+
+  it('has no silent console warning about a missing view permission', () => {
+    expect(text()).not.toContain('does not have permission to view');
   });
 });

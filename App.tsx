@@ -235,9 +235,9 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState, isPlatformRoleName, isSuperAdminRoleName, screenAllowed, switchedOnFor } from './utils/permissions';
+import { derivePermissionState, isPlatformRoleName, switchedOnFor } from './utils/permissions';
 import { NAV_GROUPS, catalogueFor, viewForHash, viewPermission } from './utils/catalogueAccess';
-import { evaluateViewAccess, landingView } from './utils/viewAccess';
+import { evaluateViewAccess, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
 
 const API_BASE = '/api';
@@ -431,19 +431,7 @@ const App: React.FC = () => {
       const hash = window.location.hash.slice(1).toLowerCase(); // remove '#'
       if (!hash) return;
 
-      // Explicit mapping for friendlier URLs
-      const hashToView: Record<string, AppView> = {
-        'assets': 'assetManagement',
-        'agents': 'agents',
-        'patching': 'patchManagement',
-        'security': 'security',
-        'compliance': 'compliance',
-        'aigovernance': 'aiGovernance',
-        'tickets': 'internalTickets',
-        'helpdesk': 'internalTickets',
-      };
-
-      const view = hashToView[hash] || viewForHash(hash);
+      const view = resolveHashView(hash);
 
       if (view) {
         handleSetCurrentView(view);
@@ -619,7 +607,6 @@ const App: React.FC = () => {
         setCurrentUser(signedIn);
         currentUserRef.current = signedIn;  // loadAllData below runs before the re-render
         setViewingTenantId((data.user.role === 'Super Admin' || data.user.role === 'superadmin' || data.user.role === 'super_admin') ? null : data.user.tenantId);
-        setCurrentView('dashboard');
         api.startTokenRefreshCycle();
 
         // Fetch server-confirmed feature flags (non-blocking)
@@ -892,7 +879,11 @@ const App: React.FC = () => {
       const handleComplianceAlert = (data: any) => {
         playNotificationSound();
         console.warn('[App] Compliance alert received:', data);
-        setCurrentView('compliance');
+        // Navigate only when the signed-in user may see Compliance; otherwise the alert stays a toast/sound.
+        const viewer = currentUserRef.current;
+        if (evaluateViewAccess('compliance', viewer, derivePermissionState(viewer).hasPermission).allowed) {
+          setCurrentView('compliance');
+        }
       };
 
       socketService.on('agent_status_change', handleAgentStatusChange);
@@ -1019,6 +1010,17 @@ const App: React.FC = () => {
   );
   // D-06/D-12: the view a sign-in lands on and the "Go to" button targets (null when no screen is open).
   const landing = useMemo(() => landingView(currentUser, hasPermission), [currentUser, hasPermission]);
+  // Every sign-in (login, session restore, signup, registerTenant) lands once on the hash view or the
+  // landing view; until then <main> shows a skeleton so an allowed user never sees a panel flash.
+  const [landedFor, setLandedFor] = useState<string | null>(null);
+  const landedKey = currentUser ? `${currentUser.email}|${currentUser.tenantId}` : null;
+  useEffect(() => {
+    if (!currentUser) { setLandedFor(null); return; }
+    if (!permissionsKnown(currentUser) || landedFor === landedKey) return;
+    const next = resolveHashView(window.location.hash.slice(1)) ?? landingView(currentUser, derivePermissionState(currentUser).hasPermission);
+    if (next) setCurrentView(next);
+    setLandedFor(landedKey);
+  }, [currentUser, landedFor, landedKey]);
 
 
 
@@ -1141,7 +1143,6 @@ const App: React.FC = () => {
       setTenants(prev => [...prev, newTenant]);
       setCurrentUser(newUser);
       setViewingTenantId(newUser.tenantId);
-      setCurrentView('dashboard');
       return true;
     }
     return false;
@@ -1155,26 +1156,12 @@ const App: React.FC = () => {
     api.logoutSession().finally(() => { window.location.href = '/'; });
   }, []);
 
+  // Navigation only moves the view; the access decision is ViewGate's (D-05), so a denied view shows the panel.
   const handleSetCurrentView = useCallback((view: AppView) => {
     // On phones the open sidebar overlays the page; close it once a page is picked.
     if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
-    // Super Admin can access all views without permission check
-    if (isSuperAdminRoleName(currentUser?.role)) {
-      setCurrentView(view);
-      return;
-    }
-
-    // Every AppView has a manifest entry (pinned by catalogueAccess.test.ts); undefined handling is unchanged (Phase 77 owns fail-closed).
-    const requiredPermission = viewPermission(view) as Permission;
-    // A Security/Compliance screen the Super Admin switched off for this tenant (spec C6).
-    const screenOk = isPlatformRoleName(currentUser?.role) || screenAllowed(view, hasPermission);
-    if (hasPermission(requiredPermission) && screenOk) {
-      setCurrentView(view);
-    } else {
-      console.warn(`User does not have permission to view: ${view}`);
-      // Optionally show an error message to the user
-    }
-  }, [hasPermission, currentUser]);
+    setCurrentView(view);
+  }, []);
 
   // "Go to {landing}" on the no-access panel: replace (never push) the hash so Back does not loop into the panel.
   const goToLanding = useCallback(() => {
@@ -1896,7 +1883,7 @@ const App: React.FC = () => {
                       across views and one crash leaves every later view showing the error. */}
                   <ErrorBoundary name="MainContent" key={currentView}>
                     <Suspense fallback={<SkeletonDashboard />}>
-                      <ViewGate view={currentView} user={currentUser} hasPermission={hasPermission} landing={landing} onGoToLanding={goToLanding} render={renderView} />
+                      {landedFor === landedKey ? <ViewGate view={currentView} user={currentUser} hasPermission={hasPermission} landing={landing} onGoToLanding={goToLanding} render={renderView} /> : <SkeletonDashboard />}
                     </Suspense>
                   </ErrorBoundary>
                 </main>
@@ -1978,7 +1965,7 @@ const App: React.FC = () => {
             isOpen={isChatOpen}
             onClose={() => setIsChatOpen(false)}
             context={{ currentView }}
-            onNavigate={(view) => setCurrentView(view as any)}
+            onNavigate={(view) => handleSetCurrentView(view as AppView)}
           />
           <AICommandBar
             isOpen={isCommandBarOpen}

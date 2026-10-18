@@ -8,6 +8,7 @@ import {
   hasAnyScreen,
   landingView,
   permissionsKnown,
+  resolveHashView,
 } from '../../utils/viewAccess';
 import { CATALOGUES } from '../../utils/catalogueAccess';
 import { derivePermissionState } from '../../utils/permissions';
@@ -118,5 +119,25 @@ describe('permissionsKnown (C09)', () => {
   it('is true for a super admin without a list and for a user with an empty list', () => {
     expect(permissionsKnown(mk('Super Admin'))).toBe(true);
     expect(permissionsKnown(mk('Tenant Admin', []))).toBe(true);
+  });
+});
+
+describe('resolveHashView (friendly URLs, D-05)', () => {
+  it('maps the friendly aliases to their views', () => {
+    expect(resolveHashView('assets')).toBe('assetManagement');
+    expect(resolveHashView('helpdesk')).toBe('internalTickets');
+    expect(resolveHashView('tickets')).toBe('internalTickets');
+    expect(resolveHashView('patching')).toBe('patchManagement');
+    expect(resolveHashView('aigovernance')).toBe('aiGovernance');
+  });
+
+  it('falls back to the manifest lookup, case-insensitively', () => {
+    expect(resolveHashView('AUDITLOG')).toBe('auditLog');
+    expect(resolveHashView('compliance')).toBe('compliance');
+  });
+
+  it('is undefined for an empty or unknown hash', () => {
+    expect(resolveHashView('')).toBeUndefined();
+    expect(resolveHashView('nope')).toBeUndefined();
   });
 });
