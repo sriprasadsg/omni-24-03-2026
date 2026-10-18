@@ -202,3 +202,37 @@ def test_tenant_settings_reads_are_role_gated():
                     assert status not in (401, 403), f"{role} {path} -> {status}, expected to pass"
                 else:
                     assert status == 403, f"{role} {path} -> {status}, expected 403"
+
+
+# CR-01 (code review 2026-10-18): GET /api/tenants/me is exempt for every signed-in role, so it
+# returns display fields only. The stored tenant document also holds the agent registration key,
+# SMTP settings, API keys and seat data, which the WR-05 guards above keep from tenant roles.
+TENANT_SECRETS = ("registrationKey", "emailConfig", "apiKeys", "license", "maxAgents",
+                  "notificationPreferences", "agentCapabilities")
+
+
+async def test_tenants_me_returns_display_fields_only():
+    import database
+    import route_aliases
+    from unittest.mock import MagicMock, patch
+    from auth_types import TokenData
+
+    stored = {"id": TENANT, "name": "Tenant A", "subscriptionTier": "Pro", "branding": {"primaryColor": "#123456"},
+              "registrationKey": "reg_secret", "emailConfig": {"smtpUser": "u", "smtpPassword": "p"},
+              "apiKeys": [{"key": "k"}], "license": {"maxAgents": 5}, "maxAgents": 5,
+              "notificationPreferences": {}, "agentCapabilities": ["remote"]}
+    queries = []
+
+    async def find_one(query, projection=None):
+        queries.append(query)
+        return dict(stored)  # a store that ignores the projection must not leak either
+
+    fake = MagicMock()
+    fake.db.tenants.find_one = find_one
+    with patch.object(database, "mongodb", fake):
+        for role in ("viewer", "itam_viewer", "user", "tenant_admin"):
+            body = await route_aliases.get_my_tenant(TokenData(username="u@example.com", role=role, tenant_id=TENANT))
+            assert body == {"id": TENANT, "name": "Tenant A", "subscriptionTier": "Pro",
+                            "branding": {"primaryColor": "#123456"}}, role
+            assert not set(TENANT_SECRETS) & set(body), role
+    assert all(q == {"id": TENANT} for q in queries)
