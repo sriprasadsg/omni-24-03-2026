@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 77
 current_phase_name: Fail-Closed Sidebar, View Gate & Role Visibility
 status: executing
-stopped_at: Phase 77 UI-SPEC approved
-last_updated: "2026-10-18T22:26:22.657Z"
-last_activity: 2026-10-16
-last_activity_desc: Phase 76 execution started
-state_head: 0331940f9b418bbce0f1dcebf41d8745504a0dd7
+stopped_at: Completed 77-01-PLAN.md
+last_updated: "2026-10-18T22:45:33.615Z"
+last_activity: 2026-10-18
+last_activity_desc: Phase 77 execution started
+state_head: 467f61c434ea85472f57109ab4f5ba7b812fdf74
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 33
-  completed_plans: 20
+  completed_plans: 21
   percent: 0
 ---
 
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 76 — Catalogue Manifest & Backend Route Enforcement
+**Current focus:** Phase 77 — Fail-Closed Sidebar, View Gate & Role Visibility
 
 ## Current Phase
 
@@ -430,6 +430,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 76]: 76-13: agent-tolerant guard treats only token role exactly 'agent' (get_current_user_or_agent) as the agent identity; platform_read limited to PLATFORM_ONLY_PERMISSIONS and safe methods
 - [Phase 76]: 76-14: agent-capable routes join the parity scope (reads need agent_tolerant guards, tags that refuse the agent fail); untagged agent-capable routes (12) and exempt routes (34) are reviewed ledger lists
 - [Phase 76]: 76-15: the five WR-05 tenant reads are role-gated (email via SETTINGS_GUARD; license, allowlist, install keys via TENANT_CONTROLS_READ_GUARD with platform_read view:tenants); exemptRoutes 34 -> 29; the gate rejects a self-service exemption on a tenant- or user-id path — Viewer and ITAM roles read SMTP settings, seat data and hardware identifiers through exemptions that claimed self-service
+- [Phase 77]: 77-01: D-11 closure lives in granted_permissions/_fallback_permissions before tenant narrowing (effective_permissions stays un-closed), filtered to KNOWN_PERMISSIONS
 
 ## Performance Metrics
 
@@ -572,6 +573,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 76 P13 | 16 min | 2 tasks | 9 files |
 | Phase 76 P14 | 45min | 2 tasks | 3 files |
 | Phase 76 P15 | 70min | 3 tasks | 8 files |
+| Phase 77 P01 | 50min | 2 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -606,9 +608,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-18T20:19:32.863Z
-**Stopped at:** Phase 77 UI-SPEC approved
-**Resume file:** .planning/phases/77-fail-closed-sidebar-view-gate-role-visibility/77-UI-SPEC.md
+**Last session:** 2026-10-18T22:45:33.549Z
+**Stopped at:** Completed 77-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -630,11 +632,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 77 (Fail-Closed Sidebar, View Gate & Role Visibility) — READY TO EXECUTE
-Plan: 4 of 15
+Phase: 77 (Fail-Closed Sidebar, View Gate & Role Visibility) — EXECUTING
+Plan: 2 of 13
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
-Last activity: 2026-10-16 — Phase 76 execution started
+Last activity: 2026-10-18 — Phase 77 execution started
 
 Next: `/gsd-plan-phase 75`
 
