@@ -238,7 +238,7 @@ Plans:
   4. After an admin edits a role's permissions, the affected user's sidebar updates on the next window focus or 403 response, without logging out and back in.
   5. Regression tests prove catalogue visibility and route guards hold per role and per tenant, including super-admin and `platform-admin` handling, and that one tenant's role edit never changes another tenant's users.
 
-**Plans**: 10/13 plans executed
+**Plans**: 11/13 plans executed
 **UI hint**: yes
 
 Plans:
@@ -259,7 +259,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [x] 77-09-PLAN.md — Settings > Roles: "What it can see" panel, Built-in/Custom chips, D-10 tab access, Super Admin tenant targeting
-- [ ] 77-10-PLAN.md — Backend regression: cross-tenant isolation, super-admin spellings, real-app sample, full suite (SC5)
+- [x] 77-10-PLAN.md — Backend regression: cross-tenant isolation, super-admin spellings, real-app sample, full suite (SC5)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 77-11-PLAN.md — Server-backed custom role editor: grantable list, implied and locked permissions, fixed name (D-01, D-02, D-13)
@@ -316,7 +316,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 75. Permission Resolver & Single Source of Truth | 5/5 | In Progress | - |
 | 76. Catalogue Manifest & Backend Route Enforcement | 15/15 | In Progress | - |
-| 77. Fail-Closed Sidebar, View Gate & Role Visibility | 10/13 | In Progress | - |
+| 77. Fail-Closed Sidebar, View Gate & Role Visibility | 11/13 | In Progress | - |
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
