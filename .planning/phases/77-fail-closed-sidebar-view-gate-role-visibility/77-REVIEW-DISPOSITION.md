@@ -95,7 +95,7 @@ recorded: 2026-10-19T16:59:23.789Z
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
-| WR-08 | warning | fixed | b76b8af8d (refreshThenLoad; confirmed resolved in review pass 3) |
+| WR-08 | warning | fixed | b76b8af8d (refreshThenLoad; confirmed resolved in incremental review pass 2) |
 | WR-09 | warning | fixed | 41fb29db5 (timeout + catch; confirmed resolved in review pass 3), timeout reworked in 3bb575186 |
 | WR-10 | warning | fixed | 3bb575186 (race instead of abort; regression test reproduces the sign-out; not re-reviewed) |
 | IN-01 | info | open | - |
