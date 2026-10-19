@@ -236,18 +236,26 @@ export function stopTokenRefreshCycle(): void {
 
 /** End the server-side session: revokes the access token and the httpOnly
  *  refresh cookie (which page scripts can't clear), then drops local tokens. */
+export const LOGOUT_TIMEOUT_MS = 5000;
+
 export async function logoutSession(): Promise<void> {
     stopTokenRefreshCycle();
     const token = sessionStorage.getItem('token');
+    // Sign out must never wait on a hung backend: abort after LOGOUT_TIMEOUT_MS, then clear locally.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
     try {
         await fetch(`${API_BASE}/auth/logout`, {
             method: 'POST',
             credentials: 'same-origin',
             keepalive: true,
+            signal: controller.signal,
             headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         });
     } catch {
-        // Offline: the cookie still ends with the browser session.
+        // Offline or timed out: the cookie still ends with the browser session.
+    } finally {
+        clearTimeout(timer);
     }
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('refresh_token');

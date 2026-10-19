@@ -125,3 +125,32 @@ describe('lostAccess', () => {
     expect(lostAccess('dashboard', mk(['view:dashboard', 'view:itam']), without)).toBe(false);
   });
 });
+
+describe('logoutSession timeout', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    sessionStorage.clear();
+  });
+
+  it('resolves after 5 s when the backend never answers and still clears the local session', async () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem('token', 'tok');
+    sessionStorage.setItem('refresh_token', 'ref');
+    // A fetch that only ends when its signal aborts, like a hung backend.
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise((_res, rej) => {
+      init?.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')));
+    })));
+    const { logoutSession, LOGOUT_TIMEOUT_MS } = await import('../../services/apiService');
+    expect(LOGOUT_TIMEOUT_MS).toBe(5000);
+    let done = false;
+    const p = logoutSession().then(() => { done = true; });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await p;
+    expect(done).toBe(true);
+    expect(sessionStorage.getItem('token')).toBeNull();
+    expect(sessionStorage.getItem('refresh_token')).toBeNull();
+  });
+});

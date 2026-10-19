@@ -235,10 +235,11 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState, isPlatformRoleName, switchedOnFor } from './utils/permissions';
+import { derivePermissionState, isPlatformRoleName, roleLabel, switchedOnFor } from './utils/permissions';
 import { NAV_GROUPS, catalogueFor, viewForHash, viewPermission } from './utils/catalogueAccess';
-import { evaluateViewAccess, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
+import { evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
+import { ZeroAccessScreen } from './components/ZeroAccessScreen';
 import { PERMISSION_DENIED_EVENT, samePermissionSet, lostAccess, type RefreshResult } from './utils/permissionRefresh';
 
 const API_BASE = '/api';
@@ -1042,11 +1043,36 @@ const App: React.FC = () => {
   const landedKey = currentUser ? `${currentUser.email}|${currentUser.tenantId}` : null;
   useEffect(() => {
     if (!currentUser) { setLandedFor(null); return; }
-    if (!permissionsKnown(currentUser) || landedFor === landedKey) return;
+    if (!permissionsKnown(currentUser)) return;
+    // D-07: while the full-page zero-access screen shows, forget the landing so the D-06/D-12
+    // landing view loads on its own the moment a refresh makes a screen available (no toast).
+    if (!landingView(currentUser, derivePermissionState(currentUser).hasPermission)) {
+      if (landedFor !== null) setLandedFor(null);
+      return;
+    }
+    if (landedFor === landedKey) return;
     const next = resolveHashView(window.location.hash.slice(1)) ?? landingView(currentUser, derivePermissionState(currentUser).hasPermission);
-    if (next) setCurrentView(next);
-    setLandedFor(landedKey);
+    if (next) {
+      setCurrentView(next);
+      setLandedFor(landedKey);
+    }
   }, [currentUser, landedFor, landedKey]);
+
+  // Pitfall 13: a signed-in user whose permissions field is not a list gets one refresh. If the list is
+  // still unknown or the refresh errors it becomes empty (fail closed, never "all"), which shows the
+  // zero-access screen with Retry.
+  const unknownRefreshedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!currentUser || permissionsKnown(currentUser) || unknownRefreshedFor.current === landedKey) return;
+    unknownRefreshedFor.current = landedKey;
+    const { email, tenantId } = currentUser;
+    void refreshPermissions().then(result => {
+      if (result !== 'error') return;
+      setCurrentUser(prev => (prev && prev.email === email && prev.tenantId === tenantId && !Array.isArray(prev.permissions)
+        ? { ...prev, permissions: [] }
+        : prev));
+    });
+  }, [currentUser, landedKey, refreshPermissions]);
 
 
 
@@ -1602,6 +1628,24 @@ const App: React.FC = () => {
         <UserContext.Provider value={userContextValue}>
           <LoginPage users={users} onLogin={handleLogin} onSignup={handleSignup} />
         </UserContext.Provider>
+      </ThemeProvider>
+    );
+  }
+
+  // D-07: the delivered permissions allow no screen at all. A full-page screen replaces the whole shell,
+  // so the sidebar, header and floating widgets (ChatFab, CharacterTourBot, InteractiveVoiceBot,
+  // CallOverlay) never mount and their background fetches never start.
+  if (permissionsKnown(currentUser) && !hasAnyScreen(currentUser, hasPermission)) {
+    return (
+      <ThemeProvider>
+        <ZeroAccessScreen
+          email={currentUser.email}
+          roleName={roleLabel(currentUser.role)}
+          tenantName={currentUser.tenantName || currentUser.tenantId}
+          companyName={brandingConfig.companyName}
+          onRetry={refreshPermissions}
+          onSignOut={handleLogout}
+        />
       </ThemeProvider>
     );
   }

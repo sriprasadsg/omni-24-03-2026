@@ -4,8 +4,10 @@
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { NoAccessPanel, ViewGate } from '../../components/NoAccessPanel';
+import { ZeroAccessScreen } from '../../components/ZeroAccessScreen';
+import type { RefreshResult } from '../../utils/permissionRefresh';
 import { derivePermissionState } from '../../utils/permissions';
 import type { User } from '../../types';
 
@@ -131,5 +133,74 @@ describe('NoAccessPanel variants', () => {
     const { container } = render(<NoAccessPanel reason="unmapped" screenLabel={'A very long screen label '.repeat(8)} />);
     expect(container.querySelector('.max-w-lg.w-full')).not.toBeNull();
     expect(container.querySelector('h2')?.className).toMatch(/break-words/);
+  });
+});
+
+describe('ZeroAccessScreen (D-07)', () => {
+  const props = (over: Record<string, unknown> = {}) => ({
+    email: 'long.address@example-company.test',
+    roleName: 'Custom Role',
+    tenantName: 'Acme Corp',
+    onRetry: vi.fn(async (): Promise<RefreshResult> => 'same'),
+    onSignOut: vi.fn(),
+    ...over,
+  });
+
+  it('renders the title (focused), body, identity block with titled values, Retry and Sign out', () => {
+    render(<ZeroAccessScreen {...props()} />);
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Your role has no screens yet' });
+    expect(document.activeElement).toBe(h1);
+    expect(screen.getByText('Ask your administrator to give your role access to at least one screen, then select Retry.')).toBeTruthy();
+    for (const label of ['Signed in as', 'Role', 'Tenant']) expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.getByTitle('long.address@example-company.test')).toBeTruthy();
+    expect(screen.getByTitle('Custom Role')).toBeTruthy();
+    expect(screen.getByTitle('Acme Corp')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Retry permission check' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Sign out/ })).toBeTruthy();
+    expect(screen.getByText('Omni-Agent')).toBeTruthy();
+  });
+
+  it('Retry calls onRetry once; while pending it is disabled, reads Checking... and ignores clicks', async () => {
+    let resolve!: (v: RefreshResult) => void;
+    const onRetry = vi.fn(() => new Promise<RefreshResult>(r => { resolve = r; }));
+    render(<ZeroAccessScreen {...props({ onRetry })} />);
+    const btn = screen.getByRole('button', { name: 'Retry permission check' }) as HTMLButtonElement;
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toContain('Checking...');
+    await act(async () => { resolve('same'); });
+    expect(btn.disabled).toBe(false);
+  });
+
+  it("'same' shows the still-no-screens line with the last-checked time", async () => {
+    render(<ZeroAccessScreen {...props()} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry permission check' })); });
+    expect(screen.getByText(/^Still no screens for your role\. Last checked .+\.$/)).toBeTruthy();
+  });
+
+  it("'error' shows the red role=alert message and keeps Sign out enabled", async () => {
+    const onRetry = vi.fn(async (): Promise<RefreshResult> => 'error');
+    render(<ZeroAccessScreen {...props({ onRetry })} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry permission check' })); });
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toBe("Couldn't check your permissions. Check your connection and try again.");
+    expect((screen.getByRole('button', { name: /Sign out/ }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('Sign out is enabled and works while Retry is pending forever', () => {
+    const onSignOut = vi.fn();
+    render(<ZeroAccessScreen {...props({ onRetry: vi.fn(() => new Promise<RefreshResult>(() => {})), onSignOut })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry permission check' }));
+    const out = screen.getByRole('button', { name: /Sign out/ }) as HTMLButtonElement;
+    expect(out.disabled).toBe(false);
+    fireEvent.click(out);
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the company name when branding provides one', () => {
+    render(<ZeroAccessScreen {...props({ companyName: 'Contoso' })} />);
+    expect(screen.getByText('Contoso')).toBeTruthy();
   });
 });
