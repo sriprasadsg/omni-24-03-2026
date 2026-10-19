@@ -22,7 +22,7 @@ def _public_user_fields(user: dict) -> dict:
     }
 from authentication_service import create_access_token, create_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY, account_is_active, refresh_token_cut_off
 from authentication_service import REFRESH_COOKIE, set_refresh_cookie, clear_refresh_cookie, _oauth2_optional, _revoked_jti_cache
-from authentication_service import get_current_user_mfa_pending, mfa_action_for
+from authentication_service import get_current_user_mfa_pending, mfa_action_for, resolve_mfa_required
 from database import get_database
 from rbac_service import session_permissions
 
@@ -240,7 +240,8 @@ async def login_for_access_token(request: Request, response: Response, login_req
     user_data['permissions'] = await session_permissions(db, role, tenant_id, warn_if_empty=True)
 
     # Admin-tier accounts without MFA may only enroll until they do
-    user_data['mfa_action'] = mfa_action_for(role, mfa_verified=False, mfa_enabled=False)
+    user_data['mfa_action'] = mfa_action_for(
+        role, mfa_verified=False, mfa_enabled=False, required=await resolve_mfa_required(role, tenant_id))
 
     # UEBA behavioral analysis (non-blocking)
     import asyncio as _asyncio
@@ -286,7 +287,8 @@ async def read_users_me(current_user: dict = Depends(get_current_user_mfa_pendin
     # Expose MFA enabled flag (not the secret)
     user_data['mfa_enabled'] = user.get('mfa', {}).get('enabled', False)
     user_data['mfa_action'] = mfa_action_for(
-        current_user.role, bool(getattr(current_user, "mfa_verified", False)), user_data['mfa_enabled'])
+        current_user.role, bool(getattr(current_user, "mfa_verified", False)), user_data['mfa_enabled'],
+        required=await resolve_mfa_required(current_user.role, current_user.tenant_id))
     
     return user_data
 

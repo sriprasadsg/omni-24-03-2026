@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import authentication_service as auth_svc
 import rbac_defaults
 from tests.rbac_test_support import (
-    make_auth_client, make_user, me, role_store, shared_role_docs, login, reset_shared_limiter,
+    StoreCollection, make_auth_client, make_user, me, role_store, shared_role_docs, login, reset_shared_limiter,
 )
 
 EMAIL = "who@mfa.test"
@@ -227,3 +227,50 @@ def test_mfa_action_for_uses_an_explicit_requirement():
     assert auth_svc.mfa_action_for("Helpdesk", False, False, required=False) is None
 
 
+
+# --- login and /me ----------------------------------------------------------------------------
+
+def _client(db, monkeypatch, users):
+    db.raw.users.docs.extend(users)
+    reset_shared_limiter()
+    return make_auth_client(db, monkeypatch)
+
+
+def test_password_login_of_a_custom_admin_says_enroll(monkeypatch):
+    store = _store()
+    store.raw.login_attempts = StoreCollection([])
+    client = _client(store, monkeypatch, [make_user("desk@mfa.test", "Deskadmin", "tenant-a"),
+                                         make_user("help@mfa.test", "Helpdesk", "tenant-a")])
+    with patch("database.get_database", return_value=store):
+        desk = login(client, "desk@mfa.test")
+        reset_shared_limiter()
+        helpdesk = login(client, "help@mfa.test")
+    assert desk.status_code == 200, desk.text
+    assert desk.json()["user"]["mfa_action"] == "enroll"
+    assert helpdesk.status_code == 200, helpdesk.text
+    assert helpdesk.json()["user"]["mfa_action"] is None
+
+
+def test_me_for_an_unverified_custom_admin_says_enroll_or_verify(monkeypatch):
+    store = _store()
+    enrolled = make_user("on@mfa.test", "Deskadmin", "tenant-a", mfa={"enabled": True})
+    plain = make_user("off@mfa.test", "Deskadmin", "tenant-a")
+    client = _client(store, monkeypatch, [enrolled, plain])
+    with patch("database.get_database", return_value=store):
+        assert me(client, "off@mfa.test", "Deskadmin", "tenant-a").json()["mfa_action"] == "enroll"
+        assert me(client, "on@mfa.test", "Deskadmin", "tenant-a").json()["mfa_action"] == "verify"
+
+
+def test_me_for_a_verified_custom_admin_and_a_plain_custom_role_says_nothing(monkeypatch):
+    from auth_types import TokenData
+    from authentication_service import get_current_user_mfa_pending
+    store = _store()
+    client = _client(store, monkeypatch, [make_user("on@mfa.test", "Deskadmin", "tenant-a", mfa={"enabled": True}),
+                                         make_user("help@mfa.test", "Helpdesk", "tenant-a")])
+    with patch("database.get_database", return_value=store):
+        client.app.dependency_overrides[get_current_user_mfa_pending] = lambda: TokenData(
+            username="on@mfa.test", role="Deskadmin", tenant_id="tenant-a", mfa_verified=True)
+        verified = client.get("/api/auth/me", headers={"X-Test-Tenant": "tenant-a"})
+        client.app.dependency_overrides.pop(get_current_user_mfa_pending, None)
+        assert verified.json()["mfa_action"] is None
+        assert me(client, "help@mfa.test", "Helpdesk", "tenant-a").json()["mfa_action"] is None
