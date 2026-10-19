@@ -818,6 +818,7 @@ const App: React.FC = () => {
       if (Array.isArray(prev.permissions) && samePermissionSet(prev.permissions, fresh)) return 'same';
       const next: User = { ...prev, permissions: fresh };
       if (lostAccess(currentViewRef.current, prev, next)) setAccessChanged(true);
+      currentUserRef.current = next;  // loadAllData below runs before the re-render
       setCurrentUser(next);
       loadAllData();
       return 'changed';

@@ -198,6 +198,18 @@ describe('App.tsx fails closed at render time (D-05, PROH-77-02)', () => {
   });
 });
 
+describe('App.tsx permission refresh reloads with the new list (ACC-08, 77 WR-01)', () => {
+  it('points currentUserRef at the refreshed user before loadAllData reads it', () => {
+    const text = read('App.tsx');
+    const start = text.indexOf('const refreshPermissions = useCallback(');
+    const body = text.slice(start, text.indexOf('}, [loadAllData]);', start));
+    expect(start).toBeGreaterThan(-1);
+    const ref = body.indexOf('currentUserRef.current = next;');
+    expect(ref).toBeGreaterThan(-1);
+    expect(ref).toBeLessThan(body.indexOf('loadAllData();'));
+  });
+});
+
 describe('no browser-memory role store (D-01)', () => {
   it('services/apiService.ts exports neither saveRole nor deleteRole', () => {
     expect(read('services/apiService.ts')).not.toMatch(/export\s+(const|function|async function)\s+(saveRole|deleteRole)\b/);
