@@ -210,5 +210,33 @@ describe('fetchCurrentPermissions timeout (77 WR-09)', () => {
     await p;
     expect(result).toBeNull();
   });
+
+  it('never ends a valid session when the retried /auth/me is the slow part (77 WR-10)', async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    sessionStorage.setItem('token', 'tok');
+    let meCalls = 0;
+    // /auth/me answers 401, the token refresh succeeds, and the retried /auth/me never answers
+    // unless it is aborted, like a backend that stalls after the token refresh.
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes('/auth/refresh')) {
+        return Promise.resolve(new Response(JSON.stringify({ success: true, access_token: 'tok2' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
+      meCalls += 1;
+      if (meCalls === 1) return Promise.resolve(new Response(null, { status: 401 }));
+      return new Promise((_res, rej) => {
+        init?.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')));
+      });
+    }));
+    const { fetchCurrentPermissions, PERMISSIONS_TIMEOUT_MS } = await import('../../services/apiService');
+    let result: unknown = 'pending';
+    const p = fetchCurrentPermissions().then(r => { result = r; });
+    await vi.advanceTimersByTimeAsync(PERMISSIONS_TIMEOUT_MS + 100);
+    await p;
+    expect(result).toBeNull();
+    expect(meCalls).toBe(2);
+    expect(sessionStorage.getItem('token')).toBe('tok2');
+  });
 });
 

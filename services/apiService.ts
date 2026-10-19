@@ -756,15 +756,22 @@ export const fetchCurrentUser = async (): Promise<any> => {
 export const PERMISSIONS_TIMEOUT_MS = 10000;
 
 export const fetchCurrentPermissions = async (): Promise<Permission[] | null> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), PERMISSIONS_TIMEOUT_MS);
+    const read = (async (): Promise<Permission[] | null> => {
+        try {
+            const res = await authFetch(`${API_BASE}/auth/me`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data?.mfa_action || !Array.isArray(data?.permissions) ? null : data.permissions;
+        } catch {
+            return null;
+        }
+    })();
+    // Stop waiting rather than abort: an aborted retry after authFetch's token refresh would end a
+    // valid session (77 WR-10). The request settles on its own; its late answer is ignored.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), PERMISSIONS_TIMEOUT_MS); });
     try {
-        const res = await authFetch(`${API_BASE}/auth/me`, { signal: controller.signal });
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data?.mfa_action || !Array.isArray(data?.permissions) ? null : data.permissions;
-    } catch {
-        return null;
+        return await Promise.race([read, timedOut]);
     } finally {
         clearTimeout(timer);
     }
