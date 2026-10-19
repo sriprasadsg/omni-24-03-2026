@@ -1240,6 +1240,7 @@ export const fetchNotifications = async () => {
 export const fetchIntegrations = async () => {
     try {
         const res = await authFetch(`${API_BASE}/integrations/list`);
+        if (!res.ok) return [];
         const data = await res.json();
         INTEGRATIONS = data; // Update local cache
         return data;

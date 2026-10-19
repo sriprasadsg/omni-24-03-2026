@@ -20,6 +20,11 @@ export function screenAllowed(view: string, hasPermission: (permission: Permissi
 const HIDE_ONLY_SCREENS = new Set(featureSwitches.groups.flatMap(g => g.features)
   .filter(f => (f as { hideOnly?: boolean }).hideOnly).map(f => f.permission.slice('screen:'.length)));
 
+/** True for a screen whose routes serve other screens too, so switching it off only hides it. */
+export function isHideOnlyScreen(view: string): boolean {
+  return HIDE_ONLY_SCREENS.has(view);
+}
+
 /**
  * False when the tenant's switches take `view` (which needs `permission`) away from this user: the
  * permission is switch-governed and neither it nor its manage: twin was delivered, or the server

@@ -1,6 +1,6 @@
 import type { AppView, Permission, User } from '../types';
 import { NAV_GROUPS, catalogueFor, viewForHash } from './catalogueAccess';
-import { isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './permissions';
+import { isHideOnlyScreen, isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './permissions';
 
 /**
  * Phase 77 (D-05, D-06, D-12): the one place that decides whether the signed-in user may see a
@@ -40,6 +40,23 @@ export function evaluateViewAccess(view: AppView, user: User | null, has: Has): 
     return { allowed: false, reason: 'switched_off', label: entry.label };
   }
   return { allowed: true };
+}
+
+/**
+ * Phase 77 (D-08): may this user read the catalogue behind `view`? Mirrors the backend read rule:
+ * the manifest entry's read list (else its permission) must be held, and the screen must not be
+ * switched off (hide-only screens keep their routes open). Unknown views and a missing user are
+ * never readable. Callers use it to skip fetches and hide widgets a role would only be refused.
+ */
+export function canReadView(view: AppView, user: User | null, has: Has): boolean {
+  if (!user) return false;
+  const entry = catalogueFor(view);
+  if (!entry) return false;
+  if (isSuperAdminRoleName(user.role) || has('*' as Permission)) return true;
+  const needed = entry.read && entry.read.length > 0 ? entry.read : [entry.permission];
+  if (!needed.some(permission => has(permission as Permission))) return false;
+  if (isPlatformRoleName(user.role)) return true;
+  return screenAllowed(view, has) || isHideOnlyScreen(view);
 }
 
 /** True once the server has delivered a permission list for this user (or the role needs none). */

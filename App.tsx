@@ -235,9 +235,9 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState, isPlatformRoleName, roleLabel, switchedOnFor } from './utils/permissions';
-import { NAV_GROUPS, catalogueFor, viewForHash, viewPermission } from './utils/catalogueAccess';
-import { evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
+import { derivePermissionState, isSuperAdminRoleName, roleLabel } from './utils/permissions';
+import { NAV_GROUPS, catalogueFor, viewForHash } from './utils/catalogueAccess';
+import { canReadView, evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
 import { ZeroAccessScreen } from './components/ZeroAccessScreen';
 import { PERMISSION_DENIED_EVENT, samePermissionSet, lostAccess, type RefreshResult } from './utils/permissionRefresh';
@@ -304,13 +304,14 @@ const App: React.FC = () => {
   // Note: fetchAlerts() without tenantId uses server-side tenant from the JWT
   useEffect(() => {
     if (currentView !== 'dashboard') return;
+    if (!canReadView('alertManagement', currentUser, derivePermissionState(currentUser).hasPermission)) return;
     const tick = async () => {
       const fresh = await api.fetchAlerts();
       if (fresh && fresh.length > 0) setAlerts(fresh as Alert[]);
     };
     const timer = setInterval(tick, 60_000);
     return () => clearInterval(timer);
-  }, [currentView]);
+  }, [currentView, currentUser]);
 
   // ── Support chat in-app toast queue & unread count ────────────────────────
   const [supportToasts, setSupportToasts] = useState<SupportToastData[]>([]);
@@ -479,7 +480,7 @@ const App: React.FC = () => {
 
     // Only super-admins can list all tenants; skip the call to avoid repeated 403s
     const _jwtPayload = (() => { try { return JSON.parse(atob(token.split('.')[1])); } catch { return {}; } })();
-    const _isSuperAdmin = ['Super Admin', 'superadmin', 'super_admin', 'platform-admin'].includes(_jwtPayload.role || '');
+    const _isSuperAdmin = isSuperAdminRoleName(_jwtPayload.role);
 
     // A feature the Super Admin switched off for this tenant (spec C6) is not requested at all: each
     // fetch names the catalogue that owns its route, and one the switches took away resolves to
@@ -488,11 +489,12 @@ const App: React.FC = () => {
     const { hasPermission: holds } = derivePermissionState(user);
     const SKIPPED = Symbol('switched off for this tenant');
     const ifOn = <T,>(view: AppView, fetch: () => Promise<T>): Promise<T | typeof SKIPPED> =>
-      !user || isPlatformRoleName(user.role) || switchedOnFor(view, viewPermission(view) ?? '', holds) ? fetch() : Promise.resolve(SKIPPED);
+      // Fail closed: with no user known nothing is requested (Phase 77 D-08).
+      user && canReadView(view, user, holds) ? fetch() : Promise.resolve(SKIPPED);
 
     try {
       const results = await Promise.allSettled([
-        api.fetchUsers(), api.fetchRoles(), _isSuperAdmin ? api.fetchTenants() : Promise.resolve([]), api.fetchMetrics(),
+        ifOn('userManagement', api.fetchUsers), ifOn('roleManagement', api.fetchRoles), _isSuperAdmin ? api.fetchTenants() : Promise.resolve([]), api.fetchMetrics(),
         ifOn('alertManagement', api.fetchAlerts), ifOn('compliance', api.fetchComplianceFrameworks), ifOn('aiGovernance', api.fetchAiSystems),
         ifOn('assetManagement', api.fetchAssets), ifOn('patchManagement', api.fetchPatches), ifOn('incidentResponse', api.fetchSecurityCases),
         ifOn('playbooks', api.fetchPlaybooks), ifOn('incidentResponse', api.fetchSecurityEvents), ifOn('cloudAccounts', api.fetchCloudAccounts),
