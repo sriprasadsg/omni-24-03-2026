@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ApiRole } from '../services/roleApi';
+import React, { useEffect, useState } from 'react';
+import { ApiRole, fetchRoles, isBuiltInRole } from '../services/roleApi';
 import { PlusCircleIcon, PencilIcon, TrashIcon, ShieldLockIcon, EyeIcon, ChevronRightIcon } from './icons';
 import { RoleVisibilityPanel } from './RoleVisibilityPanel';
 
@@ -7,22 +7,49 @@ interface Props {
     roles: ApiRole[];
     tenantId?: string | null;
     canManageSettings?: boolean;
+    canManageRBAC?: boolean;
+    isSuperAdmin?: boolean;
     onEdit: (role: ApiRole) => void;
     onDelete: (roleId: string) => void;
     onNew: () => void;
 }
 
-export function SettingsRolesTab({ roles, tenantId, onEdit, onDelete, onNew }: Props) {
+const ICON_BTN = 'inline-flex items-center justify-center min-w-8 min-h-8 p-1.5 text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded';
+
+export function SettingsRolesTab({ roles: seed, tenantId, canManageRBAC = false, isSuperAdmin = false, onEdit, onDelete, onNew }: Props) {
     const [openRoleId, setOpenRoleId] = useState<string | null>(null);
+    const [roles, setRoles] = useState<ApiRole[]>(seed);
+
+    // Seed from the parent, then refresh from the server for the selected tenant (D-17).
+    // A failed or forbidden fetch keeps the seeded (or last good) list; the tab stays gated.
+    useEffect(() => {
+        let cancelled = false;
+        setRoles(seed);
+        fetchRoles(tenantId ?? undefined).then(list => { if (!cancelled && Array.isArray(list)) setRoles(list); }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [tenantId, seed]);
+
+    const hasCustom = roles.some(r => !isBuiltInRole(r));
+    const needsTenant = isSuperAdmin && !tenantId;
     return (
         <div>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-1">
                 <h3 className="text-lg font-semibold">Roles & Permissions</h3>
-                <button onClick={onNew} className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
-                    <PlusCircleIcon size={16} className="mr-1.5" />
-                    New Custom Role
-                </button>
+                {canManageRBAC && (
+                    <button
+                        onClick={onNew}
+                        disabled={needsTenant}
+                        title={needsTenant ? 'Select a tenant first: custom roles belong to one tenant.' : undefined}
+                        className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <PlusCircleIcon size={16} className="mr-1.5" />
+                        New Custom Role
+                    </button>
+                )}
             </div>
+            {!hasCustom && (
+                <p className="text-xs font-normal text-gray-500 dark:text-gray-400 mb-4">No custom roles yet. Built-in roles cannot be edited; create a custom role to tailor access.</p>
+            )}
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
@@ -36,18 +63,26 @@ export function SettingsRolesTab({ roles, tenantId, onEdit, onDelete, onNew }: P
                         {roles.map(role => {
                             const isOpen = openRoleId === role.id;
                             const panelId = `role-visibility-${role.id}`;
+                            const builtIn = isBuiltInRole(role);
                             return (
                                 <React.Fragment key={role.id}>
                                     <tr className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50">
                                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                            <div className="flex items-center">
-                                                <span>{role.name}</span>
+                                            <div className="flex items-center min-w-0">
+                                                <span className="truncate max-w-[16rem]" title={role.name}>{role.name}</span>
+                                                {builtIn ? (
+                                                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full border border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-300 shrink-0">
+                                                        <ShieldLockIcon size={12} aria-hidden="true" />Built-in
+                                                    </span>
+                                                ) : (
+                                                    <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 shrink-0">Custom</span>
+                                                )}
                                                 <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-100 text-primary-800 dark:bg-primary-900/50 dark:text-primary-300">
                                                     {role.permissions.length}
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-xs max-w-sm">{role.description}</td>
+                                        <td className="px-4 py-3 text-xs max-w-sm whitespace-normal break-words">{role.description}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center space-x-2">
                                                 <button
@@ -62,18 +97,27 @@ export function SettingsRolesTab({ roles, tenantId, onEdit, onDelete, onNew }: P
                                                     <EyeIcon size={14} aria-hidden="true" />
                                                     <span className="hidden sm:inline">What it can see</span>
                                                 </button>
-                                                <button onClick={() => onEdit(role)} className="p-1.5 text-gray-500 hover:text-primary-600 disabled:text-gray-400 disabled:dark:text-gray-500 disabled:cursor-not-allowed" disabled={!role.isEditable} title={role.isEditable ? "Edit role" : "Built-in roles cannot be edited."}>
-                                                    <PencilIcon size={14} />
-                                                </button>
-                                                {role.isEditable ? (
-                                                    <button onClick={() => onDelete(role.id)} className="p-1.5 text-gray-500 hover:text-red-600" title="Delete role">
+                                                {canManageRBAC && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { if (!builtIn) onEdit(role); }}
+                                                        aria-label={`Edit role ${role.name}`}
+                                                        aria-disabled={builtIn ? 'true' : undefined}
+                                                        className={`${ICON_BTN} ${builtIn ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'hover:text-primary-600'}`}
+                                                        title={builtIn ? 'Built-in roles cannot be edited.' : 'Edit role'}
+                                                    >
+                                                        <PencilIcon size={14} />
+                                                    </button>
+                                                )}
+                                                {canManageRBAC && (builtIn ? (
+                                                    <span title="This built-in role cannot be deleted." className="inline-flex items-center justify-center min-w-8 min-h-8">
+                                                        <ShieldLockIcon size={14} className="text-gray-400 dark:text-gray-500" />
+                                                    </span>
+                                                ) : (
+                                                    <button type="button" onClick={() => onDelete(role.id)} aria-label={`Delete role ${role.name}`} className={`${ICON_BTN} hover:text-red-600`} title="Delete role">
                                                         <TrashIcon size={14} />
                                                     </button>
-                                                ) : (
-                                                    <span title="This built-in role cannot be deleted.">
-                                                        <ShieldLockIcon size={14} className="p-0.5 text-gray-400 dark:text-gray-500" />
-                                                    </span>
-                                                )}
+                                                ))}
                                             </div>
                                         </td>
                                     </tr>

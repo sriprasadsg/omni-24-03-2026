@@ -30,6 +30,7 @@ import { SecuritySettings } from './SecuritySettings';
 import { EvidenceSettings } from './EvidenceSettings';
 import { RemediationSlaSettings } from './RemediationSlaSettings';
 import * as apiService from '../services/apiService';
+import { isSuperAdminRoleName, PLATFORM_TENANT_ID } from '../utils/permissions';
 
 interface SettingsDashboardProps {
     integrations: Integration[];
@@ -54,6 +55,7 @@ interface SettingsDashboardProps {
     onDeleteUser: (userId: string) => void;
     onResetPassword: (userId: string, userName: string) => void;
     tenants: Tenant[];
+    viewingTenantId?: string | null;
     onAddNewUser: (user: NewUserPayload) => Promise<void>;
     onSaveInfrastructure: (updates: { db?: DatabaseSettingsType, llm?: LlmSettingsType }) => void;
     onSaveDataSource: (source: DataSource) => Promise<void>;
@@ -79,9 +81,10 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
     const { theme, toggleTheme } = useContext(ThemeContext);
 
     // Super Admin should have access to all settings tabs, bypass permission checks
-    const isSuperAdmin = currentUser?.role === 'Super Admin';
+    const isSuperAdmin = isSuperAdminRoleName(currentUser?.role);
     const canManageSettings = isSuperAdmin || hasPermission('manage:settings');
     const canManageRBAC = isSuperAdmin || hasPermission('manage:rbac');
+    const canListRoles = canManageRBAC || hasPermission('manage:users' as Permission); // D-10: read-only Roles tab
     const canManageApiKeys = isSuperAdmin || hasPermission('manage:api_keys');
     const isTenantAdminView = !isSuperAdmin;
 
@@ -140,12 +143,12 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
             setActiveView('appearance');
         } else if (canManageSettings) {
             setActiveView('appearance');
-        } else if (canManageRBAC) {
-            setActiveView('users');
+        } else if (canListRoles) {
+            setActiveView(canManageRBAC ? 'users' : 'roles');
         } else if (canManageApiKeys) {
             setActiveView('apiKeys');
         }
-    }, [canManageRBAC, canManageApiKeys, canManageSettings, isSuperAdmin]);
+    }, [canManageRBAC, canListRoles, canManageApiKeys, canManageSettings, isSuperAdmin]);
 
     const activeTenant = useMemo(() => {
         if (!currentUser) return null;
@@ -239,8 +242,8 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
     };
 
     const availableRolesForAssignment = useMemo(() => {
-        if (currentUser?.role === 'Super Admin') return roles;
-        return roles.filter(r => r.name !== 'Super Admin');
+        if (isSuperAdminRoleName(currentUser?.role)) return roles;
+        return roles.filter(r => !isSuperAdminRoleName(r.name));
     }, [roles, currentUser]);
 
     const filteredUsers = useMemo(() => {
@@ -268,11 +271,11 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
                                 <PaintbrushIcon size={18} className="mr-2" /> Appearance
                             </button>
                         )}
-                        {canManageRBAC && (
+                        {canListRoles && (
                             <>
-                                <button onClick={() => setActiveView('users')} className={`flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeView === 'users' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'}`}>
+                                {canManageRBAC && <button onClick={() => setActiveView('users')} className={`flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeView === 'users' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'}`}>
                                     <Users2Icon size={18} className="mr-2" /> User Management
-                                </button>
+                                </button>}
                                 <button onClick={() => setActiveView('roles')} className={`flex items-center whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeView === 'roles' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600'}`}>
                                     <ShieldLockIcon size={18} className="mr-2" /> Roles & Permissions
                                 </button>
@@ -394,9 +397,10 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
                         <MaintenanceWindowConfig />
                     )}
 
-                    {activeView === 'roles' && canManageRBAC && (
+                    {activeView === 'roles' && canListRoles && (
                         <SettingsRolesTab
-                            roles={roles}
+                            roles={roles} tenantId={isSuperAdmin && props.viewingTenantId && props.viewingTenantId !== PLATFORM_TENANT_ID ? props.viewingTenantId : null}
+                            canManageRBAC={canManageRBAC} isSuperAdmin={isSuperAdmin}
                             canManageSettings={canManageSettings}
                             onNew={() => handleOpenRoleModal(null)}
                             onEdit={handleOpenRoleModal}

@@ -39,6 +39,13 @@ async function failure(res: Response, fallback: string): Promise<Error> {
 const withTenant = (url: string, tenantId?: string | null) =>
     tenantId ? `${url}?tenantId=${encodeURIComponent(tenantId)}` : url;
 
+/** GET /api/roles[?tenantId=]: built-in roles plus the selected tenant's custom roles. */
+export async function fetchRoles(tenantId?: string | null): Promise<ApiRole[]> {
+    const res = await authFetch(withTenant(`${API_BASE}/roles`, tenantId));
+    if (!res.ok) throw await failure(res, 'Could not load roles');
+    return res.json();
+}
+
 /** GET /api/roles/{role_id}/visibility: the server's answer, rendered as delivered (SC3). */
 export async function fetchRoleVisibility(roleId: string, tenantId?: string | null): Promise<RoleVisibility> {
     const res = await authFetch(withTenant(`${API_BASE}/roles/${encodeURIComponent(roleId)}/visibility`, tenantId));
