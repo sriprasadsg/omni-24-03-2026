@@ -12,7 +12,7 @@ import role_visibility
 import tenant_features
 from audit_service import get_audit_service
 from auth_types import TokenData
-from authentication_service import get_current_user
+from authentication_service import get_current_user, invalidate_mfa_role_cache
 from database import get_database
 from rbac_service import effective_permissions
 from rbac_utils import is_super_admin, verify_permission
@@ -202,6 +202,7 @@ async def create_role(body: RoleCreate, current_user: TokenData = Depends(_requi
         if len(same) > 1:
             await db._db.roles.delete_one({"id": doc["id"], "tenantId": tenant_id})
             raise HTTPException(status_code=409, detail="A role with this name already exists.")
+        invalidate_mfa_role_cache(tenant_id)
     except HTTPException:
         raise
     except Exception as exc:
@@ -246,6 +247,7 @@ async def update_role(role_id: str, body: RoleUpdate, tenantId: Optional[str] = 
         if body.description is not None:
             changes["description"] = body.description
         await db._db.roles.update_one({"id": role_id, "tenantId": tenant_id}, {"$set": changes})
+        invalidate_mfa_role_cache(tenant_id)  # an added admin-tier permission needs MFA at once (77 WR-03)
     except HTTPException:
         raise
     except Exception as exc:
@@ -274,6 +276,7 @@ async def delete_role(role_id: str, tenantId: Optional[str] = None,
                 "mappingCount": mapping_count, "mappings": mappings,
             })
         await db._db.roles.delete_one({"id": role_id, "tenantId": tenant_id})
+        invalidate_mfa_role_cache(tenant_id)
     except HTTPException:
         raise
     except Exception as exc:

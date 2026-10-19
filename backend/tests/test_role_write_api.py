@@ -335,3 +335,31 @@ def test_put_and_delete_need_manage_rbac(client):
     role = _make(client)
     assert call(client, "PUT", f"/api/roles/{role['id']}", role="viewer", json={"description": "x"}).status_code == 403
     assert call(client, "DELETE", f"/api/roles/{role['id']}", role="viewer").status_code == 403
+
+
+# --- 77 WR-03: role writes reach the MFA answer at once -------------------------------------
+
+def test_role_writes_clear_the_tenants_cached_mfa_answers(client, store, monkeypatch):
+    import asyncio
+    import authentication_service as auth_svc
+    monkeypatch.setattr("database.get_database", lambda: store)
+    auth_svc._clear_mfa_role_cache()
+    try:
+        other = ("tenant-b", "contractor")
+        auth_svc._mfa_role_cache[("tenant-a", "helpdesk")] = (float("inf"), True)
+        auth_svc._mfa_role_cache[other] = (float("inf"), False)
+        role_id = create(client, HELPDESK).json()["id"]
+        assert ("tenant-a", "helpdesk") not in auth_svc._mfa_role_cache
+        assert other in auth_svc._mfa_role_cache
+
+        assert asyncio.run(auth_svc.resolve_mfa_required("Helpdesk", "tenant-a")) is False
+        body = {"permissions": HELPDESK["permissions"] + ["manage:rbac"]}
+        assert call(client, "PUT", f"/api/roles/{role_id}", json=body).status_code == 200
+        assert asyncio.run(auth_svc.resolve_mfa_required("Helpdesk", "tenant-a")) is True
+
+        assert call(client, "DELETE", f"/api/roles/{role_id}").status_code == 204
+        assert ("tenant-a", "helpdesk") not in auth_svc._mfa_role_cache
+        assert other in auth_svc._mfa_role_cache
+    finally:
+        auth_svc._clear_mfa_role_cache()
+

@@ -174,8 +174,10 @@ async def connect(sid, environ, auth):
         return False
 
     try:
-        from authentication_service import verify_token
-        token_data = verify_token(token)
+        # The async check reads the role store, so a role's MFA answer here matches every HTTP
+        # route instead of the synchronous cold-cache guess (77 WR-02).
+        from authentication_service import verify_token_async
+        token_data = await verify_token_async(token)
         tenant_id = token_data.tenant_id
         if not tenant_id:
             logger.warning("WebSocket rejected %s - token has no tenant_id", sid)
@@ -218,20 +220,14 @@ async def connect(sid, environ, auth):
             agent_sessions[agent_id] = sid
             logger.info("WebSocket registered agent %s -> %s (tenant %s)", agent_id, sid, tenant_id)
 
-    # Track user for support chat delivery
-    if token:
-        try:
-            from authentication_service import verify_token
-            td = verify_token(token)
-            username = td.username
-            role = td.role or "user"
-            if username:
-                user_sessions[username] = sid
-                user_roles[username] = role
-                user_tenants[username] = td.tenant_id or ""
-                logger.debug("WebSocket registered user %s (%s) -> %s", username, role, sid)
-        except Exception as e:
-            logger.debug("WebSocket token decode failed: %s", e)
+    # Track user for support chat delivery (the token was verified above)
+    username = token_data.username
+    if username:
+        role = token_data.role or "user"
+        user_sessions[username] = sid
+        user_roles[username] = role
+        user_tenants[username] = token_data.tenant_id or ""
+        logger.debug("WebSocket registered user %s (%s) -> %s", username, role, sid)
 
     # Send welcome message
     await sio.emit('connected', {

@@ -75,8 +75,10 @@ async def test_connect_rejects_before_jwt_verification_once_rate_limited(monkeyp
     wsm._connect_rate_limited("198.51.100.1")
     wsm._connect_rate_limited("198.51.100.1")
 
-    with patch("authentication_service.verify_token") as mock_verify:
+    with patch("authentication_service.verify_token") as mock_verify, \
+            patch("authentication_service.verify_token_async") as mock_verify_async:
         result = await wsm.connect("sid-1", environ, {"tenant_id": "t1", "token": "whatever"})
 
     assert result is False
     mock_verify.assert_not_called()
+    mock_verify_async.assert_not_called()

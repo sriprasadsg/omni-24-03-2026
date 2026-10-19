@@ -218,6 +218,69 @@ async def test_verified_sessions_trigger_no_lookup(db):
     eff.assert_not_awaited()
 
 
+async def test_invalidation_drops_only_the_named_tenant(db):
+    """77 WR-03: a role write clears its tenant's cached answers, so the edit applies at once."""
+    assert await auth_svc.resolve_mfa_required("Helpdesk", "tenant-a") is False
+    assert await auth_svc.resolve_mfa_required("viewer", "tenant-b") is False
+    for doc in db.raw.roles.docs:
+        if doc["name"] == "Helpdesk":
+            doc["permissions"] = ["view:agents", "manage:users"]
+    auth_svc.invalidate_mfa_role_cache("tenant-a")
+    assert await auth_svc.resolve_mfa_required("Helpdesk", "tenant-a") is True
+    assert ("tenant-b", "viewer") in auth_svc._mfa_role_cache
+
+
+async def test_store_error_never_answers_less_strictly_than_the_last_answer(db, monkeypatch):
+    """77 WR-03: a built-in name whose tenant document adds an admin-tier permission stays
+    held to MFA while the store is down, instead of falling back to the table's False."""
+    assert await auth_svc.resolve_mfa_required("viewer", "tenant-a") is True
+    key = ("tenant-a", "viewer")
+    auth_svc._mfa_role_cache[key] = (0.0, True)  # expired
+    monkeypatch.setattr(db.raw.roles, "find_one", AsyncMock(side_effect=RuntimeError("store down")))
+    assert await auth_svc.resolve_mfa_required("viewer", "tenant-a") is True
+    assert auth_svc._mfa_role_cache[key] == (0.0, True)  # the error answer itself is not cached
+    # A custom name still fails closed whatever it answered before.
+    auth_svc._mfa_role_cache[("tenant-a", "helpdesk")] = (0.0, False)
+    assert await auth_svc.resolve_mfa_required("Helpdesk", "tenant-a") is True
+
+
+# --- WebSocket connect (77 WR-02) -------------------------------------------------------------
+
+@pytest.fixture
+def ws(monkeypatch):
+    import websocket_manager as wsm
+    wsm._connect_attempts_by_ip.clear()
+    monkeypatch.setattr(wsm.sio, "emit", AsyncMock())
+    sids = []
+
+    async def connect(role):
+        sid = f"sid-{role}-{len(sids)}"
+        sids.append(sid)
+        return await wsm.connect(sid, {"REMOTE_ADDR": f"192.0.2.{len(sids)}"},
+                                 {"tenant_id": "tenant-a", "token": _token(role)})
+    yield connect
+    for sid in sids:
+        for clients in wsm.connected_clients.values():
+            clients.discard(sid)
+    wsm.user_sessions.pop(EMAIL, None)
+    wsm.user_roles.pop(EMAIL, None)
+    wsm.user_tenants.pop(EMAIL, None)
+    wsm._connect_attempts_by_ip.clear()
+
+
+async def test_websocket_connect_resolves_mfa_from_the_role_store(db, ws):
+    """On a cold cache the socket asks the role store, like every HTTP route: a non-admin
+    custom role connects, an admin-tier custom role without MFA does not."""
+    assert await ws("Helpdesk") is True
+    assert await ws("Deskadmin") is False
+
+
+async def test_websocket_connect_holds_an_extended_builtin_to_mfa(db, ws):
+    """A built-in name whose tenant document adds manage:users needs MFA on the socket too."""
+    assert await ws("viewer") is False
+    assert await ws("Viewer") is False
+
+
 # --- mfa_action_for ------------------------------------------------------------------------
 
 def test_mfa_action_for_uses_an_explicit_requirement():

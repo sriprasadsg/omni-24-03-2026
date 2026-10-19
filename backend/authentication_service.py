@@ -72,14 +72,21 @@ MFA_REQUIRED_DETAIL = "Two-factor authentication is required for your role. Set 
 
 # D-14: MFA follows permissions, not role names. A role needs MFA when its effective
 # permission set holds "*" or an rbac_defaults.ADMIN_TIER_PERMISSIONS entry. The answer for
-# a role is cached per (tenant, normalized role) for MFA_ROLE_CACHE_SECONDS per worker, so a
-# role edit is enforced within a minute without a new login.
+# a role is cached per (tenant, normalized role) for MFA_ROLE_CACHE_SECONDS per worker. A role
+# write clears its tenant's answers on the worker that served it (77 WR-03), so a role edit is
+# enforced on the next request there and within MFA_ROLE_CACHE_SECONDS on any other worker.
 MFA_ROLE_CACHE_SECONDS = 60
 _mfa_role_cache: dict[tuple, tuple] = {}
 
 
 def _clear_mfa_role_cache() -> None:
     _mfa_role_cache.clear()
+
+
+def invalidate_mfa_role_cache(tenant_id: Optional[str]) -> None:
+    """Drop the cached MFA answers of one tenant's roles (called after every role write)."""
+    for key in [k for k in _mfa_role_cache if k[0] == (tenant_id or "")]:
+        _mfa_role_cache.pop(key, None)
 
 
 def _mfa_table_answer(role: Optional[str]) -> tuple:
@@ -117,7 +124,9 @@ def mfa_required_for(role: Optional[str], tenant_id: Optional[str] = None) -> bo
 async def resolve_mfa_required(role: Optional[str], tenant_id: Optional[str]) -> bool:
     """Whether a session with ``role`` in ``tenant_id`` must pass MFA (D-14). Built-in
     admin-tier roles need no lookup. A role-store error requires MFA for a custom name and
-    falls back to the table answer for a built-in name; error answers are not cached."""
+    falls back to the table answer for a built-in name, but never answers less strictly than
+    the last answer seen for the role (77 WR-03: a tenant document can add admin-tier
+    permissions to a built-in name). Error answers are not cached."""
     key, builtin, table = _mfa_table_answer(role)
     if table:
         return True
@@ -130,8 +139,9 @@ async def resolve_mfa_required(role: Optional[str], tenant_id: Optional[str]) ->
         from rbac_service import effective_permissions  # rbac_service imports this module
         required = rbac_defaults.requires_mfa(await effective_permissions(get_database(), role, tenant_id))
     except Exception as err:
-        logger.warning("MFA requirement lookup failed for role %r (%s)", role, err)
-        return not builtin
+        logger.error("MFA requirement lookup failed for role %r (%s)", role, err)
+        last = _mfa_role_cache.get(_mfa_cache_key(key, tenant_id))
+        return (not builtin) or bool(last and last[1])
     _mfa_role_cache[_mfa_cache_key(key, tenant_id)] = (time.monotonic() + MFA_ROLE_CACHE_SECONDS, required)
     return required
 
