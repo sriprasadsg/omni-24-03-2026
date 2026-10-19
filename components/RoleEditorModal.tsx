@@ -1,16 +1,17 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { Role, Permission } from '../types';
-import { ShieldLockIcon } from './icons';
-import { useUser } from '../contexts/UserContext';
+import React, { useState, useEffect } from 'react';
+import { Permission } from '../types';
+import { AlertTriangleIcon } from './icons';
 import { Modal } from './Modal';
+import { ApiRole, RoleApiError, createRole, updateRole, fetchPermissionCatalogue } from '../services/roleApi';
+import { showToast } from '../utils/toast';
 
 interface RoleEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (role: Role) => void;
-  role: Role | null;
-  allRoles: Role[];
+  onSave: (saved: ApiRole) => void;
+  role: ApiRole | null;
+  allRoles: ApiRole[];
+  tenantId?: string | null;
 }
 
 const featureMap: Partial<Record<Permission, string>> = {
@@ -55,94 +56,71 @@ const featureMap: Partial<Record<Permission, string>> = {
   'view:network': 'Network Observability',
 };
 
-const permissionGroups: { name: string; permissions: Permission[] }[] = [
-  { name: 'General', permissions: ['view:dashboard', 'view:reporting', 'export:reports'] },
-  { name: 'Administration', permissions: ['manage:settings', 'manage:rbac', 'manage:api_keys', 'view:finops', 'manage:tenants', 'view:profile'] },
-  { name: 'Security', permissions: ['view:security', 'manage:security_cases', 'manage:security_playbooks', 'investigate:security', 'view:cloud_security', 'view:patching', 'manage:patches', 'view:threat_hunting'] },
-  { name: 'Observability', permissions: ['view:agents', 'view:agent_logs', 'remediate:agents', 'view:assets', 'view:logs', 'view:insights', 'view:tracing', 'view:network'] },
-  { name: 'AI Governance', permissions: ['view:ai_governance', 'manage:ai_risks'] },
-  { name: 'Compliance', permissions: ['view:compliance', 'manage:compliance_evidence', 'view:audit_log'] },
-  { name: 'Automation', permissions: ['view:automation', 'manage:automation'] },
-  { name: 'Developer Tools', permissions: ['view:devsecops', 'view:developer_hub'] },
-  { name: 'Advanced Platform', permissions: ['view:dspm', 'view:attack_path', 'view:service_catalog', 'view:dora_metrics', 'view:chaos'] },
-];
-
-
-export const RoleEditorModal: React.FC<RoleEditorModalProps> = ({ isOpen, onClose, onSave, role, allRoles }) => {
-  const { currentUser, enabledFeatures } = useUser();
+export const RoleEditorModal: React.FC<RoleEditorModalProps> = ({ isOpen, onClose, onSave, role, allRoles, tenantId }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [permissions, setPermissions] = useState<Set<Permission>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [available, setAvailable] = useState<string[]>([]);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (role) {
-      setName(role.name);
-      setDescription(role.description);
-      setPermissions(new Set(role.permissions));
-    } else {
-      setName('');
-      setDescription('');
-      setPermissions(new Set());
-    }
-    setNameError(null); // Reset error when modal opens or role changes
+    setName(role ? role.name : '');
+    setDescription(role ? role.description : '');
+    setSelected(new Set(role ? role.permissions : []));
+    setNameError(null);
+    setSaveError(null);
+    setSaving(false);
   }, [role, isOpen]);
 
-  const handlePermissionChange = (permission: Permission, isChecked: boolean) => {
-    setPermissions(prev => {
-      const newSet = new Set(prev);
-      if (isChecked) {
-        newSet.add(permission);
-      } else {
-        newSet.delete(permission);
-      }
-      return newSet;
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetchPermissionCatalogue(tenantId ?? undefined)
+      .then(c => { if (!cancelled) setAvailable(c.permissions); })
+      .catch(() => { if (!cancelled) setAvailable([]); });
+    return () => { cancelled = true; };
+  }, [isOpen, tenantId]);
+
+  const toggle = (permission: string, checked: boolean) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(permission); else next.delete(permission);
+      return next;
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-
-    // Validation for unique role name (case-insensitive)
-    const isNameTaken = allRoles.some(
-      r => r.name.toLowerCase() === name.trim().toLowerCase() && r.id !== role?.id
-    );
-
-    if (isNameTaken) {
+    if (saving || !name.trim()) return;
+    const duplicate = allRoles.some(r => r.name.toLowerCase() === name.trim().toLowerCase() && r.id !== role?.id);
+    if (duplicate) {
       setNameError('A role with this name already exists.');
       return;
     }
-
-    const roleToSave: Role = {
-      id: role?.id || `role-${Date.now()}`,
-      name: name.trim(),
-      description: description.trim(),
-      permissions: Array.from(permissions),
-      isEditable: role?.isEditable ?? true,
-      tenantId: role?.tenantId ?? 'custom',
-    };
-    onSave(roleToSave);
-  };
-
-  const availablePermissionGroups = useMemo(() => {
-    // Super Admin sees all permissions, except for tenant management which is a special case not assignable to tenant roles.
-    if (currentUser?.role === 'Super Admin') {
-      return permissionGroups.map(group => ({
-        ...group,
-        permissions: group.permissions.filter(p => p !== 'manage:tenants')
-      }));
+    const permissions = Array.from(selected);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const saved = role
+        ? await updateRole(role.id, { description: description.trim(), permissions }, tenantId ?? undefined)
+        : await createRole({ name: name.trim(), description: description.trim(), permissions, tenantId: tenantId ?? undefined });
+      onSave(saved);
+      showToast(`Role "${saved.name}" saved.`, 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (err instanceof RoleApiError && err.status === 409 && message) {
+        setNameError(message);
+      } else {
+        setSaveError(message
+          ? `Couldn't save the role: ${message}. Your changes are still here, fix the issue and try again.`
+          : "Couldn't save the role. Check your connection and try again.");
+      }
+    } finally {
+      setSaving(false);
     }
-
-    // Tenant Admins only see permissions enabled for their tenant
-    const tenantPermissions = new Set(enabledFeatures);
-    return permissionGroups.map(group => ({
-      ...group,
-      permissions: group.permissions.filter(p => tenantPermissions.has(p))
-    })).filter(group => group.permissions.length > 0);
-  }, [enabledFeatures, currentUser]);
-
-  const isBuiltIn = role ? !role.isEditable : false;
+  };
 
   const footer = (
     <>
@@ -151,79 +129,57 @@ export const RoleEditorModal: React.FC<RoleEditorModalProps> = ({ isOpen, onClos
       >
         Cancel
       </button>
-      <button type="submit" form="role-editor-form"
-        disabled={isBuiltIn}
+      <button type="submit" form="role-editor-form" disabled={saving}
         className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none disabled:bg-primary-400/50 disabled:cursor-not-allowed"
       >
-        {role ? 'Save Changes' : 'Create Role'}
+        {saving ? 'Saving...' : role ? 'Save Changes' : 'Create Role'}
       </button>
     </>
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={role ? `Edit Role: ${role.name}` : 'Create New Role'}
-      size="2xl"
-      footer={footer}
-    >
-        <form id="role-editor-form" onSubmit={handleSubmit}>
-          {isBuiltIn && (
-            <div className="p-3 mb-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg flex items-start text-sm text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-              <ShieldLockIcon size={18} className="mr-2.5 mt-0.5 flex-shrink-0 text-blue-500" />
-              <div>
-                <span className="font-semibold">This is a built-in role.</span>
-                <p className="text-blue-700 dark:text-blue-400">Its name, description, and permissions cannot be modified to ensure system stability.</p>
-              </div>
-            </div>
-          )}
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Role Name</label>
-              <input type="text" name="name" id="name" value={name}
-                onChange={e => {
-                  setName(e.target.value);
-                  if (nameError) setNameError(null);
-                }}
-                required
-                disabled={isBuiltIn}
-                className={`mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border rounded-md shadow-sm sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 ${nameError ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-primary-500 focus:border-primary-500'}`}
-              />
-              {nameError && <p className="mt-1 text-xs text-red-500">{nameError}</p>}
-            </div>
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-              <textarea name="description" id="description" value={description} onChange={e => setDescription(e.target.value)} rows={2} required disabled={isBuiltIn}
-                className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50"
-              ></textarea>
-            </div>
-            <div className="pt-2">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Permissions</h3>
-              <div className="mt-2 space-y-4">
-                {availablePermissionGroups.map(group => (
-                  <div key={group.name} role="group" aria-labelledby={`group-label-${group.name}`} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                    <h4 id={`group-label-${group.name}`} className="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-2">{group.name}</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                      {group.permissions.map(p => (
-                        <label key={p} className={`flex items-center space-x-3 ${isBuiltIn ? 'cursor-not-allowed' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={permissions.has(p)}
-                            onChange={e => handlePermissionChange(p, e.target.checked)}
-                            disabled={isBuiltIn}
-                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50"
-                          />
-                          <span className={`text-sm ${isBuiltIn ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'}`}>{featureMap[p]}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+    <Modal isOpen={isOpen} onClose={onClose} title={role ? `Edit Role: ${role.name}` : 'Create New Role'} size="2xl" footer={footer}>
+      <form id="role-editor-form" onSubmit={handleSubmit}>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Role Name</label>
+            <input type="text" name="name" id="name" value={name}
+              onChange={e => { setName(e.target.value); if (nameError) setNameError(null); }}
+              required disabled={!!role || saving}
+              aria-describedby={role ? 'name-help' : undefined}
+              className={`mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border rounded-md shadow-sm sm:text-sm overflow-x-auto disabled:bg-gray-100 dark:disabled:bg-gray-700/50 ${nameError ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-primary-500 focus:border-primary-500'}`}
+            />
+            {role && <p id="name-help" className="mt-1 text-xs text-gray-500 dark:text-gray-400">A role's name can't be changed. To rename, create a new role and reassign its users.</p>}
+            {nameError && <p role="alert" className="mt-1 text-xs text-red-500">{nameError}</p>}
+          </div>
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+            <textarea name="description" id="description" value={description} onChange={e => setDescription(e.target.value)} rows={2} required disabled={saving}
+              className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50"
+            ></textarea>
+          </div>
+          <div className="pt-2">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Permissions</h3>
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+              {available.map(p => (
+                <label key={p} className="flex items-center space-x-3">
+                  <input type="checkbox" checked={selected.has(p)} onChange={e => toggle(p, e.target.checked)} disabled={saving}
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50" />
+                  {featureMap[p as Permission]
+                    ? <span className="text-sm text-gray-600 dark:text-gray-400">{featureMap[p as Permission]}</span>
+                    : <span className="font-mono text-xs text-gray-600 dark:text-gray-400">{p}</span>}
+                </label>
+              ))}
             </div>
           </div>
-        </form>
+          {saveError && (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300 p-3 text-sm flex items-start">
+              <AlertTriangleIcon size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+              <span>{saveError}</span>
+            </div>
+          )}
+        </div>
+      </form>
     </Modal>
   );
 };

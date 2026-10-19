@@ -1444,14 +1444,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveRole = (role: Role) => {
-    api.saveRole(role).then(savedRole => {
-      setRoles(prev => {
-        const exists = prev.some(r => r.id === savedRole.id);
-        if (exists) return prev.map(r => r.id === savedRole.id ? savedRole : r);
-        return [...prev, savedRole];
-      });
-    });
+  const handleSaveRole = (_saved: Role) => {
+    // The editor already stored the role on the server (D-01); re-read the list.
+    api.fetchRoles().then(setRoles);
   };
 
   const handleDeleteRole = (roleId: string) => {

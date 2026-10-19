@@ -52,3 +52,59 @@ export async function fetchRoleVisibility(roleId: string, tenantId?: string | nu
     if (!res.ok) throw await failure(res, 'Could not load role visibility');
     return res.json();
 }
+
+/** A non-OK role write/catalogue response. `message` is the server detail, empty when it gave none. */
+export class RoleApiError extends Error {
+    status: number;
+    constructor(status: number, message: string) {
+        super(message);
+        this.name = 'RoleApiError';
+        this.status = status;
+    }
+}
+
+async function apiError(res: Response): Promise<RoleApiError> {
+    let detail = '';
+    try {
+        const body = await res.json();
+        detail = typeof body?.detail === 'string' ? body.detail : '';
+    } catch { /* non-JSON error body */ }
+    return new RoleApiError(res.status, detail);
+}
+
+export interface PermissionCatalogue { permissions: string[]; superAdmin: boolean; }
+
+/** GET /api/roles/permission-catalogue: what the current editor may grant (D-02, with the D-11 closure). */
+export async function fetchPermissionCatalogue(tenantId?: string | null): Promise<PermissionCatalogue> {
+    const res = await authFetch(withTenant(`${API_BASE}/roles/permission-catalogue`, tenantId));
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+}
+
+export interface CreateRoleBody { name: string; description: string; permissions: string[]; tenantId?: string | null; }
+
+/** POST /api/roles: create a custom role (D-01). */
+export async function createRole(body: CreateRoleBody): Promise<ApiRole> {
+    const res = await authFetch(`${API_BASE}/roles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+}
+
+/** PUT /api/roles/{id}: edit description and permissions only; the name never changes (D-13). */
+export async function updateRole(
+    id: string,
+    body: { description?: string; permissions?: string[] },
+    tenantId?: string | null,
+): Promise<ApiRole> {
+    const res = await authFetch(withTenant(`${API_BASE}/roles/${encodeURIComponent(id)}`, tenantId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) throw await apiError(res);
+    return res.json();
+}

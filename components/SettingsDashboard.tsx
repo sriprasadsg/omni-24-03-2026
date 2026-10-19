@@ -198,8 +198,9 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
         setIsRoleModalOpen(true);
     };
 
-    const handleSaveRole = (role: Role) => {
-        onSaveRole(role);
+    const rolesTenantId = isSuperAdmin && props.viewingTenantId && props.viewingTenantId !== PLATFORM_TENANT_ID ? props.viewingTenantId : null;
+    const handleSaveRole = (saved: Role) => {
+        onSaveRole(saved);
         setIsRoleModalOpen(false);
     };
 
@@ -399,7 +400,7 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
 
                     {activeView === 'roles' && canListRoles && (
                         <SettingsRolesTab
-                            roles={roles} tenantId={isSuperAdmin && props.viewingTenantId && props.viewingTenantId !== PLATFORM_TENANT_ID ? props.viewingTenantId : null}
+                            roles={roles} tenantId={rolesTenantId}
                             canManageRBAC={canManageRBAC} isSuperAdmin={isSuperAdmin}
                             canManageSettings={canManageSettings}
                             onNew={() => handleOpenRoleModal(null)}
@@ -482,6 +483,7 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
                     onSave={handleSaveRole}
                     role={editingRole}
                     allRoles={roles}
+                    tenantId={rolesTenantId}
                 />
             )}
             <GenerateApiKeyNameModal
