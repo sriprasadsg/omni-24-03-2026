@@ -3,7 +3,7 @@ status: testing
 phase: 77-fail-closed-sidebar-view-gate-role-visibility
 source: [77-VERIFICATION.md]
 started: 2026-10-19T16:43:12Z
-updated: 2026-10-19T17:03:04Z
+updated: 2026-10-19T17:57:14Z
 ---
 
 ## Current Test
@@ -32,12 +32,16 @@ result: [pending]
 expected: As Super Admin, in Settings > Roles, pick a tenant and open "What it can see" for built-in and custom roles; each list matches the sidebar that role's holders actually see.
 result: [pending]
 
+### 5. A role edit puts its holders behind MFA at once
+expected: Give a custom role held by a user with an open session and no MFA enrolled the manage:users permission. That user's next API call hits the MFA gate straight away (not after 60 s), and a fresh socket connect is refused until they pass MFA; removing the permission lifts both. An already-open socket is not re-checked until it reconnects.
+result: [pending]
+
 ## Summary
 
-total: 4
+total: 5
 passed: 0
 issues: 0
-pending: 4
+pending: 5
 skipped: 0
 blocked: 0
 
