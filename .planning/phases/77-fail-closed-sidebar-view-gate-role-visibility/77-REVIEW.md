@@ -7,7 +7,8 @@ incremental_files:
   - src/__tests__/catalogueAccess.test.ts
   - utils/permissionRefresh.ts
   - src/__tests__/permissionRefresh.test.ts
-incremental_scope: fix commit a1f4488d1 (WR-01); fix commit b76b8af8d (WR-08), second incremental pass 2026-10-19
+  - services/apiService.ts
+incremental_scope: fix commit a1f4488d1 (WR-01); fix commit b76b8af8d (WR-08), second incremental pass 2026-10-19; fix commit 41fb29db5 (WR-09), third incremental pass 2026-10-19
 depth: standard
 files_reviewed: 56
 files_reviewed_list:
@@ -69,9 +70,9 @@ files_reviewed_list:
   - utils/viewAccess.ts
 findings:
   critical: 0
-  warning: 9
-  info: 8
-  total: 17
+  warning: 10
+  info: 9
+  total: 19
 status: issues_found
 ---
 
@@ -99,6 +100,8 @@ The access-control core is sound. I traced these paths and found no fail-open an
 **Incremental re-review (2026-10-19, fix a1f4488d1 for WR-01).** The one-line fix (`currentUserRef.current = next;` before `setCurrentUser(next)` in `refreshPermissions`) is correct for the deterministic stale-read: `loadAllData` has an empty dependency list and reads `currentUserRef.current` synchronously before its first `await`, so it now sees the refreshed list. WR-01 is marked resolved below. The re-review adds one new warning (WR-08, the 30s tick still starts a stale-list load that nothing orders against the refresh-triggered one) and one info item (IN-07, the new source guard test). No other new defects: the ordering with `setAccessChanged`/`lostAccess`, two refreshes, and sign-out were traced and are safe (details under WR-01).
 
 **Second incremental re-review (2026-10-19, fix b76b8af8d for WR-08, diff base 7ab88bd43).** The new `refreshThenLoad(refresh, load)` helper in `utils/permissionRefresh.ts` and its one call site (`App.tsx:847`) remove the stale-list load from the 30s tick and the `visibilitychange` handler, so WR-08 is marked resolved below. Traced: `refreshPermissions` cannot reject today (`api.fetchCurrentPermissions` swallows every error; the body after the await only reads refs and calls pure helpers), a shared in-flight promise from a focus or 403 refresh gives the tick the same result so exactly one load runs, and the signed-out case (`prev` null gives `'error'`, then `load()` runs and `loadAllData` returns at its token check) behaves as before the change, so it is not a regression. The review adds one warning (WR-09, the data load is now chained to an `/auth/me` request that has no timeout and no rejection handling) and one info item (IN-08, the explicit reload in `refreshPermissions` duplicates the one the Initial Data Load effect already makes).
+
+**Third incremental re-review (2026-10-19, fix 41fb29db5 for WR-09, diff base 745fcfd47).** `fetchCurrentPermissions` now aborts through an `AbortController` after `PERMISSIONS_TIMEOUT_MS` (10 s) and clears the timer in `finally`, and `refreshThenLoad` treats a rejecting refresh as `'error'`. Both halves of the WR-09 Fix text are applied, and the two new tests pass (14 of 14 in `permissionRefresh.test.ts`, run at HEAD). WR-09 is marked resolved below for the failure it described (a stalled `/auth/me`). Traced and found sound: `authFetch` forwards the signal (it passes the `instanceof AbortSignal` guard and is spread into both the first request and the 401 retry); the abort surfaces as a rejection that `fetchCurrentPermissions` maps to `null`, so `refreshPermissions` returns `'error'` and `load()` runs with the kept list; nothing reads an aborted `/auth/me` as "backend offline" (`setIsBackendConnected(false)` is only set from `loadAllData`'s own critical-endpoint failures and the health poll, and `fetchCurrentPermissions` has the single caller `App.tsx:815`); the timer is cleared on every path; 10 s is shorter than the 30 s tick (so a timed-out read cannot overlap the next tick) and the 403 refresh is shared through `refreshInFlight`, so it adds no second request; the new test block restores real timers, unstubs `fetch` and clears `sessionStorage` in `afterEach`, so nothing leaks. The pass adds one warning (WR-10, the signal reaches the 401 retry inside a `try` whose `catch` signs the user out) and one info item (IN-09, the timeout does not bound the token-refresh wait and the test does not cover the 401 path).
 
 There are no blockers. The seven original warnings are one stale-state bug in the permission refresh, two MFA-cache problems, two server-side robustness gaps in role edit and delete, one hash-routing prototype-key bug, and a Super Admin UI gap for tenant custom roles. The info items are minor.
 
@@ -214,6 +217,8 @@ or change the tick to `const refresh = () => { void refreshPermissions().then(r 
 
 ### WR-09: The periodic data load now waits on an `/auth/me` request that has no timeout and no rejection handling
 
+**Status: RESOLVED by 41fb29db5** (confirmed in the third 2026-10-19 incremental pass; see the resolution check at the end of this section). Two follow-ups are tracked separately: WR-10 (a new misfire the signal introduces in `authFetch`) and IN-09 (the timeout does not bound the token-refresh wait).
+
 **File:** `utils/permissionRefresh.ts:65-67` (`refreshThenLoad`); dependency `services/apiService.ts:755-764` (`fetchCurrentPermissions` over `authFetch`, line 269) and the shared promise `App.tsx:808-829` (`refreshInFlight`)
 **Issue:** Before b76b8af8d the tick called `loadAllData()` unconditionally and independently of `refreshPermissions()`. `refreshThenLoad` makes the load conditional on the refresh settling, so the data refresh now inherits the refresh's failure modes:
 - `authFetch` and `fetchCurrentPermissions` set no timeout or `AbortSignal`. If the `/auth/me` request stalls (half-open connection, a proxy that holds the request), the promise never settles and `refreshInFlight.current` is never cleared (it is cleared only in `finally`). Every later tick, visibility change, focus and 403 refresh then returns that same pending promise, so `load()` is never called again and the 30s data refresh stops until the page is reloaded. A stalled `/auth/me` with otherwise healthy endpoints used to cost only the permission refresh; it now also freezes all data.
@@ -228,6 +233,28 @@ export async function refreshThenLoad(refresh: () => Promise<RefreshResult>, loa
 }
 ```
 and bound the permission request, for example `authFetch(\`${API_BASE}/auth/me\`, { signal: AbortSignal.timeout(10000) })` inside `fetchCurrentPermissions` (its `catch` already maps the abort to `null`, which becomes `'error'`). Add a test with a rejecting refresh.
+
+**Resolution check (41fb29db5):** Verified at HEAD. (1) `fetchCurrentPermissions` (`services/apiService.ts:758-771`) creates the controller and timer before the `try`, passes `{ signal }` to `authFetch`, and clears the timer in `finally`, so there is no timer leak on success, failure or abort. (2) `authFetch` (line 269) keeps the signal (`rawSignal instanceof AbortSignal`) and forwards it to every `makeRequest`, so a stalled `/auth/me` is aborted; the rejection hits the `catch` and returns `null`, which `refreshPermissions` maps to `'error'`, clears `refreshInFlight` in its `.finally`, and `refreshThenLoad` then calls `load()`. A stalled `/auth/me` therefore costs at most 10 s of delay on one tick instead of freezing the data refresh. (3) `refreshThenLoad` wraps `await refresh()` in `try/catch`, so a rejecting refresh still loads and the returned promise settles; the `void` caller can no longer produce an unhandled rejection. (4) 10 s is below the 30 s tick, so a timed-out read cannot overlap the next tick, and the 15 s 403 window is only an event debounce (the read it triggers is shared through `refreshInFlight`), so the two do not interact. (5) An abort is never reported as a lost backend: `setIsBackendConnected(false)` is set only by `loadAllData`'s critical-endpoint failures (`App.tsx:582`) and the health poll, neither of which calls this function. (6) The two new tests pass and clean up after themselves (`afterEach` restores real timers, unstubs the global `fetch` and clears `sessionStorage`). Not covered by this fix: the abort does not reach the token-refresh request (IN-09), and the signal changes what the 401-retry `catch` in `authFetch` does (WR-10).
+
+### WR-10: An aborted `/auth/me` retry after a 401 token refresh signs the user out
+
+**File:** `services/apiService.ts:305-317` (the 401 branch of `authFetch`), reached through `fetchCurrentPermissions` at `services/apiService.ts:758-771`
+**Issue:** The 401 branch is `try { const newToken = await refreshAccessToken(); response = await makeRequest(newToken); } catch { _expireSession(); throw new Error('Session expired'); }`. The retry `makeRequest` carries the caller's signal, and the `catch` treats every failure of either step the same way. Before 41fb29db5 `fetchCurrentPermissions` passed no signal, so only a genuine refresh failure could reach that `catch`. Now the 10 s timer also starts the clock for the proactive refresh and the 401 refresh, and an abort during or before the retry lands in the `catch`:
+- the 10 s budget is spent while `refreshAccessToken` runs (it is shared and has no timeout of its own); if it ends after the timer fired, `fetch(url, { signal })` with an already-aborted signal rejects at once with `AbortError`;
+- or the retry itself stalls past the remaining budget.
+Either way `_expireSession()` runs: it sets `_sessionEnding`, removes `token` and `refresh_token`, clears the caches and redirects to `/login` after 50 ms. A valid session with a good, freshly refreshed token is ended by a slow backend. It needs a 401 on `/auth/me` (a token revoked server-side, or one that expired while the proactive refresh was in backoff) plus slowness of about 10 s, so it is uncommon, but the result is a forced sign-out on a path that runs every 30 s. The cleared `refresh_token` and `_sessionEnding = true` also make every in-flight request fail with "Session ended" until the redirect. Any other caller that passes a signal into `authFetch` (existing ones included) has the same exposure.
+**Fix:** Separate the refresh from the retry, so only a refresh failure ends the session, and let an abort pass through untouched:
+```ts
+let newToken: string;
+try {
+    newToken = await refreshAccessToken();
+} catch {
+    _expireSession();
+    throw new Error('Session expired');
+}
+response = await makeRequest(newToken);   // an AbortError or network error here must not end the session
+```
+(If a retry that still answers 401 should end the session, handle it by status after the retry, not by exception.) Add a test: stub `fetch` so the first `/auth/me` returns 401, `/auth/refresh` returns a token, and the retry rejects with `AbortError`; assert `fetchCurrentPermissions()` resolves `null` and `window.location.href` is unchanged and the token is still in `sessionStorage`.
 
 ## Info
 
@@ -286,6 +313,12 @@ This is the same drift-guard pattern as IN-06.
 **Issue:** `setCurrentUser(next)` changes `currentUser`, so after the render the Initial Data Load effect runs and calls `loadAllData()` again. A `'changed'` refresh therefore starts two full loads (about 90 requests), both with the new list. This does not reintroduce WR-01 or WR-08 (both loads use the same list, so whichever finishes last writes the same data), but it makes the explicit `loadAllData()` in `refreshPermissions` redundant and means the `refreshThenLoad` comment ("the refresh already reloaded") describes a reload that happens twice. The same effect also reloads on every other `setCurrentUser`, for example the empty-list fallback at `App.tsx:1075`.
 **Fix:** Either keep the explicit call (it guarantees the load starts with the ref set) and make the effect depend on the user's identity instead of the whole object (`currentUser?.email`, `currentUser?.tenantId`), or drop the explicit call and rely on the effect. Pick one so a list change costs one load.
 
+### IN-09: The 10 s timeout does not bound the token-refresh wait, and the test does not cover the 401 or near-expiry paths
+
+**File:** `services/apiService.ts:157` (`refreshAccessToken` has no signal or timeout; `authFetch` awaits it at `:294` before the first request and at `:312` on a 401); `src/__tests__/permissionRefresh.test.ts:189-212`
+**Issue:** The abort only cancels the `/auth/me` request. If the token is within 5 minutes of expiry (or the request gets a 401), `authFetch` first awaits the shared `refreshAccessToken()`, a bare `fetch` with no timeout. If `/auth/refresh` stalls, `fetchCurrentPermissions` still hangs past 10 s, `refreshInFlight` stays set, and the tick-chained load stalls as it did in WR-09. The window is narrow (it recurs only when the refresh endpoint is the stalled one, and then every other `authFetch` caller is blocked on the same promise anyway), so it is not worth reopening WR-09, but the "never longer than 10 s" claim in the constant's comment only holds for the `/auth/me` request. The new test uses the token `'tok'`, for which `jwtSecondsUntilExpiry` returns `Infinity`, so neither the proactive refresh nor the 401 branch is exercised (that is why WR-10 is not caught). The test also pins the literal `10000` in an assertion, which only duplicates the constant.
+**Fix:** Either race the whole call (`Promise.race([authFetch(...), timeout])` with the timer settling the result) so the 10 s limit covers the refresh wait too, or give `refreshAccessToken` its own `AbortSignal.timeout`. Add a case with a near-expiry token (`header.eyJleHAiOjF9.sig` style payload) and a 401 first answer. Drop the `toBe(10000)` assertion or import the constant only.
+
 ---
 
 _Reviewed: 2026-10-19_
@@ -293,3 +326,4 @@ _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
 _Incremental re-review: 2026-10-19 (a1f4488d1, App.tsx and src/__tests__/catalogueAccess.test.ts)_
 _Incremental re-review 2: 2026-10-19 (b76b8af8d, App.tsx, utils/permissionRefresh.ts and src/__tests__/permissionRefresh.test.ts)_
+_Incremental re-review 3: 2026-10-19 (41fb29db5, services/apiService.ts, utils/permissionRefresh.ts and src/__tests__/permissionRefresh.test.ts)_
