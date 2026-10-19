@@ -127,7 +127,7 @@ recorded: 2026-10-19T17:51:37.822Z
 | IN-06 | info | open | - |
 | IN-07 | info | open | - |
 | IN-08 | info | open | - |
-| IN-09 | info | fixed | 3bb575186 (race also bounds a stalled /auth/refresh; WR-10 test covers the 401 path) |
+| IN-09 | info | fixed | 3bb575186 (race also bounds a stalled /auth/refresh; WR-10 test covers the 401 path; reviewer pass 4: partly, no near-expiry-token test) |
 | IN-10 | info | open | - |
 | IN-11 | info | open | - |
 | IN-12 | info | fixed | 2bc310005 (per-tenant generation guard; role writes inside _role_write; confirmed resolved in review pass 5) |
