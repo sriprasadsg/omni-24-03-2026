@@ -239,6 +239,7 @@ import { derivePermissionState, isPlatformRoleName, switchedOnFor } from './util
 import { NAV_GROUPS, catalogueFor, viewForHash, viewPermission } from './utils/catalogueAccess';
 import { evaluateViewAccess, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
+import { PERMISSION_DENIED_EVENT, samePermissionSet, lostAccess, type RefreshResult } from './utils/permissionRefresh';
 
 const API_BASE = '/api';
 
@@ -800,15 +801,40 @@ const App: React.FC = () => {
   // A tenant feature switch or role edit changes what the server grants (spec C6);
   // re-read the delivered list so the menu follows without a re-login. An unchanged
   // list keeps the same user object, so nothing re-renders or reloads.
-  const refreshPermissions = useCallback(async () => {
-    const fresh = await api.fetchCurrentPermissions();
-    if (!fresh) return;
-    setCurrentUser(prev => {
-      if (!prev) return prev;
-      const same = [...(prev.permissions ?? [])].sort().join('|') === [...fresh].sort().join('|');
-      return same ? prev : { ...prev, permissions: fresh };
-    });
-  }, []);
+  // ACC-08: tri-state result, one shared in-flight request, the last known list kept on 'error'
+  // (a failed or partial response never widens access), app data reloaded when the list changed.
+  const refreshInFlight = useRef<Promise<RefreshResult> | null>(null);
+  // True after a refresh removed access to the open screen; shown by the in-place panel until the next navigation.
+  const [accessChanged, setAccessChanged] = useState(false);
+  const refreshPermissions = useCallback((): Promise<RefreshResult> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+    const run = (async (): Promise<RefreshResult> => {
+      const fresh = await api.fetchCurrentPermissions();
+      const prev = currentUserRef.current;
+      if (!fresh || !prev) return 'error';
+      if (Array.isArray(prev.permissions) && samePermissionSet(prev.permissions, fresh)) return 'same';
+      const next: User = { ...prev, permissions: fresh };
+      if (lostAccess(currentViewRef.current, prev, next)) setAccessChanged(true);
+      setCurrentUser(next);
+      loadAllData();
+      return 'changed';
+    })().finally(() => { refreshInFlight.current = null; });
+    refreshInFlight.current = run;
+    return run;
+  }, [loadAllData]);
+
+  // A 403 on a fetch the client believed allowed, or a window focus, re-reads permissions at once
+  // (an admin's role edit reaches the sidebar without a re-login). Independent of the backend
+  // health flag so a 403 is never ignored (Pitfall 12).
+  useEffect(() => {
+    const onRefresh = () => { void refreshPermissions(); };
+    window.addEventListener(PERMISSION_DENIED_EVENT, onRefresh);
+    window.addEventListener('focus', onRefresh);
+    return () => {
+      window.removeEventListener(PERMISSION_DENIED_EVENT, onRefresh);
+      window.removeEventListener('focus', onRefresh);
+    };
+  }, [refreshPermissions]);
 
   // Periodic Data Refresh (every 30s). Each refresh is ~45 API calls, so a tab
   // in the background skips it and catches up as soon as it is visible again.
@@ -1160,6 +1186,7 @@ const App: React.FC = () => {
   const handleSetCurrentView = useCallback((view: AppView) => {
     // On phones the open sidebar overlays the page; close it once a page is picked.
     if (typeof window !== 'undefined' && window.innerWidth < 768) setIsSidebarOpen(false);
+    setAccessChanged(false); // accessChanged notice ends at the next navigation
     setCurrentView(view);
   }, []);
 
@@ -1883,7 +1910,7 @@ const App: React.FC = () => {
                       across views and one crash leaves every later view showing the error. */}
                   <ErrorBoundary name="MainContent" key={currentView}>
                     <Suspense fallback={<SkeletonDashboard />}>
-                      {landedFor === landedKey ? <ViewGate view={currentView} user={currentUser} hasPermission={hasPermission} landing={landing} onGoToLanding={goToLanding} render={renderView} /> : <SkeletonDashboard />}
+                      {landedFor === landedKey ? <ViewGate view={currentView} user={currentUser} hasPermission={hasPermission} landing={landing} onGoToLanding={goToLanding} accessChanged={accessChanged} render={renderView} /> : <SkeletonDashboard />}
                     </Suspense>
                   </ErrorBoundary>
                 </main>

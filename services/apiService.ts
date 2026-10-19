@@ -27,6 +27,7 @@ import {
     WebGPUInferenceMetrics,
     WebGPUMetric,
 } from '../types';
+import { shouldSignalPermissionDenied, notifyPermissionDenied } from '../utils/permissionRefresh';
 
 export type {
     User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSystem, Asset, Patch, SecurityCase,
@@ -311,6 +312,12 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
     if (response.status === 403 && response.headers.get('X-MFA-Required') && !_mfaRequired) {
         _mfaRequired = true;
         window.dispatchEvent(new Event('omni:mfa-required'));
+    }
+
+    // A 403 on a request the client believed allowed means the delivered permissions may be stale
+    // (ACC-08): signal App to re-read them. Silent: no toast, the response is returned unchanged.
+    if (shouldSignalPermissionDenied(url, response.status, response.headers.get('X-MFA-Required'))) {
+        notifyPermissionDenied();
     }
 
     return response;
