@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 import rbac_defaults
 import role_contents
+import role_visibility
+import tenant_features
 from audit_service import get_audit_service
 from auth_types import TokenData
 from authentication_service import get_current_user
@@ -279,3 +281,63 @@ async def delete_role(role_id: str, tenantId: Optional[str] = None,
     await _audit_role("role.deleted", current_user.username or "", doc, tenant_id,
                       previous_state={"description": doc.get("description") or "",
                                       "permissions": sorted(doc.get("permissions") or [])})
+
+
+async def _tenant_name(db, tenant_id: str) -> str:
+    doc = await db._db.tenants.find_one({"id": tenant_id})
+    return (doc or {}).get("name") or tenant_id
+
+
+@router.get("/{role_id}/visibility")
+async def role_visibility_view(role_id: str, tenantId: Optional[str] = None,
+                               current_user: TokenData = Depends(_require_role_list_access)):
+    """D-09/D-10: what a role can see, computed by the delivery pipeline (SC3).
+
+    Built-in and custom roles of the caller's own tenant; a Super Admin may name a tenant
+    (D-17: without one a built-in tenant role is shown unnarrowed, a custom role is refused).
+    Platform roles are visible to a Super Admin only and are never narrowed. The marker on each
+    screen (view or manage) comes only from the server.
+    """
+    db = get_database()
+    caller_is_super = is_super_admin(current_user.role)
+    try:
+        if caller_is_super:
+            tenant_id = await role_contents.resolve_target_tenant(db, current_user, tenantId) if tenantId else None
+        else:
+            if tenantId and tenantId != current_user.tenant_id:
+                raise HTTPException(status_code=403, detail="You can only view roles of your own tenant")
+            tenant_id = current_user.tenant_id
+            if not tenant_id:
+                raise HTTPException(status_code=403, detail="No tenant for this account")
+        builtin = next((b for b in rbac_defaults.BUILTIN_ROLES if b.role_id == role_id), None)
+        enabled: List[str] = []
+        if builtin is not None and builtin.key in rbac_defaults.PLATFORM_ROLE_KEYS:
+            if not caller_is_super:
+                raise HTTPException(status_code=404, detail="Role not found")
+            name, built_in, narrowed = builtin.name, True, False
+            effective = await effective_permissions(db, builtin.name, None)
+            basis = {"kind": "platform_role", "tenantId": None, "tenantName": None}
+        else:
+            if builtin is not None:
+                name, built_in = builtin.name, True
+            else:
+                if not tenant_id:
+                    raise HTTPException(status_code=400, detail="Select a tenant to see a custom role")
+                doc = await role_contents.find_custom_role(db, tenant_id, role_id=role_id)
+                if doc is None:
+                    raise HTTPException(status_code=404, detail="Role not found")
+                name, built_in = doc["name"], False
+            effective = await effective_permissions(db, name, tenant_id)
+            narrowed = tenant_id is not None
+            if tenant_id:
+                enabled = await tenant_features.enabled_features(tenant_id, get_database)
+                basis = {"kind": "tenant", "tenantId": tenant_id, "tenantName": await _tenant_name(db, tenant_id)}
+            else:
+                basis = {"kind": "no_tenant", "tenantId": None, "tenantName": None}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _store_unavailable(exc)
+    return role_visibility.build_visibility(
+        role_id=role_id, role_name=name, built_in=built_in, effective=effective,
+        enabled=enabled, narrowed=narrowed, basis=basis)
