@@ -589,7 +589,18 @@ class LDAPGroupMapper:
         import rbac_defaults
         normalized = RBACService._normalize_role(role)
         if normalized not in rbac_defaults.builtin_role_keys():
-            raise LDAPConfigError(f"'{role}' is not a valid ITAM role")
+            # 77 D-04: a custom role of this mapping's own tenant, stored under its canonical name.
+            if not tenant_id:
+                raise LDAPConfigError(f"'{role}' is not a valid ITAM role")
+            from role_contents import find_custom_role
+            try:
+                custom = await find_custom_role(get_database(), tenant_id, name=role)
+            except Exception as exc:  # fail closed: an unverifiable role is never stored
+                logger.warning("Role store error while validating mapping role %r: %s", role, exc)
+                raise LDAPConfigError(f"'{role}' is not a valid ITAM role")
+            if custom is None:
+                raise LDAPConfigError(f"'{role}' is not a valid ITAM role")
+            role = custom["name"]
 
         db = get_database()
         doc = {"group_dn": group_dn, "role": role, "tenant_id": tenant_id, "priority": priority}

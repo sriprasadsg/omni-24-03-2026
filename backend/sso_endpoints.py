@@ -25,7 +25,7 @@ from auth_types import TokenData
 from itam_asset_endpoints import _require_itam_admin_session_only as _require_itam_admin
 from catalogue_mounts_billing_identity import USER_MANAGEMENT_GUARD
 from rbac_utils import is_super_admin
-from role_assignment import assert_can_assign_role, refuse_directory_platform_role
+from role_assignment import assert_can_assign_role, refuse_directory_platform_role, resolve_assignable_role
 from tenant_context import get_tenant_id
 
 from saml_service import (
@@ -374,15 +374,17 @@ async def list_attribute_mappings(current_user: TokenData = Depends(_require_ita
 @saml_router.post("/api/admin/sso/saml/attribute-mapping", dependencies=[Depends(USER_MANAGEMENT_GUARD)])
 async def upsert_attribute_mapping(mapping: SAMLAttributeMappingIn, current_user: TokenData = Depends(_require_itam_admin)):
     tenant_id = _saml_config_scope(current_user)
+    # 77 D-04: a built-in role or a custom role of this tenant, as its canonical stored name.
+    role = await resolve_assignable_role(get_database(), mapping.role, tenant_id)
     # D-22 write time: a mapping may not grant more than its writer holds.
     await assert_can_assign_role(
-        get_database(), current_user, mapping.role,
+        get_database(), current_user, role,
         target_tenant_id=tenant_id or current_user.tenant_id,
     )
-    refuse_directory_platform_role(mapping.role)
+    refuse_directory_platform_role(role)
     try:
         return await SAMLGroupMapper.upsert_mapping(
-            mapping.group_value, mapping.role, tenant_id=tenant_id, priority=mapping.priority or 100,
+            mapping.group_value, role, tenant_id=tenant_id, priority=mapping.priority or 100,
         )
     except SAMLMappingError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
