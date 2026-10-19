@@ -56,7 +56,7 @@ Register authored at plan time across 77-01..77-13 (`<threat_model>` blocks). Ve
 | T-77-12 | Tampering | delete while held | medium | mitigate | 409 role_in_use with holders and mappings (PROH-77-04); delete race accepted (a racing assignment resolves to [] per 75 D-19, never more access) — evidence: `role_endpoints.py` 409 `role_in_use` with holders and mappings | closed |
 | T-77-13 | Elevation of Privilege | admin-tier custom role without MFA | high | mitigate | Permission-based check over effective_permissions in verify_token_async and the sync path; fail closed for custom names on store error or cache miss; test_custom_role_mfa.py — evidence: `rbac_defaults.requires_mfa` over effective permissions in `authentication_service.py:131`; `test_custom_role_mfa.py` | closed |
 | T-77-14 | Denial of Service | fail-closed MFA lookup locking out non-admin custom-role users during a store outage | low | accept | A store outage already blocks most of the app; built-in names fall back to the table answer; documented assumption D14-WS-CACHE-MISS | closed (accepted) |
-| T-77-15 | Information Disclosure | stale permissions after a role edit | medium | mitigate | Focus and 403 refresh through refreshPermissions; the backend reads the DB per request regardless (PROH-77-05) — evidence: `App.tsx` `refreshPermissions` on focus and 403 | closed |
+| T-77-15 | Information Disclosure | stale permissions after a role edit | medium | mitigate | Focus and 403 refresh through refreshPermissions; the backend reads the DB per request regardless (PROH-77-05) — evidence: `App.tsx` `refreshPermissions` on focus and 403; since a1f4488d1 the follow-up data reload also uses the refreshed list (review WR-01) | closed |
 | T-77-16 | Denial of Service | refresh storm from repeated 403s | low | mitigate | Leading-plus-trailing 15 s window (at most two refreshes per window), shared in-flight request, /api/auth/ excluded — evidence: `utils/permissionRefresh.ts` `PERMISSION_DENIED_WINDOW_MS = 15000`, `/api/auth/` and MFA excluded | closed |
 | T-77-17 | Denial of Service | sign-out hanging on a dead backend | low | mitigate | 5 s AbortController on the logout request; local session cleared regardless — evidence: `services/apiService.ts` `logoutSession` AbortController, `LOGOUT_TIMEOUT_MS = 5000`, local clear regardless | closed |
 | T-77-18 | Elevation of Privilege | case/spelling variants of a custom role name | high | mitigate | resolve_assignable_role canonicalises before assert_can_assign_role and storage (PROH-77-06) — evidence: `role_assignment.resolve_assignable_role` canonicalises before the ceiling | closed |
@@ -101,6 +101,7 @@ Register authored at plan time across 77-01..77-13 (`<threat_model>` blocks). Ve
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-10-19 | 34 | 34 | 0 | secure-phase (orchestrator, L1 grep verification; auditor skipped per short-circuit rule) |
+| 2026-10-19 | 34 | 34 | 0 | secure-phase re-run after WR-01 fix (App.tsx only; T-77-15 evidence updated) |
 
 ---
 
