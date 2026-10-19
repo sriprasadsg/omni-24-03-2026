@@ -134,3 +134,80 @@ describe('RoleEditorModal edit', () => {
     expect(mCreate).not.toHaveBeenCalled();
   });
 });
+
+describe('RoleEditorModal implied, locked and ceiling states', () => {
+  it('shows implied rows checked, disabled and "Included with Manage" while manage is ticked, then restores them', async () => {
+    mCatalogue.mockResolvedValue({ permissions: ['manage:assets', 'view:assets'], superAdmin: true });
+    renderModal();
+    const manage = await screen.findByLabelText('manage:assets') as HTMLInputElement;
+    const view = screen.getByLabelText('Asset Management') as HTMLInputElement;
+    expect(view.checked).toBe(false);
+    fireEvent.click(manage);
+    expect(view.checked).toBe(true);
+    expect(view.disabled).toBe(true);
+    expect(screen.getByText('Included with Manage')).toBeTruthy();
+    fireEvent.click(manage);
+    expect(view.checked).toBe(false);
+    expect(view.disabled).toBe(false);
+    expect(screen.queryByText('Included with Manage')).toBeNull();
+  });
+
+  it('submits exactly the visibly checked set, implied rows included', async () => {
+    mCatalogue.mockResolvedValue({ permissions: ['manage:assets', 'view:assets'], superAdmin: true });
+    mCreate.mockResolvedValue({ ...existing, name: 'Ops' });
+    renderModal();
+    fireEvent.click(await screen.findByLabelText('manage:assets'));
+    fireEvent.change(screen.getByLabelText('Role Name'), { target: { value: 'Ops' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'd' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Role' }));
+    await waitFor(() => expect(mCreate).toHaveBeenCalled());
+    expect([...mCreate.mock.calls[0][0].permissions].sort()).toEqual(['manage:assets', 'view:assets']);
+  });
+
+  it('renders a permission the catalogue does not list as checked, disabled and locked, and keeps it on save', async () => {
+    mCatalogue.mockResolvedValue({ permissions: ['view:agents'], superAdmin: false });
+    mUpdate.mockResolvedValue(existing);
+    const role = { ...existing, permissions: ['view:agents', 'view:security'] };
+    renderModal({ role });
+    const locked = await screen.findByLabelText('Security Operations') as HTMLInputElement;
+    expect(locked.checked).toBe(true);
+    expect(locked.disabled).toBe(true);
+    expect(screen.getByText("Your role doesn't include this permission, so you can't change it.")).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(mUpdate).toHaveBeenCalled());
+    expect([...mUpdate.mock.calls[0][1].permissions].sort()).toEqual(['view:agents', 'view:security']);
+  });
+
+  it('shows the ceiling banner only for a non-Super-Admin catalogue', async () => {
+    mCatalogue.mockResolvedValue({ permissions: ['view:agents'], superAdmin: false });
+    const { unmount } = (() => { renderModal(); return { unmount: () => {} }; })();
+    expect(await screen.findByText('You can only grant permissions you hold yourself.')).toBeTruthy();
+    unmount();
+  });
+
+  it('shows no banner for a Super Admin catalogue', async () => {
+    renderModal();
+    await screen.findByLabelText('Agent Fleet Management');
+    expect(screen.queryByText('You can only grant permissions you hold yourself.')).toBeNull();
+  });
+
+  it('refuses a built-in name inline before the round trip', async () => {
+    renderModal();
+    await screen.findByLabelText('Agent Fleet Management');
+    fireEvent.change(screen.getByLabelText('Role Name'), { target: { value: 'Viewer' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'd' } });
+    expect(screen.getByText('That name matches the built-in role "Viewer". Choose a different name.').getAttribute('role')).toBe('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Create Role' }));
+    expect(mCreate).not.toHaveBeenCalled();
+  });
+
+  it('groups the list by catalogue group and shows a raw string in font-mono for an unlabelled permission', async () => {
+    mCatalogue.mockResolvedValue({ permissions: ['view:assets', 'x:unlabelled'], superAdmin: true });
+    renderModal();
+    await screen.findByLabelText('Asset Management');
+    expect(screen.getByRole('group', { name: 'Infrastructure & Assets' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Other' })).toBeTruthy();
+    const raw = screen.getByText('x:unlabelled');
+    expect(raw.className).toContain('font-mono');
+  });
+});

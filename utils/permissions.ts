@@ -54,7 +54,7 @@ export function isTenantSwitchable(permission: string, view?: string): boolean {
  * spaces and hyphens to underscores; `superadmin`, `platform_admin` and
  * `platform_owner` fold into `super_admin`. Keep the two in step.
  */
-function normalizeRoleName(role?: string | null): string {
+export function normalizeRoleName(role?: string | null): string {
   const normalized = (role ?? '').trim().toLowerCase().replace(/[ -]/g, '_');
   return ['superadmin', 'platform_admin', 'platform_owner'].includes(normalized) ? 'super_admin' : normalized;
 }
