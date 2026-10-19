@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Permission refresh reloads app data with the OLD permissions"
   - id: WR-02
     severity: warning
@@ -64,7 +64,7 @@ recorded: 2026-10-19T16:38:34.382Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
+| WR-01 | warning | fixed | a1f4488d1 (ref set before loadAllData; guard in catalogueAccess.test.ts) |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
 | WR-04 | warning | open | - |
