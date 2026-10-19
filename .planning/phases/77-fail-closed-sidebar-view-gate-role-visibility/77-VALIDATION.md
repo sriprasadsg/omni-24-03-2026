@@ -54,7 +54,7 @@ Filled by validate-phase 2026-10-19. Backend commands run as `backend/venv/bin/p
 | 77-03-T1 | 77-03 | 2 | ACC-09 | — | Tenant admin creates a custom role; listed as Custom; holder's /me carries it | backend unit | `pytest test_role_write_api.py test_roles_endpoint.py test_role_literal_guard.py` | ✅ | ✅ green |
 | 77-03-T2 | 77-03 | 2 | ACC-08, ACC-09 | — | Edit with fixed name + symmetric ceiling; edit reaches next /me; delete refused while held | backend unit | `pytest test_role_write_api.py test_login_me_permissions.py` | ✅ | ✅ green |
 | 77-03-T3 | 77-03 | 2 | ACC-09 | — | Super Admin tenant targeting; grantable-permission catalogue; route parity | backend unit + slow | `pytest test_role_write_api.py test_catalogue_route_parity.py` | ✅ | ✅ green |
-| 77-04-T1 | 77-04 | 2 | ACC-09 | — | Custom admin-tier role held to MFA on protected routes; non-admin custom role is not | backend unit | `pytest test_custom_role_mfa.py test_admin_mfa_required.py test_platform_roles.py` | ✅ | ✅ green |
+| 77-04-T1 | 77-04 | 2 | ACC-09 | — | Custom admin-tier role held to MFA on protected routes and on the WebSocket; non-admin custom role is not; a role edit applies at once | backend unit | `pytest test_custom_role_mfa.py test_admin_mfa_required.py test_platform_roles.py` | ✅ | ✅ green |
 | 77-04-T2 | 77-04 | 2 | ACC-09 | — | Login and /me tell a custom admin-tier user to enroll or verify | backend unit | `pytest test_custom_role_mfa.py test_login_me_permissions.py test_session_revocation.py` | ✅ | ✅ green |
 | 77-05-T1 | 77-05 | 2 | ACC-08 | — | A 403 re-reads permissions; open screen swaps to access-changed panel | unit + component | `npx vitest run permissionRefresh.test.ts NoAccessScreens.test.tsx viewAccess.test.ts` | ✅ | ✅ green |
 | 77-05-T2 | 77-05 | 2 | ACC-06 | — | Full-page zero-access screen with Retry; Sign out cannot hang | component + build | `npx vitest run src/__tests__` + `npm run build` | ✅ | ✅ green |
@@ -77,7 +77,7 @@ Filled by validate-phase 2026-10-19. Backend commands run as `backend/venv/bin/p
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
-**Runs 2026-10-19:** vitest `src/__tests__` 413 passed; Phase 77 backend set 584 passed; supporting modules 388 passed; `test_catalogue_route_parity.py` 50 passed; `npm run build` OK. After the WR-01 fix (a1f4488d1, refresh guard in `catalogueAccess.test.ts`): vitest 414 passed, build OK; no backend file changed.
+**Runs 2026-10-19:** vitest `src/__tests__` 413 passed; Phase 77 backend set 584 passed; supporting modules 388 passed; `test_catalogue_route_parity.py` 50 passed; `npm run build` OK. After the WR-01 fix (a1f4488d1, refresh guard in `catalogueAccess.test.ts`): vitest 414 passed, build OK; no backend file changed. After WR-08/09/10 (b76b8af8d, 41fb29db5, 3bb575186): vitest 420 passed. After WR-02/03 (bee9299ce, MFA on sockets and cache invalidation; new tests in `test_custom_role_mfa.py`, `test_role_write_api.py`): full backend 4048 passed / 47 skipped.
 
 ---
 
