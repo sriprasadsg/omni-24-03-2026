@@ -303,9 +303,26 @@ hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors border border-am
                     )
                 }
 
+                {/* Permissions not delivered yet: placeholders, never a guessed menu */}
+                {
+                    !permissionsKnown(currentUser ?? null) && (
+                        <div className="space-y-2" aria-busy="true">
+                            {Array.from({ length: 6 }, (_, i) => (
+                                <div
+                                    key={i}
+                                    data-testid="sidebar-skeleton-row"
+                                    className={isOpen
+                                        ? 'h-8 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse'
+                                        : 'h-8 w-8 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse'}
+                                />
+                            ))}
+                        </div>
+                    )
+                }
+
                 {/* Navigation Groups */}
                 {
-                    visibleGroups.map((group, groupIndex) => (
+                    permissionsKnown(currentUser ?? null) && visibleGroups.map((group, groupIndex) => (
                         <SidebarGroup
                             key={group.title}
                             group={group}

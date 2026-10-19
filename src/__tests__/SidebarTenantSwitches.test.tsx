@@ -22,7 +22,7 @@ const granted = new Set(['view:dashboard', 'view:profile', 'view:mlops', 'view:a
 const locks = { mlops: 'Enterprise', digital_twin: 'Enterprise', cxo_dashboard: 'Enterprise' };
 
 function renderSidebar(role: string) {
-  const user = { id: 'u', name: 'T', email: 't@x', role, tenantId: role === 'Super Admin' ? 'platform-admin' : 'tenant-a' } as any;
+  const user = { id: 'u', name: 'T', email: 't@x', role, tenantId: role === 'Super Admin' ? 'platform-admin' : 'tenant-a', permissions: Array.from(granted) } as any;
   return render(
     <UserContext.Provider value={{ currentUser: user, hasPermission: (p: string) => granted.has(p), serverLockedFeatures: locks } as any}>
       <Sidebar isOpen currentView="dashboard" setCurrentView={() => {}} isViewingTenant={false} onBackToTenants={() => {}} />

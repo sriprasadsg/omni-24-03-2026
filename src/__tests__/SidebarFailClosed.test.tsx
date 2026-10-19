@@ -82,3 +82,38 @@ describe('Sidebar fails closed (ACC-06)', () => {
     expect(shown.some(l => l.startsWith('Back to Tenants'))).toBe(true);
   });
 });
+
+describe('Sidebar skeleton while permissions are unknown (C02)', () => {
+  it('shows 6 skeleton rows and no group header when the permission list is not delivered', () => {
+    const { container } = renderWith({ currentUser: tenantUser(undefined), hasPermission: () => false });
+    expect(container.querySelectorAll('[data-testid="sidebar-skeleton-row"]').length).toBe(6);
+    expect(container.querySelector('nav button')).toBeNull();
+  });
+
+  it('shows 6 circle skeletons when the sidebar is collapsed', () => {
+    const { container } = renderWith({ currentUser: tenantUser(undefined), hasPermission: () => false }, { isOpen: false });
+    const rows = container.querySelectorAll('[data-testid="sidebar-skeleton-row"]');
+    expect(rows.length).toBe(6);
+    rows.forEach(r => expect(r.className).toContain('rounded-full'));
+  });
+
+  it('treats a Super Admin without a permission list as resolved: no skeleton, everything shown', () => {
+    const user = { id: 'u', name: 'S', email: 's@x', role: 'Super Admin', tenantId: 'platform-admin' } as any;
+    const { container } = renderWith({ currentUser: user, hasPermission: () => true });
+    expect(container.querySelectorAll('[data-testid="sidebar-skeleton-row"]').length).toBe(0);
+    expect(hasLabel(container, itemLabel('dashboard'))).toBe(true);
+  });
+
+  it('replaces the skeleton with the granted items once the list is delivered', () => {
+    const first = renderWith({ currentUser: tenantUser(undefined), hasPermission: () => false });
+    expect(first.container.querySelectorAll('[data-testid="sidebar-skeleton-row"]').length).toBe(6);
+    const perms = ['view:dashboard', 'view:profile'];
+    first.rerender(
+      <UserContext.Provider value={{ currentUser: tenantUser(perms), hasPermission: overList(perms) } as any}>
+        <Sidebar isOpen currentView="dashboard" setCurrentView={() => {}} isViewingTenant={false} onBackToTenants={() => {}} />
+      </UserContext.Provider>,
+    );
+    expect(first.container.querySelectorAll('[data-testid="sidebar-skeleton-row"]').length).toBe(0);
+    expect(hasLabel(first.container, itemLabel('dashboard'))).toBe(true);
+  });
+});
