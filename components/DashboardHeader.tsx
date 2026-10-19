@@ -3,13 +3,16 @@ import React, { useState, useEffect } from 'react';
 import { AppView } from '../types';
 // FIX: Replaced non-existent CalendarDaysIcon with CalendarIcon.
 import { CalendarIcon, RefreshCwIcon, FileTextIcon } from './icons';
+import { LayoutGrid } from 'lucide-react';
 
 interface DashboardHeaderProps {
     userName: string;
     setCurrentView: (view: AppView) => void;
+    /** Opens the Overview customizer (show/hide widgets). */
+    onCustomize?: () => void;
 }
 
-export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ userName, setCurrentView }) => {
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ userName, setCurrentView, onCustomize }) => {
     const [currentDate, setCurrentDate] = useState('');
 
     useEffect(() => {
@@ -38,6 +41,12 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ userName, setC
                     <button aria-label="Refresh" className="grid place-items-center h-10 w-10 glass rounded-xl transition-all hover:border-primary-500/30 active:scale-[0.98]">
                         <RefreshCwIcon size={15} className="text-primary-500" />
                     </button>
+                    {onCustomize && (
+                        <button onClick={onCustomize} className="flex items-center gap-2 h-10 px-4 text-sm font-medium text-slate-700 dark:text-slate-200 glass rounded-xl transition-all hover:border-primary-500/30 active:scale-[0.98]">
+                            <LayoutGrid className="h-[15px] w-[15px] text-primary-500" />
+                            Customize
+                        </button>
+                    )}
                     <button
                         onClick={() => setCurrentView('reporting')}
                         className="flex items-center gap-2 h-10 px-5 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700 transition-all active:scale-[0.98]">
