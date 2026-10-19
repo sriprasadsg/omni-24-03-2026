@@ -197,3 +197,36 @@ describe('App.tsx fails closed at render time (D-05, PROH-77-02)', () => {
     expect(text()).not.toContain('does not have permission to view');
   });
 });
+
+describe('no browser-memory role store (D-01)', () => {
+  it('services/apiService.ts exports neither saveRole nor deleteRole', () => {
+    expect(read('services/apiService.ts')).not.toMatch(/export\s+(const|function|async function)\s+(saveRole|deleteRole)\b/);
+  });
+
+  it('App.tsx calls neither api.saveRole nor api.deleteRole', () => {
+    expect(read('App.tsx')).not.toMatch(/\bapi\.(saveRole|deleteRole)\b/);
+  });
+});
+
+describe('super-admin recognised only through the shared helpers (phase 77 surfaces)', () => {
+  const FILES = [
+    'App.tsx', 'components/Sidebar.tsx', 'components/SettingsDashboard.tsx', 'components/SettingsRolesTab.tsx',
+    'components/RoleEditorModal.tsx', 'components/NoAccessPanel.tsx', 'components/ZeroAccessScreen.tsx',
+    'components/RoleVisibilityPanel.tsx', 'components/NotificationCenter.tsx', 'components/Dashboard.tsx',
+    'utils/viewAccess.ts',
+  ];
+  const SPELLING = String.raw`(?:Super Admin|superadmin|super_admin|Platform Owner)`;
+  const STRICT = new RegExp(String.raw`[!=]==?\s*['"]${SPELLING}['"]|['"]${SPELLING}['"]\s*[!=]==?`);
+  const PLATFORM_ROLE = /[Rr]ole\w*\s*[!=]==?\s*['"]platform-admin['"]|['"]platform-admin['"]\s*[!=]==?\s*\w*[Rr]ole/;
+  const TWO_SPELLINGS = new RegExp(String.raw`[\[(][^\])]*['"]${SPELLING}['"][^\])]*['"]${SPELLING}['"]`);
+
+  for (const file of FILES) {
+    it(`${file} has no literal super-admin comparison`, () => {
+      const hits: string[] = [];
+      read(file).split('\n').forEach((line, i) => {
+        if (STRICT.test(line) || PLATFORM_ROLE.test(line) || TWO_SPELLINGS.test(line)) hits.push(`${file}:${i + 1}`);
+      });
+      expect(hits, `literal super-admin spelling in ${hits.join(', ')}; use isSuperAdminRoleName / isPlatformRoleName`).toEqual([]);
+    });
+  }
+});

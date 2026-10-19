@@ -610,7 +610,7 @@ const App: React.FC = () => {
         const signedIn = { ...data.user, subscriptionTier: data.tenant?.subscriptionTier || 'Free' };
         setCurrentUser(signedIn);
         currentUserRef.current = signedIn;  // loadAllData below runs before the re-render
-        setViewingTenantId((data.user.role === 'Super Admin' || data.user.role === 'superadmin' || data.user.role === 'super_admin') ? null : data.user.tenantId);
+        setViewingTenantId(isSuperAdminRoleName(data.user.role) ? null : data.user.tenantId);
         api.startTokenRefreshCycle();
 
         // Fetch server-confirmed feature flags (non-blocking)
@@ -749,7 +749,7 @@ const App: React.FC = () => {
       if (user) {
         setCurrentUser(user);
         currentUserRef.current = user;  // loadAllData below runs before the re-render
-        setViewingTenantId((user.role === 'Super Admin' || user.role === 'superadmin' || user.role === 'super_admin') ? null : user.tenantId);
+        setViewingTenantId(isSuperAdminRoleName(user.role) ? null : user.tenantId);
         // Fetch server-confirmed feature flags
         api.fetchPlatformFeatures().then(f => setServerLockedFeatures(f.locked)).catch(() => {});
         // Only load data AFTER session is restored
@@ -1449,10 +1449,9 @@ const App: React.FC = () => {
     api.fetchRoles().then(setRoles);
   };
 
-  const handleDeleteRole = (roleId: string) => {
-    api.deleteRole(roleId).then(() => {
-      setRoles(prev => prev.filter(r => r.id !== roleId));
-    });
+  const handleDeleteRole = (_roleId: string) => {
+    // The Roles tab already deleted it on the server (D-01); re-read the list.
+    api.fetchRoles().then(setRoles);
   };
 
   const handleCaseUpdate = async (caseItem: SecurityCase): Promise<SecurityCase> => {
@@ -1700,9 +1699,9 @@ const App: React.FC = () => {
       case 'maturityScore': return <ErrorBoundary name="MaturityScoreDashboard"><MaturityScoreDashboard /></ErrorBoundary>;
       case 'saasIntegrations': return <ErrorBoundary name="SaaSIntegrationsDashboard"><SaaSIntegrationsDashboard /></ErrorBoundary>;
       case 'aiGovernance': return <ErrorBoundary name="AIGovernanceDashboard"><AIGovernanceDashboard aiSystems={tenantData.aiSystems} users={users} onUpdateSystem={handleUpdateSystem} onAddNewSystem={handleAddNewSystem} registeredModels={tenantData.registeredModels} modelExperiments={tenantData.modelExperiments} onPromoteModel={handlePromoteModel} /></ErrorBoundary>;
-      case 'finops': return <ErrorBoundary name="FinOpsBillingPage"><FinOpsBillingPage tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin'} /></ErrorBoundary>;
+      case 'finops': return <ErrorBoundary name="FinOpsBillingPage"><FinOpsBillingPage tenants={tenants} isSuperAdminView={isSuperAdminRoleName(currentUser.role)} /></ErrorBoundary>;
       case 'auditLog': return <ErrorBoundary name="AuditLogDashboard"><AuditLogDashboard logs={tenantData.auditLogs} /></ErrorBoundary>;
-      case 'settings': return <ErrorBoundary name="SettingsDashboard"><SettingsDashboard viewingTenantId={viewingTenantId} integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => { const exists = prev.some(r => r.id === saved.id); return exists ? prev.map(r => r.id === saved.id ? saved : r) : [...prev, saved]; }))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onDeleteUser={handleDeleteUser} /></ErrorBoundary>;
+      case 'settings': return <ErrorBoundary name="SettingsDashboard"><SettingsDashboard viewingTenantId={viewingTenantId} integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={isSuperAdminRoleName(currentUser.role) ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => { const exists = prev.some(r => r.id === saved.id); return exists ? prev.map(r => r.id === saved.id ? saved : r) : [...prev, saved]; }))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onDeleteUser={handleDeleteUser} /></ErrorBoundary>;
       case 'bundleManagement': return <ErrorBoundary name="BundleManagementDashboard"><Suspense fallback={<SkeletonDashboard />}><BundleManagementDashboard /></Suspense></ErrorBoundary>;
       case 'tenantManagement': return <ErrorBoundary name="TenantManagementDashboard"><TenantManagementDashboard tenants={tenants.filter(t => t.id !== 'platform-admin')} onAddNewTenant={() => setIsAddTenantModalOpen(true)} onViewTenant={(id) => { setViewingTenantId(id); handleSetCurrentView('agents'); }} onManageTenant={(t) => setManagingTenant(tenants.find(T => T.id === t.id) || null)} handleDelete={handleDeleteTenant} handleUpdateTenant={async (id, data) => { await api.updateTenantFeatures(id, data.enabledFeatures || [], data.subscriptionTier || 'Free'); loadAllData(); }} /></ErrorBoundary>;
       case 'siem': return <ErrorBoundary name="ThreatDashboard"><ThreatDashboard /></ErrorBoundary>;
@@ -1854,7 +1853,7 @@ const App: React.FC = () => {
       case 'fleetObservability': return <ErrorBoundary name="FleetObservabilityDashboard"><FleetObservabilityDashboard /></ErrorBoundary>;
       case 'fleetGeoMap': return <ErrorBoundary name="FleetGeoMap"><FleetGeoMap /></ErrorBoundary>;
       case 'nativeSecurity': return <ErrorBoundary name="NativeSecurityConsole"><NativeSecurityConsole /></ErrorBoundary>;
-      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={currentUser.role === 'Super Admin' || currentUser.role === 'superadmin' || currentUser.role === 'super_admin'} /></ErrorBoundary>;
+      case 'itam': return <ErrorBoundary name="ITAMConsole"><ITAMConsole tenants={tenants} isSuperAdminView={isSuperAdminRoleName(currentUser.role)} /></ErrorBoundary>;
       case 'customerVectorDB': return <ErrorBoundary name="EnhancedVectorDashboard"><Suspense fallback={<SkeletonDashboard />}><EnhancedVectorDashboard /></Suspense></ErrorBoundary>;
       case 'federatedLearning': return <ErrorBoundary name="FederatedLearningDashboard"><Suspense fallback={<SkeletonDashboard />}><FederatedLearningDashboard /></Suspense></ErrorBoundary>;
       case 'webgpuInference': return <ErrorBoundary name="WebGPUDashboard"><Suspense fallback={<SkeletonDashboard />}><WebGPUDashboard /></Suspense></ErrorBoundary>;

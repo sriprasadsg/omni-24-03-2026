@@ -2741,20 +2741,6 @@ export const revokeApiKey = async (tenantId: string, keyId: string) => {
     if (!res.ok) throw new Error(`Failed to revoke API key: ${res.status}`);
 };
 
-export const saveRole = async (role: Role) => {
-    const index = ROLES.findIndex(r => r.id === role.id);
-    if (index > -1) {
-        ROLES[index] = role;
-    } else {
-        ROLES.push(role);
-    }
-    return role;
-};
-
-export const deleteRole = async (roleId: string) => {
-    ROLES = ROLES.filter(r => r.id !== roleId);
-};
-
 export const updateSecurityCase = async (caseItem: SecurityCase) => {
     const index = SECURITY_CASES.findIndex(c => c.id === caseItem.id);
     if (index > -1) {
