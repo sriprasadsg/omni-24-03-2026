@@ -31,6 +31,30 @@ def stored_role_name(role: str) -> str:
     return _PLATFORM_ROLE_STORED_NAME.get(rbac_defaults.normalize_role(role), role)
 
 
+async def resolve_assignable_role(db, typed: Optional[str], tenant_id: Optional[str]) -> str:
+    """The canonical stored name for a role typed into a user or directory-mapping write (77 D-04).
+
+    A built-in key keeps ``stored_role_name``. Anything else must be a custom role of
+    ``tenant_id`` itself: its stored (canonical) name is returned, so the ceiling check and
+    storage see the same spelling (Pitfall 6). Another tenant's role, an unknown name, a
+    sentinel or missing tenant is 400; a role-store error refuses the assignment (503).
+    """
+    if rbac_defaults.normalize_role(typed) in rbac_defaults.builtin_role_keys():
+        return stored_role_name(typed)
+    import role_contents  # lazy: role_contents imports authentication_service
+    invalid = HTTPException(status_code=400, detail=f"Invalid role '{typed}'")
+    if not tenant_id or tenant_id in role_contents.SENTINEL_TENANTS:
+        raise invalid
+    try:
+        doc = await role_contents.find_custom_role(db, tenant_id, name=typed)
+    except Exception as exc:  # fail closed
+        logger.warning("Role store error while resolving role %r in tenant %r: %s", typed, tenant_id, exc)
+        raise HTTPException(status_code=503, detail="Role store unavailable; role assignment refused")
+    if doc is None:
+        raise invalid
+    return doc["name"]
+
+
 def assert_role_fits_tenant(role: Optional[str], tenant_id: Optional[str]) -> None:
     """400 unless platform roles live in the platform tenant and tenant roles outside it (spec C1).
 

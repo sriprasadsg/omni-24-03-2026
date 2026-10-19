@@ -18,7 +18,7 @@ from itam_asset_endpoints import _require_itam_admin_session_only as _require_it
 from rbac_service import rbac_service
 import rbac_defaults
 from role_assignment import (assert_can_assign_role, assert_can_manage_account, assert_not_last_platform_owner,
-                             assert_role_fits_tenant, stored_role_name)
+                             assert_role_fits_tenant, resolve_assignable_role)
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from audit_service import get_audit_service
@@ -36,7 +36,6 @@ router = APIRouter(prefix="/api/users", tags=["User Management"])
 # rbac_defaults.builtin_role_keys() counterparts ("admin"/"user"/"viewer") — ITAM-USR-01
 # item 2: role must validate against the built-in role table keys.
 _normalize_role = rbac_service._normalize_role
-_VALID_ROLE_KEYS = rbac_defaults.builtin_role_keys()
 
 # --- Status (lifecycle) helpers ----------------------------------------------
 # Stored canonically as Title-Case ("Active"/"Inactive"/"Pending") because
@@ -270,10 +269,6 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
     caller_role = current_user.role
     caller_is_super_admin = is_super_admin(caller_role)
 
-    requested_role_key = _normalize_role(user.role)
-    if requested_role_key not in _VALID_ROLE_KEYS:
-        raise HTTPException(status_code=400, detail=f"Invalid role '{user.role}'")
-
     db = get_database()
 
     # If Super Admin passes a tenantId, use it; otherwise use requester's context
@@ -282,12 +277,15 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
     else:
         target_tenant_id = get_tenant_id()
 
+    # 77 D-04: a built-in role, or a custom role of the target tenant, as its canonical stored name.
+    role = await resolve_assignable_role(db, user.role, target_tenant_id)
+
     # D-20 ceiling: no role above the caller's own, no super-admin tier unless a super-admin.
-    await assert_can_assign_role(db, current_user, user.role, target_tenant_id=target_tenant_id)
+    await assert_can_assign_role(db, current_user, role, target_tenant_id=target_tenant_id)
 
     if not target_tenant_id or not await _tenant_exists(db, target_tenant_id):
         raise HTTPException(status_code=400, detail=f"Tenant '{target_tenant_id}' does not exist")
-    assert_role_fits_tenant(user.role, target_tenant_id)
+    assert_role_fits_tenant(role, target_tenant_id)
 
     # Check existing
     existing = await db.users.find_one({"email": user.email, "tenantId": target_tenant_id})
@@ -306,7 +304,7 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
         "email": user.email,
         "hashed_password": get_password_hash(user.password),
         "full_name": user.full_name,
-        "role": stored_role_name(user.role),
+        "role": role,
         "tenantId": target_tenant_id,
         "status": _normalize_status(user.status),
         "createdAt": now,
@@ -360,17 +358,32 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
     update_data = {}
     if updates.full_name is not None:
         update_data["full_name"] = updates.full_name
+    # D-18: the destination tenant is settled first; a role is resolved against it.
+    destination = target_user.get("tenantId")
+    if updates.tenantId is not None:
+        if not caller_is_super_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to move users between tenants")
+        if not await _tenant_exists(db, updates.tenantId):
+            raise HTTPException(status_code=400, detail=f"Tenant '{updates.tenantId}' does not exist")
+        update_data["tenantId"] = destination = updates.tenantId
     if updates.role is not None:
-        requested_role_key = _normalize_role(updates.role)
-        if requested_role_key not in _VALID_ROLE_KEYS:
-            raise HTTPException(status_code=400, detail=f"Invalid role '{updates.role}'")
+        role = await resolve_assignable_role(db, updates.role, destination)
         await assert_can_assign_role(
-            db, current_user, updates.role,
-            target_tenant_id=target_user.get("tenantId"),
+            db, current_user, role,
+            target_tenant_id=destination,
             target_email=target_user.get("email"),
             current_role=target_user.get("role"),
         )
-        update_data["role"] = stored_role_name(updates.role)
+        update_data["role"] = role
+    elif "tenantId" in update_data and destination != target_user.get("tenantId"):
+        try:
+            update_data["role"] = await resolve_assignable_role(db, target_user.get("role"), destination)
+        except HTTPException as exc:
+            if exc.status_code != 400:
+                raise
+            raise HTTPException(status_code=400,
+                                detail=f"Role '{target_user.get('role')}' does not exist in tenant "
+                                       f"'{destination}'; assign a role available there")
     if updates.password is not None:
         # ITAM-USR-03 Pitfall 4 / T-64-12: local password changes are
         # blocked for LDAP-sourced users — LDAP is the source of truth for
@@ -392,12 +405,6 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
         update_data["password"] = get_password_hash(updates.password)
     if updates.status is not None:
         update_data["status"] = _normalize_status(updates.status)
-    if updates.tenantId is not None:
-        if not caller_is_super_admin:
-            raise HTTPException(status_code=403, detail="Not authorized to move users between tenants")
-        if not await _tenant_exists(db, updates.tenantId):
-            raise HTTPException(status_code=400, detail=f"Tenant '{updates.tenantId}' does not exist")
-        update_data["tenantId"] = updates.tenantId
 
     if not update_data:
         # Just return the current user if no updates provided
