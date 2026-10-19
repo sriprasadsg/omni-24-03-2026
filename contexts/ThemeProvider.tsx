@@ -3,6 +3,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 export type ThemeId = 'enterprise-blue';
 /** 'system' follows the OS light/dark setting live; the other two pin a mode. */
 export type ThemePreference = 'system' | 'light' | 'dark';
+/** 'compact' tightens table rows; text size and control sizes stay the same. */
+export type Density = 'comfortable' | 'compact';
 
 interface ThemeContextType {
     themeId: ThemeId;
@@ -11,9 +13,12 @@ interface ThemeContextType {
     toggleDarkMode: () => void;
     themePreference: ThemePreference;
     setThemePreference: (preference: ThemePreference) => void;
+    density: Density;
+    setDensity: (density: Density) => void;
 }
 
 const PREFERENCE_KEY = 'app-theme-preference';
+const DENSITY_KEY = 'app-density';
 
 const systemPrefersDark = () => {
     try {
@@ -56,6 +61,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         const legacy = readStorage('app-dark-mode');
         return legacy === 'false' ? 'light' : 'dark';
     });
+    const [density, setDensity] = useState<Density>(() => (readStorage(DENSITY_KEY) === 'compact' ? 'compact' : 'comfortable'));
     const [systemDark, setSystemDark] = useState<boolean>(systemPrefersDark);
     const isDarkMode = themePreference === 'system' ? systemDark : themePreference === 'dark';
 
@@ -93,11 +99,16 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     }, [themeId, isDarkMode, themePreference]);
 
+    useEffect(() => {
+        document.documentElement.classList.toggle('density-compact', density === 'compact');
+        writeStorage(DENSITY_KEY, density);
+    }, [density]);
+
     // The header toggle pins the opposite of what is showing.
     const toggleDarkMode = () => setThemePreference(isDarkMode ? 'light' : 'dark');
 
     return (
-        <ThemeContext.Provider value={{ themeId, setThemeId, isDarkMode, toggleDarkMode, themePreference, setThemePreference }}>
+        <ThemeContext.Provider value={{ themeId, setThemeId, isDarkMode, toggleDarkMode, themePreference, setThemePreference, density, setDensity }}>
             {children}
         </ThemeContext.Provider>
     );

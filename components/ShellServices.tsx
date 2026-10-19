@@ -8,6 +8,7 @@ import { useUser } from '../contexts/UserContext';
 import { useVisibleNav, openNavItems } from '../hooks/useVisibleNav';
 import { useNavMemory, navMemoryKey } from '../hooks/useNavMemory';
 import { resolveHashView } from '../utils/viewAccess';
+import { OPEN_SHORTCUTS_EVENT } from './UserMenu';
 
 /** "g" then a key jumps to a page (only pages the user can open). */
 export const GO_TO_KEYS: { key: string; view: AppView }[] = [
@@ -86,6 +87,13 @@ export const ShellServices: React.FC<ShellServicesProps> = ({
         recordVisit(currentView);
         setAnnouncement(`${label} page`);
     }, [currentView, landed, label, recordVisit]);
+
+    // The account menu opens the shortcut list too.
+    useEffect(() => {
+        const open = () => setShortcutsOpen(true);
+        window.addEventListener(OPEN_SHORTCUTS_EVENT, open);
+        return () => window.removeEventListener(OPEN_SHORTCUTS_EVENT, open);
+    }, []);
 
     // "?" opens the shortcut list; "g" then a key jumps to a page.
     const pendingG = useRef(0);

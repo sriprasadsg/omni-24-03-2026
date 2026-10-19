@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pin, PinOff, Keyboard, LogOut, Laptop, Sun, Moon, PanelLeft, Search, Sparkles, CornerDownLeft, History } from 'lucide-react';
+import { Pin, PinOff, Keyboard, LogOut, Laptop, Sun, Moon, PanelLeft, Search, Sparkles, CornerDownLeft, History, Rows3, Rows4 } from 'lucide-react';
 import { AppView } from '../types';
 import { Command } from './AICommandBar';
 import { getCommandFromQuery } from '../services/geminiService';
@@ -46,7 +46,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     isOpen, onClose, currentView, pages, pinned, recent, onNavigate, onTogglePin, onExecuteCommand,
     onOpenSearch, onShowShortcuts, onToggleSidebar, onSignOut,
 }) => {
-    const { themePreference, setThemePreference } = useTheme();
+    const { themePreference, setThemePreference, density, setDensity } = useTheme();
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
     const [aiState, setAiState] = useState<{ loading: boolean; error: string | null }>({ loading: false, error: null });
@@ -98,10 +98,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             theme('system', 'Theme: match system', <Laptop className={ICON} />),
             theme('dark', 'Theme: dark', <Moon className={ICON} />),
             theme('light', 'Theme: light', <Sun className={ICON} />),
+            { id: 'density-comfortable', section: 'Actions', label: 'Table density: comfortable', icon: <Rows3 className={ICON} />, keywords: ['density', 'spacing', 'rows'], detail: density === 'comfortable' ? 'Current' : undefined, run: () => { setDensity('comfortable'); onClose(); } },
+            { id: 'density-compact', section: 'Actions', label: 'Table density: compact', icon: <Rows4 className={ICON} />, keywords: ['density', 'spacing', 'rows', 'dense'], detail: density === 'compact' ? 'Current' : undefined, run: () => { setDensity('compact'); onClose(); } },
             { id: 'sign-out', section: 'Actions', label: 'Sign out', icon: <LogOut className={ICON} />, keywords: ['logout', 'log out', 'exit'], run: () => { onClose(); onSignOut(); } },
         );
         return list;
-    }, [currentPage, pinned, themePreference, setThemePreference, onClose, onTogglePin, onOpenSearch, onShowShortcuts, onToggleSidebar, onSignOut]);
+    }, [currentPage, pinned, themePreference, setThemePreference, density, setDensity, onClose, onTogglePin, onOpenSearch, onShowShortcuts, onToggleSidebar, onSignOut]);
 
     const askAI = async (text: string) => {
         setAiState({ loading: true, error: null });

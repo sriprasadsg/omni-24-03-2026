@@ -137,6 +137,14 @@ table, .tabular-nums-all {
     outline-offset: 2px;
 }
 
+/* Compact density (Appearance menu): tighter table rows for data-heavy work. Text size and
+   control sizes stay the same, so readability and touch targets do not suffer. */
+.density-compact td,
+.density-compact th {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+}
+
 /* Skip link: the first Tab stop on every page, off-screen until focused. */
 .skip-link {
     position: fixed;
