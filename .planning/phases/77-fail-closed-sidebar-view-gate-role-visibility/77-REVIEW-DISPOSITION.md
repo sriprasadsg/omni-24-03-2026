@@ -33,15 +33,15 @@ findings:
     title: "A Super Admin cannot pick a tenant's custom roles when creating or editing a user"
   - id: WR-08
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Overlapping `loadAllData` runs have no ordering; the 30s tick still loads with the stale list and can overwrite the refreshed load"
   - id: WR-09
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The periodic data load now waits on an `/auth/me` request that has no timeout and no rejection handling"
   - id: WR-10
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "An aborted `/auth/me` retry after a 401 token refresh signs the user out"
   - id: IN-01
     severity: info
@@ -77,7 +77,7 @@ findings:
     title: "`refreshPermissions` and the Initial Data Load effect both reload data on a changed list"
   - id: IN-09
     severity: info
-    disposition: open
+    disposition: fixed
     title: "The 10 s timeout does not bound the token-refresh wait, and the test does not cover the 401 or near-expiry paths"
 open: 18
 total: 19
@@ -95,9 +95,9 @@ recorded: 2026-10-19T16:59:23.789Z
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
-| WR-08 | warning | open | - |
-| WR-09 | warning | open | - |
-| WR-10 | warning | open | - |
+| WR-08 | warning | fixed | b76b8af8d (refreshThenLoad; confirmed resolved in review pass 3) |
+| WR-09 | warning | fixed | 41fb29db5 (timeout + catch; confirmed resolved in review pass 3), timeout reworked in 3bb575186 |
+| WR-10 | warning | fixed | 3bb575186 (race instead of abort; regression test reproduces the sign-out; not re-reviewed) |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
@@ -106,7 +106,7 @@ recorded: 2026-10-19T16:59:23.789Z
 | IN-06 | info | open | - |
 | IN-07 | info | open | - |
 | IN-08 | info | open | - |
-| IN-09 | info | open | - |
+| IN-09 | info | fixed | 3bb575186 (race also bounds a stalled /auth/refresh; WR-10 test covers the 401 path) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
