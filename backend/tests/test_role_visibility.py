@@ -3,6 +3,9 @@
 A bare FastAPI app over ``role_endpoints.router`` and one in-memory role store; the live
 database is never touched. The view must equal what delivery (/login, /me) hands the role.
 """
+import json
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -10,6 +13,8 @@ from fastapi.testclient import TestClient
 import rbac_defaults
 import rbac_service
 import rbac_utils
+import catalogue_guards
+import role_visibility
 import role_endpoints
 import tenant_features
 from auth_types import TokenData
@@ -118,3 +123,158 @@ def test_empty_custom_role_returns_all_groups_with_zero(client):
     body = visibility(client, "custom-tenant-a-Empty").json()
     assert body["visibleCount"] == 0 and len(body["groups"]) == 8
     assert all(g["visibleCount"] == 0 and g["total"] > 0 and g["screens"] == [] for g in body["groups"])
+
+
+# ── Task 2: switches, platform roles, Super Admin tenants, equality with enforcement ──
+
+SWITCH_CONFIGS = {"all_on": ["all"], "agents_only": ["view:agents"],
+                  "security_edr": ["view:security", "screen:edr"]}
+
+
+def set_features(store, features, tenant="tenant-a"):
+    for doc in store.raw.tenants.docs:
+        if doc["id"] == tenant:
+            doc["enabledFeatures"] = list(features)
+
+
+def switched(body):
+    return {s["view"] for g in body["groups"] for s in g["switchedOff"]}
+
+
+@pytest.mark.real_tenant_features
+def test_a_tenant_that_switched_a_feature_off_lists_its_screens_apart(client, store):
+    set_features(store, ["view:agents", "screen:agents"])
+    body = visibility(client, "role-tenant-admin").json()
+    assert "compliance" in switched(body) and "compliance" not in visible_views(body)
+    assert "agents" in visible_views(body)
+    assert body["visibleCount"] == len(visible_views(body))
+    # agents shares view:agents with Agent Approvals, so it also has its own screen switch:
+    # the feature alone does not show it (the pipeline, not the permission string, decides).
+    set_features(store, ["view:agents"])
+    assert "agents" in switched(visibility(client, "role-tenant-admin").json())
+
+
+@pytest.mark.real_tenant_features
+def test_a_per_screen_switch_lists_the_screen_apart(client, store):
+    set_features(store, ["view:security", "screen:edr"])
+    body = visibility(client, "role-tenant-admin").json()
+    assert "alertManagement" in switched(body) and "alertManagement" not in visible_views(body)
+    assert "edr" in visible_views(body)
+
+
+@pytest.mark.real_tenant_features
+@pytest.mark.parametrize("config", list(SWITCH_CONFIGS))
+@pytest.mark.parametrize("key", TENANT_ROLE_KEYS)
+def test_no_screen_is_both_visible_and_switched_off(client, store, key, config):
+    set_features(store, SWITCH_CONFIGS[config])
+    body = visibility(client, BUILTIN_ID[key]).json()
+    for group in body["groups"]:
+        shown = {s["view"] for s in group["screens"]}
+        assert not shown & {s["view"] for s in group["switchedOff"]}
+        assert group["visibleCount"] == len(group["screens"])
+
+
+def test_super_admin_sees_everything_as_manage_on_a_platform_basis(client):
+    body = visibility(client, "role-super-admin", caller="super_admin", tenant=None).json()
+    assert body["basis"]["kind"] == "platform_role"
+    assert body["visibleCount"] == body["totalCount"]
+    assert all(s["access"] == "manage" for g in body["groups"] for s in g["screens"])
+
+
+def test_platform_support_is_a_platform_role_and_never_narrowed(client, store):
+    set_features(store, [])
+    body = visibility(client, "role-platform-support", caller="super_admin", tenant=None).json()
+    assert body["basis"]["kind"] == "platform_role"
+    assert all(g["switchedOff"] == [] for g in body["groups"])
+
+
+@pytest.mark.parametrize("caller", ["tenant_admin", "itam_admin"])
+def test_platform_roles_are_404_for_a_tenant_caller(client, caller):
+    assert visibility(client, "role-platform-support", caller=caller).status_code == 404
+    assert visibility(client, "role-super-admin", caller=caller).status_code == 404
+
+
+@pytest.mark.real_tenant_features
+def test_super_admin_with_a_tenant_is_narrowed_by_that_tenant(client, store):
+    set_features(store, ["view:agents"])
+    body = visibility(client, "role-tenant-admin", caller="super_admin", tenant=None, tenantId="tenant-a").json()
+    assert body["basis"] == {"kind": "tenant", "tenantId": "tenant-a", "tenantName": "Tenant A"}
+    assert "compliance" in switched(body)
+
+
+def test_super_admin_without_a_tenant_sees_a_built_in_unnarrowed(client):
+    body = visibility(client, "role-viewer", caller="super_admin", tenant=None).json()
+    assert body["basis"] == {"kind": "no_tenant", "tenantId": None, "tenantName": None}
+    assert all(g["switchedOff"] == [] for g in body["groups"])
+
+
+def test_super_admin_without_a_tenant_cannot_see_a_custom_role(client):
+    res = visibility(client, "custom-tenant-a-Helpdesk", caller="super_admin", tenant=None)
+    assert res.status_code == 400 and "Select a tenant" in res.json()["detail"]
+
+
+def test_super_admin_with_a_tenant_sees_its_custom_role(client):
+    res = visibility(client, "custom-tenant-a-Helpdesk", caller="super_admin", tenant=None, tenantId="tenant-a")
+    assert res.status_code == 200 and "agents" in visible_views(res.json())
+
+
+def test_a_foreign_tenant_id_is_403_and_a_foreign_custom_role_is_404(client):
+    assert visibility(client, "role-viewer", tenantId="tenant-b").status_code == 403
+    assert visibility(client, "custom-tenant-b-Contractor").status_code == 404
+
+
+def test_authorization_follows_manage_users_or_manage_rbac(client):
+    assert visibility(client, "role-viewer", caller="viewer").status_code == 403
+    assert visibility(client, "role-viewer", caller="itam_admin").status_code == 200
+
+
+def test_unknown_role_is_404(client):
+    assert visibility(client, "role-does-not-exist").status_code == 404
+
+
+def test_store_failure_is_503(client, store, monkeypatch):
+    async def boom(*a, **k):
+        raise RuntimeError("down")
+    monkeypatch.setattr(role_endpoints, "effective_permissions", boom)
+    assert visibility(client, "role-viewer").status_code == 503
+
+
+# SC3: the three enforce:true groups agree with the backend guard.
+_MANIFEST = json.loads((Path(tenant_features.__file__).resolve().parent.parent / "shared" / "catalogue-access.json").read_text())
+_ENFORCED = {g["id"] for g in _MANIFEST["groups"] if g.get("enforce")}
+CHECKED = [e for e in _MANIFEST["catalogues"]
+           if e.get("nav") and e["group"] in _ENFORCED and e.get("routes") and not e.get("read")
+           and e["view"] not in tenant_features.HIDE_ONLY_SCREENS]
+
+
+def test_the_property_covers_the_three_enforced_groups():
+    assert _ENFORCED == {"infra", "security", "mgmt"} and len(CHECKED) > 30
+    assert len(TENANT_ROLE_KEYS) >= 9
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_tenant_features
+@pytest.mark.parametrize("config", list(SWITCH_CONFIGS))
+@pytest.mark.parametrize("key", TENANT_ROLE_KEYS)
+async def test_visible_equals_the_backend_guard_for_enforced_groups(store, key, config):
+    set_features(store, SWITCH_CONFIGS[config])
+    effective = await rbac_service.effective_permissions(store, BUILTIN_NAME[key], "tenant-a")
+    enabled = SWITCH_CONFIGS[config]
+    body = role_visibility.build_visibility(
+        role_id=BUILTIN_ID[key], role_name=BUILTIN_NAME[key], built_in=True, effective=effective,
+        enabled=enabled, narrowed=True, basis={"kind": "tenant", "tenantId": "tenant-a", "tenantName": "A"})
+    shown = visible_views(body)
+    user = TokenData(username="u@x.test", role=BUILTIN_NAME[key], tenant_id="tenant-a")
+    held = role_visibility.delivered_for(effective, enabled, narrowed=True)
+    on = set(tenant_features.screen_permissions(held, enabled))
+    for entry in CHECKED:
+        perm = entry["permission"]
+        try:
+            await catalogue_guards.check_catalogue_access(user, "GET", read=(perm,), write=(perm,))
+            allowed = True
+        except Exception:
+            allowed = False
+        owner = tenant_features.screen_of(entry["routes"][0])
+        if allowed and owner == entry["view"]:
+            allowed = f"screen:{owner}" in on
+        assert (entry["view"] in shown) == allowed, (key, config, entry["view"])
