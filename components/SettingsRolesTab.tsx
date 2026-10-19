@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ApiRole, fetchRoles, isBuiltInRole } from '../services/roleApi';
-import { PlusCircleIcon, PencilIcon, TrashIcon, ShieldLockIcon, EyeIcon, ChevronRightIcon } from './icons';
+import { ApiRole, RoleInUseDetail, RoleInUseError, deleteRole, fetchRoles, isBuiltInRole } from '../services/roleApi';
+import { PlusCircleIcon, PencilIcon, TrashIcon, ShieldLockIcon, EyeIcon, ChevronRightIcon, LoaderIcon } from './icons';
 import { RoleVisibilityPanel } from './RoleVisibilityPanel';
+import { ConfirmationModal } from './ConfirmationModal';
+import { RoleDeleteRefusalModal } from './RoleDeleteRefusalModal';
+import { showToast } from '../utils/toast';
 
 interface Props {
     roles: ApiRole[];
@@ -12,13 +15,38 @@ interface Props {
     onEdit: (role: ApiRole) => void;
     onDelete: (roleId: string) => void;
     onNew: () => void;
+    /** Switch the Settings tab to User Management (the delete-refused dialog's primary action). */
+    onGoToUsers?: () => void;
 }
 
 const ICON_BTN = 'inline-flex items-center justify-center min-w-8 min-h-8 p-1.5 text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded';
 
-export function SettingsRolesTab({ roles: seed, tenantId, canManageRBAC = false, isSuperAdmin = false, onEdit, onDelete, onNew }: Props) {
+export function SettingsRolesTab({ roles: seed, tenantId, canManageRBAC = false, isSuperAdmin = false, onEdit, onDelete, onNew, onGoToUsers }: Props) {
     const [openRoleId, setOpenRoleId] = useState<string | null>(null);
     const [roles, setRoles] = useState<ApiRole[]>(seed);
+    const [confirmRole, setConfirmRole] = useState<ApiRole | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [refusal, setRefusal] = useState<{ roleName: string; detail: RoleInUseDetail } | null>(null);
+
+    // D-01: the delete goes to the server; D-03: a role still in use is refused with who holds it.
+    const runDelete = async (role: ApiRole) => {
+        setDeletingId(role.id);
+        try {
+            await deleteRole(role.id, tenantId ?? undefined);
+            setRoles(prev => prev.filter(r => r.id !== role.id));
+            showToast(`Role "${role.name}" deleted.`, 'success');
+            onDelete(role.id);
+        } catch (e) {
+            if (e instanceof RoleInUseError) {
+                setRefusal({ roleName: role.name, detail: e.detail });
+            } else {
+                const msg = (e as Error)?.message || 'request failed';
+                showToast(`Couldn't delete the role: ${msg}. Try again.`, 'error');
+            }
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
     // Seed from the parent, then refresh from the server for the selected tenant (D-17).
     // A failed or forbidden fetch keeps the seeded (or last good) list; the tab stays gated.
@@ -66,7 +94,7 @@ export function SettingsRolesTab({ roles: seed, tenantId, canManageRBAC = false,
                             const builtIn = isBuiltInRole(role);
                             return (
                                 <React.Fragment key={role.id}>
-                                    <tr className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50">
+                                    <tr className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 ${deletingId === role.id ? 'opacity-60 pointer-events-none' : ''}`} aria-busy={deletingId === role.id || undefined}>
                                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                                             <div className="flex items-center min-w-0">
                                                 <span className="truncate max-w-[16rem]" title={role.name}>{role.name}</span>
@@ -114,8 +142,8 @@ export function SettingsRolesTab({ roles: seed, tenantId, canManageRBAC = false,
                                                         <ShieldLockIcon size={14} className="text-gray-400 dark:text-gray-500" />
                                                     </span>
                                                 ) : (
-                                                    <button type="button" onClick={() => onDelete(role.id)} aria-label={`Delete role ${role.name}`} className={`${ICON_BTN} hover:text-red-600`} title="Delete role">
-                                                        <TrashIcon size={14} />
+                                                    <button type="button" onClick={() => setConfirmRole(role)} disabled={deletingId === role.id} aria-label={`Delete role ${role.name}`} className={`${ICON_BTN} hover:text-red-600`} title="Delete role">
+                                                        {deletingId === role.id ? <LoaderIcon size={14} data-testid="role-delete-spinner" className="animate-spin" /> : <TrashIcon size={14} />}
                                                     </button>
                                                 ))}
                                             </div>
@@ -134,6 +162,23 @@ export function SettingsRolesTab({ roles: seed, tenantId, canManageRBAC = false,
                     </tbody>
                 </table>
             </div>
+            <ConfirmationModal
+                isOpen={confirmRole !== null}
+                onClose={() => setConfirmRole(null)}
+                onConfirm={() => { if (confirmRole) void runDelete(confirmRole); }}
+                title="Delete role"
+                message={`Delete the custom role "${confirmRole?.name ?? ''}"? This can't be undone.`}
+                confirmText="Delete role"
+                cancelText="Keep role"
+                isDestructive
+            />
+            <RoleDeleteRefusalModal
+                isOpen={refusal !== null}
+                roleName={refusal?.roleName ?? ''}
+                detail={refusal?.detail ?? null}
+                onClose={() => setRefusal(null)}
+                onGoToUsers={() => onGoToUsers?.()}
+            />
         </div>
     );
 }

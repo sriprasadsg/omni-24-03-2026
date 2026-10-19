@@ -406,6 +406,7 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
                             onNew={() => handleOpenRoleModal(null)}
                             onEdit={handleOpenRoleModal}
                             onDelete={onDeleteRole}
+                            onGoToUsers={() => setActiveView('users')}
                         />
                     )}
 

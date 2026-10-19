@@ -108,3 +108,45 @@ export async function updateRole(
     if (!res.ok) throw await apiError(res);
     return res.json();
 }
+
+export interface RoleHolder { name?: string | null; email: string; }
+export interface RoleMapping { group: string; source: 'LDAP' | 'SAML' | string; }
+export interface RoleInUseDetail {
+    code: 'role_in_use';
+    holderCount: number;
+    holders: RoleHolder[];
+    mappingCount: number;
+    mappings: RoleMapping[];
+}
+
+/** DELETE refused with 409 role_in_use: users or sign-in mappings still hold the role (D-03, D-15). */
+export class RoleInUseError extends Error {
+    detail: RoleInUseDetail;
+    constructor(detail: RoleInUseDetail) {
+        super('role_in_use');
+        this.name = 'RoleInUseError';
+        this.detail = detail;
+    }
+}
+
+/** DELETE /api/roles/{id}: 204 resolves; 409 role_in_use throws RoleInUseError; anything else RoleApiError. */
+export async function deleteRole(id: string, tenantId?: string | null): Promise<void> {
+    const res = await authFetch(withTenant(`${API_BASE}/roles/${encodeURIComponent(id)}`, tenantId), { method: 'DELETE' });
+    if (res.ok) return;
+    if (res.status === 409) {
+        let body: any = null;
+        try { body = await res.json(); } catch { /* non-JSON error body */ }
+        const d = body?.detail;
+        if (d && typeof d === 'object' && d.code === 'role_in_use') {
+            throw new RoleInUseError({
+                code: 'role_in_use',
+                holderCount: Number(d.holderCount) || 0,
+                holders: Array.isArray(d.holders) ? d.holders : [],
+                mappingCount: Number(d.mappingCount) || 0,
+                mappings: Array.isArray(d.mappings) ? d.mappings : [],
+            });
+        }
+        throw new RoleApiError(409, typeof d === 'string' ? d : '');
+    }
+    throw await apiError(res);
+}

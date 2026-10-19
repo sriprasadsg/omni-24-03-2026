@@ -31,7 +31,7 @@ function setup(props: any = {}) {
 }
 
 const clickDelete = () => fireEvent.click(screen.getByRole('button', { name: 'Delete role Helpdesk' }));
-const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Delete role', exact: true }));
+const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Delete role' }));
 
 beforeEach(() => {
   mockFetch.mockReset(); mockFetch.mockRejectedValue(new Error('offline'));
@@ -140,7 +140,7 @@ describe('delete refused (role_in_use)', () => {
     const { onGoToUsers } = setup();
     clickDelete(); confirm();
     await screen.findByText('Can\'t delete "Helpdesk" yet');
-    fireEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onGoToUsers).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByText('Can\'t delete "Helpdesk" yet')).toBeNull());
   });
