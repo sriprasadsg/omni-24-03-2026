@@ -8,7 +8,8 @@ import { useUser } from '../contexts/UserContext';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { fetchSupportUnreadCount } from '../services/apiService';
 import { socketService } from '../services/socketService';
-import { isPlatformRoleName, isTenantSwitchable, screenAllowed } from '../utils/permissions';
+import { isPlatformRoleName, isSuperAdminRoleName, isTenantSwitchable } from '../utils/permissions';
+import { evaluateViewAccess, permissionsKnown } from '../utils/viewAccess';
 
 // Tier precedence — matches backend TIER_ORDER
 const TIER_ORDER: Record<string, number> = { Free: 0, Pro: 1, Enterprise: 2, Custom: 3 };
@@ -178,7 +179,7 @@ const SidebarGroup: React.FC<{
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurrentView, isViewingTenant, onBackToTenants, branding }) => {
     const userContext = useUser();
-    const hasPermission = userContext?.hasPermission || (() => true);
+    const hasPermission = userContext?.hasPermission || (() => false);
     const currentUser = userContext?.currentUser;
     const serverLockedFeatures = userContext?.serverLockedFeatures ?? {};
     const { hasFeature, assignedBundles } = useFeatures();
@@ -221,7 +222,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     })), []);
 
     const visibleGroups = useMemo(() => {
-        const isSuperAdmin = currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin';
+        // Fail closed: no resolved user, no menu (a wildcard grant cannot open it either).
+        if (!currentUser) return [];
+        const isSuperAdmin = !!currentUser && isSuperAdminRoleName(currentUser.role);
         const userTier: string = (currentUser as any)?.subscriptionTier || 'Free';
 
         // Tenant users see only what the Super Admin switched on for their tenant (spec C6) and
@@ -240,12 +243,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
                 items: group.items
                     .filter(item => {
                         if (isViewingTenant && item.permission === 'manage:tenants') return false;
+                        if (!evaluateViewAccess(item.view, currentUser ?? null, hasPermission).allowed) return false;
                         if (isSuperAdmin) return true;
-                        if (!hasPermission(item.permission)) return false;
                         // Bundle mode: hide items whose feature the tenant hasn't been assigned
                         if (isBundleMode && item.featureKey && !hasFeature(item.featureKey)) return false;
                         if (isTenantUser && tierLock(item) && !isTenantSwitchable(item.permission, item.view)) return false;
-                        if (isTenantUser && !screenAllowed(item.view, hasPermission)) return false;
                         return true;
                     })
                     .map(item => (isSuperAdmin || isTenantUser ? { ...item, locked: undefined } : { ...item, locked: tierLock(item) })),
@@ -284,7 +286,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
 
                 {/* Back to Tenants Link */}
                 {
-                    (currentUser?.role === 'Super Admin' || currentUser?.role === 'superadmin' || currentUser?.role === 'super_admin') && isViewingTenant && (
+                    !!currentUser && isSuperAdminRoleName(currentUser.role) && isViewingTenant && (
                         <div className="mb-2">
                             <button
                                 onClick={onBackToTenants}
