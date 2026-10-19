@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -172,6 +173,16 @@ async def permission_catalogue(current_user: TokenData = Depends(_require_role_w
     return {"permissions": role_contents.grantable_for(held, super_admin=super_admin), "superAdmin": super_admin}
 
 
+@contextlib.contextmanager
+def _role_write(tenant_id: str):
+    """Clear the tenant's cached MFA answers once a role write was attempted, however it ends,
+    so an added admin-tier permission needs MFA on the next request (77 WR-03, IN-12)."""
+    try:
+        yield
+    finally:
+        invalidate_mfa_role_cache(tenant_id)
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=Role)
 async def create_role(body: RoleCreate, current_user: TokenData = Depends(_require_role_write_access)):
     """D-01: create a custom role in the caller's tenant (a Super Admin names the tenant).
@@ -196,13 +207,13 @@ async def create_role(body: RoleCreate, current_user: TokenData = Depends(_requi
             "tenantId": tenant_id, "createdBy": current_user.username, "createdAt": now,
             "updatedBy": current_user.username, "updatedAt": now,
         }
-        await db._db.roles.insert_one(dict(doc))
-        same = [d for d in await role_contents.custom_role_docs(db, tenant_id)
-                if rbac_defaults.normalize_role(d.get("name")) == doc["nameKey"]]
-        if len(same) > 1:
-            await db._db.roles.delete_one({"id": doc["id"], "tenantId": tenant_id})
-            raise HTTPException(status_code=409, detail="A role with this name already exists.")
-        invalidate_mfa_role_cache(tenant_id)
+        with _role_write(tenant_id):
+            await db._db.roles.insert_one(dict(doc))
+            same = [d for d in await role_contents.custom_role_docs(db, tenant_id)
+                    if rbac_defaults.normalize_role(d.get("name")) == doc["nameKey"]]
+            if len(same) > 1:
+                await db._db.roles.delete_one({"id": doc["id"], "tenantId": tenant_id})
+                raise HTTPException(status_code=409, detail="A role with this name already exists.")
     except HTTPException:
         raise
     except Exception as exc:
@@ -246,8 +257,8 @@ async def update_role(role_id: str, body: RoleUpdate, tenantId: Optional[str] = 
                    "updatedAt": datetime.now(timezone.utc).isoformat()}
         if body.description is not None:
             changes["description"] = body.description
-        await db._db.roles.update_one({"id": role_id, "tenantId": tenant_id}, {"$set": changes})
-        invalidate_mfa_role_cache(tenant_id)  # an added admin-tier permission needs MFA at once (77 WR-03)
+        with _role_write(tenant_id):
+            await db._db.roles.update_one({"id": role_id, "tenantId": tenant_id}, {"$set": changes})
     except HTTPException:
         raise
     except Exception as exc:
@@ -275,8 +286,8 @@ async def delete_role(role_id: str, tenantId: Optional[str] = None,
                 "code": "role_in_use", "holderCount": holder_count, "holders": holders,
                 "mappingCount": mapping_count, "mappings": mappings,
             })
-        await db._db.roles.delete_one({"id": role_id, "tenantId": tenant_id})
-        invalidate_mfa_role_cache(tenant_id)
+        with _role_write(tenant_id):
+            await db._db.roles.delete_one({"id": role_id, "tenantId": tenant_id})
     except HTTPException:
         raise
     except Exception as exc:

@@ -230,6 +230,24 @@ async def test_invalidation_drops_only_the_named_tenant(db):
     assert ("tenant-b", "viewer") in auth_svc._mfa_role_cache
 
 
+async def test_a_lookup_overtaken_by_a_role_write_is_not_cached(db, monkeypatch):
+    """77 IN-12: a lookup that read the role before an edit landed must not store that answer."""
+    import rbac_service
+    real = rbac_service.effective_permissions
+
+    async def overtaken(store, role, tenant):
+        perms = await real(store, role, tenant)
+        auth_svc.invalidate_mfa_role_cache(tenant)  # the edit lands while the lookup is in flight
+        return perms
+
+    monkeypatch.setattr(rbac_service, "effective_permissions", overtaken)
+    assert await auth_svc.resolve_mfa_required("Helpdesk", "tenant-a") is False
+    assert ("tenant-a", "helpdesk") not in auth_svc._mfa_role_cache
+    monkeypatch.setattr(rbac_service, "effective_permissions", real)
+    assert await auth_svc.resolve_mfa_required("Helpdesk", "tenant-a") is False
+    assert ("tenant-a", "helpdesk") in auth_svc._mfa_role_cache
+
+
 async def test_store_error_never_answers_less_strictly_than_the_last_answer(db, monkeypatch):
     """77 WR-03: a built-in name whose tenant document adds an admin-tier permission stays
     held to MFA while the store is down, instead of falling back to the table's False."""

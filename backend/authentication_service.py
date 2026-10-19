@@ -77,6 +77,9 @@ MFA_REQUIRED_DETAIL = "Two-factor authentication is required for your role. Set 
 # enforced on the next request there and within MFA_ROLE_CACHE_SECONDS on any other worker.
 MFA_ROLE_CACHE_SECONDS = 60
 _mfa_role_cache: dict[tuple, tuple] = {}
+# Bumped by every invalidation, so a lookup that started before a role write never stores
+# the answer it read (77 IN-12).
+_mfa_cache_generation: dict[str, int] = {}
 
 
 def _clear_mfa_role_cache() -> None:
@@ -85,7 +88,9 @@ def _clear_mfa_role_cache() -> None:
 
 def invalidate_mfa_role_cache(tenant_id: Optional[str]) -> None:
     """Drop the cached MFA answers of one tenant's roles (called after every role write)."""
-    for key in [k for k in _mfa_role_cache if k[0] == (tenant_id or "")]:
+    tenant = tenant_id or ""
+    _mfa_cache_generation[tenant] = _mfa_cache_generation.get(tenant, 0) + 1
+    for key in [k for k in _mfa_role_cache if k[0] == tenant]:
         _mfa_role_cache.pop(key, None)
 
 
@@ -133,6 +138,7 @@ async def resolve_mfa_required(role: Optional[str], tenant_id: Optional[str]) ->
     cached = _mfa_cached(key, tenant_id)
     if cached is not None:
         return cached
+    generation = _mfa_cache_generation.get(tenant_id or "", 0)
     try:
         import rbac_defaults
         from database import get_database
@@ -142,7 +148,8 @@ async def resolve_mfa_required(role: Optional[str], tenant_id: Optional[str]) ->
         logger.error("MFA requirement lookup failed for role %r (%s)", role, err)
         last = _mfa_role_cache.get(_mfa_cache_key(key, tenant_id))
         return (not builtin) or bool(last and last[1])
-    _mfa_role_cache[_mfa_cache_key(key, tenant_id)] = (time.monotonic() + MFA_ROLE_CACHE_SECONDS, required)
+    if _mfa_cache_generation.get(tenant_id or "", 0) == generation:
+        _mfa_role_cache[_mfa_cache_key(key, tenant_id)] = (time.monotonic() + MFA_ROLE_CACHE_SECONDS, required)
     return required
 
 

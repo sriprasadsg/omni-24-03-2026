@@ -363,3 +363,25 @@ def test_role_writes_clear_the_tenants_cached_mfa_answers(client, store, monkeyp
     finally:
         auth_svc._clear_mfa_role_cache()
 
+
+def test_a_failed_create_after_the_insert_still_clears_the_cache(client, store, monkeypatch):
+    """77 IN-12: once the insert ran, the tenant's MFA answers are dropped even if the write then fails."""
+    import authentication_service as auth_svc
+    real = role_contents.custom_role_docs
+    calls = []
+
+    async def fails_after_insert(db, tenant_id):
+        calls.append(tenant_id)
+        if len(calls) > 1:
+            raise RuntimeError("store down")
+        return await real(db, tenant_id)
+
+    monkeypatch.setattr(role_contents, "custom_role_docs", fails_after_insert)
+    auth_svc._clear_mfa_role_cache()
+    try:
+        auth_svc._mfa_role_cache[("tenant-a", "helpdesk")] = (float("inf"), False)
+        assert create(client, HELPDESK).status_code == 503
+        assert ("tenant-a", "helpdesk") not in auth_svc._mfa_role_cache
+    finally:
+        auth_svc._clear_mfa_role_cache()
+
