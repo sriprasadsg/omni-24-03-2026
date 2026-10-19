@@ -1921,7 +1921,7 @@ const App: React.FC = () => {
             {!currentUser ? (
               <LoginPage users={users} onLogin={handleLogin} onSignup={handleSignup} />
             ) : (
-              <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 font-sans transition-colors duration-200`}>
+              <div className="app-shell flex h-screen gap-3 p-2 md:p-3 font-sans transition-colors duration-200">
               {!isBackendConnected && (
                 <div className="fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white px-4 py-2 text-center text-sm font-medium flex items-center justify-center shadow-lg animate-pulse">
                   <AlertTriangleIcon size={18} className="mr-2" />
@@ -1936,7 +1936,7 @@ const App: React.FC = () => {
                 onBackToTenants={() => setViewingTenantId(null)}
                 branding={brandingConfig}
               />
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-hidden">
                 <Header
                   allUsers={users}
                   onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -1946,7 +1946,7 @@ const App: React.FC = () => {
                   onStartTour={() => window.dispatchEvent(new Event('start-genesis-tour'))}
                   currentView={currentView}
                 />
-                <main className={`flex-1 overflow-x-hidden ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden' : 'overflow-y-auto p-4 md:p-6'}`}>
+                <main className={`flex-1 overflow-x-hidden ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden rounded-2xl' : 'overflow-y-auto rounded-2xl px-1 pt-2 pb-6 md:px-2 md:pt-3'}`}>
                   {/* Keyed by view: otherwise React reuses the same boundary instances
                       across views and one crash leaves every later view showing the error. */}
                   <ErrorBoundary name="MainContent" key={currentView}>

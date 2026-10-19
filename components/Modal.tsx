@@ -118,7 +118,7 @@ export const Modal: React.FC<ModalProps> = ({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/55 backdrop-blur-md"
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? titleId : undefined}
@@ -128,7 +128,7 @@ export const Modal: React.FC<ModalProps> = ({
             <div
                 ref={panelRef}
                 tabIndex={-1}
-                className={`w-full ${SIZE_MAP[size]} max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl outline-none animate-scale-in ${className}`}
+                className={`w-full ${SIZE_MAP[size]} max-h-[90vh] flex flex-col bg-white/95 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl dark:shadow-[0_1px_0_rgb(255_255_255/0.06)_inset,0_32px_64px_-24px_rgb(0_0_0/0.8)] outline-none animate-scale-in ${className}`}
             >
                 {(title || showClose) && (
                     <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">

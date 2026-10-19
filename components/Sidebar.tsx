@@ -52,20 +52,17 @@ const NavLink: React.FC<{
         onClick={locked ? undefined : onClick}
         disabled={disabled}
         title={locked ? `Requires ${locked} plan — click to upgrade` : (!isOpen ? label : undefined)}
-        className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-xl transition-all duration-200 relative group
+        aria-current={active && !locked ? 'page' : undefined}
+        className={`w-full flex items-center px-3 py-2 text-[13px] font-medium rounded-xl transition-all duration-200 relative group border
             ${locked ? 'opacity-40 cursor-not-allowed' : ''}
             ${active && !locked
-                ? 'text-primary-400'
-                : 'text-slate-500 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'text-primary-700 dark:text-primary-300 bg-primary-500/10 dark:bg-primary-400/10 border-primary-500/20 dark:border-primary-400/20 shadow-[inset_0_1px_0_rgb(255_255_255/0.06)]'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-900/[0.04] dark:hover:bg-white/[0.05]'
             } ${disabled && !locked ? 'opacity-40 cursor-not-allowed' : ''}`}
-        style={active && !locked ? {
-            background: 'linear-gradient(135deg, rgba(14,165,233,0.12) 0%, rgba(3,105,161,0.06) 100%)',
-            border: '1px solid rgba(14,165,233,0.18)',
-        } : undefined}
     >
         {/* Icon */}
         <div className={`relative flex-shrink-0 transition-all duration-200
-            ${active && !locked ? 'text-primary-400' : 'text-slate-500 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300'}`}>
+            ${active && !locked ? 'text-primary-600 dark:text-primary-400 drop-shadow-[0_0_6px_rgb(34_211_238/0.45)]' : 'text-gray-500 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300'}`}>
             {icon}
             {!isOpen && !!badge && badge > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">
@@ -93,8 +90,7 @@ const NavLink: React.FC<{
 
         {/* Gradient active bar */}
         {!locked && active && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full -ml-3"
-                style={{ background: 'linear-gradient(to bottom, #0369a1, #075985)' }} />
+            <div aria-hidden="true" className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full -ml-[13px] bg-primary-500 dark:bg-primary-400 shadow-[0_0_12px_rgb(34_211_238/0.8)]" />
         )}
     </button>
 );
@@ -127,14 +123,15 @@ const SidebarGroup: React.FC<{
             {isOpen ? (
                 <button
                     onClick={toggle}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 mb-0.5 rounded-md
-                        text-xs font-semibold uppercase tracking-wider select-none transition-all duration-200
+                    aria-expanded={isExpanded}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 mb-0.5 rounded-lg
+                        text-[11px] font-semibold uppercase tracking-[0.08em] select-none transition-all duration-200
                         ${isExpanded
-                            ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20'
-                            : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
+                            ? 'text-primary-700 dark:text-primary-300'
+                            : 'text-gray-500 dark:text-gray-500 hover:text-gray-800 dark:hover:text-gray-300 hover:bg-gray-900/[0.04] dark:hover:bg-white/[0.04]'
                         }`}
                 >
-                    <span>{group.title}</span>
+                    <span className="truncate text-left">{group.title}</span>
                     <ChevronDown
                         size={13}
                         className={`flex-shrink-0 transition-transform duration-300 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}
@@ -142,7 +139,7 @@ const SidebarGroup: React.FC<{
                 </button>
             ) : (
                 /* Collapsed sidebar — just a thin divider between groups */
-                groupIndex > 0 && <div className="my-2 border-t border-gray-100 dark:border-gray-800" />
+                groupIndex > 0 && <div className="my-2 mx-3 border-t border-gray-900/[0.06] dark:border-white/[0.06]" />
             )}
 
             {/* ── Accordion Content (smooth slide) ─────────────────────── */}
@@ -256,24 +253,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     }, [menuGroups, isViewingTenant, currentUser, hasPermission, serverLockedFeatures, isBundleMode, hasFeature]);
 
     return (
-        <aside className={`flex-shrink-0 glass border-r-0 flex flex-col transition-all duration-300 ease-in-out z-40 ${isOpen ? 'w-64 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:shadow-2xl' : 'w-20'} `} >
+        <aside aria-label="Main navigation" className={`flex-shrink-0 glass-panel rounded-3xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out z-40 ${isOpen ? 'w-64 max-md:fixed max-md:inset-y-2 max-md:left-2 max-md:shadow-2xl' : 'w-[76px]'} `} >
             {/* Logo Section */}
-            <div className="flex items-center justify-center h-16 border-b border-white/5 bg-transparent" >
+            <div className={`flex items-center h-16 px-4 border-b border-gray-900/[0.06] dark:border-white/[0.06] ${isOpen ? 'justify-start' : 'justify-center'}`} >
                 {
                     branding?.logoUrl ? (
                         <img src={branding.logoUrl} alt="Logo" className="h-8 w-auto" />
                     ) : (
-                        <div className="bg-gradient-to-tr from-primary-500 to-primary-700 p-1.5 rounded-lg shadow-lg shadow-primary-500/20">
-                            <BotIcon className="text-white" size={24} />
+                        <div className="relative grid place-items-center h-9 w-9 rounded-xl bg-gradient-to-br from-primary-400 via-primary-500 to-blue-600 shadow-[0_0_0_1px_rgb(255_255_255/0.15)_inset,0_6px_20px_-6px_rgb(34_211_238/0.7)]">
+                            <BotIcon className="text-white" size={20} />
                         </div>
                     )}
                 {
                     isOpen && (
                         <div className="ml-3 flex flex-col justify-center">
-                            <span className="font-bold text-gray-900 dark:text-gray-100 leading-tight">
+                            <span className="font-semibold text-[15px] tracking-tight text-gray-900 dark:text-white leading-tight">
                                 {branding?.companyName || 'Omni-Agent'}
                             </span>
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium tracking-wider">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium tracking-[0.18em]">
                                 AI PLATFORM
                             </span>
                         </div>
@@ -282,7 +279,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
             </div>
 
             {/* Navigation Section */}
-            <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800 p-3 space-y-6" >
+            <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-4" >
 
                 {/* Back to Tenants Link */}
                 {
@@ -339,9 +336,9 @@ hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors border border-am
             </nav>
 
             {/* User Profile / Footer Section */}
-            <div className="p-3 border-t border-white/5 bg-transparent" >
+            <div className="px-4 py-3 border-t border-gray-900/[0.06] dark:border-white/[0.06]" >
                 {branding?.companyName && isOpen && (
-                    <div className="text-xs text-center text-gray-400 dark:text-gray-600">
+                    <div className="text-[11px] text-gray-400 dark:text-gray-500">
                         © 2024 {branding.companyName}
                     </div>
                 )}
