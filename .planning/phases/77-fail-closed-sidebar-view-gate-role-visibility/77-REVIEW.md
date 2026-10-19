@@ -1,6 +1,11 @@
 ---
 phase: 77-fail-closed-sidebar-view-gate-role-visibility
 reviewed: 2026-10-19T00:00:00Z
+reviewed_incremental: 2026-10-19
+incremental_files:
+  - App.tsx
+  - src/__tests__/catalogueAccess.test.ts
+incremental_scope: fix commit a1f4488d1 (WR-01)
 depth: standard
 files_reviewed: 56
 files_reviewed_list:
@@ -62,9 +67,9 @@ files_reviewed_list:
   - utils/viewAccess.ts
 findings:
   critical: 0
-  warning: 7
-  info: 6
-  total: 13
+  warning: 8
+  info: 7
+  total: 15
 status: issues_found
 ---
 
@@ -89,11 +94,15 @@ The access-control core is sound. I traced these paths and found no fail-open an
 - `deliverable_closure` is applied before `narrow`. I computed the vocabulary against the switch catalogue: no derived `view:X` or `request:X` survives an off `manage:X` switch today (empty leak set).
 - `get_current_user` is JWT-only, so the role write routes are not reachable by a scoped API key.
 
-There are no blockers. The seven warnings are one stale-state bug in the permission refresh, two MFA-cache problems, two server-side robustness gaps in role edit and delete, one hash-routing prototype-key bug, and a Super Admin UI gap for tenant custom roles. The info items are minor.
+**Incremental re-review (2026-10-19, fix a1f4488d1 for WR-01).** The one-line fix (`currentUserRef.current = next;` before `setCurrentUser(next)` in `refreshPermissions`) is correct for the deterministic stale-read: `loadAllData` has an empty dependency list and reads `currentUserRef.current` synchronously before its first `await`, so it now sees the refreshed list. WR-01 is marked resolved below. The re-review adds one new warning (WR-08, the 30s tick still starts a stale-list load that nothing orders against the refresh-triggered one) and one info item (IN-07, the new source guard test). No other new defects: the ordering with `setAccessChanged`/`lostAccess`, two refreshes, and sign-out were traced and are safe (details under WR-01).
+
+There are no blockers. The seven original warnings are one stale-state bug in the permission refresh, two MFA-cache problems, two server-side robustness gaps in role edit and delete, one hash-routing prototype-key bug, and a Super Admin UI gap for tenant custom roles. The info items are minor.
 
 ## Warnings
 
 ### WR-01: Permission refresh reloads app data with the OLD permissions
+
+**Status: RESOLVED by a1f4488d1** (confirmed in the 2026-10-19 incremental pass). The residual overlap with the 30s tick that the Fix text below also mentions is tracked separately as WR-08.
 
 **File:** `App.tsx:821-822` (inside `refreshPermissions`); the stale read is at `App.tsx:488` in `loadAllData`
 **Issue:** `refreshPermissions` calls `setCurrentUser(next); loadAllData();` back to back. `loadAllData` reads `currentUserRef.current` synchronously at its start (`const user = currentUserRef.current`). The ref is only reassigned during render (line 280), so it still holds the previous user and permission list when `loadAllData` runs. The login, signup and session-restore paths already handle this by setting the ref by hand (lines 612, 658, 751, "loadAllData below runs before the re-render"). The refresh path does not.
@@ -112,6 +121,8 @@ setCurrentUser(next);
 loadAllData();
 ```
 Do the same in the 30s tick: `refreshPermissions().then(() => loadAllData())`, or let the 'changed' branch do the reload only.
+
+**Resolution check (a1f4488d1):** `App.tsx:821` now sets the ref before `setCurrentUser(next)` and `loadAllData()`. Verified: (1) `loadAllData` (`App.tsx:473`, `useCallback(..., [])`) runs synchronously up to `const user = currentUserRef.current` (line 488) with no `await` before it, so the new value is what it reads. (2) The render-time `currentUserRef.current = currentUser` (line 280) later writes the same `next` object, so there is no revert; `setAccessChanged` and `setCurrentUser` are batched into one render. (3) `lostAccess` takes `prev`/`next` as arguments, so assigning the ref after it changes nothing. (4) Two refreshes cannot interleave: `refreshInFlight` is shared and cleared in `finally`, and `prev` is re-read after the await. (5) Sign-out: `setCurrentUser(null)` then a full page reload, so a refresh finishing in between is bounded by the reload. The fix mirrors the sign-in paths at lines 612, 658 and 751. Not fixed by this commit: the 30s tick overlap (WR-08).
 
 ### WR-02: Sync `mfa_required_for` fails closed for every non-admin custom role (WebSocket rejects)
 
@@ -176,6 +187,23 @@ or `Object.hasOwn(HASH_ALIASES, wanted) ? HASH_ALIASES[wanted] : viewForHash(wan
 
 **Fix:** Have the user modals fetch `fetchRoles(selectedTenantId)` (the roleApi helper already supports it) when the caller is a Super Admin. Or make `handleSaveRole`/the viewing-tenant change refetch with the viewed tenant.
 
+### WR-08: Overlapping `loadAllData` runs have no ordering; the 30s tick still loads with the stale list and can overwrite the refreshed load
+
+**File:** `App.tsx:847` (`const refresh = () => { loadAllData(); refreshPermissions(); };`) and `App.tsx:473-575` (`loadAllData` setters)
+**Issue:** a1f4488d1 fixes the refresh-triggered load, but the tick and the `visibilitychange` handler call `loadAllData()` first, with the pre-change list, and then `refreshPermissions()`. When the refresh reports a change, it starts a second `loadAllData()` with the new list while the first is still in flight (each is about 45 requests). Neither run is guarded by a sequence token and each one calls about 45 setters at the end, so whichever finishes last wins. If the stale run finishes last:
+- on a GRANT it writes `[]`/`null` fallbacks over the newly loaded catalogues (the stale run SKIPPED them), so the unlocked screen is empty until the next 30s tick, which is the WR-01 symptom for the tick path;
+- on a REMOVAL it restores data for catalogues the role can no longer read (still gated by `ViewGate`, but kept in state).
+The order is not deterministic, so this is intermittent. Focus and 403-triggered refreshes call `refreshPermissions()` alone and are not affected.
+**Fix:** Add a last-writer-wins guard in `loadAllData`:
+```ts
+const loadSeq = useRef(0);
+// in loadAllData, after the token check:
+const seq = ++loadSeq.current;
+// after Promise.allSettled and before the setters:
+if (seq !== loadSeq.current) return;   // a newer load superseded this one
+```
+or change the tick to `const refresh = () => { void refreshPermissions().then(r => { if (r !== 'changed') loadAllData(); }); };` so exactly one load runs per tick.
+
 ## Info
 
 ### IN-01: Role names that differ only by repeated whitespace render like a built-in role
@@ -216,8 +244,20 @@ or `Object.hasOwn(HASH_ALIASES, wanted) ? HASH_ALIASES[wanted] : viewForHash(wan
 **Issue:** These tests read `App.tsx` and other sources as strings and assert regexes (for example `/<ViewGate[^>]*render=\{renderView\}/`). They pass or fail on formatting changes (a line break inside the JSX, a rename) rather than behaviour. They document intent but will produce false failures and cannot prove the gate works. Behavioural coverage (render `App` with a denied view) would be more reliable. The other new tests are behavioural.
 **Fix:** Keep them as drift guards but back the same assertions with one rendered test of `ViewGate` and the `default:` branch.
 
+### IN-07: The WR-01 source guard test is order-in-text only and brittle
+
+**File:** `src/__tests__/catalogueAccess.test.ts:201-211`
+**Issue:** The new test slices `App.tsx` from `const refreshPermissions = useCallback(` to the first `}, [loadAllData]);` and checks that `currentUserRef.current = next;` appears before the first `loadAllData();`. It passes as written (44 of 44 pass), but:
+- it can pass vacuously: the substring match also succeeds if the assignment sits in a comment, an unreachable branch or a different branch than the one that reaches `loadAllData()`;
+- it fails on harmless edits: a changed dependency array (then the slice runs to `slice(start, -1)`, nearly the end of the file), `void loadAllData()` is fine but `loadAllData().then(...)` yields `indexOf` -1 and a false failure, or a renamed local `next`;
+- the `expect(start)` assertion runs after the slice is built, so a missing start gives a confusing failure message (the test still fails correctly);
+- it does not cover the tick path (WR-08) or any runtime behaviour.
+This is the same drift-guard pattern as IN-06.
+**Fix:** Assert `start` and the end index before slicing, and back it with one behavioural test (render `App` with mocked `api`, make `fetchCurrentPermissions` return a wider list, and assert `fetchAssets` or similar is called after the refresh).
+
 ---
 
 _Reviewed: 2026-10-19_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+_Incremental re-review: 2026-10-19 (a1f4488d1, App.tsx and src/__tests__/catalogueAccess.test.ts)_
