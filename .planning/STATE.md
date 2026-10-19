@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 77
 current_phase_name: Fail-Closed Sidebar, View Gate & Role Visibility
 status: executing
-stopped_at: Completed 77-03-PLAN.md
-last_updated: "2026-10-18T23:00:48.541Z"
+stopped_at: Completed 77-04-PLAN.md
+last_updated: "2026-10-19T03:06:44.012Z"
 last_activity: 2026-10-18
 last_activity_desc: Phase 77 execution started
-state_head: fdd0a28c2f8b5a2b29ea0ec5734a06cd8c9a2de0
+state_head: a3c33a6086c17a94159fc27cf10edf4bbe1db308
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 33
-  completed_plans: 23
+  completed_plans: 24
   percent: 0
 ---
 
@@ -434,6 +434,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 77]: 77-02: access decided once by evaluateViewAccess at render time (ViewGate); handleSetCurrentView no longer gates; platform roles skip screen-off reason
 - [Phase 77]: 77-03: no unique index for custom role names; application check plus read-after-write check (409)
 - [Phase 77]: 77-03: legacy tenant documents named like a built-in are not custom roles (write API answers 404)
+- [Phase 77]: 77-04: MFA is permission-based (ADMIN_TIER_PERMISSIONS); custom names fail closed on store error or cold sync cache; 60 s per-(tenant, role) cache
 
 ## Performance Metrics
 
@@ -579,6 +580,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 77 P01 | 50min | 2 tasks | 8 files |
 | Phase 77 P02 | 25min | 2 tasks | 6 files |
 | Phase 77 P03 | ~25min | 3 tasks | 4 files |
+| Phase 77 P04 | 25 min | 2 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -613,8 +615,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-18T23:00:48.476Z
-**Stopped at:** Completed 77-03-PLAN.md
+**Last session:** 2026-10-19T03:06:43.947Z
+**Stopped at:** Completed 77-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -638,7 +640,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 77 (Fail-Closed Sidebar, View Gate & Role Visibility) — EXECUTING
-Plan: 4 of 13
+Plan: 5 of 13
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-18 — Phase 77 execution started
