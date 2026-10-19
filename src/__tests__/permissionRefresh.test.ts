@@ -12,6 +12,7 @@ import {
   _resetPermissionDeniedForTests,
   samePermissionSet,
   lostAccess,
+  refreshThenLoad,
 } from '../../utils/permissionRefresh';
 import type { User } from '../../types';
 
@@ -152,5 +153,29 @@ describe('logoutSession timeout', () => {
     expect(done).toBe(true);
     expect(sessionStorage.getItem('token')).toBeNull();
     expect(sessionStorage.getItem('refresh_token')).toBeNull();
+  });
+});
+
+describe('refreshThenLoad (periodic refresh, 77 WR-08)', () => {
+  it('loads nothing until the permission refresh has settled', async () => {
+    let settle: (r: 'changed' | 'same' | 'error') => void = () => {};
+    const load = vi.fn();
+    const done = refreshThenLoad(() => new Promise(r => { settle = r; }), load);
+    expect(load).not.toHaveBeenCalled();
+    settle('same');
+    await done;
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not load again when the refresh already applied a new list and reloaded', async () => {
+    const load = vi.fn();
+    await refreshThenLoad(async () => 'changed', load);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('still loads with the kept list when the refresh failed', async () => {
+    const load = vi.fn();
+    await refreshThenLoad(async () => 'error', load);
+    expect(load).toHaveBeenCalledTimes(1);
   });
 });

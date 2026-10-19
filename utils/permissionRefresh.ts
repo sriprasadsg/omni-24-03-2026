@@ -56,6 +56,15 @@ export function samePermissionSet(a: readonly string[], b: readonly string[]): b
   return [...a].sort().join('|') === [...b].sort().join('|');
 }
 
+/**
+ * The periodic refresh: re-read permissions first, then reload data only when the refresh did not
+ * already reload it. A data load started beside the refresh would run with the old list and could
+ * finish last, overwriting the reload made with the new one (77 WR-08).
+ */
+export async function refreshThenLoad(refresh: () => Promise<RefreshResult>, load: () => void): Promise<void> {
+  if (await refresh() !== 'changed') load();
+}
+
 /** True when the view was allowed for `before` and is denied for `after` (a removal, never an addition). */
 export function lostAccess(view: AppView, before: User | null, after: User | null): boolean {
   const was = evaluateViewAccess(view, before, derivePermissionState(before).hasPermission).allowed;

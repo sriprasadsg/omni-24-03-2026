@@ -240,7 +240,7 @@ import { NAV_GROUPS, catalogueFor, viewForHash } from './utils/catalogueAccess';
 import { canReadView, evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
 import { ZeroAccessScreen } from './components/ZeroAccessScreen';
-import { PERMISSION_DENIED_EVENT, samePermissionSet, lostAccess, type RefreshResult } from './utils/permissionRefresh';
+import { PERMISSION_DENIED_EVENT, samePermissionSet, lostAccess, refreshThenLoad, type RefreshResult } from './utils/permissionRefresh';
 
 const API_BASE = '/api';
 
@@ -844,7 +844,7 @@ const App: React.FC = () => {
   // in the background skips it and catches up as soon as it is visible again.
   useEffect(() => {
     if (!isBackendConnected) return;
-    const refresh = () => { loadAllData(); refreshPermissions(); };
+    const refresh = () => { void refreshThenLoad(refreshPermissions, loadAllData); };
     const interval = setInterval(() => {
       if (!document.hidden) refresh();
     }, 30000);
