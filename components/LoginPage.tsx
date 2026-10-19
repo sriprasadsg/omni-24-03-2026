@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { useUser } from '../contexts/UserContext';
-import { BotIcon, MailIcon, KeyIcon, ShieldIcon, CpuIcon, FileTextIcon } from './icons';
+import { BotIcon, MailIcon, KeyIcon, ShieldIcon, CpuIcon, FileTextIcon, InfoIcon } from './icons';
 import { Reveal } from './ui/Reveal';
 import { User } from '../types';
 import { SignupForm } from './SignupForm';
@@ -105,6 +105,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
         if (e === 'account_disabled') return 'This account is disabled. Contact your administrator.';
         return '';
     });
+    // The session ended on its own (expired or revoked): say so once, then forget it.
+    const [sessionEnded] = useState(() => {
+        try { return sessionStorage.getItem(api.SESSION_ENDED_KEY) === '1'; } catch { return false; }
+    });
+    useEffect(() => {
+        try { sessionStorage.removeItem(api.SESSION_ENDED_KEY); } catch { /* nothing to clear */ }
+    }, []);
     const [isLoading, setIsLoading] = useState(false);
     const [mfaSessionToken, setMfaSessionToken] = useState<string | null>(null);
     const [ssoEnabled, setSsoEnabled] = useState(false);
@@ -289,6 +296,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                                     />
                                </div>
                            </div>
+
+                            {sessionEnded && !error && (
+                                <div role="status" className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: 'rgba(34,211,238,0.10)', border: '1px solid rgba(34,211,238,0.28)' }}>
+                                    <InfoIcon size={16} aria-hidden="true" className="mt-0.5 text-cyan-300 flex-shrink-0" />
+                                    <p className="text-sm text-cyan-100">Your session ended, so you were signed out. Sign in to pick up where you left off.</p>
+                                </div>
+                            )}
 
                             {/* Error Message */}
                             {error && (

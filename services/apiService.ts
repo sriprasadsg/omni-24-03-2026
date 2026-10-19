@@ -143,6 +143,9 @@ function clearSessionCaches(): void {
     ASSETS = [];
 }
 
+/** Set when the session ends on its own, so the login screen can say why the user is there. */
+export const SESSION_ENDED_KEY = 'omni.sessionEnded';
+
 function _expireSession(): void {
     if (_sessionEnding) return;
     _sessionEnding = true;
@@ -150,7 +153,10 @@ function _expireSession(): void {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('refresh_token');
     clearSessionCaches();
-    setTimeout(() => { window.location.href = '/login'; }, 50);
+    try { sessionStorage.setItem(SESSION_ENDED_KEY, '1'); } catch { /* the notice is optional */ }
+    // Keep the page in the URL: signing in again lands back on it (the sign-in landing reads the hash,
+    // and the page gate still checks access, so a different user gets no extra reach).
+    setTimeout(() => { window.location.href = '/login' + window.location.hash; }, 50);
 }
 
 // Helper function to refresh the access token

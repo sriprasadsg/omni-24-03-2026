@@ -734,7 +734,8 @@ const App: React.FC = () => {
   // there, and the SPA renders the dashboard in place after sign-in).
   useEffect(() => {
     if (currentUser && window.location.pathname === '/login') {
-      window.history.replaceState({}, '', '/');
+      // Keep the hash: after a session ended, it names the page to land back on.
+      window.history.replaceState({}, '', '/' + window.location.hash);
     }
   }, [currentUser]);
 
