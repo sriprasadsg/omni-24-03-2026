@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 77
 current_phase_name: Fail-Closed Sidebar, View Gate & Role Visibility
 status: executing
-stopped_at: Completed 77-04-PLAN.md
-last_updated: "2026-10-19T03:06:44.012Z"
+stopped_at: Completed 77-05-PLAN.md
+last_updated: "2026-10-19T03:12:51.783Z"
 last_activity: 2026-10-18
 last_activity_desc: Phase 77 execution started
-state_head: a3c33a6086c17a94159fc27cf10edf4bbe1db308
+state_head: f28cf7a8ff1d5ee0bfe7517f93bf59b023c280a1
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 33
-  completed_plans: 24
+  completed_plans: 25
   percent: 0
 ---
 
@@ -435,6 +435,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 77]: 77-03: no unique index for custom role names; application check plus read-after-write check (409)
 - [Phase 77]: 77-03: legacy tenant documents named like a built-in are not custom roles (write API answers 404)
 - [Phase 77]: 77-04: MFA is permission-based (ADMIN_TIER_PERMISSIONS); custom names fail closed on store error or cold sync cache; 60 s per-(tenant, role) cache
+- [Phase 77]: 77-05: refreshPermissions is tri-state (changed/same/error) with one shared in-flight request; 403 and window focus trigger it through a leading-plus-trailing 15 s debounce; error keeps the last set and an unknown list fails closed to empty
+- [Phase 77]: 77-05: logoutSession aborts after 5 s (LOGOUT_TIMEOUT_MS) and clears the local session so Sign out never waits on a hung backend
 
 ## Performance Metrics
 
@@ -581,6 +583,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 77 P02 | 25min | 2 tasks | 6 files |
 | Phase 77 P03 | ~25min | 3 tasks | 4 files |
 | Phase 77 P04 | 25 min | 2 tasks | 6 files |
+| Phase 77 P05 | 6 min | 2 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -615,8 +618,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-19T03:06:43.947Z
-**Stopped at:** Completed 77-04-PLAN.md
+**Last session:** 2026-10-19T03:12:51.717Z
+**Stopped at:** Completed 77-05-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -640,7 +643,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 77 (Fail-Closed Sidebar, View Gate & Role Visibility) — EXECUTING
-Plan: 5 of 13
+Plan: 6 of 13
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-18 — Phase 77 execution started
