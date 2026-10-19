@@ -9,11 +9,11 @@ findings:
     title: "Permission refresh reloads app data with the OLD permissions"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Sync `mfa_required_for` fails closed for every non-admin custom role (WebSocket rejects)"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "MFA role cache is never invalidated; the 60s promotion window is per worker, and the helper is dead code"
   - id: WR-04
     severity: warning
@@ -89,8 +89,8 @@ recorded: 2026-10-19T16:59:23.789Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | WR-01 | warning | fixed | a1f4488d1 (ref set before loadAllData; guard in catalogueAccess.test.ts) |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
+| WR-02 | warning | fixed | bee9299ce (socket connect awaits verify_token_async; tests in test_custom_role_mfa.py) |
+| WR-03 | warning | fixed | bee9299ce (role writes invalidate the tenant cache; store error never less strict than last answer; 60 s TTL kept for other workers) |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
