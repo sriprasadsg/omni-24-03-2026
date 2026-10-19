@@ -5,7 +5,9 @@ reviewed_incremental: 2026-10-19
 incremental_files:
   - App.tsx
   - src/__tests__/catalogueAccess.test.ts
-incremental_scope: fix commit a1f4488d1 (WR-01)
+  - utils/permissionRefresh.ts
+  - src/__tests__/permissionRefresh.test.ts
+incremental_scope: fix commit a1f4488d1 (WR-01); fix commit b76b8af8d (WR-08), second incremental pass 2026-10-19
 depth: standard
 files_reviewed: 56
 files_reviewed_list:
@@ -67,9 +69,9 @@ files_reviewed_list:
   - utils/viewAccess.ts
 findings:
   critical: 0
-  warning: 8
-  info: 7
-  total: 15
+  warning: 9
+  info: 8
+  total: 17
 status: issues_found
 ---
 
@@ -95,6 +97,8 @@ The access-control core is sound. I traced these paths and found no fail-open an
 - `get_current_user` is JWT-only, so the role write routes are not reachable by a scoped API key.
 
 **Incremental re-review (2026-10-19, fix a1f4488d1 for WR-01).** The one-line fix (`currentUserRef.current = next;` before `setCurrentUser(next)` in `refreshPermissions`) is correct for the deterministic stale-read: `loadAllData` has an empty dependency list and reads `currentUserRef.current` synchronously before its first `await`, so it now sees the refreshed list. WR-01 is marked resolved below. The re-review adds one new warning (WR-08, the 30s tick still starts a stale-list load that nothing orders against the refresh-triggered one) and one info item (IN-07, the new source guard test). No other new defects: the ordering with `setAccessChanged`/`lostAccess`, two refreshes, and sign-out were traced and are safe (details under WR-01).
+
+**Second incremental re-review (2026-10-19, fix b76b8af8d for WR-08, diff base 7ab88bd43).** The new `refreshThenLoad(refresh, load)` helper in `utils/permissionRefresh.ts` and its one call site (`App.tsx:847`) remove the stale-list load from the 30s tick and the `visibilitychange` handler, so WR-08 is marked resolved below. Traced: `refreshPermissions` cannot reject today (`api.fetchCurrentPermissions` swallows every error; the body after the await only reads refs and calls pure helpers), a shared in-flight promise from a focus or 403 refresh gives the tick the same result so exactly one load runs, and the signed-out case (`prev` null gives `'error'`, then `load()` runs and `loadAllData` returns at its token check) behaves as before the change, so it is not a regression. The review adds one warning (WR-09, the data load is now chained to an `/auth/me` request that has no timeout and no rejection handling) and one info item (IN-08, the explicit reload in `refreshPermissions` duplicates the one the Initial Data Load effect already makes).
 
 There are no blockers. The seven original warnings are one stale-state bug in the permission refresh, two MFA-cache problems, two server-side robustness gaps in role edit and delete, one hash-routing prototype-key bug, and a Super Admin UI gap for tenant custom roles. The info items are minor.
 
@@ -189,6 +193,8 @@ or `Object.hasOwn(HASH_ALIASES, wanted) ? HASH_ALIASES[wanted] : viewForHash(wan
 
 ### WR-08: Overlapping `loadAllData` runs have no ordering; the 30s tick still loads with the stale list and can overwrite the refreshed load
 
+**Status: RESOLVED by b76b8af8d** (confirmed in the second 2026-10-19 incremental pass; see the resolution check at the end of this section). The overlap of other `loadAllData` callers is noted there; the chaining of the tick to `/auth/me` is tracked as WR-09.
+
 **File:** `App.tsx:847` (`const refresh = () => { loadAllData(); refreshPermissions(); };`) and `App.tsx:473-575` (`loadAllData` setters)
 **Issue:** a1f4488d1 fixes the refresh-triggered load, but the tick and the `visibilitychange` handler call `loadAllData()` first, with the pre-change list, and then `refreshPermissions()`. When the refresh reports a change, it starts a second `loadAllData()` with the new list while the first is still in flight (each is about 45 requests). Neither run is guarded by a sequence token and each one calls about 45 setters at the end, so whichever finishes last wins. If the stale run finishes last:
 - on a GRANT it writes `[]`/`null` fallbacks over the newly loaded catalogues (the stale run SKIPPED them), so the unlocked screen is empty until the next 30s tick, which is the WR-01 symptom for the tick path;
@@ -203,6 +209,25 @@ const seq = ++loadSeq.current;
 if (seq !== loadSeq.current) return;   // a newer load superseded this one
 ```
 or change the tick to `const refresh = () => { void refreshPermissions().then(r => { if (r !== 'changed') loadAllData(); }); };` so exactly one load runs per tick.
+
+**Resolution check (b76b8af8d):** `App.tsx:847` is now `void refreshThenLoad(refreshPermissions, loadAllData)`, the second option of the Fix text. Verified: (1) the tick and the `visibilitychange` handler no longer start a load beside the refresh, so no load runs with the pre-change list while the refresh-triggered one runs with the new list. On `'changed'` the refresh's own `loadAllData()` (with the ref already set, WR-01) is the only load; on `'same'` or `'error'` one load runs with the kept list. (2) A focus or 403 refresh in flight is shared (`refreshInFlight`), so a tick that joins it gets the same result and does not add a second load after `'changed'`. (3) Three behavioural tests cover ordering, the `'changed'` skip and the `'error'` load; they are sound (`refresh()` is invoked synchronously, so `settle` is assigned before it is called). Residual, not a regression and not worth keeping WR-08 open: a load that is already in flight when a refresh changes the list (a previous tick's load that took over 30 s, the reconnect load at `App.tsx:789`, the Initial Data Load effect) is still unordered against the new load, because `loadAllData` has no sequence token. That window is much narrower than the one this finding described.
+
+### WR-09: The periodic data load now waits on an `/auth/me` request that has no timeout and no rejection handling
+
+**File:** `utils/permissionRefresh.ts:65-67` (`refreshThenLoad`); dependency `services/apiService.ts:755-764` (`fetchCurrentPermissions` over `authFetch`, line 269) and the shared promise `App.tsx:808-829` (`refreshInFlight`)
+**Issue:** Before b76b8af8d the tick called `loadAllData()` unconditionally and independently of `refreshPermissions()`. `refreshThenLoad` makes the load conditional on the refresh settling, so the data refresh now inherits the refresh's failure modes:
+- `authFetch` and `fetchCurrentPermissions` set no timeout or `AbortSignal`. If the `/auth/me` request stalls (half-open connection, a proxy that holds the request), the promise never settles and `refreshInFlight.current` is never cleared (it is cleared only in `finally`). Every later tick, visibility change, focus and 403 refresh then returns that same pending promise, so `load()` is never called again and the 30s data refresh stops until the page is reloaded. A stalled `/auth/me` with otherwise healthy endpoints used to cost only the permission refresh; it now also freezes all data.
+- `await refresh()` has no `try/catch`. Today `refreshPermissions` cannot reject, but if any future change in its body (or in `lostAccess`/`evaluateViewAccess`) throws, `refreshThenLoad` rejects, `load()` is skipped and the caller's `void` leaves an unhandled rejection. The helper's contract ("load unless the refresh reloaded") should not depend on the refresh never throwing.
+- The tests cover `'same'`, `'changed'` and `'error'` but not a rejecting or never-settling refresh.
+**Fix:**
+```ts
+export async function refreshThenLoad(refresh: () => Promise<RefreshResult>, load: () => void): Promise<void> {
+  let result: RefreshResult = 'error';
+  try { result = await refresh(); } catch { /* keep the last list; still refresh data */ }
+  if (result !== 'changed') load();
+}
+```
+and bound the permission request, for example `authFetch(\`${API_BASE}/auth/me\`, { signal: AbortSignal.timeout(10000) })` inside `fetchCurrentPermissions` (its `catch` already maps the abort to `null`, which becomes `'error'`). Add a test with a rejecting refresh.
 
 ## Info
 
@@ -255,9 +280,16 @@ or change the tick to `const refresh = () => { void refreshPermissions().then(r 
 This is the same drift-guard pattern as IN-06.
 **Fix:** Assert `start` and the end index before slicing, and back it with one behavioural test (render `App` with mocked `api`, make `fetchCurrentPermissions` return a wider list, and assert `fetchAssets` or similar is called after the refresh).
 
+### IN-08: `refreshPermissions` and the Initial Data Load effect both reload data on a changed list
+
+**File:** `App.tsx:823` (`loadAllData();` in `refreshPermissions`) and `App.tsx:759-770` (effect on `[currentUser, loadAllData]` that calls `loadAllData()` whenever a user exists)
+**Issue:** `setCurrentUser(next)` changes `currentUser`, so after the render the Initial Data Load effect runs and calls `loadAllData()` again. A `'changed'` refresh therefore starts two full loads (about 90 requests), both with the new list. This does not reintroduce WR-01 or WR-08 (both loads use the same list, so whichever finishes last writes the same data), but it makes the explicit `loadAllData()` in `refreshPermissions` redundant and means the `refreshThenLoad` comment ("the refresh already reloaded") describes a reload that happens twice. The same effect also reloads on every other `setCurrentUser`, for example the empty-list fallback at `App.tsx:1075`.
+**Fix:** Either keep the explicit call (it guarantees the load starts with the ref set) and make the effect depend on the user's identity instead of the whole object (`currentUser?.email`, `currentUser?.tenantId`), or drop the explicit call and rely on the effect. Pick one so a list change costs one load.
+
 ---
 
 _Reviewed: 2026-10-19_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
 _Incremental re-review: 2026-10-19 (a1f4488d1, App.tsx and src/__tests__/catalogueAccess.test.ts)_
+_Incremental re-review 2: 2026-10-19 (b76b8af8d, App.tsx, utils/permissionRefresh.ts and src/__tests__/permissionRefresh.test.ts)_
