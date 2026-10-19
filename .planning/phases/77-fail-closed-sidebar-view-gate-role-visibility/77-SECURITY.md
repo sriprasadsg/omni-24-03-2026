@@ -117,6 +117,6 @@ Register authored at plan time across 77-01..77-13 (`<threat_model>` blocks). Ve
 
 | Metric | Count |
 |---|---|
-| Threats found | 33 |
-| Closed | 33 |
+| Threats found | 34 |
+| Closed | 34 |
 | Open | 0 |
