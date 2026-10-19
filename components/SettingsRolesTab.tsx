@@ -1,16 +1,19 @@
-import React from 'react';
-import { Role } from '../types';
-import { PlusCircleIcon, PencilIcon, TrashIcon, ShieldLockIcon } from './icons';
+import React, { useState } from 'react';
+import { ApiRole } from '../services/roleApi';
+import { PlusCircleIcon, PencilIcon, TrashIcon, ShieldLockIcon, EyeIcon, ChevronRightIcon } from './icons';
+import { RoleVisibilityPanel } from './RoleVisibilityPanel';
 
 interface Props {
-    roles: Role[];
-    canManageSettings: boolean;
-    onEdit: (role: Role) => void;
+    roles: ApiRole[];
+    tenantId?: string | null;
+    canManageSettings?: boolean;
+    onEdit: (role: ApiRole) => void;
     onDelete: (roleId: string) => void;
     onNew: () => void;
 }
 
-export function SettingsRolesTab({ roles, onEdit, onDelete, onNew }: Props) {
+export function SettingsRolesTab({ roles, tenantId, onEdit, onDelete, onNew }: Props) {
+    const [openRoleId, setOpenRoleId] = useState<string | null>(null);
     return (
         <div>
             <div className="flex justify-between items-center mb-4">
@@ -30,35 +33,60 @@ export function SettingsRolesTab({ roles, onEdit, onDelete, onNew }: Props) {
                         </tr>
                     </thead>
                     <tbody>
-                        {roles.map(role => (
-                            <tr key={role.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50">
-                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                                    <div className="flex items-center">
-                                        <span>{role.name}</span>
-                                        <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-100 text-primary-800 dark:bg-primary-900/50 dark:text-primary-300">
-                                            {role.permissions.length}
-                                        </span>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3 text-xs max-w-sm">{role.description}</td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center space-x-2">
-                                        <button onClick={() => onEdit(role)} className="p-1.5 text-gray-500 hover:text-primary-600 disabled:text-gray-400 disabled:dark:text-gray-500 disabled:cursor-not-allowed" disabled={!role.isEditable} title={role.isEditable ? "Edit role" : "Built-in roles cannot be edited."}>
-                                            <PencilIcon size={14} />
-                                        </button>
-                                        {role.isEditable ? (
-                                            <button onClick={() => onDelete(role.id)} className="p-1.5 text-gray-500 hover:text-red-600" title="Delete role">
-                                                <TrashIcon size={14} />
-                                            </button>
-                                        ) : (
-                                            <span title="This built-in role cannot be deleted.">
-                                                <ShieldLockIcon size={14} className="p-0.5 text-gray-400 dark:text-gray-500" />
-                                            </span>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                        {roles.map(role => {
+                            const isOpen = openRoleId === role.id;
+                            const panelId = `role-visibility-${role.id}`;
+                            return (
+                                <React.Fragment key={role.id}>
+                                    <tr className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50">
+                                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                                            <div className="flex items-center">
+                                                <span>{role.name}</span>
+                                                <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-primary-100 text-primary-800 dark:bg-primary-900/50 dark:text-primary-300">
+                                                    {role.permissions.length}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-xs max-w-sm">{role.description}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center space-x-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenRoleId(isOpen ? null : role.id)}
+                                                    aria-expanded={isOpen}
+                                                    aria-controls={panelId}
+                                                    aria-label={`What ${role.name} can see`}
+                                                    className="inline-flex items-center gap-1 px-1.5 py-1 text-xs font-medium text-gray-600 hover:text-primary-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                                                >
+                                                    <ChevronRightIcon size={14} aria-hidden="true" className={`motion-safe:transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                                                    <EyeIcon size={14} aria-hidden="true" />
+                                                    <span className="hidden sm:inline">What it can see</span>
+                                                </button>
+                                                <button onClick={() => onEdit(role)} className="p-1.5 text-gray-500 hover:text-primary-600 disabled:text-gray-400 disabled:dark:text-gray-500 disabled:cursor-not-allowed" disabled={!role.isEditable} title={role.isEditable ? "Edit role" : "Built-in roles cannot be edited."}>
+                                                    <PencilIcon size={14} />
+                                                </button>
+                                                {role.isEditable ? (
+                                                    <button onClick={() => onDelete(role.id)} className="p-1.5 text-gray-500 hover:text-red-600" title="Delete role">
+                                                        <TrashIcon size={14} />
+                                                    </button>
+                                                ) : (
+                                                    <span title="This built-in role cannot be deleted.">
+                                                        <ShieldLockIcon size={14} className="p-0.5 text-gray-400 dark:text-gray-500" />
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {isOpen && (
+                                        <tr className="border-b dark:border-gray-700">
+                                            <td colSpan={3} className="p-0 min-w-0">
+                                                <RoleVisibilityPanel role={role} tenantId={tenantId} panelId={panelId} />
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
