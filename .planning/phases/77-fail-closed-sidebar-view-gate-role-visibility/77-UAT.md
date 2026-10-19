@@ -3,7 +3,7 @@ status: testing
 phase: 77-fail-closed-sidebar-view-gate-role-visibility
 source: [77-VERIFICATION.md]
 started: 2026-10-19T16:43:12Z
-updated: 2026-10-19T16:43:12Z
+updated: 2026-10-19T17:03:04Z
 ---
 
 ## Current Test
@@ -11,13 +11,13 @@ updated: 2026-10-19T16:43:12Z
 number: 1
 name: Two-session role edit refresh
 expected: |
-  Deploy (backend restart + UI publish). In two browser sessions, sign in as a user holding a custom role; have an admin add a catalogue permission (e.g. a view:X) to that role; focus the first window (or trigger a 403). The new catalogue appears in the first user's sidebar without logging out. The newly unlocked screen's list data may stay empty until the next 30 s tick until code-review warning WR-01 is fixed.
+  Deploy (backend restart + UI publish). In two browser sessions, sign in as a user holding a custom role; have an admin add a catalogue permission (e.g. a view:X) to that role; focus the first window (or trigger a 403). The new catalogue appears in the first user's sidebar without logging out. The newly unlocked screen loads its data straight away, and if the edit removed the screen that is open, it swaps to the no-access panel.
 awaiting: user response
 
 ## Tests
 
 ### 1. Two-session role edit refresh
-expected: After deploy, an admin adds a catalogue permission to a custom role; on the holder's next window focus (or 403) the new catalogue appears in their sidebar without re-login. (Its list data may lag up to 30 s until WR-01 is fixed.)
+expected: After deploy, an admin adds a catalogue permission to a custom role; on the holder's next window focus (or 403) the new catalogue appears in their sidebar without re-login. The newly unlocked screen shows its data at once; a removed, open screen swaps to the no-access panel.
 result: [pending]
 
 ### 2. Restricted roles on the live system
