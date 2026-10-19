@@ -90,3 +90,95 @@ describe('fetchIntegrations (Pitfall 10)', () => {
     expect(await fetchIntegrations()).toEqual([]);
   });
 });
+
+// ---- Task 2: NotificationCenter, Dashboard and AllPartsHiddenNotice ---------------------------
+
+const { getNotifications, socketOn } = vi.hoisted(() => ({ getNotifications: vi.fn(async () => []), socketOn: vi.fn() }));
+vi.mock('../../services/apiService', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../services/apiService')>();
+  return { ...actual, getNotifications: (...a: unknown[]) => getNotifications(...(a as [])) };
+});
+vi.mock('../../services/socketService', () => ({ socketService: { on: (...a: unknown[]) => socketOn(...a), off: vi.fn() } }));
+vi.mock('../../components/MetricCard', async () => { const R = await import('react'); return { MetricCard: () => R.createElement('div', { 'data-testid': 'MetricCard' }) }; });
+vi.mock('../../components/AlertsPanel', async () => { const R = await import('react'); return { AlertsPanel: () => R.createElement('div', { 'data-testid': 'AlertsPanel' }) }; });
+vi.mock('../../components/ComplianceStatus', async () => { const R = await import('react'); return { ComplianceStatus: () => R.createElement('div', { 'data-testid': 'ComplianceStatus' }) }; });
+vi.mock('../../components/ComplianceScorePanel', async () => { const R = await import('react'); return { ComplianceScorePanel: () => R.createElement('div', { 'data-testid': 'ComplianceScorePanel' }) }; });
+vi.mock('../../components/AiInsights', async () => { const R = await import('react'); return { AiInsights: () => R.createElement('div', { 'data-testid': 'AiInsights' }) }; });
+vi.mock('../../components/AiSystemHealth', async () => { const R = await import('react'); return { AiSystemHealth: () => R.createElement('div', { 'data-testid': 'AiSystemHealth' }) }; });
+vi.mock('../../components/DashboardHeader', async () => { const R = await import('react'); return { DashboardHeader: () => R.createElement('div', { 'data-testid': 'DashboardHeader' }) }; });
+vi.mock('../../components/BusinessKpiChart', async () => { const R = await import('react'); return { BusinessKpiChart: () => R.createElement('div', { 'data-testid': 'BusinessKpiChart' }) }; });
+vi.mock('../../components/SystemHealthChart', async () => { const R = await import('react'); return { SystemHealthChart: () => R.createElement('div', { 'data-testid': 'SystemHealthChart' }) }; });
+
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { UserContext } from '../../contexts/UserContext';
+import NotificationCenter from '../../components/NotificationCenter';
+import { Dashboard } from '../../components/Dashboard';
+import { AllPartsHiddenNotice } from '../../components/NoAccessPanel';
+
+function withUser(user: User, ui: React.ReactElement) {
+  const { hasPermission } = derivePermissionState(user);
+  const value = { currentUser: user, hasPermission, enabledFeatures: [], serverLockedFeatures: {} } as never;
+  return render(<UserContext.Provider value={value}>{ui}</UserContext.Provider>);
+}
+
+describe('NotificationCenter gating (D-08)', () => {
+  afterEach(() => { getNotifications.mockClear(); socketOn.mockClear(); sessionStorage.clear(); });
+
+  it('renders nothing and requests nothing for an ITAM role', () => {
+    sessionStorage.setItem('token', 'x');
+    const { container } = withUser(mk('itam_viewer', ITAM_VIEWER), <NotificationCenter />);
+    expect(container.firstChild).toBeNull();
+    expect(getNotifications).not.toHaveBeenCalled();
+    expect(socketOn).not.toHaveBeenCalled();
+  });
+
+  it('renders the bell and polls once on mount for a viewer', () => {
+    sessionStorage.setItem('token', 'x');
+    const { container } = withUser(mk('viewer', VIEWER), <NotificationCenter />);
+    expect(container.firstChild).not.toBeNull();
+    expect(getNotifications).toHaveBeenCalledTimes(1);
+    expect(socketOn).toHaveBeenCalledWith('notification', expect.any(Function));
+  });
+});
+
+describe('Dashboard widget gating (D-08, C17, C20)', () => {
+  const props = (user: User, metrics: unknown[] = []) => ({
+    metrics: metrics as never[], alerts: [], complianceFrameworks: [], aiSystems: [], agents: [], currentUser: user, setCurrentView: vi.fn(),
+  });
+  const metric = [{ id: 'm1' }];
+
+  it('shows compliance widgets for a viewer and hides the rest', () => {
+    withUser(mk('viewer', VIEWER), <Dashboard {...props(mk('viewer', VIEWER), metric)} />);
+    expect(screen.getByTestId('ComplianceScorePanel')).toBeTruthy();
+    expect(screen.getByTestId('ComplianceStatus')).toBeTruthy();
+    expect(screen.queryByTestId('BusinessKpiChart')).toBeNull();
+    expect(screen.queryByTestId('AlertsPanel')).toBeNull();
+    expect(screen.queryByTestId('AiSystemHealth')).toBeNull();
+  });
+
+  it('lets the one remaining KPI/health widget span the whole row', () => {
+    const user = mk('analyst', ['view:dashboard', 'view:agents']);
+    const { container } = withUser(user, <Dashboard {...props(user, metric)} />);
+    expect(screen.getByTestId('AiSystemHealth')).toBeTruthy();
+    expect(screen.queryByTestId('BusinessKpiChart')).toBeNull();
+    expect(container.querySelector('.lg\\:col-span-3')).not.toBeNull();
+    expect(container.querySelector('.lg\\:col-span-2')).toBeNull();
+  });
+
+  it('falls back to the all-hidden line with no Go to button when nothing is readable', () => {
+    const user = mk('nobody', []);
+    withUser(user, <Dashboard {...props(user)} />);
+    expect(screen.getByText('Nothing on this screen is available to your role yet.')).toBeTruthy();
+    expect(screen.queryByText(/^Go to /)).toBeNull();
+  });
+});
+
+describe('AllPartsHiddenNotice (C17)', () => {
+  it('offers the landing screen and calls the handler', () => {
+    const go = vi.fn();
+    render(<AllPartsHiddenNotice landingLabel="ITAM" onGoToLanding={go} />);
+    fireEvent.click(screen.getByText('Go to ITAM'));
+    expect(go).toHaveBeenCalledTimes(1);
+  });
+});

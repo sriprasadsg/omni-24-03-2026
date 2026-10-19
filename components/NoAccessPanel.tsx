@@ -79,6 +79,27 @@ export const NoAccessPanel: React.FC<NoAccessPanelProps> = ({
   );
 };
 
+interface AllPartsHiddenNoticeProps {
+  landingLabel?: string;
+  onGoToLanding?: () => void;
+}
+
+/** C17: every part of an allowed screen is hidden for this role: one muted line, plus a way out. */
+export const AllPartsHiddenNotice: React.FC<AllPartsHiddenNoticeProps> = ({ landingLabel, onGoToLanding }) => (
+  <div className="flex flex-col items-start gap-3 py-6">
+    <p className="text-sm text-gray-600 dark:text-gray-400 break-words">Nothing on this screen is available to your role yet.</p>
+    {onGoToLanding && landingLabel && (
+      <button
+        type="button"
+        onClick={onGoToLanding}
+        className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+      >
+        {`Go to ${landingLabel}`}
+      </button>
+    )}
+  </div>
+);
+
 interface ViewGateProps {
   view: AppView;
   user: User | null;

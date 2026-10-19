@@ -22,6 +22,7 @@ import {
     updateNotificationConfig
 } from '../services/apiService';
 import { useUser } from '../contexts/UserContext';
+import { canReadView } from '../utils/viewAccess';
 import { showToast } from '../utils/toast';
 
 interface Notification {
@@ -43,7 +44,9 @@ interface NotificationConfig {
 }
 
 const NotificationCenter: React.FC = () => {
-    const { hasPermission } = useUser();
+    const { hasPermission, currentUser } = useUser();
+    // Phase 77 (D-08): no poll, no push subscription and no bell when the role cannot read the catalogue.
+    const canRead = canReadView('notifications', currentUser, hasPermission);
     // Notification config (Slack/email) is a tenant-settings feature — only users
     // with manage:settings may read/edit it. Gate the fetch and the gear so other
     // roles don't trigger a 403 on the config endpoint.
@@ -106,7 +109,7 @@ const NotificationCenter: React.FC = () => {
     // Background polling — keeps the unread badge fresh without opening the panel
     useEffect(() => {
         const token = sessionStorage.getItem('token');
-        if (!token) return;
+        if (!token || !canRead) return;
 
         // Socket subscription for real-time popups
         const handleNotification = (data: any) => {
@@ -133,7 +136,7 @@ const NotificationCenter: React.FC = () => {
             clearInterval(timer);
             socketService.off('notification', handleNotification);
         };
-    }, []);
+    }, [canRead]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -166,6 +169,8 @@ const NotificationCenter: React.FC = () => {
             default: return <InfoIcon className="text-blue-500" size={18} />;
         }
     };
+
+    if (!canRead) return null;
 
     return (
         <div className="relative" ref={dropdownRef}>
