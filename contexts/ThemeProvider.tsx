@@ -91,6 +91,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         } else {
             root.classList.remove('dark');
         }
+        // Browser/installed-app chrome follows the canvas colour (public/theme-init.js sets it before paint).
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDarkMode ? '#060a14' : '#f3f6fa');
 
         // Persistence (app-dark-mode kept so a rollback to an older build keeps the user's mode)
         writeStorage('app-theme', 'flash');

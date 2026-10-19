@@ -1,0 +1,21 @@
+{
+  "name": "Omni-Agent AI Platform",
+  "short_name": "Omni-Agent",
+  "description": "Unified IT operations, security and compliance console.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#060A14",
+  "theme_color": "#060A14",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Overview", "url": "/#dashboard", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Assets", "url": "/#assetManagement", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Security", "url": "/#security", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
