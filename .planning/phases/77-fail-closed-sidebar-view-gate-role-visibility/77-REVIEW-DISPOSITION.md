@@ -43,6 +43,10 @@ findings:
     severity: warning
     disposition: fixed
     title: "An aborted `/auth/me` retry after a 401 token refresh signs the user out"
+  - id: WR-11
+    severity: warning
+    disposition: open
+    title: "`authFetch` still signs the user out when a caller's `AbortSignal` fires during the post-401 retry"
   - id: IN-01
     severity: info
     disposition: open
@@ -79,9 +83,25 @@ findings:
     severity: info
     disposition: fixed
     title: "The 10 s timeout does not bound the token-refresh wait, and the test does not cover the 401 or near-expiry paths"
-open: 18
-total: 19
-recorded: 2026-10-19T16:59:23.789Z
+  - id: IN-10
+    severity: info
+    disposition: open
+    title: "A timed-out `/auth/me` request is abandoned, not cancelled"
+  - id: IN-11
+    severity: info
+    disposition: open
+    title: "The synchronous token path is dead in production and its docstrings are stale"
+  - id: IN-12
+    severity: info
+    disposition: open
+    title: "MFA cache invalidation is not in a `finally`, and an in-flight lookup can re-store the old answer"
+  - id: IN-13
+    severity: info
+    disposition: open
+    title: "A `create_role` whose read-after-write check fails leaves the role created, unaudited, and answers 503"
+open: 17
+total: 24
+recorded: 2026-10-19T17:51:37.822Z
 ---
 
 # Phase 77: Code Review Disposition
@@ -98,6 +118,7 @@ recorded: 2026-10-19T16:59:23.789Z
 | WR-08 | warning | fixed | b76b8af8d (refreshThenLoad; confirmed resolved in incremental review pass 2) |
 | WR-09 | warning | fixed | 41fb29db5 (timeout + catch; confirmed resolved in review pass 3), timeout reworked in 3bb575186 |
 | WR-10 | warning | fixed | 3bb575186 (race instead of abort; regression test reproduces the sign-out; not re-reviewed) |
+| WR-11 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
@@ -107,6 +128,10 @@ recorded: 2026-10-19T16:59:23.789Z
 | IN-07 | info | open | - |
 | IN-08 | info | open | - |
 | IN-09 | info | fixed | 3bb575186 (race also bounds a stalled /auth/refresh; WR-10 test covers the 401 path) |
+| IN-10 | info | open | - |
+| IN-11 | info | open | - |
+| IN-12 | info | open | - |
+| IN-13 | info | open | - |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
