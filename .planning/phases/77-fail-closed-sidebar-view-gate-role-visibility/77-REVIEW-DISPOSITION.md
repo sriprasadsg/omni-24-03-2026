@@ -93,7 +93,7 @@ findings:
     title: "The synchronous token path is dead in production and its docstrings are stale"
   - id: IN-12
     severity: info
-    disposition: open
+    disposition: fixed
     title: "MFA cache invalidation is not in a `finally`, and an in-flight lookup can re-store the old answer"
   - id: IN-13
     severity: info
@@ -130,7 +130,7 @@ recorded: 2026-10-19T17:51:37.822Z
 | IN-09 | info | fixed | 3bb575186 (race also bounds a stalled /auth/refresh; WR-10 test covers the 401 path) |
 | IN-10 | info | open | - |
 | IN-11 | info | open | - |
-| IN-12 | info | open | - |
+| IN-12 | info | fixed | 2bc310005 (per-tenant generation guard; role writes inside _role_write; confirmed resolved in review pass 5) |
 | IN-13 | info | open | - |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
