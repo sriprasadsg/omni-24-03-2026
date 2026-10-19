@@ -77,7 +77,7 @@ Filled by validate-phase 2026-10-19. Backend commands run as `backend/venv/bin/p
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
-**Runs 2026-10-19:** vitest `src/__tests__` 413 passed; Phase 77 backend set 584 passed; supporting modules 388 passed; `test_catalogue_route_parity.py` 50 passed; `npm run build` OK.
+**Runs 2026-10-19:** vitest `src/__tests__` 413 passed; Phase 77 backend set 584 passed; supporting modules 388 passed; `test_catalogue_route_parity.py` 50 passed; `npm run build` OK. After the WR-01 fix (a1f4488d1, refresh guard in `catalogueAccess.test.ts`): vitest 414 passed, build OK; no backend file changed.
 
 ---
 
