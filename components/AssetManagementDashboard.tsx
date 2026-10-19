@@ -6,6 +6,8 @@ import { DatabaseIcon, ShieldSearchIcon, ShieldAlertIcon, XIcon, FilterIcon, Clo
 import { ScheduleScanModal } from './ScheduleScanModal';
 import { VulnerabilityScanJobs } from './VulnerabilityScanJobs';
 import { showToast } from '../utils/toast';
+import { toCsv, downloadCsv } from '../utils/csvExport';
+import { Download } from 'lucide-react';
 
 type OsFilter = 'All' | 'Linux' | 'Windows';
 
@@ -58,6 +60,8 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
     // Scheduling state
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
     const [assetsToScan, setAssetsToScan] = useState<string[]>([]);
+    // Bulk selection in the inventory (ids of checked rows)
+    const [checked, setChecked] = useState<Set<string>>(new Set());
 
     const osTypes = useMemo(() => {
         const types = new Set(assets.map(a => (a.osName || '').includes('Windows') ? 'Windows' : 'Linux'));
@@ -148,9 +152,38 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
     const linuxCount = osDistribution['Linux'] || 0;
     const windowsShare = filteredAssets.length ? (windowsCount / filteredAssets.length) * 100 : 0;
 
-    const handleOpenScanModal = (target: 'all' | 'outdated') => {
+    // A checked row that a filter hides is no longer part of the selection.
+    useEffect(() => {
+        setChecked(prev => {
+            const visible = new Set(filteredAssets.map(a => a.id));
+            const next = new Set([...prev].filter(id => visible.has(id)));
+            return next.size === prev.size ? prev : next;
+        });
+    }, [filteredAssets]);
+    const checkedAssets = filteredAssets.filter(a => checked.has(a.id));
+    const allChecked = filteredAssets.length > 0 && checkedAssets.length === filteredAssets.length;
+    const toggleChecked = (id: string) => setChecked(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
+    const toggleAll = () => setChecked(allChecked ? new Set() : new Set(filteredAssets.map(a => a.id)));
+
+    const exportCsv = () => {
+        const rows = (checkedAssets.length ? checkedAssets : filteredAssets).map(a => [
+            a.hostname, a.osName, a.osVersion, a.ipAddress, a.macAddress, a.serialNumber, a.agentStatus ?? '', a.agentVersion ?? '',
+            a.vulnerabilities?.filter(v => v.status === 'Open').length ?? 0, a.patchStatus?.critical ?? 0, a.patchStatus?.high ?? 0, a.lastScanned ?? '',
+        ]);
+        const csv = toCsv(['Hostname', 'OS', 'OS version', 'IP address', 'MAC address', 'Serial number', 'Agent status', 'Agent version',
+            'Open vulnerabilities', 'Critical patches', 'High patches', 'Last scanned'], rows);
+        downloadCsv(`assets-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    };
+
+    const handleOpenScanModal = (target: 'all' | 'outdated' | 'checked') => {
         if (target === 'outdated') {
             setAssetsToScan(outdatedAssets.map(a => a.id));
+        } else if (target === 'checked') {
+            setAssetsToScan(checkedAssets.map(a => a.id));
         } else {
             setAssetsToScan(filteredAssets.map(a => a.id));
         }
@@ -246,13 +279,50 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                 <section aria-label="Asset inventory" className="lg:col-span-4 flex flex-col max-h-[520px] lg:max-h-none lg:h-[720px] rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden">
                     <div className="px-5 pt-4 pb-3 border-b border-gray-100 dark:border-white/[0.06] space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                                <ServerIcon size={16} className="text-primary-500" />
-                                Inventory
-                            </h3>
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06]">{filteredAssets.length}</span>
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                                {filteredAssets.length > 0 && (
+                                    <label className="grid place-items-center h-7 w-7 -ml-1.5 rounded-lg cursor-pointer hover:bg-gray-900/[0.04] dark:hover:bg-white/[0.05]">
+                                        <input
+                                            type="checkbox"
+                                            checked={allChecked}
+                                            ref={el => { if (el) el.indeterminate = checkedAssets.length > 0 && !allChecked; }}
+                                            onChange={toggleAll}
+                                            aria-label={allChecked ? 'Clear selection' : 'Select all assets in the list'}
+                                            className="h-4 w-4 rounded accent-cyan-600 cursor-pointer"
+                                        />
+                                    </label>
+                                )}
+                                <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <ServerIcon size={16} className="text-primary-500" />
+                                    Inventory
+                                </h3>
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06]">{filteredAssets.length}</span>
+                            </div>
+                            <button
+                                onClick={exportCsv}
+                                disabled={filteredAssets.length === 0}
+                                aria-label={checkedAssets.length ? `Export ${checkedAssets.length} selected assets as CSV` : `Export ${filteredAssets.length} assets as CSV`}
+                                title="Export CSV"
+                                className="grid place-items-center h-8 w-8 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-900/[0.05] dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/[0.07] transition-colors disabled:opacity-40"
+                            >
+                                <Download className="h-4 w-4" />
+                            </button>
                         </div>
+                        {checkedAssets.length > 0 && (
+                            <div role="region" aria-label="Bulk actions" className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-primary-500/[0.08] ring-1 ring-inset ring-primary-500/25">
+                                <span className="text-xs font-semibold text-primary-700 dark:text-primary-300 tabular-nums">{checkedAssets.length} selected</span>
+                                <button onClick={() => handleOpenScanModal('checked')} className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors">
+                                    <ShieldSearchIcon size={13} /> Scan
+                                </button>
+                                <button onClick={exportCsv} className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-900/[0.05] dark:hover:bg-white/[0.07] transition-colors">
+                                    <Download className="h-3.5 w-3.5" /> Export
+                                </button>
+                                <button onClick={() => setChecked(new Set())} aria-label="Clear selection" className="grid place-items-center h-7 w-7 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-900/[0.05] dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/[0.07] transition-colors">
+                                    <XIcon size={14} />
+                                </button>
+                            </div>
+                        )}
                         {osTypes.length > 0 && (
                             <div role="group" aria-label="Filter by operating system" className="inline-flex p-0.5 rounded-xl bg-gray-100 dark:bg-white/[0.05] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
                                 {(['All', ...osTypes] as OsFilter[]).map(os => (
@@ -277,6 +347,8 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
                                 selectedAsset={selectedAsset}
                                 onSelectAsset={handleSelectAsset}
                                 onRunVulnerabilityScan={onRunVulnerabilityScan}
+                                checkedIds={checked}
+                                onToggleChecked={toggleChecked}
                             />
                         ) : (
                             <div className="h-full grid place-items-center p-8 text-center">

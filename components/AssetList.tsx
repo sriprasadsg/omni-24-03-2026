@@ -8,9 +8,13 @@ interface AssetListProps {
   selectedAsset: Asset | null;
   onSelectAsset: (asset: Asset) => void;
   onRunVulnerabilityScan: (assetId: string) => Promise<void>;
+  /** Bulk selection (checkboxes) — rendered only when both are given. */
+  checkedIds?: Set<string>;
+  onToggleChecked?: (assetId: string) => void;
 }
 
-export const AssetList: React.FC<AssetListProps> = ({ assets, selectedAsset, onSelectAsset, onRunVulnerabilityScan }) => {
+export const AssetList: React.FC<AssetListProps> = ({ assets, selectedAsset, onSelectAsset, onRunVulnerabilityScan, checkedIds, onToggleChecked }) => {
+  const selectable = !!checkedIds && !!onToggleChecked;
   const [scanningAssetIds, setScanningAssetIds] = useState<Set<string>>(new Set());
 
   const handleScanClick = async (e: React.MouseEvent, assetId: string) => {
@@ -39,10 +43,21 @@ export const AssetList: React.FC<AssetListProps> = ({ assets, selectedAsset, onS
         // is invalid and screen readers announce only the outer one.
         return (
           <li key={asset.id} className="relative">
+            {selectable && (
+              <label className="absolute left-1 top-1.5 z-[1] grid place-items-center h-9 w-9 rounded-lg cursor-pointer hover:bg-gray-900/[0.04] dark:hover:bg-white/[0.05]">
+                <input
+                  type="checkbox"
+                  checked={checkedIds!.has(asset.id)}
+                  onChange={() => onToggleChecked!(asset.id)}
+                  aria-label={`Select ${asset.hostname}`}
+                  className="h-4 w-4 rounded accent-cyan-600 cursor-pointer"
+                />
+              </label>
+            )}
             <button
               onClick={() => onSelectAsset(asset)}
               aria-current={isSelected ? 'true' : undefined}
-              className={`w-full text-left pl-3.5 pr-12 py-3 rounded-xl transition-colors duration-150 ${isSelected
+              className={`w-full text-left ${selectable ? 'pl-11' : 'pl-3.5'} pr-12 py-3 rounded-xl transition-colors duration-150 ${isSelected
                 ? 'bg-primary-500/[0.08] ring-1 ring-inset ring-primary-500/30 dark:bg-primary-400/10'
                 : 'hover:bg-gray-100/80 dark:hover:bg-white/[0.04]'
                 }`}
