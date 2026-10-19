@@ -69,19 +69,77 @@ def _cut_off(username: str, iat: float) -> bool:
 # the routes behind get_current_user_mfa_pending (who am I, MFA status,
 # enroll, step up) until it does.
 MFA_REQUIRED_DETAIL = "Two-factor authentication is required for your role. Set it up or confirm it to continue."
-_MFA_REQUIRED_ROLE_KEYS = frozenset({"super_admin", "platform_support", "platform_billing",
-                                     "tenant_admin", "admin", "itam_admin"})
+
+# D-14: MFA follows permissions, not role names. A role needs MFA when its effective
+# permission set holds "*" or an rbac_defaults.ADMIN_TIER_PERMISSIONS entry. The answer for
+# a role is cached per (tenant, normalized role) for MFA_ROLE_CACHE_SECONDS per worker, so a
+# role edit is enforced within a minute without a new login.
+MFA_ROLE_CACHE_SECONDS = 60
+_mfa_role_cache: dict[tuple, tuple] = {}
 
 
-def mfa_required_for(role: Optional[str]) -> bool:
-    from rbac_service import RBACService  # rbac_service imports this module
-    return RBACService._normalize_role(role or "") in _MFA_REQUIRED_ROLE_KEYS
+def _clear_mfa_role_cache() -> None:
+    _mfa_role_cache.clear()
 
 
-def _enforce_admin_mfa(payload: dict, role: str, allow_mfa_pending: bool) -> None:
+def _mfa_table_answer(role: Optional[str]) -> tuple:
+    """(normalized key, is built-in, the built-in table's MFA answer)."""
+    import rbac_defaults  # stdlib-only module, but imported lazily like the rest of this block
+    key = rbac_defaults.normalize_role(role or "")
+    builtin = key in rbac_defaults.builtin_role_keys()
+    return key, builtin, builtin and rbac_defaults.requires_mfa(rbac_defaults.defaults_for(key))
+
+
+def _mfa_cache_key(key: str, tenant_id: Optional[str]) -> tuple:
+    return (tenant_id or "", key)
+
+
+def _mfa_cached(key: str, tenant_id: Optional[str]) -> Optional[bool]:
+    entry = _mfa_role_cache.get(_mfa_cache_key(key, tenant_id))
+    if entry and entry[0] > time.monotonic():
+        return entry[1]
+    return None
+
+
+def mfa_required_for(role: Optional[str], tenant_id: Optional[str] = None) -> bool:
+    """Synchronous MFA answer (WebSocket path, no role-store access). Built-in admin-tier
+    roles: True. Otherwise a fresh cached answer; with none, False for a built-in name
+    and True for any custom name (fail closed)."""
+    key, builtin, table = _mfa_table_answer(role)
+    if table:
+        return True
+    cached = _mfa_cached(key, tenant_id)
+    if cached is not None:
+        return cached
+    return not builtin
+
+
+async def resolve_mfa_required(role: Optional[str], tenant_id: Optional[str]) -> bool:
+    """Whether a session with ``role`` in ``tenant_id`` must pass MFA (D-14). Built-in
+    admin-tier roles need no lookup. A role-store error requires MFA for a custom name and
+    falls back to the table answer for a built-in name; error answers are not cached."""
+    key, builtin, table = _mfa_table_answer(role)
+    if table:
+        return True
+    cached = _mfa_cached(key, tenant_id)
+    if cached is not None:
+        return cached
+    try:
+        import rbac_defaults
+        from database import get_database
+        from rbac_service import effective_permissions  # rbac_service imports this module
+        required = rbac_defaults.requires_mfa(await effective_permissions(get_database(), role, tenant_id))
+    except Exception as err:
+        logger.warning("MFA requirement lookup failed for role %r (%s)", role, err)
+        return not builtin
+    _mfa_role_cache[_mfa_cache_key(key, tenant_id)] = (time.monotonic() + MFA_ROLE_CACHE_SECONDS, required)
+    return required
+
+
+def _enforce_admin_mfa(payload: dict, role: str, allow_mfa_pending: bool, required: bool) -> None:
     if allow_mfa_pending or payload.get("mfa_verified") or is_agent_payload(payload):
         return
-    if mfa_required_for(role):
+    if required:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=MFA_REQUIRED_DETAIL,
@@ -89,10 +147,15 @@ def _enforce_admin_mfa(payload: dict, role: str, allow_mfa_pending: bool) -> Non
         )
 
 
-def mfa_action_for(role: Optional[str], mfa_verified: bool, mfa_enabled: bool) -> Optional[str]:
+def mfa_action_for(role: Optional[str], mfa_verified: bool, mfa_enabled: bool,
+                   *, required: Optional[bool] = None) -> Optional[str]:
     """What a session must do before it can use the app: "enroll" (set up
-    MFA) or "verify" (confirm a code for this session); None when nothing."""
-    if mfa_verified or not mfa_required_for(role):
+    MFA) or "verify" (confirm a code for this session); None when nothing.
+    ``required`` is the resolved requirement (resolve_mfa_required); without it
+    the synchronous answer is used."""
+    if required is None:
+        required = mfa_required_for(role)
+    if mfa_verified or not required:
         return None
     return "verify" if mfa_enabled else "enroll"
 
@@ -262,7 +325,7 @@ def verify_token(token: str, allow_agent: bool = True, allow_mfa_pending: bool =
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        _enforce_admin_mfa(payload, role, allow_mfa_pending)
+        _enforce_admin_mfa(payload, role, allow_mfa_pending, mfa_required_for(role, tenant_id))
 
         token_data = TokenData(
             username=username,
@@ -359,7 +422,10 @@ async def verify_token_async(token: str, allow_agent: bool = True, allow_mfa_pen
             # Fail-open: a transient DB error must not log out every active user.
             # The in-process caches provide best-effort protection.
             logger.warning("Token revocation DB check failed (fail-open): %s", _db_err)
-        _enforce_admin_mfa(payload, role, allow_mfa_pending)
+        # Skip the role lookup when the session would pass anyway.
+        needs_check = not (allow_mfa_pending or payload.get("mfa_verified") or is_agent_payload(payload))
+        _enforce_admin_mfa(payload, role, allow_mfa_pending,
+                           await resolve_mfa_required(role, tenant_id) if needs_check else False)
 
         token_data = TokenData(
             username=username,

@@ -171,6 +171,23 @@ PLATFORM_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
 })
 
 
+# D-14: the one admin-tier definition. A role whose effective permissions hold "*" or any of
+# these must pass MFA. Over the built-in table it selects exactly super_admin, tenant_admin
+# (and its alias admin), itam_admin, platform_support and platform_billing.
+ADMIN_TIER_PERMISSIONS: FrozenSet[str] = frozenset({
+    "manage:users",
+    "manage:rbac",
+    "manage:settings",
+    "manage:api_keys",
+    "control:remote_access",
+}) | PLATFORM_ONLY_PERMISSIONS
+
+
+def requires_mfa(perms: Iterable[str]) -> bool:
+    """True when ``perms`` holds the wildcard or any admin-tier permission (D-14)."""
+    return any(p == "*" or p in ADMIN_TIER_PERMISSIONS for p in perms)
+
+
 class BuiltinRole(NamedTuple):
     key: str
     name: str

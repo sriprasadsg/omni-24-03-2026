@@ -19,7 +19,6 @@ TENANT_ADMIN = {"admin", "Admin", "Tenant Admin", "tenant_admin"}
 # (file, assignment target or None for the whole file): reviewed on purpose.
 _ALLOWED = {
     ("auth_roles.py", None),  # the canonical module: display names of tenant_admin_roles()
-    ("authentication_service.py", "_MFA_REQUIRED_ROLE_KEYS"),  # role keys that must use MFA (data, not a gate)
 }
 
 
@@ -81,4 +80,3 @@ def test_scanner_flags_a_union_onto_a_super_set():
 
 def test_scanner_allows_pure_sets_and_the_reviewed_sites():
     assert scan('_T = {"admin", "Tenant Admin"}\n_S = {"Super Admin", "super_admin"}\n', "x.py") == []
-    assert scan('_MFA_REQUIRED_ROLE_KEYS = frozenset({"super_admin", "admin"})\n', "authentication_service.py") == []
