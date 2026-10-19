@@ -2,10 +2,34 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Asset, Patch, Filter, VulnerabilityScanJob } from '../types';
 import { AssetList } from './AssetList';
 import { AssetDetail } from './AssetDetail';
-import { DatabaseIcon, ShieldSearchIcon, XCircleIcon, FilterIcon, ClockIcon } from './icons';
+import { DatabaseIcon, ShieldSearchIcon, ShieldAlertIcon, XIcon, FilterIcon, ClockIcon, ServerIcon, MonitorIcon } from './icons';
 import { ScheduleScanModal } from './ScheduleScanModal';
 import { VulnerabilityScanJobs } from './VulnerabilityScanJobs';
 import { showToast } from '../utils/toast';
+
+type OsFilter = 'All' | 'Linux' | 'Windows';
+
+const TILE_TONES = {
+    primary: 'text-primary-600 dark:text-primary-400 bg-primary-500/10 ring-primary-500/20',
+    blue: 'text-blue-600 dark:text-blue-400 bg-blue-500/10 ring-blue-500/20',
+    red: 'text-red-600 dark:text-red-400 bg-red-500/10 ring-red-500/20',
+    amber: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 ring-amber-500/20',
+};
+
+// Spatial Glass stat tile, the same anatomy as the Overview KPI tiles minus the sparkline
+// (there is no history behind these counts).
+const StatTile: React.FC<{ icon: React.ReactNode; label: string; tone: keyof typeof TILE_TONES; footnote?: React.ReactNode; children: React.ReactNode }> = ({ icon, label, tone, footnote, children }) => (
+    <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card p-5 flex flex-col">
+        <div className="flex items-center gap-3 min-w-0">
+            <span className={`grid place-items-center h-9 w-9 flex-shrink-0 rounded-xl ring-1 ring-inset ${TILE_TONES[tone]}`}>{icon}</span>
+            <p className="text-[13px] font-medium text-gray-600 dark:text-gray-400 truncate">{label}</p>
+        </div>
+        <div className="mt-3">{children}</div>
+        {footnote && <p className="mt-auto pt-2 text-xs text-gray-500 dark:text-gray-400">{footnote}</p>}
+    </div>
+);
+
+const bigNumber = 'text-[32px] leading-none font-semibold tracking-[-0.03em] tabular-nums';
 
 interface AssetManagementDashboardProps {
     assets: Asset[];
@@ -29,7 +53,7 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
     onDeleteAsset
 }) => {
     const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-    const [osFilter, setOsFilter] = useState<'All' | 'Linux' | 'Windows'>('All');
+    const [osFilter, setOsFilter] = useState<OsFilter>('All');
 
     // Scheduling state
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -118,6 +142,11 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
     const assetsNeedingScanCount = outdatedAssets.length;
 
     const totalVulnerabilities = filteredAssets.reduce((sum, asset) => sum + (asset.vulnerabilities?.filter(v => v.status === 'Open').length || 0), 0);
+    const assetsWithOpenVulns = filteredAssets.filter(a => a.vulnerabilities?.some(v => v.status === 'Open')).length;
+    const onlineAgents = filteredAssets.filter(a => a.agentStatus === 'Online').length;
+    const windowsCount = osDistribution['Windows'] || 0;
+    const linuxCount = osDistribution['Linux'] || 0;
+    const windowsShare = filteredAssets.length ? (windowsCount / filteredAssets.length) * 100 : 0;
 
     const handleOpenScanModal = (target: 'all' | 'outdated') => {
         if (target === 'outdated') {
@@ -146,133 +175,133 @@ export const AssetManagementDashboard: React.FC<AssetManagementDashboardProps> =
 
 
     return (
-        <div className="space-y-8 animate-fade-in p-2">
-            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6">
+        <div className="space-y-6 fade-in">
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4">
                 <header>
-                    <h2 className="text-4xl font-black bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent flex items-center gap-3 italic uppercase tracking-tighter">
-                        <DatabaseIcon size={36} className="text-blue-500" />
-                        Asset Management
-                    </h2>
-                    <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg font-medium">
-                        Complete enterprise inventory of hardware and virtualized infrastructure.
+                    <h2 className="text-[30px] font-semibold tracking-[-0.03em] text-gray-900 dark:text-white">Assets</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Every machine your agents report, with its open vulnerabilities and scan status.
                     </p>
                 </header>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                     {assetsNeedingScanCount > 0 && (
                         <button
                             onClick={() => handleOpenScanModal('outdated')}
-                            className="flex items-center justify-center px-6 py-3 text-sm font-black uppercase tracking-widest text-white bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl hover:scale-105 transition-all shadow-lg shadow-amber-500/20"
+                            className="flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-700 dark:text-gray-200 glass rounded-xl transition-all hover:border-amber-500/40 active:scale-[0.98]"
                         >
-                            <ClockIcon size={18} className="mr-2" />
-                            Schedule Audit ({assetsNeedingScanCount})
+                            <ClockIcon size={15} className="text-amber-500" />
+                            Rescan stale ({assetsNeedingScanCount})
                         </button>
                     )}
                     <button
                         onClick={() => handleOpenScanModal('all')}
-                        className="flex items-center justify-center px-6 py-3 text-sm font-black uppercase tracking-widest text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/20"
+                        disabled={filteredAssets.length === 0}
+                        className="flex items-center gap-2 h-10 px-5 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <ShieldSearchIcon size={18} className="mr-2" />
-                        Scan Network
+                        <ShieldSearchIcon size={15} />
+                        Scan assets ({filteredAssets.length})
                     </button>
                 </div>
             </div>
 
             {filters.length > 0 && (
-                <div className="glass-premium p-4 rounded-2xl flex items-center justify-between border-l-4 border-primary-500 animate-slide-in">
-                    <div className="flex items-center space-x-3">
-                        <div className="bg-primary-500/10 p-2 rounded-lg">
-                            <FilterIcon size={16} className="text-primary-500" />
-                        </div>
-                        <span className="font-black text-[10px] text-gray-400 uppercase tracking-widest">Active Neural Filters</span>
-                        <div className="flex gap-2">
-                            {filters.map((filter, index) => (
-                                <span key={index} className="px-3 py-1 text-[10px] font-black rounded-lg bg-primary-500/10 text-primary-600 dark:text-primary-400 uppercase tracking-widest border border-primary-500/20">
-                                    {filter.type}: {filter.value}
-                                </span>
-                            ))}
-                        </div>
+                <div className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 bg-primary-500/[0.06] ring-1 ring-inset ring-primary-500/20 slide-up">
+                    <div className="flex items-center gap-3 flex-wrap min-w-0">
+                        <FilterIcon size={15} className="text-primary-600 dark:text-primary-400 flex-shrink-0" />
+                        <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">Filtered by AI</span>
+                        {filters.map((filter, index) => (
+                            <span key={index} className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-white/70 dark:bg-white/[0.06] text-primary-700 dark:text-primary-300 ring-1 ring-inset ring-primary-500/25">
+                                {filter.type.replace(/_/g, ' ')}: {filter.value}
+                            </span>
+                        ))}
                     </div>
-                    <button onClick={onClearFilters} className="p-2 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-lg transition-colors">
-                        <XCircleIcon size={20} />
+                    <button onClick={onClearFilters} aria-label="Clear filters" className="grid place-items-center h-8 w-8 flex-shrink-0 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-900/5 dark:hover:text-white dark:hover:bg-white/10 transition-colors">
+                        <XIcon size={16} />
                     </button>
                 </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="glass-premium p-6 rounded-3xl group hover:scale-105 transition-all border-l-4 border-blue-500">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Assets</p>
-                    <p className="text-3xl font-black text-gray-800 dark:text-gray-100 italic tracking-tighter">{filteredAssets.length}</p>
-                </div>
-                <div className="glass-premium p-6 rounded-3xl group hover:scale-105 transition-all border-l-4 border-indigo-500">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">OS Distribution</p>
-                    <p className="text-lg font-black text-gray-800 dark:text-gray-100 uppercase tracking-tighter italic">
-                        <span className="text-blue-500">{osDistribution['Linux'] || 0}L</span> / <span className="text-indigo-500">{osDistribution['Windows'] || 0}W</span>
-                    </p>
-                </div>
-                <div className="glass-premium p-6 rounded-3xl group hover:scale-105 transition-all border-l-4 border-rose-500">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Open Vulnerabilities</p>
-                    <p className="text-3xl font-black text-rose-500 italic tracking-tighter">{totalVulnerabilities}</p>
-                </div>
-                <div className="glass-premium p-6 rounded-3xl group hover:scale-105 transition-all border-l-4 border-amber-500">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Stale Scans</p>
-                    <p className="text-3xl font-black text-amber-500 italic tracking-tighter">{assetsNeedingScanCount}</p>
-                </div>
-            </div>
-
-            <div className="glass-premium rounded-3xl p-6 flex flex-col md:flex-row items-center gap-6 border border-white/10">
-                <div className="flex items-center gap-3">
-                    <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                        <FilterIcon size={20} className="text-blue-500" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+                <StatTile icon={<DatabaseIcon size={18} />} label="Total assets" tone="primary" footnote={`${onlineAgents} with an online agent`}>
+                    <p className={`${bigNumber} text-gray-900 dark:text-white`}>{filteredAssets.length}</p>
+                </StatTile>
+                <StatTile icon={<MonitorIcon size={18} />} label="Operating systems" tone="blue">
+                    <div className="flex items-baseline gap-4">
+                        <p><span className={`${bigNumber} text-gray-900 dark:text-white`}>{windowsCount}</span> <span className="text-xs text-gray-500 dark:text-gray-400">Windows</span></p>
+                        <p><span className={`${bigNumber} text-gray-900 dark:text-white`}>{linuxCount}</span> <span className="text-xs text-gray-500 dark:text-gray-400">Linux</span></p>
                     </div>
-                    <label htmlFor="os-filter" className="text-sm font-black uppercase tracking-widest text-gray-500 italic">
-                        OS Filter
-                    </label>
-                </div>
-                <select
-                    id="os-filter"
-                    value={osFilter}
-                    onChange={(e) => setOsFilter(e.target.value as 'All' | 'Linux' | 'Windows')}
-                    className="flex-1 lg:max-w-xs px-6 py-3 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                >
-                    <option value="All">All Biological/Virtual Targets</option>
-                    {osTypes.map(os => (
-                        <option key={os} value={os}>{os}</option>
-                    ))}
-                </select>
+                    <div className="mt-3 flex h-1.5 rounded-full overflow-hidden bg-gray-200 dark:bg-white/10" aria-hidden="true">
+                        <div className="bg-blue-500" style={{ width: `${windowsShare}%` }} />
+                        <div className="bg-primary-400" style={{ width: `${filteredAssets.length ? 100 - windowsShare : 0}%` }} />
+                    </div>
+                </StatTile>
+                <StatTile icon={<ShieldAlertIcon size={18} />} label="Open vulnerabilities" tone="red" footnote={`on ${assetsWithOpenVulns} ${assetsWithOpenVulns === 1 ? 'asset' : 'assets'}`}>
+                    <p className={`${bigNumber} ${totalVulnerabilities > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>{totalVulnerabilities}</p>
+                </StatTile>
+                <StatTile icon={<ClockIcon size={18} />} label="Stale scans" tone="amber" footnote="Not scanned in the last 24 hours">
+                    <p className={`${bigNumber} ${assetsNeedingScanCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}>{assetsNeedingScanCount}</p>
+                </StatTile>
             </div>
 
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1">
-                    <div className="glass-premium rounded-3xl shadow-2xl border border-white/10 overflow-hidden flex flex-col h-[700px]">
-                        <div className="p-6 border-b border-white/10 bg-black/5 dark:bg-white/5 flex items-center justify-between">
-                            <h3 className="text-xl font-black flex items-center gap-2 italic uppercase tracking-tighter">
-                                <DatabaseIcon size={22} className="text-blue-500" />
-                                Asset Registry
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <section aria-label="Asset inventory" className="lg:col-span-4 flex flex-col max-h-[520px] lg:max-h-none lg:h-[720px] rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden">
+                    <div className="px-5 pt-4 pb-3 border-b border-gray-100 dark:border-white/[0.06] space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <ServerIcon size={16} className="text-primary-500" />
+                                Inventory
                             </h3>
-                            <span className="px-3 py-1 bg-blue-500/10 text-blue-500 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-500/20">{filteredAssets.length}</span>
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06]">{filteredAssets.length}</span>
                         </div>
-                        <div className="flex-1 overflow-y-auto">
+                        {osTypes.length > 0 && (
+                            <div role="group" aria-label="Filter by operating system" className="inline-flex p-0.5 rounded-xl bg-gray-100 dark:bg-white/[0.05] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
+                                {(['All', ...osTypes] as OsFilter[]).map(os => (
+                                    <button
+                                        key={os}
+                                        onClick={() => setOsFilter(os)}
+                                        aria-pressed={osFilter === os}
+                                        className={`h-7 px-3 rounded-[10px] text-xs font-medium transition-colors ${osFilter === os
+                                            ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'}`}
+                                    >
+                                        {os}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                        {filteredAssets.length > 0 ? (
                             <AssetList
                                 assets={filteredAssets}
                                 selectedAsset={selectedAsset}
                                 onSelectAsset={handleSelectAsset}
                                 onRunVulnerabilityScan={onRunVulnerabilityScan}
                             />
-                        </div>
+                        ) : (
+                            <div className="h-full grid place-items-center p-8 text-center">
+                                <div>
+                                    <ServerIcon size={28} className="mx-auto text-gray-400" />
+                                    <p className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        {deduplicatedAssets.length === 0 ? 'No assets yet' : 'No assets match these filters'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        {deduplicatedAssets.length === 0 ? 'Assets appear here once an agent reports in.' : 'Clear a filter to see more.'}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                </div>
-                <div className="lg:col-span-2">
+                </section>
+                <div className="lg:col-span-8 lg:h-[720px] min-h-[520px] rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden flex flex-col">
                     {selectedAsset ? (
-                        <div className="glass-premium rounded-3xl shadow-2xl border border-white/10 overflow-hidden h-[700px] flex flex-col">
-                            <AssetDetail asset={selectedAsset} patches={patches} onRunScan={onRunVulnerabilityScan} onDelete={onDeleteAsset} />
-                        </div>
+                        <AssetDetail asset={selectedAsset} patches={patches} onRunScan={onRunVulnerabilityScan} onDelete={onDeleteAsset} />
                     ) : (
-                        <div className="glass-premium rounded-3xl shadow-2xl border border-white/10 h-[700px] flex items-center justify-center">
-                            <div className="text-center p-12 space-y-4">
-                                <DatabaseIcon size={64} className="mx-auto text-gray-400 opacity-20" />
-                                <p className="font-black text-gray-500 uppercase tracking-widest text-lg italic">No Target Selected</p>
-                                <p className="text-xs text-gray-400 font-bold uppercase">Select an asset from the registry to engage.</p>
+                        <div className="flex-1 grid place-items-center p-12 text-center">
+                            <div>
+                                <DatabaseIcon size={32} className="mx-auto text-gray-400" />
+                                <p className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-300">No asset selected</p>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Pick one from the inventory to see its details.</p>
                             </div>
                         </div>
                     )}
