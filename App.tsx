@@ -27,7 +27,8 @@ import { ChatFab } from './components/ChatFab';
 import SupportChatToast, { SupportToastData } from './components/SupportChatToast';
 import SupportChatWindow from './components/SupportChatWindow';
 import { ChatAssistant } from './components/ChatAssistant';
-import { AICommandBar, Command } from './components/AICommandBar';
+import { Command } from './components/AICommandBar';
+import { ShellServices } from './components/ShellServices';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import TaskList from './components/TaskList';
 import TaskForm from './components/TaskForm';
@@ -1019,10 +1020,12 @@ const App: React.FC = () => {
   }, [currentUser, setCurrentView]);
 
   // ── Browser tab title badge ───────────────────────────────────────────────
+  // The page name leads, so tabs, history and bookmarks tell pages apart.
   useEffect(() => {
-    const base = 'Omni-Agent AI';
+    const page = currentUser ? catalogueFor(currentView)?.label : undefined;
+    const base = page ? `${page} · Omni-Agent AI` : 'Omni-Agent AI';
     document.title = supportUnreadCount > 0 ? `(${supportUnreadCount}) ${base}` : base;
-  }, [supportUnreadCount]);
+  }, [supportUnreadCount, currentView, currentUser]);
 
   // ── Reset unread count when user navigates to any chat view ────────────────
   useEffect(() => {
@@ -1922,6 +1925,7 @@ const App: React.FC = () => {
               <LoginPage users={users} onLogin={handleLogin} onSignup={handleSignup} />
             ) : (
               <div className="app-shell flex h-screen gap-3 p-2 md:p-3 font-sans transition-colors duration-200">
+              <a href="#main-content" onClick={(e) => { e.preventDefault(); document.getElementById('main-content')?.focus(); }} className="skip-link">Skip to main content</a>
               {!isBackendConnected && (
                 <div className="fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white px-4 py-2 text-center text-sm font-medium flex items-center justify-center shadow-lg animate-pulse">
                   <AlertTriangleIcon size={18} className="mr-2" />
@@ -1946,7 +1950,7 @@ const App: React.FC = () => {
                   onStartTour={() => window.dispatchEvent(new Event('start-genesis-tour'))}
                   currentView={currentView}
                 />
-                <main className={`flex-1 overflow-x-hidden ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden rounded-2xl' : 'overflow-y-auto rounded-2xl px-1 pt-2 pb-6 md:px-2 md:pt-3'}`}>
+                <main id="main-content" tabIndex={-1} className={`flex-1 overflow-x-hidden focus:outline-none ${['supportChat', 'agentChat', 'chat'].includes(currentView) ? 'overflow-hidden rounded-2xl' : 'overflow-y-auto rounded-2xl px-1 pt-2 pb-6 md:px-2 md:pt-3'}`}>
                   {/* Keyed by view: otherwise React reuses the same boundary instances
                       across views and one crash leaves every later view showing the error. */}
                   <ErrorBoundary name="MainContent" key={currentView}>
@@ -2035,11 +2039,20 @@ const App: React.FC = () => {
             context={{ currentView }}
             onNavigate={(view) => handleSetCurrentView(view as AppView)}
           />
-          <AICommandBar
-            isOpen={isCommandBarOpen}
-            onClose={() => setIsCommandBarOpen(false)}
-            onExecuteCommand={handleExecuteCommand}
-          />
+          {currentUser && (
+            <ShellServices
+              currentView={currentView}
+              landed={landedFor === landedKey}
+              isViewingTenant={!!viewingTenantId}
+              isPaletteOpen={isCommandBarOpen}
+              setPaletteOpen={setIsCommandBarOpen}
+              onNavigate={handleSetCurrentView}
+              onExecuteCommand={handleExecuteCommand}
+              onOpenSearch={() => setIsGlobalSearchOpen(true)}
+              onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
+              onSignOut={handleLogout}
+            />
+          )}
           <GlobalSearchModal
             isOpen={isGlobalSearchOpen}
             onClose={() => setIsGlobalSearchOpen(false)}

@@ -1,20 +1,14 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { BotIcon, ArrowLeftIcon } from './icons';
 import { Lock, ChevronDown } from 'lucide-react';
-import { AppView, Permission } from '../types';
-import { NAV_GROUPS } from '../utils/catalogueAccess';
-import { SIDEBAR_PRESENTATION } from './sidebarPresentation';
+import { AppView } from '../types';
 import { useUser } from '../contexts/UserContext';
-import { useFeatures } from '../contexts/FeaturesContext';
 import { fetchSupportUnreadCount } from '../services/apiService';
 import { socketService } from '../services/socketService';
-import { isPlatformRoleName, isSuperAdminRoleName, isTenantSwitchable } from '../utils/permissions';
-import { evaluateViewAccess, permissionsKnown } from '../utils/viewAccess';
-
-// Tier precedence — matches backend TIER_ORDER
-const TIER_ORDER: Record<string, number> = { Free: 0, Pro: 1, Enterprise: 2, Custom: 3 };
-const tierMeetsMin = (current: string, min?: string) =>
-    !min || (TIER_ORDER[current] ?? 0) >= (TIER_ORDER[min] ?? 0);
+import { isSuperAdminRoleName } from '../utils/permissions';
+import { permissionsKnown } from '../utils/viewAccess';
+import { useVisibleNav, openNavItems, NavGroup } from '../hooks/useVisibleNav';
+import { useNavMemory, navMemoryKey } from '../hooks/useNavMemory';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -26,21 +20,6 @@ interface SidebarProps {
         logoUrl?: string;
         companyName?: string;
     };
-}
-
-interface NavItem {
-    view: AppView;
-    label: string;
-    icon: React.ReactNode;
-    permission: Permission;
-    minTier?: 'Pro' | 'Enterprise';
-    featureKey?: string; // backend feature_flags.py key — used for server-confirmed locking
-    locked?: string; // set at runtime by visibleGroups
-}
-
-interface NavGroup {
-    title: string;
-    items: NavItem[];
 }
 
 const NavLink: React.FC<{
@@ -176,11 +155,7 @@ const SidebarGroup: React.FC<{
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurrentView, isViewingTenant, onBackToTenants, branding }) => {
     const userContext = useUser();
-    const hasPermission = userContext?.hasPermission || (() => false);
     const currentUser = userContext?.currentUser;
-    const serverLockedFeatures = userContext?.serverLockedFeatures ?? {};
-    const { hasFeature, assignedBundles } = useFeatures();
-    const isBundleMode = assignedBundles.length > 0;
 
     // ── Accordion state: which group header is currently open ──────────────
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
@@ -206,51 +181,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
         return () => socketService.off('agent_chat', handler);
     }, [currentView]);
 
-    const menuGroups: NavGroup[] = useMemo(() => NAV_GROUPS.map(group => ({
-        title: group.title,
-        items: group.items.map(item => ({
-            view: item.view,
-            label: item.label,
-            permission: item.permission,
-            icon: SIDEBAR_PRESENTATION[item.view]?.icon ?? null,
-            minTier: SIDEBAR_PRESENTATION[item.view]?.minTier,
-            featureKey: SIDEBAR_PRESENTATION[item.view]?.featureKey,
-        })),
-    })), []);
+    const visibleGroups = useVisibleNav(isViewingTenant);
 
-    const visibleGroups = useMemo(() => {
-        // Fail closed: no resolved user, no menu (a wildcard grant cannot open it either).
-        if (!currentUser) return [];
-        const isSuperAdmin = !!currentUser && isSuperAdminRoleName(currentUser.role);
-        const userTier: string = (currentUser as any)?.subscriptionTier || 'Free';
-
-        // Tenant users see only what the Super Admin switched on for their tenant (spec C6) and
-        // never an upgrade prompt: a plan-tier-gated item shows when its feature switch is on, and
-        // stays hidden when no switch covers it (the view:dashboard extras below the tenant's tier).
-        const isTenantUser = !isSuperAdmin && !isPlatformRoleName(currentUser?.role);
-        const tierLock = (item: { featureKey?: string; minTier?: string }): string | undefined => {
-            const serverMinTier = item.featureKey ? serverLockedFeatures[item.featureKey] : undefined;
-            const clientLocked = item.minTier && !tierMeetsMin(userTier, item.minTier);
-            return serverMinTier || (clientLocked ? item.minTier : undefined);
-        };
-
-        return menuGroups
-            .map(group => ({
-                ...group,
-                items: group.items
-                    .filter(item => {
-                        if (isViewingTenant && item.permission === 'manage:tenants') return false;
-                        if (!evaluateViewAccess(item.view, currentUser ?? null, hasPermission).allowed) return false;
-                        if (isSuperAdmin) return true;
-                        // Bundle mode: hide items whose feature the tenant hasn't been assigned
-                        if (isBundleMode && item.featureKey && !hasFeature(item.featureKey)) return false;
-                        if (isTenantUser && tierLock(item) && !isTenantSwitchable(item.permission, item.view)) return false;
-                        return true;
-                    })
-                    .map(item => (isSuperAdmin || isTenantUser ? { ...item, locked: undefined } : { ...item, locked: tierLock(item) })),
-            }))
-            .filter(group => group.items.length > 0);
-    }, [menuGroups, isViewingTenant, currentUser, hasPermission, serverLockedFeatures, isBundleMode, hasFeature]);
+    // Pinned pages, in the order they were pinned; only pages still open to the user show.
+    const { pinned } = useNavMemory(navMemoryKey(currentUser));
+    const pinnedItems = useMemo(() => {
+        const open = new Map(openNavItems(visibleGroups).map(i => [i.view, i]));
+        return pinned.map(v => open.get(v)).filter((i): i is NonNullable<typeof i> => !!i);
+    }, [pinned, visibleGroups]);
 
     return (
         <aside aria-label="Main navigation" className={`flex-shrink-0 glass-panel rounded-3xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out z-40 ${isOpen ? 'w-64 max-md:fixed max-md:inset-y-2 max-md:left-2 max-md:shadow-2xl' : 'w-[76px]'} `} >
@@ -313,6 +251,29 @@ hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors border border-am
                                         : 'h-8 w-8 mx-auto rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse'}
                                 />
                             ))}
+                        </div>
+                    )
+                }
+
+                {/* Pinned pages (pin from the header star or the command palette) */}
+                {
+                    permissionsKnown(currentUser ?? null) && pinnedItems.length > 0 && (
+                        <div role="group" aria-label="Pinned pages">
+                            {isOpen
+                                ? <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-500">Pinned</p>
+                                : <div className="mb-2 mx-3 border-t border-primary-500/30" />}
+                            <div className="space-y-0.5">
+                                {pinnedItems.map(item => (
+                                    <NavLink
+                                        key={`pin-${item.view}`}
+                                        icon={item.icon}
+                                        label={item.label}
+                                        active={currentView === item.view}
+                                        onClick={() => setCurrentView(item.view)}
+                                        isOpen={isOpen}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     )
                 }

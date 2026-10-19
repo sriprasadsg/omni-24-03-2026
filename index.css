@@ -137,6 +137,29 @@ table, .tabular-nums-all {
     outline-offset: 2px;
 }
 
+/* Skip link: the first Tab stop on every page, off-screen until focused. */
+.skip-link {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 100;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgb(var(--primary-600));
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    transform: translateY(-200%);
+    transition: transform 0.15s ease;
+}
+.skip-link:focus {
+    transform: translateY(0);
+}
+/* The skip target is a container, not a control: no ring around the whole page. */
+#main-content:focus {
+    outline: none;
+}
+
 /* ── Glass ─────────────────────────────────────────────────────────────────── */
 .glass {
     background: var(--glass-bg);

@@ -153,10 +153,12 @@ describe('sidebar presentation vs manifest (D-06)', () => {
     });
   });
 
-  it('Sidebar.tsx reads the manifest and carries no item-level permission literal', () => {
+  it('Sidebar.tsx reads the manifest (through useVisibleNav) and carries no item-level permission literal', () => {
     const text = read('components/Sidebar.tsx');
-    expect(text).toContain("from '../utils/catalogueAccess'");
-    expect(text).not.toMatch(/permission: '(view|manage|investigate|export|request):/);
+    const hook = read('hooks/useVisibleNav.ts');
+    expect(text).toContain("from '../hooks/useVisibleNav'");
+    expect(hook).toContain("from '../utils/catalogueAccess'");
+    for (const source of [text, hook]) expect(source).not.toMatch(/permission: '(view|manage|investigate|export|request):/);
     expect(text.split('\n').length).toBeLessThan(500);
   });
 });

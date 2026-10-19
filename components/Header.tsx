@@ -1,7 +1,11 @@
 
 
-import React, { useContext, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
+import { Star } from 'lucide-react';
 import { useTheme, ThemeId } from '../contexts/ThemeProvider';
+import { useUser } from '../contexts/UserContext';
+import { useVisibleNav, openNavItems } from '../hooks/useVisibleNav';
+import { useNavMemory, navMemoryKey } from '../hooks/useNavMemory';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 import { SunIcon, MoonIcon, BotIcon, HelpCircleIcon, InfoIcon } from './icons';
 import { User, Notification, AppView } from '../types';
@@ -28,6 +32,11 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
     const { themeId, setThemeId, isDarkMode, toggleDarkMode } = useTheme();
     const { timeZone, setTimeZone, availableTimeZones } = useTimeZone();
     const [isHelpOpen, setIsHelpOpen] = useState(false);
+    const currentUser = useUser()?.currentUser;
+    const { pinned, togglePin } = useNavMemory(navMemoryKey(currentUser));
+    const visibleNav = useVisibleNav(false);
+    const canPin = useMemo(() => openNavItems(visibleNav).some(i => i.view === currentView), [visibleNav, currentView]);
+    const isPinned = pinned.includes(currentView as View);
 
     // Theme selector removed
 
@@ -50,6 +59,19 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                                 {group && <span className="truncate text-gray-500 dark:text-gray-400">{group.title}</span>}
                                 {group && <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">/</span>}
                                 <span className="truncate font-semibold text-gray-900 dark:text-white">{entry?.label ?? 'Omni-Agent AI'}</span>
+                                {canPin && (
+                                    <button
+                                        onClick={() => togglePin(currentView as View)}
+                                        aria-pressed={isPinned}
+                                        aria-label={isPinned ? `Unpin ${entry?.label ?? 'this page'}` : `Pin ${entry?.label ?? 'this page'} to the sidebar`}
+                                        title={isPinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
+                                        className={`grid place-items-center h-7 w-7 -ml-0.5 flex-shrink-0 rounded-lg transition-colors ${isPinned
+                                            ? 'text-amber-500 hover:bg-amber-500/10'
+                                            : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-900/[0.05] dark:hover:bg-white/[0.07]'}`}
+                                    >
+                                        <Star className="h-4 w-4" fill={isPinned ? 'currentColor' : 'none'} />
+                                    </button>
+                                )}
                             </nav>
                         );
                     })()}
@@ -57,17 +79,18 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
 
                 <button
                     onClick={onOpenCommandBar}
-                    className="group hidden md:flex items-center gap-3 flex-1 max-w-md h-10 px-3.5 rounded-xl text-sm text-gray-500 dark:text-gray-400 bg-gray-900/[0.04] dark:bg-white/[0.04] border border-gray-900/[0.06] dark:border-white/[0.08] hover:border-primary-500/40 dark:hover:border-primary-400/40 hover:shadow-[0_0_0_4px_rgb(34_211_238/0.08)] transition-all"
-                    aria-label="Open AI Command Bar"
+                    className="group hidden md:flex items-center gap-3 flex-1 min-w-[10rem] max-w-md h-10 px-3.5 rounded-xl text-sm text-gray-500 dark:text-gray-400 bg-gray-900/[0.04] dark:bg-white/[0.04] border border-gray-900/[0.06] dark:border-white/[0.08] hover:border-primary-500/40 dark:hover:border-primary-400/40 hover:shadow-[0_0_0_4px_rgb(34_211_238/0.08)] transition-all"
+                    aria-label="Open command palette"
+                    aria-keyshortcuts="Meta+K Control+K"
                 >
                     <span aria-hidden="true" className="grid place-items-center h-6 w-6 rounded-lg bg-gradient-to-br from-primary-400 to-blue-500 text-white shadow-[0_0_12px_-2px_rgb(34_211_238/0.7)]">
                         <BotIcon size={14} />
                     </span>
-                    <span className="flex-1 text-left truncate">Ask AI or run a command…</span>
+                    <span className="flex-1 text-left truncate">Go to a page or ask AI…</span>
                     <kbd className="font-mono text-[11px] px-1.5 py-0.5 rounded-md text-gray-500 dark:text-gray-400 border border-gray-900/10 dark:border-white/10">⌘K</kbd>
                 </button>
 
-                <div className="flex items-center gap-1">
+                <div className="flex flex-shrink-0 items-center gap-1">
                     {onOpenSearch && (
                         <button onClick={onOpenSearch} className={`${ICON_BUTTON} hidden sm:grid`} aria-label="Open Global Search" title="Search (⌘/)">
                             <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -75,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                             </svg>
                         </button>
                     )}
-                    <button onClick={onOpenCommandBar} className={`${ICON_BUTTON} md:hidden`} aria-label="Open AI Command Bar (compact)">
+                    <button onClick={onOpenCommandBar} className={`${ICON_BUTTON} md:hidden`} aria-label="Open command palette">
                         <BotIcon size={17} />
                     </button>
                     <div className="hidden lg:block">
