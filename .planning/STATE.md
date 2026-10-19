@@ -5,16 +5,16 @@ milestone_name: Catalogue Access Control & Asset Costing
 current_phase: 77
 current_phase_name: Fail-Closed Sidebar, View Gate & Role Visibility
 status: executing
-stopped_at: Completed 77-06-PLAN.md
-last_updated: "2026-10-19T03:32:40.403Z"
+stopped_at: Completed 77-07-PLAN.md
+last_updated: "2026-10-19T03:53:34.775Z"
 last_activity: 2026-10-18
 last_activity_desc: Phase 77 execution started
-state_head: 2e4e6c26dd5cfbcdcb479206af2e8293d9ae77c2
+state_head: 321e9c3c9bc51e4e1b82fcfa331dfe05ce0c9037
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 33
-  completed_plans: 27
+  completed_plans: 28
   percent: 0
 ---
 
@@ -441,6 +441,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 77]: 77-06: canonicalise the typed role name (resolve_assignable_role) before assert_can_assign_role and storage — A spelling variant such as 'helpdesk' for 'Helpdesk' must not skip the ceiling the stored role would fail (PROH-77-06)
 - [Phase 77]: 77-06: D-18 tenant move re-resolves the user's role against the destination tenant — A custom role missing in the destination would strand or escalate the user; 400 and nothing written
 - [Phase 77]: 77-06: LDAP/SAML mappers fail closed when the custom-role lookup raises — Mappers raise their config error (not a valid ITAM role); endpoints still return 503 because resolve_assignable_role runs first
+- [Phase 77]: 77-07: role visibility computed by delivery pipeline (apply_tenant); agents screen needs screen:agents switch besides view:agents
 
 ## Performance Metrics
 
@@ -590,6 +591,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 77 P05 | 6 min | 2 tasks | 6 files |
 | Phase 77 P13 | 10 min | 2 tasks | 3 files |
 | Phase 77 P06 | 30min | 2 tasks | 7 files |
+| Phase 77 P07 | 25min | 2 tasks | 3 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -624,8 +626,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-19T03:32:40.338Z
-**Stopped at:** Completed 77-06-PLAN.md
+**Last session:** 2026-10-19T03:53:34.711Z
+**Stopped at:** Completed 77-07-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -649,7 +651,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Phase: 77 (Fail-Closed Sidebar, View Gate & Role Visibility) — EXECUTING
-Plan: 8 of 13
+Plan: 9 of 13
 Status: Ready to execute
 Progress: [░░░░░░░░░░] 0% (0/6 phases)
 Last activity: 2026-10-18 — Phase 77 execution started
