@@ -52,47 +52,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ metrics, alerts, complianc
     );
   }
 
+  // Spatial Glass bento: KPI tiles, then 12-column rows. Every widget keeps its own gate above;
+  // a hidden widget's neighbour widens to fill the row.
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-5 pb-8">
       <DashboardHeader userName={currentUser.name} setCurrentView={setCurrentView} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <section aria-label="Key metrics" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {metrics.map((metric, i) => <MetricCard key={metric.id} metric={metric} index={i} />)}
-      </div>
+      </section>
 
-      <SystemHealthChart metrics={metrics} />
-
-      {showInsights && <AiInsights metrics={metrics} alerts={alerts} />}
-
-      {(showKpi || showAiHealth) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {showKpi && (
-            <div className={showAiHealth ? 'lg:col-span-2' : 'lg:col-span-3'}>
-              <BusinessKpiChart />
-            </div>
-          )}
-          {showAiHealth && (
-            <div className={showKpi ? 'space-y-6' : 'space-y-6 lg:col-span-3'}>
-              <AiSystemHealth aiSystems={aiSystems} agents={agents} />
-            </div>
-          )}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-5">
+        <div className={`bento-cell xl:h-[440px] ${showAlerts ? 'xl:col-span-8' : 'xl:col-span-12'}`}>
+          <SystemHealthChart metrics={metrics} />
         </div>
-      )}
-
-      {showAlerts && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+        {showAlerts && (
+          <div className="bento-cell xl:col-span-4 h-[440px] min-h-0">
             <AlertsPanel alerts={alerts} />
           </div>
-        </div>
-      )}
+        )}
 
-      {showCompliance && (
-        <div className="mt-8 space-y-6">
-          <ComplianceScorePanel />
-          <ComplianceStatus frameworks={complianceFrameworks} />
-        </div>
-      )}
+        {showInsights && (
+          <div className="bento-cell xl:col-span-12">
+            <AiInsights metrics={metrics} alerts={alerts} />
+          </div>
+        )}
+
+        {/* KPI and AI health share a row (UI-SPEC C17/C20); the one that remains takes all of it. */}
+        {showKpi && (
+          <div className={`bento-cell ${showAiHealth ? 'xl:col-span-8' : 'xl:col-span-12'}`}>
+            <BusinessKpiChart />
+          </div>
+        )}
+        {showAiHealth && (
+          <div className={`bento-cell space-y-5 ${showKpi ? 'xl:col-span-4' : 'xl:col-span-12'}`}>
+            <AiSystemHealth aiSystems={aiSystems} agents={agents} />
+          </div>
+        )}
+
+        {showCompliance && (
+          <>
+            <div className="bento-cell xl:col-span-5">
+              <ComplianceScorePanel />
+            </div>
+            <div className="bento-cell xl:col-span-7">
+              <ComplianceStatus frameworks={complianceFrameworks} />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

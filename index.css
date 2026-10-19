@@ -441,3 +441,8 @@ table, .tabular-nums-all {
         border: 1px solid CanvasText;
     }
 }
+
+/* Bento cells stretch their single widget to the row height so tiles align. */
+.bento-cell > *:only-child {
+    height: 100%;
+}

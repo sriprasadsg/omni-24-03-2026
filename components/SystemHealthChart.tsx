@@ -37,7 +37,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({ metrics })
   const textColor = theme === 'dark' ? '#d1d5db' : '#374151';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-md" style={{ height: '300px', width: '100%' }}>
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/80 dark:border-white/[0.07] shadow-card" style={{ height: '100%', minHeight: '300px', width: '100%' }}>
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold flex items-center">
           <TrendingUpIcon className="mr-2 text-primary-500" />

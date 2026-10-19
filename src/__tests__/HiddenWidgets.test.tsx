@@ -159,11 +159,12 @@ describe('Dashboard widget gating (D-08, C17, C20)', () => {
 
   it('lets the one remaining KPI/health widget span the whole row', () => {
     const user = mk('analyst', ['view:dashboard', 'view:agents']);
-    const { container } = withUser(user, <Dashboard {...props(user, metric)} />);
+    withUser(user, <Dashboard {...props(user, metric)} />);
     expect(screen.getByTestId('AiSystemHealth')).toBeTruthy();
     expect(screen.queryByTestId('BusinessKpiChart')).toBeNull();
-    expect(container.querySelector('.lg\\:col-span-3')).not.toBeNull();
-    expect(container.querySelector('.lg\\:col-span-2')).toBeNull();
+    // Bento layout: the remaining widget's own cell spans all 12 columns, and no cell is left at a partial width.
+    expect(screen.getByTestId('AiSystemHealth').parentElement?.className).toContain('xl:col-span-12');
+    expect(screen.getByTestId('AiSystemHealth').parentElement?.className).not.toContain('xl:col-span-4');
   });
 
   it('falls back to the all-hidden line with no Go to button when nothing is readable', () => {
