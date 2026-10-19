@@ -31,6 +31,18 @@ findings:
     severity: warning
     disposition: open
     title: "A Super Admin cannot pick a tenant's custom roles when creating or editing a user"
+  - id: WR-08
+    severity: warning
+    disposition: open
+    title: "Overlapping `loadAllData` runs have no ordering; the 30s tick still loads with the stale list and can overwrite the refreshed load"
+  - id: WR-09
+    severity: warning
+    disposition: open
+    title: "The periodic data load now waits on an `/auth/me` request that has no timeout and no rejection handling"
+  - id: WR-10
+    severity: warning
+    disposition: open
+    title: "An aborted `/auth/me` retry after a 401 token refresh signs the user out"
   - id: IN-01
     severity: info
     disposition: open
@@ -55,9 +67,21 @@ findings:
     severity: info
     disposition: open
     title: "Test coverage relies on source-text matching"
-open: 13
-total: 13
-recorded: 2026-10-19T16:38:34.382Z
+  - id: IN-07
+    severity: info
+    disposition: open
+    title: "The WR-01 source guard test is order-in-text only and brittle"
+  - id: IN-08
+    severity: info
+    disposition: open
+    title: "`refreshPermissions` and the Initial Data Load effect both reload data on a changed list"
+  - id: IN-09
+    severity: info
+    disposition: open
+    title: "The 10 s timeout does not bound the token-refresh wait, and the test does not cover the 401 or near-expiry paths"
+open: 18
+total: 19
+recorded: 2026-10-19T16:59:23.789Z
 ---
 
 # Phase 77: Code Review Disposition
@@ -71,12 +95,18 @@ recorded: 2026-10-19T16:38:34.382Z
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
+| WR-08 | warning | open | - |
+| WR-09 | warning | open | - |
+| WR-10 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
 | IN-04 | info | open | - |
 | IN-05 | info | open | - |
 | IN-06 | info | open | - |
+| IN-07 | info | open | - |
+| IN-08 | info | open | - |
+| IN-09 | info | open | - |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
