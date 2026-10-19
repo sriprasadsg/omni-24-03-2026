@@ -8,9 +8,15 @@ incremental_files:
   - utils/permissionRefresh.ts
   - src/__tests__/permissionRefresh.test.ts
   - services/apiService.ts
-incremental_scope: fix commit a1f4488d1 (WR-01); fix commit b76b8af8d (WR-08), second incremental pass 2026-10-19; fix commit 41fb29db5 (WR-09), third incremental pass 2026-10-19
+  - backend/authentication_service.py
+  - backend/role_endpoints.py
+  - backend/websocket_manager.py
+  - backend/tests/test_custom_role_mfa.py
+  - backend/tests/test_role_write_api.py
+  - backend/tests/test_websocket_connect_rate_limit.py
+incremental_scope: fix commit a1f4488d1 (WR-01); fix commit b76b8af8d (WR-08), second incremental pass 2026-10-19; fix commit 41fb29db5 (WR-09), third incremental pass 2026-10-19; fix commits 3bb575186 (WR-10) and bee9299ce (WR-02, WR-03), fourth incremental pass 2026-10-19
 depth: standard
-files_reviewed: 56
+files_reviewed: 58
 files_reviewed_list:
   - App.tsx
   - backend/authentication_endpoints.py
@@ -39,7 +45,9 @@ files_reviewed_list:
   - backend/tests/test_role_write_api.py
   - backend/tests/test_roles_endpoint.py
   - backend/tests/test_tenant_feature_switches.py
+  - backend/tests/test_websocket_connect_rate_limit.py
   - backend/user_endpoints.py
+  - backend/websocket_manager.py
   - components/Dashboard.tsx
   - components/NoAccessPanel.tsx
   - components/NotificationCenter.tsx
@@ -70,9 +78,9 @@ files_reviewed_list:
   - utils/viewAccess.ts
 findings:
   critical: 0
-  warning: 10
-  info: 9
-  total: 19
+  warning: 11
+  info: 12
+  total: 23
 status: issues_found
 ---
 
@@ -80,7 +88,7 @@ status: issues_found
 
 **Reviewed:** 2026-10-19
 **Depth:** standard
-**Files Reviewed:** 56
+**Files Reviewed:** 58
 **Status:** issues_found
 
 ## Summary
@@ -102,6 +110,8 @@ The access-control core is sound. I traced these paths and found no fail-open an
 **Second incremental re-review (2026-10-19, fix b76b8af8d for WR-08, diff base 7ab88bd43).** The new `refreshThenLoad(refresh, load)` helper in `utils/permissionRefresh.ts` and its one call site (`App.tsx:847`) remove the stale-list load from the 30s tick and the `visibilitychange` handler, so WR-08 is marked resolved below. Traced: `refreshPermissions` cannot reject today (`api.fetchCurrentPermissions` swallows every error; the body after the await only reads refs and calls pure helpers), a shared in-flight promise from a focus or 403 refresh gives the tick the same result so exactly one load runs, and the signed-out case (`prev` null gives `'error'`, then `load()` runs and `loadAllData` returns at its token check) behaves as before the change, so it is not a regression. The review adds one warning (WR-09, the data load is now chained to an `/auth/me` request that has no timeout and no rejection handling) and one info item (IN-08, the explicit reload in `refreshPermissions` duplicates the one the Initial Data Load effect already makes).
 
 **Third incremental re-review (2026-10-19, fix 41fb29db5 for WR-09, diff base 745fcfd47).** `fetchCurrentPermissions` now aborts through an `AbortController` after `PERMISSIONS_TIMEOUT_MS` (10 s) and clears the timer in `finally`, and `refreshThenLoad` treats a rejecting refresh as `'error'`. Both halves of the WR-09 Fix text are applied, and the two new tests pass (14 of 14 in `permissionRefresh.test.ts`, run at HEAD). WR-09 is marked resolved below for the failure it described (a stalled `/auth/me`). Traced and found sound: `authFetch` forwards the signal (it passes the `instanceof AbortSignal` guard and is spread into both the first request and the 401 retry); the abort surfaces as a rejection that `fetchCurrentPermissions` maps to `null`, so `refreshPermissions` returns `'error'` and `load()` runs with the kept list; nothing reads an aborted `/auth/me` as "backend offline" (`setIsBackendConnected(false)` is only set from `loadAllData`'s own critical-endpoint failures and the health poll, and `fetchCurrentPermissions` has the single caller `App.tsx:815`); the timer is cleared on every path; 10 s is shorter than the 30 s tick (so a timed-out read cannot overlap the next tick) and the 403 refresh is shared through `refreshInFlight`, so it adds no second request; the new test block restores real timers, unstubs `fetch` and clears `sessionStorage` in `afterEach`, so nothing leaks. The pass adds one warning (WR-10, the signal reaches the 401 retry inside a `try` whose `catch` signs the user out) and one info item (IN-09, the timeout does not bound the token-refresh wait and the test does not cover the 401 path).
+
+**Fourth incremental re-review (2026-10-19, fixes 3bb575186 for WR-10 and bee9299ce for WR-02 and WR-03, diff base a44984c4d).** All three are marked resolved below for the failures they described. Re-run at HEAD: `test_custom_role_mfa.py`, `test_role_write_api.py` and `test_websocket_connect_rate_limit.py` pass (94 of 94) and `permissionRefresh.test.ts` passes (15 of 15). Traced and found sound: `verify_token_async` is a superset of the sync check for sockets (same refresh-token, agent, missing-`sub` and missing-`tenant_id` rejections, same `allow_agent=True` default, same `_set_tenant_id`), so nothing the sync path rejected is now accepted; `token_data` is always bound where the support-chat block reads it (any failure of the `try` returns False first); the sync `verify_token` and `mfa_required_for` now have no production caller, and the one remaining `mfa_action_for` call without `required` (signup, built-in "Tenant Admin") is correct by table; `fetchCurrentPermissions` cannot apply a late result because only the race value reaches `refreshPermissions` and the dangling read swallows its own errors and never touches app state; the new `ws` test fixture restores `sio.emit` through `monkeypatch` and removes its sids, user entries and rate-limit buckets. The pass adds one warning (WR-11, the root cause behind WR-10 is still live for four other `authFetch` callers that pass an `AbortSignal`) and three info items (IN-10 the abandoned `/auth/me` request is never cancelled, IN-11 the sync token path is now dead code with a stale docstring, IN-12 the cache invalidation is not in a `finally` and can be undone by an in-flight lookup).
 
 There are no blockers. The seven original warnings are one stale-state bug in the permission refresh, two MFA-cache problems, two server-side robustness gaps in role edit and delete, one hash-routing prototype-key bug, and a Super Admin UI gap for tenant custom roles. The info items are minor.
 
@@ -133,6 +143,8 @@ Do the same in the 30s tick: `refreshPermissions().then(() => loadAllData())`, o
 
 ### WR-02: Sync `mfa_required_for` fails closed for every non-admin custom role (WebSocket rejects)
 
+**Status: RESOLVED by bee9299ce** (confirmed in the fourth 2026-10-19 incremental pass; see the resolution check at the end of this section).
+
 **File:** `backend/authentication_service.py:104-114`, called from `verify_token` at `:328`; consumers `backend/websocket_manager.py:178` and `:225`
 **Issue:** The synchronous `mfa_required_for` returns `not builtin` when no fresh cache entry exists. For a custom role that means True, so MFA is "required" even if the role holds no admin-tier permission. `verify_token` (the WebSocket path) then raises `_enforce_admin_mfa` 403 for any token without `mfa_verified`, which is every non-admin custom-role user because they never do MFA. The WebSocket `connect` handler catches the exception and returns False, so the socket is refused.
 
@@ -143,7 +155,11 @@ The cache is filled only by the async path (`resolve_mfa_required`) on the same 
 - have the sync variant skip MFA enforcement for roles it cannot decide and rely on the HTTP gate, or
 - warm the cache at login and refresh it when an entry is read after expiry (stale-while-revalidate).
 
+**Resolution check (bee9299ce):** `websocket_manager.connect` (`backend/websocket_manager.py:176-186`) now awaits `verify_token_async` once, the first option of the Fix text, so the socket asks `resolve_mfa_required` (role store on a cold cache) exactly like every HTTP route. Verified: (1) the async check carries every rejection the sync one had (refresh token as access token, agent gate, missing `sub`, missing `tenant_id`, JTI and user-cutoff caches, `_enforce_admin_mfa`) and `allow_agent` defaults to True in both, so agent sockets behave as before and nothing newly passes; (2) it adds the DB revocation lookup and the 60 s bulk sync that HTTP already runs, with the same fail-open on a DB error, so a revoked token is refused on a socket where the sync path only saw the in-process cache (an improvement, and a DB error is no worse than before); the bulk-sync timestamp is set before the scan, so a connect burst does not repeat it, and the per-IP rate limit still runs before any of this (the updated test asserts `verify_token_async` is not awaited once limited); (3) `token_data` is bound on every path that reaches the support-chat block (a failure inside the `try`, including the missing-tenant return, exits first), and the old second decode with its swallowed `except` is gone; (4) the tests cover a non-admin custom role connecting on a cold cache, an admin-tier custom role refused, and an extended built-in refused. The negative assertions only check `is False`, which would also hold for an unrelated rejection, but the same fixture connects `Helpdesk`, so the setup is sound. No remaining sync production caller of `verify_token` or `mfa_required_for` (see IN-11).
+
 ### WR-03: MFA role cache is never invalidated; the 60s promotion window is per worker, and the helper is dead code
+
+**Status: RESOLVED by bee9299ce** (confirmed in the fourth 2026-10-19 incremental pass; see the resolution check at the end of this section). Two small residuals are tracked as IN-12.
 
 **File:** `backend/authentication_service.py:70-81, 117-136`; `backend/role_endpoints.py:248, 276`
 **Issue:** The comment says a role edit is "enforced within a minute", but `_clear_mfa_role_cache` is called only from tests. After an editor adds `manage:users`, `manage:rbac` or another admin-tier permission to a custom role, any worker that cached `False` keeps letting non-MFA sessions of that role use it for up to 60 seconds. Workers are separate processes, so clearing in the editing worker would not reach the others either. This is a bounded window, but it is the one place where the edit-to-enforcement guarantee (ACC-08, D-14) is weaker than stated. Separately, `resolve_mfa_required` returns `not builtin` on a store error, so a built-in role with a tenant override document fails open (False) while the store is down.
@@ -153,6 +169,8 @@ The cache is filled only by the async path (`resolve_mfa_required`) on the same 
 - Make the TTL shorter, or store a tenant-level `rolesVersion` and key the cache on it.
 - Fix the docstring to say the guarantee is "within 60s on other workers".
 - On a store error, return True for any role that could carry an override document, or at least log at error level.
+
+**Resolution check (bee9299ce):** `authentication_service.invalidate_mfa_role_cache(tenant_id)` drops every entry whose key tenant matches, and `create_role`, `update_role` and `delete_role` call it right after the DB write (`backend/role_endpoints.py:205, 250, 279`), before the audit write, so an audit failure cannot skip it. Verified: (1) the cache key tenant (`token.tenant_id`) equals the resolved target tenant the endpoints pass, including a Super Admin editing a named tenant; (2) no other code writes the `roles` collection at runtime (`app_startup.py` seeding runs at boot with a cold cache); (3) the comment and docstring now state the guarantee honestly (next request on the editing worker, within 60 s on other workers); (4) `resolve_mfa_required` logs at error level on a store failure and returns `(not builtin) or last-known True`, so an extended built-in no longer drops to the table's False while the store is down if a True was seen, and a custom name still fails closed; the error answer is not cached. What remains is a design limit rather than a defect: with a cold cache and a down store, a built-in name with an override document still answers by table (False), and the other workers still wait out the TTL. Both are documented in the code. See IN-12 for the invalidation placement and an in-flight-lookup race. The three new tests pass and assert tenant scoping, the PUT and DELETE paths, and the strict fallback.
 
 ### WR-04: A role holding any now-unknown or banned permission string can never be edited
 
@@ -238,6 +256,8 @@ and bound the permission request, for example `authFetch(\`${API_BASE}/auth/me\`
 
 ### WR-10: An aborted `/auth/me` retry after a 401 token refresh signs the user out
 
+**Status: RESOLVED by 3bb575186** for `fetchCurrentPermissions` (confirmed in the fourth 2026-10-19 incremental pass; see the resolution check at the end of this section). The commit removed the signal from this caller instead of changing `authFetch`, so the same misfire is still reachable from other callers: see WR-11.
+
 **File:** `services/apiService.ts:305-317` (the 401 branch of `authFetch`), reached through `fetchCurrentPermissions` at `services/apiService.ts:758-771`
 **Issue:** The 401 branch is `try { const newToken = await refreshAccessToken(); response = await makeRequest(newToken); } catch { _expireSession(); throw new Error('Session expired'); }`. The retry `makeRequest` carries the caller's signal, and the `catch` treats every failure of either step the same way. Before 41fb29db5 `fetchCurrentPermissions` passed no signal, so only a genuine refresh failure could reach that `catch`. Now the 10 s timer also starts the clock for the proactive refresh and the 401 refresh, and an abort during or before the retry lands in the `catch`:
 - the 10 s budget is spent while `refreshAccessToken` runs (it is shared and has no timeout of its own); if it ends after the timer fired, `fetch(url, { signal })` with an already-aborted signal rejects at once with `AbortError`;
@@ -255,6 +275,25 @@ try {
 response = await makeRequest(newToken);   // an AbortError or network error here must not end the session
 ```
 (If a retry that still answers 401 should end the session, handle it by status after the retry, not by exception.) Add a test: stub `fetch` so the first `/auth/me` returns 401, `/auth/refresh` returns a token, and the retry rejects with `AbortError`; assert `fetchCurrentPermissions()` resolves `null` and `window.location.href` is unchanged and the token is still in `sessionStorage`.
+
+**Resolution check (3bb575186):** `fetchCurrentPermissions` (`services/apiService.ts:758-779`) no longer passes a signal; it races the read against a `PERMISSIONS_TIMEOUT_MS` timer that resolves `null` and clears the timer in `finally`. Verified: (1) with no signal, an abort can no longer reach `authFetch`'s retry `catch`, so a slow backend cannot trigger `_expireSession()` from this call; a genuine refresh failure still ends the session, as it should; (2) the race now also bounds the token-refresh wait, which closes the gap IN-09 described for this call; (3) a timed-out read cannot apply a stale answer: only the race value reaches `refreshPermissions` (`App.tsx:815`), the abandoned read has its own `try/catch` (no unhandled rejection) and writes no app state, and a late 403 on `/auth/me` does not raise the permission-denied event (`shouldSignalPermissionDenied` skips `/api/auth/`); (4) `timer` is assigned synchronously in the `Promise` executor, so `clearTimeout` never sees `undefined` after a settled race; (5) the new test reproduces 401, then refresh ok, then a stalled retry, and asserts `null`, two `/auth/me` calls and the refreshed token kept in `sessionStorage` (it passes at HEAD, 15 of 15). It does not assert that `window.location` is untouched, which `sessionStorage` already implies since `_expireSession` removes the token. Trade-off of not aborting: IN-10.
+
+### WR-11: `authFetch` still signs the user out when a caller's `AbortSignal` fires during the post-401 retry
+
+**File:** `services/apiService.ts:311-317` (the 401 branch of `authFetch`); callers that pass a signal: `components/RemoteAccessDashboard.tsx:31, 45`, `components/SoftwareDeployment.tsx:117, 127`, `components/ComplianceFrameworksDashboard.tsx:137, 157`
+**Issue:** 3bb575186 fixed WR-10 by taking the signal away from one caller. The cause is unchanged: `try { newToken = await refreshAccessToken(); response = await makeRequest(newToken); } catch { _expireSession(); throw new Error('Session expired'); }` treats an abort or a network error on the retry like a failed token refresh. These three components abort their requests in an effect cleanup (`controller.abort()`, for example `RemoteAccessDashboard.tsx:62`, `SoftwareDeployment.tsx:46`). The realistic trigger needs no slow backend: the user opens one of those screens with an access token that has just expired (a 401, so a refresh runs), then navigates away or changes the filter while the refresh is in flight. The cleanup aborts, the retry `fetch` rejects at once with `AbortError`, and `_expireSession()` removes `token` and `refresh_token`, sets `_sessionEnding` and redirects to `/login` after 50 ms, ending a valid session that has a good refreshed token. The components already special-case `AbortError` in their own `catch`, which shows they expect an abort to be harmless.
+**Fix:** Split the refresh from the retry so only a refresh failure ends the session, and let an abort or network error on the retry propagate to the caller:
+```ts
+let newToken: string;
+try {
+    newToken = await refreshAccessToken();
+} catch {
+    _expireSession();
+    throw new Error('Session expired');
+}
+response = await makeRequest(newToken);   // AbortError / network error here must not end the session
+```
+Add a test with a caller signal: first answer 401, refresh ok, abort before the retry resolves; assert the call rejects with `AbortError`, the token in `sessionStorage` is the refreshed one and `_sessionEnding` is not set.
 
 ## Info
 
@@ -315,9 +354,29 @@ This is the same drift-guard pattern as IN-06.
 
 ### IN-09: The 10 s timeout does not bound the token-refresh wait, and the test does not cover the 401 or near-expiry paths
 
+**Status: PARTLY ADDRESSED by 3bb575186** (fourth 2026-10-19 incremental pass). The new race covers the whole `authFetch` call, so the 10 s limit now includes the token-refresh wait (first fix option) and the new WR-10 test exercises the 401 branch. Still open: no test uses a near-expiry token (the proactive refresh path), and `src/__tests__/permissionRefresh.test.ts:204` still pins the literal `10000` beside the imported constant.
+
 **File:** `services/apiService.ts:157` (`refreshAccessToken` has no signal or timeout; `authFetch` awaits it at `:294` before the first request and at `:312` on a 401); `src/__tests__/permissionRefresh.test.ts:189-212`
 **Issue:** The abort only cancels the `/auth/me` request. If the token is within 5 minutes of expiry (or the request gets a 401), `authFetch` first awaits the shared `refreshAccessToken()`, a bare `fetch` with no timeout. If `/auth/refresh` stalls, `fetchCurrentPermissions` still hangs past 10 s, `refreshInFlight` stays set, and the tick-chained load stalls as it did in WR-09. The window is narrow (it recurs only when the refresh endpoint is the stalled one, and then every other `authFetch` caller is blocked on the same promise anyway), so it is not worth reopening WR-09, but the "never longer than 10 s" claim in the constant's comment only holds for the `/auth/me` request. The new test uses the token `'tok'`, for which `jwtSecondsUntilExpiry` returns `Infinity`, so neither the proactive refresh nor the 401 branch is exercised (that is why WR-10 is not caught). The test also pins the literal `10000` in an assertion, which only duplicates the constant.
 **Fix:** Either race the whole call (`Promise.race([authFetch(...), timeout])` with the timer settling the result) so the 10 s limit covers the refresh wait too, or give `refreshAccessToken` its own `AbortSignal.timeout`. Add a case with a near-expiry token (`header.eyJleHAiOjF9.sig` style payload) and a 401 first answer. Drop the `toBe(10000)` assertion or import the constant only.
+
+### IN-10: A timed-out `/auth/me` request is abandoned, not cancelled
+
+**File:** `services/apiService.ts:758-779`
+**Issue:** Dropping the abort (the WR-10 fix) means a stalled `/auth/me` stays open after the 10 s timer fires, and the next 30 s tick starts another. Against a backend or proxy that holds requests, one connection per tick accumulates until the browser's own timeout. Under HTTP/1.1 (6 connections per host) a few of them can compete with the data loads for slots. Bounded and low likelihood, and it trades against the sign-out risk of WR-10, so it is only a note.
+**Fix:** Fix WR-11 in `authFetch` first, then restore the `AbortController` in `fetchCurrentPermissions` so the timer cancels the request. Alternatively skip starting a new read while an abandoned one is still pending (keep a module-level "read pending" flag cleared when `read` settles).
+
+### IN-11: The synchronous token path is dead in production and its docstrings are stale
+
+**File:** `backend/authentication_service.py:111-121, 291-299, 160-169`; `backend/tests/test_custom_role_mfa.py:168-184`
+**Issue:** After bee9299ce no production code calls `verify_token` (every route, tunnel, API-key and WebSocket path uses `verify_token_async`) or `mfa_required_for` except through `verify_token` and `mfa_action_for` without `required` (signup, built-in name). The `verify_token` docstring still says the WebSocket registry uses it, and the `mfa_required_for` docstring still describes a "WebSocket path". The sync function keeps a second copy of the validation rules that must stay in step with the async one (CRIT-01 checks, cutoff logic), and `test_custom_role_mfa.py` tests the sync cold-cache guess, which no request hits any more.
+**Fix:** Update the docstrings. Either delete `verify_token` and `mfa_required_for` and move their tests to the async path, or share the claim validation in one helper so the two cannot drift.
+
+### IN-12: MFA cache invalidation is not in a `finally`, and an in-flight lookup can re-store the old answer
+
+**File:** `backend/role_endpoints.py:196-206` (`create_role`), `:249-250`, `:278-279`; `backend/authentication_service.py:142-144`
+**Issue:** (1) In `create_role`, `invalidate_mfa_role_cache` runs only after the duplicate check succeeds. If `insert_one` succeeds and the follow-up `custom_role_docs` read then raises, the request answers 503 but the document exists and the tenant's cache was not cleared. The duplicate branch (409) also skips it. (2) `resolve_mfa_required` reads the role store, then stores its answer. A lookup that read the old document just before a role write and stores just after the invalidation re-caches the pre-edit answer for up to 60 s, so "enforced on the next request" is not strict under concurrency. Both are narrow windows on one worker.
+**Fix:** Call the invalidation in a `finally` around the write section (clearing is idempotent and cheap), and optionally keep a per-tenant generation counter that `resolve_mfa_required` compares before storing: read `gen` first, and store only if `_mfa_gen.get(tenant) == gen`.
 
 ---
 
@@ -327,3 +386,4 @@ _Depth: standard_
 _Incremental re-review: 2026-10-19 (a1f4488d1, App.tsx and src/__tests__/catalogueAccess.test.ts)_
 _Incremental re-review 2: 2026-10-19 (b76b8af8d, App.tsx, utils/permissionRefresh.ts and src/__tests__/permissionRefresh.test.ts)_
 _Incremental re-review 3: 2026-10-19 (41fb29db5, services/apiService.ts, utils/permissionRefresh.ts and src/__tests__/permissionRefresh.test.ts)_
+_Incremental re-review 4: 2026-10-19 (3bb575186 and bee9299ce, backend/authentication_service.py, backend/role_endpoints.py, backend/websocket_manager.py, services/apiService.ts and their tests)_
