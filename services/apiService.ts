@@ -752,14 +752,21 @@ export const fetchCurrentUser = async (): Promise<any> => {
  * reaches the menu without a re-login (spec C6). Uses authFetch, so an expiring
  * token is refreshed rather than dropped.
  */
+/** The periodic data refresh waits on this read, so a stalled /auth/me must not hold it (77 WR-09). */
+export const PERMISSIONS_TIMEOUT_MS = 10000;
+
 export const fetchCurrentPermissions = async (): Promise<Permission[] | null> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PERMISSIONS_TIMEOUT_MS);
     try {
-        const res = await authFetch(`${API_BASE}/auth/me`);
+        const res = await authFetch(`${API_BASE}/auth/me`, { signal: controller.signal });
         if (!res.ok) return null;
         const data = await res.json();
         return data?.mfa_action || !Array.isArray(data?.permissions) ? null : data.permissions;
     } catch {
         return null;
+    } finally {
+        clearTimeout(timer);
     }
 };
 

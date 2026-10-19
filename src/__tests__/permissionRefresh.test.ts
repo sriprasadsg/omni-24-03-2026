@@ -178,4 +178,37 @@ describe('refreshThenLoad (periodic refresh, 77 WR-08)', () => {
     await refreshThenLoad(async () => 'error', load);
     expect(load).toHaveBeenCalledTimes(1);
   });
+
+  it('still loads, and settles, when the refresh rejects (77 WR-09)', async () => {
+    const load = vi.fn();
+    await expect(refreshThenLoad(async () => { throw new Error('boom'); }, load)).resolves.toBeUndefined();
+    expect(load).toHaveBeenCalledTimes(1);
+  });
 });
+
+describe('fetchCurrentPermissions timeout (77 WR-09)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    sessionStorage.clear();
+  });
+
+  it('gives up with null after the timeout when /auth/me never answers', async () => {
+    vi.useFakeTimers();
+    sessionStorage.setItem('token', 'tok');
+    // A fetch that only ends when its signal aborts, like a stalled backend.
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise((_res, rej) => {
+      init?.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError')));
+    })));
+    const { fetchCurrentPermissions, PERMISSIONS_TIMEOUT_MS } = await import('../../services/apiService');
+    expect(PERMISSIONS_TIMEOUT_MS).toBe(10000);
+    let result: unknown = 'pending';
+    const p = fetchCurrentPermissions().then(r => { result = r; });
+    await vi.advanceTimersByTimeAsync(PERMISSIONS_TIMEOUT_MS - 1);
+    expect(result).toBe('pending');
+    await vi.advanceTimersByTimeAsync(1);
+    await p;
+    expect(result).toBeNull();
+  });
+});
+

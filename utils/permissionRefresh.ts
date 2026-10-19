@@ -59,10 +59,17 @@ export function samePermissionSet(a: readonly string[], b: readonly string[]): b
 /**
  * The periodic refresh: re-read permissions first, then reload data only when the refresh did not
  * already reload it. A data load started beside the refresh would run with the old list and could
- * finish last, overwriting the reload made with the new one (77 WR-08).
+ * finish last, overwriting the reload made with the new one (77 WR-08). A failed refresh still
+ * loads with the kept list (77 WR-09).
  */
 export async function refreshThenLoad(refresh: () => Promise<RefreshResult>, load: () => void): Promise<void> {
-  if (await refresh() !== 'changed') load();
+  let result: RefreshResult;
+  try {
+    result = await refresh();
+  } catch {
+    result = 'error';
+  }
+  if (result !== 'changed') load();
 }
 
 /** True when the view was allowed for `before` and is denied for `after` (a removal, never an addition). */
