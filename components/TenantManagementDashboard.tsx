@@ -3,6 +3,7 @@ import { Tenant } from '../types';
 import { SettingsIcon, ZapIcon, TrashIcon, UserIcon } from './icons';
 import { TenantBrandingSettings } from './TenantBrandingSettings';
 import { useUser } from '../contexts/UserContext';
+import { PendingSignupsPanel } from './PendingSignupsPanel';
 
 /** "used / limit" agent seats when the API reports a license (spec C2), else the agent count. */
 const seatLabel = (tenant: Tenant): string => {
@@ -43,6 +44,8 @@ export const TenantManagementDashboard: React.FC<TenantManagementDashboardProps>
                     Add New Tenant
                 </button>
             </div>
+
+            <PendingSignupsPanel />
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

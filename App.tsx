@@ -631,7 +631,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSignup = async (payload: { companyName: string; name: string; email: string; password: string }): Promise<boolean> => {
+  const handleSignup = async (payload: { companyName: string; name: string; email: string; password: string }): Promise<boolean | { pending: string }> => {
     try {
       const response = await fetch(`${API_BASE}/auth/signup`, {
         method: 'POST',
@@ -643,6 +643,11 @@ const App: React.FC = () => {
 
       if (!response.ok) {
         throw new Error(data.detail || 'Signup failed');
+      }
+
+      // Approval-gated sign-up: no session until a Super Admin approves the new organization.
+      if (data.success && data.pending) {
+        return { pending: data.message || 'Your sign-up is waiting for approval by the platform administrator.' };
       }
 
       if (data.success && data.user) {
@@ -687,12 +692,13 @@ const App: React.FC = () => {
   const handleRegisterTenant = async (payload: NewTenantPayload): Promise<boolean> => {
     // For now, use the signup endpoint
     // This can be expanded if separate tenant registration is needed
-    return handleSignup({
+    // A pending (approval-gated) sign-up is still an accepted request.
+    return !!(await handleSignup({
       companyName: payload.companyName,
       name: payload.name,
       email: payload.email,
       password: payload.password
-    });
+    }));
   };
 
 
@@ -1915,7 +1921,7 @@ const App: React.FC = () => {
         <UserContext.Provider value={{
           currentUser,
           login: handleLogin,
-          signup: handleSignup,
+          signup: async payload => !!(await handleSignup(payload)),
           logout: handleLogout,
           registerTenant: handleRegisterTenant,
           enabledFeatures,

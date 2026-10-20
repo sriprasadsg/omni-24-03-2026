@@ -152,28 +152,30 @@ SIGNUP_BODY = {"companyName": "Acme Corp", "name": "Ada Admin",
                "email": "ada@acme-signup.test", "password": "Str0ng!Passw0rd#42"}
 
 
-def test_signup_response_carries_resolver_permissions(monkeypatch):
+def test_signup_waits_for_approval_without_a_session(monkeypatch):
+    """Approval-gated sign-up (2026-10-20): the tenant and its admin are stored as pending, the
+    response carries no token or permissions, and no refresh cookie is set."""
     db, raw = role_store(users=[], roles=shared_role_docs(), tenants=[], user_consents=[])
     client = make_auth_client(db, monkeypatch)
     resp = client.post("/api/auth/signup", json=SIGNUP_BODY)
     assert resp.status_code == 200, resp.text
-    perms = resp.json()["user"]["permissions"]
-    assert perms == list(rbac_defaults.defaults_for("tenant_admin"))
-    assert "manage:users" in perms and "manage:tenants" not in perms
+    body = resp.json()
+    assert body["pending"] is True and "access_token" not in body and "user" not in body
+    assert "omni_refresh" not in resp.headers.get("set-cookie", "")
     stored = [u for u in raw.users.docs if u["email"] == SIGNUP_BODY["email"]]
-    assert len(stored) == 1
-    assert "permissions" not in stored[0]
+    assert len(stored) == 1 and stored[0]["status"] == "Pending" and "permissions" not in stored[0]
+    tenant = next(t for t in raw.tenants.docs if t["id"] == body["tenant"]["id"])
+    assert tenant["status"] == "pending_approval"
+    assert tenant["enabledFeatures"] == ["view:dashboard", "view:profile", "screen:dashboard"]
 
 
-def test_signup_permissions_match_me(monkeypatch):
+def test_a_pending_signup_cannot_sign_in_and_is_told_why(monkeypatch):
     db, raw = role_store(users=[], roles=shared_role_docs(), tenants=[], user_consents=[])
     client = make_auth_client(db, monkeypatch)
-    resp = client.post("/api/auth/signup", json=SIGNUP_BODY)
-    assert resp.status_code == 200, resp.text
-    tenant_id = resp.json()["tenant"]["id"]
-    current = me(client, SIGNUP_BODY["email"], "Tenant Admin", tenant_id)
-    assert current.status_code == 200, current.text
-    assert current.json()["permissions"] == resp.json()["user"]["permissions"]
+    assert client.post("/api/auth/signup", json=SIGNUP_BODY).status_code == 200
+    resp = client.post("/api/auth/login", json={"email": SIGNUP_BODY["email"], "password": SIGNUP_BODY["password"]})
+    assert resp.status_code == 403
+    assert "waiting for approval" in resp.json()["detail"]
 
 
 def _mfa_client(monkeypatch, db, email):

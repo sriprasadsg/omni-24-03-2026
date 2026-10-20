@@ -83,7 +83,7 @@ const HeroSection: React.FC = () => {
 interface LoginPageProps {
     users: User[];
     onLogin?: (email: string, password: string) => Promise<boolean>;
-    onSignup?: (data: any) => Promise<boolean>;
+    onSignup?: (data: any) => Promise<boolean | { pending: string }>;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }) => {
@@ -116,6 +116,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
         try { sessionStorage.removeItem(api.SESSION_ENDED_KEY); } catch { /* nothing to clear */ }
     }, []);
     const [isLoading, setIsLoading] = useState(false);
+    const [notice, setNotice] = useState('');
     const [mfaSessionToken, setMfaSessionToken] = useState<string | null>(null);
     const [ssoEnabled, setSsoEnabled] = useState(false);
 
@@ -132,6 +133,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
 
     const handleSignup = async (data: { companyName: string; name: string; email: string; password: string }) => {
         const success = onSignup ? await onSignup(data) : await signup(data);
+        if (success && typeof success === 'object') {
+            // Approval-gated: back to sign-in with the reason, no session yet.
+            setShowSignup(false);
+            setNotice(success.pending);
+            return true;
+        }
         if (success) {
             // Auto-login after successful signup (requires backend flow, simple context mock for now)
             // await login(data.email, data.password);
@@ -302,7 +309,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                                </div>
                            </div>
 
-                            {sessionEnded && !error && (
+                            {notice && !error && (
+                                <div role="status" className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: 'rgba(34,211,238,0.10)', border: '1px solid rgba(34,211,238,0.28)' }}>
+                                    <InfoIcon size={16} aria-hidden="true" className="mt-0.5 text-cyan-300 flex-shrink-0" />
+                                    <p className="text-sm text-cyan-100">{notice}</p>
+                                </div>
+                            )}
+                            {sessionEnded && !error && !notice && (
                                 <div role="status" className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: 'rgba(34,211,238,0.10)', border: '1px solid rgba(34,211,238,0.28)' }}>
                                     <InfoIcon size={16} aria-hidden="true" className="mt-0.5 text-cyan-300 flex-shrink-0" />
                                     <p className="text-sm text-cyan-100">{sessionEnded === 'idle'

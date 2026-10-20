@@ -51,6 +51,12 @@ import datetime
 import jwt
 import logging
 import tenant_features
+
+# Approval-gated sign-up: a signed-up tenant and its first admin wait in these states.
+PENDING_TENANT_STATUS = "pending_approval"
+PENDING_USER_STATUS = "Pending"
+SIGNUP_PENDING_MESSAGE = ("Your organization's sign-up is waiting for approval by the platform administrator. "
+                          "You can sign in once it is approved.")
 import agent_capabilities
 
 logger = logging.getLogger(__name__)
@@ -185,6 +191,9 @@ async def login_for_access_token(request: Request, response: Response, login_req
     # A disabled account gets no session (and no MFA step). Only reachable
     # with the right password, so naming the reason leaks nothing new.
     if not account_is_active(user):
+        if str(user.get("status", "")).strip().lower() == PENDING_USER_STATUS.lower():
+            await _audit_login(request, "login.failure", identifier, user, "denied", reason="signup_pending")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SIGNUP_PENDING_MESSAGE)
         await _audit_login(request, "login.failure", identifier, user, "denied", reason="account_disabled")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is disabled. Contact your administrator.")
 
@@ -322,6 +331,9 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     # in Manage Tenant (spec C6): nothing is switched on that no Super Admin chose.
     start_features = list(tenant_features.START_FEATURES)
 
+    # Sign-up is approval-gated: the tenant and its admin wait as pending, with no session, until
+    # a Super Admin approves them in Tenant Management (tenant_endpoints approve/reject).
+    now = datetime.now(timezone.utc).isoformat()
     tenant_doc = {
         "id": tenant_id,
         "name": company_name,
@@ -331,26 +343,29 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "apiKeys": [],
         "enabledFeatures": start_features,
         "agentCapabilities": agent_capabilities.every_capability(),
-        "createdAt": datetime.now(timezone.utc).isoformat()
+        "status": PENDING_TENANT_STATUS,
+        "signupRequestedAt": now,
+        "createdAt": now,
     }
     await db.tenants.insert_one(tenant_doc)
-    
+
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     user_doc = {
-        "id": user_id, 
-        "email": email, 
+        "id": user_id,
+        "email": email,
         "password": hash_password(password),
-        "name": name, 
-        "role": "Tenant Admin", 
+        "name": name,
+        "role": "Tenant Admin",
         "tenantId": tenant_id,
-        "status": "Active",
+        "status": PENDING_USER_STATUS,
         "subscriptionTier": "Free",
         "maxAgents": 5,
-        "createdAt": datetime.now(timezone.utc).isoformat()
+        "createdAt": now,
     }
     try:
         await db.users.insert_one(user_doc)
     except Exception as _dup:
+        await db.tenants.delete_one({"id": tenant_id})
         # A unique index on users.email catches concurrent signups with the same address
         if "duplicate" in str(_dup).lower() or "E11000" in str(_dup):
             raise HTTPException(status_code=400, detail="Email already registered")
@@ -363,41 +378,18 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "tenantId": tenant_id,
         "status": "granted",
         "consent_type": "platform_terms",
-        "granted_at": datetime.now(timezone.utc).isoformat(),
+        "granted_at": now,
         "ip_address": None,
         "version": "1.0",
     })
+    await _audit_login(request, "tenant.signup_requested", email, user_doc, "success")
 
-    # 4. Prepare return data (similar to login)
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    access_token = create_access_token(
-        data={"sub": email, "role": "Tenant Admin", "tenant_id": tenant_id},
-        expires_delta=access_token_expires
-    )
-    refresh_token = create_refresh_token(data={"sub": email})
-    
-    # Prepare user object for frontend (exclude sensitive fields)
-    user_data = _public_user_fields(user_doc)
-    if 'id' not in user_data:
-        user_data['id'] = user_id
-    user_data['mfa_action'] = mfa_action_for("Tenant Admin", mfa_verified=False, mfa_enabled=False)
-    # D-07/D-24: nothing is stored per user; the response carries the resolver's list.
-    user_data['permissions'] = await session_permissions(db, "Tenant Admin", tenant_id)
-
-    set_refresh_cookie(response, request, refresh_token)
     return {
-        "success": True, 
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": user_data,
-        "tenant": {
-            "id": tenant_id,
-            "name": company_name,
-            "subscriptionTier": "Free",
-            "maxAgents": 5,
-            "enabledFeatures": start_features
-        }
+        "success": True,
+        "pending": True,
+        "message": (f"Thanks. {company_name} is waiting for approval by the platform administrator; "
+                    "you can sign in once it is approved."),
+        "tenant": {"id": tenant_id, "name": company_name},
     }
 
 
