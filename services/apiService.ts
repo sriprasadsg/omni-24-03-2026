@@ -268,6 +268,19 @@ export async function logoutSession(): Promise<void> {
     clearSessionCaches();
 }
 
+/** Sign out after this long without user input (keys, pointer, scroll, touch), warning 2 minutes ahead. */
+export const IDLE_TIMEOUT_MINUTES = 30;
+
+/** Idle sign-out: revoke the session like a normal sign-out, then show the login screen with the
+ *  reason and keep the page in the URL so signing in again lands back on it. */
+export async function endSessionForInactivity(): Promise<void> {
+    if (_sessionEnding) return;
+    _sessionEnding = true;
+    await logoutSession();
+    try { sessionStorage.setItem(SESSION_ENDED_KEY, 'idle'); } catch { /* the notice is optional */ }
+    window.location.href = '/login' + window.location.hash;
+}
+
 /** A sign-in failure whose message is meant for the user (lockout, disabled account). */
 export class LoginError extends Error {}
 

@@ -7,6 +7,7 @@ import { render, screen } from '@testing-library/react';
 
 vi.mock('../../services/apiService', () => ({
   SESSION_ENDED_KEY: 'omni.sessionEnded',
+  IDLE_TIMEOUT_MINUTES: 30,
   fetchSsoProviders: () => Promise.resolve({ providers: [] }),
 }));
 vi.mock('@simplewebauthn/browser', () => ({ startAuthentication: vi.fn() }));
@@ -31,6 +32,12 @@ describe('session-ended notice', () => {
     first.unmount();
     render(<LoginPage users={[]} />);
     expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+
+  it('names inactivity when the idle timer ended the session', () => {
+    sessionStorage.setItem('omni.sessionEnded', 'idle');
+    render(<LoginPage users={[]} />);
+    expect(screen.getByRole('status')).toHaveTextContent('signed out after 30 minutes without activity');
   });
 
   it('stays hidden on an ordinary visit to the login page', () => {

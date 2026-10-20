@@ -106,8 +106,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
         return '';
     });
     // The session ended on its own (expired or revoked): say so once, then forget it.
-    const [sessionEnded] = useState(() => {
-        try { return sessionStorage.getItem(api.SESSION_ENDED_KEY) === '1'; } catch { return false; }
+    const [sessionEnded] = useState<'expired' | 'idle' | null>(() => {
+        try {
+            const v = sessionStorage.getItem(api.SESSION_ENDED_KEY);
+            return v === 'idle' ? 'idle' : v === '1' ? 'expired' : null;
+        } catch { return null; }
     });
     useEffect(() => {
         try { sessionStorage.removeItem(api.SESSION_ENDED_KEY); } catch { /* nothing to clear */ }
@@ -300,7 +303,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                             {sessionEnded && !error && (
                                 <div role="status" className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: 'rgba(34,211,238,0.10)', border: '1px solid rgba(34,211,238,0.28)' }}>
                                     <InfoIcon size={16} aria-hidden="true" className="mt-0.5 text-cyan-300 flex-shrink-0" />
-                                    <p className="text-sm text-cyan-100">Your session ended, so you were signed out. Sign in to pick up where you left off.</p>
+                                    <p className="text-sm text-cyan-100">{sessionEnded === 'idle'
+                                        ? `You were signed out after ${api.IDLE_TIMEOUT_MINUTES} minutes without activity. Sign in to pick up where you left off.`
+                                        : 'Your session ended, so you were signed out. Sign in to pick up where you left off.'}</p>
                                 </div>
                             )}
 

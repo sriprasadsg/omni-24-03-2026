@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 vi.mock('../../services/geminiService', () => ({ getCommandFromQuery: vi.fn() }));
-vi.mock('../../services/apiService', () => ({ authFetch: vi.fn(), fetchSupportUnreadCount: () => Promise.resolve(0), API_BASE: '/api' }));
+vi.mock('../../services/apiService', () => ({ authFetch: vi.fn(), fetchSupportUnreadCount: () => Promise.resolve(0), API_BASE: '/api', IDLE_TIMEOUT_MINUTES: 30, endSessionForInactivity: vi.fn() }));
 vi.mock('../../services/socketService', () => ({ socketService: { on: vi.fn(), off: vi.fn() } }));
 
 import { ShellServices } from '../../components/ShellServices';

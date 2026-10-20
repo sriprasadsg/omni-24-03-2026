@@ -3,6 +3,7 @@ import { Keyboard } from 'lucide-react';
 import { AppView } from '../types';
 import { Command } from './AICommandBar';
 import { CommandPalette } from './CommandPalette';
+import { IdleSignOut } from './IdleSignOut';
 import { Modal } from './Modal';
 import { useUser } from '../contexts/UserContext';
 import { useVisibleNav, openNavItems } from '../hooks/useVisibleNav';
@@ -126,6 +127,7 @@ export const ShellServices: React.FC<ShellServicesProps> = ({
     return (
         <>
             <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
+            <IdleSignOut />
 
             <CommandPalette
                 isOpen={isPaletteOpen}
