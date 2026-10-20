@@ -12,6 +12,7 @@ from patch_core_endpoints import (
     OsPatchRequest,
     BulkSoftwareUpdateRequest,
     installable_patch_id,
+    pending_entry_id,
     new_patch_job,
     patch_instruction,
 )
@@ -269,23 +270,20 @@ def pending_patch_ids(agent: dict) -> tuple:
     ids: list = []
     details: list = []
 
-    def add(raw, title=None, severity=None):
-        ident = installable_patch_id(raw) if raw else None
+    def add(ident, title=None, severity=None):
         if ident and ident not in ids:
             ids.append(ident)
             details.append({"id": ident, "title": title or ident, "severity": severity or "Unknown"})
 
     for u in (meta.get("system_patching", {}) or {}).get("pending_updates", []) or []:
         if isinstance(u, dict):
-            kb = str(u.get("kb") or "").strip()
-            add(u.get("id") or (f"KB{kb}" if kb.isdigit() else None) or u.get("package"),
-                u.get("title"), u.get("severity"))
+            add(pending_entry_id(u), u.get("title"), u.get("severity"))
     for item in (meta.get("os_patches", {}) or {}).get("items", []) or []:
         if isinstance(item, str):
-            add(item)
+            add(pending_entry_id(item))
     for item in agent.get("pending_os_updates", []) or []:
         if isinstance(item, str):
-            add(item)
+            add(pending_entry_id(item))
     return ids, details
 
 
@@ -306,6 +304,18 @@ async def get_os_patches(
         effective_tenant = tenant_id if (tenant_id and is_admin) else caller_tenant
 
         agents = await db.agents.find({"tenantId": effective_tenant}, {"_id": 0}).to_list(length=200)
+        # Patch jobs still waiting on an agent, so the tab can show the install running
+        # (and refresh when it ends) instead of offering the same patches again.
+        running = await db.patch_deployment_jobs.find(
+            {"tenantId": effective_tenant, "status": "In Progress"},
+            {"_id": 0, "id": 1, "type": 1, "dispatchedAgents": 1, "agentResults": 1},
+        ).to_list(length=200)
+        active_jobs: dict = {}
+        for job in running:
+            reported = job.get("agentResults") or {}
+            for aid in job.get("dispatchedAgents") or []:
+                if aid.replace(".", "_").replace("$", "_") not in reported:
+                    active_jobs.setdefault(aid, {"id": job.get("id"), "type": job.get("type")})
 
         results = []
         for agent in agents:
@@ -325,8 +335,11 @@ async def get_os_patches(
                 "os_version":      agent.get("metadata", {}).get("os_version", "Unknown"),
                 "status":          agent.get("status", "unknown"),
                 "pending_count":   len(pending_ids),
-                "last_checked":    (system_patching.get("timestamp") or os_patches.get("last_checked")
-                                    or agent.get("lastSeen")),
+                # When the pending list was scanned (Rust "timestamp", Python "last_scan"),
+                # not the heartbeat time: os_patches is re-sent every heartbeat.
+                "last_checked":    (system_patching.get("timestamp") or system_patching.get("last_scan")
+                                    or os_patches.get("last_checked") or agent.get("lastSeen")),
+                "active_job":      active_jobs.get(agent.get("id")),
                 "scan_error":      system_patching.get("scan_error") or os_patches.get("scan_error"),
                 "pending_updates": pending_ids,
                 "pending_details": pending_details,

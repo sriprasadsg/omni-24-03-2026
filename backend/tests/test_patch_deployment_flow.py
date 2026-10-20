@@ -74,11 +74,11 @@ class _Col:
 
     def _apply(self, doc, update):
         for key, val in update.get("$set", {}).items():
-            target, *path = key.split(".")
-            if path:
-                doc.setdefault(target, {})[path[0]] = val
-            else:
-                doc[target] = val
+            *parents, leaf = key.split(".")
+            target = doc
+            for p in parents:
+                target = target.setdefault(p, {})
+            target[leaf] = val
         for key, val in update.get("$push", {}).items():
             doc.setdefault(key, []).extend(val["$each"] if isinstance(val, dict) and "$each" in val else [val])
 
@@ -287,6 +287,55 @@ def test_an_agent_rejecting_the_instruction_fails_its_share_of_the_job():
     job = db.patch_deployment_jobs.docs[0]
     assert job["status"] == "Failed" and job["progress"] == 100
     assert "does not support" in job["agentResults"]["agent-win"]["error"]
+
+
+def _linux_agent_with_pending():
+    return {"id": "agent-lin", "tenantId": "t1", "hostname": "lin1", "status": "Online", "meta": {
+        "system_patching": {"pending_updates": [{"id": p, "package": p, "title": p} for p in
+                                                ("openssl", "curl", "tzdata", "snapd")],
+                            "pending_update_count": 4, "last_scan": "2026-10-20T14:26:07+00:00"},
+        "os_patches": {"items": ["openssl", "curl", "tzdata", "snapd"], "pending_count": 4}}}
+
+
+def test_a_finished_install_drops_what_it_cleared_from_the_pending_lists():
+    """The agent rescans pending updates only hourly, so the OS Patches tab kept
+    listing packages a job had just upgraded (2026-10-20, Omniai-copy)."""
+    from patch_software_endpoints import pending_patch_ids
+    db = _DB(agents=[_linux_agent_with_pending()])
+    _job_for(db, ["agent-lin"])
+    resp = _report(db, "agent-lin", "job-9", {"status": "partial", "successful": 1, "failed": 1, "total": 3,
+        "results": [{"patch_id": "openssl", "status": "success", "message": "Upgraded 3.0.1 -> 3.0.2"},
+                    {"patch_id": "tzdata", "status": "skipped", "message": "Already at the newest available version"},
+                    {"patch_id": "curl", "status": "failed", "message": "apt-get failed"}]})
+    assert resp.status_code == 200, resp.text
+    agent = db.agents.docs[0]
+    assert pending_patch_ids(agent)[0] == ["curl", "snapd"]
+    assert agent["meta"]["system_patching"]["pending_update_count"] == 2
+    assert agent["meta"]["os_patches"]["pending_count"] == 2
+
+
+def test_a_rollback_leaves_the_pending_lists_to_the_agents_next_scan():
+    db = _DB(agents=[_linux_agent_with_pending()])
+    _job_for(db, ["agent-lin"])["type"] = "Patch Rollback"
+    _report(db, "agent-lin", "job-9", {"status": "completed", "successful": 1, "failed": 0, "total": 1,
+                                       "results": [{"patch_id": "openssl", "status": "success"}]})
+    assert db.agents.docs[0]["meta"]["os_patches"]["items"] == ["openssl", "curl", "tzdata", "snapd"]
+
+
+def test_os_tab_shows_a_running_job_and_when_the_list_was_scanned(admin_user):
+    app, db = _client(_DB(agents=[_linux_agent_with_pending(), AGENTS[0]]), admin_user)
+    _job_for(db, ["agent-lin"])
+    with patch("patch_software_endpoints.get_database", return_value=db), TestClient(app) as c:
+        assets = {a["agent_id"]: a for a in c.get("/api/patches/os").json()["assets"]}
+        assert assets["agent-lin"]["active_job"] == {"id": "job-9", "type": "Patch Deployment"}
+        assert assets["agent-lin"]["last_checked"] == "2026-10-20T14:26:07+00:00"
+        assert assets["agent-win"]["active_job"] is None
+
+        _report(db, "agent-lin", "job-9", {"status": "completed", "successful": 1, "failed": 0, "total": 1,
+                                           "results": [{"patch_id": "openssl", "status": "success"}]})
+        lin = next(a for a in c.get("/api/patches/os").json()["assets"] if a["agent_id"] == "agent-lin")
+        assert lin["active_job"] is None
+        assert "openssl" not in lin["pending_updates"] and lin["pending_count"] == 3
 
 
 # ── the scheduler releases due jobs ──────────────────────────────────────────

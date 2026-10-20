@@ -123,6 +123,50 @@ _STATUS_MAP = {
 }
 
 
+# Per-patch outcomes after which the update is no longer pending on the host:
+# installed now, or skipped as already installed / no longer offered.
+_CLEARED_STATUSES = {"success", "skipped"}
+
+
+async def clear_installed_from_pending(db, agent_id: str, results: List[Dict]) -> None:
+    """Drop the patches an install job just cleared from the agent's stored pending
+    lists, so the OS Patches tab stops listing them as soon as the job reports.
+    Agents rescan pending updates on their own schedule (the Python agent hourly),
+    and their next scan replaces these lists anyway."""
+    from patch_core_endpoints import pending_entry_id
+    done = {pending_entry_id(r.get("patch_id")) for r in results
+            if r.get("status") in _CLEARED_STATUSES} - {None}
+    if not done:
+        return
+    agent = await db.agents.find_one(
+        {"id": agent_id}, {"_id": 0, "meta.system_patching": 1, "meta.os_patches": 1, "pending_os_updates": 1})
+    if not agent:
+        return
+    meta = agent.get("meta") or {}
+    update: Dict[str, Any] = {}
+    for path, items_key, count_key in (("meta.system_patching", "pending_updates", "pending_update_count"),
+                                       ("meta.os_patches", "items", "pending_count")):
+        section = meta.get(path.split(".", 1)[1]) or {}
+        items = section.get(items_key)
+        if not isinstance(items, list):
+            continue
+        left = [i for i in items if pending_entry_id(i) not in done]
+        if len(left) == len(items):
+            continue
+        update[f"{path}.{items_key}"] = left
+        # The count can exceed the list, which agents cap at 50 entries.
+        count = section.get(count_key)
+        count = count if isinstance(count, int) else len(items)
+        update[f"{path}.{count_key}"] = max(len(left), count - (len(items) - len(left)))
+    legacy = agent.get("pending_os_updates")
+    if isinstance(legacy, list):
+        left = [i for i in legacy if pending_entry_id(i) not in done]
+        if len(left) != len(legacy):
+            update["pending_os_updates"] = left
+    if update:
+        await db.agents.update_one({"id": agent_id}, {"$set": update})
+
+
 def _result_log(results: List[Dict], prefix: str) -> List[Dict]:
     return [
         {
@@ -168,7 +212,10 @@ async def record_agent_patch_result(db, job_id: str, agent_id: str, data: Dict[s
     )
 
     job = await db.patch_deployment_jobs.find_one(
-        {"id": job_id}, {"_id": 0, "dispatchedAgents": 1, "agentResults": 1}) or {}
+        {"id": job_id}, {"_id": 0, "dispatchedAgents": 1, "agentResults": 1, "type": 1}) or {}
+    # A rollback makes packages pending again; the agent's next scan reports those.
+    if job.get("type") != "Patch Rollback":
+        await clear_installed_from_pending(db, agent_id, results)
     # Jobs created before per-agent tracking have no dispatchedAgents: this report decides them.
     dispatched = [a.replace(".", "_").replace("$", "_") for a in job.get("dispatchedAgents") or []] or [key]
     reported = {k: v for k, v in (job.get("agentResults") or {}).items() if k in dispatched}

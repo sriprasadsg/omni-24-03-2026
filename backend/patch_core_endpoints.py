@@ -89,6 +89,15 @@ def installable_patch_id(value) -> Optional[str]:
     return v
 
 
+def pending_entry_id(entry) -> Optional[str]:
+    """The installable id of one reported pending update: a plain id string (Python
+    agent os_patches.items) or an {id|kb|package, title, ...} object (system_patching)."""
+    if isinstance(entry, dict):
+        kb = str(entry.get("kb") or "").strip()
+        entry = entry.get("id") or (f"KB{kb}" if kb.isdigit() else None) or entry.get("package")
+    return installable_patch_id(entry)
+
+
 def new_patch_job(job_id: str, tenant_id: str, patch_ids: List[str], target_assets: List[str],
                   agent_ids: List[str], created_by: str, deployment_type: str,
                   scheduled_at: Optional[str], now: str, status: str) -> dict:

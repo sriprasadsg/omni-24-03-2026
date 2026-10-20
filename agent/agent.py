@@ -512,6 +512,10 @@ class AgentCapabilityManager:
                     result = {"status": "failed", "error": str(e), "results": [], "total": len(patch_ids),
                               "successful": 0, "failed": len(patch_ids), "job_id": job_id}
                 logger.info("Patch job %s finished: %s", job_id, result.get("status"))
+                # Rescan pending updates on the next cycle, not up to an hour later.
+                scan_cap = self.capability_instances.get('system_patching')
+                if scan_cap is not None:
+                    scan_cap.last_run = None
                 if not job_id:
                     return
                 try:
@@ -1579,7 +1583,9 @@ def collect_software_inventory():
             if upgradable:
                 items = []
                 for line in upgradable.splitlines():
-                    if "/" in line and "upgradable" not in line:
+                    # Every entry reads "pkg/suite ver arch [upgradable from: old]";
+                    # only the "Listing..." header has no slash.
+                    if "/" in line:
                         pkg_name = line.split("/")[0]
                         items.append(pkg_name)
                 os_patches["pending_count"] = len(items)

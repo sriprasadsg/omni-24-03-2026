@@ -103,8 +103,9 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
         }
     }, [tenantId]);
 
-    const fetchOsPatches = useCallback(async () => {
-        setOsPatchesLoading(true);
+    const fetchOsPatches = useCallback(async (silent = false) => {
+        // Background refreshes keep the list on screen instead of the loading spinner.
+        if (!silent) setOsPatchesLoading(true);
         try {
             const res = await authFetch(withTenant('/api/patches/os'));
             if (res.ok) {
@@ -180,6 +181,8 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
             if (res.ok) {
                 const data = await res.json();
                 setScanMessage(`OS patch deployment queued. Job ID: ${data.job_id}`);
+                // Shows the asset as installing; the poll below refreshes it when the job ends.
+                await fetchOsPatches(true);
             } else {
                 const error = await res.json();
                 showToast(`Error: ${error.error || error.detail || 'Failed to trigger patches'}`, 'error');
@@ -214,6 +217,14 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
     useEffect(() => {
         if (activeTab === 'software-updates') fetchOutdatedPackages(pkgTypeFilter);
     }, [pkgTypeFilter]);
+
+    // While an agent is still installing, re-read the list so finished patches drop off.
+    const osJobRunning = osPatches.some(a => a.active_job);
+    useEffect(() => {
+        if (activeTab !== 'os-patches' || !osJobRunning) return;
+        const timer = setInterval(() => fetchOsPatches(true), 10000);
+        return () => clearInterval(timer);
+    }, [activeTab, osJobRunning, fetchOsPatches]);
 
     const handleDeploy = async (deploymentType: 'Immediate' | 'Scheduled', scheduleTime?: string) => {
         const assetIdsToPatch = new Set<string>();
@@ -409,7 +420,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
                     osPatchesMeta={osPatchesMeta}
                     osPatchesLoading={osPatchesLoading}
                     deployingAssetPatches={deployingAssetPatches}
-                    onRefresh={fetchOsPatches}
+                    onRefresh={() => fetchOsPatches()}
                     onApplyOsPatches={handleApplyOsPatches}
                 />
             )}

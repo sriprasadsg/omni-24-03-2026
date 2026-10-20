@@ -187,10 +187,42 @@ class TestStartPatchJob(unittest.TestCase):
         self.cap.execute_deployment.assert_called_once_with(["KB5034441"], "job-10")
         self.assertEqual(post.call_args[0][0], "https://platform.example.test/api/deployments/job-10/result")
 
+    def test_a_finished_job_rescans_pending_updates_on_the_next_cycle(self):
+        scan = MagicMock(last_run="2026-10-20T14:26:07")
+        self.mgr.capability_instances["system_patching"] = scan
+        posted = threading.Event()
+        with patch.object(self.agent_module.requests, "post", side_effect=lambda *a, **k: posted.set()):
+            self.agent_module.AgentCapabilityManager.start_patch_job(
+                self.mgr, "install_patches", {"patch_ids": ["openssl"], "job_id": "job-11"})
+            self.assertTrue(posted.wait(5), "the result was never reported")
+        self.assertIsNone(scan.last_run)
+
     def test_an_instruction_without_patch_ids_is_an_error(self):
         reply = self.agent_module.AgentCapabilityManager.start_patch_job(self.mgr, "install_patches", {})
         self.assertEqual(reply["status"], "error")
         self.cap.execute_deployment.assert_not_called()
+
+
+class TestInventoryPendingPatches(unittest.TestCase):
+    """collect_software_inventory's os_patches: every `apt list --upgradable` entry
+    contains "upgradable from", which the old filter dropped, so it always sent 0."""
+
+    def test_counts_every_upgradable_apt_package(self):
+        import agent as agent_module
+        listing = ("Listing... Done\n"
+                   "git/noble-updates 1:2.43.0-1ubuntu7.4 amd64 [upgradable from: 1:2.43.0-1ubuntu7.3]\n"
+                   "snapd/noble-updates 2.77.1+ubuntu24.04 amd64 [upgradable from: 2.76.3+ubuntu24.04]\n")
+
+        def run(cmd, **kwargs):
+            out = listing if cmd[:3] == ["apt", "list", "--upgradable"] else ""
+            return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        with patch("platform.system", return_value="Linux"), \
+             patch("shutil.which", return_value="/usr/bin/apt"), \
+             patch("subprocess.run", side_effect=run):
+            _, os_patches = agent_module.collect_software_inventory()
+        self.assertEqual(os_patches["items"], ["git", "snapd"])
+        self.assertEqual(os_patches["pending_count"], 2)
 
 
 if __name__ == "__main__":

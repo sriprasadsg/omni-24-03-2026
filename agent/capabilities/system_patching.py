@@ -25,7 +25,8 @@ class SystemPatchingCapability(BaseCapability):
             "pending_updates": [],
             "bios_info": {},
             "uptime": {},
-            "last_scan": datetime.datetime.now().isoformat()
+            # UTC with offset, so the dashboard shows it in the viewer's local time
+            "last_scan": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
         self._scan_error = None
 

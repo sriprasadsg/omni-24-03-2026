@@ -11,6 +11,8 @@ export interface OsAssetPatch {
     pending_updates: string[];
     pending_details?: { id: string; title: string; severity: string }[];
     scan_error?: string | null;
+    // A patch job this agent has not reported on yet
+    active_job?: { id: string; type?: string } | null;
 }
 
 interface Props {
@@ -72,7 +74,13 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                                     <span className={`px-2 py-1 rounded-full text-xs ${isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                         {asset.status}
                                     </span>
-                                    {asset.pending_count > 0 && isOnline && (
+                                    {asset.active_job && (
+                                        <span title={`Job ${asset.active_job.id}`} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                                            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full mr-1" />
+                                            {asset.active_job.type === 'Patch Rollback' ? 'Rolling back…' : 'Installing…'}
+                                        </span>
+                                    )}
+                                    {asset.pending_count > 0 && isOnline && !asset.active_job && (
                                         <button onClick={() => onApplyOsPatches(asset.agent_id, asset.pending_updates)}
                                             disabled={deployingAssetPatches.has(asset.agent_id)}
                                             className="ml-2 px-3 py-1 text-xs font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:bg-gray-400 transition-colors">

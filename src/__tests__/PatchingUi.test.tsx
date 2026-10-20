@@ -43,6 +43,14 @@ describe('OsPatchesTab', () => {
     expect(screen.queryByText('Up to date')).toBeNull();
     expect(screen.getByText(/0x8024402C/)).toBeTruthy();
   });
+
+  it('shows the running install instead of offering the same patches again', () => {
+    const installing = { ...windowsAsset, active_job: { id: 'patch-job-1', type: 'Patch Deployment' } };
+    render(<OsPatchesTab osPatches={[installing]} osPatchesMeta={null} osPatchesLoading={false}
+      deployingAssetPatches={new Set()} onRefresh={vi.fn()} onApplyOsPatches={vi.fn()} />);
+    expect(screen.getByText('Installing…')).toBeTruthy();
+    expect(screen.queryByText(/Deploy All/)).toBeNull();
+  });
 });
 
 describe('PatchDeploymentJobs', () => {
@@ -86,5 +94,32 @@ describe('PatchManagementDashboard tenant view', () => {
       onSchedulePatchDeployment={vi.fn()} onScheduleVulnerabilityScan={vi.fn()} tenantId={null} />);
     fireEvent.click(screen.getByText(/OS Patches/));
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/patches/os'));
+  });
+
+  // 2026-10-20: after Deploy All the tab never re-read the list, so finished
+  // patches stayed "pending" until a manual refresh.
+  it('re-reads the OS patch list after a deploy and while the install runs', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const osList = (activeJob: unknown) => ({ ok: true, json: () => Promise.resolve({
+        assets: [{ ...windowsAsset, active_job: activeJob }], total_pending_os_patches: 1 }) });
+      let osCalls = 0;
+      authFetch.mockImplementation((url: string) => Promise.resolve(
+        url === '/api/patches/apply-os-patches'
+          ? { ok: true, json: () => Promise.resolve({ success: true, job_id: 'patch-job-1' }) }
+          : url === '/api/patches/os'
+            ? osList(osCalls++ === 0 ? null : { id: 'patch-job-1', type: 'Patch Deployment' })
+            : { ok: false, json: () => Promise.resolve([]) }));
+      render(<PatchManagementDashboard patches={[]} assets={[]} patchDeploymentJobs={[]} vulnerabilityScanJobs={[]}
+        onSchedulePatchDeployment={vi.fn()} onScheduleVulnerabilityScan={vi.fn()} tenantId={null} />);
+      fireEvent.click(screen.getByText(/OS Patches/));
+      fireEvent.click(await screen.findByText(/Deploy All/));
+      expect(await screen.findByText('Installing…')).toBeTruthy();
+      const before = osCalls;
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(osCalls).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
