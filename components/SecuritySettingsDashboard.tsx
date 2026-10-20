@@ -79,26 +79,26 @@ export function SecuritySettingsDashboard() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-900 min-h-screen text-white">
-        <p className="text-gray-400 text-sm">Loading security settings…</p>
+      <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
+        <p className="text-gray-600 dark:text-gray-400 text-sm">Loading security settings…</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Security Settings</h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
           Agent-scoped geo security detectors — alert-only, never connection-blocking.
         </p>
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-[240px]">
             <h2 className="font-medium text-sm">Impossible-Travel Detection</h2>
-            <p className="text-gray-400 text-xs mt-1">
+            <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">
               Flags an agent whose two most-recent check-ins imply travel faster than commercial-flight
               speed (~1000 km/h). Suppressed automatically when either check-in carries a VPN/hosting
               heuristic flag, to avoid corporate-VPN false positives. Alert-only — no connection impact.
@@ -111,18 +111,18 @@ export function SecuritySettingsDashboard() {
             aria-label={settings.impossible_travel_enabled ? 'Disable impossible-travel detection' : 'Enable impossible-travel detection'}
             disabled={busy}
             onClick={toggleImpossibleTravel}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${settings.impossible_travel_enabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${settings.impossible_travel_enabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`}
           >
             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.impossible_travel_enabled ? 'translate-x-5' : 'translate-x-1'}`} />
           </button>
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex-1 min-w-[240px]">
             <h2 className="font-medium text-sm">Geo-Fence Detection</h2>
-            <p className="text-gray-400 text-xs mt-1">
+            <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">
               Alert-only (no blocking or quarantine) — a check-in from a country outside the allowed-region
               allowlist below raises an alert. Enable this only after populating the allowlist; an empty
               allowlist means every country will be flagged.
@@ -135,16 +135,16 @@ export function SecuritySettingsDashboard() {
             aria-label={settings.geo_fence_enabled ? 'Disable geo-fence detection' : 'Enable geo-fence detection'}
             disabled={busy}
             onClick={toggleGeoFence}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${settings.geo_fence_enabled ? 'bg-blue-600' : 'bg-gray-600'}`}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${settings.geo_fence_enabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`}
           >
             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${settings.geo_fence_enabled ? 'translate-x-5' : 'translate-x-1'}`} />
           </button>
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
         <h2 className="font-medium text-sm mb-1">Allowed Regions</h2>
-        <p className="text-gray-400 text-xs mb-3">
+        <p className="text-gray-600 dark:text-gray-400 text-xs mb-3">
           ISO 3166 alpha-2 country-code allowlist checked by geo-fence detection. Add the countries your
           agents are expected to check in from.
         </p>
@@ -155,7 +155,7 @@ export function SecuritySettingsDashboard() {
           {settings.allowed_country_codes.map((code) => (
             <span
               key={code}
-              className="inline-flex items-center gap-1.5 bg-gray-700 border border-gray-600 rounded-full px-3 py-1 text-xs"
+              className="inline-flex items-center gap-1.5 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full px-3 py-1 text-xs"
             >
               {code}
               <button
@@ -163,7 +163,7 @@ export function SecuritySettingsDashboard() {
                 aria-label={`Remove ${code} from allowed regions`}
                 disabled={busy}
                 onClick={() => removeCountryCode(code)}
-                className="text-gray-400 hover:text-red-400 disabled:opacity-50"
+                className="text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
               >
                 ×
               </button>
@@ -179,13 +179,13 @@ export function SecuritySettingsDashboard() {
             maxLength={2}
             placeholder="e.g. US"
             aria-label="Add country code"
-            className="bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-sm w-24 uppercase"
+            className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm w-24 uppercase"
           />
           <button
             type="button"
             onClick={addCountryCode}
             disabled={busy}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-1.5 rounded-lg text-sm font-medium"
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-1.5 rounded-lg text-sm font-medium text-white"
           >
             + Add
           </button>

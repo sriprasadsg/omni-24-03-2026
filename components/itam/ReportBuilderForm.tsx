@@ -38,7 +38,7 @@ const ENTITY_LABELS: Record<string, string> = {
 const RUN_ERROR = "Couldn't run report. Try adjusting your filters or contact an administrator.";
 const SAVE_ERROR = "Couldn't save report. Give it a name and try again.";
 
-const inputClass = 'bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-white';
+const inputClass = 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-900 dark:text-white';
 
 interface ReportBuilderFormProps {
   onPreview: (definition: ItamCustomReportDefinition, page: number) => Promise<void>;
@@ -159,7 +159,7 @@ export function ReportBuilderForm({ onPreview, onSave, busy }: ReportBuilderForm
   const valueInputType = draftFieldMeta?.type === 'number' ? 'number' : draftFieldMeta?.type === 'date' ? 'date' : 'text';
 
   return (
-    <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
       <div className="mb-4">
         <label className="block text-xs font-semibold text-gray-500 mb-1" htmlFor="custom-report-name">Report Name</label>
         <input
@@ -188,7 +188,7 @@ export function ReportBuilderForm({ onPreview, onSave, busy }: ReportBuilderForm
                     className={`text-xs font-semibold px-2 py-1 rounded-full border transition-colors ${
                       selectedColumns.includes(f.key)
                         ? 'bg-cyan-600 border-cyan-500 text-white'
-                        : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-gray-200'
+                        : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
                     }`}
                   >
                     {f.label}
@@ -214,15 +214,15 @@ export function ReportBuilderForm({ onPreview, onSave, busy }: ReportBuilderForm
               const opLabel = OPERATOR_LABELS[f.operator] || f.operator;
               const valueText = f.operator === 'between' ? `${f.value} and ${f.value2}` : String(f.value ?? '');
               return (
-                <div key={idx} className="flex items-center justify-between gap-2 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5">
-                  <span className="text-xs text-gray-300 truncate" title={`${label} ${opLabel} ${valueText}`}>
-                    <span className="font-semibold text-white">{label}</span> {opLabel} <span className="truncate">{valueText}</span>
+                <div key={idx} className="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5">
+                  <span className="text-xs text-gray-700 dark:text-gray-300 truncate" title={`${label} ${opLabel} ${valueText}`}>
+                    <span className="font-semibold text-gray-900 dark:text-white">{label}</span> {opLabel} <span className="truncate">{valueText}</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => removeFilter(idx)}
                     aria-label={`Remove filter ${label}`}
-                    className="text-red-400 hover:text-red-300 flex-shrink-0"
+                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0"
                   >
                     <TrashIcon size={14} />
                   </button>
@@ -274,7 +274,7 @@ export function ReportBuilderForm({ onPreview, onSave, busy }: ReportBuilderForm
             onClick={handleAddFilter}
             disabled={!canAddFilter}
             aria-label="Add filter"
-            className="bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white p-1.5 rounded-lg transition-colors"
+            className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 text-gray-900 dark:text-white p-1.5 rounded-lg transition-colors"
           >
             <PlusIcon size={14} />
           </button>
@@ -294,11 +294,11 @@ export function ReportBuilderForm({ onPreview, onSave, busy }: ReportBuilderForm
           type="button"
           onClick={handleSaveClick}
           disabled={busy || selectedColumns.length === 0 || !reportName.trim()}
-          className="flex items-center gap-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-900 dark:text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
         >
           <SaveIcon size={14} /> Save Report
         </button>
-        {busy && <p className="text-gray-400 text-sm">Loading…</p>}
+        {busy && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
       </div>
     </div>
   );

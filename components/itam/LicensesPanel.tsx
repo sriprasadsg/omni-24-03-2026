@@ -22,7 +22,7 @@ export function LicensesPanel() {
             onClick={() => setSection(s)}
             aria-current={section === s ? 'page' : undefined}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${
-              section === s ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+              section === s ? 'bg-cyan-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
             {s}
@@ -103,22 +103,22 @@ function LicensesSection() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Software Licenses</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Software Licenses</h3>
         <button onClick={() => setAddOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Add License</button>
       </div>
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        {loading && <p className="text-gray-400 text-sm">Loading…</p>}
-        {error && !loading && <p className="text-red-400 text-sm">{error}</p>}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
+        {error && !loading && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
         {!loading && !error && licenses.length === 0 && (
           <div className="text-center py-8">
-            <h3 className="text-sm font-semibold text-white mb-1">No licenses yet</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No licenses yet</h3>
             <p className="text-gray-500 text-xs">Add a software license to start tracking seats and expiry.</p>
           </div>
         )}
         {!loading && !error && licenses.length > 0 && (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
+              <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Seats</th>
                 <th className="py-2 pr-4">Expiry</th>
@@ -127,19 +127,19 @@ function LicensesSection() {
             </thead>
             <tbody>
               {licenses.map((l) => (
-                <tr key={l.id} className="border-b border-gray-800">
-                  <td className="py-2 pr-4 text-white font-medium">{l.name}</td>
-                  <td className="py-2 pr-4 text-gray-300">{l.seatsAvailable ?? '—'} / {l.seatCount}</td>
+                <tr key={l.id} className="border-b border-gray-200 dark:border-gray-800">
+                  <td className="py-2 pr-4 text-gray-900 dark:text-white font-medium">{l.name}</td>
+                  <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{l.seatsAvailable ?? '—'} / {l.seatCount}</td>
                   <td className="py-2 pr-4">
                     {l.expiryDate ? (
-                      <span className={`text-xs px-2 py-0.5 rounded border ${l.isExpired ? 'text-red-400 bg-red-900/20 border-red-800' : 'text-green-500 bg-green-900/20 border-green-800'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded border ${l.isExpired ? 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'text-green-500 bg-green-100 dark:bg-green-900/20 border-green-200 dark:border-green-800'}`}>
                         {l.expiryDate.slice(0, 10)}
                       </span>
                     ) : '—'}
                   </td>
                   <td className="py-2 pr-4 text-right whitespace-nowrap">
-                    <button onClick={() => setAssignTarget(l)} className="text-cyan-400 hover:text-cyan-300 text-xs font-medium mr-3">Assign Seat</button>
-                    <button onClick={() => handleReclaimFirstSeat(l)} className="text-red-400 hover:text-red-300 text-xs font-medium">Reclaim Seat</button>
+                    <button onClick={() => setAssignTarget(l)} className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 text-xs font-medium mr-3">Assign Seat</button>
+                    <button onClick={() => handleReclaimFirstSeat(l)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs font-medium">Reclaim Seat</button>
                   </td>
                 </tr>
               ))}
@@ -150,19 +150,19 @@ function LicensesSection() {
 
       <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add License" confirmLabel="Save" onConfirm={handleCreate}>
         <div className="space-y-3 mb-4">
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="License name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Name" />
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" type="number" min={0} placeholder="Seat count" value={form.seatCount} onChange={(e) => setForm({ ...form, seatCount: e.target.value })} aria-label="Seat Count" />
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} aria-label="Expiry Date" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder="License name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Name" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" type="number" min={0} placeholder="Seat count" value={form.seatCount} onChange={(e) => setForm({ ...form, seatCount: e.target.value })} aria-label="Seat Count" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} aria-label="Expiry Date" />
         </div>
       </Modal>
 
       <Modal isOpen={!!assignTarget} onClose={() => setAssignTarget(null)} title="Assign Seat" confirmLabel="Assign Seat" onConfirm={handleAssign}>
         <div className="space-y-3 mb-4">
-          <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" value={assignForm.targetType} onChange={(e) => setAssignForm({ ...assignForm, targetType: e.target.value as 'user' | 'asset' })} aria-label="Target Type">
+          <select className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" value={assignForm.targetType} onChange={(e) => setAssignForm({ ...assignForm, targetType: e.target.value as 'user' | 'asset' })} aria-label="Target Type">
             <option value="user">User</option>
             <option value="asset">Asset</option>
           </select>
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder={assignForm.targetType === 'user' ? 'User ID' : 'Asset ID'} value={assignForm.targetId} onChange={(e) => setAssignForm({ ...assignForm, targetId: e.target.value })} aria-label="Target ID" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder={assignForm.targetType === 'user' ? 'User ID' : 'Asset ID'} value={assignForm.targetId} onChange={(e) => setAssignForm({ ...assignForm, targetId: e.target.value })} aria-label="Target ID" />
         </div>
       </Modal>
     </div>
@@ -225,21 +225,21 @@ function ConsumablesSection() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Consumables</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Consumables</h3>
         <button onClick={() => setAddOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Add Consumable</button>
       </div>
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        {loading && <p className="text-gray-400 text-sm">Loading…</p>}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
         {!loading && items.length === 0 && (
           <div className="text-center py-8">
-            <h3 className="text-sm font-semibold text-white mb-1">No consumables yet</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No consumables yet</h3>
             <p className="text-gray-500 text-xs">Add an accessory or consumable to start tracking stock.</p>
           </div>
         )}
         {!loading && items.length > 0 && (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
+              <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Available</th>
                 <th className="py-2 pr-4" />
@@ -247,12 +247,12 @@ function ConsumablesSection() {
             </thead>
             <tbody>
               {items.map((c) => (
-                <tr key={c.id} className="border-b border-gray-800">
-                  <td className="py-2 pr-4 text-white font-medium">{c.name}</td>
-                  <td className="py-2 pr-4 text-gray-300">{c.availableQuantity} / {c.initialQuantity} {c.unitType}</td>
+                <tr key={c.id} className="border-b border-gray-200 dark:border-gray-800">
+                  <td className="py-2 pr-4 text-gray-900 dark:text-white font-medium">{c.name}</td>
+                  <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{c.availableQuantity} / {c.initialQuantity} {c.unitType}</td>
                   <td className="py-2 pr-4 text-right whitespace-nowrap">
-                    <button onClick={() => setCheckoutTarget(c)} className="text-cyan-400 hover:text-cyan-300 text-xs font-medium mr-3">Check Out</button>
-                    <button onClick={() => handleCheckin(c)} className="text-gray-400 hover:text-gray-200 text-xs font-medium">Check In</button>
+                    <button onClick={() => setCheckoutTarget(c)} className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 text-xs font-medium mr-3">Check Out</button>
+                    <button onClick={() => handleCheckin(c)} className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs font-medium">Check In</button>
                   </td>
                 </tr>
               ))}
@@ -263,21 +263,21 @@ function ConsumablesSection() {
 
       <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add Consumable" confirmLabel="Save" onConfirm={handleCreate}>
         <div className="space-y-3 mb-4">
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Name" />
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" type="number" min={0} placeholder="Initial quantity" value={form.initialQuantity} onChange={(e) => setForm({ ...form, initialQuantity: e.target.value })} aria-label="Initial Quantity" />
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Unit type (e.g. unit, pack)" value={form.unitType} onChange={(e) => setForm({ ...form, unitType: e.target.value })} aria-label="Unit Type" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Name" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" type="number" min={0} placeholder="Initial quantity" value={form.initialQuantity} onChange={(e) => setForm({ ...form, initialQuantity: e.target.value })} aria-label="Initial Quantity" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder="Unit type (e.g. unit, pack)" value={form.unitType} onChange={(e) => setForm({ ...form, unitType: e.target.value })} aria-label="Unit Type" />
         </div>
       </Modal>
 
       <Modal isOpen={!!checkoutTarget} onClose={() => setCheckoutTarget(null)} title="Check Out Consumable" confirmLabel="Check Out" onConfirm={handleCheckout}>
         <div className="space-y-3 mb-4">
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" type="number" min={1} placeholder="Quantity" value={checkoutForm.quantity} onChange={(e) => setCheckoutForm({ ...checkoutForm, quantity: e.target.value })} aria-label="Quantity" />
-          <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" value={checkoutForm.assignedToType} onChange={(e) => setCheckoutForm({ ...checkoutForm, assignedToType: e.target.value as any })} aria-label="Assigned To Type">
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" type="number" min={1} placeholder="Quantity" value={checkoutForm.quantity} onChange={(e) => setCheckoutForm({ ...checkoutForm, quantity: e.target.value })} aria-label="Quantity" />
+          <select className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" value={checkoutForm.assignedToType} onChange={(e) => setCheckoutForm({ ...checkoutForm, assignedToType: e.target.value as any })} aria-label="Assigned To Type">
             <option value="user">User</option>
             <option value="asset">Asset</option>
             <option value="location">Location</option>
           </select>
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Assigned To (id)" value={checkoutForm.assignedTo} onChange={(e) => setCheckoutForm({ ...checkoutForm, assignedTo: e.target.value })} aria-label="Assigned To" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder="Assigned To (id)" value={checkoutForm.assignedTo} onChange={(e) => setCheckoutForm({ ...checkoutForm, assignedTo: e.target.value })} aria-label="Assigned To" />
         </div>
       </Modal>
     </div>
@@ -339,21 +339,21 @@ function ComponentsSection() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-white">Components</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Components</h3>
         <button onClick={() => setAddOpen(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Add Component</button>
       </div>
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        {loading && <p className="text-gray-400 text-sm">Loading…</p>}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
         {!loading && items.length === 0 && (
           <div className="text-center py-8">
-            <h3 className="text-sm font-semibold text-white mb-1">No components yet</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No components yet</h3>
             <p className="text-gray-500 text-xs">Add a RAM/HDD/GPU-style component to attach it to an asset.</p>
           </div>
         )}
         {!loading && items.length > 0 && (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
+              <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Type</th>
                 <th className="py-2 pr-4">Attached To</th>
@@ -362,15 +362,15 @@ function ComponentsSection() {
             </thead>
             <tbody>
               {items.map((c) => (
-                <tr key={c.id} className="border-b border-gray-800">
-                  <td className="py-2 pr-4 text-white font-medium">{c.name}</td>
-                  <td className="py-2 pr-4 text-gray-400">{c.type || '—'}</td>
-                  <td className="py-2 pr-4 text-gray-400">{c.parentAssetId || '—'}</td>
+                <tr key={c.id} className="border-b border-gray-200 dark:border-gray-800">
+                  <td className="py-2 pr-4 text-gray-900 dark:text-white font-medium">{c.name}</td>
+                  <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{c.type || '—'}</td>
+                  <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{c.parentAssetId || '—'}</td>
                   <td className="py-2 pr-4 text-right whitespace-nowrap">
                     {c.parentAssetId ? (
-                      <button onClick={() => handleDetach(c)} className="text-red-400 hover:text-red-300 text-xs font-medium">Detach</button>
+                      <button onClick={() => handleDetach(c)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs font-medium">Detach</button>
                     ) : (
-                      <button onClick={() => setAttachTarget(c)} className="text-cyan-400 hover:text-cyan-300 text-xs font-medium">Attach</button>
+                      <button onClick={() => setAttachTarget(c)} className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 text-xs font-medium">Attach</button>
                     )}
                   </td>
                 </tr>
@@ -382,13 +382,13 @@ function ComponentsSection() {
 
       <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add Component" confirmLabel="Save" onConfirm={handleCreate}>
         <div className="space-y-3 mb-4">
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Name (e.g. RAM 16GB)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Name" />
-          <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="Type (e.g. ram, hdd, gpu)" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} aria-label="Type" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder="Name (e.g. RAM 16GB)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} aria-label="Name" />
+          <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white" placeholder="Type (e.g. ram, hdd, gpu)" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} aria-label="Type" />
         </div>
       </Modal>
 
       <Modal isOpen={!!attachTarget} onClose={() => setAttachTarget(null)} title="Attach Component" confirmLabel="Attach" onConfirm={handleAttach}>
-        <input className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white mb-4" placeholder="Asset ID" value={assetId} onChange={(e) => setAssetId(e.target.value)} aria-label="Asset ID" />
+        <input className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white mb-4" placeholder="Asset ID" value={assetId} onChange={(e) => setAssetId(e.target.value)} aria-label="Asset ID" />
       </Modal>
     </div>
   );

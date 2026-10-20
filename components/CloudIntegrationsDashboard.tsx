@@ -45,23 +45,23 @@ const PROVIDER_ICONS: Record<string, string> = {
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
-  azure: 'border-blue-500 bg-blue-900/10',
-  microsoft: 'border-blue-500 bg-blue-900/10',
-  gcp: 'border-green-500 bg-green-900/10',
-  aws: 'border-orange-500 bg-orange-900/10',
-  oci: 'border-red-500 bg-red-900/10',
-  ibm: 'border-indigo-500 bg-indigo-900/10',
-  alibaba: 'border-yellow-500 bg-yellow-900/10',
-  digitalocean: 'border-cyan-500 bg-cyan-900/10',
-  cloudflare: 'border-orange-400 bg-orange-900/10',
-  huawei: 'border-rose-500 bg-rose-900/10',
+  azure: 'border-blue-500 bg-blue-100 dark:bg-blue-900/10',
+  microsoft: 'border-blue-500 bg-blue-100 dark:bg-blue-900/10',
+  gcp: 'border-green-500 bg-green-100 dark:bg-green-900/10',
+  aws: 'border-orange-500 bg-orange-100 dark:bg-orange-900/10',
+  oci: 'border-red-500 bg-red-100 dark:bg-red-900/10',
+  ibm: 'border-indigo-500 bg-indigo-100 dark:bg-indigo-900/10',
+  alibaba: 'border-yellow-500 bg-yellow-100 dark:bg-yellow-900/10',
+  digitalocean: 'border-cyan-500 bg-cyan-100 dark:bg-cyan-900/10',
+  cloudflare: 'border-orange-400 bg-orange-100 dark:bg-orange-900/10',
+  huawei: 'border-rose-500 bg-rose-100 dark:bg-rose-900/10',
 };
 
 function providerColor(provider: string) {
   for (const key of Object.keys(PROVIDER_COLORS)) {
     if (provider.startsWith(key)) return PROVIDER_COLORS[key];
   }
-  return 'border-gray-500 bg-gray-900/10';
+  return 'border-gray-500 bg-white/10 dark:bg-gray-900/10';
 }
 
 export default function CloudIntegrationsDashboard() {
@@ -133,13 +133,13 @@ export default function CloudIntegrationsDashboard() {
   const selectedProviderInfo = providers[selectedProvider];
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Cloud Integrations</h1>
-          <p className="text-gray-400 text-sm mt-1">Connect Azure Defender, GCP SCC, AWS GuardDuty and more to ingest security events</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Connect Azure Defender, GCP SCC, AWS GuardDuty and more to ingest security events</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
+        <button onClick={() => setShowAdd(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
           + Add Integration
         </button>
       </div>
@@ -147,14 +147,14 @@ export default function CloudIntegrationsDashboard() {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { label: 'Total', value: summary.total, color: 'text-blue-400' },
-            { label: 'Active', value: summary.enabled, color: 'text-green-400' },
-            { label: 'Providers', value: Object.keys(summary.by_provider).length, color: 'text-purple-400' },
-            { label: 'Supported', value: summary.supported_providers.length, color: 'text-gray-400' },
+            { label: 'Total', value: summary.total, color: 'text-blue-600 dark:text-blue-400' },
+            { label: 'Active', value: summary.enabled, color: 'text-green-600 dark:text-green-400' },
+            { label: 'Providers', value: Object.keys(summary.by_provider).length, color: 'text-purple-600 dark:text-purple-400' },
+            { label: 'Supported', value: summary.supported_providers.length, color: 'text-gray-600 dark:text-gray-400' },
           ].map(c => (
-            <div key={c.label} className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
+            <div key={c.label} className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
               <div className={`text-3xl font-bold ${c.color}`}>{c.value}</div>
-              <div className="text-xs text-gray-400 mt-1">{c.label}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{c.label}</div>
             </div>
           ))}
         </div>
@@ -165,7 +165,7 @@ export default function CloudIntegrationsDashboard() {
           <div className="text-5xl mb-4">☁️</div>
           <p className="text-lg">No cloud integrations connected yet</p>
           <p className="text-sm mt-2">Connect Azure, GCP, or AWS to start ingesting security events</p>
-          <button onClick={() => setShowAdd(true)} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm">
+          <button onClick={() => setShowAdd(true)} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm text-white">
             Add First Integration
           </button>
         </div>
@@ -178,25 +178,25 @@ export default function CloudIntegrationsDashboard() {
                   <span className="text-2xl">{PROVIDER_ICONS[integ.provider] || '🔗'}</span>
                   <div>
                     <h3 className="font-semibold">{integ.name}</h3>
-                    <p className="text-xs text-gray-400">{integ.provider}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{integ.provider}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => toggleEnabled(integ.id, integ.enabled)}
-                  className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${integ.enabled ? 'bg-green-500' : 'bg-gray-600'}`}
+                  className={`relative inline-flex h-5 w-9 rounded-full transition-colors ${integ.enabled ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-600'}`}
                 >
                   <span className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white transition-transform ${integ.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </button>
               </div>
 
               {integ.last_polled && (
-                <div className="text-xs text-gray-400 mb-2">
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                   Last polled: {new Date(integ.last_polled).toLocaleString()} · {integ.last_poll_count} events
                 </div>
               )}
 
               {testResult[integ.id] && (
-                <div className={`text-xs rounded px-2 py-1 mb-2 ${testResult[integ.id].success ? 'bg-green-900/30 text-green-300' : 'bg-red-900/30 text-red-300'}`}>
+                <div className={`text-xs rounded px-2 py-1 mb-2 ${testResult[integ.id].success ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>
                   {testResult[integ.id].success
                     ? `✓ ${testResult[integ.id].events_ingested} events ingested`
                     : `✗ ${testResult[integ.id].error}`}
@@ -207,13 +207,13 @@ export default function CloudIntegrationsDashboard() {
                 <button
                   onClick={() => testIntegration(integ.id)}
                   disabled={testing === integ.id}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 px-3 py-1.5 rounded text-xs"
+                  className="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 px-3 py-1.5 rounded text-xs"
                 >
                   {testing === integ.id ? 'Testing...' : 'Test Poll'}
                 </button>
                 <button
                   onClick={() => deleteIntegration(integ.id)}
-                  className="bg-red-900/40 hover:bg-red-900/70 px-3 py-1.5 rounded text-xs text-red-300"
+                  className="bg-red-100 dark:bg-red-900/40 hover:bg-red-100 dark:hover:bg-red-900/70 px-3 py-1.5 rounded text-xs text-red-700 dark:text-red-300"
                 >
                   Delete
                 </button>
@@ -225,20 +225,20 @@ export default function CloudIntegrationsDashboard() {
 
       {showAdd && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-600 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-lg border border-gray-300 dark:border-gray-600 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-bold text-lg">Add Cloud Integration</h3>
-                <button onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-white">✕</button>
+                <button onClick={() => setShowAdd(false)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">✕</button>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-gray-400 block mb-2">Provider *</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-2">Provider *</label>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(providers).map(([id, p]) => (
                       <label key={id} className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer text-sm transition-colors ${
-                        selectedProvider === id ? 'border-blue-500 bg-blue-900/20' : 'border-gray-600 hover:border-gray-400'
+                        selectedProvider === id ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
                       }`}>
                         <input type="radio" name="provider" value={id} checked={selectedProvider === id}
                           onChange={() => { setSelectedProvider(id); setForm({}); setFormName(''); }} className="sr-only" />
@@ -254,36 +254,36 @@ export default function CloudIntegrationsDashboard() {
                 {selectedProvider && selectedProviderInfo && (
                   <>
                     <div>
-                      <label className="text-sm text-gray-400 block mb-1">Display Name</label>
+                      <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Display Name</label>
                       <input value={formName} onChange={e => setFormName(e.target.value)}
                         placeholder={selectedProviderInfo.name}
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                        className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                     </div>
-                    <div className="text-sm text-gray-400 bg-gray-700/40 rounded-lg p-3">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/40 rounded-lg p-3">
                       {selectedProviderInfo.description}
                     </div>
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-300">Required Configuration</p>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Required Configuration</p>
                       {selectedProviderInfo.required_fields.map(field => (
                         <div key={field}>
-                          <label className="text-xs text-gray-400 block mb-1 capitalize">{field.replace(/_/g, ' ')} *</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1 capitalize">{field.replace(/_/g, ' ')} *</label>
                           <input
                             type={field.includes('secret') || field.includes('password') || field.includes('key') ? 'password' : 'text'}
                             value={form[field] || ''}
                             onChange={e => setForm(prev => ({ ...prev, [field]: e.target.value }))}
-                            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white"
+                            className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-white"
                             placeholder={field.replace(/_/g, ' ')}
                           />
                         </div>
                       ))}
                       {selectedProviderInfo.optional_fields.length > 0 && (
                         <>
-                          <p className="text-sm font-medium text-gray-400 pt-1">Optional</p>
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 pt-1">Optional</p>
                           {selectedProviderInfo.optional_fields.map(field => (
                             <div key={field}>
-                              <label className="text-xs text-gray-400 block mb-1 capitalize">{field.replace(/_/g, ' ')}</label>
+                              <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1 capitalize">{field.replace(/_/g, ' ')}</label>
                               <input value={form[field] || ''} onChange={e => setForm(prev => ({ ...prev, [field]: e.target.value }))}
-                                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white"
+                                className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-white"
                                 placeholder={field.replace(/_/g, ' ')} />
                             </div>
                           ))}
@@ -295,10 +295,10 @@ export default function CloudIntegrationsDashboard() {
 
                 <div className="flex gap-3 pt-2">
                   <button onClick={createIntegration} disabled={saving || !selectedProvider}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium">
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {saving ? 'Saving...' : 'Add Integration'}
                   </button>
-                  <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-gray-600 text-sm">Cancel</button>
+                  <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">Cancel</button>
                 </div>
               </div>
             </div>

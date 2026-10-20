@@ -105,7 +105,7 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
               aria-current={selectedType === '' ? 'page' : undefined}
               aria-label="All entity types"
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                selectedType === '' ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                selectedType === '' ? 'bg-cyan-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
               All
@@ -117,7 +117,7 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
                 aria-current={selectedType === rt ? 'page' : undefined}
                 aria-label={`Filter by ${rt}`}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                  selectedType === rt ? 'bg-cyan-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                  selectedType === rt ? 'bg-cyan-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
               >
                 {rt}
@@ -130,13 +130,13 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
             placeholder="Filter by entity ID…"
             value={entityIdInput}
             onChange={(e) => setEntityIdInput(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500"
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-900 dark:text-white placeholder-gray-500"
           />
           <button
             onClick={handleVerifyIntegrity}
             disabled={verifying}
             aria-label="Verify ledger integrity"
-            className="ml-auto bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+            className="ml-auto bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-900 dark:text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
           >
             {verifying ? 'Verifying…' : 'Verify ledger integrity'}
           </button>
@@ -149,7 +149,7 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
             onClick={handleVerifyIntegrity}
             disabled={verifying}
             aria-label="Verify ledger integrity"
-            className="bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+            className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-900 dark:text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
           >
             {verifying ? 'Verifying…' : 'Verify ledger integrity'}
           </button>
@@ -157,22 +157,22 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
       )}
 
       {integrityError && (
-        <p role="alert" className="text-red-400 text-xs mb-3">{integrityError}</p>
+        <p role="alert" className="text-red-600 dark:text-red-400 text-xs mb-3">{integrityError}</p>
       )}
       {integrityResult && !integrityError && (
-        <p role="status" className={`text-xs mb-3 ${integrityResult.valid ? 'text-green-400' : 'text-red-400'}`}>
+        <p role="status" className={`text-xs mb-3 ${integrityResult.valid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
           {integrityResult.valid
             ? `Ledger verified — ${integrityResult.total_records ?? 0} record(s), chain intact.`
             : `Ledger integrity check failed — ${(integrityResult.broken_links || []).length} broken link(s).`}
         </p>
       )}
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        {loading && <p className="text-gray-400 text-sm">Loading…</p>}
-        {error && !loading && <p className="text-red-400 text-sm">{error}</p>}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
+        {error && !loading && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
         {!loading && !error && entries.length === 0 && (
           <div className="text-center py-8">
-            <h3 className="text-sm font-semibold text-white mb-1">No activity recorded yet</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No activity recorded yet</h3>
             {(filtered || effectiveResourceType || effectiveResourceId) && (
               <p className="text-gray-500 text-xs">No history found for this entity.</p>
             )}
@@ -181,7 +181,7 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
         {!loading && !error && entries.length > 0 && (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
+              <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
                 <th className="py-2 pr-4">Time</th>
                 <th className="py-2 pr-4">User</th>
                 <th className="py-2 pr-4">Action</th>
@@ -194,19 +194,19 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
             <tbody>
               {entries.map((entry, index) => (
                 <React.Fragment key={entry.id || index}>
-                  <tr className="border-b border-gray-800">
-                    <td className="py-2 pr-4 text-gray-400 whitespace-nowrap">{entry.timestamp}</td>
-                    <td className="py-2 pr-4 text-white font-medium">{entry.userName}</td>
-                    <td className="py-2 pr-4 text-cyan-400">{entry.action}</td>
-                    <td className="py-2 pr-4 text-gray-400">{entry.resourceType}</td>
-                    <td className="py-2 pr-4 text-gray-400">{entry.resourceId}</td>
-                    <td className="py-2 pr-4 text-gray-400 max-w-[320px] truncate" title={entry.details}>{entry.details}</td>
+                  <tr className="border-b border-gray-200 dark:border-gray-800">
+                    <td className="py-2 pr-4 text-gray-600 dark:text-gray-400 whitespace-nowrap">{entry.timestamp}</td>
+                    <td className="py-2 pr-4 text-gray-900 dark:text-white font-medium">{entry.userName}</td>
+                    <td className="py-2 pr-4 text-cyan-600 dark:text-cyan-400">{entry.action}</td>
+                    <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{entry.resourceType}</td>
+                    <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{entry.resourceId}</td>
+                    <td className="py-2 pr-4 text-gray-600 dark:text-gray-400 max-w-[320px] truncate" title={entry.details}>{entry.details}</td>
                     <td className="py-2 pr-4 text-right">
                       {entry.previousState != null && (
                         <button
                           onClick={() => toggleExpanded(entry.id)}
                           aria-label={`Toggle previous state for ${entry.id}`}
-                          className="text-xs text-cyan-400 hover:text-cyan-300"
+                          className="text-xs text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300"
                         >
                           {expanded[entry.id] ? 'Hide' : 'Show'} previous state
                         </button>
@@ -214,9 +214,9 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
                     </td>
                   </tr>
                   {expanded[entry.id] && entry.previousState != null && (
-                    <tr className="border-b border-gray-800">
+                    <tr className="border-b border-gray-200 dark:border-gray-800">
                       <td colSpan={7} className="py-2 pr-4">
-                        <pre className="text-xs text-gray-400 bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                        <pre className="text-xs text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-900 rounded-lg p-3 overflow-x-auto">
                           {JSON.stringify(entry.previousState, null, 2)}
                         </pre>
                       </td>
@@ -235,7 +235,7 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
             aria-label="Previous page"
-            className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+            className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-gray-900 dark:text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
           >
             Previous
           </button>
@@ -243,7 +243,7 @@ export function ActivityLogPanel({ resourceType: propResourceType, resourceId: p
             onClick={() => setPage((p) => p + 1)}
             disabled={!hasFullPage}
             aria-label="Next page"
-            className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+            className="bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 text-gray-900 dark:text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
           >
             Next
           </button>

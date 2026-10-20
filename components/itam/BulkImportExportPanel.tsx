@@ -79,9 +79,9 @@ export function BulkImportExportPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-white mb-1">Export assets</h2>
-        <p className="text-gray-400 text-xs mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Export assets</h2>
+        <p className="text-gray-600 dark:text-gray-400 text-xs mb-4">
           Download every asset in your tenant as a CSV file, including one column per custom field.
           Leave the model filter blank to export the full inventory.
         </p>
@@ -92,7 +92,7 @@ export function BulkImportExportPanel() {
             </label>
             <input
               id="itam-export-model-id"
-              className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-64"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-64"
               placeholder="e.g. model-abc12345"
               value={modelId}
               onChange={(e) => setModelId(e.target.value)}
@@ -107,12 +107,12 @@ export function BulkImportExportPanel() {
             {exporting ? 'Exporting…' : 'Export assets CSV'}
           </button>
         </div>
-        {exportError && <p className="text-red-400 text-xs mt-3">{exportError}</p>}
+        {exportError && <p className="text-red-600 dark:text-red-400 text-xs mt-3">{exportError}</p>}
       </div>
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-white mb-1">Import assets</h2>
-        <p className="text-gray-400 text-xs mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Import assets</h2>
+        <p className="text-gray-600 dark:text-gray-400 text-xs mb-4">
           Upload a CSV of assets. Columns match an Export — use Export above to get a correctly-shaped
           template, then edit it and re-upload. Custom fields go in <code>customFields.&lt;key&gt;</code> columns.
         </p>
@@ -125,7 +125,7 @@ export function BulkImportExportPanel() {
               accept=".csv"
               aria-label="CSV file"
               onChange={handleFileChange}
-              className="block w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-gray-700 file:text-white file:text-xs file:font-semibold"
+              className="block w-full text-xs text-gray-600 dark:text-gray-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-gray-100 dark:file:bg-gray-700 file:text-gray-900 dark:file:text-white file:text-xs file:font-semibold"
             />
             {file && (
               <p className="text-gray-500 text-xs mt-1">
@@ -134,7 +134,7 @@ export function BulkImportExportPanel() {
             )}
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-gray-400">
+          <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
             <input
               type="checkbox"
               checked={dryRun}
@@ -152,16 +152,16 @@ export function BulkImportExportPanel() {
             {importing ? 'Importing…' : 'Import assets'}
           </button>
 
-          {importError && <p className="text-red-400 text-xs">{importError}</p>}
+          {importError && <p className="text-red-600 dark:text-red-400 text-xs">{importError}</p>}
 
           {result && (
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 mt-3">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 mt-3">
               {result.dryRun && (
-                <p className="text-yellow-400 text-xs font-semibold mb-2">
+                <p className="text-yellow-700 dark:text-yellow-400 text-xs font-semibold mb-2">
                   Dry run — nothing was written.
                 </p>
               )}
-              <p className="text-white text-sm mb-2">
+              <p className="text-gray-900 dark:text-white text-sm mb-2">
                 Created: {result.created} · Skipped: {result.skipped}
               </p>
               {result.errors.length > 0 && (
@@ -173,16 +173,16 @@ export function BulkImportExportPanel() {
                   )}
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-left text-gray-500 border-b border-gray-800">
+                      <tr className="text-left text-gray-500 border-b border-gray-200 dark:border-gray-800">
                         <th className="py-1 pr-3">Row</th>
                         <th className="py-1">Problems</th>
                       </tr>
                     </thead>
                     <tbody>
                       {result.errors.map((err) => (
-                        <tr key={err.row} className="border-b border-gray-800">
-                          <td className="py-1 pr-3 text-gray-300">{err.row}</td>
-                          <td className="py-1 text-red-400">{err.problems.join('; ')}</td>
+                        <tr key={err.row} className="border-b border-gray-200 dark:border-gray-800">
+                          <td className="py-1 pr-3 text-gray-700 dark:text-gray-300">{err.row}</td>
+                          <td className="py-1 text-red-600 dark:text-red-400">{err.problems.join('; ')}</td>
                         </tr>
                       ))}
                     </tbody>

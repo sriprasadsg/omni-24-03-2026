@@ -56,14 +56,14 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
 
   return (
     <div className="max-w-xl space-y-6">
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-white mb-1">Branding</h2>
-        <p className="text-gray-400 text-xs mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Branding</h2>
+        <p className="text-gray-600 dark:text-gray-400 text-xs mb-4">
           Customize the ITAM console's company name, logo, and accent colour for this tenant.
         </p>
 
         {loading ? (
-          <p className="text-gray-400 text-sm">{t('settings.loading')}</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">{t('settings.loading')}</p>
         ) : (
           <div className="space-y-4">
             <div>
@@ -76,7 +76,7 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
                 aria-label="Company name"
                 value={settings.branding.companyName}
                 onChange={(e) => setSettings({ ...settings, branding: { ...settings.branding, companyName: e.target.value } })}
-                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-full"
+                className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full"
                 placeholder="e.g. Acme Corp"
               />
             </div>
@@ -91,7 +91,7 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
                 aria-label="Logo URL"
                 value={settings.branding.logoUrl}
                 onChange={(e) => setSettings({ ...settings, branding: { ...settings.branding, logoUrl: e.target.value } })}
-                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-full"
+                className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full"
                 placeholder="https://example.com/logo.png"
               />
             </div>
@@ -107,14 +107,14 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
                   aria-label="Primary colour picker"
                   value={/^#[0-9a-fA-F]{6}$/.test(settings.branding.primaryColor) ? settings.branding.primaryColor : '#0891b2'}
                   onChange={(e) => setSettings({ ...settings, branding: { ...settings.branding, primaryColor: e.target.value } })}
-                  className="h-9 w-16 rounded border border-gray-700 cursor-pointer bg-gray-900"
+                  className="h-9 w-16 rounded border border-gray-200 dark:border-gray-700 cursor-pointer bg-white dark:bg-gray-900"
                 />
                 <input
                   type="text"
                   aria-label="Primary colour hex value"
                   value={settings.branding.primaryColor}
                   onChange={(e) => setSettings({ ...settings, branding: { ...settings.branding, primaryColor: e.target.value } })}
-                  className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-32"
+                  className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-32"
                   placeholder="#0891b2"
                 />
               </div>
@@ -129,7 +129,7 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
                 aria-label="Interface language"
                 value={settings.locale}
                 onChange={(e) => setSettings({ ...settings, locale: e.target.value as ItamSettings['locale'] })}
-                className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white w-full"
+                className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full"
               >
                 {SUPPORTED_ITAM_LOCALES.map((loc) => (
                   <option key={loc.value} value={loc.value}>{loc.label}</option>
@@ -139,20 +139,20 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
 
             <div>
               <p className="block text-xs text-gray-500 mb-1">Live preview</p>
-              <div className="flex items-center gap-3 bg-gray-900 border border-gray-700 rounded-lg p-3">
+              <div className="flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                 {settings.branding.logoUrl && /^(https:\/\/|http:\/\/|data:image\/)/.test(settings.branding.logoUrl) && (
                   <img
                     src={settings.branding.logoUrl}
                     alt={settings.branding.companyName || 'Logo preview'}
-                    className="h-10 w-10 object-contain rounded bg-gray-800"
+                    className="h-10 w-10 object-contain rounded bg-white dark:bg-gray-800"
                   />
                 )}
                 <div
                   data-testid="itam-settings-color-swatch"
-                  className="h-8 w-8 rounded border border-gray-600"
+                  className="h-8 w-8 rounded border border-gray-300 dark:border-gray-600"
                   style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(settings.branding.primaryColor) ? settings.branding.primaryColor : '#0891b2' }}
                 />
-                <span className="text-sm text-gray-300">{settings.branding.companyName || 'IT Asset Management Console'}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{settings.branding.companyName || 'IT Asset Management Console'}</span>
               </div>
             </div>
 
@@ -164,7 +164,7 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
               {saving ? t('settings.saving') : t('settings.save')}
             </button>
 
-            {error && <p className="text-red-400 text-xs" role="alert">{error}</p>}
+            {error && <p className="text-red-600 dark:text-red-400 text-xs" role="alert">{error}</p>}
           </div>
         )}
       </div>

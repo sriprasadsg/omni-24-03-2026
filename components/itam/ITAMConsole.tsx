@@ -78,30 +78,30 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, setti
   const logoUrl = branding.logoUrl && ALLOWED_LOGO_PREFIXES.some((p) => branding.logoUrl.startsWith(p)) ? branding.logoUrl : '';
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <header className="mb-6 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           {logoUrl && (
-            <img src={logoUrl} alt={branding.companyName || 'Logo'} className="h-10 w-10 object-contain rounded bg-gray-800" />
+            <img src={logoUrl} alt={branding.companyName || 'Logo'} className="h-10 w-10 object-contain rounded bg-white dark:bg-gray-800" />
           )}
           <div>
             <h1 className="text-2xl font-semibold">
               {t('header.title')}{branding.companyName ? ` — ${branding.companyName}` : ''}
             </h1>
-            <p className="text-gray-400 text-sm mt-1">{t('header.subtitle')}</p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">{t('header.subtitle')}</p>
           </div>
         </div>
         <button
           onClick={() => setTab('settings')}
           aria-label="Open ITAM console settings"
           style={{ backgroundColor: accent }}
-          className="flex-shrink-0 text-white p-2 rounded-lg hover:opacity-90 transition-opacity"
+          className="flex-shrink-0 text-gray-900 dark:text-white p-2 rounded-lg hover:opacity-90 transition-opacity"
         >
           <SettingsIcon size={18} />
         </button>
       </header>
 
-      <nav className="flex gap-1 mb-4 border-b border-gray-700" aria-label="Tabs">
+      <nav className="flex gap-1 mb-4 border-b border-gray-200 dark:border-gray-700" aria-label="Tabs">
         {TABS.map((tabDef) => (
           <button
             key={tabDef.id}
@@ -110,8 +110,8 @@ function ItamConsoleBody({ tab, setTab, tenants, isSuperAdminView, assets, setti
             style={tab === tabDef.id ? { borderBottomColor: accent } : undefined}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === tabDef.id
-                ? 'border-cyan-500 text-white'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
+                ? 'border-cyan-500 text-gray-900 dark:text-white'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
             {t(tabDef.labelKey)}
@@ -166,7 +166,10 @@ export default function ITAMConsole({ tenants = [], isSuperAdminView = false }: 
   // A settings-load failure must never blank the console — keep the built-in defaults
   // and continue rendering exactly as an unconfigured tenant would.
   useEffect(() => {
-    getItamSettings().then((s) => setSettings(s)).catch(() => setSettings(DEFAULT_ITAM_SETTINGS));
+    // Merge over the defaults: a partial answer (no branding block) used to crash the whole console.
+    getItamSettings()
+      .then((s) => setSettings({ ...DEFAULT_ITAM_SETTINGS, ...(s || {}), branding: { ...DEFAULT_ITAM_SETTINGS.branding, ...(s?.branding || {}) } }))
+      .catch(() => setSettings(DEFAULT_ITAM_SETTINGS));
   }, []);
 
   return (

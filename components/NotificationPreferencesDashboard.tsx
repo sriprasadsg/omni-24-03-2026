@@ -98,33 +98,33 @@ const NotificationPreferencesDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="bg-gray-900 min-h-screen text-white p-6 flex items-center justify-center">
-        <p className="text-gray-400">Loading preferences…</p>
+      <div className="bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white p-6 flex items-center justify-center">
+        <p className="text-gray-600 dark:text-gray-400">Loading preferences…</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-900 min-h-screen text-white p-6">
+    <div className="bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white p-6">
       <div className="max-w-2xl">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white">Notification Preferences</h1>
-          <p className="text-gray-400 text-sm mt-1">Configure how and when you receive notifications</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Notification Preferences</h1>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Configure how and when you receive notifications</p>
         </div>
 
         {/* Channel toggles */}
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 mb-5">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Channels</h2>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-5">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Channels</h2>
           <div className="space-y-3">
             {CHANNELS.map(({ key, label }) => (
               <label key={key} className="flex items-center justify-between cursor-pointer group">
-                <span className="text-gray-300 group-hover:text-white transition-colors">{label}</span>
+                <span className="text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{label}</span>
                 <button
                   role="switch"
                   aria-checked={prefs.channels[key]}
                   onClick={() => toggleChannel(key)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    prefs.channels[key] ? 'bg-blue-600' : 'bg-gray-600'
+                    prefs.channels[key] ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'
                   }`}
                 >
                   <span
@@ -139,22 +139,22 @@ const NotificationPreferencesDashboard: React.FC = () => {
         </div>
 
         {/* Per-event preferences */}
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-5 mb-5">
-          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4">Event Notifications</h2>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-5">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Event Notifications</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left pb-3 text-gray-400 font-medium text-xs uppercase">Event</th>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left pb-3 text-gray-600 dark:text-gray-400 font-medium text-xs uppercase">Event</th>
                   {CHANNELS.map(({ key, label }) => (
-                    <th key={key} className="pb-3 text-gray-400 font-medium text-xs uppercase text-center w-24">{label}</th>
+                    <th key={key} className="pb-3 text-gray-600 dark:text-gray-400 font-medium text-xs uppercase text-center w-24">{label}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {EVENT_KEYS.map(ev => (
-                  <tr key={ev} className="border-b border-gray-700/50">
-                    <td className="py-3 text-gray-300">{ev}</td>
+                  <tr key={ev} className="border-b border-gray-200 dark:border-gray-700/50">
+                    <td className="py-3 text-gray-700 dark:text-gray-300">{ev}</td>
                     {CHANNELS.map(({ key: ch }) => (
                       <td key={ch} className="py-3 text-center">
                         <input
@@ -162,7 +162,7 @@ const NotificationPreferencesDashboard: React.FC = () => {
                           checked={prefs.events[ev]?.[ch] ?? false}
                           onChange={() => toggleEventChannel(ev, ch)}
                           disabled={!prefs.channels[ch]}
-                          className="rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                          className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-blue-500 focus:ring-blue-500 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                         />
                       </td>
                     ))}

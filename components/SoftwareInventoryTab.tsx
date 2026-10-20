@@ -28,12 +28,12 @@ interface Props {
 }
 
 const PKG_BADGE: Record<string, string> = {
-    winget: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-    apt: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-    dnf: 'bg-green-500/20 text-green-300 border-green-500/30',
-    rpm: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-    pip: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-    unknown: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+    winget: 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30',
+    apt: 'bg-orange-500/20 text-orange-800 dark:text-orange-300 border-orange-500/30',
+    dnf: 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30',
+    rpm: 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-300 border-yellow-500/30',
+    pip: 'bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30',
+    unknown: 'bg-slate-500/20 text-gray-600 dark:text-slate-400 border-slate-500/30',
 };
 
 export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRefresh, onUninstall }) => {
@@ -92,15 +92,15 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Search software..."
-                        className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-slate-800 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/60"
+                        className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-800 dark:text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/60"
                     />
                 </div>
-                <div className="flex rounded-lg overflow-hidden border border-slate-700">
+                <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700">
                     {(['all', 'outdated'] as const).map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
-                            className={`px-3 py-2 text-xs font-medium transition-colors ${filter === f ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                            className={`px-3 py-2 text-xs font-medium transition-colors ${filter === f ? 'bg-gray-200 dark:bg-slate-600 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'}`}
                         >
                             {f === 'all' ? `All (${inventory.length})` : `Outdated (${outdatedCount})`}
                         </button>
@@ -109,7 +109,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                 <button
                     onClick={onRefresh}
                     disabled={loading}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                    className="p-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     title="Refresh inventory"
                 >
                     <RefreshCwIcon size={15} className={loading ? 'animate-spin' : ''} />
@@ -118,7 +118,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
             </div>
 
             {/* Table */}
-            <div className="flex-1 overflow-y-auto rounded-xl border border-slate-700/60 bg-slate-900/40">
+            <div className="flex-1 overflow-y-auto rounded-xl border border-gray-200 dark:border-slate-700/60 bg-white/40 dark:bg-slate-900/40">
                 {loading ? (
                     <div className="flex items-center justify-center h-48 text-slate-500 gap-2">
                         <RefreshCwIcon size={18} className="animate-spin" />
@@ -133,14 +133,14 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                 ) : (
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-slate-700/60 text-left">
-                                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider w-8"></th>
-                                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Package</th>
-                                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
-                                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Version(s)</th>
-                                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Agents</th>
-                                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                            <tr className="border-b border-gray-200 dark:border-slate-700/60 text-left">
+                                <th className="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider w-8"></th>
+                                <th className="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">Package</th>
+                                <th className="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                                <th className="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">Version(s)</th>
+                                <th className="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider text-center">Agents</th>
+                                <th className="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                                <th className="px-4 py-3 text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -150,7 +150,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                 return (
                                     <React.Fragment key={entry.name}>
                                         <tr
-                                            className="border-b border-slate-800/60 hover:bg-slate-800/40 transition-colors group cursor-pointer"
+                                            className="border-b border-gray-200 dark:border-slate-800/60 hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer"
                                             onClick={() => toggleExpand(entry.name)}
                                         >
                                             <td className="px-4 py-3 text-slate-500">
@@ -158,28 +158,28 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                                     ? <ChevronDownIcon size={14} />
                                                     : <ChevronRightIcon size={14} />}
                                             </td>
-                                            <td className="px-4 py-3 font-medium text-slate-200">{entry.name}</td>
+                                            <td className="px-4 py-3 font-medium text-gray-800 dark:text-slate-200">{entry.name}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${PKG_BADGE[entry.pkg_type] ?? PKG_BADGE.unknown}`}>
                                                     {entry.pkg_type}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-slate-400 text-xs">
+                                            <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-xs">
                                                 {entry.versions.slice(0, 2).join(', ')}
                                                 {entry.versions.length > 2 && ` +${entry.versions.length - 2} more`}
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-700 text-slate-300 text-xs font-bold">
+                                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 text-xs font-bold">
                                                     {entry.agent_count}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
                                                 {entry.is_outdated ? (
-                                                    <span className="flex items-center gap-1 text-amber-400 text-xs">
+                                                    <span className="flex items-center gap-1 text-amber-700 dark:text-amber-400 text-xs">
                                                         <AlertTriangleIcon size={12} /> Outdated on some agents
                                                     </span>
                                                 ) : (
-                                                    <span className="flex items-center gap-1 text-green-400 text-xs">
+                                                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs">
                                                         <CheckIcon size={12} /> Up to date
                                                     </span>
                                                 )}
@@ -187,7 +187,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                             <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => handleUninstallClick(entry)}
-                                                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-colors flex items-center gap-1 ml-auto"
+                                                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-colors flex items-center gap-1 ml-auto"
                                                     title={selCount > 0 ? `Uninstall from ${selCount} selected agent(s)` : `Uninstall from all ${entry.agent_count} agent(s)`}
                                                 >
                                                     <TrashIcon size={12} />
@@ -198,7 +198,7 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
 
                                         {/* Expanded agent rows */}
                                         {isExpanded && (
-                                            <tr className="border-b border-slate-800/60 bg-slate-800/20">
+                                            <tr className="border-b border-gray-200 dark:border-slate-800/60 bg-gray-50 dark:bg-slate-800/20">
                                                 <td colSpan={7} className="px-8 py-3">
                                                     <div className="space-y-1.5">
                                                         <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
@@ -210,16 +210,16 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                                                                 <div
                                                                     key={agent.agent_id}
                                                                     onClick={() => toggleAgentSelection(entry.name, agent.agent_id)}
-                                                                    className={`flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer transition-colors ${isSel ? 'bg-red-500/10 border border-red-500/30' : 'bg-slate-800/60 border border-transparent hover:border-slate-600'}`}
+                                                                    className={`flex items-center justify-between rounded-lg px-3 py-2 cursor-pointer transition-colors ${isSel ? 'bg-red-500/10 border border-red-500/30' : 'bg-gray-50 dark:bg-slate-800/60 border border-transparent hover:border-gray-300 dark:hover:border-slate-600'}`}
                                                                 >
                                                                     <div className="flex items-center gap-2.5">
-                                                                        <div className={`w-4 h-4 rounded flex items-center justify-center border ${isSel ? 'bg-red-500 border-red-500' : 'border-slate-600'}`}>
-                                                                            {isSel && <CheckIcon size={10} className="text-white" />}
+                                                                        <div className={`w-4 h-4 rounded flex items-center justify-center border ${isSel ? 'bg-red-500 border-red-500' : 'border-gray-300 dark:border-slate-600'}`}>
+                                                                            {isSel && <CheckIcon size={10} className="text-gray-900 dark:text-white" />}
                                                                         </div>
-                                                                        <span className="text-sm text-slate-200 font-medium">{agent.agent_name}</span>
+                                                                        <span className="text-sm text-gray-800 dark:text-slate-200 font-medium">{agent.agent_name}</span>
                                                                         <span className="text-xs text-slate-500">{agent.version}</span>
                                                                         {agent.is_outdated && agent.latest_version && (
-                                                                            <span className="text-xs text-amber-400">→ {agent.latest_version} available</span>
+                                                                            <span className="text-xs text-amber-700 dark:text-amber-400">→ {agent.latest_version} available</span>
                                                                         )}
                                                                     </div>
                                                                     {agent.last_scanned && (
@@ -251,28 +251,28 @@ export const SoftwareInventoryTab: React.FC<Props> = ({ inventory, loading, onRe
                         <div className="p-5 border-b border-white/[0.07] flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/15 border border-red-500/30">
-                                    <TrashIcon size={16} className="text-red-400" />
+                                    <TrashIcon size={16} className="text-red-600 dark:text-red-400" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400/70">Confirm Uninstall</p>
-                                    <p className="text-sm font-bold text-white">{confirmEntry.name}</p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-red-600 dark:text-red-400/70">Confirm Uninstall</p>
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{confirmEntry.name}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setConfirmEntry(null)} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all">
+                            <button onClick={() => setConfirmEntry(null)} className="p-1.5 rounded-lg text-slate-500 hover:text-gray-900 dark:hover:text-white hover:bg-white/[0.08] transition-all">
                                 <XIcon size={15} />
                             </button>
                         </div>
                         <div className="p-5 space-y-3">
-                            <p className="text-sm text-slate-300">
-                                This will uninstall <span className="text-white font-semibold">{confirmEntry.name}</span> from{' '}
-                                <span className="text-red-400 font-semibold">{confirmEntry.agentIds.length} agent{confirmEntry.agentIds.length !== 1 ? 's' : ''}</span>.
+                            <p className="text-sm text-gray-700 dark:text-slate-300">
+                                This will uninstall <span className="text-gray-900 dark:text-white font-semibold">{confirmEntry.name}</span> from{' '}
+                                <span className="text-red-600 dark:text-red-400 font-semibold">{confirmEntry.agentIds.length} agent{confirmEntry.agentIds.length !== 1 ? 's' : ''}</span>.
                             </p>
                             <p className="text-xs text-slate-500">The agent will execute the uninstall silently. This action cannot be undone automatically.</p>
                         </div>
                         <div className="px-5 py-4 flex gap-3 border-t border-white/[0.06]">
                             <button
                                 onClick={() => setConfirmEntry(null)}
-                                className="flex-1 py-2 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:bg-white/[0.07] transition-all border border-white/[0.07]"
+                                className="flex-1 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/[0.07] transition-all border border-white/[0.07]"
                             >
                                 Cancel
                             </button>

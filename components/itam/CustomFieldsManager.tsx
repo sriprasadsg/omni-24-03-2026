@@ -143,19 +143,19 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-white">Custom fields — {modelName}</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Custom fields — {modelName}</h3>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-white text-xs font-medium"
+          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-xs font-medium"
           aria-label="Close custom fields manager"
         >
           Back to Models
         </button>
       </div>
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-        {loading && <p className="text-gray-400 text-sm">Loading…</p>}
-        {error && !loading && <p className="text-red-400 text-sm" role="alert">{error}</p>}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
+        {error && !loading && <p className="text-red-600 dark:text-red-400 text-sm" role="alert">{error}</p>}
 
         {!loading && !error && draft.length === 0 && (
           <p className="text-gray-500 text-sm mb-4">No custom fields on this model yet.</p>
@@ -163,10 +163,10 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
 
         {!loading && !error && draft.map((fieldset, fsIndex) => (
           <div key={`${fieldset.name}-${fsIndex}`} className="mb-6 last:mb-0">
-            <h4 className="text-xs font-semibold text-gray-300 uppercase tracking-wide mb-2">{fieldset.name}</h4>
+            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">{fieldset.name}</h4>
             <table className="w-full text-sm mb-2">
               <thead>
-                <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
+                <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
                   <th className="py-2 pr-4">Key</th>
                   <th className="py-2 pr-4">Label</th>
                   <th className="py-2 pr-4">Type</th>
@@ -180,21 +180,21 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
                   const rowId = `${fsIndex}-${fieldIndex}`;
                   const usage = usageCounts[field.key] || 0;
                   return (
-                    <tr key={rowId} className="border-b border-gray-800 align-top">
+                    <tr key={rowId} className="border-b border-gray-200 dark:border-gray-800 align-top">
                       <td className="py-2 pr-4">
                         <input
-                          className="w-28 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-white"
+                          className="w-28 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-gray-900 dark:text-white"
                           value={field.key}
                           onChange={(e) => updateField(fsIndex, fieldIndex, { key: e.target.value })}
                           aria-label={`Key for field ${rowId}`}
                         />
                         {usage > 0 && (
-                          <div className="text-[11px] text-amber-400 mt-1">in use by {usage} asset{usage === 1 ? '' : 's'}</div>
+                          <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">in use by {usage} asset{usage === 1 ? '' : 's'}</div>
                         )}
                       </td>
                       <td className="py-2 pr-4">
                         <input
-                          className="w-28 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-white"
+                          className="w-28 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-gray-900 dark:text-white"
                           value={field.label}
                           onChange={(e) => updateField(fsIndex, fieldIndex, { label: e.target.value })}
                           aria-label={`Label for field ${rowId}`}
@@ -202,7 +202,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
                       </td>
                       <td className="py-2 pr-4">
                         <select
-                          className="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-white"
+                          className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-gray-900 dark:text-white"
                           value={field.type}
                           onChange={(e) => updateField(fsIndex, fieldIndex, { type: e.target.value as FieldType })}
                           aria-label={`Type for field ${rowId}`}
@@ -221,7 +221,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
                       <td className="py-2 pr-4">
                         {field.type === 'select' && (
                           <input
-                            className="w-36 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-white"
+                            className="w-36 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-2 py-1 text-gray-900 dark:text-white"
                             placeholder="option1, option2"
                             value={field.optionsText}
                             onChange={(e) => updateField(fsIndex, fieldIndex, { optionsText: e.target.value })}
@@ -232,7 +232,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
                       <td className="py-2 pr-4">
                         <button
                           onClick={() => removeField(fsIndex, fieldIndex)}
-                          className="text-red-400 hover:text-red-300 text-xs font-medium"
+                          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs font-medium"
                           aria-label={`Remove field ${rowId}`}
                         >
                           Remove
@@ -245,7 +245,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
             </table>
             <button
               onClick={() => addField(fsIndex)}
-              className="text-cyan-400 hover:text-cyan-300 text-xs font-medium"
+              className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 text-xs font-medium"
               aria-label={`Add field to ${fieldset.name}`}
             >
               + Add field
@@ -256,7 +256,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
         {!loading && !error && (
           <div className="flex items-center gap-2 mt-4 mb-4">
             <input
-              className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm text-gray-900 dark:text-white"
               placeholder="New fieldset name"
               value={newFieldsetName}
               onChange={(e) => setNewFieldsetName(e.target.value)}
@@ -264,7 +264,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
             />
             <button
               onClick={addFieldset}
-              className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-semibold px-3 py-2 rounded-lg"
+              className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white text-xs font-semibold px-3 py-2 rounded-lg"
             >
               Add fieldset
             </button>
@@ -272,7 +272,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
         )}
 
         {affectedFields.length > 0 && (
-          <div className="text-xs text-amber-400 bg-amber-950/40 border border-amber-800 rounded-lg px-3 py-2 mb-3" role="alert">
+          <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-3" role="alert">
             Caution: {affectedFields.map((f) => `'${f.key}' (in use by ${f.count} asset${f.count === 1 ? '' : 's'})`).join(', ')}{' '}
             {affectedFields.length === 1 ? 'is' : 'are'} being removed or retyped. Existing asset values for{' '}
             {affectedFields.length === 1 ? 'this key' : 'these keys'} will no longer validate against this model.
@@ -280,7 +280,7 @@ export function CustomFieldsManager({ modelId, modelName, onClose }: CustomField
         )}
 
         {saveError && (
-          <p className="text-red-400 text-sm mb-3" role="alert">{saveError}</p>
+          <p className="text-red-600 dark:text-red-400 text-sm mb-3" role="alert">{saveError}</p>
         )}
 
         {!loading && !error && (

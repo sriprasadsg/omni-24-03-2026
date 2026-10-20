@@ -44,18 +44,18 @@ function KpiTile({ title, icon, loading, hasData, drilldownReportKey, entity, ta
       type="button"
       onClick={() => onDrillDown(drilldownReportKey)}
       aria-label={`${title} — view report`}
-      className="text-left w-full bg-gray-800 rounded-xl border border-gray-700 p-4 hover:border-cyan-600 transition-colors"
+      className="text-left w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-cyan-600 transition-colors"
     >
       <div className="flex items-center gap-2 mb-3">
-        <div className="p-2 rounded-lg bg-cyan-900/20 flex-shrink-0">
+        <div className="p-2 rounded-lg bg-cyan-100 dark:bg-cyan-900/20 flex-shrink-0">
           <span className="text-cyan-500">{icon}</span>
         </div>
-        <h4 className="text-sm font-semibold text-white">{title}</h4>
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
       </div>
-      {loading && <p className="text-gray-400 text-sm">Loading…</p>}
+      {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
       {!loading && !hasData && (
         <div>
-          <h5 className="text-sm font-semibold text-white mb-1">No data yet</h5>
+          <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No data yet</h5>
           <p className="text-gray-500 text-xs">Add {entity} from the {tab} tab to see this here.</p>
         </div>
       )}
@@ -97,7 +97,7 @@ export function ItamKpiPanel({ onDrillDown }: ItamKpiPanelProps) {
       >
         {assetValue?.hasData && (
           <>
-            <p className="text-2xl font-semibold text-white mb-1">{formatCurrency(assetValue.totalBookValueCents ?? 0)}</p>
+            <p className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">{formatCurrency(assetValue.totalBookValueCents ?? 0)}</p>
             <p className="text-xs text-gray-500 mb-2">{assetValue.assetCount} assets</p>
             <div className="h-32">
               <ResponsiveContainer width="100%" height="100%">
@@ -131,7 +131,7 @@ export function ItamKpiPanel({ onDrillDown }: ItamKpiPanelProps) {
       >
         {licenseUtilization?.hasData && (
           <>
-            <p className="text-2xl font-semibold text-white mb-1">{licenseUtilization.utilizationPercent}%</p>
+            <p className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">{licenseUtilization.utilizationPercent}%</p>
             <p className="text-xs text-gray-500 mb-2">{licenseUtilization.seatsAssigned} / {licenseUtilization.seatsTotal} seats assigned</p>
             <div className="h-32">
               <ResponsiveContainer width="100%" height="100%">
@@ -173,7 +173,7 @@ export function ItamKpiPanel({ onDrillDown }: ItamKpiPanelProps) {
       >
         {warrantyExpirations?.hasData && (
           <>
-            <p className="text-2xl font-semibold text-white mb-1">{warrantyExpirations.expiringSoonCount} expiring soon</p>
+            <p className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">{warrantyExpirations.expiringSoonCount} expiring soon</p>
             <p className="text-xs text-gray-500 mb-2">{warrantyExpirations.expiredCount} expired</p>
             <div className="h-32">
               <ResponsiveContainer width="100%" height="100%">
@@ -201,10 +201,10 @@ export function ItamKpiPanel({ onDrillDown }: ItamKpiPanelProps) {
       >
         {overdue?.hasData && (
           <>
-            <p className="text-2xl font-semibold text-red-400 mb-1">{overdue.totalCount} overdue</p>
-            <div className="flex items-center gap-4 text-xs text-gray-400 mt-2">
-              <span><span className="text-white font-semibold">{overdue.overdueAuditCount}</span> audits</span>
-              <span><span className="text-white font-semibold">{overdue.overdueCheckinCount}</span> check-ins</span>
+            <p className="text-2xl font-semibold text-red-600 dark:text-red-400 mb-1">{overdue.totalCount} overdue</p>
+            <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 mt-2">
+              <span><span className="text-gray-900 dark:text-white font-semibold">{overdue.overdueAuditCount}</span> audits</span>
+              <span><span className="text-gray-900 dark:text-white font-semibold">{overdue.overdueCheckinCount}</span> check-ins</span>
             </div>
           </>
         )}

@@ -179,14 +179,14 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
   return (
     <div>
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-white mb-3">Pre-built Reports</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Pre-built Reports</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {reports.map((r) => (
-            <div key={r.key} className="bg-gray-800 rounded-xl border border-gray-700 p-4">
+            <div key={r.key} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
               <div className="flex items-start gap-2 mb-2">
                 <BarChart3Icon size={18} className="text-cyan-500 flex-shrink-0" />
                 <div>
-                  <h4 className="text-sm font-semibold text-white">{r.title}</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{r.title}</h4>
                   <p className="text-xs text-gray-500 mt-0.5">{r.description}</p>
                 </div>
               </div>
@@ -203,7 +203,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
 
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-white">Custom Reports</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Custom Reports</h3>
           <button
             onClick={() => setBuilderOpen((v) => !v)}
             className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
@@ -218,11 +218,11 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
           </div>
         )}
 
-        <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
-          {savedLoading && <p className="text-gray-400 text-sm">Loading…</p>}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+          {savedLoading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
           {!savedLoading && savedReports.length === 0 && (
             <div className="text-center py-4">
-              <h4 className="text-sm font-semibold text-white mb-1">No custom reports yet</h4>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No custom reports yet</h4>
               <p className="text-gray-500 text-xs">Build a report by picking fields and filters, then save it to reuse anytime.</p>
             </div>
           )}
@@ -230,7 +230,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
             <div className="max-h-80 overflow-y-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
+                  <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
                     <th className="py-2 pr-4">Name</th>
                     <th className="py-2 pr-4">Columns</th>
                     <th className="py-2 pr-4" />
@@ -238,20 +238,20 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
                 </thead>
                 <tbody>
                   {savedReports.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-800">
-                      <td className="py-2 pr-4 text-white font-medium truncate max-w-xs" title={r.name}>{r.name}</td>
-                      <td className="py-2 pr-4 text-gray-400">{r.columns.length}</td>
+                    <tr key={r.id} className="border-b border-gray-200 dark:border-gray-800">
+                      <td className="py-2 pr-4 text-gray-900 dark:text-white font-medium truncate max-w-xs" title={r.name}>{r.name}</td>
+                      <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.columns.length}</td>
                       <td className="py-2 pr-4 text-right whitespace-nowrap">
                         <button
                           onClick={() => runSavedCustom(r.id, 1)}
-                          className="text-cyan-400 hover:text-cyan-300 text-xs font-medium mr-4"
+                          className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 text-xs font-medium mr-4"
                           aria-label={`Run ${r.name}`}
                         >
                           Run
                         </button>
                         <button
                           onClick={() => setDeleteTarget(r)}
-                          className="text-red-400 hover:text-red-300 text-xs font-medium"
+                          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs font-medium"
                           aria-label={`Delete ${r.name}`}
                         >
                           Delete
@@ -269,7 +269,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
       {(running || result) && (
         <div>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="text-lg font-semibold text-white">{result?.title || activeKey || ''}</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{result?.title || activeKey || ''}</h3>
             {canExport && (
               <div className="flex items-center gap-2">
                 <button
@@ -300,21 +300,21 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
             )}
           </div>
 
-          {running && <p className="text-gray-400 text-sm">Loading…</p>}
+          {running && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>}
 
           {!running && result && result.rows.length === 0 && (
-            <div className="bg-gray-800 rounded-xl border border-gray-700 p-8 text-center">
-              <h3 className="text-sm font-semibold text-white mb-1">No matching assets</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">No matching assets</h3>
               <p className="text-gray-500 text-xs">Adjust your filters and run the report again.</p>
             </div>
           )}
 
           {!running && result && result.rows.length > 0 && (
-            <div className="bg-gray-800 rounded-xl border border-gray-700 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-500 text-xs border-b border-gray-700">
+                    <tr className="text-left text-gray-500 text-xs border-b border-gray-200 dark:border-gray-700">
                       {result.columns.map((c) => (
                         <th key={c} className="py-2 pr-4">{c}</th>
                       ))}
@@ -322,11 +322,11 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
                   </thead>
                   <tbody>
                     {result.rows.map((row, idx) => (
-                      <tr key={idx} className="border-b border-gray-800">
+                      <tr key={idx} className="border-b border-gray-200 dark:border-gray-800">
                         {result.columns.map((c) => (
                           <td
                             key={c}
-                            className="py-2 pr-4 text-gray-300 truncate max-w-xs"
+                            className="py-2 pr-4 text-gray-700 dark:text-gray-300 truncate max-w-xs"
                             title={cellDisplay(row[c])}
                           >
                             {cellDisplay(row[c])}
@@ -339,11 +339,11 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
               </div>
 
               {activeKind && activeKey && result.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-3 text-xs text-gray-400">
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-600 dark:text-gray-400">
                   <button
                     onClick={() => runActivePage(Math.max(1, page - 1))}
                     disabled={page <= 1}
-                    className="disabled:opacity-40 hover:text-white"
+                    className="disabled:opacity-40 hover:text-gray-900 dark:hover:text-white"
                   >
                     Previous
                   </button>
@@ -351,7 +351,7 @@ export function ReportsPanel({ focusReportKey, onFocusHandled }: ReportsPanelPro
                   <button
                     onClick={() => runActivePage(Math.min(result.totalPages, page + 1))}
                     disabled={page >= result.totalPages}
-                    className="disabled:opacity-40 hover:text-white"
+                    className="disabled:opacity-40 hover:text-gray-900 dark:hover:text-white"
                   >
                     Next
                   </button>

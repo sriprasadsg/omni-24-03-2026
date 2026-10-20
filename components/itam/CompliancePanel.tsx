@@ -62,16 +62,16 @@ export function CompliancePanel({ assets }: { assets: Asset[] }) {
     });
   }, []);
 
-  if (loading) return <p className="text-gray-400 text-sm">Loading…</p>;
-  if (error) return <p className="text-red-400 text-sm">Couldn't load compliance data. Check your connection and try again.</p>;
+  if (loading) return <p className="text-gray-600 dark:text-gray-400 text-sm">Loading…</p>;
+  if (error) return <p className="text-red-600 dark:text-red-400 text-sm">Couldn't load compliance data. Check your connection and try again.</p>;
 
   return (
     <div>
       <div className="mb-4 flex items-center gap-2">
-        <label className="text-xs font-semibold text-gray-400" htmlFor="itam-control-picker">Control</label>
+        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400" htmlFor="itam-control-picker">Control</label>
         <select
           id="itam-control-picker"
-          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white"
+          className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white"
           value={selectedControlId}
           onChange={(e) => setSelectedControlId(e.target.value)}
         >
