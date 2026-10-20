@@ -203,8 +203,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
         return <SignupForm onSignup={handleSignup} onSwitchToLogin={() => setShowSignup(false)} />;
     }
 
+    // The sign-in screen is designed dark only: scope the dark tokens to it so a light-theme user
+    // (who signed out) does not get grey dark-style cards on the light canvas.
     return (
-        <div className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden aurora-bg" style={{ background: 'var(--bg-main)' }}>
+        <div className="dark min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden aurora-bg" style={{ background: 'var(--bg-main)' }}>
             {/* Aurora blobs */}
             <div className="absolute top-[-15%] left-[-8%] w-[55%] h-[55%] rounded-full pointer-events-none"
                 style={{ background: 'radial-gradient(ellipse, rgba(34,211,238,0.18) 0%, transparent 70%)', filter: 'blur(60px)', animation: 'pulse 6s ease-in-out infinite' }} />
