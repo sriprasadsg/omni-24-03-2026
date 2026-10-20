@@ -9,6 +9,13 @@ interface Props {
 export const AgentPatchingTab: React.FC<Props> = ({ agent }) => {
     const patching = (agent.meta as any)?.system_patching;
     const pendingUpdates: any[] = patching?.pending_updates || [];
+    // The Python agent nests these (bios_info, uptime); the Windows Rust agent sends flat fields.
+    const known = (v: unknown) => (typeof v === 'string' && v.trim() && v !== 'Unknown' ? v : null);
+    const biosVersion = known(patching?.bios_info?.version) || known(patching?.bios_version);
+    const biosVendor = known(patching?.bios_info?.manufacturer) || known(patching?.bios_manufacturer);
+    const biosDate = known(patching?.bios_info?.release_date) || known(patching?.bios_release_date);
+    const bootRaw = known(patching?.uptime?.boot_time) || known(patching?.last_boot);
+    const bootTime = bootRaw && !Number.isNaN(Date.parse(bootRaw)) ? new Date(bootRaw).toLocaleString() : bootRaw;
 
     return (
         <div className="space-y-6">
@@ -19,19 +26,19 @@ export const AgentPatchingTab: React.FC<Props> = ({ agent }) => {
                 <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
                     <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">BIOS Version</dt>
-                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{patching?.bios_info?.version || 'Unknown'}</dd>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{biosVersion || 'Unknown'}</dd>
                     </div>
                     <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Manufacturer</dt>
-                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{patching?.bios_info?.manufacturer || 'Unknown'}</dd>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{biosVendor || 'Unknown'}</dd>
                     </div>
                     <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Release Date</dt>
-                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{patching?.bios_info?.release_date || 'Unknown'}</dd>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{biosDate || 'Unknown'}</dd>
                     </div>
                     <div className="sm:col-span-1">
                         <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Boot Time</dt>
-                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{patching?.uptime?.boot_time || 'Unknown'}</dd>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-gray-200">{bootTime || 'Unknown'}</dd>
                     </div>
                 </dl>
             </div>

@@ -6,6 +6,7 @@ from .base import BaseCapability
 import platform
 import subprocess
 import datetime
+import json
 from typing import Dict, Any, List
 
 class SystemPatchingCapability(BaseCapability):
@@ -26,7 +27,8 @@ class SystemPatchingCapability(BaseCapability):
             "uptime": {},
             "last_scan": datetime.datetime.now().isoformat()
         }
-        
+        self._scan_error = None
+
         system = platform.system()
         if system == "Windows":
             data["pending_updates"] = self._get_windows_updates()
@@ -36,56 +38,64 @@ class SystemPatchingCapability(BaseCapability):
             data["pending_updates"] = self._get_linux_updates()
             data["bios_info"] = self._get_linux_bios()
             data["uptime"] = self._get_linux_uptime()
-            
+        data["pending_update_count"] = len(data["pending_updates"])
+        if self._scan_error:
+            # Lets the dashboard tell "0 pending" apart from "the scan failed".
+            data["scan_error"] = self._scan_error
+
         return data
 
-    def _get_windows_updates(self) -> List[Dict[str, str]]:
-        """Check for pending Windows Updates using PowerShell"""
+    def _get_windows_updates(self) -> List[Dict[str, Any]]:
+        """Pending Windows Updates from the Windows Update Agent, keyed by KB number."""
         updates = []
+        ps_script = """
+        $ErrorActionPreference = 'Stop'
+        $Session = New-Object -ComObject Microsoft.Update.Session
+        $Searcher = $Session.CreateUpdateSearcher()
+        $Result = $Searcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+        @($Result.Updates | ForEach-Object {
+            [PSCustomObject]@{
+                Title = $_.Title
+                MsrcSeverity = $_.MsrcSeverity
+                IsMandatory = $_.IsMandatory
+                KB = ($_.KBArticleIDs | Select-Object -First 1)
+            }
+        }) | ConvertTo-Json -Compress
+        """
         try:
-            # PowerShell script to search for updates (IsInstalled=0)
-            ps_script = """
-            $Session = New-Object -ComObject Microsoft.Update.Session
-            $Searcher = $Session.CreateUpdateSearcher()
-            $Criteria = "IsInstalled=0 and Type='Software'"
-            $Result = $Searcher.Search($Criteria)
-            $Result.Updates | Select-Object Title, Severity, IsMandatory | ConvertTo-Json
-            """
-            
-            cmd = ["powershell", "-Command", ps_script]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            
-            if result.returncode == 0 and result.stdout.strip():
-                import json
-                try:
-                    raw_data = json.loads(result.stdout)
-                    if not isinstance(raw_data, list):
-                        raw_data = [raw_data]
-                    
-                        # Map Windows Update severity codes to standard strings
-                        # 0=N/A, 1=Low, 2=Moderate, 3=Important, 4=Critical
-                        # Note: Different versions of WUA might return different codes, so we handle common ones.
-                        raw_severity = item.get("Severity", "Unknown")
-                        severity_map = {
-                            "0": "Low",
-                            "1": "Low",
-                            "2": "Medium",
-                            "3": "High",
-                            "4": "Critical",
-                            "5": "Critical"
-                        }
-                        severity = severity_map.get(str(raw_severity), "Medium")
-                        
-                        updates.append({
-                            "title": item.get("Title", "Unknown Update"),
-                            "severity": severity,
-                            "mandatory": item.get("IsMandatory", False)
-                        })
-                except json.JSONDecodeError:
-                    pass # Result might be empty/null if no updates found
+            # A Windows Update search routinely takes minutes on a cold cache.
+            result = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                                    capture_output=True, text=True, timeout=600)
         except Exception as e:
-            print(f"Error checking Windows Updates: {e}")
-            
+            self._scan_error = f"Windows Update search failed: {e}"
+            return updates
+        if result.returncode != 0:
+            self._scan_error = f"Windows Update search failed: {(result.stderr or result.stdout).strip()[:300]}"
+            return updates
+        text = result.stdout.strip()
+        if not text:
+            return updates
+        try:
+            raw_data = json.loads(text)
+        except json.JSONDecodeError:
+            self._scan_error = "Windows Update search returned unreadable output"
+            return updates
+        if not isinstance(raw_data, list):
+            raw_data = [raw_data]
+        severity_map = {"critical": "Critical", "important": "High", "moderate": "Medium", "low": "Low"}
+        for item in raw_data:
+            if not isinstance(item, dict):
+                continue
+            kb = str(item.get("KB") or "").strip()
+            entry = {
+                "title": item.get("Title", "Unknown Update"),
+                "severity": severity_map.get(str(item.get("MsrcSeverity") or "").lower(), "Unknown"),
+                "mandatory": bool(item.get("IsMandatory", False)),
+            }
+            if kb.isdigit():
+                entry["kb"] = kb
+                entry["id"] = f"KB{kb}"
+            updates.append(entry)
         return updates
 
     def _get_windows_bios(self) -> Dict[str, str]:
@@ -143,10 +153,22 @@ class SystemPatchingCapability(BaseCapability):
         return info
 
     def _get_linux_bios(self) -> Dict[str, str]:
-        """Get BIOS Version and Manufacturer via dmidecode"""
+        """Get BIOS Version and Manufacturer from sysfs, then dmidecode"""
         info = {"version": "Unknown", "manufacturer": "Unknown", "release_date": "Unknown"}
+        # sysfs is world-readable; dmidecode needs root, which the agent often lacks.
+        for field, name in (("version", "bios_version"), ("manufacturer", "bios_vendor"),
+                            ("release_date", "bios_date")):
+            try:
+                with open(f"/sys/class/dmi/id/{name}") as f:
+                    value = f.read().strip()
+                if value and value != "Not Specified":
+                    info[field] = value
+            except OSError:
+                pass
+        if "Unknown" not in info.values():
+            return info
         try:
-            # Try dmidecode for BIOS info
+            # dmidecode -t bios prints "Vendor:", "Version:", "Release Date:"
             result = subprocess.run(
                 ["dmidecode", "-t", "bios"],
                 capture_output=True,
@@ -160,12 +182,10 @@ class SystemPatchingCapability(BaseCapability):
                         key, value = line.split(':', 1)
                         key = key.strip().lower()
                         value = value.strip()
-                        if 'version' in key and 'bios' in key:
-                            info["version"] = value
-                        elif 'vendor' in key or 'manufacturer' in key:
-                            info["manufacturer"] = value
-                        elif 'release' in key and 'date' in key:
-                            info["release_date"] = value
+                        field = {"version": "version", "vendor": "manufacturer",
+                                 "release date": "release_date"}.get(key)
+                        if field and value and info[field] == "Unknown":
+                            info[field] = value
         except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError, Exception):
             pass
         return info
@@ -178,10 +198,9 @@ class SystemPatchingCapability(BaseCapability):
                 uptime_seconds = float(f.read().split()[0])
             info["uptime_seconds"] = uptime_seconds
 
-            # Calculate boot time
-            import datetime
-            boot_time = datetime.datetime.now() - datetime.timedelta(seconds=uptime_seconds)
-            info["boot_time"] = boot_time.strftime("%Y-%m-%d %H:%M:%S")
+            # Boot time as ISO-8601 UTC so the dashboard can show it in local time
+            boot_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=uptime_seconds)
+            info["boot_time"] = boot_time.replace(microsecond=0).isoformat()
         except (FileNotFoundError, PermissionError, Exception):
             pass
         return info
@@ -203,11 +222,15 @@ class SystemPatchingCapability(BaseCapability):
                         parts = line.split('/')
                         pkg_name = parts[0].strip()
                         # Parse version info from the rest
-                        version_part = '/'.join(parts[1:]).split(' ')[0].strip()
+                        # "pkg/suite 1.2-3 amd64 [upgradable from: 1.2-2]": the version is the 2nd token
+                        rest = '/'.join(parts[1:]).split()
+                        version_part = rest[1] if len(rest) > 1 else ''
                         updates.append({
                             "title": f"{pkg_name} ({version_part})",
                             "severity": "Medium",
-                            "mandatory": False
+                            "mandatory": False,
+                            "package": pkg_name,
+                            "id": pkg_name,
                         })
                 return updates[:50]  # Limit to 50
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
@@ -224,11 +247,13 @@ class SystemPatchingCapability(BaseCapability):
             if result.returncode == 100:  # 100 means updates available
                 for line in result.stdout.strip().split('\n'):
                     parts = line.split()
-                    if len(parts) >= 1:
+                    if len(parts) >= 3:  # "name.arch  version  repo"; skips headers and blank lines
                         updates.append({
                             "title": parts[0],
                             "severity": "Medium",
-                            "mandatory": False
+                            "mandatory": False,
+                            "package": parts[0],
+                            "id": parts[0],
                         })
                 return updates[:50]
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
@@ -245,11 +270,13 @@ class SystemPatchingCapability(BaseCapability):
             if result.returncode == 100:
                 for line in result.stdout.strip().split('\n'):
                     parts = line.split()
-                    if len(parts) >= 1:
+                    if len(parts) >= 3:  # "name.arch  version  repo"; skips headers and blank lines
                         updates.append({
                             "title": parts[0],
                             "severity": "Medium",
-                            "mandatory": False
+                            "mandatory": False,
+                            "package": parts[0],
+                            "id": parts[0],
                         })
                 return updates[:50]
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):

@@ -484,6 +484,45 @@ class AgentCapabilityManager:
             return {"status": "acknowledged", "session_id": session_id}
         return {"status": "no_active_window", "session_id": session_id}
 
+    # ── Patch jobs ─────────────────────────────────────────────────────────
+    def start_patch_job(self, instruction: str, payload: dict, rollback: bool = False) -> dict:
+        """Install (or roll back) patches in a background thread and report the outcome
+        to /api/deployments/{job_id}/result. Windows Update can run for an hour, so the
+        instruction returns at once and the agent keeps heartbeating. Jobs run one at a time."""
+        import re
+        import threading
+        patch_ids = payload.get("patch_ids") or re.findall(r'KB\d+', instruction)
+        job_match = re.search(r'Job:\s*(\S+)', instruction)
+        job_id = payload.get("job_id") or (job_match.group(1) if job_match else None)
+        if not isinstance(patch_ids, list) or not patch_ids:
+            return {"status": "error", "error": "The patch instruction carried no patch ids"}
+        cap = self.capability_instances.get('patch_installer')
+        if not cap:
+            return {"status": "error", "error": "Patch Installer capability not available"}
+        if not hasattr(self, "_patch_lock"):
+            self._patch_lock = threading.Lock()
+
+        def _run():
+            with self._patch_lock:
+                try:
+                    run = cap.execute_rollback if rollback else cap.execute_deployment
+                    result = run([str(p) for p in patch_ids], job_id or "unknown")
+                except Exception as e:
+                    logger.error("Patch job %s crashed: %s", job_id, e, exc_info=True)
+                    result = {"status": "failed", "error": str(e), "results": [], "total": len(patch_ids),
+                              "successful": 0, "failed": len(patch_ids), "job_id": job_id}
+                logger.info("Patch job %s finished: %s", job_id, result.get("status"))
+                if not job_id:
+                    return
+                try:
+                    url = self.cfg.get('api_base_url').rstrip('/') + f"/api/deployments/{job_id}/result"
+                    requests.post(url, json=result, headers=self._auth_headers(), timeout=30)
+                except Exception as e:
+                    logger.error(f"Failed to report patch job {job_id} result: {e}")
+
+        threading.Thread(target=_run, name=f"patch-{job_id}", daemon=True).start()
+        return {"status": "accepted", "job_id": job_id, "patch_ids": patch_ids, "rollback": rollback}
+
     # ── Single Instruction Dispatcher ──────────────────────────────────────
     def execute_single_instruction(self, instruction: str, payload: dict = None) -> dict:
         """Dispatches a single text instruction to the appropriate capability."""
@@ -557,41 +596,11 @@ class AgentCapabilityManager:
                 return cap.execute()
             return {"status": "error", "error": "Persistence Detection capability not available"}
 
-        # ── Patch Installation ─────────────────────────────────────────────
-        if "Install Patches" in instruction or "install_patches" in instruction:
-            kb_match  = re.findall(r'KB\d+', instruction)
-            job_match = re.search(r'Job:\s*(\S+)', instruction)
-            if kb_match:
-                patch_ids = kb_match
-                job_id    = job_match.group(1) if job_match else "unknown"
-                cap = self.capability_instances.get('patch_installer')
-                if cap:
-                    result = cap.execute_deployment(patch_ids, job_id)
-                    try:
-                        url = self.cfg.get('api_base_url').rstrip('/') + f"/api/deployments/{job_id}/result"
-                        requests.post(url, json=result, timeout=10)
-                    except Exception as e:
-                        logger.error(f"Failed to report deployment result: {e}")
-                    return result
-                return {"status": "error", "error": "Patch Installer capability not available"}
-
-        # ── Patch Rollback ─────────────────────────────────────────────────
-        if "Rollback Patches" in instruction or "rollback_patches" in instruction:
-            kb_match  = re.findall(r'KB\d+', instruction)
-            job_match = re.search(r'Job:\s*(\S+)', instruction)
-            if kb_match:
-                patch_ids = kb_match
-                job_id    = job_match.group(1) if job_match else "unknown"
-                cap = self.capability_instances.get('patch_installer')
-                if cap:
-                    result = cap.execute_rollback(patch_ids, job_id)
-                    try:
-                        url = self.cfg.get('api_base_url').rstrip('/') + f"/api/deployments/{job_id}/result"
-                        requests.post(url, json=result, timeout=10)
-                    except Exception as e:
-                        logger.error(f"Failed to report rollback result: {e}")
-                    return result
-                return {"status": "error", "error": "Patch Installer capability not available"}
+        # ── Patch Installation / Rollback ──────────────────────────────────
+        for _verbs, _rollback in ((("Install Patches", "install_patches"), False),
+                                  (("Rollback Patches", "rollback_patches"), True)):
+            if any(v in instruction for v in _verbs):
+                return self.start_patch_job(instruction, payload or {}, rollback=_rollback)
 
         # ── Custom Software Install ────────────────────────────────────────
         if "Download and install custom software" in instruction:
@@ -1585,6 +1594,8 @@ def collect_software_inventory():
                 raw = run_cmd("winget upgrade --include-unknown --accept-source-agreements", timeout=30)
                 if raw:
                     lines = raw.splitlines()
+                    # App upgrades, not OS patches: pending KBs come from the
+                    # system_patching capability (Windows Update Agent).
                     for line in lines[2:]:  # Skip header rows
                         parts = line.split()
                         if len(parts) >= 4:
@@ -1592,8 +1603,6 @@ def collect_software_inventory():
                                 "name": parts[0], "current_version": parts[1],
                                 "latest_version": parts[2], "pkg_type": "winget"
                             })
-                            os_patches["items"].append(parts[0])
-                    os_patches["pending_count"] = len(os_patches["items"])
 
             # Windows OS patches via PowerShell Get-HotFix
             hotfix = run_cmd("powershell -Command \"Get-HotFix | Select HotFixID,InstalledOn | ConvertTo-Json -Compress\"", timeout=20)

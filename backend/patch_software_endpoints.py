@@ -11,6 +11,9 @@ from patch_core_endpoints import (
     SoftwareUpdateRequest,
     OsPatchRequest,
     BulkSoftwareUpdateRequest,
+    installable_patch_id,
+    new_patch_job,
+    patch_instruction,
 )
 
 logger = logging.getLogger(__name__)
@@ -109,8 +112,18 @@ async def apply_os_patches(
     request: OsPatchRequest,
     _current_user: TokenData = Depends(require_permission("manage:patches")),
 ):
-    """Trigger OS patch installation on an agent."""
+    """Queue OS patch installation (Windows KBs or Linux packages) on one agent."""
     try:
+        patch_ids: list = []
+        for pid in request.patch_ids:
+            ident = installable_patch_id(pid)
+            if not ident:
+                raise HTTPException(status_code=400, detail=f"Not an installable KB number or package name: {str(pid)[:80]}")
+            if ident not in patch_ids:
+                patch_ids.append(ident)
+        if not patch_ids:
+            raise HTTPException(status_code=400, detail="No patches selected")
+
         db = get_database()
         os_role = getattr(_current_user, "role", None)
         os_tid = getattr(_current_user, "tenant_id", None) or None
@@ -120,22 +133,16 @@ async def apply_os_patches(
         agent = await db.agents.find_one(os_q)
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
+        if str(agent.get("status", "")).lower() == "uninstalled":
+            raise HTTPException(status_code=409, detail="The agent on this asset is uninstalled")
 
-        job_id = f"patch-job-{int(datetime.now(timezone.utc).timestamp())}"
-        tenant_id = agent.get("tenantId") or None
-
-        await db.agent_instructions.insert_one({
-            "id":          uuid.uuid4().hex,
-            "agent_id":    request.agent_id,
-            "tenantId":    tenant_id,
-            "instruction": "install_patches",
-            "payload":     {"patch_ids": request.patch_ids, "job_id": job_id},
-            "status":      "pending",
-            "created_at":  datetime.now(timezone.utc).isoformat(),
-            "type":        "os_patch_install",
-            "job_id":      job_id,
-            "metadata":    {"patches": request.patch_ids},
-        })
+        now = datetime.now(timezone.utc).isoformat()
+        job_id = f"patch-job-{int(datetime.now(timezone.utc).timestamp())}-{uuid.uuid4().hex[:6]}"
+        targets = [a for a in (agent["id"], agent.get("assetId")) if a]
+        job = new_patch_job(job_id, agent.get("tenantId"), patch_ids, targets, [agent["id"]],
+                            getattr(_current_user, "username", "unknown"), "Immediate", None, now, "In Progress")
+        await db.patch_deployment_jobs.insert_one(job)
+        await db.agent_instructions.insert_one(patch_instruction(job_id, agent, patch_ids, now))
         return {"success": True, "job_id": job_id, "message": "OS patch installation queued"}
     except HTTPException:
         raise
@@ -251,6 +258,37 @@ async def get_outdated_software(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+def pending_patch_ids(agent: dict) -> tuple:
+    """Installable pending-update ids for one agent, with display details.
+
+    The Rust agent reports meta.system_patching.pending_updates as objects
+    ({id|kb|package, title, severity}); the Python agent reports
+    meta.os_patches.items as plain ids. Only KB numbers and package names survive,
+    because those are what the agents' install_patches handler accepts."""
+    meta = agent.get("meta", {}) or {}
+    ids: list = []
+    details: list = []
+
+    def add(raw, title=None, severity=None):
+        ident = installable_patch_id(raw) if raw else None
+        if ident and ident not in ids:
+            ids.append(ident)
+            details.append({"id": ident, "title": title or ident, "severity": severity or "Unknown"})
+
+    for u in (meta.get("system_patching", {}) or {}).get("pending_updates", []) or []:
+        if isinstance(u, dict):
+            kb = str(u.get("kb") or "").strip()
+            add(u.get("id") or (f"KB{kb}" if kb.isdigit() else None) or u.get("package"),
+                u.get("title"), u.get("severity"))
+    for item in (meta.get("os_patches", {}) or {}).get("items", []) or []:
+        if isinstance(item, str):
+            add(item)
+    for item in agent.get("pending_os_updates", []) or []:
+        if isinstance(item, str):
+            add(item)
+    return ids, details
+
+
 @router.get("/os")
 async def get_os_patches(
     tenant_id: str = None,
@@ -273,21 +311,25 @@ async def get_os_patches(
         for agent in agents:
             meta = agent.get("meta", {})
             os_patches = meta.get("os_patches", {})
-            pending_os_updates = agent.get("pending_os_updates", [])
+            system_patching = meta.get("system_patching", {})
             installed_sw = meta.get("installed_software", [])
             os_packages = [
                 sw for sw in installed_sw
                 if sw.get("pkg_type", sw.get("type")) in ("apt", "deb", "windows_update", "winget", "yum", "rpm")
             ]
+            pending_ids, pending_details = pending_patch_ids(agent)
             results.append({
                 "agent_id":        agent.get("id"),
                 "hostname":        agent.get("hostname", "Unknown"),
-                "os":              agent.get("os", agent.get("metadata", {}).get("os", "Unknown")),
+                "os":              agent.get("os", agent.get("platform", agent.get("metadata", {}).get("os", "Unknown"))),
                 "os_version":      agent.get("metadata", {}).get("os_version", "Unknown"),
                 "status":          agent.get("status", "unknown"),
-                "pending_count":   os_patches.get("pending_count", len(pending_os_updates)),
-                "last_checked":    os_patches.get("last_checked", agent.get("lastSeen")),
-                "pending_updates": pending_os_updates or os_patches.get("items", []),
+                "pending_count":   len(pending_ids),
+                "last_checked":    (system_patching.get("timestamp") or os_patches.get("last_checked")
+                                    or agent.get("lastSeen")),
+                "scan_error":      system_patching.get("scan_error") or os_patches.get("scan_error"),
+                "pending_updates": pending_ids,
+                "pending_details": pending_details,
                 "os_packages":     os_packages[:20],
                 "tenantId":        agent.get("tenantId"),
             })

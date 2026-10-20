@@ -9,6 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from database import get_database
+from tenant_context import set_tenant_id
 from distributed_lock import acquire_lock, release_lock
 
 logger = logging.getLogger(__name__)
@@ -17,88 +18,14 @@ logger = logging.getLogger(__name__)
 # on every replica, with no lock. Unlike database_migrations.py's idempotent
 # migrations, this one is a genuine correctness bug, not just wasted work: a
 # job read as status="Scheduled" by two replicas in the same tick would both
-# flip it to "In Progress" and both fire off a duplicate
-# simulate_patch_deployment/execute_scan task for the same job. TTL is kept
+# flip it to "In Progress" and both release its agent instructions or fire
+# off a duplicate execute_scan task for the same job. TTL is kept
 # just under the 1-minute interval so a crashed holder doesn't block the next
 # tick for long.
 _SCHEDULER_LOCK_TTL_SECONDS = 55
 
 # Global scheduler instance
 scheduler = None
-
-async def simulate_patch_deployment(job_id: str, patch_count: int, asset_count: int):
-    """
-    UI progress animation for patch deployment.
-    Only animates progress — never overwrites status when real agents have been dispatched.
-    Real completion is set by deployment_result_endpoints when agents report back.
-    Falls back to marking Completed only when instructionsQueued == 0 (no real agents).
-    """
-    db = get_database()
-
-    try:
-        # Determine whether real agent instructions were queued
-        job = await db.patch_deployment_jobs.find_one({"id": job_id}, {"instructionsQueued": 1})
-        has_real_agents = job and job.get("instructionsQueued", 0) > 0
-
-        total_operations = patch_count * asset_count
-
-        for asset_idx in range(asset_count):
-            for patch_idx in range(patch_count):
-                await asyncio.sleep(2)
-
-                # Stop animation if agents already completed/failed the job
-                current = await db.patch_deployment_jobs.find_one(
-                    {"id": job_id}, {"status": 1}
-                )
-                if current and current.get("status") in ("Completed", "Failed", "Partially Completed"):
-                    return
-
-                completed = (asset_idx * patch_count) + (patch_idx + 1)
-                progress = int((completed / total_operations) * 99)  # cap at 99 — agents set 100
-
-                await db.patch_deployment_jobs.update_one(
-                    {"id": job_id},
-                    {
-                        "$set": {"progress": progress},
-                        "$push": {"statusLog": {
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "message": f"Waiting for agent: patch {patch_idx + 1}/{patch_count} on asset {asset_idx + 1}/{asset_count}",
-                            "level": "info",
-                        }},
-                    },
-                )
-
-        # Only auto-complete when no real agents were dispatched (demo/no-agent mode)
-        if not has_real_agents:
-            await db.patch_deployment_jobs.update_one(
-                {"id": job_id},
-                {
-                    "$set": {
-                        "status": "Completed",
-                        "progress": 100,
-                        "completedAt": datetime.now(timezone.utc).isoformat(),
-                    },
-                    "$push": {"statusLog": {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "message": f"[Demo] {patch_count} patches deployed to {asset_count} assets (no agents registered)",
-                        "level": "warn",
-                    }},
-                },
-            )
-
-    except Exception as e:
-        await db.patch_deployment_jobs.update_one(
-            {"id": job_id},
-            {
-                "$set": {"status": "Failed", "error": str(e)},
-                "$push": {"statusLog": {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "message": f"Deployment failed: {e}",
-                    "level": "error",
-                }},
-            },
-        )
-
 
 async def simulate_software_deployment(job_id: str, update_count: int):
     """
@@ -207,21 +134,19 @@ async def process_scheduled_deployments():
                     "$push": {
                         "statusLog": {
                             "timestamp": now.isoformat(),
-                            "message": "Scheduled deployment started automatically"
+                            "message": "Scheduled deployment started automatically",
+                            "level": "info",
                         }
                     }
                 }
             )
-            
-            # Trigger deployment simulation
-            patch_count = len(job.get("targetPatchIds", []))
-            asset_count = len(job.get("targetAssetIds", []))
-            tenant_id = job.get("tenant_id", "platform-admin")
-            _tctx = set_tenant_id(tenant_id)
-            try:
-                asyncio.create_task(simulate_patch_deployment(job["id"], patch_count, asset_count))
-            finally:
-                reset_tenant_id(_tctx)
+
+            # Hand the job's queued instructions to the agents; they report the outcome
+            # through /api/deployments/{job_id}/result.
+            await db.agent_instructions.update_many(
+                {"job_id": job["id"], "status": "scheduled"},
+                {"$set": {"status": "pending", "released_at": now.isoformat()}},
+            )
 
         # Find software deployment jobs ready to execute
         software_jobs = await db.software_deployment_jobs.find({

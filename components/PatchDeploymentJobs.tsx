@@ -63,14 +63,13 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
 
         setRollingBack(jobId);
         try {
-            const response = await authFetch(`/api/deployments/${jobId}/rollback`, {
-                method: 'POST',
-                body: JSON.stringify({ reason: 'Manual rollback from UI' })
+            const response = await authFetch(`/api/patches/deployment-jobs/${encodeURIComponent(jobId)}/rollback`, {
+                method: 'POST'
             });
 
             if (response.ok) {
-                showToast('Rollback initiated successfully.', 'success');
-                // In a real app, we would refresh the jobs list here
+                const data = await response.json();
+                showToast(`Rollback started as ${data.job_id}. It appears in this list on the next refresh.`, 'success');
             } else {
                 const error = await response.json();
                 showToast(`Failed to initiate rollback: ${error.error || 'Unknown error'}`, 'error');
@@ -120,7 +119,11 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
                                                 <span className="text-xs font-medium">{job.progress}%</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-xs">{(job.targetPatchIds || []).length} Patches to {(job.targetAssetIds || []).length} Assets</td>
+                                        <td className="px-4 py-3 text-xs">
+                                            {(job.targetPatchIds || job.patchIds || []).length} Patches to {(job.targetAssetIds || job.dispatchedAgents || job.targetAssets || []).length} Assets
+                                            {job.type === 'Patch Rollback' && <span className="ml-1 text-purple-600 dark:text-purple-400">(rollback)</span>}
+                                            {job.rebootRequired && <span className="ml-1 text-amber-600 dark:text-amber-400">· reboot required</span>}
+                                        </td>
                                         <td className="px-4 py-3 text-xs">{new Date(job.scheduledAt).toLocaleString()}</td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex justify-end gap-2">
@@ -131,7 +134,7 @@ export const PatchDeploymentJobs: React.FC<PatchDeploymentJobsProps> = ({ jobs }
                                                 >
                                                     <TerminalSquareIcon size={14} />
                                                 </button>
-                                                {(job.status === 'Completed' || job.status === 'Failed' || job.status === 'Completed with errors') && (
+                                                {job.type !== 'Patch Rollback' && ['Completed', 'Partially Completed', 'Completed with errors'].includes(job.status) && (
                                                     <button
                                                         onClick={() => handleRollback(job.id)}
                                                         disabled={rollingBack === job.id}

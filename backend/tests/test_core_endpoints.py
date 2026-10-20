@@ -153,13 +153,16 @@ class TestPatchEndpoints:
     def test_deploy_patches_returns_job(self, admin_user):
         import patch_endpoints as mod
         self.app = _app(mod.router, admin_user)  # deploying needs manage:patches
-        with patch("patch_core_endpoints.get_database", return_value=self.db), \
-             patch("patch_core_endpoints.asyncio.create_task"):
+        self.db.patches.find.return_value = TestPatchInstructionFixes._async_cursor([])
+        self.db.agents.find.return_value = TestPatchInstructionFixes._async_cursor(
+            [{"id": "agent-1", "tenantId": "t1", "hostname": "a1", "status": "online"}])
+        self.db.agent_instructions.insert_many = AsyncMock()
+        with patch("patch_core_endpoints.get_database", return_value=self.db):
             with TestClient(self.app) as client:
                 resp = client.post(
                     "/api/patches/deploy",
                     json={
-                        "patch_ids": ["p1", "p2"],
+                        "patch_ids": ["KB5034441", "openssl"],
                         "asset_ids": ["a1"],
                         "deployment_type": "Immediate",
                         "tenantId": "t1",
@@ -167,11 +170,15 @@ class TestPatchEndpoints:
                 )
         assert resp.status_code == 200
         body = resp.json()
-        assert "id" in body or "job_id" in body or "success" in body
+        # The UI (apiService.schedulePatchDeployment) reads body.success and body.job.
+        assert body["success"] is True
+        assert body["job"]["id"] == body["job_id"]
+        assert body["job"]["patchIds"] == ["KB5034441", "openssl"]
+        assert body["job"]["dispatchedAgents"] == ["agent-1"]
+        assert body["job"]["status"] == "In Progress" and body["job"]["progress"] == 0
 
     def test_viewer_cannot_deploy_patches(self):
-        with patch("patch_core_endpoints.get_database", return_value=self.db), \
-             patch("patch_core_endpoints.asyncio.create_task"):
+        with patch("patch_core_endpoints.get_database", return_value=self.db):
             with TestClient(self.app) as client:
                 resp = client.post(
                     "/api/patches/deploy",
@@ -339,12 +346,11 @@ class TestPatchInstructionFixes:
         )
         self.db.agent_instructions.insert_many = AsyncMock(side_effect=_insert_many)
 
-        with patch("patch_core_endpoints.get_database", return_value=self.db), \
-             patch("patch_core_endpoints.asyncio.create_task"):
+        with patch("patch_core_endpoints.get_database", return_value=self.db):
             with TestClient(self.app) as client:
                 resp = client.post(
                     "/api/patches/deploy",
-                    json={"patch_ids": ["KB001", "KB002"], "asset_ids": ["agent-1"],
+                    json={"patch_ids": ["KB5034441", "KB5035845"], "asset_ids": ["agent-1"],
                           "deployment_type": "Immediate", "tenantId": "t1"},
                 )
 
@@ -377,7 +383,7 @@ class TestPatchInstructionFixes:
             with TestClient(self.app) as client:
                 resp = client.post(
                     "/api/patches/apply-os-patches",
-                    json={"agent_id": "agent-1", "patch_ids": ["KB001", "KB002"]},
+                    json={"agent_id": "agent-1", "patch_ids": ["KB5034441", "KB5035845"]},
                 )
 
         assert resp.status_code == 200

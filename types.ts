@@ -1486,7 +1486,7 @@ export interface AgentUpgradeJob {
   statusLog: { timestamp: string, message: string }[];
 }
 
-export type PatchDeploymentJobStatus = 'Scheduled' | 'Queued' | 'In Progress' | 'Completed' | 'Completed with errors' | 'Failed';
+export type PatchDeploymentJobStatus = 'Scheduled' | 'Queued' | 'In Progress' | 'Completed' | 'Completed with errors' | 'Partially Completed' | 'Failed';
 
 export interface PatchDeploymentJob {
   id: string;
@@ -1499,6 +1499,12 @@ export interface PatchDeploymentJob {
   progress: number;
   statusLog: { timestamp: string, message: string }[];
   deploymentType: 'Immediate' | 'Scheduled';
+  // Field names the backend (patch_core_endpoints.new_patch_job) actually stores.
+  patchIds?: string[];
+  targetAssets?: string[];
+  dispatchedAgents?: string[];
+  rebootRequired?: boolean;
+  type?: 'Patch Deployment' | 'Patch Rollback';
 }
 
 export type VulnerabilityScanJobStatus = 'Scheduled' | 'Queued' | 'In Progress' | 'Completed' | 'Completed with errors' | 'Failed';

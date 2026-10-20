@@ -37,6 +37,30 @@ async def _get_caller(request: Request) -> Dict[str, str]:
     return payload
 
 
+async def _require_job_reporter(caller, job_id: str) -> None:
+    """People need manage:patches; an agent may only report on a deployment
+    job that targets its own asset."""
+    if getattr(caller, "role", "") != "agent":
+        from rbac_utils import verify_permission
+        if not await verify_permission(caller, "manage:patches"):
+            raise HTTPException(status_code=403, detail="Missing required permission: manage:patches")
+        return
+    db = get_database()
+    job = (await db.patch_deployment_jobs.find_one({"id": job_id}, {"_id": 0, "targetAssets": 1, "dispatchedAgents": 1})
+           or await db.software_deployment_jobs.find_one({"id": job_id}, {"_id": 0, "targetAssetIds": 1}))
+    if not job:
+        raise HTTPException(status_code=404, detail="Deployment job not found")
+    targets = list({*(job.get("targetAssets") or []), *(job.get("targetAssetIds") or [])})
+    if caller.username in (job.get("dispatchedAgents") or []) or caller.username in targets:
+        return
+    agent = await db.agents.find_one({"id": caller.username}, {"_id": 0, "hostname": 1})
+    if agent and agent.get("hostname") and f"asset-{agent['hostname']}" in targets:
+        return
+    if targets and await db.assets.find_one({"id": {"$in": targets}, "agentId": caller.username}, {"_id": 1}):
+        return
+    raise HTTPException(status_code=403, detail="This deployment job does not target this agent")
+
+
 # ── Agent instruction poll ───────────────────────────────────────────────────
 
 @router.get("/api/agents/{agent_id}/instructions")
@@ -92,6 +116,79 @@ async def get_agent_instructions(agent_id: str, request: Request, caller: dict =
 
 # ── Deployment result callback ────────────────────────────────────────────────
 
+_STATUS_MAP = {
+    "completed": "Completed",
+    "partial":   "Partially Completed",
+    "failed":    "Failed",
+}
+
+
+def _result_log(results: List[Dict], prefix: str) -> List[Dict]:
+    return [
+        {
+            "timestamp": str(r.get("timestamp") or datetime.now(timezone.utc).isoformat()),
+            "message":   f"{prefix}{r.get('patch_id')}: {str(r.get('message', r.get('status')))[:500]}",
+            "level":     "error" if r.get("status") == "failed" else "info",
+        }
+        for r in results
+    ]
+
+
+async def record_agent_patch_result(db, job_id: str, agent_id: str, data: Dict[str, Any]) -> str:
+    """Record one agent's outcome on a multi-agent patch job and recompute the job.
+
+    The job stays "In Progress" until every dispatched agent has reported; then it
+    is Completed (all succeeded), Failed (none did) or Partially Completed.
+    Returns the job status after this report."""
+    now = datetime.now(timezone.utc).isoformat()
+    results = [r for r in data.get("results", []) if isinstance(r, dict)][:200]
+    agent_status = _STATUS_MAP.get(data.get("status", "failed"), "Failed")
+    entry = {
+        "status":         agent_status,
+        "successful":     int(data.get("successful", 0) or 0),
+        "failed":         int(data.get("failed", 0) or 0),
+        "total":          int(data.get("total", len(results)) or 0),
+        "rebootRequired": any(r.get("reboot_required") for r in results),
+        "error":          str(data.get("error") or "")[:500] or None,
+        "results":        results,
+        "reportedAt":     now,
+    }
+    key = agent_id.replace(".", "_").replace("$", "_")
+    log = _result_log(results, prefix=f"{agent_id}: ")
+    log.append({
+        "timestamp": now,
+        "message":   (f"{agent_id}: {agent_status} — {entry['successful']}/{entry['total']} installed"
+                      + (f" — {entry['error']}" if entry["error"] else "")
+                      + (" — REBOOT REQUIRED" if entry["rebootRequired"] else "")),
+        "level":     "info" if agent_status == "Completed" else "error" if agent_status == "Failed" else "warn",
+    })
+    await db.patch_deployment_jobs.update_one(
+        {"id": job_id},
+        {"$set": {f"agentResults.{key}": entry}, "$push": {"statusLog": {"$each": log}}},
+    )
+
+    job = await db.patch_deployment_jobs.find_one(
+        {"id": job_id}, {"_id": 0, "dispatchedAgents": 1, "agentResults": 1}) or {}
+    # Jobs created before per-agent tracking have no dispatchedAgents: this report decides them.
+    dispatched = [a.replace(".", "_").replace("$", "_") for a in job.get("dispatchedAgents") or []] or [key]
+    reported = {k: v for k, v in (job.get("agentResults") or {}).items() if k in dispatched}
+    if len(reported) < len(dispatched):
+        progress = int(len(reported) / len(dispatched) * 100) if dispatched else 0
+        await db.patch_deployment_jobs.update_one({"id": job_id}, {"$set": {"progress": min(progress, 99)}})
+        return "In Progress"
+
+    statuses = {v.get("status") for v in reported.values()}
+    final = ("Completed" if statuses == {"Completed"}
+             else "Failed" if statuses == {"Failed"} else "Partially Completed")
+    await db.patch_deployment_jobs.update_one({"id": job_id}, {"$set": {
+        "status":         final,
+        "progress":       100,
+        "completedAt":    now,
+        "rebootRequired": any(v.get("rebootRequired") for v in reported.values()),
+    }})
+    return final
+
+
 @router.post("/api/deployments/{job_id}/result")
 async def receive_deployment_result(
     job_id: str,
@@ -108,29 +205,24 @@ async def receive_deployment_result(
       total       : int
       results     : [{patch_id, status, message, reboot_required, timestamp}]
     """
+    await _require_job_reporter(caller, job_id)
     db = get_database()
 
-    status_map = {
-        "completed": "Completed",
-        "partial":   "Partially Completed",
-        "failed":    "Failed",
-    }
-    job_status = status_map.get(data.get("status", "failed"), "Failed")
-    results    = data.get("results", [])
+    if getattr(caller, "role", "") == "agent":
+        patch_job = await db.patch_deployment_jobs.find_one(
+            {"id": job_id}, {"_id": 0, "dispatchedAgents": 1})
+        if patch_job and patch_job.get("dispatchedAgents"):
+            recorded = await record_agent_patch_result(db, job_id, caller.username, data)
+            return {"status": "success", "job_id": job_id, "recorded": recorded}
+
+    job_status = _STATUS_MAP.get(data.get("status", "failed"), "Failed")
+    results    = [r for r in data.get("results", []) if isinstance(r, dict)]
     successful = data.get("successful", 0)
     failed_cnt = data.get("failed", 0)
     total      = data.get("total", 0)
     reboot_required = any(r.get("reboot_required") for r in results)
 
-    # Build per-patch log entries
-    status_log: List[Dict] = [
-        {
-            "timestamp": r.get("timestamp", datetime.now(timezone.utc).isoformat()),
-            "message":   f"{r.get('patch_id')}: {r.get('message', r.get('status'))}",
-            "level":     "error" if r.get("status") == "failed" else "info",
-        }
-        for r in results
-    ]
+    status_log = _result_log(results, prefix="")
     status_log.append({
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "message":   (
@@ -177,6 +269,7 @@ async def update_job_progress(
 
     Body: { agent_id, completed, total, latest_patch_id, latest_status }
     """
+    await _require_job_reporter(caller, job_id)
     db = get_database()
 
     completed = int(data.get("completed", 0))

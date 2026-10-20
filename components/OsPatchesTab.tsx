@@ -9,6 +9,8 @@ export interface OsAssetPatch {
     pending_count: number;
     last_checked: string;
     pending_updates: string[];
+    pending_details?: { id: string; title: string; severity: string }[];
+    scan_error?: string | null;
 }
 
 interface Props {
@@ -26,7 +28,7 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex justify-between items-center">
                 <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        OS-level pending patches across all agents (apt upgradable, winget upgrades, Windows HotFixes).
+                        Pending OS updates reported by agents: Windows Update KBs and Linux package upgrades.
                     </p>
                     {osPatchesMeta && (
                         <p className="text-xs text-gray-400 mt-1">
@@ -52,7 +54,11 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {osPatches.map(asset => (
+                    {osPatches.map(asset => {
+                        // Agents report "Online"; older ones "online".
+                        const isOnline = (asset.status || '').toLowerCase() === 'online';
+                        const titles = new Map((asset.pending_details || []).map(d => [d.id, d.title]));
+                        return (
                         <div key={asset.agent_id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -60,13 +66,13 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{asset.os} · {asset.os_version}</p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${asset.pending_count > 0 ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'}`}>
-                                        {asset.pending_count > 0 ? `${asset.pending_count} pending` : 'Up to date'}
+                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${asset.pending_count > 0 ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : asset.scan_error ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'}`}>
+                                        {asset.pending_count > 0 ? `${asset.pending_count} pending` : asset.scan_error ? 'Scan failed' : 'Up to date'}
                                     </span>
-                                    <span className={`px-2 py-1 rounded-full text-xs ${asset.status === 'online' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    <span className={`px-2 py-1 rounded-full text-xs ${isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                         {asset.status}
                                     </span>
-                                    {asset.pending_count > 0 && asset.status === 'online' && (
+                                    {asset.pending_count > 0 && isOnline && (
                                         <button onClick={() => onApplyOsPatches(asset.agent_id, asset.pending_updates)}
                                             disabled={deployingAssetPatches.has(asset.agent_id)}
                                             className="ml-2 px-3 py-1 text-xs font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 disabled:bg-gray-400 transition-colors">
@@ -80,8 +86,8 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                             {asset.pending_updates && asset.pending_updates.length > 0 && (
                                 <div className="mt-3 flex flex-wrap gap-2">
                                     {asset.pending_updates.slice(0, 15).map((patch, i) => (
-                                        <span key={i} className="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded text-xs font-mono text-amber-700 dark:text-amber-300">
-                                            {patch}
+                                        <span key={i} title={titles.get(patch) || patch} className="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded text-xs font-mono text-amber-700 dark:text-amber-300">
+                                            {patch}{titles.get(patch) && titles.get(patch) !== patch ? ` · ${titles.get(patch)}` : ''}
                                         </span>
                                     ))}
                                     {asset.pending_updates.length > 15 && (
@@ -91,11 +97,15 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                                     )}
                                 </div>
                             )}
+                            {asset.scan_error && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">Update scan failed: {asset.scan_error}</p>
+                            )}
                             {asset.last_checked && (
                                 <p className="text-xs text-gray-400 mt-2">Last checked: {new Date(asset.last_checked).toLocaleString()}</p>
                             )}
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>

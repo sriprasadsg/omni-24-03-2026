@@ -23,11 +23,17 @@ interface PatchManagementDashboardProps {
     onSchedulePatchDeployment: (patchIds: string[], assetIds: string[], deploymentType: 'Immediate' | 'Scheduled', scheduleTime?: string) => Promise<void>;
     vulnerabilityScanJobs: VulnerabilityScanJob[];
     onScheduleVulnerabilityScan: (assetIds: string[], scanType: 'Immediate' | 'Scheduled', scheduleTime?: string) => Promise<void>;
+    /** Tenant a super admin is viewing; null = the caller's own tenant. */
+    tenantId?: string | null;
 }
 
 export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> = ({
-    patches, assets, patchDeploymentJobs, onSchedulePatchDeployment, vulnerabilityScanJobs, onScheduleVulnerabilityScan
+    patches, assets, patchDeploymentJobs, onSchedulePatchDeployment, vulnerabilityScanJobs, onScheduleVulnerabilityScan, tenantId
 }) => {
+    // The live OS/software tabs and their scan follow the viewed tenant together,
+    // so "Update" never picks an agent from a different tenant than the package.
+    const withTenant = (path: string) =>
+        tenantId ? `${path}${path.includes('?') ? '&' : '?'}tenant_id=${encodeURIComponent(tenantId)}` : path;
     const [selectedPatchIds, setSelectedPatchIds] = useState<Set<string>>(new Set());
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
     const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
@@ -84,7 +90,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
         setOutdatedLoading(true);
         try {
             const qs = type && type !== 'all' ? `?pkg_type=${type}` : '';
-            const res = await authFetch(`/api/patches/outdated${qs}`);
+            const res = await authFetch(withTenant(`/api/patches/outdated${qs}`));
             if (res.ok) {
                 const data = await res.json();
                 setOutdatedPackages(data.packages ?? []);
@@ -95,12 +101,12 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
         } finally {
             setOutdatedLoading(false);
         }
-    }, []);
+    }, [tenantId]);
 
     const fetchOsPatches = useCallback(async () => {
         setOsPatchesLoading(true);
         try {
-            const res = await authFetch('/api/patches/os');
+            const res = await authFetch(withTenant('/api/patches/os'));
             if (res.ok) {
                 const data = await res.json();
                 setOsPatches(data.assets ?? []);
@@ -111,13 +117,13 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
         } finally {
             setOsPatchesLoading(false);
         }
-    }, []);
+    }, [tenantId]);
 
     const handleUpdateSoftware = async (pkgName: string, pkgType: string) => {
         const updateKey = `${pkgName}-${pkgType}`;
         setUpdatingPkgs(prev => new Set(prev).add(updateKey));
         try {
-            const onlineAgent = osPatches.find(a => a.status === 'online')?.agent_id;
+            const onlineAgent = osPatches.find(a => (a.status || '').toLowerCase() === 'online')?.agent_id;
             if (!onlineAgent) { showToast("No online agent found to perform update.", 'error'); return; }
             const res = await authFetch('/api/patches/apply-software-update', {
                 method: 'POST',
@@ -128,7 +134,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
                 setScanMessage(`Upgrade instruction sent for ${pkgName}. Result will appear in next scan.`);
             } else {
                 const error = await res.json();
-                showToast(`Error: ${error.detail || 'Failed to trigger update'}`, 'error');
+                showToast(`Error: ${error.error || error.detail || 'Failed to trigger update'}`, 'error');
             }
         } catch (e) {
             console.error('Error triggering update', e);
@@ -176,7 +182,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
                 setScanMessage(`OS patch deployment queued. Job ID: ${data.job_id}`);
             } else {
                 const error = await res.json();
-                showToast(`Error: ${error.detail || 'Failed to trigger patches'}`, 'error');
+                showToast(`Error: ${error.error || error.detail || 'Failed to trigger patches'}`, 'error');
             }
         } catch (e) {
             console.error('Error triggering OS patches', e);
@@ -189,7 +195,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
         setScanLoading(true);
         setScanMessage('');
         try {
-            const res = await authFetch('/api/patches/scan', { method: 'POST' });
+            const res = await authFetch(withTenant('/api/patches/scan'), { method: 'POST' });
             const data = await res.json();
             setScanMessage(data.message ?? `Scan triggered for ${data.triggered} agent(s). Refreshing in 15 seconds...`);
             setTimeout(() => fetchOutdatedPackages(pkgTypeFilter), 15000);
@@ -203,18 +209,24 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
     useEffect(() => {
         if (activeTab === 'software-updates') fetchOutdatedPackages(pkgTypeFilter);
         if (activeTab === 'os-patches') fetchOsPatches();
-    }, [activeTab]);
+    }, [activeTab, tenantId]);
 
     useEffect(() => {
         if (activeTab === 'software-updates') fetchOutdatedPackages(pkgTypeFilter);
     }, [pkgTypeFilter]);
 
-    const handleDeploy = (deploymentType: 'Immediate' | 'Scheduled', scheduleTime?: string) => {
+    const handleDeploy = async (deploymentType: 'Immediate' | 'Scheduled', scheduleTime?: string) => {
         const assetIdsToPatch = new Set<string>();
         selectedPatches.forEach(patch => patch.affectedAssets.forEach(id => assetIdsToPatch.add(id)));
-        onSchedulePatchDeployment(Array.from(selectedPatchIds), Array.from(assetIdsToPatch), deploymentType, scheduleTime);
         setIsDeployModalOpen(false);
-        setSelectedPatchIds(new Set());
+        try {
+            await onSchedulePatchDeployment(Array.from(selectedPatchIds), Array.from(assetIdsToPatch), deploymentType, scheduleTime);
+            setSelectedPatchIds(new Set());
+            showToast(deploymentType === 'Scheduled' ? 'Patch deployment scheduled.' : 'Patch deployment sent to the agents.', 'success');
+        } catch (e) {
+            // e.g. CVE records with no KB/package mapped, or assets without an installed agent
+            showToast(`Deployment not started: ${e instanceof Error ? e.message : 'unknown error'}`, 'error');
+        }
     };
     const handleToggleAssetSelection = (assetId: string) => {
         setSelectedAssetIds(prev => { const s = new Set(prev); s.has(assetId) ? s.delete(assetId) : s.add(assetId); return s; });
