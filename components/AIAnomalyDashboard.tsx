@@ -30,24 +30,24 @@ interface NDRAnomaly {
 const SEV_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
 const SEV_CLS: Record<string, string> = {
-    critical: 'bg-red-900/40 text-red-300 border border-red-700',
-    high: 'bg-orange-900/40 text-orange-300 border border-orange-700',
-    medium: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
-    low: 'bg-gray-700 text-gray-300 border border-gray-600',
+    critical: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700',
+    high: 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-700',
+    medium: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700',
+    low: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600',
 };
 
 const SCORE_CLS = (s: number) => {
-    if (s >= 80) return 'text-red-400';
-    if (s >= 50) return 'text-orange-400';
-    if (s >= 20) return 'text-yellow-400';
-    return 'text-green-400';
+    if (s >= 80) return 'text-red-600 dark:text-red-400';
+    if (s >= 50) return 'text-orange-700 dark:text-orange-400';
+    if (s >= 20) return 'text-yellow-700 dark:text-yellow-400';
+    return 'text-green-600 dark:text-green-400';
 };
 
 const DELTA_CLS = (d: number) => {
-    if (d >= 20) return 'text-red-400 font-bold';
-    if (d >= 5)  return 'text-orange-400';
-    if (d <= -5) return 'text-green-400';
-    return 'text-gray-400';
+    if (d >= 20) return 'text-red-600 dark:text-red-400 font-bold';
+    if (d >= 5)  return 'text-orange-700 dark:text-orange-400';
+    if (d <= -5) return 'text-green-600 dark:text-green-400';
+    return 'text-gray-600 dark:text-gray-400';
 };
 
 const NDR_ICONS: Record<string, string> = {
@@ -104,39 +104,39 @@ export const AIAnomalyDashboard: React.FC = () => {
             label: 'High-Risk Users',
             value: uebaScores.filter(u => u.mlScore >= 50).length,
             sub: 'AI score ≥ 50',
-            color: 'text-red-400',
+            color: 'text-red-600 dark:text-red-400',
             border: 'border-l-red-500',
-            icon: <UserIcon size={18} className="text-red-400" />,
+            icon: <UserIcon size={18} className="text-red-600 dark:text-red-400" />,
         },
         {
             label: 'AI-Only Detections',
             value: aiOnlyCount,
             sub: 'ML leads rules by ≥15pts',
-            color: 'text-orange-400',
+            color: 'text-orange-700 dark:text-orange-400',
             border: 'border-l-orange-500',
-            icon: <SparklesIcon size={18} className="text-orange-400" />,
+            icon: <SparklesIcon size={18} className="text-orange-700 dark:text-orange-400" />,
         },
         {
             label: 'Network Anomalies',
             value: ndrAnomalies.length,
             sub: 'open NDR alerts',
-            color: 'text-blue-400',
+            color: 'text-blue-600 dark:text-blue-400',
             border: 'border-l-blue-500',
-            icon: <WifiIcon size={18} className="text-blue-400" />,
+            icon: <WifiIcon size={18} className="text-blue-600 dark:text-blue-400" />,
         },
         {
             label: 'Critical Network',
             value: criticalNdr,
             sub: 'critical severity',
-            color: 'text-red-400',
-            border: 'border-l-red-700',
-            icon: <CpuIcon size={18} className="text-red-400" />,
+            color: 'text-red-600 dark:text-red-400',
+            border: 'border-l-red-200 dark:border-l-red-700',
+            icon: <CpuIcon size={18} className="text-red-600 dark:text-red-400" />,
         },
     ];
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64 text-slate-400">
+            <div className="flex items-center justify-center h-64 text-gray-600 dark:text-slate-400">
                 <CpuIcon size={20} className="animate-spin mr-2" />
                 Loading anomaly signals…
             </div>
@@ -146,7 +146,7 @@ export const AIAnomalyDashboard: React.FC = () => {
     return (
         <div className="space-y-5">
             {error && (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-900/30 border border-red-700 text-red-300 text-sm">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 text-sm">
                     <span className="shrink-0">⚠</span>
                     {error}
                     <button onClick={() => load(true)} className="ml-auto underline hover:no-underline">Retry</button>
@@ -155,18 +155,18 @@ export const AIAnomalyDashboard: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                        <SparklesIcon size={22} className="text-purple-400" />
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <SparklesIcon size={22} className="text-purple-600 dark:text-purple-400" />
                         AI Anomaly Detection
                     </h2>
-                    <p className="text-sm text-slate-400 mt-0.5">
+                    <p className="text-sm text-gray-600 dark:text-slate-400 mt-0.5">
                         Behavioral deviation scores aggregated from UEBA (ML model) and NDR (network baseline)
                     </p>
                 </div>
                 <button
                     onClick={() => load(true)}
                     disabled={refreshing}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 disabled:opacity-50"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50"
                 >
                     <RefreshCwIcon size={14} className={refreshing ? 'animate-spin' : ''} />
                     Refresh
@@ -176,10 +176,10 @@ export const AIAnomalyDashboard: React.FC = () => {
             {/* Summary cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {summaryCards.map(({ label, value, sub, color, border, icon }) => (
-                    <div key={label} className={`bg-gray-800 rounded-lg p-4 border border-gray-700 border-l-4 ${border}`}>
+                    <div key={label} className={`bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 border-l-4 ${border}`}>
                         <div className="flex items-center gap-2 mb-1">
                             {icon}
-                            <p className="text-xs text-gray-400">{label}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{label}</p>
                         </div>
                         <p className={`text-2xl font-bold ${color}`}>{value}</p>
                         <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
@@ -190,10 +190,10 @@ export const AIAnomalyDashboard: React.FC = () => {
             {/* Two-panel layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 {/* UEBA: Behavioral Deviators */}
-                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
-                        <ActivityIcon size={16} className="text-purple-400" />
-                        <span className="text-sm font-semibold text-white">Behavioral Deviators</span>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <ActivityIcon size={16} className="text-purple-600 dark:text-purple-400" />
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">Behavioral Deviators</span>
                         <span className="ml-auto text-xs text-gray-500">UEBA · sorted by AI score</span>
                     </div>
                     {topDeviators.length === 0 ? (
@@ -201,7 +201,7 @@ export const AIAnomalyDashboard: React.FC = () => {
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead className="text-xs uppercase bg-gray-700/50 text-gray-400">
+                                <thead className="text-xs uppercase bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400">
                                     <tr>
                                         <th className="px-4 py-2 text-left">User</th>
                                         <th className="px-4 py-2 text-right">AI</th>
@@ -209,19 +209,19 @@ export const AIAnomalyDashboard: React.FC = () => {
                                         <th className="px-4 py-2 text-right" title="mlScore − ruleScore">Delta</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-700/50">
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700/50">
                                     {topDeviators.map(u => {
                                         const delta = u.mlScore - u.ruleScore;
                                         return (
-                                            <tr key={u.userId} className="hover:bg-gray-700/30">
+                                            <tr key={u.userId} className="hover:bg-gray-100 dark:hover:bg-gray-700/30">
                                                 <td className="px-4 py-2.5">
-                                                    <p className="font-medium text-gray-200 text-xs leading-tight truncate max-w-[140px]">{u.userName}</p>
+                                                    <p className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight truncate max-w-[140px]">{u.userName}</p>
                                                     <p className="text-gray-500 text-xs truncate max-w-[140px]">{u.userEmail}</p>
                                                 </td>
                                                 <td className="px-4 py-2.5 text-right">
                                                     <span className={`font-bold text-base ${SCORE_CLS(u.mlScore)}`}>{u.mlScore}</span>
                                                 </td>
-                                                <td className="px-4 py-2.5 text-right text-gray-400 text-xs">{u.ruleScore}</td>
+                                                <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400 text-xs">{u.ruleScore}</td>
                                                 <td className="px-4 py-2.5 text-right">
                                                     <span className={`text-xs ${DELTA_CLS(delta)}`}>
                                                         {delta >= 0 ? '+' : ''}{delta}
@@ -237,10 +237,10 @@ export const AIAnomalyDashboard: React.FC = () => {
                 </div>
 
                 {/* NDR: Network Anomalies */}
-                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
-                        <WifiIcon size={16} className="text-blue-400" />
-                        <span className="text-sm font-semibold text-white">Network Anomalies</span>
+                <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <WifiIcon size={16} className="text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">Network Anomalies</span>
                         <span className="ml-auto text-xs text-gray-500">NDR · sorted by severity</span>
                     </div>
                     {sortedNdr.length === 0 ? (
@@ -248,7 +248,7 @@ export const AIAnomalyDashboard: React.FC = () => {
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead className="text-xs uppercase bg-gray-700/50 text-gray-400">
+                                <thead className="text-xs uppercase bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400">
                                     <tr>
                                         <th className="px-4 py-2 text-left">Type</th>
                                         <th className="px-4 py-2 text-left">Severity</th>
@@ -256,12 +256,12 @@ export const AIAnomalyDashboard: React.FC = () => {
                                         <th className="px-4 py-2 text-left">MITRE</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-700/50">
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700/50">
                                     {sortedNdr.map(a => (
-                                        <tr key={a.id} className="hover:bg-gray-700/30">
+                                        <tr key={a.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/30">
                                             <td className="px-4 py-2.5">
                                                 <span className="mr-1.5 text-xs">{NDR_ICONS[a.type] || '?'}</span>
-                                                <span className="text-gray-200 text-xs">{a.type.replace(/_/g, ' ')}</span>
+                                                <span className="text-gray-800 dark:text-gray-200 text-xs">{a.type.replace(/_/g, ' ')}</span>
                                                 <p className="text-gray-500 text-xs mt-0.5 font-mono">{a.src_ip} → {a.dst_ip}</p>
                                             </td>
                                             <td className="px-4 py-2.5">
@@ -270,13 +270,13 @@ export const AIAnomalyDashboard: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-2.5 text-right">
-                                                <span className={`text-xs font-mono ${a.confidence >= 80 ? 'text-red-400' : a.confidence >= 60 ? 'text-orange-400' : 'text-gray-400'}`}>
+                                                <span className={`text-xs font-mono ${a.confidence >= 80 ? 'text-red-600 dark:text-red-400' : a.confidence >= 60 ? 'text-orange-700 dark:text-orange-400' : 'text-gray-600 dark:text-gray-400'}`}>
                                                     {a.confidence ?? '—'}%
                                                 </span>
                                             </td>
                                             <td className="px-4 py-2.5">
                                                 {a.mitre_technique
-                                                    ? <span className="text-xs font-mono text-indigo-400">{a.mitre_technique}</span>
+                                                    ? <span className="text-xs font-mono text-indigo-600 dark:text-indigo-400">{a.mitre_technique}</span>
                                                     : <span className="text-xs text-gray-600">—</span>
                                                 }
                                             </td>
@@ -291,8 +291,8 @@ export const AIAnomalyDashboard: React.FC = () => {
 
             {/* Legend */}
             <div className="text-xs text-gray-600 space-y-0.5">
-                <p><span className="text-orange-400 font-semibold">Delta (AI − Rules)</span>: positive = AI model flags risk the rules missed; negative = rules caught it, AI uncertain</p>
-                <p><span className="text-indigo-400 font-semibold">MITRE</span>: ATT&CK technique ID linked to the detected network behavior pattern</p>
+                <p><span className="text-orange-700 dark:text-orange-400 font-semibold">Delta (AI − Rules)</span>: positive = AI model flags risk the rules missed; negative = rules caught it, AI uncertain</p>
+                <p><span className="text-indigo-600 dark:text-indigo-400 font-semibold">MITRE</span>: ATT&CK technique ID linked to the detected network behavior pattern</p>
             </div>
         </div>
     );

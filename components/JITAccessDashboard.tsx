@@ -30,12 +30,12 @@ interface Summary {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-900/30 text-yellow-300 border-yellow-700',
-  approved: 'bg-green-900/30 text-green-300 border-green-700',
-  active: 'bg-blue-900/30 text-blue-300 border-blue-700',
-  expired: 'bg-gray-700/50 text-gray-400 border-gray-600',
-  revoked: 'bg-red-900/30 text-red-300 border-red-700',
-  denied: 'bg-red-900/30 text-red-400 border-red-700',
+  pending: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700',
+  approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700',
+  active: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+  expired: 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600',
+  revoked: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700',
+  denied: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700',
 };
 
 export default function JITAccessDashboard() {
@@ -112,13 +112,13 @@ export default function JITAccessDashboard() {
   ];
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">JIT Privileged Access</h1>
-          <p className="text-gray-400 text-sm mt-1">Just-in-time access requests with approval workflow and auto-expiry</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Just-in-time access requests with approval workflow and auto-expiry</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
+        <button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
           + Request Access
         </button>
       </div>
@@ -126,15 +126,15 @@ export default function JITAccessDashboard() {
       {summary && (
         <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-6">
           {[
-            { label: 'Pending', value: summary.pending, color: 'text-yellow-400' },
-            { label: 'Active', value: summary.active, color: 'text-blue-400' },
-            { label: 'Expired', value: summary.expired, color: 'text-gray-400' },
-            { label: 'Revoked', value: summary.revoked, color: 'text-red-400' },
-            { label: 'Denied', value: summary.denied, color: 'text-red-300' },
+            { label: 'Pending', value: summary.pending, color: 'text-yellow-700 dark:text-yellow-400' },
+            { label: 'Active', value: summary.active, color: 'text-blue-600 dark:text-blue-400' },
+            { label: 'Expired', value: summary.expired, color: 'text-gray-600 dark:text-gray-400' },
+            { label: 'Revoked', value: summary.revoked, color: 'text-red-600 dark:text-red-400' },
+            { label: 'Denied', value: summary.denied, color: 'text-red-700 dark:text-red-300' },
           ].map(c => (
-            <div key={c.label} className="bg-gray-800 rounded-xl p-4 border border-gray-700 text-center">
+            <div key={c.label} className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-center">
               <div className={`text-2xl font-bold ${c.color}`}>{c.value}</div>
-              <div className="text-xs text-gray-400 mt-1">{c.label}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{c.label}</div>
             </div>
           ))}
         </div>
@@ -143,7 +143,7 @@ export default function JITAccessDashboard() {
       <div className="flex gap-2 mb-4">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setFilter(t.key)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === t.key ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === t.key ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
             {t.label}
           </button>
         ))}
@@ -157,20 +157,20 @@ export default function JITAccessDashboard() {
       ) : (
         <div className="space-y-3">
           {requests.map(req => (
-            <div key={req.id} className="bg-gray-800 rounded-xl p-5 border border-gray-700 hover:border-gray-500 transition-colors">
+            <div key={req.id} className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:border-gray-500 transition-colors">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className={`text-xs px-2 py-0.5 rounded border font-medium ${STATUS_COLORS[req.status] || 'bg-gray-700 text-gray-300 border-gray-600'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded border font-medium ${STATUS_COLORS[req.status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'}`}>
                       {req.status.toUpperCase()}
                     </span>
                     <span className="font-semibold">{req.requester_name}</span>
-                    <span className="text-gray-400 text-sm">→</span>
-                    <span className="text-blue-300 text-sm font-mono">{req.resource}</span>
-                    <span className="text-gray-400 text-xs">as</span>
-                    <span className="text-purple-300 text-sm font-medium">{req.role}</span>
+                    <span className="text-gray-600 dark:text-gray-400 text-sm">→</span>
+                    <span className="text-blue-700 dark:text-blue-300 text-sm font-mono">{req.resource}</span>
+                    <span className="text-gray-600 dark:text-gray-400 text-xs">as</span>
+                    <span className="text-purple-700 dark:text-purple-300 text-sm font-medium">{req.role}</span>
                   </div>
-                  <p className="text-gray-400 text-sm mb-2">{req.reason}</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">{req.reason}</p>
                   <div className="flex gap-4 text-xs text-gray-500">
                     <span>Duration: {req.duration_hours}h</span>
                     <span>Requested: {new Date(req.created_at).toLocaleString()}</span>
@@ -179,18 +179,18 @@ export default function JITAccessDashboard() {
                   </div>
                 </div>
                 <div className="flex gap-2 ml-4">
-                  <button onClick={() => setSelectedReq(req)} className="bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded text-xs">
+                  <button onClick={() => setSelectedReq(req)} className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 px-3 py-1.5 rounded text-xs">
                     Details
                   </button>
                   {req.status === 'pending' && (
                     <>
-                      <button onClick={() => { setSelectedReq(req); }} className="bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded text-xs">
+                      <button onClick={() => { setSelectedReq(req); }} className="bg-green-700 hover:bg-green-600 px-3 py-1.5 rounded text-xs text-white">
                         Review
                       </button>
                     </>
                   )}
                   {req.status === 'active' && (
-                    <button onClick={() => revokeRequest(req.id)} className="bg-red-900/50 hover:bg-red-900/80 px-3 py-1.5 rounded text-xs text-red-300">
+                    <button onClick={() => revokeRequest(req.id)} className="bg-red-100 dark:bg-red-900/50 hover:bg-red-100 dark:hover:bg-red-900/80 px-3 py-1.5 rounded text-xs text-red-700 dark:text-red-300">
                       Revoke
                     </button>
                   )}
@@ -203,43 +203,43 @@ export default function JITAccessDashboard() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl w-full max-w-md border border-gray-600">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md border border-gray-300 dark:border-gray-600">
             <div className="p-6">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-bold text-lg">Request Privileged Access</h3>
-                <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-white">✕</button>
+                <button onClick={() => setShowCreate(false)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">✕</button>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Resource *</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Resource *</label>
                   <input value={form.resource} onChange={e => setForm(p => ({ ...p, resource: e.target.value }))}
                     placeholder="e.g. prod-db, k8s-cluster, aws-root"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Role / Permission *</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Role / Permission *</label>
                   <input value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
                     placeholder="e.g. admin, read-only, db-superuser"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Business Justification *</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Business Justification *</label>
                   <textarea value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
                     rows={3} placeholder="Explain why you need this access..."
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white resize-none" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white resize-none" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Duration (hours, max 8)</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Duration (hours, max 8)</label>
                   <input type="number" min={1} max={8} value={form.duration_hours}
                     onChange={e => setForm(p => ({ ...p, duration_hours: Math.min(8, Math.max(1, Number(e.target.value))) }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={createRequest} disabled={saving || !form.resource || !form.role || !form.reason}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium">
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {saving ? 'Submitting...' : 'Submit Request'}
                   </button>
-                  <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg border border-gray-600 text-sm">Cancel</button>
+                  <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">Cancel</button>
                 </div>
               </div>
             </div>
@@ -249,34 +249,34 @@ export default function JITAccessDashboard() {
 
       {selectedReq && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl w-full max-w-lg border border-gray-600 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-lg border border-gray-300 dark:border-gray-600 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-bold text-lg">Access Request Details</h3>
-                <button onClick={() => setSelectedReq(null)} className="text-gray-400 hover:text-white">✕</button>
+                <button onClick={() => setSelectedReq(null)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">✕</button>
               </div>
               <div className="space-y-3 mb-5">
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-gray-400">Requester:</span> <span className="text-white">{selectedReq.requester_name}</span></div>
-                  <div><span className="text-gray-400">Status:</span> <span className={`px-2 py-0.5 rounded text-xs border ${STATUS_COLORS[selectedReq.status]}`}>{selectedReq.status}</span></div>
-                  <div><span className="text-gray-400">Resource:</span> <span className="text-blue-300 font-mono">{selectedReq.resource}</span></div>
-                  <div><span className="text-gray-400">Role:</span> <span className="text-purple-300">{selectedReq.role}</span></div>
-                  <div><span className="text-gray-400">Duration:</span> <span>{selectedReq.duration_hours}h</span></div>
-                  {selectedReq.expires_at && <div><span className="text-gray-400">Expires:</span> <span>{new Date(selectedReq.expires_at).toLocaleString()}</span></div>}
+                  <div><span className="text-gray-600 dark:text-gray-400">Requester:</span> <span className="text-gray-900 dark:text-white">{selectedReq.requester_name}</span></div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Status:</span> <span className={`px-2 py-0.5 rounded text-xs border ${STATUS_COLORS[selectedReq.status]}`}>{selectedReq.status}</span></div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Resource:</span> <span className="text-blue-700 dark:text-blue-300 font-mono">{selectedReq.resource}</span></div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Role:</span> <span className="text-purple-700 dark:text-purple-300">{selectedReq.role}</span></div>
+                  <div><span className="text-gray-600 dark:text-gray-400">Duration:</span> <span>{selectedReq.duration_hours}h</span></div>
+                  {selectedReq.expires_at && <div><span className="text-gray-600 dark:text-gray-400">Expires:</span> <span>{new Date(selectedReq.expires_at).toLocaleString()}</span></div>}
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs mb-1">Justification</p>
-                  <p className="text-sm bg-gray-700 rounded p-3">{selectedReq.reason}</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs mb-1">Justification</p>
+                  <p className="text-sm bg-gray-100 dark:bg-gray-700 rounded p-3">{selectedReq.reason}</p>
                 </div>
                 {selectedReq.audit_trail.length > 0 && (
                   <div>
-                    <p className="text-gray-400 text-xs mb-2">Audit Trail</p>
+                    <p className="text-gray-600 dark:text-gray-400 text-xs mb-2">Audit Trail</p>
                     <div className="space-y-1">
                       {selectedReq.audit_trail.map((e, i) => (
-                        <div key={i} className="flex gap-3 text-xs text-gray-300 bg-gray-700/50 rounded px-3 py-1.5">
+                        <div key={i} className="flex gap-3 text-xs text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 rounded px-3 py-1.5">
                           <span className="text-gray-500">{new Date(e.timestamp).toLocaleString()}</span>
                           <span className="font-medium">{e.action}</span>
-                          <span className="text-gray-400">by {e.actor}</span>
+                          <span className="text-gray-600 dark:text-gray-400">by {e.actor}</span>
                           {e.note && <span className="text-gray-500 italic">{e.note}</span>}
                         </div>
                       ))}
@@ -285,18 +285,18 @@ export default function JITAccessDashboard() {
                 )}
               </div>
               {selectedReq.status === 'pending' && (
-                <div className="border-t border-gray-700 pt-4">
-                  <label className="text-sm text-gray-400 block mb-2">Note (optional)</label>
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-2">Note (optional)</label>
                   <input value={actionNote} onChange={e => setActionNote(e.target.value)}
                     placeholder="Add a note to your decision..."
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white mb-3" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white mb-3" />
                   <div className="flex gap-3">
                     <button onClick={() => approveRequest(selectedReq.id)}
-                      className="flex-1 bg-green-700 hover:bg-green-600 px-4 py-2 rounded-lg text-sm font-medium">
+                      className="flex-1 bg-green-700 hover:bg-green-600 px-4 py-2 rounded-lg text-sm font-medium text-white">
                       Approve
                     </button>
                     <button onClick={() => denyRequest(selectedReq.id)}
-                      className="flex-1 bg-red-900/60 hover:bg-red-900/90 px-4 py-2 rounded-lg text-sm font-medium text-red-300">
+                      className="flex-1 bg-red-100 dark:bg-red-900/60 hover:bg-red-100 dark:hover:bg-red-900/90 px-4 py-2 rounded-lg text-sm font-medium text-red-700 dark:text-red-300">
                       Deny
                     </button>
                   </div>

@@ -21,8 +21,8 @@ const TabBtn: React.FC<{
         onClick={onClick}
         className={`relative flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors ${
             active
-                ? 'bg-slate-700 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800'
         }`}
     >
         {icon}
@@ -92,10 +92,10 @@ const ChatHub: React.FC<ChatHubProps> = ({ initialTab = 'endpoint', initialSuppo
     }, []);
 
     return (
-        <div className="flex flex-col h-full bg-slate-950 text-white overflow-hidden">
+        <div className="flex flex-col h-full bg-transparent dark:bg-slate-950 text-gray-900 dark:text-white overflow-hidden">
 
             {/* ── Tab bar ──────────────────────────────────────────────── */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-800 bg-slate-900/60 flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 flex-shrink-0">
                 <TabBtn
                     active={activeTab === 'endpoint'}
                     label="Endpoint Chat"
@@ -112,7 +112,7 @@ const ChatHub: React.FC<ChatHubProps> = ({ initialTab = 'endpoint', initialSuppo
                 />
                 <div className="ml-auto text-[11px] text-slate-500">
                     {endpointUnread + supportUnread > 0
-                        ? <span className="text-red-400">{endpointUnread + supportUnread} unread</span>
+                        ? <span className="text-red-600 dark:text-red-400">{endpointUnread + supportUnread} unread</span>
                         : 'All caught up'}
                 </div>
             </div>

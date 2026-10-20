@@ -73,19 +73,19 @@ export default function DLPDashboard() {
     ];
 
     if (loading) return (
-        <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: 'var(--ink-well)', minHeight: '100vh', color: 'var(--ink-text)', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ color: '#64748b', fontSize: 16 }}>Loading DLP data…</p>
         </div>
     );
 
     if (loadError) return (
-        <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: 'var(--ink-well)', minHeight: '100vh', color: 'var(--ink-text)', padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ color: '#ef4444', fontSize: 16 }}>{loadError}</p>
         </div>
     );
 
     return (
-        <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24 }}>
+        <div style={{ background: 'var(--ink-well)', minHeight: '100vh', color: 'var(--ink-text)', padding: 24 }}>
             <div style={{ marginBottom: 24 }}>
                 <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, background: 'linear-gradient(135deg,#f97316,#ef4444)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Data Loss Prevention</h1>
                 <p style={{ color: '#64748b', margin: '4px 0 0' }}>PII detection, sensitive data classification, and bulk export monitoring</p>
@@ -99,7 +99,7 @@ export default function DLPDashboard() {
                     { label: 'Critical Findings', val: incidents.reduce((acc, i) => acc + i.findings.filter((f: any) => f.severity === 'critical').length, 0), color: '#ef4444' },
                     { label: 'Active Policies', val: policies.filter(p => p.enabled).length, color: '#7c3aed' },
                 ].map(c => (
-                    <div key={c.label} style={{ background: '#1e293b', borderRadius: 12, padding: '16px 20px', border: '1px solid #334155' }}>
+                    <div key={c.label} style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: '16px 20px', border: '1px solid var(--ink-line-strong)' }}>
                         <div style={{ fontSize: 28, fontWeight: 800, color: c.color }}>{c.val}</div>
                         <div style={{ color: '#64748b', fontSize: 13 }}>{c.label}</div>
                     </div>
@@ -112,7 +112,7 @@ export default function DLPDashboard() {
                     <button key={t.id} onClick={() => setTab(t.id as any)}
                         style={{
                             padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                            background: tab === t.id ? '#7c3aed' : '#1e293b', color: tab === t.id ? 'white' : '#94a3b8'
+                            background: tab === t.id ? '#7c3aed' : '#1e293b', color: tab === t.id ? 'white' : 'var(--ink-muted)'
                         }}>
                         {t.label}
                     </button>
@@ -124,7 +124,7 @@ export default function DLPDashboard() {
                 <div>
                     {incidents.length === 0 && <div style={{ color: '#64748b', textAlign: 'center', padding: 40 }}>No DLP incidents found.</div>}
                     {incidents.map(inc => (
-                        <div key={inc.scan_id} style={{ background: '#1e293b', borderRadius: 12, padding: 20, marginBottom: 12, border: '1px solid #334155' }}>
+                        <div key={inc.scan_id} style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: 20, marginBottom: 12, border: '1px solid var(--ink-line-strong)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                                 <div>
                                     <div style={{ fontWeight: 700, fontSize: 16 }}>📄 {inc.filename}</div>
@@ -148,7 +148,7 @@ export default function DLPDashboard() {
                             </div>
                             {inc.status === 'open' && (
                                 <button onClick={() => resolve(inc.scan_id)}
-                                    style={{ background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontSize: 13 }}>
+                                    style={{ background: 'var(--ink-line-strong)', color: 'var(--ink-muted)', border: 'none', borderRadius: 6, padding: '6px 16px', cursor: 'pointer', fontSize: 13 }}>
                                     ✓ Mark Resolved
                                 </button>
                             )}
@@ -162,15 +162,15 @@ export default function DLPDashboard() {
                 <div style={{ maxWidth: 600 }}>
                     <div
                         onClick={() => fileRef.current?.click()}
-                        style={{ cursor: 'pointer', background: '#1e293b', borderRadius: 12, padding: 32, border: '2px dashed #334155', textAlign: 'center', marginBottom: 24 }}>
+                        style={{ cursor: 'pointer', background: 'var(--ink-panel)', borderRadius: 12, padding: 32, border: '2px dashed var(--ink-line-strong)', textAlign: 'center', marginBottom: 24 }}>
                         <div style={{ fontSize: 48, marginBottom: 12 }}>📁</div>
-                        <p style={{ color: '#94a3b8', margin: 0 }}>Click or drag a file to scan for PII and sensitive data</p>
+                        <p style={{ color: 'var(--ink-muted)', margin: 0 }}>Click or drag a file to scan for PII and sensitive data</p>
                         <p style={{ color: '#475569', fontSize: 12, margin: '8px 0 0' }}>Supports .txt, .csv, .json, .xml, .log and other text-based files</p>
                         <input ref={fileRef} type="file" accept=".txt,.csv,.json,.xml,.log,.py,.js,.ts,.yaml,.yml,.env" onChange={scanFile} style={{ display: 'none' }} />
                     </div>
                     {scanning && <div style={{ color: '#7c3aed', textAlign: 'center', padding: 20 }}>🔍 Scanning for PII...</div>}
                     {scanResult && (
-                        <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, border: `1px solid ${scanResult.finding_count ? '#ef4444' : '#22c55e'}` }}>
+                        <div style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: 24, border: `1px solid ${scanResult.finding_count ? '#ef4444' : '#22c55e'}` }}>
                             <h3 style={{ color: scanResult.finding_count ? '#ef4444' : '#22c55e', margin: '0 0 16px' }}>
                                 {scanResult.finding_count ? `⚠️ ${scanResult.finding_count} PII finding(s) detected` : '✅ No PII detected'}
                             </h3>
@@ -180,7 +180,7 @@ export default function DLPDashboard() {
                             {scanResult.findings?.map((f: any, i: number) => (
                                 <div key={i} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid #ef4444', borderRadius: 8, padding: 12, marginBottom: 8 }}>
                                     <div style={{ fontWeight: 700, color: '#ef4444' }}>{f.name}</div>
-                                    <div style={{ color: '#94a3b8', fontSize: 13 }}>Redacted: <code>{f.redacted_value}</code></div>
+                                    <div style={{ color: 'var(--ink-muted)', fontSize: 13 }}>Redacted: <code>{f.redacted_value}</code></div>
                                 </div>
                             ))}
                         </div>
@@ -191,18 +191,18 @@ export default function DLPDashboard() {
             {/* Policies tab */}
             {tab === 'policies' && (
                 <div>
-                    <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, marginBottom: 20, border: '1px solid #334155' }}>
+                    <div style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: 24, marginBottom: 20, border: '1px solid var(--ink-line-strong)' }}>
                         <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>Add Custom DLP Policy</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr auto', gap: 12, alignItems: 'end' }}>
                             <div>
-                                <label style={{ color: '#94a3b8', fontSize: 12, display: 'block', marginBottom: 4 }}>Policy Name</label>
+                                <label style={{ color: 'var(--ink-muted)', fontSize: 12, display: 'block', marginBottom: 4 }}>Policy Name</label>
                                 <input value={newPolicy.name} onChange={e => setNewPolicy(p => ({ ...p, name: e.target.value }))}
-                                    style={{ width: '100%', padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', boxSizing: 'border-box' }} placeholder="e.g. NHS Patient ID" />
+                                    style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', boxSizing: 'border-box' }} placeholder="e.g. NHS Patient ID" />
                             </div>
                             <div>
-                                <label style={{ color: '#94a3b8', fontSize: 12, display: 'block', marginBottom: 4 }}>Regex Pattern</label>
+                                <label style={{ color: 'var(--ink-muted)', fontSize: 12, display: 'block', marginBottom: 4 }}>Regex Pattern</label>
                                 <input value={newPolicy.pattern} onChange={e => setNewPolicy(p => ({ ...p, pattern: e.target.value }))}
-                                    style={{ width: '100%', padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', boxSizing: 'border-box', fontFamily: 'monospace' }} placeholder="\b\d{3} \d{3} \d{4}\b" />
+                                    style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', boxSizing: 'border-box', fontFamily: 'monospace' }} placeholder="\b\d{3} \d{3} \d{4}\b" />
                             </div>
                             <button onClick={addPolicy} disabled={saving}
                                 style={{ padding: '10px 20px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
@@ -212,7 +212,7 @@ export default function DLPDashboard() {
                         {feedback && <div style={{ marginTop: 12, color: feedback.ok ? '#22c55e' : '#ef4444' }}>{feedback.msg}</div>}
                     </div>
                     {policies.map(p => (
-                        <div key={p.policy_id} style={{ background: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 8, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between' }}>
+                        <div key={p.policy_id} style={{ background: 'var(--ink-panel)', borderRadius: 10, padding: 16, marginBottom: 8, border: '1px solid var(--ink-line-strong)', display: 'flex', justifyContent: 'space-between' }}>
                             <div>
                                 <div style={{ fontWeight: 600 }}>{p.name}</div>
                                 <code style={{ color: '#64748b', fontSize: 12 }}>{p.pattern}</code>

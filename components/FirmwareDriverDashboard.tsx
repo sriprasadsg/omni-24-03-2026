@@ -44,21 +44,21 @@ interface ComplianceReport {
 }
 
 const SEVERITY_BADGE: Record<string, string> = {
-  critical: 'bg-red-900/50 text-red-300 border border-red-700',
-  recommended: 'bg-orange-900/50 text-orange-300 border border-orange-700',
-  optional: 'bg-slate-700 text-slate-300',
+  critical: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700',
+  recommended: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-700',
+  optional: 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300',
 };
 
 const STATUS_BADGE: Record<string, string> = {
-  current: 'bg-green-900/50 text-green-300',
-  outdated: 'bg-red-900/50 text-red-300',
+  current: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
+  outdated: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300',
 };
 
 const JOB_STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-yellow-900/50 text-yellow-300',
-  running: 'bg-blue-900/50 text-blue-300',
-  completed: 'bg-green-900/50 text-green-300',
-  failed: 'bg-red-900/50 text-red-300',
+  pending: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300',
+  running: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
+  completed: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
+  failed: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300',
 };
 
 export default function FirmwareDriverDashboard() {
@@ -122,39 +122,39 @@ export default function FirmwareDriverDashboard() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Firmware & Driver Updates</h1>
-          <p className="text-slate-400 text-sm mt-1">Driver inventory, firmware versions, and update deployment</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Firmware & Driver Updates</h1>
+          <p className="text-gray-600 dark:text-slate-400 text-sm mt-1">Driver inventory, firmware versions, and update deployment</p>
         </div>
-        <button onClick={loadData} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm">
+        <button onClick={loadData} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-900 dark:text-white rounded-lg text-sm">
           Refresh
         </button>
       </div>
 
       {compliance && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-            <div className="text-slate-400 text-xs mb-1">Driver Compliance</div>
-            <div className="text-2xl font-bold text-white">{compliance.driver_compliance_pct}%</div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
+            <div className="text-gray-600 dark:text-slate-400 text-xs mb-1">Driver Compliance</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{compliance.driver_compliance_pct}%</div>
             <div className="text-slate-500 text-xs">{compliance.assets_with_outdated_drivers} assets need updates</div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-            <div className="text-slate-400 text-xs mb-1">Firmware Compliance</div>
-            <div className="text-2xl font-bold text-white">{compliance.firmware_compliance_pct}%</div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
+            <div className="text-gray-600 dark:text-slate-400 text-xs mb-1">Firmware Compliance</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{compliance.firmware_compliance_pct}%</div>
             <div className="text-slate-500 text-xs">{compliance.assets_with_outdated_firmware} assets need updates</div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4 border border-red-900">
-            <div className="text-slate-400 text-xs mb-1">Critical Updates</div>
-            <div className="text-2xl font-bold text-red-400">{compliance.critical_updates_pending}</div>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-red-200 dark:border-red-900">
+            <div className="text-gray-600 dark:text-slate-400 text-xs mb-1">Critical Updates</div>
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{compliance.critical_updates_pending}</div>
             <div className="text-slate-500 text-xs">require immediate action</div>
           </div>
         </div>
       )}
 
       <div className="flex gap-2 flex-wrap items-center">
-        <div className="flex border border-slate-700 rounded-lg overflow-hidden">
+        <div className="flex border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
           {(['drivers', 'firmware', 'updates', 'jobs'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+              className={`px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
               {t === 'drivers' ? `Drivers (${drivers.length})` :
                t === 'firmware' ? `Firmware (${firmware.length})` :
                t === 'updates' ? `Available Updates (${updates.length})` :
@@ -170,16 +170,16 @@ export default function FirmwareDriverDashboard() {
         )}
       </div>
 
-      {loading ? <div className="text-slate-400 text-center py-12">Loading...</div> : (
+      {loading ? <div className="text-gray-600 dark:text-slate-400 text-center py-12">Loading...</div> : (
         <>
           {(tab === 'drivers' || tab === 'firmware') && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
               {(tab === 'drivers' ? drivers : firmware).length === 0 ? (
-                <div className="text-slate-400 text-center py-12">No {tab} inventory data</div>
+                <div className="text-gray-600 dark:text-slate-400 text-center py-12">No {tab} inventory data</div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="border-b border-slate-700">
-                    <tr className="text-left text-slate-400">
+                  <thead className="border-b border-gray-200 dark:border-slate-700">
+                    <tr className="text-left text-gray-600 dark:text-slate-400">
                       <th className="px-4 py-3">Asset</th>
                       <th className="px-4 py-3">Component</th>
                       <th className="px-4 py-3">Manufacturer</th>
@@ -188,14 +188,14 @@ export default function FirmwareDriverDashboard() {
                       <th className="px-4 py-3">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/50">
+                  <tbody className="divide-y divide-gray-200 dark:divide-slate-700/50">
                     {(tab === 'drivers' ? drivers : firmware).map((item, i) => (
-                      <tr key={i} className="hover:bg-slate-700/30">
-                        <td className="px-4 py-3 text-slate-300">{item.asset_name}</td>
-                        <td className="px-4 py-3 text-white font-medium">{item.component}</td>
-                        <td className="px-4 py-3 text-slate-400">{item.manufacturer}</td>
-                        <td className="px-4 py-3 text-slate-300 font-mono text-xs">{item.version}</td>
-                        <td className="px-4 py-3 text-slate-400 text-xs">{item.date}</td>
+                      <tr key={i} className="hover:bg-gray-100 dark:hover:bg-slate-700/30">
+                        <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{item.asset_name}</td>
+                        <td className="px-4 py-3 text-gray-900 dark:text-white font-medium">{item.component}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{item.manufacturer}</td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-slate-300 font-mono text-xs">{item.version}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-xs">{item.date}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded text-xs ${STATUS_BADGE[item.status]}`}>{item.status}</span>
                         </td>
@@ -208,13 +208,13 @@ export default function FirmwareDriverDashboard() {
           )}
 
           {tab === 'updates' && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
               {updates.length === 0 ? (
-                <div className="text-slate-400 text-center py-12">No available updates</div>
+                <div className="text-gray-600 dark:text-slate-400 text-center py-12">No available updates</div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="border-b border-slate-700">
-                    <tr className="text-left text-slate-400">
+                  <thead className="border-b border-gray-200 dark:border-slate-700">
+                    <tr className="text-left text-gray-600 dark:text-slate-400">
                       <th className="px-4 py-3 w-8"></th>
                       <th className="px-4 py-3">Component</th>
                       <th className="px-4 py-3">Type</th>
@@ -224,20 +224,20 @@ export default function FirmwareDriverDashboard() {
                       <th className="px-4 py-3">KB/Article</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/50">
+                  <tbody className="divide-y divide-gray-200 dark:divide-slate-700/50">
                     {updates.map(upd => (
-                      <tr key={upd.id} className={`hover:bg-slate-700/30 ${selected.has(upd.id) ? 'bg-blue-900/20' : ''}`}>
+                      <tr key={upd.id} className={`hover:bg-gray-100 dark:hover:bg-slate-700/30 ${selected.has(upd.id) ? 'bg-blue-100 dark:bg-blue-900/20' : ''}`}>
                         <td className="px-4 py-3">
                           <input type="checkbox" checked={selected.has(upd.id)} onChange={() => toggleSelect(upd.id)} className="rounded" />
                         </td>
-                        <td className="px-4 py-3 text-white font-medium">{upd.component}</td>
-                        <td className="px-4 py-3 text-slate-400 capitalize">{upd.type}</td>
-                        <td className="px-4 py-3 text-slate-400 font-mono text-xs">{upd.current_version}</td>
-                        <td className="px-4 py-3 text-green-400 font-mono text-xs">{upd.available_version}</td>
+                        <td className="px-4 py-3 text-gray-900 dark:text-white font-medium">{upd.component}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400 capitalize">{upd.type}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400 font-mono text-xs">{upd.current_version}</td>
+                        <td className="px-4 py-3 text-green-600 dark:text-green-400 font-mono text-xs">{upd.available_version}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded text-xs ${SEVERITY_BADGE[upd.severity]}`}>{upd.severity}</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-400 text-xs">{upd.kb_article || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-xs">{upd.kb_article || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -249,18 +249,18 @@ export default function FirmwareDriverDashboard() {
           {tab === 'jobs' && (
             <div className="space-y-3">
               {jobs.length === 0 ? (
-                <div className="text-slate-400 text-center py-12">No deployment jobs yet</div>
+                <div className="text-gray-600 dark:text-slate-400 text-center py-12">No deployment jobs yet</div>
               ) : (
                 jobs.map(job => (
-                  <div key={job.id} className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+                  <div key={job.id} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-white font-semibold">{job.name}</h3>
-                      <span className={`px-2 py-0.5 rounded text-xs ${JOB_STATUS_BADGE[job.status] || 'bg-slate-700 text-slate-300'}`}>{job.status}</span>
+                      <h3 className="text-gray-900 dark:text-white font-semibold">{job.name}</h3>
+                      <span className={`px-2 py-0.5 rounded text-xs ${JOB_STATUS_BADGE[job.status] || 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'}`}>{job.status}</span>
                     </div>
-                    <div className="flex gap-6 text-sm text-slate-400">
+                    <div className="flex gap-6 text-sm text-gray-600 dark:text-slate-400">
                       <span>{job.update_ids?.length || 0} updates</span>
-                      <span className="text-green-400">{job.success_count} succeeded</span>
-                      {job.failure_count > 0 && <span className="text-red-400">{job.failure_count} failed</span>}
+                      <span className="text-green-600 dark:text-green-400">{job.success_count} succeeded</span>
+                      {job.failure_count > 0 && <span className="text-red-600 dark:text-red-400">{job.failure_count} failed</span>}
                       <span>{job.created_at?.slice(0, 16).replace('T', ' ')}</span>
                     </div>
                   </div>

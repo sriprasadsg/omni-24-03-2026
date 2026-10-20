@@ -122,10 +122,10 @@ export const AIAssistantChat: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-100">
+    <div className="flex flex-col h-full bg-transparent dark:bg-slate-900 text-gray-900 dark:text-slate-100">
       <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={scrollRef}>
         {messages.length === 0 && (
-          <div className="text-slate-400 text-center mt-10">
+          <div className="text-gray-600 dark:text-slate-400 text-center mt-10">
             Ask a question about your compliance or security posture.
           </div>
         )}
@@ -136,7 +136,7 @@ export const AIAssistantChat: React.FC = () => {
           return (
             <div
               key={i}
-              className={`max-w-3xl rounded-lg p-3 ${msg.role === 'user' ? 'ml-auto bg-blue-600' : 'mr-auto bg-slate-700'}`}
+              className={`max-w-3xl rounded-lg p-3 ${msg.role === 'user' ? 'ml-auto bg-blue-600 text-white' : 'mr-auto bg-gray-100 dark:bg-slate-700'}`}
             >
               {isStructured && msg.role === 'assistant' ? (
                 <ContextCard
@@ -155,10 +155,10 @@ export const AIAssistantChat: React.FC = () => {
                 </div>
               )}
               {!isStructured && msg.sources && msg.sources.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-slate-600 text-xs">
-                  <div className="font-semibold text-slate-300">Sources:</div>
+                <div className="mt-2 pt-2 border-t border-gray-300 dark:border-slate-600 text-xs">
+                  <div className="font-semibold text-gray-700 dark:text-slate-300">Sources:</div>
                   {msg.sources.map((s, j) => (
-                    <div key={j} className="text-slate-400">
+                    <div key={j} className="text-gray-600 dark:text-slate-400">
                       [{s.type}] {s.title} — <span className="italic">{s.snippet}</span>
                     </div>
                   ))}
@@ -168,7 +168,7 @@ export const AIAssistantChat: React.FC = () => {
           );
         })}
       </div>
-      <div className="p-3 border-t border-slate-700 flex gap-2">
+      <div className="p-3 border-t border-gray-200 dark:border-slate-700 flex gap-2">
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -180,14 +180,14 @@ export const AIAssistantChat: React.FC = () => {
           }}
           placeholder="Ask about your compliance posture..."
           disabled={loading}
-          className="flex-1 bg-slate-800 border border-slate-700 rounded px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+          className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-3 py-2 text-gray-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
         />
         {loading ? (
-          <button onClick={cancel} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">
+          <button onClick={cancel} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-white">
             Cancel
           </button>
         ) : (
-          <button onClick={sendMessage} disabled={!input.trim()} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:opacity-50">
+          <button onClick={sendMessage} disabled={!input.trim()} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:opacity-50 text-white">
             Send
           </button>
         )}

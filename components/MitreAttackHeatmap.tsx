@@ -149,13 +149,13 @@ export default function MitreAttackHeatmap() {
     const totalTech    = heatmap.length;
 
     if (loading) return (
-        <div style={{ color: '#94a3b8', padding: 40, textAlign: 'center', background: '#0f172a', minHeight: '100vh' }}>
+        <div style={{ color: 'var(--ink-muted)', padding: 40, textAlign: 'center', background: 'var(--ink-well)', minHeight: '100vh' }}>
             Loading ATT&CK matrix…
         </div>
     );
 
     return (
-        <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24 }}>
+        <div style={{ background: 'var(--ink-well)', minHeight: '100vh', color: 'var(--ink-text)', padding: 24 }}>
 
             {/* ── Header ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -166,7 +166,7 @@ export default function MitreAttackHeatmap() {
                     <p style={{ color: '#64748b', margin: '4px 0 0' }}>Enterprise Matrix — Detection Coverage View</p>
                 </div>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <div style={{ background: '#1e293b', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
+                    <div style={{ background: 'var(--ink-panel)', borderRadius: 10, padding: '8px 16px', textAlign: 'center' }}>
                         <div style={{ fontSize: 22, fontWeight: 800, color: totalCovered > 0 ? '#7c3aed' : '#ef4444' }}>
                             {totalCovered}/{totalTech}
                         </div>
@@ -180,7 +180,7 @@ export default function MitreAttackHeatmap() {
             </div>
 
             {/* ── Auto-refresh controls ── */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, padding: '8px 14px', background: '#1e293b', borderRadius: 8, border: '1px solid #334155', width: 'fit-content' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, padding: '8px 14px', background: 'var(--ink-panel)', borderRadius: 8, border: '1px solid var(--ink-line-strong)', width: 'fit-content' }}>
                 {/* Live badge */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{
@@ -223,7 +223,7 @@ export default function MitreAttackHeatmap() {
                     disabled={refreshing}
                     style={{
                         fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: refreshing ? 'not-allowed' : 'pointer',
-                        fontWeight: 600, background: 'rgba(124,58,237,0.15)', color: '#a78bfa',
+                        fontWeight: 600, background: 'rgba(124,58,237,0.15)', color: 'var(--ink-violet)',
                         border: '1px solid #7c3aed', opacity: refreshing ? 0.5 : 1,
                     }}>
                     ↻ Refresh Now
@@ -236,8 +236,8 @@ export default function MitreAttackHeatmap() {
             <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
                 {([['#1e293b', 'No coverage'], ['#7c3aed', '1–4 alerts'], ['#f97316', '5–9 alerts'], ['#ef4444', '10+ alerts']] as [string, string][]).map(([color, label]) => (
                     <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 14, height: 14, borderRadius: 3, background: color, border: '1px solid #334155' }} />
-                        <span style={{ fontSize: 12, color: '#94a3b8' }}>{label}</span>
+                        <div style={{ width: 14, height: 14, borderRadius: 3, background: color, border: '1px solid var(--ink-line-strong)' }} />
+                        <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}>{label}</span>
                     </div>
                 ))}
             </div>
@@ -247,7 +247,7 @@ export default function MitreAttackHeatmap() {
                 <div style={{ display: 'flex', gap: 8, minWidth: 1200 }}>
                     {matrix.map(tactic => (
                         <div key={tactic.id} style={{ flex: 1, minWidth: 120 }}>
-                            <div style={{ background: '#1e293b', borderRadius: 6, padding: '6px 8px', marginBottom: 6, textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#a78bfa', border: '1px solid #334155' }}>
+                            <div style={{ background: 'var(--ink-panel)', borderRadius: 6, padding: '6px 8px', marginBottom: 6, textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--ink-violet)', border: '1px solid var(--ink-line-strong)' }}>
                                 {tactic.name}
                             </div>
                             {tactic.techniques.map(tech => {
@@ -285,28 +285,28 @@ export default function MitreAttackHeatmap() {
 
             {/* ── Detail side panel ── */}
             {selected && (
-                <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 380, background: '#1e293b', borderLeft: '1px solid #334155', padding: 24, overflowY: 'auto', zIndex: 100 }}>
+                <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 380, background: 'var(--ink-panel)', borderLeft: '1px solid var(--ink-line-strong)', padding: 24, overflowY: 'auto', zIndex: 100 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                         <div>
                             <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 700 }}>{selected.technique_id}</div>
                             <h3 style={{ margin: '4px 0 0', fontSize: 18 }}>{selected.technique_name}</h3>
                             <div style={{ fontSize: 12, color: '#64748b' }}>{selected.tactic_name}</div>
                         </div>
-                        <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 20 }}>✕</button>
+                        <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--ink-muted)', cursor: 'pointer', fontSize: 20 }}>✕</button>
                     </div>
-                    <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6 }}>{selected.description}</p>
+                    <p style={{ color: 'var(--ink-muted)', fontSize: 14, lineHeight: 1.6 }}>{selected.description}</p>
                     {selected.mitigations?.length > 0 && (
                         <div style={{ marginBottom: 16 }}>
                             <h4 style={{ color: '#22c55e', margin: '0 0 8px', fontSize: 13 }}>🛡 Mitigations</h4>
                             {selected.mitigations.map((m, i) => (
-                                <div key={i} style={{ color: '#94a3b8', fontSize: 13, padding: '4px 0', borderBottom: '1px solid #0f172a' }}>{m}</div>
+                                <div key={i} style={{ color: 'var(--ink-muted)', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--ink-line-strong)' }}>{m}</div>
                             ))}
                         </div>
                     )}
                     {selected.detection && (
                         <div style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid #7c3aed', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-                            <h4 style={{ color: '#a78bfa', margin: '0 0 6px', fontSize: 13 }}>🔍 Detection Guidance</h4>
-                            <p style={{ color: '#94a3b8', fontSize: 13, margin: 0 }}>{selected.detection}</p>
+                            <h4 style={{ color: 'var(--ink-violet)', margin: '0 0 6px', fontSize: 13 }}>🔍 Detection Guidance</h4>
+                            <p style={{ color: 'var(--ink-muted)', fontSize: 13, margin: 0 }}>{selected.detection}</p>
                         </div>
                     )}
                     <a href={selected.mitre_url} target="_blank" rel="noopener noreferrer"

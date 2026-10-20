@@ -46,12 +46,12 @@ interface Summary {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  registered: 'bg-slate-700 text-slate-300',
-  assigned: 'bg-blue-900/40 text-blue-300',
-  deploying: 'bg-yellow-900/40 text-yellow-300',
-  enrolled: 'bg-green-900/40 text-green-300',
-  failed: 'bg-red-900/40 text-red-300',
-  deregistered: 'bg-gray-800 text-gray-500',
+  registered: 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300',
+  assigned: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+  deploying: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300',
+  enrolled: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
+  failed: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  deregistered: 'bg-white dark:bg-gray-800 text-gray-500',
 };
 
 const ESP_STAGE_LABELS: Record<string, string> = {
@@ -191,22 +191,22 @@ export default function AutopilotDashboard() {
   const profileMap = Object.fromEntries(profiles.map(p => [p.id, p.name]));
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-2xl font-bold">Windows Autopilot</h1>
-          <p className="text-gray-400 text-sm mt-1">Zero-touch device provisioning, deployment profiles, and enrollment status</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Zero-touch device provisioning, deployment profiles, and enrollment status</p>
         </div>
         <div className="flex gap-2">
           <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={importCsv} />
-          <button onClick={() => fileRef.current?.click()} className="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg">
+          <button onClick={() => fileRef.current?.click()} className="px-3 py-2 text-sm bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg">
             Import CSV
           </button>
           <button onClick={() => { setShowAddProfile(true); setEditProfile(null); setProfileForm({ ...BLANK_PROFILE }); }}
-            className="px-3 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg">
+            className="px-3 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">
             + New Profile
           </button>
-          <button onClick={() => setShowAddDevice(true)} className="px-3 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 rounded-lg">
+          <button onClick={() => setShowAddDevice(true)} className="px-3 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 rounded-lg text-white">
             + Register Device
           </button>
         </div>
@@ -216,26 +216,26 @@ export default function AutopilotDashboard() {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           {[
-            { label: 'Total Devices', value: summary.total_devices, color: 'text-white' },
-            { label: 'Enrolled', value: summary.enrolled, color: 'text-green-400' },
-            { label: 'Deploying', value: summary.deploying, color: 'text-yellow-400' },
-            { label: 'Failed', value: summary.failed, color: 'text-red-400' },
-            { label: 'Registered', value: summary.registered, color: 'text-slate-400' },
-            { label: 'Profiles', value: summary.total_profiles, color: 'text-blue-400' },
+            { label: 'Total Devices', value: summary.total_devices, color: 'text-gray-900 dark:text-white' },
+            { label: 'Enrolled', value: summary.enrolled, color: 'text-green-600 dark:text-green-400' },
+            { label: 'Deploying', value: summary.deploying, color: 'text-yellow-700 dark:text-yellow-400' },
+            { label: 'Failed', value: summary.failed, color: 'text-red-600 dark:text-red-400' },
+            { label: 'Registered', value: summary.registered, color: 'text-gray-600 dark:text-slate-400' },
+            { label: 'Profiles', value: summary.total_profiles, color: 'text-blue-600 dark:text-blue-400' },
           ].map(c => (
-            <div key={c.label} className="bg-gray-800 rounded-lg p-4 text-center">
+            <div key={c.label} className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
               <div className={`text-2xl font-bold ${c.color}`}>{c.value}</div>
-              <div className="text-xs text-gray-400 mt-1">{c.label}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{c.label}</div>
             </div>
           ))}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-700">
+      <div className="flex gap-1 mb-4 border-b border-gray-200 dark:border-gray-700">
         {(['devices', 'profiles', 'esp'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize ${tab === t ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}>
+            className={`px-4 py-2 text-sm font-medium capitalize ${tab === t ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
             {t === 'esp' ? 'ESP Monitor' : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
@@ -247,14 +247,14 @@ export default function AutopilotDashboard() {
           <div className="flex gap-2 mb-3 flex-wrap">
             {['all', 'registered', 'assigned', 'deploying', 'enrolled', 'failed'].map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1 text-xs rounded-full capitalize ${statusFilter === s ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                className={`px-3 py-1 text-xs rounded-full capitalize ${statusFilter === s ? 'bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                 {s}
               </button>
             ))}
           </div>
-          <div className="bg-gray-800 rounded-lg overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-700/50 text-gray-400 text-xs uppercase">
+              <thead className="bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 text-xs uppercase">
                 <tr>
                   <th className="px-4 py-3 text-left">Serial Number</th>
                   <th className="px-4 py-3 text-left">Device</th>
@@ -265,27 +265,27 @@ export default function AutopilotDashboard() {
                   <th className="px-4 py-3 text-left">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredDevices.length === 0 && (
                   <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No devices found</td></tr>
                 )}
                 {filteredDevices.map(d => (
-                  <tr key={d.id} className="hover:bg-gray-700/30">
+                  <tr key={d.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/30">
                     <td className="px-4 py-3 font-mono text-xs">{d.serial_number}</td>
                     <td className="px-4 py-3">
-                      <div className="text-white">{d.model || '—'}</div>
+                      <div className="text-gray-900 dark:text-white">{d.model || '—'}</div>
                       <div className="text-gray-500 text-xs">{d.manufacturer}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${STATUS_STYLES[d.status] || 'bg-gray-700 text-gray-300'}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${STATUS_STYLES[d.status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
                         {d.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-300 text-xs">{d.profile_id ? (profileMap[d.profile_id] || 'Unknown') : '—'}</td>
-                    <td className="px-4 py-3 text-gray-300 text-xs">{d.assigned_user || '—'}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">{d.profile_id ? (profileMap[d.profile_id] || 'Unknown') : '—'}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">{d.assigned_user || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{d.registered_at ? new Date(d.registered_at).toLocaleDateString() : '—'}</td>
                     <td className="px-4 py-3">
-                      <button onClick={() => deleteDevice(d.id)} className="text-red-400 hover:text-red-300 text-xs">Remove</button>
+                      <button onClick={() => deleteDevice(d.id)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs">Remove</button>
                     </td>
                   </tr>
                 ))}
@@ -302,22 +302,22 @@ export default function AutopilotDashboard() {
             <div className="col-span-3 text-center text-gray-500 py-12">No deployment profiles yet</div>
           )}
           {profiles.map(p => (
-            <div key={p.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div key={p.id} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-medium text-white">{p.name}</h3>
-                  <p className="text-gray-400 text-xs mt-1">{p.description || 'No description'}</p>
+                  <h3 className="font-medium text-gray-900 dark:text-white">{p.name}</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">{p.description || 'No description'}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => openEditProfile(p)} className="text-blue-400 hover:text-blue-300 text-xs">Edit</button>
-                  <button onClick={() => deleteProfile(p.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                  <button onClick={() => openEditProfile(p)} className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xs">Edit</button>
+                  <button onClick={() => deleteProfile(p.id)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs">Delete</button>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-400">
-                <div><span className="text-gray-500">Type:</span> <span className="text-gray-300 capitalize">{p.profile_type.replace(/_/g, ' ')}</span></div>
-                <div><span className="text-gray-500">Mode:</span> <span className="text-gray-300 capitalize">{p.deployment_mode.replace(/_/g, ' ')}</span></div>
-                <div><span className="text-gray-500">MDM:</span> <span className={p.auto_enroll_mdm ? 'text-green-400' : 'text-gray-400'}>{p.auto_enroll_mdm ? 'Auto' : 'Manual'}</span></div>
-                <div><span className="text-gray-500">Devices:</span> <span className="text-white font-medium">{p.assigned_devices_count}</span></div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <div><span className="text-gray-500">Type:</span> <span className="text-gray-700 dark:text-gray-300 capitalize">{p.profile_type.replace(/_/g, ' ')}</span></div>
+                <div><span className="text-gray-500">Mode:</span> <span className="text-gray-700 dark:text-gray-300 capitalize">{p.deployment_mode.replace(/_/g, ' ')}</span></div>
+                <div><span className="text-gray-500">MDM:</span> <span className={p.auto_enroll_mdm ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}>{p.auto_enroll_mdm ? 'Auto' : 'Manual'}</span></div>
+                <div><span className="text-gray-500">Devices:</span> <span className="text-gray-900 dark:text-white font-medium">{p.assigned_devices_count}</span></div>
               </div>
             </div>
           ))}
@@ -326,9 +326,9 @@ export default function AutopilotDashboard() {
 
       {/* ESP Monitor tab */}
       {tab === 'esp' && (
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-700/50 text-gray-400 text-xs uppercase">
+            <thead className="bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 text-xs uppercase">
               <tr>
                 <th className="px-4 py-3 text-left">Device</th>
                 <th className="px-4 py-3 text-left">ESP Stage</th>
@@ -338,31 +338,31 @@ export default function AutopilotDashboard() {
                 <th className="px-4 py-3 text-left">Enrolled</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {espEvents.length === 0 && (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No enrollment events yet</td></tr>
               )}
               {espEvents.map(e => (
-                <tr key={e.id} className="hover:bg-gray-700/30">
+                <tr key={e.id} className="hover:bg-gray-100 dark:hover:bg-gray-700/30">
                   <td className="px-4 py-3">
-                    <div className="text-white text-xs font-mono">{e.serial_number}</div>
+                    <div className="text-gray-900 dark:text-white text-xs font-mono">{e.serial_number}</div>
                     <div className="text-gray-500 text-xs">{e.manufacturer} {e.model}</div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-300">{ESP_STAGE_LABELS[e.esp_stage] || e.esp_stage}</td>
+                  <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-300">{ESP_STAGE_LABELS[e.esp_stage] || e.esp_stage}</td>
                   <td className="px-4 py-3">
-                    <div className="w-32 bg-gray-700 rounded-full h-2">
-                      <div className={`h-2 rounded-full ${e.esp_stage === 'failed' ? 'bg-red-500' : 'bg-blue-500'}`}
+                    <div className="w-32 bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                      <div className={`h-2 rounded-full ${e.esp_stage === 'failed' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}
                         style={{ width: `${e.esp_progress}%` }} />
                     </div>
-                    <span className="text-xs text-gray-400 mt-0.5 block">{e.esp_progress}%</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 block">{e.esp_progress}%</span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${STATUS_STYLES[e.status] || 'bg-gray-700 text-gray-300'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs capitalize ${STATUS_STYLES[e.status] || 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
                       {e.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{e.last_contact ? new Date(e.last_contact).toLocaleString() : '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{e.enrolled_at ? new Date(e.enrolled_at).toLocaleString() : '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{e.last_contact ? new Date(e.last_contact).toLocaleString() : '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{e.enrolled_at ? new Date(e.enrolled_at).toLocaleString() : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -373,7 +373,7 @@ export default function AutopilotDashboard() {
       {/* Add Device Modal */}
       {showAddDevice && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-semibold mb-4">Register Device</h2>
             <div className="space-y-3">
               {[
@@ -385,17 +385,17 @@ export default function AutopilotDashboard() {
                 { key: 'notes', label: 'Notes', placeholder: 'Optional notes' },
               ].map(f => (
                 <div key={f.key}>
-                  <label className="text-xs text-gray-400 block mb-1">{f.label}</label>
+                  <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">{f.label}</label>
                   <input value={(deviceForm as any)[f.key]} onChange={e => setDeviceForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               ))}
             </div>
             <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => setShowAddDevice(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+              <button onClick={() => setShowAddDevice(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Cancel</button>
               <button onClick={addDevice} disabled={saving || !deviceForm.serial_number}
-                className="px-4 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 rounded-lg disabled:opacity-50">
+                className="px-4 py-2 text-sm bg-indigo-700 hover:bg-indigo-600 rounded-lg disabled:opacity-50 text-white">
                 {saving ? 'Saving…' : 'Register'}
               </button>
             </div>
@@ -406,26 +406,26 @@ export default function AutopilotDashboard() {
       {/* Add/Edit Profile Modal */}
       {showAddProfile && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-lg border border-gray-700 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">{editProfile ? 'Edit Profile' : 'New Deployment Profile'}</h2>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Profile Name *</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Profile Name *</label>
                 <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="e.g. Standard Employee Deployment"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Description</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Description</label>
                 <input value={profileForm.description} onChange={e => setProfileForm(p => ({ ...p, description: e.target.value }))}
                   placeholder="Optional description"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Profile Type</label>
+                  <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Profile Type</label>
                   <select value={profileForm.profile_type} onChange={e => setProfileForm(p => ({ ...p, profile_type: e.target.value }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                     <option value="user_driven">User Driven</option>
                     <option value="self_deploying">Self Deploying</option>
                     <option value="pre_provisioning">Pre-Provisioning</option>
@@ -433,9 +433,9 @@ export default function AutopilotDashboard() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Deployment Mode</label>
+                  <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Deployment Mode</label>
                   <select value={profileForm.deployment_mode} onChange={e => setProfileForm(p => ({ ...p, deployment_mode: e.target.value }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                     <option value="azure_ad_join">Azure AD Join</option>
                     <option value="hybrid_azure_ad_join">Hybrid Azure AD Join</option>
                     <option value="azure_ad_join_intune">Azure AD + Intune</option>
@@ -443,16 +443,16 @@ export default function AutopilotDashboard() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Device Name Template</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Device Name Template</label>
                 <input value={profileForm.apply_device_name_template} onChange={e => setProfileForm(p => ({ ...p, apply_device_name_template: e.target.value }))}
                   placeholder="e.g. CORP-%RAND:4%"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Allowed Group (Azure AD Group)</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">Allowed Group (Azure AD Group)</label>
                 <input value={profileForm.allowed_group} onChange={e => setProfileForm(p => ({ ...p, allowed_group: e.target.value }))}
                   placeholder="e.g. All-Windows-Devices"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {[
@@ -464,15 +464,15 @@ export default function AutopilotDashboard() {
                     <input type="checkbox" checked={(profileForm as any)[f.key]}
                       onChange={e => setProfileForm(p => ({ ...p, [f.key]: e.target.checked }))}
                       className="accent-blue-500" />
-                    <span className="text-gray-300">{f.label}</span>
+                    <span className="text-gray-700 dark:text-gray-300">{f.label}</span>
                   </label>
                 ))}
               </div>
             </div>
             <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => { setShowAddProfile(false); setEditProfile(null); }} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+              <button onClick={() => { setShowAddProfile(false); setEditProfile(null); }} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Cancel</button>
               <button onClick={saveProfile} disabled={saving || !profileForm.name}
-                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50">
+                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50 text-white">
                 {saving ? 'Saving…' : (editProfile ? 'Update' : 'Create')}
               </button>
             </div>

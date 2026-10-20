@@ -19,34 +19,34 @@ import { showToast } from '../utils/toast';
 
 // Custom Node Components
 const TriggerNode = ({ data }: any) => (
-    <div className="bg-purple-900/60 border-2 border-purple-500 rounded-lg p-3 shadow-lg w-48 font-sans">
-        <div className="flex items-center gap-2 text-purple-200 mb-2">
-            <BoltIcon size={16} className="text-purple-400" />
+    <div className="bg-purple-100 dark:bg-purple-900/60 border-2 border-purple-500 rounded-lg p-3 shadow-lg w-48 font-sans">
+        <div className="flex items-center gap-2 text-purple-800 dark:text-purple-200 mb-2">
+            <BoltIcon size={16} className="text-purple-600 dark:text-purple-400" />
             <span className="font-bold text-sm">Alert Trigger</span>
         </div>
-        <div className="text-xs text-purple-300 bg-black/30 p-1.5 rounded truncate">
+        <div className="text-xs text-purple-700 dark:text-purple-300 bg-white/70 dark:bg-black/30 p-1.5 rounded truncate">
             {data.label || 'On Any Critical Alert'}
         </div>
-        <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-purple-500" />
+        <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-purple-500 text-white" />
     </div>
 );
 
 const ActionNode = ({ data, type }: any) => {
-    let bg = "bg-blue-900/60";
+    let bg = "bg-blue-100 dark:bg-blue-900/60";
     let border = "border-blue-500";
-    let textColor = "text-blue-200";
+    let textColor = "text-blue-800 dark:text-blue-200";
     let Icon = DatabaseIcon;
 
     if (data.actionType === 'block_ip_firewall') {
-        bg = "bg-red-900/60"; border = "border-red-500"; textColor = "text-red-200"; Icon = ShieldBanIcon;
+        bg = "bg-red-100 dark:bg-red-900/60"; border = "border-red-500"; textColor = "text-red-800 dark:text-red-200"; Icon = ShieldBanIcon;
     } else if (data.actionType === 'isolate_host') {
-        bg = "bg-orange-900/60"; border = "border-orange-500"; textColor = "text-orange-200"; Icon = ShieldBanIcon;
+        bg = "bg-orange-100 dark:bg-orange-900/60"; border = "border-orange-500"; textColor = "text-orange-800 dark:text-orange-200"; Icon = ShieldBanIcon;
     } else if (data.actionType === 'suspend_okta_user') {
-        bg = "bg-yellow-900/60"; border = "border-yellow-500"; textColor = "text-yellow-200"; Icon = ShieldCheckIcon;
+        bg = "bg-yellow-100 dark:bg-yellow-900/60"; border = "border-yellow-500"; textColor = "text-yellow-800 dark:text-yellow-200"; Icon = ShieldCheckIcon;
     } else if (data.actionType === 'enrich_ip_vt') {
-        bg = "bg-green-900/60"; border = "border-green-500"; textColor = "text-green-200"; Icon = GlobeIcon;
+        bg = "bg-green-100 dark:bg-green-900/60"; border = "border-green-500"; textColor = "text-green-800 dark:text-green-200"; Icon = GlobeIcon;
     } else if (data.actionType === 'send_slack_message') {
-        bg = "bg-indigo-900/60"; border = "border-indigo-500"; textColor = "text-indigo-200"; Icon = MessageSquareIcon;
+        bg = "bg-indigo-100 dark:bg-indigo-900/60"; border = "border-indigo-500"; textColor = "text-indigo-800 dark:text-indigo-200"; Icon = MessageSquareIcon;
     }
 
     return (
@@ -56,7 +56,7 @@ const ActionNode = ({ data, type }: any) => {
                 <Icon size={16} />
                 <span className="font-bold text-sm">{data.title || 'Action'}</span>
             </div>
-            <div className="text-xs text-white/70 bg-black/30 p-1.5 rounded truncate">
+            <div className="text-xs text-gray-700 dark:text-white/70 bg-white/70 dark:bg-black/30 p-1.5 rounded truncate">
                 {data.label || 'Execute integration'}
             </div>
             <Handle type="source" position={Position.Bottom} className={`w-3 h-3 ${bg.replace('/60', '')}`} />
@@ -248,7 +248,7 @@ export const PlaybookBuilder: React.FC = () => {
 
             {/* Sidebar Tools */}
             <div className="w-80 glass rounded-xl p-4 flex flex-col h-full overflow-y-auto">
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                     <PlusIcon /> SOAR Actions
                 </h2>
                 <p className="text-xs text-white/60 mb-6">Drag and drop nodes onto the canvas to build automated remediation playbooks.</p>
@@ -258,27 +258,27 @@ export const PlaybookBuilder: React.FC = () => {
 
                     <ActionDraggable
                         type="enrich_ip_vt" title="Enrich IP (VirusTotal)" label="Query VT API for reputation score"
-                        icon={GlobeIcon} colorClass="text-green-400 bg-green-500"
+                        icon={GlobeIcon} colorClass="text-green-700 dark:text-green-400 bg-green-500"
                     />
 
                     <ActionDraggable
                         type="block_ip_firewall" title="Block IP on Firewall" label="PAN-OS API: Add to blocklist"
-                        icon={ShieldBanIcon} colorClass="text-red-400 bg-red-500"
+                        icon={ShieldBanIcon} colorClass="text-red-700 dark:text-red-400 bg-red-500"
                     />
 
                     <ActionDraggable
                         type="suspend_okta_user" title="Suspend IAM User" label="Okta API: Force session termination"
-                        icon={ShieldCheckIcon} colorClass="text-yellow-400 bg-yellow-500"
+                        icon={ShieldCheckIcon} colorClass="text-yellow-800 dark:text-yellow-400 bg-yellow-500"
                     />
 
                     <ActionDraggable
                         type="isolate_host" title="Isolate Endpoint" label="Omni-Agent: Network quarantine"
-                        icon={ShieldBanIcon} colorClass="text-orange-400 bg-orange-500"
+                        icon={ShieldBanIcon} colorClass="text-orange-800 dark:text-orange-400 bg-orange-500"
                     />
 
                     <ActionDraggable
                         type="send_slack_message" title="Slack Notification" label="Send interactive message to SOC"
-                        icon={MessageSquareIcon} colorClass="text-indigo-400 bg-indigo-500"
+                        icon={MessageSquareIcon} colorClass="text-indigo-700 dark:text-indigo-400 bg-indigo-500"
                     />
                 </div>
 
@@ -286,7 +286,7 @@ export const PlaybookBuilder: React.FC = () => {
                 {runLog.length > 0 && (
                     <div className="mt-8 flex-1 border-t border-white/10 pt-4 flex flex-col">
                         <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Execution Log</h3>
-                        <div className="bg-black/40 rounded p-2 text-xs font-mono text-green-400 overflow-y-auto flex-1 space-y-1">
+                        <div className="bg-black/40 rounded p-2 text-xs font-mono text-green-600 dark:text-green-400 overflow-y-auto flex-1 space-y-1">
                             {runLog.map((l, i) => (
                                 <div key={i}><span className="text-white/30">{new Date(l.time).toLocaleTimeString()}</span> {l.msg}</div>
                             ))}
@@ -302,14 +302,14 @@ export const PlaybookBuilder: React.FC = () => {
                     <input
                         value={playbookName}
                         onChange={(e) => setPlaybookName(e.target.value)}
-                        className="bg-transparent text-lg font-semibold text-white focus:outline-none focus:border-b-2 border-blue-500 w-1/2"
+                        className="bg-transparent text-lg font-semibold text-gray-900 dark:text-white focus:outline-none focus:border-b-2 border-blue-500 w-1/2"
                     />
 
                     <div className="flex gap-3">
                         <button
                             onClick={handleTestRun}
                             disabled={running}
-                            className="flex items-center gap-2 px-4 py-1.5 bg-green-600/20 text-green-400 hover:bg-green-600/40 rounded-lg transition-colors border border-green-500/30 text-sm font-medium disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-1.5 bg-green-600/20 text-green-600 dark:text-green-400 hover:bg-green-600/40 rounded-lg transition-colors border border-green-500/30 text-sm font-medium disabled:opacity-50"
                         >
                             <PlayIcon size={16} className={running ? "animate-pulse" : ""} />
                             {running ? 'Running...' : 'Test Run'}
@@ -339,7 +339,7 @@ export const PlaybookBuilder: React.FC = () => {
                             onDragOver={onDragOver}
                             nodeTypes={nodeTypes}
                             fitView
-                            className="bg-[#0f111a]"
+                            className="bg-white dark:bg-[#0f111a]"
                         >
                             <Controls className="!bg-black/50 !border-white/10 [&>button]:!border-b-white/10 [&>button]:!bg-transparent text-white" />
                             <Background color="#ffffff" gap={16} size={1} className="opacity-5" />

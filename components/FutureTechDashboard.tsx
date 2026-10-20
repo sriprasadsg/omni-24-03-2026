@@ -37,27 +37,27 @@ const FutureTechDashboard: React.FC = () => {
   const s = horizonSummary(inventory, agents);
   const dash = (v: string | number) => (loaded ? String(v) : '…');
   const stats = [
-    { label: 'Provenance Blocks', value: dash(provenance ? provenance.chain_length : '—'), icon: Database, color: 'text-emerald-400' },
-    { label: 'Crypto Assets Tracked', value: dash(s.cryptoAssets), icon: Lock, color: 'text-cyan-400' },
-    { label: 'Quantum-Vulnerable', value: dash(s.quantumVulnerable), icon: AlertTriangle, color: 'text-amber-400' },
-    { label: 'Agents Online', value: dash(`${s.agentsOnline} / ${s.agentsTotal}`), icon: Globe, color: 'text-indigo-400' },
+    { label: 'Provenance Blocks', value: dash(provenance ? provenance.chain_length : '—'), icon: Database, color: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Crypto Assets Tracked', value: dash(s.cryptoAssets), icon: Lock, color: 'text-cyan-600 dark:text-cyan-400' },
+    { label: 'Quantum-Vulnerable', value: dash(s.quantumVulnerable), icon: AlertTriangle, color: 'text-amber-700 dark:text-amber-400' },
+    { label: 'Agents Online', value: dash(`${s.agentsOnline} / ${s.agentsTotal}`), icon: Globe, color: 'text-indigo-600 dark:text-indigo-400' },
   ];
   const vulnerable = inventory.filter(i => i.quantumVulnerable);
 
   return (
-    <div className="p-8 bg-[#040812] min-h-screen text-slate-100 font-sans">
+    <div className="p-8 bg-transparent dark:bg-[#040812] min-h-screen text-gray-900 dark:text-slate-100 font-sans">
       <div className="max-w-7xl mx-auto">
         <div className="mb-10">
           <h1 className="text-4xl font-black tracking-tight mb-2 bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">
             2027 HORIZON
           </h1>
-          <p className="text-slate-400 text-lg">Log provenance and post-quantum readiness</p>
+          <p className="text-gray-600 dark:text-slate-400 text-lg">Log provenance and post-quantum readiness</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {stats.map(stat => (
-            <div key={stat.label} className="bg-slate-900/50 border border-slate-800 p-6 rounded-2xl backdrop-blur-sm">
-              <div className={`p-2 rounded-lg bg-slate-800 w-fit mb-4 ${stat.color}`}>
+            <div key={stat.label} className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 p-6 rounded-2xl backdrop-blur-sm">
+              <div className={`p-2 rounded-lg bg-white dark:bg-slate-800 w-fit mb-4 ${stat.color}`}>
                 <stat.icon size={20} />
               </div>
               <p className="text-slate-500 text-sm font-medium mb-1">{stat.label}</p>
@@ -67,9 +67,9 @@ const FutureTechDashboard: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8">
+          <div className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-3xl p-8">
             <div className="flex items-center gap-4 mb-6">
-              <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-400"><ShieldCheck size={24} /></div>
+              <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-600 dark:text-emerald-400"><ShieldCheck size={24} /></div>
               <div>
                 <h2 className="text-xl font-bold">Provenance Ledger</h2>
                 <p className="text-sm text-slate-500">Merkle-chained log blocks signed by this server</p>
@@ -87,9 +87,9 @@ const FutureTechDashboard: React.FC = () => {
             )}
           </div>
 
-          <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-8">
+          <div className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-3xl p-8">
             <div className="flex items-center gap-4 mb-6">
-              <div className="p-3 bg-cyan-500/10 rounded-2xl text-cyan-400"><Cpu size={24} /></div>
+              <div className="p-3 bg-cyan-500/10 rounded-2xl text-cyan-600 dark:text-cyan-400"><Cpu size={24} /></div>
               <div>
                 <h2 className="text-xl font-bold">Crypto-Agility</h2>
                 <p className="text-sm text-slate-500">Algorithms in use that need a post-quantum replacement</p>
@@ -98,13 +98,13 @@ const FutureTechDashboard: React.FC = () => {
             {loaded && inventory.length === 0 ? (
               <p className="text-sm text-slate-500">No cryptographic inventory recorded yet.</p>
             ) : loaded && vulnerable.length === 0 ? (
-              <p className="text-sm text-emerald-400">None of the {inventory.length} tracked algorithms is quantum-vulnerable.</p>
+              <p className="text-sm text-emerald-600 dark:text-emerald-400">None of the {inventory.length} tracked algorithms is quantum-vulnerable.</p>
             ) : (
-              <ul className="divide-y divide-slate-800 text-sm">
+              <ul className="divide-y divide-gray-200 dark:divide-slate-800 text-sm">
                 {vulnerable.slice(0, 8).map(item => (
                   <li key={item.id} className="py-2 flex justify-between gap-4">
                     <span><span className="font-semibold">{item.algorithm}</span> <span className="text-slate-500">· {item.usage}</span></span>
-                    <span className="text-amber-400 text-xs whitespace-nowrap">→ {item.replacementAlgorithm || 'replacement TBD'} ({item.migrationPriority})</span>
+                    <span className="text-amber-700 dark:text-amber-400 text-xs whitespace-nowrap">→ {item.replacementAlgorithm || 'replacement TBD'} ({item.migrationPriority})</span>
                   </li>
                 ))}
               </ul>

@@ -41,14 +41,14 @@ function timeAgo(ts: number) {
 }
 
 const STATUS_STYLES: Record<string, { bg: string; color: string; icon: React.ReactNode }> = {
-  passed: { bg: 'rgba(16,185,129,.12)', color: '#6ee7b7', icon: <CheckCircle size={12} /> },
-  failed: { bg: 'rgba(239,68,68,.12)', color: '#fca5a5', icon: <XCircle size={12} /> },
-  blocked: { bg: 'rgba(245,158,11,.12)', color: '#fcd34d', icon: <Lock size={12} /> },
-  queued: { bg: 'rgba(148,163,184,.1)', color: '#94a3b8', icon: <RefreshCw size={12} /> },
+  passed: { bg: 'rgba(16,185,129,.12)', color: 'var(--ink-green)', icon: <CheckCircle size={12} /> },
+  failed: { bg: 'rgba(239,68,68,.12)', color: 'var(--ink-red)', icon: <XCircle size={12} /> },
+  blocked: { bg: 'rgba(245,158,11,.12)', color: 'var(--ink-amber)', icon: <Lock size={12} /> },
+  queued: { bg: 'rgba(148,163,184,.1)', color: 'var(--ink-muted)', icon: <RefreshCw size={12} /> },
 };
 
 const SEV_COLOR: Record<string, string> = {
-  critical: '#fca5a5', high: '#fcd34d', medium: '#a5b4fc', low: '#94a3b8',
+  critical: 'var(--ink-red)', high: 'var(--ink-amber)', medium: 'var(--ink-accent)', low: 'var(--ink-muted)',
 };
 
 export function PipelineSecurityDashboard() {
@@ -76,14 +76,14 @@ export function PipelineSecurityDashboard() {
   const st = stats;
 
   return (
-    <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
+    <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
           <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>DevSecOps</div>
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Pipeline Security</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>Secret scanning · IaC policy gates · Dependency risk · CI/CD security enforcement</p>
+          <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>Secret scanning · IaC policy gates · Dependency risk · CI/CD security enforcement</p>
         </div>
-        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -92,17 +92,17 @@ export function PipelineSecurityDashboard() {
       {st && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 14, marginBottom: 28 }}>
           {[
-            { label: 'Total Scans', value: st.total_scans, color: '#a5b4fc' },
-            { label: 'Passed', value: st.passed, color: '#6ee7b7' },
-            { label: 'Failed', value: st.failed, color: '#fca5a5' },
-            { label: 'Blocked', value: st.blocked, color: '#fcd34d' },
-            { label: 'Secrets Blocked', value: st.secret_leaks_blocked, color: '#fca5a5' },
-            { label: 'IaC Violations', value: st.iac_violations, color: '#fcd34d' },
-            { label: 'Dep. Risks', value: st.dependency_risks, color: '#a5b4fc' },
+            { label: 'Total Scans', value: st.total_scans, color: 'var(--ink-accent)' },
+            { label: 'Passed', value: st.passed, color: 'var(--ink-green)' },
+            { label: 'Failed', value: st.failed, color: 'var(--ink-red)' },
+            { label: 'Blocked', value: st.blocked, color: 'var(--ink-amber)' },
+            { label: 'Secrets Blocked', value: st.secret_leaks_blocked, color: 'var(--ink-red)' },
+            { label: 'IaC Violations', value: st.iac_violations, color: 'var(--ink-amber)' },
+            { label: 'Dep. Risks', value: st.dependency_risks, color: 'var(--ink-accent)' },
           ].map(({ label, value, color }) => (
-            <div key={label} style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: '16px 18px', textAlign: 'center' }}>
+            <div key={label} style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 12, padding: '16px 18px', textAlign: 'center' }}>
               <div style={{ fontSize: '1.8em', fontWeight: 900, color }}>{value}</div>
-              <div style={{ fontSize: '0.72em', color: '#94a3b8', marginTop: 4 }}>{label}</div>
+              <div style={{ fontSize: '0.72em', color: 'var(--ink-muted)', marginTop: 4 }}>{label}</div>
             </div>
           ))}
         </div>
@@ -110,18 +110,18 @@ export function PipelineSecurityDashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20 }}>
         {/* Scan list */}
-        <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--ink-line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: 700, fontSize: '0.9em' }}>Recent Scans</span>
-            <span style={{ fontSize: '0.75em', color: '#94a3b8' }}>{scans.length} results</span>
+            <span style={{ fontSize: '0.75em', color: 'var(--ink-muted)' }}>{scans.length} results</span>
           </div>
-          {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Loading…</div> : (
+          {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)' }}>Loading…</div> : (
             <div>
               {scans.map(scan => {
                 const ss = STATUS_STYLES[scan.status] || STATUS_STYLES.queued;
                 return (
                   <div key={scan.id} onClick={() => setSelected(scan === selected ? null : scan)}
-                    style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,.04)', cursor: 'pointer', background: selected?.id === scan.id ? 'rgba(99,102,241,.08)' : 'transparent' }}>
+                    style={{ padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', cursor: 'pointer', background: selected?.id === scan.id ? 'rgba(99,102,241,.08)' : 'transparent' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <GitBranch size={14} color="#94a3b8" />
                       <div style={{ flex: 1 }}>
@@ -132,7 +132,7 @@ export function PipelineSecurityDashboard() {
                         {ss.icon} {scan.status}
                       </span>
                       {scan.findings.length > 0 && (
-                        <span style={{ fontSize: '0.72em', color: '#fca5a5', background: 'rgba(239,68,68,.1)', borderRadius: 20, padding: '2px 8px' }}>
+                        <span style={{ fontSize: '0.72em', color: 'var(--ink-red)', background: 'rgba(239,68,68,.1)', borderRadius: 20, padding: '2px 8px' }}>
                           {scan.findings.length} finding{scan.findings.length !== 1 ? 's' : ''}
                         </span>
                       )}
@@ -145,27 +145,27 @@ export function PipelineSecurityDashboard() {
         </div>
 
         {/* Finding detail */}
-        <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
+        <div style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--ink-line)' }}>
             <span style={{ fontWeight: 700, fontSize: '0.9em' }}>{selected ? `Findings — ${selected.repo}` : 'Select a scan'}</span>
           </div>
           <div style={{ padding: 16 }}>
             {!selected ? (
-              <div style={{ textAlign: 'center', color: '#94a3b8', padding: 40, fontSize: '0.85em' }}>Click a scan to view findings</div>
+              <div style={{ textAlign: 'center', color: 'var(--ink-muted)', padding: 40, fontSize: '0.85em' }}>Click a scan to view findings</div>
             ) : selected.findings.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#6ee7b7', padding: 40 }}>
+              <div style={{ textAlign: 'center', color: 'var(--ink-green)', padding: 40 }}>
                 <CheckCircle size={32} style={{ margin: '0 auto 10px' }} />
                 <div style={{ fontWeight: 600 }}>No findings</div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {selected.findings.map((f, i) => (
-                  <div key={i} style={{ background: 'rgba(255,255,255,.04)', border: `1px solid ${SEV_COLOR[f.severity]}30`, borderRadius: 10, padding: '12px 14px' }}>
+                  <div key={i} style={{ background: 'var(--ink-surface)', border: `1px solid color-mix(in srgb, ${SEV_COLOR[f.severity]} 19%, transparent)`, borderRadius: 10, padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: '0.7em', fontWeight: 700, color: SEV_COLOR[f.severity], background: `${SEV_COLOR[f.severity]}15`, borderRadius: 20, padding: '2px 8px' }}>{f.severity.toUpperCase()}</span>
-                      <span style={{ fontSize: '0.75em', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{f.type.replace('_', ' ')}</span>
+                      <span style={{ fontSize: '0.7em', fontWeight: 700, color: SEV_COLOR[f.severity], background: `color-mix(in srgb, ${SEV_COLOR[f.severity]} 8%, transparent)`, borderRadius: 20, padding: '2px 8px' }}>{f.severity.toUpperCase()}</span>
+                      <span style={{ fontSize: '0.75em', fontWeight: 700, color: 'var(--ink-muted)', textTransform: 'uppercase' }}>{f.type.replace('_', ' ')}</span>
                     </div>
-                    <div style={{ fontSize: '0.8em', color: '#f1f5f9', fontWeight: 600, marginBottom: 4 }}>
+                    <div style={{ fontSize: '0.8em', color: 'var(--ink-text)', fontWeight: 600, marginBottom: 4 }}>
                       {f.rule || f.cve || f.secret_type || f.package || 'Unknown'}
                     </div>
                     {f.file && <div style={{ fontSize: '0.72em', color: '#64748b', fontFamily: 'monospace' }}>{f.file}{f.line ? `:${f.line}` : ''}</div>}

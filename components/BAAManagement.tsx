@@ -37,11 +37,11 @@ function timeAgo(ts: number) {
 }
 
 const STATUS_CFG: Record<string, { bg: string; color: string; label: string }> = {
-  active: { bg: 'rgba(16,185,129,.12)', color: '#6ee7b7', label: 'Active' },
-  draft: { bg: 'rgba(148,163,184,.1)', color: '#94a3b8', label: 'Draft' },
-  pending_signature: { bg: 'rgba(245,158,11,.12)', color: '#fcd34d', label: 'Pending Signature' },
-  expired: { bg: 'rgba(239,68,68,.12)', color: '#fca5a5', label: 'Expired' },
-  terminated: { bg: 'rgba(239,68,68,.08)', color: '#f87171', label: 'Terminated' },
+  active: { bg: 'rgba(16,185,129,.12)', color: 'var(--ink-green)', label: 'Active' },
+  draft: { bg: 'rgba(148,163,184,.1)', color: 'var(--ink-muted)', label: 'Draft' },
+  pending_signature: { bg: 'rgba(245,158,11,.12)', color: 'var(--ink-amber)', label: 'Pending Signature' },
+  expired: { bg: 'rgba(239,68,68,.12)', color: 'var(--ink-red)', label: 'Expired' },
+  terminated: { bg: 'rgba(239,68,68,.08)', color: 'var(--ink-red-2)', label: 'Terminated' },
 };
 
 export function BAAManagement() {
@@ -117,18 +117,18 @@ export function BAAManagement() {
   const filtered = filter === 'all' ? baas : baas.filter(b => b.status === filter);
 
   return (
-    <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
+    <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
           <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>HIPAA Compliance</div>
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Business Associate Agreements</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>HIPAA §164.308(b) — Track BAA lifecycle: draft → sign → active → terminate</p>
+          <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>HIPAA §164.308(b) — Track BAA lifecycle: draft → sign → active → terminate</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+          <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
             <RefreshCw size={13} /> Refresh
           </button>
-          <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.3)', border: '1px solid rgba(99,102,241,.5)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>
+          <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.3)', border: '1px solid rgba(99,102,241,.5)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>
             <Plus size={13} /> New BAA
           </button>
         </div>
@@ -137,15 +137,15 @@ export function BAAManagement() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 28 }}>
           {[
-            { label: 'Total BAAs', value: stats.total, color: '#a5b4fc' },
-            { label: 'Active', value: stats.active, color: '#6ee7b7' },
-            { label: 'Expiring Soon', value: stats.expiring_soon, color: '#fcd34d' },
-            { label: 'Expired', value: stats.expired, color: '#fca5a5' },
-            { label: 'Draft', value: stats.draft, color: '#94a3b8' },
+            { label: 'Total BAAs', value: stats.total, color: 'var(--ink-accent)' },
+            { label: 'Active', value: stats.active, color: 'var(--ink-green)' },
+            { label: 'Expiring Soon', value: stats.expiring_soon, color: 'var(--ink-amber)' },
+            { label: 'Expired', value: stats.expired, color: 'var(--ink-red)' },
+            { label: 'Draft', value: stats.draft, color: 'var(--ink-muted)' },
           ].map(({ label, value, color }) => (
-            <div key={label} style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+            <div key={label} style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
               <div style={{ fontSize: '2em', fontWeight: 900, color }}>{value}</div>
-              <div style={{ fontSize: '0.72em', color: '#94a3b8', marginTop: 4 }}>{label}</div>
+              <div style={{ fontSize: '0.72em', color: 'var(--ink-muted)', marginTop: 4 }}>{label}</div>
             </div>
           ))}
         </div>
@@ -163,16 +163,16 @@ export function BAAManagement() {
               { label: 'PHI Types (comma-separated)', key: 'phi_types', placeholder: 'Demographics, Diagnosis codes' },
             ].map(({ label, key, placeholder }) => (
               <div key={key}>
-                <div style={{ fontSize: '0.78em', color: '#94a3b8', marginBottom: 6 }}>{label}</div>
+                <div style={{ fontSize: '0.78em', color: 'var(--ink-muted)', marginBottom: 6 }}>{label}</div>
                 <input value={form[key as keyof typeof form]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                   placeholder={placeholder}
-                  style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '8px 12px', color: '#f1f5f9', fontSize: '0.85em', outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', background: 'var(--ink-surface-2)', border: '1px solid var(--ink-line)', borderRadius: 8, padding: '8px 12px', color: 'var(--ink-text)', fontSize: '0.85em', outline: 'none', boxSizing: 'border-box' }} />
               </div>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button onClick={() => setShowCreate(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,.15)', color: '#94a3b8', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>Cancel</button>
-            <button onClick={createBAA} style={{ background: 'rgba(99,102,241,.3)', border: '1px solid rgba(99,102,241,.5)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>Create BAA</button>
+            <button onClick={() => setShowCreate(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,.15)', color: 'var(--ink-muted)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>Cancel</button>
+            <button onClick={createBAA} style={{ background: 'rgba(99,102,241,.3)', border: '1px solid rgba(99,102,241,.5)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em', fontWeight: 700 }}>Create BAA</button>
           </div>
         </div>
       )}
@@ -182,7 +182,7 @@ export function BAAManagement() {
         {['all', 'active', 'draft', 'pending_signature', 'expired', 'terminated'].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             background: filter === f ? 'rgba(99,102,241,.2)' : 'transparent',
-            border: '1px solid rgba(255,255,255,.1)', color: filter === f ? '#a5b4fc' : '#94a3b8',
+            border: '1px solid var(--ink-line)', color: filter === f ? 'var(--ink-accent)' : 'var(--ink-muted)',
             borderRadius: 6, padding: '5px 14px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 600,
             textTransform: 'capitalize',
           }}>{f.replace('_', ' ')}</button>
@@ -190,17 +190,17 @@ export function BAAManagement() {
       </div>
 
       {/* BAA list */}
-      <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px 140px 120px', gap: 16, padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,.06)', fontSize: '0.72em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      <div style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px 140px 120px', gap: 16, padding: '10px 20px', borderBottom: '1px solid var(--ink-line-soft)', fontSize: '0.72em', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           <span>Business Associate</span><span>Effective</span><span>Expires</span><span>Status</span><span></span>
         </div>
-        {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Loading…</div>
+        {loading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)' }}>Loading…</div>
           : filtered.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: '0.85em' }}>No BAAs in this category</div>
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85em' }}>No BAAs in this category</div>
           ) : filtered.map(baa => {
             const sc = STATUS_CFG[baa.status] || STATUS_CFG.draft;
             return (
-              <div key={baa.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px 140px 120px', gap: 16, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,.04)', alignItems: 'center' }}>
+              <div key={baa.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px 160px 140px 120px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '0.88em', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Shield size={13} color="#6366f1" /> {baa.business_associate}
@@ -208,13 +208,13 @@ export function BAAManagement() {
                   <div style={{ fontSize: '0.72em', color: '#64748b', marginTop: 2 }}>{baa.contact_email}</div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                     {baa.services.slice(0, 2).map(s => (
-                      <span key={s} style={{ fontSize: '0.68em', background: 'rgba(99,102,241,.1)', color: '#a5b4fc', borderRadius: 4, padding: '2px 6px' }}>{s}</span>
+                      <span key={s} style={{ fontSize: '0.68em', background: 'rgba(99,102,241,.1)', color: 'var(--ink-accent)', borderRadius: 4, padding: '2px 6px' }}>{s}</span>
                     ))}
                     {baa.services.length > 2 && <span style={{ fontSize: '0.68em', color: '#64748b' }}>+{baa.services.length - 2} more</span>}
                   </div>
                 </div>
-                <span style={{ fontSize: '0.78em', color: '#94a3b8' }}>{formatDate(baa.effective_date)}</span>
-                <span style={{ fontSize: '0.78em', color: '#94a3b8' }}>{formatDate(baa.expiration_date)}</span>
+                <span style={{ fontSize: '0.78em', color: 'var(--ink-muted)' }}>{formatDate(baa.effective_date)}</span>
+                <span style={{ fontSize: '0.78em', color: 'var(--ink-muted)' }}>{formatDate(baa.expiration_date)}</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: sc.bg, color: sc.color, borderRadius: 20, padding: '4px 12px', fontSize: '0.72em', fontWeight: 700, width: 'fit-content' }}>
                   {baa.status === 'active' ? <CheckCircle size={10} /> : baa.status === 'expired' || baa.status === 'terminated' ? <XCircle size={10} /> : <Clock size={10} />}
                   {sc.label}
@@ -222,13 +222,13 @@ export function BAAManagement() {
                 <div style={{ display: 'flex', gap: 6 }}>
                   {baa.status === 'draft' && (
                     <button onClick={() => sign(baa.id)} disabled={acting === baa.id}
-                      style={{ background: 'rgba(16,185,129,.15)', border: '1px solid rgba(16,185,129,.3)', color: '#6ee7b7', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
+                      style={{ background: 'rgba(16,185,129,.15)', border: '1px solid rgba(16,185,129,.3)', color: 'var(--ink-green)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
                       {acting === baa.id ? '…' : 'Sign'}
                     </button>
                   )}
                   {baa.status === 'active' && (
                     <button onClick={() => terminate(baa.id)} disabled={acting === baa.id}
-                      style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)', color: '#fca5a5', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
+                      style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.25)', color: 'var(--ink-red)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
                       {acting === baa.id ? '…' : 'Terminate'}
                     </button>
                   )}

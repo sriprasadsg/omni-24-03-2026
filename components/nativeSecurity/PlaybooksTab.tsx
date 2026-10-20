@@ -92,7 +92,7 @@ export function PlaybooksTab() {
   }
 
   return (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium">Remediation Playbooks</h3>
         <button
@@ -103,18 +103,18 @@ export function PlaybooksTab() {
         </button>
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Loading playbooks…</p>}
-      {error && !loading && <p className="text-red-400 text-sm">{error}</p>}
+      {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading playbooks…</p>}
+      {error && !loading && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
 
       {!loading && !error && (
         <div className="space-y-2 mb-4">
           {playbooks.map((pb) => (
-            <div key={pb.id} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between flex-wrap gap-2">
+            <div key={pb.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between flex-wrap gap-2">
               <div>
                 <p className="text-sm font-medium">
                   {pb.name}
                   {pb.source === 'vendored' && (
-                    <span className="ml-2 text-xs text-gray-500 border border-gray-700 rounded px-1.5 py-0.5">vendored</span>
+                    <span className="ml-2 text-xs text-gray-500 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">vendored</span>
                   )}
                 </p>
                 <p className="text-gray-500 text-xs mt-0.5">
@@ -125,8 +125,8 @@ export function PlaybooksTab() {
               <div className="flex gap-2">
                 {pb.source !== 'vendored' && (
                   <>
-                    <button onClick={() => startEdit(pb)} className="text-cyan-400 hover:text-cyan-300 text-xs">Edit</button>
-                    <button onClick={() => handleDelete(pb)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                    <button onClick={() => startEdit(pb)} className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 text-xs">Edit</button>
+                    <button onClick={() => handleDelete(pb)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs">Delete</button>
                   </>
                 )}
               </div>
@@ -136,24 +136,24 @@ export function PlaybooksTab() {
       )}
 
       {showForm && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 space-y-3">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
           <h4 className="text-sm font-medium">{editingId ? 'Edit Playbook' : 'New Playbook'}</h4>
           <div className="flex gap-2">
             <input
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white flex-1"
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white flex-1"
               placeholder="Name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
             <input
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white flex-1"
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white flex-1"
               placeholder="Finding class (vuln / nscan / fim)"
               value={form.finding_class}
               onChange={(e) => setForm({ ...form, finding_class: e.target.value })}
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400">Steps (JSON array of {'{action, params, destructive}'})</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400">Steps (JSON array of {'{action, params, destructive}'})</label>
             <textarea
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white mt-1"
               rows={5}
@@ -162,7 +162,7 @@ export function PlaybooksTab() {
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400">Rollback (JSON array of {'{action, params}'}, optional)</label>
+            <label className="text-xs text-gray-600 dark:text-gray-400">Rollback (JSON array of {'{action, params}'}, optional)</label>
             <textarea
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs font-mono text-white mt-1"
               rows={3}
@@ -180,7 +180,7 @@ export function PlaybooksTab() {
             </button>
             <button
               onClick={() => setShowForm(false)}
-              className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium px-4 py-1.5 rounded-lg"
+              className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white text-sm font-medium px-4 py-1.5 rounded-lg"
             >
               Cancel
             </button>

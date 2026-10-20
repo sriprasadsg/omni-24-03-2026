@@ -322,30 +322,30 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
     };
 
     return (
-        <div className="w-full h-[700px] bg-[#0b0e14] border border-[#2a2f3a] rounded-xl overflow-hidden relative shadow-2xl">
+        <div className="w-full h-[700px] bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a] rounded-xl overflow-hidden relative shadow-2xl">
             {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0b0e14]/90 z-20">
+                <div className="absolute inset-0 flex items-center justify-center bg-white/90 dark:bg-[#0b0e14]/90 z-20">
                     <Activity className="animate-pulse text-blue-500 w-12 h-12" />
                 </div>
             )}
 
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-3">
-                <div className="flex items-center gap-2 bg-[#1a1f26]/90 px-3 py-1.5 rounded-lg border border-[#3b82f6]/30 text-[10px] font-mono text-blue-400">
+                <div className="flex items-center gap-2 bg-white/90 dark:bg-[#1a1f26]/90 px-3 py-1.5 rounded-lg border border-[#3b82f6]/30 text-[10px] font-mono text-blue-600 dark:text-blue-400">
                     <Activity className="w-3 h-3" /> {topoStats.devices > 0 ? 'DISCOVERED TOPOLOGY' : 'NO DEVICES DISCOVERED YET'}
                 </div>
-                <div className="flex flex-col gap-2 p-4 bg-[#151921]/95 rounded-xl border border-[#2a2f3a] shadow-2xl backdrop-blur-sm">
+                <div className="flex flex-col gap-2 p-4 bg-white/95 dark:bg-[#151921]/95 rounded-xl border border-gray-200 dark:border-[#2a2f3a] shadow-2xl backdrop-blur-sm">
                     <h4 className="text-[10px] uppercase tracking-[0.2em] text-[#565f6e] font-bold">Topology</h4>
                     <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                        <span>Devices: <span className="text-green-400 font-mono">{topoStats.devices}</span></span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 text-white" />
+                        <span>Devices: <span className="text-green-600 dark:text-green-400 font-mono">{topoStats.devices}</span></span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        <span>Links: <span className="text-blue-400 font-mono">{topoStats.links}</span></span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 text-white" />
+                        <span>Links: <span className="text-blue-600 dark:text-blue-400 font-mono">{topoStats.links}</span></span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-[#e0e6ed]">
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                        <span>Zones: <span className="text-purple-400 font-mono">{topoStats.zones}</span></span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 text-white" />
+                        <span>Zones: <span className="text-purple-600 dark:text-purple-400 font-mono">{topoStats.zones}</span></span>
                     </div>
                 </div>
             </div>
@@ -386,7 +386,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
             />
 
 
-            <div className="absolute bottom-4 left-4 flex gap-4 bg-[#151921]/90 p-3 rounded-xl border border-[#2a2f3a] backdrop-blur-sm">
+            <div className="absolute bottom-4 left-4 flex gap-4 bg-white/90 dark:bg-[#151921]/90 p-3 rounded-xl border border-gray-200 dark:border-[#2a2f3a] backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-[10px] text-[#8e949e]">
                     <div className="w-2 h-2 rounded-full border border-blue-500" /> LAN Node
                 </div>
@@ -398,31 +398,31 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                 </div>
             </div>
 
-            <div className="absolute bottom-4 right-4 bg-[#151921]/90 p-3 px-5 rounded-xl border border-[#2a2f3a] text-[10px] grid grid-cols-2 gap-x-8 gap-y-2 text-[#8e949e] backdrop-blur-sm">
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_#3b82f6]" /> HTTPS</div>
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_#10b981]" /> SSH</div>
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-purple-500 rounded-full shadow-[0_0_5px_#8b5cf6]" /> DATABASE</div>
-                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_5px_#ef4444]" /> BLOCKED</div>
+            <div className="absolute bottom-4 right-4 bg-white/90 dark:bg-[#151921]/90 p-3 px-5 rounded-xl border border-gray-200 dark:border-[#2a2f3a] text-[10px] grid grid-cols-2 gap-x-8 gap-y-2 text-[#8e949e] backdrop-blur-sm">
+                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_5px_#3b82f6] text-white" /> HTTPS</div>
+                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_#10b981] text-white" /> SSH</div>
+                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-purple-500 rounded-full shadow-[0_0_5px_#8b5cf6] text-white" /> DATABASE</div>
+                <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_5px_#ef4444] text-white" /> BLOCKED</div>
             </div>
 
             {/* Node Details Overlay */}
             {selectedNode && (
-                <div className="absolute top-4 right-4 w-72 bg-[#151921]/95 border border-[#2a2f3a] rounded-xl shadow-2xl backdrop-blur-md z-30 p-5 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="absolute top-4 right-4 w-72 bg-white/95 dark:bg-[#151921]/95 border border-gray-200 dark:border-[#2a2f3a] rounded-xl shadow-2xl backdrop-blur-md z-30 p-5 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                                {selectedNode.icon === 'server' ? <Server className="w-5 h-5 text-blue-400" /> :
-                                    selectedNode.icon === 'shield' ? <Shield className="w-5 h-5 text-red-400" /> :
-                                        <Router className="w-5 h-5 text-green-400" />}
+                                {selectedNode.icon === 'server' ? <Server className="w-5 h-5 text-blue-600 dark:text-blue-400" /> :
+                                    selectedNode.icon === 'shield' ? <Shield className="w-5 h-5 text-red-600 dark:text-red-400" /> :
+                                        <Router className="w-5 h-5 text-green-600 dark:text-green-400" />}
                             </div>
                             <div>
-                                <h4 className="text-sm font-bold text-white leading-tight">{selectedNode.label.split('\n')[0]}</h4>
+                                <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{selectedNode.label.split('\n')[0]}</h4>
                                 <p className="text-[10px] text-gray-500 font-mono">{selectedNode.ip}</p>
                             </div>
                         </div>
                         <button
                             onClick={() => setSelectedNode(null)}
-                            className="text-gray-500 hover:text-white transition-colors"
+                            className="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
                         >
                             <AlertCircle className="w-4 h-4 rotate-45" />
                         </button>
@@ -430,22 +430,22 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
 
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
-                            <div className="p-2 rounded-lg bg-[#0b0e14] border border-[#2a2f3a]">
+                            <div className="p-2 rounded-lg bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a]">
                                 <p className="text-[9px] uppercase tracking-wider text-gray-500 mb-1">Status</p>
                                 <div className="flex items-center gap-1.5">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${selectedNode.status.toLowerCase() === 'up' ? 'bg-green-500 shadow-[0_0_5px_#10b981]' : 'bg-red-500'}`} />
-                                    <span className="text-xs font-semibold text-gray-200">{selectedNode.status}</span>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${selectedNode.status.toLowerCase() === 'up' ? 'bg-green-500 shadow-[0_0_5px_#10b981] text-white' : 'bg-red-500 text-white'}`} />
+                                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">{selectedNode.status}</span>
                                 </div>
                             </div>
-                            <div className="p-2 rounded-lg bg-[#0b0e14] border border-[#2a2f3a]">
+                            <div className="p-2 rounded-lg bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a]">
                                 <p className="text-[9px] uppercase tracking-wider text-gray-500 mb-1">VLAN ID</p>
-                                <span className={`text-xs font-mono font-bold ${selectedNode.vlanId ? 'text-indigo-400' : 'text-gray-600'}`}>
+                                <span className={`text-xs font-mono font-bold ${selectedNode.vlanId ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-600'}`}>
                                     {selectedNode.vlanId || 'UNTAGGED'}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="p-3 rounded-lg bg-[#0b0e14] border border-[#2a2f3a]">
+                        <div className="p-3 rounded-lg bg-white dark:bg-[#0b0e14] border border-gray-200 dark:border-[#2a2f3a]">
                             <p className="text-[9px] uppercase tracking-wider text-gray-500 mb-2">Live Throughput</p>
                             <div className="flex justify-between items-end gap-1 h-8">
                                 {[...Array(12)].map((_, i) => {
@@ -459,13 +459,13 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                                     return (
                                         <div
                                             key={i}
-                                            className="w-full bg-blue-500 rounded-t-sm"
+                                            className="w-full bg-blue-500 rounded-t-sm text-white"
                                             style={{ height: `${pct}%`, opacity }}
                                         />
                                     );
                                 })}
                             </div>
-                            <div className="flex justify-between mt-2 text-[10px] font-mono text-gray-400">
+                            <div className="flex justify-between mt-2 text-[10px] font-mono text-gray-600 dark:text-gray-400">
                                 <span>IN: {selectedNode.metrics?.throughput_in}MB/s</span>
                                 <span>OUT: {selectedNode.metrics?.throughput_out}MB/s</span>
                             </div>
@@ -474,25 +474,25 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ refreshK
                         <div className="space-y-2">
                             <div className="flex justify-between text-[10px]">
                                 <span className="text-gray-500">Security Zone</span>
-                                <span className="text-blue-400 font-semibold">{selectedNode.zone}</span>
+                                <span className="text-blue-600 dark:text-blue-400 font-semibold">{selectedNode.zone}</span>
                             </div>
                             <div className="flex justify-between text-[10px]">
                                 <span className="text-gray-500">Active Sessions</span>
-                                <span className="text-gray-200">{selectedNode.metrics?.activeSessions}</span>
+                                <span className="text-gray-800 dark:text-gray-200">{selectedNode.metrics?.activeSessions}</span>
                             </div>
                         </div>
 
                         {selectedNode.isVlan && selectedNode.hosts && (
-                            <div className="mt-4 pt-4 border-t border-[#2a2f3a]">
-                                <h5 className="text-[10px] uppercase tracking-wider text-indigo-400 mb-3 font-bold">Connected Hosts ({selectedNode.hosts.length})</h5>
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-[#2a2f3a]">
+                                <h5 className="text-[10px] uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-3 font-bold">Connected Hosts ({selectedNode.hosts.length})</h5>
                                 <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                                     {selectedNode.hosts.map((host: any, idx: number) => (
                                         <div key={idx} className="flex justify-between items-center p-2 rounded bg-indigo-500/5 border border-indigo-500/10">
                                             <div className="flex flex-col">
-                                                <span className="text-[11px] text-gray-200 font-medium">{host.hostname}</span>
+                                                <span className="text-[11px] text-gray-800 dark:text-gray-200 font-medium">{host.hostname}</span>
                                                 <span className="text-[9px] text-gray-500 font-mono">{host.ip}</span>
                                             </div>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${host.status?.toLowerCase() === 'up' ? 'bg-green-500 shadow-[0_0_3px_#10b981]' : 'bg-red-500'}`} />
+                                            <div className={`w-1.5 h-1.5 rounded-full ${host.status?.toLowerCase() === 'up' ? 'bg-green-500 shadow-[0_0_3px_#10b981] text-white' : 'bg-red-500 text-white'}`} />
                                         </div>
                                     ))}
                                     {selectedNode.hosts.length === 0 && (

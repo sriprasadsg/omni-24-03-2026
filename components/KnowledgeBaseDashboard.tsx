@@ -86,28 +86,28 @@ export default function KnowledgeBaseDashboard() {
   }
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Knowledge Base</h1>
-          <p className="text-gray-400 text-sm mt-1">RAG-powered knowledge store — ingest docs, runbooks, policies, and query them with AI</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">RAG-powered knowledge store — ingest docs, runbooks, policies, and query them with AI</p>
         </div>
-        <button onClick={() => setShowIngest(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
+        <button onClick={() => setShowIngest(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
           + Ingest Document
         </button>
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-6">
         <div className="flex gap-3">
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && search()}
             placeholder="Search knowledge base (semantic + full-text)…"
-            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500"
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-500"
           />
           <button onClick={search} disabled={searching || !query.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2.5 rounded-lg text-sm font-medium">
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2.5 rounded-lg text-sm font-medium text-white">
             {searching ? 'Searching…' : 'Search'}
           </button>
         </div>
@@ -115,12 +115,12 @@ export default function KnowledgeBaseDashboard() {
 
       <div className="flex gap-2 mb-4">
         <button onClick={() => setActiveTab('browse')}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'browse' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'browse' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
           All Documents ({total})
         </button>
         {results.length > 0 && (
           <button onClick={() => setActiveTab('search')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'search' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
             Search Results ({results.length})
           </button>
         )}
@@ -128,34 +128,34 @@ export default function KnowledgeBaseDashboard() {
 
       {activeTab === 'browse' && (
         docs.length === 0 ? (
-          <div className="text-center py-20 text-gray-500 bg-gray-800 rounded-xl border border-gray-700">
+          <div className="text-center py-20 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-5xl mb-4">📚</div>
             <p className="text-lg">No documents in knowledge base</p>
             <p className="text-sm mt-2">Ingest runbooks, security policies, playbooks, and threat intel to enable AI-powered Q&A</p>
-            <button onClick={() => setShowIngest(true)} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm">
+            <button onClick={() => setShowIngest(true)} className="mt-4 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg text-sm text-white">
               Ingest First Document
             </button>
           </div>
         ) : (
           <div className="space-y-2">
             {docs.map(doc => (
-              <div key={doc.id} className="bg-gray-800 rounded-xl px-5 py-4 border border-gray-700 flex items-start justify-between gap-4">
+              <div key={doc.id} className="bg-white dark:bg-gray-800 rounded-xl px-5 py-4 border border-gray-200 dark:border-gray-700 flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium truncate">{doc.title || 'Untitled'}</h3>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-600 dark:text-gray-400">
                     <span>Source: {doc.source}</span>
                     <span>Added: {new Date(doc.createdAt).toLocaleDateString()}</span>
                   </div>
                   {doc.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {doc.tags.map(t => (
-                        <span key={t} className="text-xs bg-blue-900/30 text-blue-300 border border-blue-800 px-2 py-0.5 rounded">{t}</span>
+                        <span key={t} className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2 py-0.5 rounded">{t}</span>
                       ))}
                     </div>
                   )}
                 </div>
                 <button onClick={() => deleteDoc(doc.id)}
-                  className="text-gray-600 hover:text-red-400 text-xs shrink-0">Delete</button>
+                  className="text-gray-600 hover:text-red-600 dark:hover:text-red-400 text-xs shrink-0">Delete</button>
               </div>
             ))}
           </div>
@@ -164,16 +164,16 @@ export default function KnowledgeBaseDashboard() {
 
       {activeTab === 'search' && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-400">{results.length} results for "<span className="text-white">{query}</span>"</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{results.length} results for "<span className="text-white">{query}</span>"</p>
           {results.map((res, i) => (
-            <div key={res.id || i} className="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <div key={res.id || i} className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-medium">{res.title || 'Untitled'}</h3>
-                <span className="text-xs text-green-400 bg-green-900/30 border border-green-800 px-2 py-0.5 rounded shrink-0 ml-3">
+                <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-2 py-0.5 rounded shrink-0 ml-3">
                   {Math.round((1 - (res.relevance || 0)) * 100)}% match
                 </span>
               </div>
-              <p className="text-sm text-gray-300 leading-relaxed">{res.snippet}</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{res.snippet}</p>
               <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                 <span>Source: {res.source}</span>
                 {res.tags?.length > 0 && <span>Tags: {res.tags.join(', ')}</span>}
@@ -185,43 +185,43 @@ export default function KnowledgeBaseDashboard() {
 
       {showIngest && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl w-full max-w-2xl border border-gray-600 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-2xl border border-gray-300 dark:border-gray-600 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-bold text-lg">Ingest Document</h3>
-                <button onClick={() => setShowIngest(false)} className="text-gray-400 hover:text-white">✕</button>
+                <button onClick={() => setShowIngest(false)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">✕</button>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Title</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Title</label>
                   <input value={ingestForm.title} onChange={e => setIngestForm(p => ({ ...p, title: e.target.value }))}
                     placeholder="e.g. Incident Response Runbook v2"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Source</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Source</label>
                   <input value={ingestForm.source} onChange={e => setIngestForm(p => ({ ...p, source: e.target.value }))}
                     placeholder="e.g. confluence, github, manual"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Tags (comma-separated)</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Tags (comma-separated)</label>
                   <input value={ingestForm.tags} onChange={e => setIngestForm(p => ({ ...p, tags: e.target.value }))}
                     placeholder="runbook, ir, p1-response"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Content *</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Content *</label>
                   <textarea value={ingestForm.content} onChange={e => setIngestForm(p => ({ ...p, content: e.target.value }))}
                     rows={10} placeholder="Paste document content here…"
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white resize-none font-mono text-xs" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm text-gray-900 dark:text-white resize-none font-mono text-xs" />
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={ingest} disabled={ingesting || !ingestForm.content.trim()}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium">
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-medium text-white">
                     {ingesting ? 'Ingesting…' : 'Ingest Document'}
                   </button>
-                  <button onClick={() => setShowIngest(false)} className="px-4 py-2 rounded-lg border border-gray-600 text-sm">Cancel</button>
+                  <button onClick={() => setShowIngest(false)} className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm">Cancel</button>
                 </div>
               </div>
             </div>

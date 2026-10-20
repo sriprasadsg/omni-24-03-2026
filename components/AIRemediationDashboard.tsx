@@ -29,10 +29,10 @@ interface SystemOption { id: string; name: string; type: string }
 interface RiskOption { id: string; title: string; severity: 'critical' | 'high' | 'medium' | 'Critical' | 'High' | 'Medium' | 'Low' }
 
 const STATUS_STYLES: Record<string, { color: string; icon: React.ReactNode }> = {
-  pending_approval: { color: '#fbbf24', icon: <Clock size={13} /> },
-  auto_approved:    { color: '#34d399', icon: <CheckCircle size={13} /> },
-  approved:         { color: '#34d399', icon: <CheckCircle size={13} /> },
-  rejected:         { color: '#f87171', icon: <XCircle size={13} /> },
+  pending_approval: { color: 'var(--ink-amber)', icon: <Clock size={13} /> },
+  auto_approved:    { color: 'var(--ink-green-2)', icon: <CheckCircle size={13} /> },
+  approved:         { color: 'var(--ink-green-2)', icon: <CheckCircle size={13} /> },
+  rejected:         { color: 'var(--ink-red-2)', icon: <XCircle size={13} /> },
 };
 
 function DecisionHistory() {
@@ -70,35 +70,35 @@ function DecisionHistory() {
 
   useEffect(() => { load(); }, [load]);
 
-  const s = { color: '#f1f5f9', fontFamily: 'Inter, sans-serif' };
+  const s = { color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif' };
 
   return (
-    <div style={{ ...s, padding: '28px 32px', minHeight: '100vh', background: '#040812' }}>
+    <div style={{ ...s, padding: '28px 32px', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>AI ENGINE</div>
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Decision History</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>
+          <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>
             Agentic decisions requiring operator review
-            {pendingCount > 0 && <span style={{ marginLeft: 10, background: '#fbbf24', color: '#000', borderRadius: 8, padding: '2px 8px', fontSize: '0.78em', fontWeight: 700 }}>{pendingCount} PENDING</span>}
+            {pendingCount > 0 && <span style={{ marginLeft: 10, background: 'var(--ink-amber)', color: '#000', borderRadius: 8, padding: '2px 8px', fontSize: '0.78em', fontWeight: 700 }}>{pendingCount} PENDING</span>}
           </p>
         </div>
-        <button onClick={load} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)', color: '#94a3b8', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+        <button onClick={load} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--ink-surface-2)', border: '1px solid var(--ink-line)', color: 'var(--ink-muted)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
 
       {decisions.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#475569', padding: '80px 0', border: '1px dashed rgba(255,255,255,.1)', borderRadius: 14 }}>
+        <div style={{ textAlign: 'center', color: '#475569', padding: '80px 0', border: '1px dashed var(--ink-line)', borderRadius: 14 }}>
           No agentic decisions recorded yet. Decisions appear here when agents encounter low-confidence situations requiring operator approval.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {decisions.map(d => {
-            const ss = STATUS_STYLES[d.status] || { color: '#94a3b8', icon: null };
+            const ss = STATUS_STYLES[d.status] || { color: 'var(--ink-muted)', icon: null };
             const isPending = d.status === 'pending_approval';
             return (
-              <div key={d.id} style={{ background: 'rgba(255,255,255,.04)', border: isPending ? '1px solid rgba(251,191,36,.3)' : '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: '16px 20px' }}>
+              <div key={d.id} style={{ background: 'var(--ink-surface)', border: isPending ? '1px solid rgba(251,191,36,.3)' : '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: '16px 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -109,15 +109,15 @@ function DecisionHistory() {
                       <span style={{ fontSize: '0.72em', color: '#475569' }}>{new Date(d.created_at).toLocaleString()}</span>
                     </div>
                     <div style={{ fontWeight: 700, marginBottom: 4 }}>{d.recommended_action}</div>
-                    <div style={{ fontSize: '0.82em', color: '#94a3b8' }}>{d.reasoning}</div>
+                    <div style={{ fontSize: '0.82em', color: 'var(--ink-muted)' }}>{d.reasoning}</div>
                     {d.reviewer_note && <div style={{ fontSize: '0.78em', color: '#6366f1', marginTop: 4 }}>Note: {d.reviewer_note}</div>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                    <span style={{ fontSize: '0.75em', color: '#94a3b8' }}>Confidence: {Math.round(d.confidence * 100)}%</span>
+                    <span style={{ fontSize: '0.75em', color: 'var(--ink-muted)' }}>Confidence: {Math.round(d.confidence * 100)}%</span>
                     {isPending && (
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => approve(d, true)} style={{ background: 'rgba(52,211,153,.15)', border: '1px solid rgba(52,211,153,.3)', color: '#34d399', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 700 }}>Approve</button>
-                        <button onClick={() => approve(d, false)} style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', color: '#f87171', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 700 }}>Reject</button>
+                        <button onClick={() => approve(d, true)} style={{ background: 'rgba(52,211,153,.15)', border: '1px solid rgba(52,211,153,.3)', color: 'var(--ink-green-2)', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 700 }}>Approve</button>
+                        <button onClick={() => approve(d, false)} style={{ background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', color: 'var(--ink-red-2)', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: '0.78em', fontWeight: 700 }}>Reject</button>
                       </div>
                     )}
                   </div>
@@ -219,13 +219,13 @@ export function AIRemediationDashboard() {
 
   if (runState.status !== 'idle') {
     return (
-      <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
+      <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>AI ENGINE</div>
             <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Autonomous Remediation</h1>
           </div>
-          <button onClick={reset} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)', color: '#94a3b8', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+          <button onClick={reset} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--ink-surface-2)', border: '1px solid var(--ink-line)', color: 'var(--ink-muted)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
             <RotateCcw size={13} /> New Run
           </button>
         </div>
@@ -242,20 +242,20 @@ export function AIRemediationDashboard() {
     fontSize: '0.85em',
     fontWeight: 700,
     background: activeTab === tab ? 'rgba(99,102,241,.2)' : 'transparent',
-    color: activeTab === tab ? '#818cf8' : '#475569',
+    color: activeTab === tab ? 'var(--ink-accent)' : '#475569',
     display: 'flex' as const,
     alignItems: 'center' as const,
     gap: 6,
   });
 
   return (
-    <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
+    <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       {/* Header + Tabs */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>AI ENGINE</div>
         <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Autonomous Remediation</h1>
       </div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid rgba(255,255,255,.08)', paddingBottom: 4 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--ink-line)', paddingBottom: 4 }}>
         <button style={tabStyle('remediate')} onClick={() => setActiveTab('remediate')}>
           <Zap size={13} /> Remediate
         </button>
@@ -269,35 +269,35 @@ export function AIRemediationDashboard() {
       ) : (
         <>
           {remediationError && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.85em', color: '#f87171' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.85em', color: 'var(--ink-red-2)' }}>
               <span style={{ fontWeight: 700 }}>⚠</span> {remediationError}
-              <button onClick={() => setRemediationError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', opacity: 0.6, fontSize: '1em' }}>✕</button>
+              <button onClick={() => setRemediationError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--ink-red-2)', cursor: 'pointer', opacity: 0.6, fontSize: '1em' }}>✕</button>
             </div>
           )}
-          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginBottom: 24 }}>Select a system and risk, then let the AI engine remediate autonomously with full auditability</p>
+          <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginBottom: 24 }}>Select a system and risk, then let the AI engine remediate autonomously with full auditability</p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 800, marginBottom: 32 }}>
-            <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, padding: '20px 24px' }}>
-              <div style={{ fontSize: '0.75em', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Target System</div>
+            <div style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 14, padding: '20px 24px' }}>
+              <div style={{ fontSize: '0.75em', fontWeight: 700, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Target System</div>
               <div style={{ position: 'relative' }}>
                 <select value={selectedSystemId} onChange={e => setSelectedSystemId(e.target.value)}
-                  style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', color: '#f1f5f9', borderRadius: 8, padding: '10px 36px 10px 12px', appearance: 'none', fontSize: '0.88em', cursor: 'pointer' }}>
+                  style={{ width: '100%', background: 'var(--ink-surface-2)', border: '1px solid var(--ink-line)', color: 'var(--ink-text)', borderRadius: 8, padding: '10px 36px 10px 12px', appearance: 'none', fontSize: '0.88em', cursor: 'pointer' }}>
                   {loadingSystems && <option value="">Loading systems…</option>}
                   {!loadingSystems && systems.length === 0 && <option value="">No AI systems found</option>}
-                  {systems.map(s => <option key={s.id} value={s.id} style={{ background: '#1e293b' }}>{s.name}</option>)}
+                  {systems.map(s => <option key={s.id} value={s.id} style={{ background: 'var(--ink-panel)' }}>{s.name}</option>)}
                 </select>
                 <ChevronDown size={14} color="#94a3b8" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, padding: '20px 24px' }}>
-              <div style={{ fontSize: '0.75em', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Target Risk</div>
+            <div style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 14, padding: '20px 24px' }}>
+              <div style={{ fontSize: '0.75em', fontWeight: 700, color: 'var(--ink-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Target Risk</div>
               <div style={{ position: 'relative' }}>
                 <select value={selectedRiskId} onChange={e => setSelectedRiskId(e.target.value)}
-                  style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', color: '#f1f5f9', borderRadius: 8, padding: '10px 36px 10px 12px', appearance: 'none', fontSize: '0.88em', cursor: 'pointer' }}>
+                  style={{ width: '100%', background: 'var(--ink-surface-2)', border: '1px solid var(--ink-line)', color: 'var(--ink-text)', borderRadius: 8, padding: '10px 36px 10px 12px', appearance: 'none', fontSize: '0.88em', cursor: 'pointer' }}>
                   {loadingRisks && <option value="">Loading risks…</option>}
                   {!loadingRisks && risks.length === 0 && <option value="">No risks found for this system</option>}
-                  {risks.map(r => <option key={r.id} value={r.id} style={{ background: '#1e293b' }}>{r.title}</option>)}
+                  {risks.map(r => <option key={r.id} value={r.id} style={{ background: 'var(--ink-panel)' }}>{r.title}</option>)}
                 </select>
                 <ChevronDown size={14} color="#94a3b8" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               </div>
@@ -305,7 +305,7 @@ export function AIRemediationDashboard() {
           </div>
 
           <div style={{ maxWidth: 800, background: 'rgba(99,102,241,.06)', border: '1px solid rgba(99,102,241,.2)', borderRadius: 14, padding: '20px 24px', marginBottom: 28 }}>
-            <div style={{ fontSize: '0.82em', color: '#94a3b8', marginBottom: 12 }}>Remediation Summary</div>
+            <div style={{ fontSize: '0.82em', color: 'var(--ink-muted)', marginBottom: 12 }}>Remediation Summary</div>
             <div style={{ display: 'flex', gap: 32 }}>
               <div>
                 <div style={{ fontSize: '0.72em', color: '#6366f1', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>System</div>
@@ -317,7 +317,7 @@ export function AIRemediationDashboard() {
               </div>
               <div>
                 <div style={{ fontSize: '0.72em', color: '#6366f1', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Severity</div>
-                <div style={{ fontWeight: 700, marginTop: 2, color: selectedRisk?.severity === 'critical' || selectedRisk?.severity === 'Critical' ? '#fca5a5' : selectedRisk?.severity === 'high' || selectedRisk?.severity === 'High' ? '#fcd34d' : '#6ee7b7' }}>
+                <div style={{ fontWeight: 700, marginTop: 2, color: selectedRisk?.severity === 'critical' || selectedRisk?.severity === 'Critical' ? 'var(--ink-red)' : selectedRisk?.severity === 'high' || selectedRisk?.severity === 'High' ? 'var(--ink-amber)' : 'var(--ink-green)' }}>
                   {selectedRisk ? selectedRisk.severity.toUpperCase() : '—'}
                 </div>
               </div>

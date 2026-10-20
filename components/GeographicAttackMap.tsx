@@ -18,10 +18,10 @@ interface GeoEvent {
 }
 
 const SEV_COLOR: Record<string, string> = {
-  critical: 'text-red-400',
-  high: 'text-orange-400',
-  medium: 'text-yellow-400',
-  low: 'text-blue-400',
+  critical: 'text-red-600 dark:text-red-400',
+  high: 'text-orange-700 dark:text-orange-400',
+  medium: 'text-yellow-700 dark:text-yellow-400',
+  low: 'text-blue-600 dark:text-blue-400',
 };
 
 const SEV_BG: Record<string, string> = {
@@ -87,13 +87,13 @@ export default function GeographicAttackMap() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">Geographic Attack Map</h2>
-          <p className="text-sm text-slate-400 mt-0.5">{totalEvents.toLocaleString()} events from {countries.length} countries</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Geographic Attack Map</h2>
+          <p className="text-sm text-gray-600 dark:text-slate-400 mt-0.5">{totalEvents.toLocaleString()} events from {countries.length} countries</p>
         </div>
-        <div className="flex rounded-lg overflow-hidden border border-slate-700">
+        <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700">
           {RANGES.map(r => (
             <button key={r} onClick={() => setRange(r)}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors ${range === r ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+              className={`px-3 py-1.5 text-sm font-medium transition-colors ${range === r ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
               {r}
             </button>
           ))}
@@ -101,20 +101,20 @@ export default function GeographicAttackMap() {
       </div>
 
       {/* Heatmap bar */}
-      <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-slate-300 mb-3">Threat Origin Heatmap</h3>
+      <div className="bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Threat Origin Heatmap</h3>
         <div className="space-y-2">
           {countries.map(c => (
             <button key={c.country_code} onClick={() => selectCountry(c)}
-              className={`w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/50 transition-colors text-left ${selected?.country_code === c.country_code ? 'bg-slate-700' : ''}`}>
+              className={`w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700/50 transition-colors text-left ${selected?.country_code === c.country_code ? 'bg-gray-100 dark:bg-slate-700' : ''}`}>
               <div className="w-8 text-center text-lg" title={c.country}>{countryFlag(c.country_code)}</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-slate-200 truncate">{c.country}</span>
+                  <span className="text-sm font-medium text-gray-800 dark:text-slate-200 truncate">{c.country}</span>
                   <span className={`text-xs font-bold ${SEV_COLOR[c.severity]}`}>{c.event_count.toLocaleString()}</span>
                 </div>
-                <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${c.severity === 'critical' ? 'bg-red-500' : c.severity === 'high' ? 'bg-orange-500' : c.severity === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'}`}
+                <div className="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${c.severity === 'critical' ? 'bg-red-500 text-white' : c.severity === 'high' ? 'bg-orange-500 text-white' : c.severity === 'medium' ? 'bg-yellow-500 text-white' : 'bg-blue-500 text-white'}`}
                     style={{ width: `${(c.event_count / maxCount) * 100}%` }} />
                 </div>
               </div>
@@ -125,12 +125,12 @@ export default function GeographicAttackMap() {
 
       {/* Drill-down panel */}
       {selected && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-4">
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-2xl">{countryFlag(selected.country_code)}</span>
               <div>
-                <h3 className="font-bold text-white">{selected.country}</h3>
+                <h3 className="font-bold text-gray-900 dark:text-white">{selected.country}</h3>
                 <div className="flex gap-2 mt-0.5">
                   {selected.threat_types.map(t => (
                     <span key={t} className={`text-xs px-1.5 py-0.5 rounded border ${SEV_BG[selected.severity]}`}>{t}</span>
@@ -140,25 +140,25 @@ export default function GeographicAttackMap() {
             </div>
             <div className="text-right">
               <div className={`text-lg font-bold ${SEV_COLOR[selected.severity]}`}>{selected.event_count.toLocaleString()}</div>
-              <div className="text-xs text-slate-400">Last: {selected.last_seen}</div>
+              <div className="text-xs text-gray-600 dark:text-slate-400">Last: {selected.last_seen}</div>
             </div>
           </div>
-          {loadingEvents && <p className="text-sm text-slate-400 animate-pulse">Loading events...</p>}
+          {loadingEvents && <p className="text-sm text-gray-600 dark:text-slate-400 animate-pulse">Loading events...</p>}
           {!loadingEvents && events.length === 0 && (
-            <p className="text-sm text-slate-400">No detailed events available for this country in this time range.</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400">No detailed events available for this country in this time range.</p>
           )}
           {events.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="text-slate-400 text-xs">
+                <thead><tr className="text-gray-600 dark:text-slate-400 text-xs">
                   <th className="text-left pb-2 pr-3">Time</th>
                   <th className="text-left pb-2 pr-3">Source IP</th>
                   <th className="text-left pb-2 pr-3">Type</th>
                   <th className="text-left pb-2">Description</th>
                 </tr></thead>
                 <tbody>{events.slice(0, 10).map(ev => (
-                  <tr key={ev.id} className="border-t border-slate-700 text-slate-300">
-                    <td className="py-2 pr-3 text-slate-400 whitespace-nowrap">{new Date(ev.timestamp).toLocaleTimeString()}</td>
+                  <tr key={ev.id} className="border-t border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300">
+                    <td className="py-2 pr-3 text-gray-600 dark:text-slate-400 whitespace-nowrap">{new Date(ev.timestamp).toLocaleTimeString()}</td>
                     <td className="py-2 pr-3 font-mono text-xs">{ev.source_ip}</td>
                     <td className="py-2 pr-3">{ev.event_type}</td>
                     <td className="py-2 truncate max-w-xs">{ev.description}</td>

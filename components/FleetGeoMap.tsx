@@ -86,18 +86,18 @@ export function FleetGeoMap() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-900 min-h-screen text-white">
-        <p className="text-gray-400 text-sm">Loading fleet geo map…</p>
+      <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
+        <p className="text-gray-600 dark:text-gray-400 text-sm">Loading fleet geo map…</p>
       </div>
     );
   }
 
   if (error && !data) {
     return (
-      <div className="p-6 bg-gray-900 min-h-screen text-white">
+      <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
         <div className="mb-6"><h1 className="text-2xl font-bold">Fleet Geo Map</h1></div>
-        <div className="bg-gray-800 rounded-xl p-4 border border-red-900/50">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-red-200 dark:border-red-900/50">
+          <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
         </div>
       </div>
     );
@@ -106,10 +106,10 @@ export function FleetGeoMap() {
   const tenants = data?.tenants ?? [];
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Fleet Geo Map</h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
           Where the fleet physically is — {located.length} located
           {unlocatedCount > 0 ? `, ${unlocatedCount} unlocated` : ''} of {filtered.length} shown.
         </p>
@@ -117,11 +117,11 @@ export function FleetGeoMap() {
 
       {/* Filters (GMAP-02) */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <label className="text-xs text-gray-400">Tenant</label>
+        <label className="text-xs text-gray-600 dark:text-gray-400">Tenant</label>
         <select
           value={tenantFilter}
           onChange={(e) => { setTenantFilter(e.target.value); setSelected(null); setExpanded(null); }}
-          className="bg-gray-800 border border-gray-700 rounded-lg text-sm px-2 py-1"
+          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm px-2 py-1"
         >
           <option value="all">All tenants</option>
           {tenants.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -134,7 +134,7 @@ export function FleetGeoMap() {
                 key={s}
                 onClick={() => { toggleStatus(s); setSelected(null); setExpanded(null); }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                  on ? 'border-gray-500' : 'border-gray-800 opacity-40'
+                  on ? 'border-gray-500' : 'border-gray-200 dark:border-gray-800 opacity-40'
                 }`}
                 style={on ? { backgroundColor: statusFill(s), color: '#0b1220' } : undefined}
               >
@@ -144,7 +144,7 @@ export function FleetGeoMap() {
           })}
         </div>
         {unlocatedCount > 0 && (
-          <span className="ml-auto text-xs text-gray-400 bg-gray-800 border border-gray-700 rounded-full px-3 py-1">
+          <span className="ml-auto text-xs text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-3 py-1">
             Unlocated ({unlocatedCount})
           </span>
         )}
@@ -152,7 +152,7 @@ export function FleetGeoMap() {
 
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Map (GMAP-01) */}
-        <div className="flex-1 bg-gray-800/50 border border-gray-700 rounded-xl p-2 overflow-x-auto">
+        <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-2 overflow-x-auto">
           <svg viewBox={WORLD_VIEWBOX} className="w-full h-auto" role="img" aria-label="Fleet geo map">
             <g dangerouslySetInnerHTML={{ __html: WORLD_BACKDROP_SVG }} />
             {clusters.map((c, i) => {
@@ -189,7 +189,7 @@ export function FleetGeoMap() {
           {/* Legend */}
           <div className="flex flex-wrap gap-3 mt-2 px-1">
             {ALL_STATUSES.map((s) => (
-              <span key={s} className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span key={s} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
                 <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: statusFill(s) }} />
                 {s}
               </span>
@@ -202,17 +202,17 @@ export function FleetGeoMap() {
           {selected ? (
             <DrillDownPanel agent={selected} onClose={() => setSelected(null)} />
           ) : expanded ? (
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-medium text-sm">{expanded.length} agents here</h2>
-                <button onClick={() => setExpanded(null)} className="text-gray-500 hover:text-gray-300 text-xs">Close</button>
+                <button onClick={() => setExpanded(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xs">Close</button>
               </div>
               <div className="space-y-1.5 max-h-96 overflow-y-auto">
                 {expanded.map((a) => (
                   <button
                     key={a.id}
                     onClick={() => { setSelected(a); setExpanded(null); }}
-                    className="w-full flex items-center justify-between gap-2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-left hover:border-gray-500"
+                    className="w-full flex items-center justify-between gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-left hover:border-gray-500"
                   >
                     <span className="text-sm truncate">{a.hostname}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadge(a.status)}`}>{a.status}</span>
@@ -221,7 +221,7 @@ export function FleetGeoMap() {
               </div>
             </div>
           ) : (
-            <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-gray-500 text-xs italic">
+            <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-gray-500 text-xs italic">
               Click a marker to inspect an agent.
             </div>
           )}
@@ -236,19 +236,19 @@ function DrillDownPanel({ agent, onClose }: { agent: FleetGeoAgent; onClose: () 
     ? `${flagEmoji(agent.geo.country_code || undefined)} ${formatGeo({ city: agent.geo.city || undefined, country: agent.geo.country || undefined })}`.trim()
     : 'Unlocated';
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-medium text-sm truncate">{agent.hostname}</h2>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xs">Close</button>
+        <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xs">Close</button>
       </div>
       <dl className="space-y-2 text-sm">
         <Field label="Status">
           <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadge(agent.status)}`}>{agent.status}</span>
         </Field>
-        <Field label="LAN IP"><span className="text-gray-300">{agent.lanIp || '—'}</span></Field>
-        <Field label="Public IP"><span className="text-gray-300">{agent.publicIp || '—'}</span></Field>
-        <Field label="Location"><span className="text-gray-300">{location || '—'}</span></Field>
-        <Field label="Tenant"><span className="text-gray-300">{agent.tenantId}</span></Field>
+        <Field label="LAN IP"><span className="text-gray-700 dark:text-gray-300">{agent.lanIp || '—'}</span></Field>
+        <Field label="Public IP"><span className="text-gray-700 dark:text-gray-300">{agent.publicIp || '—'}</span></Field>
+        <Field label="Location"><span className="text-gray-700 dark:text-gray-300">{location || '—'}</span></Field>
+        <Field label="Tenant"><span className="text-gray-700 dark:text-gray-300">{agent.tenantId}</span></Field>
       </dl>
     </div>
   );

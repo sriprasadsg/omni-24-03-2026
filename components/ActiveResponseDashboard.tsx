@@ -38,16 +38,16 @@ interface Stats {
 }
 
 const MODE_STYLE: Record<Mode, string> = {
-  automatic: 'bg-red-500/20 text-red-400 border-red-500/30',
-  supervised: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  manual: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  automatic: 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30',
+  supervised: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30',
+  manual: 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30',
 };
 
 const STATUS_STYLE: Record<string, string> = {
-  completed: 'text-emerald-400',
-  failed: 'text-red-400',
-  running: 'text-yellow-400',
-  queued: 'text-slate-400',
+  completed: 'text-emerald-600 dark:text-emerald-400',
+  failed: 'text-red-600 dark:text-red-400',
+  running: 'text-yellow-700 dark:text-yellow-400',
+  queued: 'text-gray-600 dark:text-slate-400',
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -186,34 +186,34 @@ export default function ActiveResponseDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Active Response</h2>
-        <span className="text-sm text-slate-400">{stats.enabled_rules} of {stats.total_rules} rules active</span>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Active Response</h2>
+        <span className="text-sm text-gray-600 dark:text-slate-400">{stats.enabled_rules} of {stats.total_rules} rules active</span>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Rules', value: stats.total_rules, cls: 'text-blue-400' },
-          { label: 'Active Rules', value: stats.enabled_rules, cls: 'text-emerald-400' },
-          { label: 'Executions', value: stats.total_executions, cls: 'text-yellow-400' },
-          { label: 'Auto Rules', value: stats.rules_by_mode['automatic'] ?? 0, cls: 'text-red-400' },
+          { label: 'Total Rules', value: stats.total_rules, cls: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Active Rules', value: stats.enabled_rules, cls: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'Executions', value: stats.total_executions, cls: 'text-yellow-700 dark:text-yellow-400' },
+          { label: 'Auto Rules', value: stats.rules_by_mode['automatic'] ?? 0, cls: 'text-red-600 dark:text-red-400' },
         ].map(k => (
-          <div key={k.label} className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-center">
+          <div key={k.label} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 text-center">
             <div className={`text-2xl font-bold ${k.cls}`}>{k.value}</div>
-            <div className="text-xs text-slate-400 mt-1">{k.label}</div>
+            <div className="text-xs text-gray-600 dark:text-slate-400 mt-1">{k.label}</div>
           </div>
         ))}
       </div>
 
       {stats.rules_by_mode['automatic'] > 0 && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 text-yellow-300 text-sm">
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 text-yellow-800 dark:text-yellow-300 text-sm">
           ⚠ {stats.rules_by_mode['automatic']} rule(s) set to <strong>automatic</strong> mode — actions execute without approval. Test carefully before enabling in production.
         </div>
       )}
 
-      <div className="flex rounded-lg overflow-hidden border border-slate-700 w-fit">
+      <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700 w-fit">
         {(['rules', 'history', 'execute'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+            className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
             {t === 'execute' ? 'Manual Execute' : t}
           </button>
         ))}
@@ -227,35 +227,35 @@ export default function ActiveResponseDashboard() {
           </button>
           <div className="space-y-3">
             {rules.map(rule => (
-              <div key={rule.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+              <div key={rule.id} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-white">{rule.name}</span>
+                      <span className="font-semibold text-gray-900 dark:text-white">{rule.name}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${MODE_STYLE[rule.mode]}`}>{rule.mode}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border ${rule.enabled ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-700/50 text-slate-400 border-slate-600/30'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${rule.enabled ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : 'bg-gray-100 dark:bg-slate-700/50 text-gray-600 dark:text-slate-400 border-gray-300 dark:border-slate-600/30'}`}>
                         {rule.enabled ? 'Enabled' : 'Disabled'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">{rule.description}</p>
+                    <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">{rule.description}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-4">
                     <button onClick={() => toggleRule(rule)}
-                      className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors">
+                      className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors">
                       {rule.enabled ? 'Pause' : 'Enable'}
                     </button>
                     <button onClick={() => deleteRule(rule.id)}
-                      className="text-xs text-slate-500 hover:text-red-400 transition-colors">Delete</button>
+                      className="text-xs text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors">Delete</button>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-4 text-xs text-slate-400">
-                  <span>Trigger: <span className="text-slate-200">{TRIGGER_LABELS[rule.trigger] ?? rule.trigger}</span> (≥{rule.trigger_threshold}×)</span>
-                  <span>Executions: <span className="text-slate-200">{rule.execution_count}</span></span>
-                  <span>Timeout: <span className="text-slate-200">{rule.timeout_seconds}s</span></span>
+                <div className="flex flex-wrap gap-4 text-xs text-gray-600 dark:text-slate-400">
+                  <span>Trigger: <span className="text-gray-800 dark:text-slate-200">{TRIGGER_LABELS[rule.trigger] ?? rule.trigger}</span> (≥{rule.trigger_threshold}×)</span>
+                  <span>Executions: <span className="text-gray-800 dark:text-slate-200">{rule.execution_count}</span></span>
+                  <span>Timeout: <span className="text-gray-800 dark:text-slate-200">{rule.timeout_seconds}s</span></span>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {rule.actions.map(a => (
-                    <span key={a} className="text-xs px-2 py-0.5 rounded bg-blue-600/20 text-blue-400 border border-blue-600/30">
+                    <span key={a} className="text-xs px-2 py-0.5 rounded bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/30">
                       {ACTION_LABELS[a] ?? a}
                     </span>
                   ))}
@@ -267,10 +267,10 @@ export default function ActiveResponseDashboard() {
       )}
 
       {tab === 'history' && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-slate-400 text-xs">
+              <tr className="border-b border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-xs">
                 <th className="px-4 py-2 text-left">Action</th>
                 <th className="px-4 py-2 text-left">Agent</th>
                 <th className="px-4 py-2 text-left">Mode</th>
@@ -281,15 +281,15 @@ export default function ActiveResponseDashboard() {
             </thead>
             <tbody>
               {executions.map(e => (
-                <tr key={e.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                  <td className="px-4 py-3 text-slate-200 text-xs">{ACTION_LABELS[e.action] ?? e.action}</td>
-                  <td className="px-4 py-3 text-slate-400 font-mono text-xs truncate max-w-xs">{e.agent_id}</td>
+                <tr key={e.id} className="border-b border-gray-200 dark:border-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700/30">
+                  <td className="px-4 py-3 text-gray-800 dark:text-slate-200 text-xs">{ACTION_LABELS[e.action] ?? e.action}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400 font-mono text-xs truncate max-w-xs">{e.agent_id}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${MODE_STYLE[e.mode as Mode] ?? 'bg-slate-700 text-slate-300 border-slate-600 border'}`}>{e.mode}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${MODE_STYLE[e.mode as Mode] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 border'}`}>{e.mode}</span>
                   </td>
                   <td className={`px-4 py-3 text-xs font-medium capitalize ${STATUS_STYLE[e.status]}`}>{e.status}</td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">{e.triggered_by}</td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">{new Date(e.triggered_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-xs">{e.triggered_by}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-xs">{new Date(e.triggered_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -299,28 +299,28 @@ export default function ActiveResponseDashboard() {
 
       {tab === 'execute' && (
         <div className="max-w-lg space-y-4">
-          {execMsg && <div className="bg-blue-500/20 border border-blue-500/30 text-blue-300 text-sm px-4 py-2 rounded-lg">{execMsg}</div>}
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-white">Execute Action Manually</h3>
+          {execMsg && <div className="bg-blue-500/20 border border-blue-500/30 text-blue-700 dark:text-blue-300 text-sm px-4 py-2 rounded-lg">{execMsg}</div>}
+          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-5 space-y-4">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Execute Action Manually</h3>
             <div className="space-y-1">
-              <label className="text-xs text-slate-400">Agent ID</label>
+              <label className="text-xs text-gray-600 dark:text-slate-400">Agent ID</label>
               <input value={execForm.agent_id} onChange={e => setExecForm(p => ({ ...p, agent_id: e.target.value }))}
                 placeholder="Agent UUID"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-blue-500" />
+                className="w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:border-blue-500" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-slate-400">Action</label>
+              <label className="text-xs text-gray-600 dark:text-slate-400">Action</label>
               <select value={execForm.action} onChange={e => setExecForm(p => ({ ...p, action: e.target.value }))}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                className="w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500">
                 <option value="">Select action…</option>
                 {validActions.map(a => <option key={a} value={a}>{ACTION_LABELS[a] ?? a}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-slate-400">Reason / Notes</label>
+              <label className="text-xs text-gray-600 dark:text-slate-400">Reason / Notes</label>
               <input value={execForm.reason} onChange={e => setExecForm(p => ({ ...p, reason: e.target.value }))}
                 placeholder="Why are you triggering this action?"
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
+                className="w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
             </div>
             <button onClick={executeAction} disabled={saving || !execForm.agent_id || !execForm.action}
               className="w-full py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50">
@@ -332,11 +332,11 @@ export default function ActiveResponseDashboard() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowCreate(false)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">New Active Response Rule</h3>
-              <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-white">&times;</button>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">New Active Response Rule</h3>
+              <button onClick={() => setShowCreate(false)} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">&times;</button>
             </div>
             <div className="space-y-3">
               {[
@@ -344,25 +344,25 @@ export default function ActiveResponseDashboard() {
                 { label: 'Description', key: 'description', placeholder: 'Optional description' },
               ].map(f => (
                 <div key={f.key} className="space-y-1">
-                  <label className="text-xs text-slate-400">{f.label}</label>
+                  <label className="text-xs text-gray-600 dark:text-slate-400">{f.label}</label>
                   <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               ))}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Trigger *</label>
+                  <label className="text-xs text-gray-600 dark:text-slate-400">Trigger *</label>
                   <select value={form.trigger} onChange={e => setForm(p => ({ ...p, trigger: e.target.value }))}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500">
                     <option value="">Select trigger…</option>
                     {validTriggers.map(t => <option key={t} value={t}>{TRIGGER_LABELS[t] ?? t}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Mode *</label>
+                  <label className="text-xs text-gray-600 dark:text-slate-400">Mode *</label>
                   <select value={form.mode} onChange={e => setForm(p => ({ ...p, mode: e.target.value as Mode }))}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+                    className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500">
                     <option value="supervised">Supervised (approval required)</option>
                     <option value="automatic">Automatic (no approval)</option>
                     <option value="manual">Manual (UI trigger only)</option>
@@ -370,33 +370,33 @@ export default function ActiveResponseDashboard() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-400">Actions * (select one or more)</label>
+                <label className="text-xs text-gray-600 dark:text-slate-400">Actions * (select one or more)</label>
                 <div className="flex flex-wrap gap-2">
                   {validActions.map(a => (
                     <label key={a} className="flex items-center gap-1.5 cursor-pointer">
                       <input type="checkbox" checked={form.actions.includes(a)} onChange={() => toggleAction(a)} className="w-3 h-3" />
-                      <span className="text-xs text-slate-300">{ACTION_LABELS[a] ?? a}</span>
+                      <span className="text-xs text-gray-700 dark:text-slate-300">{ACTION_LABELS[a] ?? a}</span>
                     </label>
                   ))}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Trigger Threshold</label>
+                  <label className="text-xs text-gray-600 dark:text-slate-400">Trigger Threshold</label>
                   <input type="number" value={form.threshold} min={1}
                     onChange={e => setForm(p => ({ ...p, threshold: parseInt(e.target.value) || 1 }))}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Timeout (seconds)</label>
+                  <label className="text-xs text-gray-600 dark:text-slate-400">Timeout (seconds)</label>
                   <input type="number" value={form.timeout} min={10} max={3600}
                     onChange={e => setForm(p => ({ ...p, timeout: parseInt(e.target.value) || 300 }))}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               </div>
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowCreate(false)} className="flex-1 py-2 rounded-lg border border-slate-600 text-slate-300 text-sm hover:bg-slate-800 transition-colors">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm hover:bg-white dark:hover:bg-slate-800 transition-colors">Cancel</button>
               <button onClick={createRule} disabled={saving || !form.name || !form.trigger || form.actions.length === 0}
                 className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
                 {saving ? 'Creating…' : 'Create Rule'}

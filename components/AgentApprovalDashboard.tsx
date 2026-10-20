@@ -87,13 +87,13 @@ const AgentApprovalDashboard: React.FC = () => {
         <div className="p-6 max-w-7xl mx-auto space-y-8">
 
             {tenantError && (
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-medium">
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm font-medium">
                     <AlertTriangleIcon size={16} className="shrink-0" />
                     Tenant context required. Please log in again with a valid tenant account.
                 </div>
             )}
             {decisionError && (
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium">
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium">
                     <AlertTriangleIcon size={16} className="shrink-0" />
                     {decisionError}
                     <button onClick={() => setDecisionError(null)} className="ml-auto opacity-60 hover:opacity-100 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Dismiss error">
@@ -109,11 +109,11 @@ const AgentApprovalDashboard: React.FC = () => {
                         <ShieldCheckIcon size={32} className="text-blue-500" />
                         Agent Autonomous Approvals
                     </h1>
-                    <p className="text-gray-400 mt-1">Review and authorize pending autonomous actions from agents.</p>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">Review and authorize pending autonomous actions from agents.</p>
                 </div>
-                <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg">
-                    <ActivityIcon size={16} className="text-green-400 animate-pulse" />
-                    <span className="text-sm font-mono text-green-400">Agentic Mode Active</span>
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg">
+                    <ActivityIcon size={16} className="text-green-600 dark:text-green-400 animate-pulse" />
+                    <span className="text-sm font-mono text-green-600 dark:text-green-400">Agentic Mode Active</span>
                 </div>
             </div>
 
@@ -127,18 +127,18 @@ const AgentApprovalDashboard: React.FC = () => {
                 {loading ? (
                     <div className="text-center py-12 text-gray-500 animate-pulse">Checking for requests...</div>
                 ) : pendingApprovals.length === 0 ? (
-                    <div className="bg-gray-800/50 rounded-xl p-12 text-center border border-gray-700 border-dashed">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-12 text-center border border-gray-200 dark:border-gray-700 border-dashed">
                         <ShieldCheckIcon size={48} className="text-green-500/50 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-300">All Clear</h3>
+                        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">All Clear</h3>
                         <p className="text-gray-500">No actions waiting for approval right now.</p>
                     </div>
                 ) : (
                     <div className="grid gap-4">
                         {pendingApprovals.map(req => (
-                            <div key={req.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg flex flex-col md:flex-row gap-6">
+                            <div key={req.id} className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg flex flex-col md:flex-row gap-6">
 
                                 {/* Status Indicator */}
-                                <div className="hidden md:flex flex-col items-center justify-center p-4 bg-gray-900/50 rounded-lg min-w-[120px]">
+                                <div className="hidden md:flex flex-col items-center justify-center p-4 bg-white/50 dark:bg-gray-900/50 rounded-lg min-w-[120px]">
                                     <AlertTriangleIcon size={32} className={`${getRiskColor(req.risk_score)} mb-2`} />
                                     <span className="text-xs text-gray-500 uppercase tracking-wider">Risk Score</span>
                                     <span className={`text-2xl font-bold ${getRiskColor(req.risk_score)}`}>{req.risk_score}/10</span>
@@ -148,22 +148,22 @@ const AgentApprovalDashboard: React.FC = () => {
                                 <div className="flex-1 space-y-3">
                                     <div className="flex items-start justify-between">
                                         <div>
-                                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                                 {req.action_type}
-                                                <span className="text-sm font-normal text-gray-400 bg-gray-700 px-2 py-0.5 rounded-full">
+                                                <span className="text-sm font-normal text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
                                                     {req.agent_id}
                                                 </span>
                                             </h3>
-                                            <p className="text-gray-300 mt-1">{req.description}</p>
+                                            <p className="text-gray-700 dark:text-gray-300 mt-1">{req.description}</p>
                                         </div>
                                         <span className="text-sm text-gray-500 font-mono">
                                             {new Date(req.timestamp).toLocaleTimeString()}
                                         </span>
                                     </div>
 
-                                    <div className="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
-                                        <p className="text-sm text-gray-400 font-mono">
-                                            <span className="text-blue-400">Reasoning:</span> {req.reasoning}
+                                    <div className="bg-white/50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700/50">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+                                            <span className="text-blue-600 dark:text-blue-400">Reasoning:</span> {req.reasoning}
                                         </p>
                                     </div>
                                 </div>

@@ -147,11 +147,11 @@ export function UEBADashboard() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
-                        <UserIcon className="text-purple-400" size={28} />
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
+                        <UserIcon className="text-purple-600 dark:text-purple-400" size={28} />
                         User & Entity Behavior Analytics (UEBA)
                     </h1>
-                    <p className="text-slate-400 mt-1">
+                    <p className="text-gray-600 dark:text-slate-400 mt-1">
                         Machine learning-driven insider threat detection and behavioral baselining.
                     </p>
                 </div>
@@ -160,7 +160,7 @@ export function UEBADashboard() {
                     <button
                         onClick={triggerRecalculation}
                         disabled={isCalculating}
-                        className={`flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition-colors ${isCalculating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-900 dark:text-white rounded-lg border border-gray-200 dark:border-slate-700 transition-colors ${isCalculating ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         <RefreshCwIcon size={16} className={isCalculating ? 'animate-spin' : ''} />
                         {isCalculating ? 'Computing Baselines...' : 'Recalculate Baselines'}
@@ -177,13 +177,13 @@ export function UEBADashboard() {
 
                     {/* Left Column: Riskiest Users List */}
                     <div className="col-span-1 space-y-6">
-                        <div className="bg-slate-900/50 rounded-xl border border-slate-800 border-t-purple-500/50 p-5 flex flex-col h-[calc(100vh-12rem)]">
+                        <div className="bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-800 border-t-purple-500/50 p-5 flex flex-col h-[calc(100vh-12rem)]">
                             <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                                    <AlertTriangleIcon className="text-red-400" size={20} />
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <AlertTriangleIcon className="text-red-600 dark:text-red-400" size={20} />
                                     Top Riskiest Users
                                 </h2>
-                                <span className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded-md">
+                                <span className="text-xs bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 px-2 py-1 rounded-md">
                                     {riskScores.length} Tracked
                                 </span>
                             </div>
@@ -193,7 +193,7 @@ export function UEBADashboard() {
                                 <input
                                     type="text"
                                     placeholder="Search users..."
-                                    className="w-full bg-slate-950/50 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-300 focus:outline-none focus:border-purple-500/50 transition-colors"
+                                    className="w-full bg-white/50 dark:bg-slate-950/50 border border-gray-200 dark:border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-700 dark:text-slate-300 focus:outline-none focus:border-purple-500/50 transition-colors"
                                 />
                             </div>
 
@@ -209,7 +209,7 @@ export function UEBADashboard() {
                                             onClick={() => handleUserSelect(user)}
                                             className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedUser?.userId === user.userId
                                                 ? 'bg-slate-800 border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
-                                                : 'bg-slate-950/30 border-slate-800 hover:bg-slate-800/50'
+                                                : 'bg-white/30 dark:bg-slate-950/30 border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between">
@@ -218,16 +218,16 @@ export function UEBADashboard() {
                                                         {user.userAvatar ? (
                                                             <img src={user.userAvatar} alt={user.userName} className="w-10 h-10 rounded-full" />
                                                         ) : (
-                                                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-medium">
+                                                            <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-gray-600 dark:text-slate-400 font-medium">
                                                                 {user.userName.charAt(0)}
                                                             </div>
                                                         )}
                                                         {user.score >= 80 && (
-                                                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 border-2 border-slate-900 rounded-full animate-pulse"></div>
+                                                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 border-2 border-gray-200 dark:border-slate-900 rounded-full animate-pulse text-white"></div>
                                                         )}
                                                     </div>
                                                     <div>
-                                                        <div className="font-medium text-slate-200 text-sm">{user.userName}</div>
+                                                        <div className="font-medium text-gray-800 dark:text-slate-200 text-sm">{user.userName}</div>
                                                         <div className="text-xs text-slate-500 truncate w-32">{user.userEmail}</div>
                                                     </div>
                                                 </div>
@@ -255,49 +255,49 @@ export function UEBADashboard() {
                                 <div className={`rounded-xl border p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 ${getScoreBg(selectedUser.score)}`}>
                                     <div className="flex items-center gap-5">
                                         {selectedUser.userAvatar ? (
-                                            <img src={selectedUser.userAvatar} alt={selectedUser.userName} className="w-16 h-16 rounded-full border-2 border-slate-700/50" />
+                                            <img src={selectedUser.userAvatar} alt={selectedUser.userName} className="w-16 h-16 rounded-full border-2 border-gray-200 dark:border-slate-700/50" />
                                         ) : (
-                                            <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-medium text-2xl border-2 border-slate-700/50">
+                                            <div className="w-16 h-16 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-gray-700 dark:text-slate-300 font-medium text-2xl border-2 border-gray-200 dark:border-slate-700/50">
                                                 {selectedUser.userName.charAt(0)}
                                             </div>
                                         )}
                                         <div>
-                                            <h2 className="text-2xl font-bold text-white">{selectedUser.userName}</h2>
-                                            <p className="text-slate-400">{selectedUser.userEmail}</p>
+                                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedUser.userName}</h2>
+                                            <p className="text-gray-600 dark:text-slate-400">{selectedUser.userEmail}</p>
                                             <div className="flex items-center gap-4 mt-2">
-                                                <span className="text-xs bg-slate-900/50 text-slate-300 px-2 py-1 rounded border border-slate-700/50">
+                                                <span className="text-xs bg-white/50 dark:bg-slate-900/50 text-gray-700 dark:text-slate-300 px-2 py-1 rounded border border-gray-200 dark:border-slate-700/50">
                                                     ID: {selectedUser.userId.split('_')[1] || selectedUser.userId}
                                                 </span>
-                                                <span className="text-xs text-slate-400 flex items-center gap-1">
+                                                <span className="text-xs text-gray-600 dark:text-slate-400 flex items-center gap-1">
                                                     <ClockIcon size={12} /> Last updated: {new Date(selectedUser.lastCalculated).toLocaleTimeString()}
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-8 bg-slate-900/40 p-4 rounded-xl border border-slate-800/50">
+                                    <div className="flex gap-8 bg-white/40 dark:bg-slate-900/40 p-4 rounded-xl border border-gray-200 dark:border-slate-800/50">
                                         <div className="text-center">
-                                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Risk</div>
+                                            <div className="text-xs text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-1">Total Risk</div>
                                             <div className={`text-3xl font-bold ${getScoreColor(selectedUser.score)}`}>{selectedUser.score}</div>
                                         </div>
-                                        <div className="w-px bg-slate-700/50"></div>
+                                        <div className="w-px bg-gray-100 dark:bg-slate-700/50"></div>
                                         <div className="text-center">
-                                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">ML Anomaly %</div>
-                                            <div className="text-2xl font-medium text-purple-400">+{selectedUser.mlScore}</div>
+                                            <div className="text-xs text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-1">ML Anomaly %</div>
+                                            <div className="text-2xl font-medium text-purple-600 dark:text-purple-400">+{selectedUser.mlScore}</div>
                                         </div>
-                                        <div className="w-px bg-slate-700/50"></div>
+                                        <div className="w-px bg-gray-100 dark:bg-slate-700/50"></div>
                                         <div className="text-center">
-                                            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Rule Score</div>
-                                            <div className="text-2xl font-medium text-blue-400">{selectedUser.ruleScore}</div>
+                                            <div className="text-xs text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-1">Rule Score</div>
+                                            <div className="text-2xl font-medium text-blue-600 dark:text-blue-400">{selectedUser.ruleScore}</div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Anomaly Detection Graph */}
-                                <div className="bg-slate-900/50 rounded-xl border border-slate-800 p-5">
+                                <div className="bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
                                     <div className="flex items-center justify-between mb-6">
-                                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                                            <LineChartIcon className="text-blue-400" size={20} />
+                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                            <LineChartIcon className="text-blue-600 dark:text-blue-400" size={20} />
                                             Risk Score Trend (Last 24h)
                                         </h3>
                                         <div className="flex items-center gap-4 text-xs">
@@ -349,76 +349,76 @@ export function UEBADashboard() {
                                 {/* Insights & Metrics */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Risk Factors */}
-                                    <div className="bg-slate-900/50 rounded-xl border border-slate-800 p-5">
-                                        <h3 className="text-base font-semibold text-white mb-4">Detection Factors</h3>
+                                    <div className="bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
+                                        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Detection Factors</h3>
                                         {selectedUser.reasons.length > 0 ? (
                                             <ul className="space-y-3">
                                                 {selectedUser.reasons.map((reason, idx) => (
-                                                    <li key={idx} className="flex items-start gap-3 p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
+                                                    <li key={idx} className="flex items-start gap-3 p-3 bg-white/50 dark:bg-slate-950/50 rounded-lg border border-gray-200 dark:border-slate-800/50">
                                                         <div className="mt-0.5">
                                                             {reason.includes('ML') || reason.includes('deviates') ? (
-                                                                <ActivityIcon className="text-purple-400" size={16} />
+                                                                <ActivityIcon className="text-purple-600 dark:text-purple-400" size={16} />
                                                             ) : reason.includes('download') ? (
-                                                                <DownloadCloudIcon className="text-blue-400" size={16} />
+                                                                <DownloadCloudIcon className="text-blue-600 dark:text-blue-400" size={16} />
                                                             ) : reason.includes('IP') ? (
-                                                                <ServerIcon className="text-orange-400" size={16} />
+                                                                <ServerIcon className="text-orange-700 dark:text-orange-400" size={16} />
                                                             ) : (
-                                                                <ShieldAlertIcon className="text-red-400" size={16} />
+                                                                <ShieldAlertIcon className="text-red-600 dark:text-red-400" size={16} />
                                                             )}
                                                         </div>
-                                                        <span className="text-sm text-slate-300">{reason}</span>
+                                                        <span className="text-sm text-gray-700 dark:text-slate-300">{reason}</span>
                                                     </li>
                                                 ))}
                                             </ul>
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-950/30 rounded-lg border border-slate-800/30 border-dashed">
+                                            <div className="flex flex-col items-center justify-center py-8 text-center bg-white/30 dark:bg-slate-950/30 rounded-lg border border-gray-200 dark:border-slate-800/30 border-dashed">
                                                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3">
                                                     <ShieldAlertIcon className="text-emerald-500" size={20} />
                                                 </div>
-                                                <p className="text-sm text-slate-400 leading-relaxed">Behavior is well within established baselines.<br />No anomalous factors detected.</p>
+                                                <p className="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">Behavior is well within established baselines.<br />No anomalous factors detected.</p>
                                             </div>
                                         )}
                                     </div>
 
                                     {/* Peer Comparison */}
-                                    <div className="bg-slate-900/50 rounded-xl border border-slate-800 p-5">
-                                        <h3 className="text-base font-semibold text-white mb-4">Peer Group Comparison</h3>
+                                    <div className="bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
+                                        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Peer Group Comparison</h3>
 
                                         <div className="space-y-6">
                                             {/* Metric 1 */}
                                             <div>
                                                 <div className="flex justify-between text-xs mb-2">
-                                                    <span className="text-slate-400 uppercase tracking-wider">Distinct IPs (24h)</span>
-                                                    <span className="text-slate-200">User: <span className="font-bold">{userHistory.length > 0 ? userHistory[userHistory.length - 1].distinct_ips || 1 : 1}</span> vs Peer Avg: 1.2</span>
+                                                    <span className="text-gray-600 dark:text-slate-400 uppercase tracking-wider">Distinct IPs (24h)</span>
+                                                    <span className="text-gray-800 dark:text-slate-200">User: <span className="font-bold">{userHistory.length > 0 ? userHistory[userHistory.length - 1].distinct_ips || 1 : 1}</span> vs Peer Avg: 1.2</span>
                                                 </div>
-                                                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-blue-500 rounded-full" style={{ width: '40%' }}></div>
+                                                <div className="h-2 w-full bg-white dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-blue-500 rounded-full text-white" style={{ width: '40%' }}></div>
                                                 </div>
                                             </div>
 
                                             {/* Metric 2 */}
                                             <div>
                                                 <div className="flex justify-between text-xs mb-2">
-                                                    <span className="text-slate-400 uppercase tracking-wider">Failed Logins (24h)</span>
-                                                    <span className="text-slate-200">User: <span className="font-bold">{userHistory.length > 0 ? userHistory[userHistory.length - 1].failed_login_count || 0 : 0}</span> vs Peer Avg: 0.5</span>
+                                                    <span className="text-gray-600 dark:text-slate-400 uppercase tracking-wider">Failed Logins (24h)</span>
+                                                    <span className="text-gray-800 dark:text-slate-200">User: <span className="font-bold">{userHistory.length > 0 ? userHistory[userHistory.length - 1].failed_login_count || 0 : 0}</span> vs Peer Avg: 0.5</span>
                                                 </div>
-                                                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-orange-500 rounded-full" style={{ width: '15%' }}></div>
+                                                <div className="h-2 w-full bg-white dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-orange-500 rounded-full text-white" style={{ width: '15%' }}></div>
                                                 </div>
                                             </div>
 
                                             {/* Metric 3 */}
                                             <div>
                                                 <div className="flex justify-between text-xs mb-2">
-                                                    <span className="text-slate-400 uppercase tracking-wider">Data Transfer Vol (24h)</span>
-                                                    <span className="text-slate-200">User: <span className="font-bold flex items-center gap-1">
-                                                        {selectedUser.reasons.some(r => r.includes('download')) ? <TrendingUpIcon size={12} className="text-red-400" /> : ''}
+                                                    <span className="text-gray-600 dark:text-slate-400 uppercase tracking-wider">Data Transfer Vol (24h)</span>
+                                                    <span className="text-gray-800 dark:text-slate-200">User: <span className="font-bold flex items-center gap-1">
+                                                        {selectedUser.reasons.some(r => r.includes('download')) ? <TrendingUpIcon size={12} className="text-red-600 dark:text-red-400" /> : ''}
                                                         High
                                                     </span> vs Peer Avg: Low</span>
                                                 </div>
-                                                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden flex">
+                                                <div className="h-2 w-full bg-white dark:bg-slate-800 rounded-full overflow-hidden flex">
                                                     {/* User bar */}
-                                                    <div className={`h-full ${selectedUser.reasons.some(r => r.includes('download')) ? 'bg-red-500' : 'bg-emerald-500'} rounded-l-full`} style={{ width: selectedUser.reasons.some(r => r.includes('download')) ? '85%' : '20%' }}></div>
+                                                    <div className={`h-full ${selectedUser.reasons.some(r => r.includes('download')) ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'} rounded-l-full`} style={{ width: selectedUser.reasons.some(r => r.includes('download')) ? '85%' : '20%' }}></div>
                                                     {/* Peer average marker implicitly 20% */}
                                                 </div>
                                             </div>
@@ -427,7 +427,7 @@ export function UEBADashboard() {
                                 </div>
                             </>
                         ) : (
-                            <div className="h-full flex items-center justify-center bg-slate-900/30 rounded-xl border border-slate-800 border-dashed">
+                            <div className="h-full flex items-center justify-center bg-white/30 dark:bg-slate-900/30 rounded-xl border border-gray-200 dark:border-slate-800 border-dashed">
                                 <div className="text-center text-slate-500">
                                     <UserIcon size={48} className="mx-auto mb-4 opacity-50 text-slate-600" />
                                     <p>Select a user from the list to view their detailed behavioral risk profile.</p>

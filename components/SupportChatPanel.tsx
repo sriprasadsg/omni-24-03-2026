@@ -20,10 +20,10 @@ const isAdmin = (r?: string) => ADMIN_ROLES.has(r ?? '');
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const map: Record<string, string> = {
-        open:        'bg-blue-500/20 text-blue-400 border-blue-500/30',
-        in_progress: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-        resolved:    'bg-green-500/20 text-green-400 border-green-500/30',
-        closed:      'bg-slate-500/20 text-slate-400 border-slate-500/30',
+        open:        'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30',
+        in_progress: 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30',
+        resolved:    'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30',
+        closed:      'bg-slate-500/20 text-gray-600 dark:text-slate-400 border-slate-500/30',
     };
     return (
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${map[status] ?? map.open}`}>
@@ -34,9 +34,9 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 
 const ChatTypePill: React.FC<{ type: string }> = ({ type }) => {
     const cfg: Record<string, { label: string; cls: string }> = {
-        user_to_admin:       { label: 'Support',   cls: 'bg-teal-900/40 text-teal-300' },
-        admin_to_superadmin: { label: 'Escalated', cls: 'bg-purple-900/40 text-purple-300' },
-        admin_to_user:       { label: 'Direct',    cls: 'bg-indigo-900/40 text-indigo-300' },
+        user_to_admin:       { label: 'Support',   cls: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300' },
+        admin_to_superadmin: { label: 'Escalated', cls: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' },
+        admin_to_user:       { label: 'Direct',    cls: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' },
     };
     const { label, cls } = cfg[type] ?? cfg.user_to_admin;
     return <span className={`px-1.5 py-0.5 rounded text-[10px] ${cls}`}>{label}</span>;
@@ -89,42 +89,42 @@ const NewConvoModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
-                <h2 className="text-white font-semibold text-lg mb-1">{labels[chatType]}</h2>
+            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+                <h2 className="text-gray-900 dark:text-white font-semibold text-lg mb-1">{labels[chatType]}</h2>
                 {chatType === 'admin_to_user' && targetUser && (
-                    <p className="text-slate-400 text-xs mb-4">To: <span className="text-indigo-300">{targetUser.name}</span> ({targetUser.email})</p>
+                    <p className="text-gray-600 dark:text-slate-400 text-xs mb-4">To: <span className="text-indigo-700 dark:text-indigo-300">{targetUser.name}</span> ({targetUser.email})</p>
                 )}
                 {chatType === 'admin_to_superadmin' && originalConvo && (
-                    <div className="mb-4 px-3 py-2.5 bg-purple-900/25 border border-purple-700/40 rounded-lg text-xs">
-                        <p className="text-purple-300 font-semibold mb-1">Escalating user conversation</p>
-                        <p className="text-slate-300">User: <span className="text-white font-medium">{originalConvo.initiator_name ?? originalConvo.initiator_id}</span>
-                            {originalConvo.initiator_email && <span className="text-slate-400"> · {originalConvo.initiator_email}</span>}
+                    <div className="mb-4 px-3 py-2.5 bg-purple-100 dark:bg-purple-900/25 border border-purple-200 dark:border-purple-700/40 rounded-lg text-xs">
+                        <p className="text-purple-700 dark:text-purple-300 font-semibold mb-1">Escalating user conversation</p>
+                        <p className="text-gray-700 dark:text-slate-300">User: <span className="text-gray-900 dark:text-white font-medium">{originalConvo.initiator_name ?? originalConvo.initiator_id}</span>
+                            {originalConvo.initiator_email && <span className="text-gray-600 dark:text-slate-400"> · {originalConvo.initiator_email}</span>}
                         </p>
-                        <p className="text-slate-300 mt-0.5">Issue: <span className="text-white">{originalConvo.subject}</span></p>
+                        <p className="text-gray-700 dark:text-slate-300 mt-0.5">Issue: <span className="text-gray-900 dark:text-white">{originalConvo.subject}</span></p>
                     </div>
                 )}
-                {err && <p className="text-red-400 text-xs mb-3">{err}</p>}
+                {err && <p className="text-red-600 dark:text-red-400 text-xs mb-3">{err}</p>}
                 <div className="space-y-3">
                     <div>
-                        <label className="text-slate-400 text-xs block mb-1">Subject *</label>
+                        <label className="text-gray-600 dark:text-slate-400 text-xs block mb-1">Subject *</label>
                         <input
-                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500"
+                            className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500"
                             placeholder="Brief description"
                             value={subject} onChange={e => setSubject(e.target.value)}
                         />
                     </div>
                     <div>
-                        <label className="text-slate-400 text-xs block mb-1">Message *</label>
+                        <label className="text-gray-600 dark:text-slate-400 text-xs block mb-1">Message *</label>
                         <textarea
                             rows={4}
-                            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500 resize-none"
+                            className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-teal-500 resize-none"
                             placeholder="Your message…"
                             value={message} onChange={e => setMessage(e.target.value)}
                         />
                     </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-5">
-                    <button onClick={onClose} className="px-4 py-2 text-slate-400 text-sm hover:text-white">Cancel</button>
+                    <button onClick={onClose} className="px-4 py-2 text-gray-600 dark:text-slate-400 text-sm hover:text-gray-900 dark:hover:text-white">Cancel</button>
                     <button
                         onClick={submit} disabled={saving}
                         className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-sm rounded-lg disabled:opacity-50"
@@ -156,19 +156,19 @@ const UserPickerModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-md shadow-2xl">
+            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl p-5 w-full max-w-md shadow-2xl">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-white font-semibold text-base">Select User to Message</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">×</button>
+                    <h2 className="text-gray-900 dark:text-white font-semibold text-base">Select User to Message</h2>
+                    <button onClick={onClose} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white text-xl leading-none">×</button>
                 </div>
                 <input
                     autoFocus
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm mb-3 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-gray-900 dark:text-white text-sm mb-3 focus:outline-none focus:border-indigo-500"
                     placeholder="Search by name or email…"
                     value={search} onChange={e => setSearch(e.target.value)}
                 />
                 <div className="max-h-72 overflow-y-auto space-y-1">
-                    {loading && <p className="text-slate-400 text-sm text-center py-4">Loading users…</p>}
+                    {loading && <p className="text-gray-600 dark:text-slate-400 text-sm text-center py-4">Loading users…</p>}
                     {!loading && filtered.length === 0 && (
                         <p className="text-slate-500 text-sm text-center py-4">No users found</p>
                     )}
@@ -176,14 +176,14 @@ const UserPickerModal: React.FC<{
                         <button
                             key={u.id}
                             onClick={() => onSelect(u)}
-                            className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 transition-colors"
+                            className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors"
                         >
-                            <div className="w-8 h-8 rounded-full bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-semibold text-sm flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-indigo-600/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-semibold text-sm flex-shrink-0">
                                 {(u.name || u.email)[0]?.toUpperCase() ?? '?'}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-white text-sm font-medium truncate">{u.name || u.email}</p>
-                                <p className="text-slate-400 text-xs truncate">{u.email} · {u.role}</p>
+                                <p className="text-gray-900 dark:text-white text-sm font-medium truncate">{u.name || u.email}</p>
+                                <p className="text-gray-600 dark:text-slate-400 text-xs truncate">{u.email} · {u.role}</p>
                             </div>
                         </button>
                     ))}
@@ -200,15 +200,15 @@ const Bubble: React.FC<{ msg: SupportMessage; isMine: boolean }> = ({ msg, isMin
         <div className={`max-w-[72%] rounded-2xl px-4 py-2.5 text-sm ${
             isMine
                 ? 'bg-teal-600 text-white rounded-br-sm'
-                : 'bg-slate-700 text-slate-100 rounded-bl-sm'
+                : 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-slate-100 rounded-bl-sm'
         }`}>
             {!isMine && (
-                <p className="text-[10px] font-semibold text-teal-400 mb-1 capitalize">
+                <p className="text-[10px] font-semibold text-teal-600 dark:text-teal-400 mb-1 capitalize">
                     {msg.sender_role.replace('_', ' ')}
                 </p>
             )}
             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-            <p className={`text-[10px] mt-1 ${isMine ? 'text-teal-200' : 'text-slate-400'}`}>
+            <p className={`text-[10px] mt-1 ${isMine ? 'text-teal-800 dark:text-teal-200' : 'text-gray-600 dark:text-slate-400'}`}>
                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
         </div>
@@ -224,19 +224,19 @@ const UserIdentityCard: React.FC<{ convo: SupportConversation; isOnline?: boolea
     const initial = (name[0] ?? '?').toUpperCase();
 
     return (
-        <div className="flex items-center gap-2.5 px-3 py-1.5 bg-teal-900/20 border border-teal-700/30 rounded-xl">
+        <div className="flex items-center gap-2.5 px-3 py-1.5 bg-teal-100 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700/30 rounded-xl">
             <div className="relative flex-shrink-0">
-                <div className="w-7 h-7 rounded-full bg-teal-600/40 flex items-center justify-center text-teal-200 font-bold text-xs">
+                <div className="w-7 h-7 rounded-full bg-teal-600/40 flex items-center justify-center text-teal-800 dark:text-teal-200 font-bold text-xs">
                     {initial}
                 </div>
                 {isOnline !== undefined && (
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-slate-900
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-gray-200 dark:border-slate-900
                         ${isOnline ? 'bg-green-400' : 'bg-slate-500'}`} />
                 )}
             </div>
             <div className="min-w-0">
                 <p className="text-teal-100 text-xs font-semibold leading-tight truncate">{name}</p>
-                <p className="text-teal-300/70 text-[10px] leading-tight truncate">{email} · {role}</p>
+                <p className="text-teal-700 dark:text-teal-300/70 text-[10px] leading-tight truncate">{email} · {role}</p>
             </div>
         </div>
     );
@@ -462,11 +462,11 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
     };
 
     return (
-        <div className="flex h-full bg-slate-950 text-white overflow-hidden">
+        <div className="flex h-full bg-transparent dark:bg-slate-950 text-gray-900 dark:text-white overflow-hidden">
 
             {/* ── Left: conversation list ──────────────────────────────────── */}
-            <div className="w-80 flex-shrink-0 border-r border-slate-800 flex flex-col">
-                <div className="p-4 border-b border-slate-800">
+            <div className="w-80 flex-shrink-0 border-r border-gray-200 dark:border-slate-800 flex flex-col">
+                <div className="p-4 border-b border-gray-200 dark:border-slate-800">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="font-semibold text-base">Support</h2>
                         <div className="flex gap-2 flex-wrap justify-end">
@@ -501,7 +501,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                             <button
                                 key={f} onClick={() => setFilter(f)}
                                 className={`px-3 py-1 rounded-md capitalize transition-colors ${
-                                    filter === f ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'
+                                    filter === f ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                                 }`}
                             >{f}</button>
                         ))}
@@ -516,7 +516,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                             {!isAdmin(role) && (
                                 <button
                                     onClick={() => setShowModal('user_to_admin')}
-                                    className="block mx-auto mt-2 text-teal-400 hover:underline"
+                                    className="block mx-auto mt-2 text-teal-600 dark:text-teal-400 hover:underline"
                                 >Start one →</button>
                             )}
                         </div>
@@ -525,21 +525,21 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                         <button
                             key={c.id}
                             onClick={() => setActiveId(c.id)}
-                            className={`w-full text-left px-4 py-3 border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${
-                                activeId === c.id ? 'bg-slate-800' : ''
+                            className={`w-full text-left px-4 py-3 border-b border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                activeId === c.id ? 'bg-white dark:bg-slate-800' : ''
                             }`}
                         >
                             <div className="flex items-start justify-between gap-2 mb-1">
                                 <span className="text-sm font-medium truncate flex-1">{c.subject}</span>
                                 <StatusBadge status={c.status} />
                             </div>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-1">
+                            <div className="flex items-center gap-2 text-[11px] text-gray-600 dark:text-slate-400 mb-1">
                                 <ChatTypePill type={c.chat_type} />
                                 {c.chat_type === 'admin_to_user' && (
-                                    <span className="text-indigo-300 truncate">→ {c.target_user_name ?? c.target_user_id}</span>
+                                    <span className="text-indigo-700 dark:text-indigo-300 truncate">→ {c.target_user_name ?? c.target_user_id}</span>
                                 )}
                                 {c.chat_type === 'user_to_admin' && (
-                                    <span className="text-teal-300 truncate">
+                                    <span className="text-teal-700 dark:text-teal-300 truncate">
                                         {c.initiator_name ?? c.initiator_id}
                                         {c.initiator_email && c.initiator_email !== (c.initiator_name ?? c.initiator_id) && (
                                             <span className="text-slate-500"> · {c.initiator_email}</span>
@@ -547,10 +547,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                                     </span>
                                 )}
                                 {c.chat_type === 'admin_to_superadmin' && c.original_user_name && (
-                                    <span className="text-purple-300 truncate">re: {c.original_user_name}</span>
+                                    <span className="text-purple-700 dark:text-purple-300 truncate">re: {c.original_user_name}</span>
                                 )}
                             </div>
-                            <div className="text-[11px] text-slate-400 truncate">
+                            <div className="text-[11px] text-gray-600 dark:text-slate-400 truncate">
                                 {c.last_message?.content ?? 'No messages'}
                             </div>
                             <p className="text-[10px] text-slate-500 mt-1">
@@ -577,7 +577,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                 ) : (
                     <>
                         {/* Header */}
-                        <div className="px-5 py-3 border-b border-slate-800 bg-slate-900/50">
+                        <div className="px-5 py-3 border-b border-gray-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50">
                             <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -585,7 +585,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                                         <ChatTypePill type={activeConvo.chat_type} />
                                     </div>
                                     {activeConvo.chat_type !== 'user_to_admin' && (
-                                        <p className="text-xs text-slate-400 mt-0.5">{convoSubtitle(activeConvo)}</p>
+                                        <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5">{convoSubtitle(activeConvo)}</p>
                                     )}
                                 </div>
                                 <div className="flex items-center gap-3 flex-shrink-0">
@@ -637,14 +637,14 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
 
                         {/* Escalation context banner — shown to super admins on escalated conversations */}
                         {activeConvo.chat_type === 'admin_to_superadmin' && activeConvo.original_convo_id && (
-                            <div className="px-5 py-2.5 bg-purple-950/50 border-b border-purple-700/30 flex items-center gap-3 text-xs">
-                                <span className="text-purple-400 font-semibold whitespace-nowrap">Escalated issue:</span>
-                                <span className="text-white font-medium truncate">{activeConvo.original_subject}</span>
-                                <span className="text-purple-300/60 mx-1">·</span>
-                                <span className="text-purple-200 whitespace-nowrap">
+                            <div className="px-5 py-2.5 bg-purple-100 dark:bg-purple-950/50 border-b border-purple-200 dark:border-purple-700/30 flex items-center gap-3 text-xs">
+                                <span className="text-purple-600 dark:text-purple-400 font-semibold whitespace-nowrap">Escalated issue:</span>
+                                <span className="text-gray-900 dark:text-white font-medium truncate">{activeConvo.original_subject}</span>
+                                <span className="text-purple-700 dark:text-purple-300/60 mx-1">·</span>
+                                <span className="text-purple-800 dark:text-purple-200 whitespace-nowrap">
                                     {activeConvo.original_user_name}
                                     {activeConvo.original_user_email && (
-                                        <span className="text-purple-300/60"> · {activeConvo.original_user_email}</span>
+                                        <span className="text-purple-700 dark:text-purple-300/60"> · {activeConvo.original_user_email}</span>
                                     )}
                                 </span>
                             </div>
@@ -664,7 +664,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                                         <Bubble msg={msg} isMine={isMine} />
                                         {showSeen && (
                                             <div className="flex justify-end mb-1 -mt-2 pr-1">
-                                                <span className="text-[10px] text-teal-400/70">Seen</span>
+                                                <span className="text-[10px] text-teal-600 dark:text-teal-400/70">Seen</span>
                                             </div>
                                         )}
                                     </React.Fragment>
@@ -673,7 +673,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                             {/* Typing indicator bubble */}
                             {typingUsers.length > 0 && (
                                 <div className="flex justify-start mb-3">
-                                    <div className="bg-slate-700 rounded-2xl rounded-bl-sm px-4 py-3">
+                                    <div className="bg-gray-100 dark:bg-slate-700 rounded-2xl rounded-bl-sm px-4 py-3">
                                         <div className="flex gap-1 items-center">
                                             {[0, 150, 300].map(delay => (
                                                 <span key={delay} className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
@@ -688,11 +688,11 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
 
                         {/* Input */}
                         {['resolved', 'closed'].includes(activeConvo.status) ? (
-                            <div className="px-5 py-3 border-t border-slate-800 text-center text-xs text-slate-500">
+                            <div className="px-5 py-3 border-t border-gray-200 dark:border-slate-800 text-center text-xs text-slate-500">
                                 This conversation is {activeConvo.status}.
                             </div>
                         ) : (
-                            <div className="px-5 py-3 border-t border-slate-800 flex items-end gap-3 bg-slate-900/30">
+                            <div className="px-5 py-3 border-t border-gray-200 dark:border-slate-800 flex items-end gap-3 bg-white/30 dark:bg-slate-900/30">
                                 <textarea
                                     rows={2}
                                     value={input}
@@ -708,7 +708,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ initialConvoId = nu
                                     }}
                                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                                     placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
-                                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
+                                    className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
                                 />
                                 <button
                                     onClick={handleSend}

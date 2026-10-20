@@ -85,7 +85,7 @@ const ThreatDashboard: React.FC = () => {
   });
 
   return (
-    <div className="p-6 space-y-6 bg-slate-950 min-h-screen text-slate-200 font-inter">
+    <div className="p-6 space-y-6 bg-transparent dark:bg-slate-950 min-h-screen text-gray-800 dark:text-slate-200 font-inter">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -93,11 +93,11 @@ const ThreatDashboard: React.FC = () => {
             <Shield className="w-8 h-8 text-blue-500" />
             Threat Intelligence & SIEM
           </h1>
-          <p className="text-slate-400 mt-1">Unified OCSF-Normalized Security Event Stream</p>
+          <p className="text-gray-600 dark:text-slate-400 mt-1">Unified OCSF-Normalized Security Event Stream</p>
         </div>
         <button 
           onClick={fetchSIEMData}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-lg hover:bg-slate-800 transition-all text-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-all text-sm"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh Data
@@ -106,25 +106,25 @@ const ThreatDashboard: React.FC = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl backdrop-blur-sm">
+        <div className="p-4 bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-xl backdrop-blur-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-slate-400 text-xs uppercase tracking-wider font-semibold">Total Events</p>
+              <p className="text-gray-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">Total Events</p>
               <h3 className="text-2xl font-bold mt-1">{summary?.total_events || 0}</h3>
             </div>
             <Activity className="w-5 h-5 text-blue-500" />
           </div>
-          <div className="mt-4 h-1 bg-slate-800 rounded-full overflow-hidden">
+          <div className="mt-4 h-1 bg-white dark:bg-slate-800 rounded-full overflow-hidden">
             <div className="h-full bg-blue-500 w-3/4 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
           </div>
         </div>
 
         {["Critical", "High", "Medium"].map((sev) => (
-          <div key={sev} className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl backdrop-blur-sm">
+          <div key={sev} className="p-4 bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-xl backdrop-blur-sm">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-slate-400 text-xs uppercase tracking-wider font-semibold">{sev} Alerts</p>
-                <h3 className="text-2xl font-bold mt-1 text-slate-100">{summary?.severity_counts?.[sev] || 0}</h3>
+                <p className="text-gray-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">{sev} Alerts</p>
+                <h3 className="text-2xl font-bold mt-1 text-gray-900 dark:text-slate-100">{summary?.severity_counts?.[sev] || 0}</h3>
               </div>
               <AlertTriangle className={`w-5 h-5 ${sev === 'Critical' ? 'text-red-500' : sev === 'High' ? 'text-orange-500' : 'text-yellow-500'}`} />
             </div>
@@ -135,14 +135,14 @@ const ThreatDashboard: React.FC = () => {
       {/* Main Analysis Area */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Feed */}
-        <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row gap-4 justify-between items-center bg-slate-900/80">
+        <div className="lg:col-span-2 bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-gray-200 dark:border-slate-800 flex flex-col sm:flex-row gap-4 justify-between items-center bg-white/80 dark:bg-slate-900/80">
             <div className="relative w-full max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <input 
                 type="text" 
                 placeholder="Search events, sources, actors..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:border-blue-500 transition-colors"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -151,7 +151,7 @@ const ThreatDashboard: React.FC = () => {
               <select 
                 value={filterSeverity}
                 onChange={(e) => setFilterSeverity(e.target.value)}
-                className="px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                className="px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:border-blue-500"
               >
                 <option value="All">All Severities</option>
                 <option value="Critical">Critical</option>
@@ -164,7 +164,7 @@ const ThreatDashboard: React.FC = () => {
 
           <div className="flex-1 overflow-y-auto max-h-[600px] scrollbar-thin scrollbar-thumb-slate-700">
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-slate-900 text-slate-400 text-xs uppercase tracking-wider z-10">
+              <thead className="sticky top-0 bg-white dark:bg-slate-900 text-gray-600 dark:text-slate-400 text-xs uppercase tracking-wider z-10">
                 <tr>
                   <th className="px-6 py-4 font-semibold">Time / Source</th>
                   <th className="px-6 py-4 font-semibold">Activity</th>
@@ -172,12 +172,12 @@ const ThreatDashboard: React.FC = () => {
                   <th className="px-6 py-4 font-semibold">Entity</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
                 {filteredEvents.length > 0 ? filteredEvents.map((event) => (
-                  <tr key={event.id} className="hover:bg-slate-800/30 transition-colors group">
+                  <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-slate-200">
+                        <span className="text-sm font-medium text-gray-800 dark:text-slate-200">
                           {new Date(event.time).toLocaleTimeString()}
                         </span>
                         <span className="text-[10px] text-slate-500 font-mono uppercase">
@@ -186,7 +186,7 @@ const ThreatDashboard: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 max-w-xs">
-                      <p className="text-sm font-semibold text-slate-300 truncate">{event.class_name}</p>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-slate-300 truncate">{event.class_name}</p>
                       <p className="text-xs text-slate-500 truncate mt-0.5">{event.message ?? ''}</p>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -196,10 +196,10 @@ const ThreatDashboard: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
+                        <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-800 flex items-center justify-center text-gray-600 dark:text-slate-400 group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                           <User className="w-4 h-4" />
                         </div>
-                        <span className="text-xs text-slate-400 italic">
+                        <span className="text-xs text-gray-600 dark:text-slate-400 italic">
                           {event.actor?.user?.name || "System Process"}
                         </span>
                       </div>
@@ -219,8 +219,8 @@ const ThreatDashboard: React.FC = () => {
 
         {/* Right Column: Insights */}
         <div className="space-y-6">
-          <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-md">
-            <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-4 uppercase tracking-widest">
+          <div className="p-6 bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-2xl backdrop-blur-md">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2 mb-4 uppercase tracking-widest">
               <Filter className="w-4 h-4 text-blue-500" />
               Source Distribution
             </h4>
@@ -231,10 +231,10 @@ const ThreatDashboard: React.FC = () => {
                 return (
                   <div key={source} className="space-y-2">
                     <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-slate-300">{source.toUpperCase()}</span>
+                      <span className="text-gray-700 dark:text-slate-300">{source.toUpperCase()}</span>
                       <span className="text-slate-500">{count as number} events ({percentage}%)</span>
                     </div>
-                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-2 bg-white dark:bg-slate-800 rounded-full overflow-hidden">
                       <div 
                         className={`h-full bg-gradient-to-r ${
                           ['from-blue-500 to-indigo-500', 'from-purple-500 to-pink-500', 'from-emerald-500 to-teal-500'][idx % 3]
@@ -248,25 +248,25 @@ const ThreatDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-md">
-            <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-4 uppercase tracking-widest">
+          <div className="p-6 bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-2xl backdrop-blur-md">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2 mb-4 uppercase tracking-widest">
               <Shield className="w-4 h-4 text-indigo-500" />
               Normalization Status
             </h4>
             <div className="space-y-4">
-              <div className="p-4 bg-slate-950 border border-slate-800/50 rounded-xl flex items-center gap-4">
+              <div className="p-4 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800/50 rounded-xl flex items-center gap-4">
                 <div className="p-2 bg-indigo-500/10 rounded-lg">
-                  <Database className="w-6 h-6 text-indigo-400" />
+                  <Database className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Schema Version</p>
-                  <p className="text-lg font-bold text-slate-200 italic font-mono">OCSF 1.1.0-RC</p>
+                  <p className="text-lg font-bold text-gray-800 dark:text-slate-200 italic font-mono">OCSF 1.1.0-RC</p>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-800/20 p-3 rounded-lg border border-slate-800/50">
+              <p className="text-[11px] text-slate-500 leading-relaxed bg-gray-50 dark:bg-slate-800/20 p-3 rounded-lg border border-gray-200 dark:border-slate-800/50">
                 All raw logs are being automatically mapped to the Open Cybersecurity Schema Framework. This ensures cross-product compatibility and standardized threat hunting.
               </p>
-              <button className="w-full py-2.5 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center justify-center gap-1 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/5">
+              <button className="w-full py-2.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center justify-center gap-1 border border-indigo-500/20 rounded-lg hover:bg-indigo-500/5">
                 View Schema Documentation <ExternalLink className="w-3 h-3" />
               </button>
             </div>

@@ -65,7 +65,7 @@ export const AutonomousRiskRemediation: React.FC<AutonomousRiskRemediationProps>
                       <span className="mr-2">{icon}</span>
                       <span className="font-semibold capitalize">{step.type}</span>
                     </div>
-                    <p className="flex-1 text-gray-300 whitespace-pre-wrap">
+                    <p className="flex-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                       {step.content}
                     </p>
                   </div>

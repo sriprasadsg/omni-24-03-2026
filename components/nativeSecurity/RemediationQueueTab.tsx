@@ -65,14 +65,14 @@ export function RemediationQueueTab() {
   }
 
   return (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium">Remediation Queue</h3>
-        <span className="text-gray-400 text-xs">{items.length} pending / in flight</span>
+        <span className="text-gray-600 dark:text-gray-400 text-xs">{items.length} pending / in flight</span>
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Loading remediation queue…</p>}
-      {error && !loading && <p className="text-red-400 text-sm">{error}</p>}
+      {loading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading remediation queue…</p>}
+      {error && !loading && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
       {!loading && !error && items.length === 0 && (
         <p className="text-gray-500 text-xs italic">Nothing pending — the queue is clear.</p>
       )}
@@ -80,7 +80,7 @@ export function RemediationQueueTab() {
       {!loading && !error && items.length > 0 && (
         <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.id} className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between flex-wrap gap-2">
+            <div key={item.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between flex-wrap gap-2">
               <div className="flex-1 min-w-[220px]">
                 <p className="text-sm font-medium">
                   {item.playbookName} <span className="text-gray-500 font-normal">({item.findingType})</span>
@@ -109,7 +109,7 @@ export function RemediationQueueTab() {
                   </button>
                 </div>
               ) : (
-                <span className="text-xs text-gray-400 px-2 py-1">{item.status}</span>
+                <span className="text-xs text-gray-600 dark:text-gray-400 px-2 py-1">{item.status}</span>
               )}
             </div>
           ))}
@@ -125,9 +125,9 @@ export function RemediationQueueTab() {
           onConfirm={confirmDeny}
         >
           <div className="mb-4">
-            <label className="block text-sm text-gray-400 mb-1">Reason (optional):</label>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Reason (optional):</label>
             <textarea
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white text-sm"
+              className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-gray-900 dark:text-white text-sm"
               rows={3}
               value={denyReason}
               onChange={(e) => setDenyReason(e.target.value)}

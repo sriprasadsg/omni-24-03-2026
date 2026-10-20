@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { ThemeContext as LegacyThemeContext } from './ThemeContext';
 
 export type ThemeId = 'enterprise-blue';
 /** 'system' follows the OS light/dark setting live; the other two pin a mode. */
@@ -111,7 +112,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     return (
         <ThemeContext.Provider value={{ themeId, setThemeId, isDarkMode, toggleDarkMode, themePreference, setThemePreference, density, setDensity }}>
+            {/* Nine older screens read contexts/ThemeContext ({ theme }), whose default is 'dark' and which
+                nothing provided, so their charts and inline palettes stayed dark in light mode. */}
+            <LegacyThemeContext.Provider value={{ theme: isDarkMode ? 'dark' : 'light', toggleTheme: toggleDarkMode }}>
             {children}
+            </LegacyThemeContext.Provider>
         </ThemeContext.Provider>
     );
 };

@@ -476,6 +476,26 @@ export default function CISSPOracle() {
         .assess-status-badge.running { background:#6366f122; color:#6366f1; }
         .no-assessments { text-align:center; padding:60px 20px; color:#475569; }
         .no-assess-icon { font-size:48px; margin-bottom:16px; }
+        /* Light theme: the rules above are the dark design; these win only outside .dark. */
+        html:not(.dark) .cissp-oracle-page { background:transparent; color:#0f172a; }
+        html:not(.dark) .cissp-header, html:not(.dark) .chat-input-area { background:#ffffff; border-color:#e2e8f0; }
+        html:not(.dark) .cissp-tabs, html:not(.dark) .domain-weight, html:not(.dark) .concept-pill { background:#f1f5f9; }
+        html:not(.dark) .cissp-tab:hover:not(.active) { background:#f1f5f9; color:#0f172a; }
+        html:not(.dark) .cissp-title, html:not(.dark) .domains-intro h2, html:not(.dark) .domain-card-name,
+        html:not(.dark) .domain-detail-name, html:not(.dark) .assess-header h2, html:not(.dark) .assess-running-title,
+        html:not(.dark) .assessments-list h3, html:not(.dark) .assess-hostname, html:not(.dark) .assess-score-num { color:#0f172a; }
+        html:not(.dark) .domains-intro p, html:not(.dark) .domain-card-desc, html:not(.dark) .concept-pill,
+        html:not(.dark) .back-btn, html:not(.dark) .domain-detail-desc, html:not(.dark) .domain-detail-section h3,
+        html:not(.dark) .check-item, html:not(.dark) .rec-item, html:not(.dark) .quick-q, html:not(.dark) .assess-header p { color:#475569; }
+        html:not(.dark) .concept-card, html:not(.dark) .cissp-bubble.oracle .bubble-content, html:not(.dark) .chat-textarea { color:#1e293b; }
+        html:not(.dark) .cissp-domain-card, html:not(.dark) .domain-detail-header, html:not(.dark) .concept-card,
+        html:not(.dark) .cissp-bubble.oracle, html:not(.dark) .quick-q, html:not(.dark) .chat-textarea,
+        html:not(.dark) .assess-running, html:not(.dark) .assess-card { background:#ffffff; border:1px solid #e2e8f0; }
+        html:not(.dark) .cissp-domain-card:hover { background:#f8fafc; }
+        html:not(.dark) .back-btn, html:not(.dark) .recommendations { border-color:#e2e8f0; }
+        html:not(.dark) .assess-spinner { border-color:#e2e8f0; border-top-color:#6366f1; }
+        html:not(.dark) .assess-donut { background: conic-gradient(var(--color, #6366f1) calc(var(--score, 0) * 3.6deg), #e2e8f0 0deg); }
+        html:not(.dark) .assess-donut::before { background:#ffffff; }
       `}</style>
         </div>
     );

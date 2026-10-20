@@ -47,11 +47,11 @@ const KpiCard: React.FC<{
     sub?: string;
     color?: string;
     loading?: boolean;
-}> = ({ label, value, sub, color = 'text-white', loading }) => (
-    <div className="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col gap-1">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</span>
+}> = ({ label, value, sub, color = 'text-gray-900 dark:text-white', loading }) => (
+    <div className="bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700/50 rounded-2xl p-5 flex flex-col gap-1">
+        <span className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider">{label}</span>
         {loading
-            ? <div className="h-8 w-20 bg-slate-700 rounded animate-pulse mt-1" />
+            ? <div className="h-8 w-20 bg-gray-100 dark:bg-slate-700 rounded animate-pulse mt-1" />
             : <span className={`text-3xl font-bold ${color}`}>{value ?? '—'}</span>
         }
         {sub && <span className="text-[11px] text-slate-500 mt-0.5">{sub}</span>}
@@ -60,13 +60,13 @@ const KpiCard: React.FC<{
 
 const SectionHeader: React.FC<{ title: string; sub?: string }> = ({ title, sub }) => (
     <div className="mb-4">
-        <h2 className="text-base font-bold text-white">{title}</h2>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+        <h2 className="text-base font-bold text-gray-900 dark:text-white">{title}</h2>
+        {sub && <p className="text-xs text-gray-600 dark:text-slate-400 mt-0.5">{sub}</p>}
     </div>
 );
 
 const ChartBox: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-    <div className={`bg-slate-800/60 border border-slate-700/50 rounded-2xl p-5 ${className}`}>
+    <div className={`bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700/50 rounded-2xl p-5 ${className}`}>
         {children}
     </div>
 );
@@ -75,8 +75,8 @@ const ChartBox: React.FC<{ children: React.ReactNode; className?: string }> = ({
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     return (
-        <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg">
-            <p className="text-slate-300 font-semibold mb-1">{label}</p>
+        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg">
+            <p className="text-gray-700 dark:text-slate-300 font-semibold mb-1">{label}</p>
             {payload.map((p: any) => (
                 <p key={p.name} style={{ color: p.color }} className="font-medium">
                     {p.name}: {p.value}
@@ -110,18 +110,18 @@ const SlaRing: React.FC<{ met: number; breached: number; pending: number }> = ({
                     </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-2xl font-black text-white">
+                    <span className="text-2xl font-black text-gray-900 dark:text-white">
                         {rate !== null ? `${rate}%` : '—'}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">SLA MET</span>
+                    <span className="text-[10px] text-gray-600 dark:text-slate-400 font-semibold">SLA MET</span>
                 </div>
             </div>
             <div className="flex gap-4 mt-1">
                 {[{ label: 'Met', v: met, c: C.green }, { label: 'Breached', v: breached, c: C.red }, { label: 'Pending', v: pending, c: C.amber }].map(item => (
                     <div key={item.label} className="flex items-center gap-1 text-xs">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.c }} />
-                        <span className="text-slate-400">{item.label}</span>
-                        <span className="text-white font-semibold">{item.v}</span>
+                        <span className="text-gray-600 dark:text-slate-400">{item.label}</span>
+                        <span className="text-gray-900 dark:text-white font-semibold">{item.v}</span>
                     </div>
                 ))}
             </div>
@@ -222,17 +222,17 @@ const TicketReportsDashboard: React.FC<ReportsProps> = () => {
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors
                                 ${days === d
                                     ? 'bg-teal-600 text-white'
-                                    : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700'}`}>
+                                    : 'bg-gray-100 dark:bg-slate-700/60 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                             {d}d
                         </button>
                     ))}
-                    <span className="w-px h-5 bg-slate-700" />
+                    <span className="w-px h-5 bg-gray-100 dark:bg-slate-700" />
                     {(['daily','weekly'] as const).map(p => (
                         <button key={p} onClick={() => setPeriod(p)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors capitalize
                                 ${period === p
                                     ? 'bg-indigo-600 text-white'
-                                    : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700'}`}>
+                                    : 'bg-gray-100 dark:bg-slate-700/60 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                             {p}
                         </button>
                     ))}
@@ -251,21 +251,21 @@ const TicketReportsDashboard: React.FC<ReportsProps> = () => {
                 <SectionHeader title="Summary" sub="Key metrics across all tickets in the selected period" />
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                     <KpiCard label="Total Tickets"   value={summary?.total}                                     loading={loading} />
-                    <KpiCard label="Open"            value={summary?.open}     color="text-amber-400"          loading={loading} />
-                    <KpiCard label="Closed"          value={summary?.closed}   color="text-teal-400"           loading={loading} />
-                    <KpiCard label="Overdue"         value={summary?.overdue}  color="text-red-400"            loading={loading} />
+                    <KpiCard label="Open"            value={summary?.open}     color="text-amber-700 dark:text-amber-400"          loading={loading} />
+                    <KpiCard label="Closed"          value={summary?.closed}   color="text-teal-600 dark:text-teal-400"           loading={loading} />
+                    <KpiCard label="Overdue"         value={summary?.overdue}  color="text-red-600 dark:text-red-400"            loading={loading} />
                     <KpiCard label="SLA Compliance"
                         value={summary?.sla_compliance_rate != null ? `${summary.sla_compliance_rate}%` : null}
-                        color={summary?.sla_compliance_rate >= 90 ? 'text-green-400' : summary?.sla_compliance_rate >= 70 ? 'text-amber-400' : 'text-red-400'}
+                        color={summary?.sla_compliance_rate >= 90 ? 'text-green-600 dark:text-green-400' : summary?.sla_compliance_rate >= 70 ? 'text-amber-700 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}
                         sub={`${summary?.sla_met ?? 0} met / ${summary?.sla_breached ?? 0} breached`}
                         loading={loading} />
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-                    <KpiCard label="Escalated"        value={summary?.escalated}                                loading={loading} color="text-purple-400" />
+                    <KpiCard label="Escalated"        value={summary?.escalated}                                loading={loading} color="text-purple-600 dark:text-purple-400" />
                     <KpiCard label="Avg Resolution"
                         value={summary?.avg_resolution_hours != null ? fmtHours(summary.avg_resolution_hours) : null}
                         sub="time to close"
-                        loading={loading} color="text-sky-400" />
+                        loading={loading} color="text-sky-600 dark:text-sky-400" />
                 </div>
             </div>
 
@@ -316,16 +316,16 @@ const TicketReportsDashboard: React.FC<ReportsProps> = () => {
 
                     {/* Priority breakdown table */}
                     <ChartBox>
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">By Priority</p>
+                        <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-3">By Priority</p>
                         {sla?.by_priority ? (
                             <div className="space-y-3">
                                 {sla.by_priority.map((row: any) => (
                                     <div key={row.priority}>
                                         <div className="flex justify-between text-xs mb-1">
                                             <span className="capitalize font-semibold" style={{ color: PRIORITY_COLORS[row.priority] }}>{row.priority}</span>
-                                            <span className="text-slate-300 font-bold">{row.rate != null ? `${row.rate}%` : '—'}</span>
+                                            <span className="text-gray-700 dark:text-slate-300 font-bold">{row.rate != null ? `${row.rate}%` : '—'}</span>
                                         </div>
-                                        <div className="w-full bg-slate-700 rounded-full h-1.5">
+                                        <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1.5">
                                             <div className="h-1.5 rounded-full transition-all duration-700"
                                                 style={{ width: `${row.rate ?? 0}%`, backgroundColor: row.rate >= 90 ? C.green : row.rate >= 70 ? C.amber : C.red }} />
                                         </div>
@@ -352,11 +352,11 @@ const TicketReportsDashboard: React.FC<ReportsProps> = () => {
                         { label: 'Median', val: resolution?.overall?.p50, sub: 'p50 resolution' },
                         { label: 'p90',    val: resolution?.overall?.p90, sub: '9 in 10 tickets' },
                     ].map(m => (
-                        <KpiCard key={m.label} label={m.label} value={fmtHours(m.val)} sub={m.sub} color="text-sky-400" loading={loading} />
+                        <KpiCard key={m.label} label={m.label} value={fmtHours(m.val)} sub={m.sub} color="text-sky-600 dark:text-sky-400" loading={loading} />
                     ))}
                 </div>
                 <ChartBox>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Resolution Time by Priority (hours)</p>
+                    <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-3">Resolution Time by Priority (hours)</p>
                     <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={resolutionChartData} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -395,14 +395,14 @@ const TicketReportsDashboard: React.FC<ReportsProps> = () => {
                         </ResponsiveContainer>
                         {/* Resolution time mini-table */}
                         {assignees.some(a => a.avg_resolution_hours != null) && (
-                            <div className="mt-4 border-t border-slate-700 pt-4">
-                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Avg Resolution Time</p>
+                            <div className="mt-4 border-t border-gray-200 dark:border-slate-700 pt-4">
+                                <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 uppercase tracking-wider mb-2">Avg Resolution Time</p>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                                     {assignees.slice(0,10).map((a: any) => (
                                         a.avg_resolution_hours != null && (
-                                            <div key={a.assignee} className="bg-slate-700/40 rounded-lg p-2 text-center">
-                                                <p className="text-[10px] text-slate-400 truncate">{a.assignee}</p>
-                                                <p className="text-sm font-bold text-sky-400">{fmtHours(a.avg_resolution_hours)}</p>
+                                            <div key={a.assignee} className="bg-gray-100 dark:bg-slate-700/40 rounded-lg p-2 text-center">
+                                                <p className="text-[10px] text-gray-600 dark:text-slate-400 truncate">{a.assignee}</p>
+                                                <p className="text-sm font-bold text-sky-600 dark:text-sky-400">{fmtHours(a.avg_resolution_hours)}</p>
                                             </div>
                                         )
                                     ))}

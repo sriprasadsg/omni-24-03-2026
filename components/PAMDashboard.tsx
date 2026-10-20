@@ -75,7 +75,7 @@ function fmt(secs: number) {
   return `${Math.round(secs / 3600)}h ${Math.round((secs % 3600) / 60)}m`;
 }
 
-const RISK_COLOR: Record<string, string> = { low: '#6ee7b7', medium: '#fcd34d', high: '#fca5a5', critical: '#f87171' };
+const RISK_COLOR: Record<string, string> = { low: 'var(--ink-green)', medium: 'var(--ink-amber)', high: 'var(--ink-red)', critical: 'var(--ink-red-2)' };
 const TYPE_ICON: Record<string, string> = { database: '🗄️', cloud: '☁️', kubernetes: '⎈', windows: '🖥️', ssh_key: '🔑', cloud_credential: '☁️', database_credential: '🗄️' };
 
 export function PAMDashboard() {
@@ -132,14 +132,14 @@ export function PAMDashboard() {
   ];
 
   return (
-    <div style={{ padding: '28px 32px', color: '#f1f5f9', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: '#040812' }}>
+    <div style={{ padding: '28px 32px', color: 'var(--ink-text)', fontFamily: 'Inter, sans-serif', minHeight: '100vh', background: 'var(--ink-page-bg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
         <div>
           <div style={{ fontSize: '0.72em', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6366f1', marginBottom: 6 }}>Identity & Access</div>
           <h1 style={{ fontSize: '1.8em', fontWeight: 900, letterSpacing: '-0.03em', margin: 0 }}>Privileged Access Management</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.85em', marginTop: 4 }}>Credential vault · Session recording · Command audit · Auto-rotation</p>
+          <p style={{ color: 'var(--ink-muted)', fontSize: '0.85em', marginTop: 4 }}>Credential vault · Session recording · Command audit · Auto-rotation</p>
         </div>
-        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
+        <button onClick={fetchAll} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: '0.82em' }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
@@ -147,38 +147,38 @@ export function PAMDashboard() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14, marginBottom: 28 }}>
           {[
-            { label: 'Privileged Accounts', value: stats.privileged_accounts, color: '#a5b4fc' },
-            { label: 'Active Sessions', value: stats.active_sessions, color: stats.active_sessions > 0 ? '#fcd34d' : '#6ee7b7' },
-            { label: 'Vault Entries', value: stats.vault_entries, color: '#a5b4fc' },
-            { label: 'Sessions Today', value: stats.sessions_today, color: '#94a3b8' },
-            { label: 'Rotations (30d)', value: stats.rotations_last_30d, color: '#6ee7b7' },
-            { label: 'Risk Score', value: stats.risk_score, color: stats.risk_score < 30 ? '#6ee7b7' : stats.risk_score < 70 ? '#fcd34d' : '#fca5a5' },
+            { label: 'Privileged Accounts', value: stats.privileged_accounts, color: 'var(--ink-accent)' },
+            { label: 'Active Sessions', value: stats.active_sessions, color: stats.active_sessions > 0 ? 'var(--ink-amber)' : 'var(--ink-green)' },
+            { label: 'Vault Entries', value: stats.vault_entries, color: 'var(--ink-accent)' },
+            { label: 'Sessions Today', value: stats.sessions_today, color: 'var(--ink-muted)' },
+            { label: 'Rotations (30d)', value: stats.rotations_last_30d, color: 'var(--ink-green)' },
+            { label: 'Risk Score', value: stats.risk_score, color: stats.risk_score < 30 ? 'var(--ink-green)' : stats.risk_score < 70 ? 'var(--ink-amber)' : 'var(--ink-red)' },
           ].map(({ label, value, color }) => (
-            <div key={label} style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+            <div key={label} style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
               <div style={{ fontSize: '1.8em', fontWeight: 900, color }}>{value}</div>
-              <div style={{ fontSize: '0.72em', color: '#94a3b8', marginTop: 4 }}>{label}</div>
+              <div style={{ fontSize: '0.72em', color: 'var(--ink-muted)', marginTop: 4 }}>{label}</div>
             </div>
           ))}
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,.04)', borderRadius: 10, padding: 4, marginBottom: 20, width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: 2, background: 'var(--ink-surface)', borderRadius: 10, padding: 4, marginBottom: 20, width: 'fit-content' }}>
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: '0.82em', fontWeight: 600,
             background: tab === t.key ? 'rgba(99,102,241,.25)' : 'transparent',
-            color: tab === t.key ? '#a5b4fc' : '#94a3b8',
+            color: tab === t.key ? 'var(--ink-accent)' : 'var(--ink-muted)',
           }}>{t.icon} {t.label}</button>
         ))}
       </div>
 
-      {loading ? <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>Loading…</div> : (
-        <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, overflow: 'hidden' }}>
+      {loading ? <div style={{ padding: 60, textAlign: 'center', color: 'var(--ink-muted)' }}>Loading…</div> : (
+        <div style={{ background: 'var(--ink-surface)', border: '1px solid var(--ink-line)', borderRadius: 14, overflow: 'hidden' }}>
 
           {/* Accounts tab */}
           {tab === 'accounts' && accounts.map(acc => (
-            <div key={acc.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px 140px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,.04)', alignItems: 'center' }}>
+            <div key={acc.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px 140px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
               <span style={{ fontSize: '1.3em' }}>{TYPE_ICON[acc.type] || '🔑'}</span>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.88em' }}>{acc.name}</div>
@@ -187,50 +187,50 @@ export function PAMDashboard() {
               <span style={{
                 fontSize: '0.72em', fontWeight: 700, padding: '3px 10px', borderRadius: 20,
                 background: acc.checkout_status === 'available' ? 'rgba(16,185,129,.12)' : 'rgba(245,158,11,.12)',
-                color: acc.checkout_status === 'available' ? '#6ee7b7' : '#fcd34d',
+                color: acc.checkout_status === 'available' ? 'var(--ink-green)' : 'var(--ink-amber)',
               }}>{acc.checkout_status === 'available' ? 'Available' : `Checked out`}</span>
-              {acc.checked_out_by && <span style={{ fontSize: '0.72em', color: '#94a3b8' }}>by {acc.checked_out_by}</span>}
+              {acc.checked_out_by && <span style={{ fontSize: '0.72em', color: 'var(--ink-muted)' }}>by {acc.checked_out_by}</span>}
               {!acc.checked_out_by && <span style={{ fontSize: '0.72em', color: '#64748b' }}>last used {timeAgo(acc.last_used)}</span>}
-              <span style={{ fontSize: '0.72em', color: acc.status === 'active' ? '#6ee7b7' : '#fca5a5', fontWeight: 700 }}>{acc.status}</span>
+              <span style={{ fontSize: '0.72em', color: acc.status === 'active' ? 'var(--ink-green)' : 'var(--ink-red)', fontWeight: 700 }}>{acc.status}</span>
             </div>
           ))}
 
           {/* Sessions tab */}
           {tab === 'sessions' && sessions.map(s => (
-            <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 120px 100px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,.04)', alignItems: 'center' }}>
+            <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 120px 100px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
               <span style={{
                 fontSize: '0.72em', fontWeight: 700, padding: '3px 10px', borderRadius: 20, textAlign: 'center',
                 background: s.status === 'active' ? 'rgba(245,158,11,.12)' : 'rgba(16,185,129,.12)',
-                color: s.status === 'active' ? '#fcd34d' : '#6ee7b7',
+                color: s.status === 'active' ? 'var(--ink-amber)' : 'var(--ink-green)',
               }}>{s.status}</span>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.88em' }}>{s.user} → {s.target_host}</div>
                 <div style={{ fontSize: '0.72em', color: '#64748b' }}>{s.protocol.toUpperCase()} · started {timeAgo(s.started_at)}</div>
               </div>
-              <span style={{ fontSize: '0.78em', color: '#94a3b8' }}>{fmt(s.duration_seconds)}</span>
-              <span style={{ fontSize: '0.78em', color: '#94a3b8' }}>{s.commands_executed} cmds</span>
+              <span style={{ fontSize: '0.78em', color: 'var(--ink-muted)' }}>{fmt(s.duration_seconds)}</span>
+              <span style={{ fontSize: '0.78em', color: 'var(--ink-muted)' }}>{s.commands_executed} cmds</span>
               <a href={s.recording_path} style={{ fontSize: '0.72em', color: '#6366f1', textDecoration: 'none' }}>▶ Replay</a>
             </div>
           ))}
 
           {/* Vault tab */}
           {tab === 'vault' && vault.map(e => (
-            <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px 120px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,.04)', alignItems: 'center' }}>
+            <div key={e.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 120px 120px 80px', gap: 16, padding: '14px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
               <span style={{ fontSize: '1.2em' }}>{TYPE_ICON[e.type] || '🔑'}</span>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '0.88em' }}>{e.name}</div>
                 <div style={{ fontSize: '0.72em', color: '#64748b' }}>{e.target} · {e.username}</div>
               </div>
               <div style={{ fontSize: '0.75em' }}>
-                <div style={{ color: '#94a3b8' }}>Last rotated</div>
-                <div style={{ color: '#f1f5f9', fontWeight: 600 }}>{timeAgo(e.last_rotated)}</div>
+                <div style={{ color: 'var(--ink-muted)' }}>Last rotated</div>
+                <div style={{ color: 'var(--ink-text)', fontWeight: 600 }}>{timeAgo(e.last_rotated)}</div>
               </div>
               <div style={{ fontSize: '0.75em' }}>
-                <div style={{ color: '#94a3b8' }}>Rotations</div>
-                <div style={{ color: '#6ee7b7', fontWeight: 600 }}>{e.rotation_count} · {e.rotation_interval_days}d cycle</div>
+                <div style={{ color: 'var(--ink-muted)' }}>Rotations</div>
+                <div style={{ color: 'var(--ink-green)', fontWeight: 600 }}>{e.rotation_count} · {e.rotation_interval_days}d cycle</div>
               </div>
               <button onClick={() => rotateCredential(e.id)} disabled={rotating === e.id}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: '#a5b4fc', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(99,102,241,.15)', border: '1px solid rgba(99,102,241,.3)', color: 'var(--ink-accent)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: '0.72em', fontWeight: 600 }}>
                 <RotateCcw size={11} /> {rotating === e.id ? '…' : 'Rotate'}
               </button>
             </div>
@@ -238,15 +238,15 @@ export function PAMDashboard() {
 
           {/* Audit tab */}
           {tab === 'audit' && audit.map(cmd => (
-            <div key={cmd.id} style={{ display: 'grid', gridTemplateColumns: '80px 120px 1fr 80px 60px', gap: 16, padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,.04)', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.72em', fontWeight: 700, color: RISK_COLOR[cmd.risk], background: `${RISK_COLOR[cmd.risk]}15`, borderRadius: 20, padding: '3px 8px', textAlign: 'center' }}>{cmd.risk.toUpperCase()}</span>
+            <div key={cmd.id} style={{ display: 'grid', gridTemplateColumns: '80px 120px 1fr 80px 60px', gap: 16, padding: '12px 20px', borderBottom: '1px solid var(--ink-line-soft)', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.72em', fontWeight: 700, color: RISK_COLOR[cmd.risk], background: `color-mix(in srgb, ${RISK_COLOR[cmd.risk]} 8%, transparent)`, borderRadius: 20, padding: '3px 8px', textAlign: 'center' }}>{cmd.risk.toUpperCase()}</span>
               <div>
                 <div style={{ fontSize: '0.78em', fontWeight: 600 }}>{cmd.user}</div>
                 <div style={{ fontSize: '0.7em', color: '#64748b' }}>{cmd.target}</div>
               </div>
-              <code style={{ fontSize: '0.78em', color: '#a5b4fc', background: 'rgba(99,102,241,.08)', padding: '4px 8px', borderRadius: 6, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.command}</code>
+              <code style={{ fontSize: '0.78em', color: 'var(--ink-accent)', background: 'rgba(99,102,241,.08)', padding: '4px 8px', borderRadius: 6, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.command}</code>
               <span style={{ fontSize: '0.72em', color: '#64748b' }}>{timeAgo(cmd.executed_at)}</span>
-              <span style={{ fontSize: '0.72em', color: cmd.exit_code === 0 ? '#6ee7b7' : '#fca5a5', fontWeight: 700 }}>exit {cmd.exit_code}</span>
+              <span style={{ fontSize: '0.72em', color: cmd.exit_code === 0 ? 'var(--ink-green)' : 'var(--ink-red)', fontWeight: 700 }}>exit {cmd.exit_code}</span>
             </div>
           ))}
         </div>

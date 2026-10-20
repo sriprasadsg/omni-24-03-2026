@@ -120,19 +120,19 @@ export default function AdvancedHuntingDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-6">
+    <div className="min-h-screen bg-transparent dark:bg-slate-900 text-gray-900 dark:text-white p-6">
       <div className="flex items-center gap-3 mb-6">
-        <Shield size={24} className="text-blue-400" />
+        <Shield size={24} className="text-blue-600 dark:text-blue-400" />
         <h1 className="text-2xl font-bold">Advanced Threat Hunting</h1>
       </div>
 
-      <div className="flex gap-1 mb-6 border-b border-slate-700">
+      <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-slate-700">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t transition-colors ${
-              activeTab === t.id ? 'bg-slate-800 text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              activeTab === t.id ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 border-b-2 border-blue-400' : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800'
             }`}
           >
             {t.icon}{t.label}
@@ -142,10 +142,10 @@ export default function AdvancedHuntingDashboard() {
 
       {activeTab === 'hunt' && (
         <div className="space-y-4">
-          <div className="bg-slate-800 rounded-lg p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Code size={16} className="text-blue-400" />
-              <span className="text-sm font-medium text-slate-300">KQL Query Editor</span>
+              <Code size={16} className="text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">KQL Query Editor</span>
             </div>
             <textarea
               ref={textareaRef}
@@ -158,9 +158,9 @@ export default function AdvancedHuntingDashboard() {
             <div className="flex flex-wrap gap-3 mt-3 items-center justify-between">
               <div className="flex gap-3">
                 <div className="flex items-center gap-2">
-                  <Clock size={14} className="text-slate-400" />
+                  <Clock size={14} className="text-gray-600 dark:text-slate-400" />
                   <select value={timeRange} onChange={e => setTimeRange(e.target.value)}
-                    className="bg-slate-700 text-white text-sm rounded px-2 py-1 border border-slate-600">
+                    className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-sm rounded px-2 py-1 border border-gray-300 dark:border-slate-600">
                     <option value="1">Last 1h</option>
                     <option value="6">Last 6h</option>
                     <option value="24">Last 24h</option>
@@ -169,9 +169,9 @@ export default function AdvancedHuntingDashboard() {
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Database size={14} className="text-slate-400" />
+                  <Database size={14} className="text-gray-600 dark:text-slate-400" />
                   <select value={limit} onChange={e => setLimit(e.target.value)}
-                    className="bg-slate-700 text-white text-sm rounded px-2 py-1 border border-slate-600">
+                    className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-sm rounded px-2 py-1 border border-gray-300 dark:border-slate-600">
                     <option value="100">100 results</option>
                     <option value="500">500 results</option>
                     <option value="1000">1000 results</option>
@@ -180,42 +180,42 @@ export default function AdvancedHuntingDashboard() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setShowSaveModal(true)} disabled={!query.trim()}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-sm rounded transition-colors disabled:opacity-40">
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-sm rounded transition-colors disabled:opacity-40">
                   <Save size={14} /> Save Query
                 </button>
                 <button onClick={runHunt} disabled={huntLoading || !query.trim()}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50">
+                  className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50 text-white">
                   <Play size={14} /> {huntLoading ? 'Running...' : 'Run Hunt'}
                 </button>
               </div>
             </div>
           </div>
 
-          {huntError && <div className="bg-red-900/40 border border-red-700 text-red-300 px-4 py-2 rounded text-sm">{huntError}</div>}
+          {huntError && <div className="bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-2 rounded text-sm">{huntError}</div>}
 
           {huntStats && (
-            <div className="flex items-center gap-4 text-sm text-slate-400">
-              <span className="text-green-400 font-medium">{huntStats.count} results</span>
+            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-slate-400">
+              <span className="text-green-600 dark:text-green-400 font-medium">{huntStats.count} results</span>
               <span>in {huntStats.ms}ms</span>
             </div>
           )}
 
           {results.length > 0 && (
-            <div className="bg-slate-800 rounded-lg overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-700">
+                    <tr className="bg-gray-100 dark:bg-slate-700">
                       {resultColumns.map(col => (
-                        <th key={col} className="text-left px-3 py-2 text-slate-300 font-medium whitespace-nowrap">{col}</th>
+                        <th key={col} className="text-left px-3 py-2 text-gray-700 dark:text-slate-300 font-medium whitespace-nowrap">{col}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {results.slice(0, 200).map((row, i) => (
-                      <tr key={i} className="border-t border-slate-700 hover:bg-slate-700/50">
+                      <tr key={i} className="border-t border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700/50">
                         {resultColumns.map(col => (
-                          <td key={col} className="px-3 py-2 text-slate-300 truncate max-w-xs" title={String(row[col] ?? '')}>
+                          <td key={col} className="px-3 py-2 text-gray-700 dark:text-slate-300 truncate max-w-xs" title={String(row[col] ?? '')}>
                             {String(row[col] ?? '')}
                           </td>
                         ))}
@@ -232,18 +232,18 @@ export default function AdvancedHuntingDashboard() {
       {activeTab === 'saved' && (
         <div>
           {sqLoading ? (
-            <div className="text-slate-400 text-sm">Loading saved queries...</div>
+            <div className="text-gray-600 dark:text-slate-400 text-sm">Loading saved queries...</div>
           ) : savedQueries.length === 0 ? (
-            <div className="text-slate-400 text-sm text-center py-12">No saved queries yet. Run a hunt and save your query.</div>
+            <div className="text-gray-600 dark:text-slate-400 text-sm text-center py-12">No saved queries yet. Run a hunt and save your query.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {savedQueries.map(q => (
-                <div key={q.id} className="bg-slate-800 rounded-lg p-4 flex flex-col gap-2">
+                <div key={q.id} className="bg-white dark:bg-slate-800 rounded-lg p-4 flex flex-col gap-2">
                   <div className="flex items-start justify-between">
-                    <h3 className="font-medium text-white text-sm">{q.name}</h3>
-                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">{q.category || 'Custom'}</span>
+                    <h3 className="font-medium text-gray-900 dark:text-white text-sm">{q.name}</h3>
+                    <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">{q.category || 'Custom'}</span>
                   </div>
-                  <p className="text-slate-400 text-xs line-clamp-2">{q.description}</p>
+                  <p className="text-gray-600 dark:text-slate-400 text-xs line-clamp-2">{q.description}</p>
                   <div className="flex gap-2 text-xs text-slate-500 mt-1">
                     <Clock size={11} />
                     <span>{q.last_run ? new Date(q.last_run).toLocaleDateString() : 'Never'}</span>
@@ -252,11 +252,11 @@ export default function AdvancedHuntingDashboard() {
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => { setQuery(q.query); setActiveTab('hunt'); }}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-700 hover:bg-blue-600 text-xs rounded transition-colors">
+                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-700 hover:bg-blue-600 text-xs rounded transition-colors text-white">
                       <Play size={12} /> Run
                     </button>
                     <button onClick={() => deleteQuery(q.id)}
-                      className="px-2 py-1.5 bg-red-900/50 hover:bg-red-800 text-xs rounded transition-colors text-red-300">
+                      className="px-2 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-100 dark:hover:bg-red-800 text-xs rounded transition-colors text-red-300">
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -269,41 +269,41 @@ export default function AdvancedHuntingDashboard() {
 
       {activeTab === 'ioc' && (
         <div className="space-y-4">
-          <div className="bg-slate-800 rounded-lg p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
             <div className="flex gap-3">
               <input value={iocValue} onChange={e => setIocValue(e.target.value)}
-                className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                className="flex-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                 placeholder="Enter IP, domain, hash, URL, or email..." />
               <select value={iocType} onChange={e => setIocType(e.target.value)}
-                className="bg-slate-700 text-white text-sm rounded px-2 py-2 border border-slate-600">
+                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-sm rounded px-2 py-2 border border-gray-300 dark:border-slate-600">
                 {['IP', 'Domain', 'URL', 'Hash', 'Email'].map(t => <option key={t}>{t}</option>)}
               </select>
               <button onClick={searchIoc} disabled={iocLoading || !iocValue.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50">
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50 text-white">
                 <Search size={14} /> {iocLoading ? 'Searching...' : 'Search'}
               </button>
             </div>
           </div>
           {iocResult && (
-            <div className="bg-slate-800 rounded-lg p-4 space-y-3">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-300">Matches found:</span>
-                <span className="bg-orange-900/50 text-orange-300 text-xs px-2 py-0.5 rounded font-medium">{iocResult.match_count ?? iocResult.matches?.length ?? 0}</span>
+                <span className="text-sm text-gray-700 dark:text-slate-300">Matches found:</span>
+                <span className="bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300 text-xs px-2 py-0.5 rounded font-medium">{iocResult.match_count ?? iocResult.matches?.length ?? 0}</span>
               </div>
               {iocResult.matches?.length > 0 ? (
                 <div className="space-y-2">
                   {iocResult.matches.map((m, i) => (
-                    <div key={i} className="bg-slate-900 rounded p-3 text-sm">
+                    <div key={i} className="bg-white dark:bg-slate-900 rounded p-3 text-sm">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-blue-400 font-medium">{m.source}</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">{m.source}</span>
                         <span className="text-slate-500 text-xs">{m.timestamp ? new Date(m.timestamp).toLocaleString() : ''}</span>
                       </div>
-                      <p className="text-slate-300 text-xs">{m.details}</p>
+                      <p className="text-gray-700 dark:text-slate-300 text-xs">{m.details}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400 text-sm">No matches found for this indicator.</p>
+                <p className="text-gray-600 dark:text-slate-400 text-sm">No matches found for this indicator.</p>
               )}
             </div>
           )}
@@ -313,24 +313,24 @@ export default function AdvancedHuntingDashboard() {
       {activeTab === 'templates' && (
         <div>
           {tplLoading ? (
-            <div className="text-slate-400 text-sm">Loading templates...</div>
+            <div className="text-gray-600 dark:text-slate-400 text-sm">Loading templates...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {templates.map(t => (
-                <div key={t.id} className="bg-slate-800 rounded-lg p-4 flex flex-col gap-2">
+                <div key={t.id} className="bg-white dark:bg-slate-800 rounded-lg p-4 flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-medium text-white text-sm">{t.name}</h3>
-                    <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded whitespace-nowrap">{t.mitre_technique}</span>
+                    <h3 className="font-medium text-gray-900 dark:text-white text-sm">{t.name}</h3>
+                    <span className="text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded whitespace-nowrap">{t.mitre_technique}</span>
                   </div>
-                  <p className="text-slate-400 text-xs flex-1">{t.description}</p>
+                  <p className="text-gray-600 dark:text-slate-400 text-xs flex-1">{t.description}</p>
                   <button onClick={() => { setQuery(t.query); setActiveTab('hunt'); }}
-                    className="mt-2 flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs rounded transition-colors">
+                    className="mt-2 flex items-center justify-center gap-1 px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-xs rounded transition-colors">
                     <Code size={12} /> Load Template
                   </button>
                 </div>
               ))}
               {templates.length === 0 && (
-                <div className="col-span-3 text-center text-slate-400 text-sm py-12">No templates available.</div>
+                <div className="col-span-3 text-center text-gray-600 dark:text-slate-400 text-sm py-12">No templates available.</div>
               )}
             </div>
           )}
@@ -339,27 +339,27 @@ export default function AdvancedHuntingDashboard() {
 
       {showSaveModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md border border-slate-700">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md border border-gray-200 dark:border-slate-700">
             <h2 className="text-lg font-semibold mb-4">Save Query</h2>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Name *</label>
+                <label className="block text-xs text-gray-600 dark:text-slate-400 mb-1">Name *</label>
                 <input value={saveName} onChange={e => setSaveName(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                  className="w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-blue-500 focus:outline-none"
                   placeholder="Query name" />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Description</label>
+                <label className="block text-xs text-gray-600 dark:text-slate-400 mb-1">Description</label>
                 <textarea value={saveDesc} onChange={e => setSaveDesc(e.target.value)}
-                  className="w-full h-20 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none resize-none"
+                  className="w-full h-20 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-blue-500 focus:outline-none resize-none"
                   placeholder="Describe what this query detects..." />
               </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => setShowSaveModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-sm rounded transition-colors">Cancel</button>
+                className="flex-1 px-4 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-sm rounded transition-colors">Cancel</button>
               <button onClick={saveQuery} disabled={!saveName.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50">
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-sm rounded transition-colors disabled:opacity-50 text-white">
                 <Save size={14} className="inline mr-1" /> Save
               </button>
             </div>

@@ -64,17 +64,17 @@ export default function TicketingIntegration() {
 
     const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
         <div style={{ marginBottom: 16 }}>
-            <label style={{ color: '#94a3b8', fontSize: 12, display: 'block', marginBottom: 4 }}>{label}</label>
+            <label style={{ color: 'var(--ink-muted)', fontSize: 12, display: 'block', marginBottom: 4 }}>{label}</label>
             {children}
         </div>
     );
     const Input = ({ value, onChange, placeholder, type = 'text' }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) => (
         <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-            style={{ width: '100%', padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 14, boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', fontSize: 14, boxSizing: 'border-box' }} />
     );
     const TextArea = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) => (
         <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={4}
-            style={{ width: '100%', padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} />
+            style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)', fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} />
     );
 
     const JsonField = ({ label, value, onChange }: { label: string; value: any; onChange: (val: any) => void }) => {
@@ -90,13 +90,13 @@ export default function TicketingIntegration() {
         return (
             <Field label={label}>
                 <TextArea value={text} onChange={setText} />
-                <button onClick={handleBlur} style={{ marginTop: 4, fontSize: 11, background: '#334155', border: 'none', color: '#94a3b8', padding: '2px 8px', borderRadius: 4, cursor: 'pointer' }}>Apply JSON</button>
+                <button onClick={handleBlur} style={{ marginTop: 4, fontSize: 11, background: 'var(--ink-line-strong)', border: 'none', color: 'var(--ink-muted)', padding: '2px 8px', borderRadius: 4, cursor: 'pointer' }}>Apply JSON</button>
             </Field>
         );
     };
 
     return (
-        <div style={{ background: '#0f172a', minHeight: '100vh', color: '#f1f5f9', padding: 24, paddingBottom: 100 }}>
+        <div style={{ background: 'var(--ink-well)', minHeight: '100vh', color: 'var(--ink-text)', padding: 24, paddingBottom: 100 }}>
             <div style={{ marginBottom: 24 }}>
                 <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, background: 'linear-gradient(135deg,#0ea5e9,#7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Ticketing Integration</h1>
                 <p style={{ color: '#64748b', margin: '4px 0 0' }}>Connect with Jira, ServiceNow, Zoho Desk or any Custom Webhook</p>
@@ -108,7 +108,7 @@ export default function TicketingIntegration() {
                     <button key={t.id} onClick={() => setTab(t.id as any)}
                         style={{
                             padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                            background: tab === t.id ? '#7c3aed' : '#1e293b', color: tab === t.id ? 'white' : '#94a3b8'
+                            background: tab === t.id ? '#7c3aed' : '#1e293b', color: tab === t.id ? 'white' : 'var(--ink-muted)'
                         }}>
                         {t.label}
                     </button>
@@ -118,7 +118,7 @@ export default function TicketingIntegration() {
             {tab === 'config' && (
                 <div style={{ maxWidth: 680 }}>
                     {/* Provider select */}
-                    <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, marginBottom: 16, border: '1px solid #334155' }}>
+                    <div style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: 24, marginBottom: 16, border: '1px solid var(--ink-line-strong)' }}>
                         <h3 style={{ margin: '0 0 20px', fontSize: 16 }}>Provider</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
                             {PROVIDERS.map(p => {
@@ -126,8 +126,8 @@ export default function TicketingIntegration() {
                                 return (
                                     <button key={p} onClick={() => setConfig((c: any) => ({ ...c, provider: p }))}
                                         style={{
-                                            padding: 14, borderRadius: 10, border: `2px solid ${config.provider === p ? '#7c3aed' : '#334155'}`,
-                                            background: config.provider === p ? 'rgba(124,58,237,0.15)' : '#0f172a', color: config.provider === p ? '#a78bfa' : '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'left'
+                                            padding: 14, borderRadius: 10, border: `2px solid ${config.provider === p ? '#7c3aed' : 'var(--ink-line-strong)'}`,
+                                            background: config.provider === p ? 'rgba(124,58,237,0.15)' : '#0f172a', color: config.provider === p ? 'var(--ink-violet)' : '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: 14, textAlign: 'left'
                                         }}>
                                         {icons[p]}
                                     </button>
@@ -170,7 +170,7 @@ export default function TicketingIntegration() {
                                 <Field label="Webhook URL"><Input value={config.custom_webhook_url || ''} onChange={v => setConfig((c: any) => ({ ...c, custom_webhook_url: v }))} placeholder="https://api.yourservice.com/webhook" /></Field>
                                 <Field label="Method">
                                     <select value={config.custom_webhook_method || 'POST'} onChange={e => setConfig((c: any) => ({ ...c, custom_webhook_method: e.target.value }))}
-                                        style={{ width: '100%', padding: 10, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9' }}>
+                                        style={{ width: '100%', padding: 10, background: 'var(--ink-well)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-text)' }}>
                                         <option value="POST">POST</option>
                                         <option value="PUT">PUT</option>
                                     </select>
@@ -182,7 +182,7 @@ export default function TicketingIntegration() {
                     </div>
 
                     {/* Auto-create threshold */}
-                    <div style={{ background: '#1e293b', borderRadius: 12, padding: 24, marginBottom: 16, border: '1px solid #334155' }}>
+                    <div style={{ background: 'var(--ink-panel)', borderRadius: 12, padding: 24, marginBottom: 16, border: '1px solid var(--ink-line-strong)' }}>
                         <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>Auto-Create Threshold</h3>
                         <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 16px' }}>Automatically create a ticket when an alert of these severities fires:</p>
                         <div style={{ display: 'flex', gap: 10 }}>
@@ -192,7 +192,7 @@ export default function TicketingIntegration() {
                                 return (
                                     <button key={sev} onClick={() => toggleSeverity(sev)}
                                         style={{
-                                            flex: 1, padding: '10px 8px', borderRadius: 8, border: `2px solid ${active ? colors[sev] : '#334155'}`,
+                                            flex: 1, padding: '10px 8px', borderRadius: 8, border: `2px solid ${active ? colors[sev] : 'var(--ink-line-strong)'}`,
                                             background: active ? colors[sev] + '22' : 'transparent', color: active ? colors[sev] : '#64748b', cursor: 'pointer', fontWeight: 700, textTransform: 'capitalize'
                                         }}>
                                         {sev}
@@ -210,7 +210,7 @@ export default function TicketingIntegration() {
 
                     <div style={{ display: 'flex', gap: 12 }}>
                         <button onClick={testConnection} disabled={testing}
-                            style={{ flex: 1, padding: 12, background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}>
+                            style={{ flex: 1, padding: 12, background: 'var(--ink-panel)', border: '1px solid var(--ink-line-strong)', borderRadius: 8, color: 'var(--ink-muted)', cursor: 'pointer', fontWeight: 600 }}>
                             {testing ? 'Testing Connection...' : '🔌 Test Connection'}
                         </button>
                         <button onClick={save} disabled={saving}
@@ -225,7 +225,7 @@ export default function TicketingIntegration() {
                 <div>
                     {tickets.length === 0 && <div style={{ color: '#64748b', textAlign: 'center', padding: 40 }}>No tickets created yet. Configure a provider and create your first ticket from an alert.</div>}
                     {tickets.map((t, i) => (
-                        <div key={i} style={{ background: '#1e293b', borderRadius: 10, padding: 16, marginBottom: 10, border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={i} style={{ background: 'var(--ink-panel)', borderRadius: 10, padding: 16, marginBottom: 10, border: '1px solid var(--ink-line-strong)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
                                 <div style={{ fontWeight: 700, fontSize: 15 }}>{t.ticket_ref}</div>
                                 <div style={{ color: '#64748b', fontSize: 12 }}>Alert: {t.alert_id} • {new Date(t.created_at).toLocaleString()}</div>

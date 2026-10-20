@@ -51,21 +51,21 @@ interface ReportModalState {
 }
 
 const HEALTH_COLORS: Record<string, string> = {
-  healthy: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-  warning: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
-  critical: 'bg-red-500/20 text-red-400 border border-red-500/30',
+  healthy: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30',
+  warning: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30',
+  critical: 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30',
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'text-red-400',
-  high: 'text-orange-400',
-  medium: 'text-yellow-400',
-  low: 'text-blue-400',
+  critical: 'text-red-600 dark:text-red-400',
+  high: 'text-orange-700 dark:text-orange-400',
+  medium: 'text-yellow-700 dark:text-yellow-400',
+  low: 'text-blue-600 dark:text-blue-400',
 };
 
 function HealthBadge({ status }: { status: string }) {
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${HEALTH_COLORS[status] || 'bg-slate-600 text-slate-300'}`}>
+    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${HEALTH_COLORS[status] || 'bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-300'}`}>
       {status}
     </span>
   );
@@ -75,10 +75,10 @@ function StatusBar({ value, total, color }: { value: number; total: number; colo
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 bg-slate-700 rounded-full h-2">
+      <div className="flex-1 bg-gray-100 dark:bg-slate-700 rounded-full h-2">
         <div className={`h-2 rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs text-slate-400 w-8">{pct}%</span>
+      <span className="text-xs text-gray-600 dark:text-slate-400 w-8">{pct}%</span>
     </div>
   );
 }
@@ -148,35 +148,35 @@ export default function MSSPDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Activity className="w-6 h-6 animate-spin text-blue-400 mr-2" />
-        <span className="text-slate-400">Loading MSSP Overview...</span>
+        <Activity className="w-6 h-6 animate-spin text-blue-600 dark:text-blue-400 mr-2" />
+        <span className="text-gray-600 dark:text-slate-400">Loading MSSP Overview...</span>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 bg-slate-900 min-h-screen">
+    <div className="p-6 space-y-6 bg-transparent dark:bg-slate-900 min-h-screen">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Globe className="w-7 h-7 text-blue-400" />
+        <Globe className="w-7 h-7 text-blue-600 dark:text-blue-400" />
         <div>
-          <h1 className="text-2xl font-bold text-white">MSSP Dashboard</h1>
-          <p className="text-slate-400 text-sm">Multi-tenant security operations overview</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MSSP Dashboard</h1>
+          <p className="text-gray-600 dark:text-slate-400 text-sm">Multi-tenant security operations overview</p>
         </div>
       </div>
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
-          { label: 'Total Tenants', value: total, icon: Building, color: 'text-blue-400' },
-          { label: 'Healthy', value: healthy, icon: CheckCircle, color: 'text-emerald-400' },
-          { label: 'Warning', value: warning, icon: AlertTriangle, color: 'text-yellow-400' },
-          { label: 'Critical', value: critical, icon: XCircle, color: 'text-red-400' },
-          { label: 'Total Agents', value: overview?.total_agents || 0, icon: Users, color: 'text-purple-400' },
+          { label: 'Total Tenants', value: total, icon: Building, color: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Healthy', value: healthy, icon: CheckCircle, color: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'Warning', value: warning, icon: AlertTriangle, color: 'text-yellow-700 dark:text-yellow-400' },
+          { label: 'Critical', value: critical, icon: XCircle, color: 'text-red-600 dark:text-red-400' },
+          { label: 'Total Agents', value: overview?.total_agents || 0, icon: Users, color: 'text-purple-600 dark:text-purple-400' },
         ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+          <div key={label} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-xs">{label}</span>
+              <span className="text-gray-600 dark:text-slate-400 text-xs">{label}</span>
               <Icon className={`w-4 h-4 ${color}`} />
             </div>
             <div className={`text-2xl font-bold ${color}`}>{value}</div>
@@ -185,30 +185,30 @@ export default function MSSPDashboard() {
       </div>
 
       {/* Status Summary Bar Chart */}
-      <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-gray-200 dark:border-slate-700">
         <div className="flex items-center gap-2 mb-4">
-          <BarChart2 className="w-4 h-4 text-blue-400" />
-          <span className="text-white font-semibold">Tenant Health Distribution</span>
+          <BarChart2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <span className="text-gray-900 dark:text-white font-semibold">Tenant Health Distribution</span>
         </div>
         <div className="space-y-3">
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-emerald-400">Healthy</span>
-              <span className="text-slate-400">{healthy} tenants</span>
+              <span className="text-emerald-600 dark:text-emerald-400">Healthy</span>
+              <span className="text-gray-600 dark:text-slate-400">{healthy} tenants</span>
             </div>
             <StatusBar value={healthy} total={total} color="bg-emerald-500" />
           </div>
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-yellow-400">Warning</span>
-              <span className="text-slate-400">{warning} tenants</span>
+              <span className="text-yellow-700 dark:text-yellow-400">Warning</span>
+              <span className="text-gray-600 dark:text-slate-400">{warning} tenants</span>
             </div>
             <StatusBar value={warning} total={total} color="bg-yellow-500" />
           </div>
           <div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-red-400">Critical</span>
-              <span className="text-slate-400">{critical} tenants</span>
+              <span className="text-red-600 dark:text-red-400">Critical</span>
+              <span className="text-gray-600 dark:text-slate-400">{critical} tenants</span>
             </div>
             <StatusBar value={critical} total={total} color="bg-red-500" />
           </div>
@@ -217,16 +217,16 @@ export default function MSSPDashboard() {
 
       {/* Tenant Health Grid */}
       <div>
-        <h2 className="text-lg font-semibold text-white mb-3">Tenant Health</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Tenant Health</h2>
         {tenants.length === 0 ? (
-          <div className="bg-slate-800 rounded-xl p-8 text-center border border-slate-700">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
             <Building className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-            <p className="text-slate-400">No tenant data available</p>
+            <p className="text-gray-600 dark:text-slate-400">No tenant data available</p>
           </div>
         ) : (
           <div className="space-y-3">
             {tenants.map(tenant => (
-              <div key={tenant.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div key={tenant.id} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
                 {/* Tenant Card Header */}
                 <div
                   className="p-4 cursor-pointer hover:bg-slate-750 transition-colors"
@@ -235,33 +235,33 @@ export default function MSSPDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {expandedTenant === tenant.id
-                        ? <ChevronDown className="w-4 h-4 text-slate-400" />
-                        : <ChevronRight className="w-4 h-4 text-slate-400" />
+                        ? <ChevronDown className="w-4 h-4 text-gray-600 dark:text-slate-400" />
+                        : <ChevronRight className="w-4 h-4 text-gray-600 dark:text-slate-400" />
                       }
-                      <Building className="w-5 h-5 text-blue-400" />
-                      <span className="text-white font-medium">{tenant.tenant_name}</span>
+                      <Building className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <span className="text-gray-900 dark:text-white font-medium">{tenant.tenant_name}</span>
                       <HealthBadge status={tenant.health_status} />
                     </div>
                     <div className="flex items-center gap-6 text-sm">
                       <div className="text-center">
-                        <div className="text-slate-400 text-xs">Agents</div>
-                        <div className="text-white font-semibold">{tenant.agent_count}</div>
+                        <div className="text-gray-600 dark:text-slate-400 text-xs">Agents</div>
+                        <div className="text-gray-900 dark:text-white font-semibold">{tenant.agent_count}</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-slate-400 text-xs">Incidents</div>
-                        <div className="text-yellow-400 font-semibold">{tenant.open_incidents}</div>
+                        <div className="text-gray-600 dark:text-slate-400 text-xs">Incidents</div>
+                        <div className="text-yellow-700 dark:text-yellow-400 font-semibold">{tenant.open_incidents}</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-slate-400 text-xs">Critical</div>
-                        <div className="text-red-400 font-semibold">{tenant.critical_alerts}</div>
+                        <div className="text-gray-600 dark:text-slate-400 text-xs">Critical</div>
+                        <div className="text-red-600 dark:text-red-400 font-semibold">{tenant.critical_alerts}</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-slate-400 text-xs">Compliance</div>
-                        <div className="text-emerald-400 font-semibold">{tenant.compliance_score}%</div>
+                        <div className="text-gray-600 dark:text-slate-400 text-xs">Compliance</div>
+                        <div className="text-emerald-600 dark:text-emerald-400 font-semibold">{tenant.compliance_score}%</div>
                       </div>
                       <div className="text-center hidden md:block">
-                        <div className="text-slate-400 text-xs">Last Active</div>
-                        <div className="text-slate-300 text-xs">
+                        <div className="text-gray-600 dark:text-slate-400 text-xs">Last Active</div>
+                        <div className="text-gray-700 dark:text-slate-300 text-xs">
                           {tenant.last_activity ? new Date(tenant.last_activity).toLocaleString() : 'N/A'}
                         </div>
                       </div>
@@ -271,16 +271,16 @@ export default function MSSPDashboard() {
 
                 {/* Expanded Details Panel */}
                 {expandedTenant === tenant.id && (
-                  <div className="border-t border-slate-700 bg-slate-900 p-4">
+                  <div className="border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                       {[
-                        { label: 'CPU Average', value: tenant.metrics?.cpu_avg != null ? `${tenant.metrics.cpu_avg}%` : 'N/A', color: 'text-blue-400' },
-                        { label: 'Memory Average', value: tenant.metrics?.memory_avg != null ? `${tenant.metrics.memory_avg}%` : 'N/A', color: 'text-purple-400' },
-                        { label: 'Events (24h)', value: tenant.metrics?.events_24h != null ? tenant.metrics.events_24h : 'N/A', color: 'text-orange-400' },
-                        { label: 'Resolved Incidents', value: tenant.metrics?.resolved_incidents != null ? tenant.metrics.resolved_incidents : 'N/A', color: 'text-emerald-400' },
+                        { label: 'CPU Average', value: tenant.metrics?.cpu_avg != null ? `${tenant.metrics.cpu_avg}%` : 'N/A', color: 'text-blue-600 dark:text-blue-400' },
+                        { label: 'Memory Average', value: tenant.metrics?.memory_avg != null ? `${tenant.metrics.memory_avg}%` : 'N/A', color: 'text-purple-600 dark:text-purple-400' },
+                        { label: 'Events (24h)', value: tenant.metrics?.events_24h != null ? tenant.metrics.events_24h : 'N/A', color: 'text-orange-700 dark:text-orange-400' },
+                        { label: 'Resolved Incidents', value: tenant.metrics?.resolved_incidents != null ? tenant.metrics.resolved_incidents : 'N/A', color: 'text-emerald-600 dark:text-emerald-400' },
                       ].map(item => (
-                        <div key={item.label} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                          <div className="text-slate-400 text-xs mb-1">{item.label}</div>
+                        <div key={item.label} className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-gray-200 dark:border-slate-700">
+                          <div className="text-gray-600 dark:text-slate-400 text-xs mb-1">{item.label}</div>
                           <div className={`text-xl font-bold ${item.color}`}>{item.value}</div>
                         </div>
                       ))}
@@ -305,34 +305,34 @@ export default function MSSPDashboard() {
       {/* Aggregated Alerts */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <AlertTriangle className="w-5 h-5 text-red-400" />
-          <h2 className="text-lg font-semibold text-white">Aggregated Critical/High Alerts</h2>
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Aggregated Critical/High Alerts</h2>
         </div>
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
           {alerts.length === 0 ? (
-            <div className="p-8 text-center text-slate-400">No critical or high alerts</div>
+            <div className="p-8 text-center text-gray-600 dark:text-slate-400">No critical or high alerts</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-700">
+                  <tr className="border-b border-gray-200 dark:border-slate-700">
                     {['Tenant', 'Severity', 'Event Type', 'Description', 'Timestamp'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-slate-400 text-xs font-semibold uppercase">{h}</th>
+                      <th key={h} className="text-left px-4 py-3 text-gray-600 dark:text-slate-400 text-xs font-semibold uppercase">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {alerts.map(alert => (
-                    <tr key={alert.id} className="border-b border-slate-700/50 hover:bg-slate-750">
-                      <td className="px-4 py-3 text-white text-sm">{alert.tenant_name}</td>
+                    <tr key={alert.id} className="border-b border-gray-200 dark:border-slate-700/50 hover:bg-slate-750">
+                      <td className="px-4 py-3 text-gray-900 dark:text-white text-sm">{alert.tenant_name}</td>
                       <td className="px-4 py-3">
                         <span className={`text-sm font-semibold capitalize ${SEVERITY_COLORS[alert.severity]}`}>
                           {alert.severity}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-300 text-sm">{alert.event_type}</td>
-                      <td className="px-4 py-3 text-slate-400 text-sm max-w-xs truncate">{alert.description}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">
+                      <td className="px-4 py-3 text-gray-700 dark:text-slate-300 text-sm">{alert.event_type}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-sm max-w-xs truncate">{alert.description}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-xs">
                         {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'N/A'}
                       </td>
                     </tr>
@@ -347,15 +347,15 @@ export default function MSSPDashboard() {
       {/* Report Modal */}
       {reportModal.open && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-700">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
               <div>
-                <h3 className="text-white font-semibold">Tenant Summary Report</h3>
-                <p className="text-slate-400 text-sm">{reportModal.tenantName}</p>
+                <h3 className="text-gray-900 dark:text-white font-semibold">Tenant Summary Report</h3>
+                <p className="text-gray-600 dark:text-slate-400 text-sm">{reportModal.tenantName}</p>
               </div>
               <button
                 onClick={() => setReportModal(prev => ({ ...prev, open: false }))}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -363,11 +363,11 @@ export default function MSSPDashboard() {
             <div className="p-4 overflow-y-auto flex-1">
               {reportModal.loading ? (
                 <div className="flex items-center justify-center h-32">
-                  <Activity className="w-5 h-5 animate-spin text-blue-400 mr-2" />
-                  <span className="text-slate-400">Generating report...</span>
+                  <Activity className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400 mr-2" />
+                  <span className="text-gray-600 dark:text-slate-400">Generating report...</span>
                 </div>
               ) : (
-                <pre className="text-slate-300 text-xs bg-slate-900 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
+                <pre className="text-gray-700 dark:text-slate-300 text-xs bg-white dark:bg-slate-900 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
                   {reportModal.report}
                 </pre>
               )}

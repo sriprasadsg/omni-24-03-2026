@@ -137,6 +137,47 @@ table, .tabular-nums-all {
     outline-offset: 2px;
 }
 
+/* Ink tokens for screens styled with inline style objects (no dark: variants possible there).
+   Dark values are the literals those screens used, so dark mode looks exactly as before. */
+:root {
+    --ink-page-bg: transparent;
+    --ink-text: #0f172a;
+    --ink-muted: #475569;
+    --ink-surface: #ffffff;
+    --ink-surface-2: #f8fafc;
+    --ink-panel: #ffffff;
+    --ink-well: #f1f5f9;
+    --ink-line: rgb(15 23 42 / 0.10);
+    --ink-line-soft: rgb(15 23 42 / 0.06);
+    --ink-line-strong: #e2e8f0;
+    --ink-accent: #4f46e5;
+    --ink-red: #b91c1c;
+    --ink-red-2: #dc2626;
+    --ink-green: #047857;
+    --ink-green-2: #059669;
+    --ink-amber: #b45309;
+    --ink-violet: #6d28d9;
+}
+.dark {
+    --ink-page-bg: #040812;
+    --ink-text: #f1f5f9;
+    --ink-muted: #94a3b8;
+    --ink-surface: rgba(255, 255, 255, .04);
+    --ink-surface-2: rgba(255, 255, 255, .06);
+    --ink-panel: #1e293b;
+    --ink-well: #0f172a;
+    --ink-line: rgba(255, 255, 255, .08);
+    --ink-line-soft: rgba(255, 255, 255, .05);
+    --ink-line-strong: #334155;
+    --ink-accent: #a5b4fc;
+    --ink-red: #fca5a5;
+    --ink-red-2: #f87171;
+    --ink-green: #6ee7b7;
+    --ink-green-2: #34d399;
+    --ink-amber: #fcd34d;
+    --ink-violet: #a78bfa;
+}
+
 /* Compact density (Appearance menu): tighter table rows for data-heavy work. Text size and
    control sizes stay the same, so readability and touch targets do not suffer. */
 .density-compact td,

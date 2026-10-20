@@ -37,27 +37,27 @@ const FutureOpsDashboard: React.FC = () => {
 
   const s = opsSummary(jobs, agents);
   const stats = [
-    { label: 'Active Jobs', value: loaded ? String(s.active) : '…', icon: Activity, color: 'text-emerald-400' },
-    { label: 'Jobs Finished (24h)', value: loaded ? String(s.finished24h) : '…', icon: Zap, color: 'text-amber-400' },
-    { label: 'Managed Endpoints', value: loaded ? String(s.endpoints) : '…', icon: Globe, color: 'text-indigo-400' },
-    { label: 'Agents Online', value: loaded ? (s.onlinePct === null ? '—' : `${s.onlinePct}%`) : '…', icon: Cpu, color: 'text-cyan-400' },
+    { label: 'Active Jobs', value: loaded ? String(s.active) : '…', icon: Activity, color: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Jobs Finished (24h)', value: loaded ? String(s.finished24h) : '…', icon: Zap, color: 'text-amber-700 dark:text-amber-400' },
+    { label: 'Managed Endpoints', value: loaded ? String(s.endpoints) : '…', icon: Globe, color: 'text-indigo-600 dark:text-indigo-400' },
+    { label: 'Agents Online', value: loaded ? (s.onlinePct === null ? '—' : `${s.onlinePct}%`) : '…', icon: Cpu, color: 'text-cyan-600 dark:text-cyan-400' },
   ];
 
   return (
-    <div className="p-8 bg-[#040812] min-h-screen text-slate-100 font-sans">
+    <div className="p-8 bg-transparent dark:bg-[#040812] min-h-screen text-gray-900 dark:text-slate-100 font-sans">
       <div className="max-w-7xl mx-auto">
         <div className="mb-10">
           <h1 className="text-4xl font-black tracking-tight mb-2 bg-gradient-to-r from-cyan-400 to-indigo-500 bg-clip-text text-transparent">
             UNIFIED OPERATIONS
           </h1>
-          <p className="text-slate-400 text-lg">Job queue and endpoint fleet at a glance</p>
+          <p className="text-gray-600 dark:text-slate-400 text-lg">Job queue and endpoint fleet at a glance</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {stats.map((stat) => (
-            <div key={stat.label} className="bg-slate-900/50 border border-slate-800 p-6 rounded-2xl backdrop-blur-sm">
+            <div key={stat.label} className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 p-6 rounded-2xl backdrop-blur-sm">
               <div className="flex justify-between items-start mb-4">
-                <div className={`p-2 rounded-lg bg-slate-800 ${stat.color}`}>
+                <div className={`p-2 rounded-lg bg-white dark:bg-slate-800 ${stat.color}`}>
                   <stat.icon size={20} />
                 </div>
               </div>
@@ -67,15 +67,15 @@ const FutureOpsDashboard: React.FC = () => {
           ))}
         </div>
 
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+        <div className="bg-white/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-800 rounded-2xl p-6">
           <h2 className="text-lg font-bold mb-4">Recent Jobs</h2>
           {loaded && jobs.length === 0 ? (
             <p className="text-slate-500 text-sm">No jobs have run yet.</p>
           ) : (
-            <ul className="divide-y divide-slate-800">
+            <ul className="divide-y divide-gray-200 dark:divide-slate-800">
               {jobs.slice(0, 8).map((j, i) => (
                 <li key={j.id || i} className="py-2 flex justify-between text-sm">
-                  <span className="text-slate-300">{j.type || 'job'}</span>
+                  <span className="text-gray-700 dark:text-slate-300">{j.type || 'job'}</span>
                   <span className="text-slate-500">{j.status}{j.created_at ? ` · ${new Date(j.created_at).toLocaleString()}` : ''}</span>
                 </li>
               ))}

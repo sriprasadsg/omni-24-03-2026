@@ -88,31 +88,31 @@ export default function BranchSitesDashboard() {
   }
 
   function patchColor(pct: number) {
-    if (pct >= 90) return 'text-green-400';
-    if (pct >= 70) return 'text-yellow-400';
-    return 'text-red-400';
+    if (pct >= 90) return 'text-green-600 dark:text-green-400';
+    if (pct >= 70) return 'text-yellow-700 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   }
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-2xl font-bold">Branch Sites &amp; Remote Offices</h1>
-          <p className="text-gray-400 text-sm mt-1">Group endpoints by physical location and monitor per-site health and compliance</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Group endpoints by physical location and monitor per-site health and compliance</p>
         </div>
-        <button onClick={openCreate} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg">+ Add Site</button>
+        <button onClick={openCreate} className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">+ Add Site</button>
       </div>
 
       {/* Summary */}
       {summary && (
         <div className="grid grid-cols-2 gap-3 mb-6 max-w-sm">
-          <div className="bg-gray-800 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-white">{summary.total_sites}</div>
-            <div className="text-xs text-gray-400 mt-1">Total Sites</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{summary.total_sites}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Total Sites</div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-400">{summary.agents_assigned_to_sites}</div>
-            <div className="text-xs text-gray-400 mt-1">Assigned Agents</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary.agents_assigned_to_sites}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Assigned Agents</div>
           </div>
         </div>
       )}
@@ -121,33 +121,33 @@ export default function BranchSitesDashboard() {
         {/* Site list */}
         <div className="lg:col-span-2">
           {sites.length === 0 && (
-            <div className="text-center text-gray-500 py-16 bg-gray-800 rounded-lg">
+            <div className="text-center text-gray-500 py-16 bg-white dark:bg-gray-800 rounded-lg">
               <div className="text-4xl mb-3">🏢</div>
               <div>No sites configured yet</div>
-              <button onClick={openCreate} className="mt-4 px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg">Add your first site</button>
+              <button onClick={openCreate} className="mt-4 px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg text-white">Add your first site</button>
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {sites.map(site => (
               <div key={site.id} onClick={() => setSelected(site)}
-                className={`bg-gray-800 rounded-lg p-4 border cursor-pointer hover:border-blue-600 transition-colors ${selected?.id === site.id ? 'border-blue-500' : 'border-gray-700'}`}>
+                className={`bg-white dark:bg-gray-800 rounded-lg p-4 border cursor-pointer hover:border-blue-600 transition-colors ${selected?.id === site.id ? 'border-blue-500' : 'border-gray-200 dark:border-gray-700'}`}>
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-medium text-white">{site.name}</h3>
-                    <p className="text-gray-400 text-xs mt-0.5">{[site.city, site.country].filter(Boolean).join(', ') || 'No location set'}</p>
+                    <h3 className="font-medium text-gray-900 dark:text-white">{site.name}</h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-xs mt-0.5">{[site.city, site.country].filter(Boolean).join(', ') || 'No location set'}</p>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={e => { e.stopPropagation(); openEdit(site); }} className="text-xs text-blue-400 hover:text-blue-300 px-1">Edit</button>
-                    <button onClick={e => { e.stopPropagation(); deleteSite(site.id); }} className="text-xs text-red-400 hover:text-red-300 px-1">Delete</button>
+                    <button onClick={e => { e.stopPropagation(); openEdit(site); }} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-1">Edit</button>
+                    <button onClick={e => { e.stopPropagation(); deleteSite(site.id); }} className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-1">Delete</button>
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                   <div className="text-center">
-                    <div className="font-semibold text-white">{site.total_agents}</div>
+                    <div className="font-semibold text-gray-900 dark:text-white">{site.total_agents}</div>
                     <div className="text-gray-500">Agents</div>
                   </div>
                   <div className="text-center">
-                    <div className="font-semibold text-green-400">{site.online_agents}</div>
+                    <div className="font-semibold text-green-600 dark:text-green-400">{site.online_agents}</div>
                     <div className="text-gray-500">Online</div>
                   </div>
                   <div className="text-center">
@@ -157,8 +157,8 @@ export default function BranchSitesDashboard() {
                 </div>
                 {site.total_agents > 0 && (
                   <div className="mt-2">
-                    <div className="w-full bg-gray-700 rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full ${site.patch_compliance_pct >= 90 ? 'bg-green-500' : site.patch_compliance_pct >= 70 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                      <div className={`h-1.5 rounded-full ${site.patch_compliance_pct >= 90 ? 'bg-green-500 text-white' : site.patch_compliance_pct >= 70 ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'}`}
                         style={{ width: `${site.patch_compliance_pct}%` }} />
                     </div>
                   </div>
@@ -171,40 +171,40 @@ export default function BranchSitesDashboard() {
         {/* Site detail panel */}
         <div>
           {selected ? (
-            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 sticky top-6">
-              <h2 className="font-semibold text-white text-lg">{selected.name}</h2>
-              {selected.description && <p className="text-gray-400 text-sm mt-1">{selected.description}</p>}
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 sticky top-6">
+              <h2 className="font-semibold text-gray-900 dark:text-white text-lg">{selected.name}</h2>
+              {selected.description && <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">{selected.description}</p>}
               <div className="mt-4 space-y-2 text-sm">
-                {selected.city && <div><span className="text-gray-500">City:</span> <span className="text-gray-300 ml-1">{selected.city}</span></div>}
-                {selected.country && <div><span className="text-gray-500">Country:</span> <span className="text-gray-300 ml-1">{selected.country}</span></div>}
-                <div><span className="text-gray-500">Timezone:</span> <span className="text-gray-300 ml-1">{selected.timezone}</span></div>
+                {selected.city && <div><span className="text-gray-500">City:</span> <span className="text-gray-700 dark:text-gray-300 ml-1">{selected.city}</span></div>}
+                {selected.country && <div><span className="text-gray-500">Country:</span> <span className="text-gray-700 dark:text-gray-300 ml-1">{selected.country}</span></div>}
+                <div><span className="text-gray-500">Timezone:</span> <span className="text-gray-700 dark:text-gray-300 ml-1">{selected.timezone}</span></div>
                 {selected.ip_ranges.length > 0 && (
-                  <div><span className="text-gray-500">IP Ranges:</span> <span className="text-gray-300 ml-1 font-mono text-xs">{selected.ip_ranges.join(', ')}</span></div>
+                  <div><span className="text-gray-500">IP Ranges:</span> <span className="text-gray-700 dark:text-gray-300 ml-1 font-mono text-xs">{selected.ip_ranges.join(', ')}</span></div>
                 )}
-                {selected.contact_name && <div><span className="text-gray-500">Contact:</span> <span className="text-gray-300 ml-1">{selected.contact_name}</span></div>}
-                {selected.contact_email && <div><span className="text-gray-500">Email:</span> <span className="text-gray-300 ml-1 text-xs">{selected.contact_email}</span></div>}
+                {selected.contact_name && <div><span className="text-gray-500">Contact:</span> <span className="text-gray-700 dark:text-gray-300 ml-1">{selected.contact_name}</span></div>}
+                {selected.contact_email && <div><span className="text-gray-500">Email:</span> <span className="text-gray-700 dark:text-gray-300 ml-1 text-xs">{selected.contact_email}</span></div>}
               </div>
-              <div className="mt-4 pt-4 border-t border-gray-700 grid grid-cols-2 gap-3 text-sm">
-                <div className="bg-gray-900 rounded p-3 text-center">
-                  <div className="text-xl font-bold text-white">{selected.total_agents}</div>
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-white dark:bg-gray-900 rounded p-3 text-center">
+                  <div className="text-xl font-bold text-gray-900 dark:text-white">{selected.total_agents}</div>
                   <div className="text-xs text-gray-500 mt-0.5">Total Agents</div>
                 </div>
-                <div className="bg-gray-900 rounded p-3 text-center">
-                  <div className="text-xl font-bold text-green-400">{selected.online_agents}</div>
+                <div className="bg-white dark:bg-gray-900 rounded p-3 text-center">
+                  <div className="text-xl font-bold text-green-600 dark:text-green-400">{selected.online_agents}</div>
                   <div className="text-xs text-gray-500 mt-0.5">Online</div>
                 </div>
-                <div className="bg-gray-900 rounded p-3 text-center">
+                <div className="bg-white dark:bg-gray-900 rounded p-3 text-center">
                   <div className={`text-xl font-bold ${patchColor(selected.patch_compliance_pct)}`}>{selected.patch_compliance_pct}%</div>
                   <div className="text-xs text-gray-500 mt-0.5">Patch Compliance</div>
                 </div>
-                <div className="bg-gray-900 rounded p-3 text-center">
-                  <div className="text-xl font-bold text-red-400">{selected.offline_agents}</div>
+                <div className="bg-white dark:bg-gray-900 rounded p-3 text-center">
+                  <div className="text-xl font-bold text-red-600 dark:text-red-400">{selected.offline_agents}</div>
                   <div className="text-xs text-gray-500 mt-0.5">Offline</div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center text-gray-500 text-sm">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-8 border border-gray-200 dark:border-gray-700 text-center text-gray-500 text-sm">
               Select a site to view details
             </div>
           )}
@@ -214,7 +214,7 @@ export default function BranchSitesDashboard() {
       {/* Create/Edit Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">{editSite ? 'Edit Site' : 'Add Branch Site'}</h2>
             <div className="space-y-3">
               {[
@@ -228,17 +228,17 @@ export default function BranchSitesDashboard() {
                 { key: 'contact_email', label: 'Contact Email', placeholder: 'it-contact@company.com' },
               ].map(f => (
                 <div key={f.key}>
-                  <label className="text-xs text-gray-400 block mb-1">{f.label}</label>
+                  <label className="text-xs text-gray-600 dark:text-gray-400 block mb-1">{f.label}</label>
                   <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     placeholder={f.placeholder}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
                 </div>
               ))}
             </div>
             <div className="flex gap-2 mt-4 justify-end">
-              <button onClick={() => { setShowForm(false); setEditSite(null); }} className="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+              <button onClick={() => { setShowForm(false); setEditSite(null); }} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Cancel</button>
               <button onClick={saveSite} disabled={saving || !form.name}
-                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50">
+                className="px-4 py-2 text-sm bg-blue-700 hover:bg-blue-600 rounded-lg disabled:opacity-50 text-white">
                 {saving ? 'Saving…' : (editSite ? 'Update' : 'Create')}
               </button>
             </div>

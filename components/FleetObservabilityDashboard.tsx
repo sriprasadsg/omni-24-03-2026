@@ -31,20 +31,20 @@ export function FleetObservabilityDashboard() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-900 min-h-screen text-white">
-        <p className="text-gray-400 text-sm">Loading fleet observability…</p>
+      <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
+        <p className="text-gray-600 dark:text-gray-400 text-sm">Loading fleet observability…</p>
       </div>
     );
   }
 
   if (error && !data) {
     return (
-      <div className="p-6 bg-gray-900 min-h-screen text-white">
+      <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Fleet Observability</h1>
         </div>
-        <div className="bg-gray-800 rounded-xl p-4 border border-red-900/50">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-red-200 dark:border-red-900/50">
+          <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
         </div>
       </div>
     );
@@ -54,19 +54,19 @@ export function FleetObservabilityDashboard() {
   const versionDrift = data?.version_drift ?? [];
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Fleet Observability</h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
           Fleet-wide offline agents and version drift, relative to the latest agent version
           {data?.latest_version ? ` (${data.latest_version})` : ''}.
         </p>
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium text-sm">Offline Agents</h2>
-          <span className="text-gray-400 text-xs">{data?.offline_count ?? 0}</span>
+          <span className="text-gray-600 dark:text-gray-400 text-xs">{data?.offline_count ?? 0}</span>
         </div>
         {offlineAgents.length === 0 ? (
           <p className="text-gray-500 text-xs italic">No offline agents</p>
@@ -79,10 +79,10 @@ export function FleetObservabilityDashboard() {
         )}
       </div>
 
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium text-sm">Version Drift</h2>
-          <span className="text-gray-400 text-xs">{data?.drift_count ?? 0}</span>
+          <span className="text-gray-600 dark:text-gray-400 text-xs">{data?.drift_count ?? 0}</span>
         </div>
         {versionDrift.length === 0 ? (
           <p className="text-gray-500 text-xs italic">All agents on the latest version</p>
@@ -100,12 +100,12 @@ export function FleetObservabilityDashboard() {
 
 function AgentRow({ agent, showLatestVersion }: { agent: FleetObservabilityAgent; showLatestVersion?: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 flex-wrap bg-gray-900 border border-gray-700 rounded-lg px-3 py-2">
+    <div className="flex items-center justify-between gap-4 flex-wrap bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
       <div className="flex-1 min-w-[160px]">
         <p className="text-sm font-medium">{agent.hostname || agent.id}</p>
         <p className="text-gray-500 text-xs mt-0.5">{agent.status}</p>
       </div>
-      <div className="text-right text-xs text-gray-400">
+      <div className="text-right text-xs text-gray-600 dark:text-gray-400">
         {showLatestVersion ? (
           <span>
             {agent.version ?? 'unknown'} <span className="text-gray-600">→</span> {showLatestVersion}

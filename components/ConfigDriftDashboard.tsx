@@ -36,10 +36,10 @@ interface AgentDrift {
 }
 
 const SEV_STYLE: Record<string, string> = {
-  critical: 'bg-red-500/20 text-red-400 border-red-500/30',
-  high: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  low: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  critical: 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30',
+  high: 'bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30',
+  medium: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30',
+  low: 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30',
 };
 
 const MOCK_STATS: DriftStats = {
@@ -110,31 +110,31 @@ export default function ConfigDriftDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Configuration Drift Detection</h2>
-        <button onClick={load} className="text-sm text-slate-400 hover:text-white transition-colors">Refresh</button>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Configuration Drift Detection</h2>
+        <button onClick={load} className="text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors">Refresh</button>
       </div>
 
       {msg && (
-        <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-2 rounded-lg">{msg}</div>
+        <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-sm px-4 py-2 rounded-lg">{msg}</div>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Baselines', value: stats.total_baselines, cls: 'text-blue-400' },
-          { label: 'Open Drifts', value: stats.open_drifts, cls: stats.open_drifts > 0 ? 'text-red-400' : 'text-emerald-400' },
-          { label: 'Agents Affected', value: stats.agents_with_drift, cls: 'text-orange-400' },
+          { label: 'Baselines', value: stats.total_baselines, cls: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Open Drifts', value: stats.open_drifts, cls: stats.open_drifts > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'Agents Affected', value: stats.agents_with_drift, cls: 'text-orange-700 dark:text-orange-400' },
           { label: 'Critical', value: stats.by_severity.critical, cls: 'text-red-500' },
         ].map(k => (
-          <div key={k.label} className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-center">
+          <div key={k.label} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 text-center">
             <div className={`text-2xl font-bold ${k.cls}`}>{k.value}</div>
-            <div className="text-xs text-slate-400 mt-1">{k.label}</div>
+            <div className="text-xs text-gray-600 dark:text-slate-400 mt-1">{k.label}</div>
           </div>
         ))}
       </div>
 
       {totalDrift > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-2">
-          <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Drift by Severity</div>
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+          <div className="text-xs text-gray-600 dark:text-slate-400 font-semibold uppercase tracking-wide">Drift by Severity</div>
           <div className="flex gap-2 h-3">
             {(['critical', 'high', 'medium', 'low'] as const).map(s => {
               const w = Math.round((stats.by_severity[s] / totalDrift) * 100);
@@ -142,7 +142,7 @@ export default function ConfigDriftDashboard() {
               return w > 0 ? <div key={s} className={`${colors[s]} rounded`} style={{ width: `${w}%` }} title={`${s}: ${stats.by_severity[s]}`} /> : null;
             })}
           </div>
-          <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+          <div className="flex flex-wrap gap-3 text-xs text-gray-600 dark:text-slate-400">
             {(['critical', 'high', 'medium', 'low'] as const).map(s => (
               <span key={s}><span className="capitalize">{s}</span>: {stats.by_severity[s]}</span>
             ))}
@@ -150,14 +150,14 @@ export default function ConfigDriftDashboard() {
         </div>
       )}
 
-      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-700">
-          <h3 className="text-sm font-semibold text-white">Agent Baselines</h3>
+      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-slate-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Agent Baselines</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-slate-400 text-xs">
+              <tr className="border-b border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 text-xs">
                 <th className="px-4 py-2 text-left">Hostname</th>
                 <th className="px-4 py-2 text-left">Platform</th>
                 <th className="px-4 py-2 text-left">Baseline Captured</th>
@@ -167,26 +167,26 @@ export default function ConfigDriftDashboard() {
             </thead>
             <tbody>
               {snapshots.map(s => (
-                <tr key={s.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                  <td className="px-4 py-3 text-slate-200 font-mono text-xs">{s.hostname}</td>
+                <tr key={s.id} className="border-b border-gray-200 dark:border-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700/30">
+                  <td className="px-4 py-3 text-gray-800 dark:text-slate-200 font-mono text-xs">{s.hostname}</td>
                   <td className="px-4 py-3">
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 capitalize">{s.platform}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 capitalize">{s.platform}</span>
                   </td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">{new Date(s.captured_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-xs">{new Date(s.captured_at).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`text-sm font-bold ${s.drift_count > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    <span className={`text-sm font-bold ${s.drift_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                       {s.drift_count}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button onClick={() => loadDrift(s.agent_id)}
-                        className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-400 border border-blue-600/30 hover:bg-blue-600/30 transition-colors">
+                        className="text-xs px-2 py-1 rounded bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/30 hover:bg-blue-600/30 transition-colors">
                         View Drift
                       </button>
                       {s.drift_count > 0 && (
                         <button onClick={() => remediate(s.agent_id)} disabled={remediating === s.agent_id}
-                          className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-600/30 hover:bg-emerald-600/30 transition-colors disabled:opacity-50">
+                          className="text-xs px-2 py-1 rounded bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border border-emerald-600/30 hover:bg-emerald-600/30 transition-colors disabled:opacity-50">
                           {remediating === s.agent_id ? '…' : 'Remediate'}
                         </button>
                       )}
@@ -201,29 +201,29 @@ export default function ConfigDriftDashboard() {
 
       {selected && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setSelected(null)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl p-6 space-y-4 max-h-[80vh] overflow-y-auto"
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl w-full max-w-2xl p-6 space-y-4 max-h-[80vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">Drift Detail — {selected.hostname}</h3>
-              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-white">&times;</button>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Drift Detail — {selected.hostname}</h3>
+              <button onClick={() => setSelected(null)} className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">&times;</button>
             </div>
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-gray-600 dark:text-slate-400">
               Baseline: {selected.baseline_captured_at ? new Date(selected.baseline_captured_at).toLocaleString() : 'N/A'}
               {' · '}{selected.drift_count} drift{selected.drift_count !== 1 ? 's' : ''}
             </div>
             {selected.drift_items.length === 0 ? (
-              <div className="text-slate-400 text-sm text-center py-8">No drift detected vs baseline.</div>
+              <div className="text-gray-600 dark:text-slate-400 text-sm text-center py-8">No drift detected vs baseline.</div>
             ) : (
               <div className="space-y-2">
                 {selected.drift_items.map((item, i) => (
-                  <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-1">
+                  <div key={i} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${SEV_STYLE[item.severity]}`}>{item.severity}</span>
-                      <span className="text-sm text-white font-mono">{item.key}</span>
+                      <span className="text-sm text-gray-900 dark:text-white font-mono">{item.key}</span>
                     </div>
                     <div className="flex gap-4 text-xs">
-                      <span className="text-slate-400">Expected: <span className="text-emerald-400 font-mono">{item.expected}</span></span>
-                      <span className="text-slate-400">Actual: <span className="text-red-400 font-mono">{item.actual}</span></span>
+                      <span className="text-gray-600 dark:text-slate-400">Expected: <span className="text-emerald-600 dark:text-emerald-400 font-mono">{item.expected}</span></span>
+                      <span className="text-gray-600 dark:text-slate-400">Actual: <span className="text-red-600 dark:text-red-400 font-mono">{item.actual}</span></span>
                     </div>
                   </div>
                 ))}

@@ -130,11 +130,11 @@ const ProblemManagementDashboard: React.FC = () => {
   };
 
   return (
-    <div className="bg-gray-900 min-h-screen text-white p-6">
+    <div className="bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Problem Management</h1>
-          <p className="text-gray-400 text-sm mt-1">ITIL-aligned problem tracking and root cause analysis</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Problem Management</h1>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">ITIL-aligned problem tracking and root cause analysis</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -153,7 +153,7 @@ const ProblemManagementDashboard: React.FC = () => {
             className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
               statusFilter === s
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-700'
             }`}
           >
             {s === 'all' ? 'All' : s.replace('_', ' ')}
@@ -163,16 +163,16 @@ const ProblemManagementDashboard: React.FC = () => {
 
       {/* Table */}
       {loading ? (
-        <div className="text-gray-400 py-8 text-center">Loading problems…</div>
+        <div className="text-gray-600 dark:text-gray-400 py-8 text-center">Loading problems…</div>
       ) : error ? (
-        <div className="text-red-400 py-8 text-center">{error}</div>
+        <div className="text-red-600 dark:text-red-400 py-8 text-center">{error}</div>
       ) : filtered.length === 0 ? (
         <div className="text-gray-500 py-8 text-center">No problems found.</div>
       ) : (
-        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-x-auto">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-700 text-gray-400 text-xs uppercase tracking-wider">
+              <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-xs uppercase tracking-wider">
                 <th className="px-4 py-3 text-left">Title</th>
                 <th className="px-4 py-3 text-left">Priority</th>
                 <th className="px-4 py-3 text-left">Status</th>
@@ -186,24 +186,24 @@ const ProblemManagementDashboard: React.FC = () => {
                 <tr
                   key={p.id}
                   onClick={() => { setSelected(p); setActionMsg(null); setLinkId(''); setWorkaroundInput(''); }}
-                  className="border-b border-gray-700/50 hover:bg-gray-700/40 cursor-pointer transition-colors"
+                  className="border-b border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/40 cursor-pointer transition-colors"
                 >
-                  <td className="px-4 py-3 font-medium text-white">{p.title}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{p.title}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${PRIORITY_COLORS[p.priority] ?? 'bg-gray-600 text-white'}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${PRIORITY_COLORS[p.priority] ?? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'}`}>
                       {p.priority}
                     </span>
                   </td>
-                  <td className="px-4 py-3 capitalize text-gray-300">{p.status?.replace('_', ' ')}</td>
+                  <td className="px-4 py-3 capitalize text-gray-700 dark:text-gray-300">{p.status?.replace('_', ' ')}</td>
                   <td className="px-4 py-3">
                     {p.known_error ? (
-                      <span className="bg-yellow-600/30 text-yellow-400 border border-yellow-700/40 px-2 py-0.5 rounded text-xs font-semibold">Known Error</span>
+                      <span className="bg-yellow-600/30 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700/40 px-2 py-0.5 rounded text-xs font-semibold">Known Error</span>
                     ) : (
                       <span className="text-gray-500 text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-300">{p.assignee || '—'}</td>
-                  <td className="px-4 py-3 text-gray-400">{p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{p.assignee || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -214,23 +214,23 @@ const ProblemManagementDashboard: React.FC = () => {
       {/* Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-lg p-6">
-            <h2 className="text-lg font-bold text-white mb-4">New Problem</h2>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl w-full max-w-lg p-6">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">New Problem</h2>
             <div className="space-y-3">
               <input
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 placeholder="Title *"
                 value={createForm.title}
                 onChange={e => setCreateForm(f => ({ ...f, title: e.target.value }))}
               />
               <textarea
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none h-20"
+                className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none h-20"
                 placeholder="Description"
                 value={createForm.description}
                 onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
               />
               <select
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
                 value={createForm.priority}
                 onChange={e => setCreateForm(f => ({ ...f, priority: e.target.value }))}
               >
@@ -239,15 +239,15 @@ const ProblemManagementDashboard: React.FC = () => {
                 ))}
               </select>
               <input
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 placeholder="Assignee"
                 value={createForm.assignee}
                 onChange={e => setCreateForm(f => ({ ...f, assignee: e.target.value }))}
               />
             </div>
-            {createError && <p className="text-red-400 text-xs mt-2">{createError}</p>}
+            {createError && <p className="text-red-600 dark:text-red-400 text-xs mt-2">{createError}</p>}
             <div className="flex justify-end gap-3 mt-5">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
               <button
                 onClick={handleCreate}
                 disabled={creating || !createForm.title.trim()}
@@ -263,62 +263,62 @@ const ProblemManagementDashboard: React.FC = () => {
       {/* Detail Panel */}
       {selected && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-end p-4">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-xl h-full overflow-y-auto p-6">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl w-full max-w-xl h-full overflow-y-auto p-6">
             <div className="flex items-start justify-between mb-4">
-              <h2 className="text-lg font-bold text-white flex-1 pr-4">{selected.title}</h2>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-white text-xl leading-none">×</button>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex-1 pr-4">{selected.title}</h2>
+              <button onClick={() => setSelected(null)} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-xl leading-none">×</button>
             </div>
             <div className="space-y-3 text-sm">
               <div className="flex gap-2 flex-wrap">
-                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${PRIORITY_COLORS[selected.priority] ?? 'bg-gray-600 text-white'}`}>{selected.priority}</span>
-                <span className="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs capitalize">{selected.status?.replace('_', ' ')}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${PRIORITY_COLORS[selected.priority] ?? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white'}`}>{selected.priority}</span>
+                <span className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded text-xs capitalize">{selected.status?.replace('_', ' ')}</span>
                 {selected.known_error && (
-                  <span className="bg-yellow-600/30 text-yellow-400 border border-yellow-700/40 px-2 py-0.5 rounded text-xs font-semibold">Known Error</span>
+                  <span className="bg-yellow-600/30 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700/40 px-2 py-0.5 rounded text-xs font-semibold">Known Error</span>
                 )}
               </div>
-              <p className="text-gray-300">{selected.description || <span className="text-gray-500">No description</span>}</p>
+              <p className="text-gray-700 dark:text-gray-300">{selected.description || <span className="text-gray-500">No description</span>}</p>
               {selected.root_cause && (
-                <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Root Cause</p>
-                  <p className="text-gray-200 text-sm">{selected.root_cause}</p>
+                <div className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Root Cause</p>
+                  <p className="text-gray-800 dark:text-gray-200 text-sm">{selected.root_cause}</p>
                 </div>
               )}
               {selected.workaround && (
-                <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Workaround</p>
-                  <p className="text-gray-200 text-sm">{selected.workaround}</p>
+                <div className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Workaround</p>
+                  <p className="text-gray-800 dark:text-gray-200 text-sm">{selected.workaround}</p>
                 </div>
               )}
               {selected.permanent_fix && (
-                <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Permanent Fix</p>
-                  <p className="text-gray-200 text-sm">{selected.permanent_fix}</p>
+                <div className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Permanent Fix</p>
+                  <p className="text-gray-800 dark:text-gray-200 text-sm">{selected.permanent_fix}</p>
                 </div>
               )}
               {selected.linked_incident_ids?.length > 0 && (
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Linked Incidents</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Linked Incidents</p>
                   <div className="flex flex-wrap gap-1">
                     {selected.linked_incident_ids.map(id => (
-                      <span key={id} className="bg-blue-900/40 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded text-xs">{id}</span>
+                      <span key={id} className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/40 px-2 py-0.5 rounded text-xs">{id}</span>
                     ))}
                   </div>
                 </div>
               )}
-              <div className="text-gray-400 text-xs space-y-1">
+              <div className="text-gray-600 dark:text-gray-400 text-xs space-y-1">
                 <div>Reporter: {selected.reporter || '—'} &nbsp;|&nbsp; Assignee: {selected.assignee || '—'}</div>
                 <div>Created: {selected.created_at ? new Date(selected.created_at).toLocaleString() : '—'}</div>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="mt-6 space-y-4 border-t border-gray-700 pt-4">
+            <div className="mt-6 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4">
               {/* Promote to Known Error */}
               {!selected.known_error && (
                 <div>
-                  <p className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Promote to Known Error</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Promote to Known Error</p>
                   <textarea
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-yellow-500 resize-none h-16"
+                    className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-yellow-500 resize-none h-16"
                     placeholder="Workaround description"
                     value={workaroundInput}
                     onChange={e => setWorkaroundInput(e.target.value)}
@@ -335,10 +335,10 @@ const ProblemManagementDashboard: React.FC = () => {
 
               {/* Link Incident */}
               <div>
-                <p className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Link Incident</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wider">Link Incident</p>
                 <div className="flex gap-2">
                   <input
-                    className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                    className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                     placeholder="Incident / Ticket ID"
                     value={linkId}
                     onChange={e => setLinkId(e.target.value)}
@@ -354,7 +354,7 @@ const ProblemManagementDashboard: React.FC = () => {
               </div>
 
               {actionMsg && (
-                <p className={`text-xs ${actionMsg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{actionMsg}</p>
+                <p className={`text-xs ${actionMsg.startsWith('Error') ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{actionMsg}</p>
               )}
             </div>
           </div>

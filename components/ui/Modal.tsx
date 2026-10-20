@@ -27,15 +27,15 @@ export default function Modal({ isOpen, onClose, title, description, children, c
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="relative w-[90%] max-w-md bg-gray-800 rounded-xl shadow-2xl border border-gray-700">
+      <div className="relative w-[90%] max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700">
         <div className="p-6">
-          <h2 className="text-lg font-semibold mb-2 text-white">{title}</h2>
-          {description && <p className="text-gray-400 mb-6">{description}</p>}
+          <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">{title}</h2>
+          {description && <p className="text-gray-600 dark:text-gray-400 mb-6">{description}</p>}
           {children}
           <div className="flex justify-end gap-3">
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white px-4 py-2 rounded transition-colors"
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-4 py-2 rounded transition-colors"
             >
               Cancel
             </button>
