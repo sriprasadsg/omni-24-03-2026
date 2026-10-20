@@ -10,6 +10,10 @@
           "label": "Overview"
         },
         {
+          "permission": "screen:customDashboards",
+          "label": "Dashboards"
+        },
+        {
           "permission": "screen:digitalTwin",
           "label": "Digital Twin"
         },

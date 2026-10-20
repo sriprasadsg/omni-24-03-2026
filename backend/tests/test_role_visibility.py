@@ -84,7 +84,7 @@ def test_payload_shape_groups_in_manifest_order_and_totals(client):
     assert res.status_code == 200
     body = res.json()
     assert [g["id"] for g in body["groups"]] == [g[0] for g in tenant_features.NAV_GROUPS]
-    assert sum(g["total"] for g in body["groups"]) == body["totalCount"] == len(tenant_features.NAV_SCREENS) == 188
+    assert sum(g["total"] for g in body["groups"]) == body["totalCount"] == len(tenant_features.NAV_SCREENS) == 189
     assert body["roleId"] == "role-viewer" and body["builtIn"] is True
     assert body["basis"] == {"kind": "tenant", "tenantId": "tenant-a", "tenantName": "Tenant A"}
     assert body["visibleCount"] == sum(g["visibleCount"] for g in body["groups"])

@@ -211,7 +211,7 @@ async def test_custom_role_non_marker_entries_unchanged():
 
 
 def test_nav_screens_and_groups_are_derived_from_the_manifest():
-    assert len(tf.NAV_SCREENS) == 188 and len(tf.NAV_GROUPS) == 8
+    assert len(tf.NAV_SCREENS) == 189 and len(tf.NAV_GROUPS) == 8
     assert all(len(row) == 4 for row in tf.NAV_SCREENS)
 
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIcon, BarChart3Icon, BellIcon, BombIcon, BookKeyIcon, BotIcon, BoxIcon, BuildingIcon, ClipboardListIcon, CloudShieldIcon, ComponentIcon, CpuIcon, CrownIcon, DashboardIcon, DatabaseIcon, DnaIcon, DollarSignIcon, FileCodeIcon, FileTextIcon, GaugeIcon, GavelIcon, GitMergeIcon, GitPullRequestDraftIcon, GlobeIcon, HardDriveIcon, LightbulbIcon, NetworkIcon, PuzzleIcon, SearchIcon, ServerIcon, SettingsIcon, Share2Icon, ShieldAlertIcon, ShieldCheckIcon, ShieldLockIcon, ShieldZapIcon, SparklesIcon, SunIcon, UploadCloudIcon, UsersIcon, WorkflowIcon, ZapIcon } from './icons';
-import { AlertOctagonIcon, BarChart2, ClipboardCheck, Cookie, CreditCard, FileText, Globe, Lock, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon, Radar, RadioTower, ShieldIcon, TargetIcon, TrendingUp, UserCheck, UserIcon } from 'lucide-react';
+import { AlertOctagonIcon, BarChart2, ClipboardCheck, Cookie, CreditCard, FileText, Globe, LayoutDashboard, Lock, MessageSquareQuote as MessageSquareQuoteIcon, Monitor as MonitorIcon, Radar, RadioTower, ShieldIcon, TargetIcon, TrendingUp, UserCheck, UserIcon } from 'lucide-react';
 import { AppView } from '../types';
 
 /**
@@ -16,6 +16,7 @@ export interface SidebarPresentation {
 
 export const SIDEBAR_PRESENTATION: Partial<Record<AppView, SidebarPresentation>> = {
     dashboard: { icon: <DashboardIcon size={20} /> },
+    customDashboards: { icon: <LayoutDashboard size={20} /> },
     cxo: { icon: <CrownIcon size={20} />, minTier: 'Enterprise', featureKey: 'cxo_dashboard' },
     executiveSummary: { icon: <BarChart3Icon size={20} /> },
     unifiedOps: { icon: <DashboardIcon size={20} />, minTier: 'Enterprise', featureKey: 'unified_ops' },

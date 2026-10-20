@@ -46,7 +46,7 @@ describe('NAV_GROUPS', () => {
   it('holds only nav:true items, in manifest array order', () => {
     const expected = raw.catalogues.filter(c => c.nav).map(c => c.view);
     expect(NAV_GROUPS.flatMap(g => g.items.map(i => i.view))).toEqual(expected);
-    expect(expected).toHaveLength(188);
+    expect(expected).toHaveLength(189);
   });
 
   it('keeps the label and permission of each manifest entry', () => {

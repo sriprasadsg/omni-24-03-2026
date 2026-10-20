@@ -12,6 +12,7 @@
   ],
   "catalogues": [
     {"view": "dashboard", "label": "Overview", "group": "dashboards", "nav": true, "permission": "view:dashboard", "routes": [], "noBackendReason": "overview is composed in App from other catalogues' endpoints; no dedicated route"},
+    {"view": "customDashboards", "label": "Dashboards", "group": "dashboards", "nav": true, "permission": "view:dashboard", "write": ["manage:dashboards", "view:dashboard"], "routes": ["/api/dashboards"]},
     {"view": "cxo", "label": "CXO Insights", "group": "dashboards", "nav": true, "permission": "view:cxo_dashboard", "routes": ["/api/kpi"]},
     {"view": "executiveSummary", "label": "Executive Summary", "group": "dashboards", "nav": true, "permission": "view:reporting", "routes": ["/api/reports/executive-summary"]},
     {"view": "unifiedOps", "label": "Unified Future Ops", "group": "dashboards", "nav": true, "permission": "view:unified_ops", "routes": ["/api/aiops", "/api/blockchain", "/api/multicloud", "/api/streaming", "/api/privacy/consent-tracking"]},

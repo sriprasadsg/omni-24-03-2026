@@ -19,9 +19,9 @@ GOLDEN = {
         "manage:app_catalog", "manage:approvals", "manage:asset_intelligence", "manage:assets",
         "manage:automation", "manage:autopilot", "manage:branch_sites", "manage:compliance",
         "manage:compliance_evidence", "manage:conditional_access", "manage:config_drift",
-        "manage:connectors_hub", "manage:detection_rules", "manage:device_config_profiles",
-        "manage:devsecops", "manage:experiments", "manage:fim", "manage:finance",
-        "manage:firmware_drivers", "manage:itam", "manage:licenses", "manage:mam", "manage:mdm",
+        "manage:connectors_hub", "manage:dashboards", "manage:detection_rules",
+        "manage:device_config_profiles", "manage:devsecops", "manage:experiments", "manage:fim",
+        "manage:finance", "manage:firmware_drivers", "manage:itam", "manage:licenses", "manage:mam", "manage:mdm",
         "manage:mssp", "manage:patches", "manage:playbooks",
         "manage:procurement", "manage:rbac", "manage:retention_policies", "manage:sbom",
         "manage:sca", "manage:secrets", "manage:security_cases", "manage:security_playbooks",
@@ -110,7 +110,7 @@ GOLDEN = {
     }),
 }
 
-GOLDEN_SIZES = {"tenant_admin": 126, "user": 22, "analyst": 19, "security_analyst": 17,
+GOLDEN_SIZES = {"tenant_admin": 127, "user": 22, "analyst": 19, "security_analyst": 17,
                 "incident_responder": 12, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4,
                 "platform_support": 76, "platform_billing": 7}
 

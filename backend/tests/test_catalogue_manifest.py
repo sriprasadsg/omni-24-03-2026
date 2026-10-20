@@ -144,7 +144,7 @@ def walk() -> List[Dict[str, Any]]:
 def test_views_equal_appview_union(manifest):
     expected = _appview_members()
     got = [c["view"] for c in manifest["catalogues"]]
-    assert len(expected) == len(set(expected)) == 202
+    assert len(expected) == len(set(expected)) == 203
     assert len(got) == len(set(got)), "duplicate view in manifest"
     assert sorted(set(expected) - set(got)) == [], "AppView members missing from the manifest"
     assert sorted(set(got) - set(expected)) == [], "manifest views that are not AppView members"
@@ -156,9 +156,9 @@ def test_groups_are_sidebar_groups_in_order_and_only_three_enforce(manifest):
     assert all(c["group"] in SIDEBAR_GROUPS for c in manifest["catalogues"])
 
 
-def test_nav_entries_are_188_and_follow_sidebar_order(manifest):
+def test_nav_entries_are_189_and_follow_sidebar_order(manifest):
     nav = [c for c in manifest["catalogues"] if c["nav"]]
-    assert len(nav) == 188
+    assert len(nav) == 189
     order = {g: i for i, g in enumerate(SIDEBAR_GROUPS)}
     assert [order[c["group"]] for c in nav] == sorted(order[c["group"]] for c in nav)
     literal = _sidebar_nav()

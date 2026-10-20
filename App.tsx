@@ -65,6 +65,7 @@ const CookieConsentDashboard = lazy(() => import('./components/CookieConsentDash
 const CorrelationDashboard = lazy(() => import('./components/CorrelationDashboard').then(m => ({ default: m.CorrelationDashboard })));
 const CustomFrameworkBuilder = lazy(() => import('./components/CustomFrameworkBuilder').then(m => ({ default: m.default })));
 const CXODashboard = lazy(() => import('./components/CXODashboard').then(m => ({ default: m.CXODashboard })));
+const DashboardsHub = lazy(() => import('./components/dashboards/DashboardsHub').then(m => ({ default: m.DashboardsHub })));
 const DAMDashboard = lazy(() => import('./components/DAMDashboard').then(m => ({ default: m.default })));
 const DASTDashboard = lazy(() => import('./components/DASTDashboard').then(m => ({ default: m.DASTDashboard })));
 const DataGovernanceDashboard = lazy(() => import('./components/DataGovernanceDashboard').then(m => ({ default: m.DataGovernanceDashboard })));
@@ -1658,6 +1659,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case 'dashboard': return <ErrorBoundary name="Dashboard"><Dashboard metrics={metrics} alerts={tenantData.alerts} complianceFrameworks={tenantData.complianceFrameworks} aiSystems={tenantData.aiSystems} agents={tenantData.agents} currentUser={currentUser} setCurrentView={handleSetCurrentView} /></ErrorBoundary>;
+      case 'customDashboards': return <ErrorBoundary name="DashboardsHub"><DashboardsHub /></ErrorBoundary>;
       case 'cxo': return <ErrorBoundary name="CXODashboard"><CXODashboard /></ErrorBoundary>;
       case 'executiveSummary': return <ErrorBoundary name="ExecutiveDashboard"><ExecutiveDashboard tenantId={activeTenantId} /></ErrorBoundary>;
       case 'reporting': return <ErrorBoundary name="ReportingDashboard"><ReportingDashboard historicalData={historicalData} assets={tenantData.assets} /></ErrorBoundary>;
