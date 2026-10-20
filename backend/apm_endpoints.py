@@ -35,7 +35,7 @@ class PerformanceMetric(BaseModel):
 @router.get("/health")
 async def get_system_health(
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get overall system health status (last 5 minutes)"""
     service = get_apm_service(db)
@@ -46,7 +46,7 @@ async def get_system_health(
 async def get_endpoint_metrics(
     time_window_minutes: int = 60,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get performance metrics for all endpoints"""
     service = get_apm_service(db)
@@ -58,7 +58,7 @@ async def get_slowest_endpoints(
     limit: int = 10,
     time_window_minutes: int = 60,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get slowest endpoints by p95 latency"""
     service = get_apm_service(db)
@@ -70,7 +70,7 @@ async def get_error_prone_endpoints(
     limit: int = 10,
     time_window_minutes: int = 60,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get endpoints with highest error rates"""
     service = get_apm_service(db)
@@ -81,7 +81,7 @@ async def get_error_prone_endpoints(
 async def get_database_performance(
     time_window_minutes: int = 60,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get database query performance metrics"""
     service = get_apm_service(db)
@@ -92,7 +92,7 @@ async def get_database_performance(
 async def get_external_api_performance(
     time_window_minutes: int = 60,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get external API call performance"""
     service = get_apm_service(db)
@@ -104,7 +104,7 @@ async def get_performance_trend(
     endpoint: str,
     hours: int = 24,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get performance trend for a specific endpoint"""
     service = get_apm_service(db)
@@ -116,7 +116,7 @@ async def get_apm_alerts(
     limit: int = 50,
     acknowledged: Optional[bool] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Get APM alerts and SLA violations"""
     query = {}
@@ -135,7 +135,7 @@ async def get_apm_alerts(
 async def acknowledge_alert(
     alert_id: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("manage:system"))
+    current_user: dict = Depends(require_permission("manage:tracing"))
 ):
     """Acknowledge an APM alert"""
     actor = getattr(current_user, "username", None) or (
@@ -164,7 +164,7 @@ async def acknowledge_alert(
 @router.get("/sla-violations")
 async def check_sla_violations(
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system"))
+    _current_user: dict = Depends(require_permission("view:tracing"))
 ):
     """Check for current SLA violations"""
     service = get_apm_service(db)
@@ -175,7 +175,7 @@ async def check_sla_violations(
 async def get_apm_traces(
     limit: int = 50,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:system")),
+    _current_user: dict = Depends(require_permission("view:tracing")),
 ):
     """
     Return recent APM trace spans with latency data.

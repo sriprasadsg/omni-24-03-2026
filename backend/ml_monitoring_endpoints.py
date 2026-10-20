@@ -52,7 +52,7 @@ class DriftDetectionResult(BaseModel):
 # Endpoints
 @router.post("/train")
 async def train_predictive_model(
-    current_user: dict = Depends(require_permission("manage:ai_systems"))
+    current_user: dict = Depends(require_permission("manage:mlops"))
 ):
     """Manually triggers retraining of the Patch Failure Prediction Model and Anomaly Model"""
     from ml_service import MLPredictionService
@@ -71,7 +71,7 @@ async def train_predictive_model(
 async def detect_model_drift(
     request: DriftDetectionRequest,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("manage:ai_systems"))
+    current_user: dict = Depends(require_permission("manage:mlops"))
 ):
     """
     Detect drift in a specific AI model
@@ -96,7 +96,7 @@ async def get_drift_history(
     tenant_id: Optional[str] = None,
     limit: int = 30,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:ai_systems"))
+    current_user: dict = Depends(require_permission("view:mlops"))
 ):
     """
     Get historical drift detections for a model
@@ -120,7 +120,7 @@ async def get_drift_history(
 async def get_drift_scores(
     tenant_id: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:ai_systems")),
+    current_user: dict = Depends(require_permission("view:mlops")),
 ):
     """
     Return drift scores per registered AI model.
@@ -166,7 +166,7 @@ async def get_drift_scores(
 async def get_all_models_drift_status(
     tenant_id: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:ai_systems"))
+    current_user: dict = Depends(require_permission("view:mlops"))
 ):
     """
     Get drift status for all models in a tenant
@@ -194,7 +194,7 @@ async def analyze_all_models(
     tenant_id: str,
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("manage:ai_systems"))
+    current_user: dict = Depends(require_permission("manage:mlops"))
 ):
     """
     Trigger drift analysis for all models in a tenant
@@ -231,7 +231,7 @@ async def record_prediction(
     actual: Optional[float] = None,
     features: Optional[Dict[str, Any]] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("manage:ai_systems"))
+    current_user: dict = Depends(require_permission("manage:mlops"))
 ):
     """
     Record a model prediction for drift monitoring

@@ -16,7 +16,7 @@ _AUTOML_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
 
 @router.get("/studies")
 async def list_studies(
-    current_user: dict = Depends(require_permission("view:ai_systems"))
+    current_user: dict = Depends(require_permission("view:automl"))
 ):
     """
     List all optimization studies scoped to the caller's tenant.
@@ -31,7 +31,7 @@ async def create_study(
     http_request: Request,
     response: Response,
     request: Dict[str, str],
-    current_user: dict = Depends(require_permission("manage:ai_models"))
+    current_user: dict = Depends(require_permission("manage:automl"))
 ):
     """
     Create a new study.
@@ -47,7 +47,7 @@ async def create_study(
 @router.get("/study/{study_id}")
 async def get_study_details(
     study_id: str,
-    current_user: dict = Depends(require_permission("view:ai_systems"))
+    current_user: dict = Depends(require_permission("view:automl"))
 ):
     """
     Get full details of a study including all trials.
@@ -64,7 +64,7 @@ async def run_trials(
     response: Response,
     study_id: str,
     request: Dict[str, int],
-    current_user: dict = Depends(require_permission("manage:ai_models"))
+    current_user: dict = Depends(require_permission("manage:automl"))
 ):
     """
     Trigger trials for a study.
@@ -82,7 +82,7 @@ async def run_trials(
 
 @router.get("/training-datasets")
 async def list_training_datasets(
-    current_user: dict = Depends(require_permission("view:ai_systems"))
+    current_user: dict = Depends(require_permission("view:automl"))
 ):
     """List all registered training datasets."""
     db = get_database()
@@ -99,7 +99,7 @@ async def register_training_dataset(
     request: Request,
     response: Response,
     data: Dict[str, Any],
-    current_user: dict = Depends(require_permission("manage:ai_models"))
+    current_user: dict = Depends(require_permission("manage:automl"))
 ):
     """Register a new training dataset (metadata only — file upload handled separately)."""
     name = (data.get("name") or "").strip()
@@ -129,7 +129,7 @@ async def delete_training_dataset(
     request: Request,
     response: Response,
     dataset_id: str,
-    current_user: dict = Depends(require_permission("manage:ai_models"))
+    current_user: dict = Depends(require_permission("manage:automl"))
 ):
     """Remove a training dataset registration."""
     db = get_database()
@@ -152,7 +152,7 @@ async def upload_training_dataset(
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(""),
-    current_user: dict = Depends(require_permission("manage:ai_models")),
+    current_user: dict = Depends(require_permission("manage:automl")),
 ):
     """
     Upload a CSV or JSON training dataset file.

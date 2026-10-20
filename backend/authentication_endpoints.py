@@ -318,19 +318,9 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     registration_key = f"reg_{uuid.uuid4().hex[:16]}"
     
     # 3. Create Tenant & User
-    # Free tier features — limited set available without a paid subscription.
-    # Upgrade to Pro/Enterprise unlocks advanced security, AI, cloud, and analytics features.
-    # No Security or Compliance sidebar item is on (Audit Log included): a Super Admin ticks those.
-    free_features = [
-        "view:dashboard", "view:profile",
-        "view:agents", "view:assets",
-        "view:patching", "view:security",
-        "view:compliance",
-        "view:logs", "view:reporting",
-        "view:automation", "view:finops",
-        "manage:settings",
-        "view:itam", "manage:itam",
-    ]
+    # A signed-up tenant sees Overview only until a Super Admin selects its features and screens
+    # in Manage Tenant (spec C6): nothing is switched on that no Super Admin chose.
+    start_features = list(tenant_features.START_FEATURES)
 
     tenant_doc = {
         "id": tenant_id,
@@ -339,7 +329,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "maxAgents": 5,
         "registrationKey": registration_key,
         "apiKeys": [],
-        "enabledFeatures": tenant_features.with_all_screens(free_features),
+        "enabledFeatures": start_features,
         "agentCapabilities": agent_capabilities.every_capability(),
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
@@ -406,7 +396,7 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
             "name": company_name,
             "subscriptionTier": "Free",
             "maxAgents": 5,
-            "enabledFeatures": tenant_features.with_all_screens(free_features)
+            "enabledFeatures": start_features
         }
     }
 

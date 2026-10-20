@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has its own switch: either its permission's switch (when no other item shares that permission) or a \"screen:<view>\" switch. For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. A \"screen:<view>\" switch turns one sidebar item off: the sidebar hides it and the server refuses the routes the item owns in the manifest, unless the entry is \"hideOnly\" (its routes serve other screens too). A screen with no parent hangs only on the permission its manifest entry names (Overview, Tickets, My Tasks ...). Read by backend/tenant_features.py, components/ManageTenantModal.tsx and utils/permissions.ts. Every screen switch sits in the group of its sidebar section. In a group marked \"explicitScreens\" (Security, Compliance) a screen is on only when a Super Admin ticks it: new tenants start with none, and switching the group's features on does not switch its screens on.",
+  "description": "Per-tenant feature switches (spec C6). A Super Admin turns these on or off for a tenant in Manage Tenant; the list is stored in tenants.enabledFeatures. Groups follow the sidebar sections (shared/catalogue-access.json), and every sidebar item a tenant role can reach has its own switch: either its permission's switch (when no other item shares that permission) or a \"screen:<view>\" switch. For users of that tenant the server removes every switched-off permission, and every permission on the same resource as a switched-off view:X (manage:X and the like), from what their role grants. A feature with a parent is off whenever its parent is off. A \"screen:<view>\" switch turns one sidebar item off: the sidebar hides it and the server refuses the routes the item owns in the manifest, unless the entry is \"hideOnly\" (its routes serve other screens too). A screen with no parent hangs only on the permission its manifest entry names (Overview, Tickets, My Tasks ...). Read by backend/tenant_features.py, components/ManageTenantModal.tsx and utils/permissions.ts. Every screen switch sits in the group of its sidebar section. Every screen is on only when a Super Admin ticks it: a new tenant (sign-up or Add Tenant) starts with Overview only (tenant_features.START_FEATURES), and switching a feature on, or picking a tier, does not switch its screens on. Groups marked \"explicitScreens\" (Security, Compliance) were explicit first; migrations 017 and 018 still read that mark.",
   "groups": [
     {
       "name": "Dashboards & Insights",
@@ -901,11 +901,6 @@
         {
           "permission": "screen:secretsManagement",
           "label": "Secrets Management",
-          "parent": "manage:settings"
-        },
-        {
-          "permission": "screen:hadr",
-          "label": "HA/DR & Backups",
           "parent": "manage:settings"
         },
         {

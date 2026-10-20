@@ -31,7 +31,7 @@ SYSTEM_HEALTH_GUARD = catalogue_guard("systemHealth", read=_SETTINGS, write=_SET
 API_STATUS_GUARD = catalogue_guard("apiStatus", read=_SETTINGS, write=_SETTINGS)
 GEO_SECURITY_GUARD = catalogue_guard("geoSecurity", read=_SETTINGS, write=_SETTINGS)
 CLOUD_INTEGRATIONS_GUARD = catalogue_guard("cloudIntegrations", read=_SETTINGS, write=_SETTINGS)
-HADR_GUARD = catalogue_guard("hadr", read=_SETTINGS, write=_SETTINGS)
+HADR_GUARD = catalogue_guard("hadr", read=("view:backups",), write=("manage:backups",))  # platform only
 RETENTION_POLICY_GUARD = catalogue_guard("retentionPolicy", read=_SETTINGS, write=_SETTINGS)
 RETENTION_POLICIES_GUARD = catalogue_guard(
     "retentionPolicies", read=("view:retention_policies",), write=_SETTINGS

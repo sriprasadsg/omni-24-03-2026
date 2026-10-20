@@ -79,13 +79,16 @@ def test_settings_ops_governance_settings_stay_unguarded():
 def test_settings_ops_real_app_enforced():
     """viewer lacks manage:settings: settings, secrets and system reads refuse it; tenant_admin passes."""
     reads = ["/api/settings/llm", "/api/settings/database", "/api/secrets/list", "/api/secrets/stats",
-             "/api/system/health", "/api/hadr/status", "/api/retention/policies",
+             "/api/system/health", "/api/retention/policies",
              "/api/webhooks", "/api/integrations/configs", "/api/cloud-integrations"]
     for role in ("nobody", "viewer"):
         denied = probe_real_app([_case(p, role) for p in reads])
         assert denied == [403] * len(reads), (role, dict(zip(reads, denied)))
     allowed = probe_real_app([_case(p, "tenant_admin") for p in reads])
     assert 403 not in allowed, dict(zip(reads, allowed))
+    # HA/DR backs up and restores the platform database: a platform screen, refused to every tenant role.
+    assert probe_real_app([_case("/api/hadr/status", role) for role in ("viewer", "tenant_admin")]) == [403, 403]
+    assert probe_real_app([_case("/api/hadr/status", "super_admin")])[0] != 403
     # A write needs the manifest write string through the same guard.
     writes = [("POST", "/api/cache/clear"), ("POST", "/api/settings/llm"), ("POST", "/api/webhooks")]
     assert probe_real_app([_case(p, "viewer", method=m) for m, p in writes]) == [403] * len(writes)

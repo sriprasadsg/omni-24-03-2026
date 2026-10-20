@@ -376,7 +376,7 @@ def test_settings_screens_are_switched_one_by_one():
     assert (tf.screen_of("/api/payments/invoices/1"), tf.screen_of("/api/payments/plans")) == ("invoices", "subscriptionManagement")
     assert tf.screen_permissions(["manage:settings"], ["manage:settings", "screen:pam"]) == ["screen:pam"]
     assert tf.screen_permissions(["manage:settings"], ["screen:pam"]) == []
-    assert "screen-off:hadr" in tf.hidden_screens(["manage:settings"], ["manage:settings", "screen:pam"])
+    assert "screen-off:systemHealth" in tf.hidden_screens(["manage:settings"], ["manage:settings", "screen:pam"])
 
 
 async def test_migration_018_keeps_every_settings_screen(mongo_db):
@@ -391,3 +391,18 @@ async def test_migration_018_keeps_every_settings_screen(mongo_db):
     assert {"screen:settings", "screen:invoices"} <= features["s"]
     assert "screen:pam" not in features["s"]                                      # a Security screen: explicit
     assert not {"screen:pam", "screen:settings", "screen:invoices"} & features["n"]
+
+
+async def test_migration_023_drops_the_hadr_switch_from_every_tenant(mongo_db):
+    """protects=HA/DR (platform backups and restores) leaves every tenant's list on deploy and is no
+    longer a tenant switch; fails_when=a tenant keeps screen:hadr or loses another entry; no_claim=the
+    runner bookkeeping."""
+    import importlib
+    await mongo_db.tenants.insert_many([{"id": "h", "enabledFeatures": ["manage:settings", "screen:hadr", "screen:settings"]},
+                                        {"id": "n", "enabledFeatures": ["view:agents"]}])
+    migration = importlib.import_module("migrations.023_hadr_platform_only")
+    for _ in range(2):  # running it twice changes nothing more
+        await migration.up(mongo_db)
+        features = {t["id"]: t["enabledFeatures"] async for t in mongo_db.tenants.find({}, {"_id": 0})}
+        assert features == {"h": ["manage:settings", "screen:settings"], "n": ["view:agents"]}
+    assert "screen:hadr" not in tf.SWITCHABLE and "hadr" not in tf.SCREEN_SWITCHES

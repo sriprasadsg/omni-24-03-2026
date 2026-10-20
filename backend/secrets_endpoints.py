@@ -223,7 +223,7 @@ async def get_secret_value(
     response: Response,
     name: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("read:secrets"))
+    current_user: dict = Depends(require_permission("manage:secrets"))
 ):
     """
     Get secret value (decrypted)

@@ -23,14 +23,14 @@ def _tenant_filter(current_user) -> dict:
 
 
 @router.get("/images")
-async def list_images(db=Depends(_db), current_user=Depends(require_permission("view:containers"))):
+async def list_images(db=Depends(_db), current_user=Depends(require_permission("view:devsecops"))):
     filt = {**_tenant_filter(current_user), **{"_id": 0}}
     cursor = db["container_images"].find(_tenant_filter(current_user), {"_id": 0}).sort("scanned_at", -1).limit(100)
     return await cursor.to_list(length=100)
 
 
 @router.post("/images/scan")
-async def scan_image(payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:containers"))):
+async def scan_image(payload: dict, db=Depends(_db), current_user=Depends(require_permission("manage:devsecops"))):
     tid = (current_user.get("tenantId") or current_user.get("tenant_id")) if isinstance(current_user, dict) else (getattr(current_user, "tenantId", None) or getattr(current_user, "tenant_id", None))
     scan = {
         "id": f"img-{int(time.time())}",
@@ -49,7 +49,7 @@ async def scan_image(payload: dict, db=Depends(_db), current_user=Depends(requir
 
 
 @router.get("/images/{image_id}")
-async def get_image_scan(image_id: str, db=Depends(_db), current_user=Depends(require_permission("view:containers"))):
+async def get_image_scan(image_id: str, db=Depends(_db), current_user=Depends(require_permission("view:devsecops"))):
     query = {"id": image_id, **_tenant_filter(current_user)}
     doc = await db["container_images"].find_one(query, {"_id": 0})
     if not doc:
@@ -58,19 +58,19 @@ async def get_image_scan(image_id: str, db=Depends(_db), current_user=Depends(re
 
 
 @router.get("/vulnerabilities")
-async def list_vulnerabilities(db=Depends(_db), current_user=Depends(require_permission("view:containers"))):
+async def list_vulnerabilities(db=Depends(_db), current_user=Depends(require_permission("view:devsecops"))):
     cursor = db["container_vulns"].find(_tenant_filter(current_user), {"_id": 0}).sort("severity_score", -1).limit(200)
     return await cursor.to_list(length=200)
 
 
 @router.get("/registries")
-async def list_registries(db=Depends(_db), current_user=Depends(require_permission("view:containers"))):
+async def list_registries(db=Depends(_db), current_user=Depends(require_permission("view:devsecops"))):
     cursor = db["container_registries"].find(_tenant_filter(current_user), {"_id": 0})
     return await cursor.to_list(length=50)
 
 
 @router.get("/stats")
-async def stats(db=Depends(_db), current_user=Depends(require_permission("view:containers"))):
+async def stats(db=Depends(_db), current_user=Depends(require_permission("view:devsecops"))):
     filt = _tenant_filter(current_user)
     total = await db["container_images"].count_documents(filt)
     vuln_filt = {**filt}

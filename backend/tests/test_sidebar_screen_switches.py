@@ -111,19 +111,8 @@ def test_new_tenants_start_with_every_screen_they_can_reach():
     assert "screen:chat" not in start
 
 
-def _signup_free_features():
-    """The ``free_features`` list the self-signup handler gives a new tenant, read from its source."""
-    with open(os.path.join(os.path.dirname(__file__), "..", "authentication_endpoints.py"), encoding="utf-8") as f:
-        tree = ast.parse(f.read())
-    lists = [ast.literal_eval(node.value) for node in ast.walk(tree) if isinstance(node, ast.Assign)
-             and any(isinstance(t, ast.Name) and t.id == "free_features" for t in node.targets)]
-    assert len(lists) == 1
-    return lists[0]
-
-
-def _visible_by_section(start_list):
-    """``{sidebar section: [labels]}`` a tenant role sees when its tenant is created with ``start_list``."""
-    features = tf.with_all_screens(start_list)
+def _visible_by_section(features):
+    """``{sidebar section: [labels]}`` a tenant role sees with ``features`` stored for its tenant."""
     granted = set(tf.narrow(TENANT_PERMS, features))
     off = {m[len(tf.SCREEN_OFF_PREFIX):] for m in tf.hidden_screens(granted, features)}
     visible = {c["group"]: [] for c in NAV}
@@ -133,24 +122,32 @@ def _visible_by_section(start_list):
     return visible
 
 
-def test_a_self_signup_tenant_sees_no_security_or_compliance_item():
-    """protects=a tenant that signs itself up starts with no Security or Compliance sidebar item (Audit Log
-    included) while keeping Overview; a Super Admin ticks those; fails_when=the free tier switches Audit Log
-    or a Security screen on again; no_claim=the signup handler's other writes."""
-    visible = _visible_by_section(_signup_free_features())
-    assert visible["security"] == [] and visible["governance"] == []
-    assert "Overview" in visible["dashboards"]
+def _only_overview(visible):
+    return visible["dashboards"] == ["Overview"] and not any(v for g, v in visible.items() if g != "dashboards")
 
 
-def test_a_tenant_the_super_admin_creates_sees_no_security_or_compliance_item():
-    """protects=a tenant a Super Admin creates without a list (the UI sends none) starts with no Security or
-    Compliance sidebar item (Audit Log included) while keeping Overview and Settings; fails_when=the create
-    default switches Audit Log or a Security item (Threat Hunting, DSPM ...) on again; no_claim=the create
-    handler's other writes."""
+def test_a_self_signup_tenant_sees_only_overview_until_a_super_admin_selects():
+    """protects=a tenant that signs itself up sees Overview and nothing else: every other feature and
+    screen is a Super Admin's choice (2026-10-20: ABC's admin saw 47 screens, HA/DR among them, that
+    nobody selected); fails_when=sign-up switches a feature or screen on again; no_claim=the handler's
+    other writes."""
+    with open(os.path.join(os.path.dirname(__file__), "..", "authentication_endpoints.py"), encoding="utf-8") as f:
+        source = f.read()
+    assert "start_features = list(tenant_features.START_FEATURES)" in source
+    assert "with_all_screens" not in source
+    assert _only_overview(_visible_by_section(tf.START_FEATURES))
+
+
+def test_a_tenant_the_super_admin_creates_starts_with_exactly_what_was_selected():
+    """protects=Add Tenant (no list from the UI) starts with Overview only, and a list the Super Admin sends
+    is stored as sent, with no screen added because its feature is on; fails_when=the create default or
+    with_all_screens switches screens on again; no_claim=the create handler's other writes."""
     import tenant_endpoints
-    visible = _visible_by_section(tenant_endpoints.TenantCreate(name="t").enabledFeatures)
-    assert visible["security"] == [] and visible["governance"] == []
-    assert "Overview" in visible["dashboards"] and "Settings" in visible["mgmt"]
+    assert tuple(tenant_endpoints.TenantCreate(name="t").enabledFeatures) == tf.START_FEATURES
+    assert _only_overview(_visible_by_section(tenant_endpoints.TenantCreate(name="t").enabledFeatures))
+    picked = ["view:dashboard", "screen:dashboard", "manage:settings", "screen:settings"]
+    visible = _visible_by_section(picked)
+    assert visible["mgmt"] == ["Settings"]  # System Settings on: only the screen that was ticked
 
 
 async def test_migration_019_adds_only_the_new_screens(mongo_db):

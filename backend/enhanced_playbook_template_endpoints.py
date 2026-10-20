@@ -42,7 +42,7 @@ def _get_connector_actions(connector_name: str) -> List[str]:
 async def get_playbook_templates(
     category: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("view:playbooks"))
+    _current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """Get playbook templates filtered by optional category."""
     query = {"is_template": True}
@@ -93,7 +93,7 @@ async def create_playbook_from_template(
 async def get_playbook_analytics(
     _days: int = 30,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:playbooks"))
+    current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """Get playbook execution analytics including success rates and timing."""
     tenant_id = _get(current_user, "tenantId")
@@ -143,7 +143,7 @@ async def get_playbook_analytics(
 
 @router.get("/integrations")
 async def get_available_integrations(
-    _current_user: dict = Depends(require_permission("view:playbooks"))
+    _current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """Get list of available integration connectors with their connection status."""
     integration_manager = get_integration_manager()

@@ -110,7 +110,7 @@ async def get_costs(
 
 @router.get("/recommendations")
 async def get_recommendations(
-    current_user: dict = Depends(require_permission("view:system"))
+    current_user: dict = Depends(require_permission("view:finops"))
 ):
     """
     Get cost optimization recommendations.
@@ -166,7 +166,7 @@ async def recalculate_costs(
 
 @router.get("/pricing")
 async def get_pricing(
-    current_user: dict = Depends(require_permission("view:settings"))
+    current_user: dict = Depends(require_permission("view:finops"))
 ):
     """Get service pricing configuration (includes one $5+ entry per compliance framework)."""
     return await finops_service.get_service_pricing(get_database())

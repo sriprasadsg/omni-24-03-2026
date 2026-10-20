@@ -309,6 +309,8 @@ export type Permission =
   | 'view:detection_rules' | 'manage:detection_rules'
   | 'view:connectors_hub' | 'manage:connectors_hub'
   | 'manage:dashboards'
+  | 'manage:automl' | 'manage:mlops' | 'manage:tracing'
+  | 'view:backups' | 'manage:backups'
   | 'view:security_copilot'
   | 'view:mssp' | 'manage:mssp'
   | 'view:attack_timeline'

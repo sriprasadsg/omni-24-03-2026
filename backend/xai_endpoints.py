@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/xai", tags=["AI Explainability (XAI)"])
 @router.get("/global/{model_id}")
 async def get_global_importance(
     model_id: str,
-    current_user: dict = Depends(require_permission("view:ai_systems"))
+    current_user: dict = Depends(require_permission("view:xai"))
 ):
     """
     Get global feature importance for a model.
@@ -18,7 +18,7 @@ async def get_global_importance(
 @router.post("/explain")
 async def explain_prediction(
     request: Dict[str, Any],
-    current_user: dict = Depends(require_permission("view:ai_systems"))
+    current_user: dict = Depends(require_permission("view:xai"))
 ):
     """
     Get local explanation (SHAP) for a specific input.

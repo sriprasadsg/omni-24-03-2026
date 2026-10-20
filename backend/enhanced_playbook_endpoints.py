@@ -65,7 +65,7 @@ async def execute_playbook(
     request: PlaybookExecutionRequest,
     _background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("execute:playbooks"))
+    current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """
     Execute a playbook with advanced flow control
@@ -106,7 +106,7 @@ async def execute_playbook(
 async def test_playbook(
     request: PlaybookTestRequest,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    _current_user: dict = Depends(require_permission("execute:playbooks"))
+    _current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """
     Test a playbook in dry-run mode
@@ -157,7 +157,7 @@ async def get_playbook_executions(
     status: Optional[str] = None,
     limit: int = 50,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:playbooks"))
+    current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """
     Get playbook execution history
@@ -184,7 +184,7 @@ async def get_playbook_executions(
 async def get_execution_details(
     execution_id: str,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("view:playbooks"))
+    current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """
     Get detailed execution information
@@ -213,7 +213,7 @@ async def approve_playbook_step(
     request: ApprovalActionRequest,
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
-    current_user: dict = Depends(require_permission("approve:playbooks"))
+    current_user: dict = Depends(require_permission("manage:playbooks"))
 ):
     """
     Approve or reject a playbook step waiting for approval

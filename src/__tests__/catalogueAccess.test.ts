@@ -111,7 +111,7 @@ describe('manifest membership in the type unions', () => {
     }
     // Known gap for 76-11: these appear only in read/write lists, never as a view permission.
     expect([...backendOnly].sort()).toEqual([
-      'manage:approvals', 'manage:assets', 'manage:compliance', 'manage:procurement',
+      'manage:approvals', 'manage:assets', 'manage:compliance', 'manage:devsecops', 'manage:procurement',
       'manage:secrets', 'manage:users', 'request:assets', 'view:secrets',
     ]);
   });

@@ -91,6 +91,10 @@ HIDE_ONLY_SCREENS: FrozenSet[str] = frozenset(
 EXPLICIT_SCREENS: FrozenSet[str] = frozenset(
     f["permission"][len(SCREEN_PREFIX):] for f in _SWITCHES
     if f["permission"].startswith(SCREEN_PREFIX) and f["_explicit"])
+# What a new tenant has before a Super Admin selects anything, however it was created (sign-up or
+# Add Tenant): Overview and the user's own profile. Every other feature and screen is ticked by a
+# Super Admin in Manage Tenant.
+START_FEATURES: Tuple[str, ...] = ("view:dashboard", "view:profile", f"{SCREEN_PREFIX}dashboard")
 
 
 def _route_owners(manifest: Dict[str, Any] = _MANIFEST) -> List[tuple]:

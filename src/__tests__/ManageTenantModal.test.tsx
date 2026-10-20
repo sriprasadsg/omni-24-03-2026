@@ -86,33 +86,35 @@ describe('ManageTenantModal compliance frameworks', () => {
 });
 
 describe('ManageTenantModal sidebar screens', () => {
-  it('switching a feature on ticks each of its screens, which can then be unticked one by one', () => {
+  // 2026-10-20: a tenant sees only what a Super Admin ticked, so a feature never brings its screens.
+  it('switching a feature on ticks none of its screens; each is ticked one by one', () => {
     const onSave = vi.fn();
     render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={onSave} onDelete={() => {}} />);
     expect(switchBox('Deployment Approvals').disabled).toBe(true);
     fireEvent.click(switchBox('Patch Management'));
-    expect(switchBox('Deployment Approvals').checked).toBe(true);
+    expect(switchBox('Deployment Approvals')).toMatchObject({ checked: false, disabled: false });
     fireEvent.click(switchBox('Deployment Approvals'));
     fireEvent.click(screen.getByText('Save Changes'));
     const saved = onSave.mock.calls[0][1].features as string[];
-    expect(saved).toEqual(expect.arrayContaining(['view:patching', 'screen:patchManagement']));
-    expect(saved).not.toContain('screen:deploymentApprovals');
+    expect(saved).toEqual(expect.arrayContaining(['view:patching', 'screen:deploymentApprovals']));
+    expect(saved).not.toContain('screen:patchManagement');
   });
 
-  it('choosing a tier keeps the screens of its features on', () => {
+  it('choosing a tier sets its features and keeps only the screens already ticked', () => {
     const onSave = vi.fn();
-    render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={onSave} onDelete={() => {}} />);
+    const ticked = { ...tenant, enabledFeatures: ['view:reporting', 'screen:reporting'] } as unknown as Tenant;
+    render(<ManageTenantModal isOpen onClose={() => {}} tenant={ticked} onSave={onSave} onDelete={() => {}} />);
     fireEvent.change(screen.getByDisplayValue('Custom'), { target: { value: 'Pro' } });
     fireEvent.click(screen.getByText('Save Changes'));
     const saved = onSave.mock.calls[0][1].features as string[];
-    expect(saved).toEqual(expect.arrayContaining(['view:security', 'screen:reporting', 'screen:dashboard']));
-    expect(saved).not.toContain('screen:edr');   // Security screens are ticked one by one
+    expect(saved).toEqual(expect.arrayContaining(['view:security', 'screen:reporting']));
+    expect(saved.filter(f => f.startsWith('screen:'))).toEqual(['screen:reporting']);
   });
 
   it('switching Security on ticks none of its screens; a Super Admin ticks each one', () => {
     const onSave = vi.fn();
     render(<ManageTenantModal isOpen onClose={() => {}} tenant={tenant} onSave={onSave} onDelete={() => {}} />);
-    expect(screen.getAllByText(/Tick each screen this tenant may use/)).toHaveLength(2);   // Security and Compliance
+    expect(screen.getAllByText(/tick each screen the tenant may use/)).toHaveLength(1);
     fireEvent.click(switchBox('Security Operations'));
     expect(switchBox('EDR (Real-Time)').checked).toBe(false);
     fireEvent.click(switchBox('EDR (Real-Time)'));

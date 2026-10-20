@@ -39,16 +39,16 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
         "manage:active_response", "manage:advanced_hunting", "manage:agent_groups",
         "manage:agents", "manage:ai_risks", "manage:android_enterprise", "manage:api_keys",
         "manage:app_catalog", "manage:approvals", "manage:asset_intelligence", "manage:assets",
-        "manage:automation", "manage:autopilot", "manage:branch_sites", "manage:compliance",
+        "manage:automation", "manage:automl", "manage:autopilot", "manage:branch_sites", "manage:compliance",
         "manage:compliance_evidence", "manage:conditional_access", "manage:config_drift",
         "manage:connectors_hub", "manage:dashboards", "manage:detection_rules",
         "manage:device_config_profiles", "manage:devsecops", "manage:experiments", "manage:fim",
         "manage:finance",
         "manage:firmware_drivers", "manage:itam", "manage:licenses", "manage:mam", "manage:mdm",
-        "manage:mssp", "manage:patches", "manage:playbooks",
+        "manage:mlops", "manage:mssp", "manage:patches", "manage:playbooks",
         "manage:procurement", "manage:rbac", "manage:retention_policies", "manage:sbom",
         "manage:sca", "manage:secrets", "manage:security_cases", "manage:security_playbooks",
-        "manage:settings", "manage:users", "remediate:agents", "request:assets",
+        "manage:settings", "manage:tracing", "manage:users", "remediate:agents", "request:assets",
         "view:active_response", "view:advanced_bi", "view:advanced_hunting",
         "view:agent_capabilities", "view:agent_groups", "view:agent_logs", "view:agents",
         "view:ai_governance", "view:analytics", "view:android_enterprise", "view:app_catalog",
@@ -150,8 +150,11 @@ ROLE_ALIASES: Dict[str, str] = {"admin": "tenant_admin"}
 # D-03 / D-06: reachable only through the super-admin wildcard, never granted
 # by this table to any other role.
 SUPER_ADMIN_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
+    # HA/DR backs up and restores the platform database itself, so it is never a tenant screen.
+    "manage:backups",
     "manage:pricing",  # service pricing applies to every tenant (QA ISSUE-005, user decision D6)
     "manage:tenants",
+    "view:backups",
     "view:federated_learning",
     "view:goal_system",
     "view:jobs",

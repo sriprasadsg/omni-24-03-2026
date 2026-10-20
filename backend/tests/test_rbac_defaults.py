@@ -17,15 +17,15 @@ GOLDEN = {
         "manage:active_response", "manage:advanced_hunting", "manage:agent_groups",
         "manage:agents", "manage:ai_risks", "manage:android_enterprise", "manage:api_keys",
         "manage:app_catalog", "manage:approvals", "manage:asset_intelligence", "manage:assets",
-        "manage:automation", "manage:autopilot", "manage:branch_sites", "manage:compliance",
+        "manage:automation", "manage:automl", "manage:autopilot", "manage:branch_sites", "manage:compliance",
         "manage:compliance_evidence", "manage:conditional_access", "manage:config_drift",
         "manage:connectors_hub", "manage:dashboards", "manage:detection_rules",
         "manage:device_config_profiles", "manage:devsecops", "manage:experiments", "manage:fim",
         "manage:finance", "manage:firmware_drivers", "manage:itam", "manage:licenses", "manage:mam", "manage:mdm",
-        "manage:mssp", "manage:patches", "manage:playbooks",
+        "manage:mlops", "manage:mssp", "manage:patches", "manage:playbooks",
         "manage:procurement", "manage:rbac", "manage:retention_policies", "manage:sbom",
         "manage:sca", "manage:secrets", "manage:security_cases", "manage:security_playbooks",
-        "manage:settings", "manage:users", "remediate:agents", "request:assets",
+        "manage:settings", "manage:tracing", "manage:users", "remediate:agents", "request:assets",
         "view:active_response", "view:advanced_bi", "view:advanced_hunting",
         "view:agent_capabilities", "view:agent_groups", "view:agent_logs", "view:agents",
         "view:ai_governance", "view:analytics", "view:android_enterprise", "view:app_catalog",
@@ -110,7 +110,7 @@ GOLDEN = {
     }),
 }
 
-GOLDEN_SIZES = {"tenant_admin": 127, "user": 22, "analyst": 19, "security_analyst": 17,
+GOLDEN_SIZES = {"tenant_admin": 130, "user": 22, "analyst": 19, "security_analyst": 17,
                 "incident_responder": 12, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4,
                 "platform_support": 76, "platform_billing": 7}
 
@@ -173,7 +173,7 @@ def test_d02_catalogues_belong_to_tenant_admin_only():
 
 def test_super_admin_only_catalogues_and_manage_tenants_are_never_granted():
     """D-03 / D-06"""
-    assert len(d.SUPER_ADMIN_ONLY_PERMISSIONS) == 8  # + manage:pricing (QA ISSUE-005)
+    assert len(d.SUPER_ADMIN_ONLY_PERMISSIONS) == 10  # + manage:pricing (QA ISSUE-005), view/manage:backups (HA/DR)
     assert "manage:tenants" in d.SUPER_ADMIN_ONLY_PERMISSIONS
     for key, perms in d.ROLE_DEFAULTS.items():
         assert not (d.SUPER_ADMIN_ONLY_PERMISSIONS & set(perms)), key

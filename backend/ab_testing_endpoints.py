@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/experiments", tags=["A/B Testing & Experimentati
 
 @router.get("/")
 async def list_experiments(
-    current_user: dict = Depends(require_permission("view:system"))
+    current_user: dict = Depends(require_permission("manage:experiments"))
 ):
     """
     List all active experiments.
@@ -19,7 +19,7 @@ async def list_experiments(
 @router.post("/")
 async def create_experiment(
     request: Dict[str, Any],
-    current_user: dict = Depends(require_permission("manage:system"))
+    current_user: dict = Depends(require_permission("manage:experiments"))
 ):
     """
     Create a new A/B test.
