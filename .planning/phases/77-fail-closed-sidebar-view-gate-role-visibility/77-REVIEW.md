@@ -1,22 +1,31 @@
 ---
 phase: 77-fail-closed-sidebar-view-gate-role-visibility
 reviewed: 2026-10-19T00:00:00Z
-reviewed_incremental: 2026-10-19
+reviewed_incremental: 2026-10-21
 incremental_files:
   - App.tsx
   - src/__tests__/catalogueAccess.test.ts
   - utils/permissionRefresh.ts
   - src/__tests__/permissionRefresh.test.ts
   - services/apiService.ts
+  - hooks/useVisibleNav.ts
+  - components/Sidebar.tsx
+  - backend/authentication_endpoints.py
+  - backend/rbac_defaults.py
+  - backend/tenant_features.py
+  - backend/tests/test_closure_delivery.py
+  - backend/tests/test_login_me_permissions.py
+  - backend/tests/test_role_visibility.py
+  - backend/tests/test_tenant_feature_switches.py
   - backend/authentication_service.py
   - backend/role_endpoints.py
   - backend/websocket_manager.py
   - backend/tests/test_custom_role_mfa.py
   - backend/tests/test_role_write_api.py
   - backend/tests/test_websocket_connect_rate_limit.py
-incremental_scope: fix commit a1f4488d1 (WR-01); fix commit b76b8af8d (WR-08), second incremental pass 2026-10-19; fix commit 41fb29db5 (WR-09), third incremental pass 2026-10-19; fix commits 3bb575186 (WR-10) and bee9299ce (WR-02, WR-03), fourth incremental pass 2026-10-19; fix commit 2bc310005 (IN-12), fifth incremental pass 2026-10-19
+incremental_scope: fix commit a1f4488d1 (WR-01); fix commit b76b8af8d (WR-08), second incremental pass 2026-10-19; fix commit 41fb29db5 (WR-09), third incremental pass 2026-10-19; fix commits 3bb575186 (WR-10) and bee9299ce (WR-02, WR-03), fourth incremental pass 2026-10-19; fix commit 2bc310005 (IN-12), fifth incremental pass 2026-10-19; sixth incremental pass 2026-10-21 (later non-phase work, diff base 749bbe82d, see the Sixth incremental section)
 depth: standard
-files_reviewed: 58
+files_reviewed: 60
 files_reviewed_list:
   - App.tsx
   - backend/authentication_endpoints.py
@@ -48,6 +57,7 @@ files_reviewed_list:
   - backend/tests/test_websocket_connect_rate_limit.py
   - backend/user_endpoints.py
   - backend/websocket_manager.py
+  - backend/tenant_signup_endpoints.py
   - components/Dashboard.tsx
   - components/NoAccessPanel.tsx
   - components/NotificationCenter.tsx
@@ -59,6 +69,7 @@ files_reviewed_list:
   - components/Sidebar.tsx
   - components/ZeroAccessScreen.tsx
   - services/apiService.ts
+  - hooks/useVisibleNav.ts
   - services/roleApi.ts
   - src/__tests__/HiddenWidgets.test.tsx
   - src/__tests__/NoAccessScreens.test.tsx
@@ -78,9 +89,9 @@ files_reviewed_list:
   - utils/viewAccess.ts
 findings:
   critical: 0
-  warning: 11
-  info: 13
-  total: 24
+  warning: 13
+  info: 17
+  total: 30
 status: issues_found
 ---
 
@@ -88,7 +99,7 @@ status: issues_found
 
 **Reviewed:** 2026-10-19
 **Depth:** standard
-**Files Reviewed:** 58
+**Files Reviewed:** 60
 **Status:** issues_found
 
 ## Summary
@@ -114,6 +125,12 @@ The access-control core is sound. I traced these paths and found no fail-open an
 **Fourth incremental re-review (2026-10-19, fixes 3bb575186 for WR-10 and bee9299ce for WR-02 and WR-03, diff base a44984c4d).** All three are marked resolved below for the failures they described. Re-run at HEAD: `test_custom_role_mfa.py`, `test_role_write_api.py` and `test_websocket_connect_rate_limit.py` pass (94 of 94) and `permissionRefresh.test.ts` passes (15 of 15). Traced and found sound: `verify_token_async` is a superset of the sync check for sockets (same refresh-token, agent, missing-`sub` and missing-`tenant_id` rejections, same `allow_agent=True` default, same `_set_tenant_id`), so nothing the sync path rejected is now accepted; `token_data` is always bound where the support-chat block reads it (any failure of the `try` returns False first); the sync `verify_token` and `mfa_required_for` now have no production caller, and the one remaining `mfa_action_for` call without `required` (signup, built-in "Tenant Admin") is correct by table; `fetchCurrentPermissions` cannot apply a late result because only the race value reaches `refreshPermissions` and the dangling read swallows its own errors and never touches app state; the new `ws` test fixture restores `sio.emit` through `monkeypatch` and removes its sids, user entries and rate-limit buckets. The pass adds one warning (WR-11, the root cause behind WR-10 is still live for four other `authFetch` callers that pass an `AbortSignal`) and three info items (IN-10 the abandoned `/auth/me` request is never cancelled, IN-11 the sync token path is now dead code with a stale docstring, IN-12 the cache invalidation is not in a `finally` and can be undone by an in-flight lookup).
 
 **Fifth incremental re-review (2026-10-19, fix 2bc310005 for IN-12, diff base a967a510b).** IN-12 is marked resolved below. Re-run at HEAD: `test_custom_role_mfa.py` and `test_role_write_api.py` pass (91 of 91; the working tree carries unrelated uncommitted test-support changes, which did not affect these files). Traced and found sound: (1) the generation protocol. `resolve_mfa_required` reads the tenant generation after its cache check and before its first `await`, and stores only if the generation is unchanged. Every ordering of lookup against write was walked through: a lookup that read the old document and stores after the bump is skipped; one that stores before the bump is popped by the invalidation that follows the write; one that starts after the write reads the new document. The invalidation runs synchronously after the write's last `await`, so there is no gap. (2) `_role_write`: a plain `try/finally` inside a sync context manager. An `HTTPException` (the 409 duplicate path) or any other exception, including `asyncio.CancelledError`, propagates unchanged through `__exit__` to the route's `except HTTPException: raise` / `except Exception: raise _store_unavailable(exc)`; the `finally` body is two dict operations on a string key and cannot raise, so it cannot mask or reorder the original error. The 409 branch deletes the loser's document before the block exits, so the invalidation runs after the rollback. (3) A failure of the pre-check reads (before the `with`) correctly does not invalidate, because nothing was written. (4) `_mfa_cache_generation` grows by one int per tenant id that had a role write; the id comes from `resolve_target_tenant` (validated, sentinels refused) and reads use `.get`, so it never grows from request input. (5) No other runtime code writes the `roles` collection: `app_startup.py:326` seeds at boot with a cold cache, and the three remaining `db._db.roles` writers are the ones now inside `_role_write`. (6) `_clear_mfa_role_cache` (tests only) leaves generations alone, which is harmless for the same reason. (7) Both new tests are non-vacuous: the first fails if the generation guard is removed (the overtaken answer would be cached); the second pre-seeds a cache entry that only `invalidate_mfa_role_cache` can remove and requires 503, so the failure must have occurred inside the `with`. The pass adds one info item (IN-13, a read-after-write failure in `create_role` leaves the role created, unaudited and unreported).
+
+**Sixth incremental re-review (2026-10-21, later non-phase work on 12 Phase 77 files, diff base 749bbe82d).** Commits reviewed: 3d9a17348 and d91ebaf53 (Spatial Glass shell, which moved the sidebar filter into `hooks/useVisibleNav.ts` and added ShellServices, command palette, pins, deep links), abf9e3eee and 8630c0bfa (session-ended notice, hash kept on re-login, idle sign-out), de44428b4 (Dashboard Studio), 6ee22183a and 10ae49628 (tenants see only what is selected, approval-gated sign-up), 256d76614 and 8e255ff9c (Security and Compliance screen fixes in `apiService.ts`). Re-run at HEAD: `test_closure_delivery.py`, `test_login_me_permissions.py`, `test_role_visibility.py` and `test_tenant_feature_switches.py` pass (193 of 193, backend venv); `catalogueAccess.test.ts`, `viewAccess.test.ts`, `SidebarFailClosed.test.tsx` and `SidebarTenantSwitches.test.tsx` pass (83 of 83).
+
+Phase 77's guarantees are intact. Traced and found sound: (1) `useVisibleNav` is a line-for-line move of the old `visibleGroups` memo. It still returns `[]` without a user, calls `evaluateViewAccess` first for every item, and keeps the bypass for a resolved super-admin only; the Sidebar still renders the skeleton and the groups behind `permissionsKnown`. (2) The new consumers (command palette, "g" shortcuts, pins, recent pages, the Header star) all read `openNavItems(useVisibleNav(...))`, so a user with no or unknown permissions gets an empty page list (`derivePermissionState` gives `hasPermission = () => false` for a non-list), and pins and recents read from localStorage are filtered through that list, so a stored view never grants a page. (3) No navigation path bypasses the gate: palette, shortcuts, pins, sidebar and hash changes all call `handleSetCurrentView`, which only moves the view; `ViewGate` decides at render, and `<main>` still shows `SkeletonDashboard` until the landing ran. The new `customDashboards` view has a manifest entry (`view:dashboard`, write `manage:dashboards`), a presentation entry and a `screen:customDashboards` switch; `tenant_middleware` answers 403 for its routes when the screen is off (checked with `screen_of('/api/dashboards')`). (4) The 403 and window-focus triggers, `refreshThenLoad`, the 15 s storm window and `refreshPermissions` are untouched by the diff. (5) `rbac_defaults.py` adds `manage:automl`, `manage:dashboards`, `manage:mlops`, `manage:tracing` to `tenant_admin` and moves `manage:backups`/`view:backups` into `SUPER_ADMIN_ONLY_PERMISSIONS`. I narrowed the tenant_admin defaults to `START_FEATURES`: the three new write permissions other than `manage:dashboards` are removed by the switches, `manage:dashboards` stays but its routes are refused by the screen-off middleware, and the closure tests (no escalation) still pass. (6) `signup` returns no token, cookie or permission list, `login`, `/auth/refresh`, MFA and SSO all go through `account_is_active` (a `Pending` status is not `active`), and the 403 message names the pending state only after the password has been verified, so it is not an enumeration oracle. (7) MFA-by-permission for custom admin-tier roles is untouched; the signup path that used `mfa_action_for("Tenant Admin")` is gone because signup issues no session.
+
+The pass adds two warnings (WR-12 approval is not atomic, WR-13 a pending sign-up claims an email with no verification or expiry) and four info items (IN-14 to IN-17). It also updates the status of two earlier findings: WR-06 is still open and is now easier to reach, and WR-11 is still open (unchanged code).
 
 There are no blockers. The seven original warnings are one stale-state bug in the permission refresh, two MFA-cache problems, two server-side robustness gaps in role edit and delete, one hash-routing prototype-key bug, and a Super Admin UI gap for tenant custom roles. The info items are minor.
 
@@ -195,6 +212,8 @@ Optionally drop non-grantable strings that are already on the role when the edit
 **Fix:** Count with a query instead of loading documents, for example `count_documents({"tenantId": t, "role": {"$regex": ..., "$options": "i"}})` or filter on a stored normalized key. Cap only the listed rows. If a hard scan limit stays, refuse the delete (409 or 503) when the cap is reached.
 
 ### WR-06: `resolveHashView` returns inherited `Object.prototype` members for `#constructor` and `#__proto__`
+
+**Status (2026-10-21, sixth pass): STILL OPEN, more reachable.** `utils/viewAccess.ts:93-98` is unchanged (`HASH_ALIASES` is still a plain `Record`). Since the shell work the hash is a first-class input: `_expireSession` and `endSessionForInactivity` now carry `window.location.hash` through the login redirect, `App.tsx:741-745` keeps it after sign-in, `ShellServices` writes it on every page, and both the hash effect (`App.tsx:433-445`) and the landing effect (`App.tsx:1068`) feed `resolveHashView` straight into `setCurrentView`. `https://host/#constructor` (or `#__proto__`) still passes a function or object into `setCurrentView`. It stays fail-closed (the gate shows the unmapped panel), so it is not raised in severity.
 
 **File:** `utils/viewAccess.ts:94-98` (`HASH_ALIASES[wanted] ?? viewForHash(wanted)`); consumers `App.tsx:437` and `App.tsx:1056`
 **Issue:** `HASH_ALIASES` is a plain object literal, so `HASH_ALIASES['constructor']` (the `Object` function) and `HASH_ALIASES['__proto__']` (`Object.prototype`) are truthy and are returned as an "AppView". `App` passes that to `setCurrentView` (a function value is treated by React as an updater). The landing effect uses `resolveHashView(...) ?? landingView(...)`, so for a link like `https://host/#constructor` it never falls back to the real landing view. The user lands on an unmapped-view panel labelled "function Object() { [native code] }" or "[object Object]". It fails closed, but a crafted link breaks landing for the signed-in user.
@@ -282,6 +301,8 @@ response = await makeRequest(newToken);   // an AbortError or network error here
 
 ### WR-11: `authFetch` still signs the user out when a caller's `AbortSignal` fires during the post-401 retry
 
+**Status (2026-10-21, sixth pass): STILL OPEN.** The 401 branch is unchanged. The only edit to `_expireSession` (`services/apiService.ts:146-160`) appends the page hash to the `/login` redirect and sets the `omni.sessionEnded` notice, so the misfire now also tells the user their session ended, with no sign that it was caused by navigating away.
+
 **File:** `services/apiService.ts:311-317` (the 401 branch of `authFetch`); callers that pass a signal: `components/RemoteAccessDashboard.tsx:31, 45`, `components/SoftwareDeployment.tsx:117, 127`, `components/ComplianceFrameworksDashboard.tsx:137, 157`
 **Issue:** 3bb575186 fixed WR-10 by taking the signal away from one caller. The cause is unchanged: `try { newToken = await refreshAccessToken(); response = await makeRequest(newToken); } catch { _expireSession(); throw new Error('Session expired'); }` treats an abort or a network error on the retry like a failed token refresh. These three components abort their requests in an effect cleanup (`controller.abort()`, for example `RemoteAccessDashboard.tsx:62`, `SoftwareDeployment.tsx:46`). The realistic trigger needs no slow backend: the user opens one of those screens with an access token that has just expired (a 401, so a refresh runs), then navigates away or changes the filter while the refresh is in flight. The cleanup aborts, the retry `fetch` rejects at once with `AbortError`, and `_expireSession()` removes `token` and `refresh_token`, sets `_sessionEnding` and redirects to `/login` after 50 ms, ending a valid session that has a good refreshed token. The components already special-case `AbortError` in their own `catch`, which shows they expect an abort to be harmless.
 **Fix:** Split the refresh from the retry so only a refresh failure ends the session, and let an abort or network error on the retry propagate to the caller:
@@ -296,6 +317,23 @@ try {
 response = await makeRequest(newToken);   // AbortError / network error here must not end the session
 ```
 Add a test with a caller signal: first answer 401, refresh ok, abort before the retry resolves; assert the call rejects with `AbortError`, the token in `sessionStorage` is the refreshed one and `_sessionEnding` is not set.
+
+### WR-12: Approving a sign-up is not atomic; a failure between the two writes strands the admin as `Pending` and cannot be retried
+
+**File:** `backend/tenant_signup_endpoints.py:62-72` (`approve_signup`), with `_pending_tenant` at `:29-33` (counterpart of `backend/authentication_endpoints.py:305-395`)
+**Issue:** `approve_signup` first sets the tenant to `status: "active"`, then activates the users with `update_many(... {"status": "Pending"} ...)`. The only guard for a second approval is `_pending_tenant`, which finds the tenant by `status == "pending_approval"`. If the process dies, the database errors or the request is cancelled between the two writes, the tenant is `active` and the admin is still `Pending`. A retry answers 404 "No pending sign-up for this tenant", the pending list no longer shows the tenant, and the admin gets "waiting for approval" at every login with no UI path to fix it (only a manual database edit). `reject_signup` has the mirror problem: it deletes users first, then the tenant, and `_pending_tenant` would still find the tenant on retry, so that order is the safe one.
+**Fix:** Activate the users first and the tenant last, so a failure leaves the sign-up in the pending list and a retry completes it:
+```python
+await mongodb.db.users.update_many({"tenantId": tenant_id, "status": PENDING_USER_STATUS}, {"$set": {"status": "Active"}})
+await mongodb.db.tenants.update_one({"id": tenant_id, "status": PENDING_TENANT_STATUS}, {"$set": {"status": "active", "approvedAt": now, "approvedBy": current_user.username}})
+```
+(The window then holds an admin who can sign in to a tenant that is still `pending_approval`; check that nothing treats that tenant state as blocked, or add a `pending_approval` check to `login` so the user write alone cannot open the session.)
+
+### WR-13: A pending sign-up claims its email address with no verification and no expiry
+
+**File:** `backend/authentication_endpoints.py:305-326, 331-352` (`signup`); `backend/tenant_signup_endpoints.py:46-59`
+**Issue:** `signup` is public and rate limited to 3 per hour per IP. It stores the user with the requested email and a `Pending` status, and the "Email already registered" check (`find_one({"email": email})`) matches pending rows too. Nothing proves the signer owns the address, and a pending row never expires. Two consequences: (1) anyone can register `person@victim-corp.com` with their own password and company name, and the real owner is then told "Email already registered" until a Super Admin rejects the request by hand; (2) if the Super Admin approves because the company name looks plausible, the approval hands a tenant-admin account bound to someone else's address to the signer. Before 10ae49628 the same squat existed but the signer at least got no extra review step; the queue (`list_pending_signups`, capped at 200 rows) now also fills with junk from a handful of IPs.
+**Fix:** Send a confirmation link to the address and list a sign-up for review only once it is confirmed (or show `adminEmail` as unverified in the queue). Expire unconfirmed pending rows (for example after 7 days, delete tenant, user and consent record together) and let a new sign-up with the same email replace an expired or still-pending one instead of failing.
 
 ## Info
 
@@ -390,6 +428,30 @@ This is the same drift-guard pattern as IN-06.
 **Issue:** After `insert_one` succeeds, the duplicate check reads `custom_role_docs` again. If that read raises, the route answers 503 but the document stays in the store, with its permissions in force, and no `role.created` ledger entry is written (the audit call is after the `try`). 2bc310005 now clears the MFA cache in that case, which fixes the enforcement gap, but the role itself is orphaned: the client is told the create failed, a retry with the same name answers 409 (`validate_role_name` finds the orphan), and the role appears in the list with no audit trail. This is the same gap class as IN-04 (a role change that takes effect with no ledger entry) reached through a different path. It needs the store to fail between two consecutive calls, so it is rare.
 **Fix:** Treat a failure after the insert as a failed create and compensate: wrap the read-after-write in its own `try/except`, run `delete_one({"id": doc["id"], "tenantId": tenant_id})` in a nested `try` (log if that also fails) and then re-raise. Alternatively write the audit entry for the insert before the read and let the 503 path answer with the created role.
 
+### IN-14: Changed `apiService.ts` error paths build `Error(e.detail)` from a value that is not always a string, and the threat-intel mapper can emit empty ids
+
+**File:** `services/apiService.ts:982, 996, 1004, 3309` (`addComplianceControl`, `importComplianceControls`, `runAIAuditor`, `scanArtifactWithVirusTotal`); `:1760` (`toThreatIntelResult`)
+**Issue:** `throw new Error(e.detail || 'Failed ...')` is correct for the string `detail` the app's own HTTPExceptions send, but a FastAPI validation failure (422) sends `detail` as an array of objects, so the toast shows `[object Object]`. A body that is not JSON is handled (`.catch(() => ({}))`). In the mapper, `id: String(data.id ?? '')` turns a missing id into `''`; the old scan code generated a unique fallback, and a feed of several rows without ids now renders with duplicate React keys.
+**Fix:** Add one `errorDetail(body, fallback)` helper (`typeof d === 'string' ? d : Array.isArray(d) ? d.map(x => x.msg ?? JSON.stringify(x)).join('; ') : fallback`) and use it at the four sites. In the mapper use `data.id ?? \`${data.artifact_type}-${data.artifact}\``.
+
+### IN-15: The "known gap" list in `catalogueAccess.test.ts` was extended to make the test pass, and the Sidebar guard is text matching
+
+**File:** `src/__tests__/catalogueAccess.test.ts:112-116, 156-163`
+**Issue:** The test pins the exact set of permissions that appear only in manifest read/write lists. 6ee22183a added `'manage:devsecops'` to the expected set, so a new unlisted permission fails the test only until someone edits the list, which is how a drift guard turns into a changelog. The Sidebar test now checks two files with regexes (`not.toMatch(/permission: '(view|manage|...):/)`), which would also pass if the filter were deleted from `useVisibleNav`. The behavioural `SidebarFailClosed.test.tsx` covers the Sidebar, but nothing renders the palette or the Header star with an unknown permission list, which the new `useVisibleNav` consumers rely on.
+**Fix:** Keep the gap list but require a one-line reason per entry. Add one test that renders `ShellServices` (or calls `openNavItems` over `useVisibleNav`) for a user whose `permissions` is not a list and asserts the page list is empty, and for a user with `['view:dashboard']` that only `dashboard` (and `customDashboards` when its screen is on) is offered.
+
+### IN-16: A hash that names a denied page wins over the landing page, so a different user signing in after a session end lands on the no-access panel
+
+**File:** `App.tsx:1068` (`resolveHashView(...) ?? landingView(...)`), `App.tsx:741-745`, `services/apiService.ts:157-158, 280-281`
+**Issue:** The session-end redirect now keeps the page in the URL ("signing in again lands back on it"). That is intended for the same user, and the page gate still refuses a denied view, so there is no access gain. But the landing code prefers the hash view whether or not the new user may open it. If another person signs in on the same browser tab after an idle sign-out (a shared workstation is exactly where idle sign-out is used), or the same user's role lost the page meanwhile, they see "No access to {page}" with a Go-to-landing button instead of their own landing page, and they are told the name of the previous user's last page.
+**Fix:** In the landing effect use the hash view only when it is allowed: `const wanted = resolveHashView(hash); const next = wanted && evaluateViewAccess(wanted, currentUser, has).allowed ? wanted : landingView(...)`. A denied explicit link (shared URL) can still show the panel through the hash effect at `App.tsx:433`, which is the existing D-05 behaviour.
+
+### IN-17: "One list" claim of `useVisibleNav` is not true for the Header, and `useNavMemory` shows the previous user's pins for one render
+
+**File:** `components/Header.tsx:37` (`useVisibleNav(false)`), `hooks/useVisibleNav.ts:41-46` (doc comment), `hooks/useNavMemory.ts:35-36`
+**Issue:** The hook comment says the sidebar, palette and pins read one list so none can offer a page the others hide. `Header` passes `false` for `isViewingTenant`, but the Sidebar and `ShellServices` pass the real value and hide `manage:tenants` pages while a Super Admin views a tenant. So the Header's pin star can offer to pin a page the sidebar and palette have hidden. It grants nothing (the gate still decides, and the pin is filtered out of every other list), so it is cosmetic. Separately, `useNavMemory`'s `useState` initialisers read the key once; when `userKey` changes (sign-out then sign-in without unmounting), the first render uses the previous user's pinned list until the effect re-reads. The lists are filtered through the new user's visible menu, so nothing is exposed, but the old user's pin order can flash.
+**Fix:** Pass the real `isViewingTenant` to `useVisibleNav` in `Header` (prop or context). In `useNavMemory` derive the state from `userKey` (reset state in the same render when the key changes, or key the component on it).
+
 ---
 
 _Reviewed: 2026-10-19_
@@ -400,3 +462,4 @@ _Incremental re-review 2: 2026-10-19 (b76b8af8d, App.tsx, utils/permissionRefres
 _Incremental re-review 3: 2026-10-19 (41fb29db5, services/apiService.ts, utils/permissionRefresh.ts and src/__tests__/permissionRefresh.test.ts)_
 _Incremental re-review 4: 2026-10-19 (3bb575186 and bee9299ce, backend/authentication_service.py, backend/role_endpoints.py, backend/websocket_manager.py, services/apiService.ts and their tests)_
 _Incremental re-review 5: 2026-10-19 (2bc310005, backend/authentication_service.py, backend/role_endpoints.py, backend/tests/test_custom_role_mfa.py and backend/tests/test_role_write_api.py)_
+_Incremental re-review 6: 2026-10-21 (later non-phase work on 12 Phase 77 files: App.tsx, Sidebar.tsx, useVisibleNav.ts, apiService.ts, authentication_endpoints.py, rbac_defaults.py, tenant_features.py and four test files)_
