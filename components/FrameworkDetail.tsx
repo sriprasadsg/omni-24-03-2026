@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { ComplianceFramework, ControlStatus, Asset, AssetCompliance } from '../types';
 import { AssetComplianceList } from './AssetComplianceList';
@@ -9,9 +8,8 @@ import { ControlEvidenceUploadModal } from './ControlEvidenceUploadModal';
 import { AddControlModal } from './AddControlModal';
 import { ReportsModal } from './ReportsModal';
 import { FrameworkInfoBanner } from './FrameworkInfoBanner';
-import { statusClasses, categoryClasses, categoryIcons, statusOptions } from './frameworkDetailStyles';
-// FIX: Replaced non-existent LockIcon with ShieldLockIcon.
-import { PaperclipIcon, ShieldCheckIcon, ClockIcon, AlertTriangleIcon, FilterIcon, BinocularsIcon, PlusIcon, UploadIcon, BrainCircuitIcon, FileTextIcon } from './icons';
+import { statusClasses, statusDots, categoryChip, categoryIcons, statusOptions } from './frameworkDetailStyles';
+import { PaperclipIcon, ShieldCheckIcon, BinocularsIcon, PlusIcon, UploadIcon, BrainCircuitIcon, FileTextIcon, SearchIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import * as api from '../services/apiService';
 import { showToast } from '../utils/toast';
@@ -22,6 +20,10 @@ interface FrameworkDetailProps {
   assetComplianceData: AssetCompliance[];
   onRefresh?: () => void;
 }
+
+const toolButton = 'inline-flex items-center gap-1.5 whitespace-nowrap h-9 px-3 text-[13px] font-medium text-gray-700 dark:text-gray-200 glass rounded-xl transition-all hover:border-primary-500/40 active:scale-[0.98]';
+const primaryButton = 'inline-flex items-center gap-1.5 whitespace-nowrap h-9 px-3.5 text-[13px] font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700 transition-all active:scale-[0.98]';
+const divider = <span className="hidden md:block h-6 w-px mx-1 bg-gray-200 dark:bg-white/10" aria-hidden="true" />;
 
 export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, assets, assetComplianceData: initialAssetComplianceData, onRefresh }) => {
   const [localAssetCompliance, setLocalAssetCompliance] = useState(initialAssetComplianceData);
@@ -118,6 +120,18 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
     }
   };
 
+  const handleRunAiAuditor = async () => {
+    if (confirm('Run local AI Auditor evaluation on all evidence for this framework? (This may take a few minutes depending on hardware)')) {
+      try {
+        const res = await api.runAIAuditor(framework.id);
+        showToast(res.message, 'success');
+        if (onRefresh) onRefresh();
+      } catch (e) {
+        showToast(`Failed to run AI Audit: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
+      }
+    }
+  };
+
   const statusSummary = useMemo(() => {
     const summary: Record<ControlStatus, number> = {
       'Implemented': 0,
@@ -146,305 +160,268 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
     });
   }, [framework.controls, searchTerm, statusFilter]);
 
+  const totalControls = framework.controls?.length ?? 0;
+  const progress = Math.max(0, Math.min(100, Number(framework.progress) || 0));
+  const toggleControl = (id: string) => setExpandedControlId(expandedControlId === id ? null : id);
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="text-xl font-bold text-gray-800 dark:text-white">{framework.name}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{framework.description}</p>
-            <div className="mt-3 flex space-x-2">
-              <button
-                onClick={() => setIsAddControlModalOpen(true)}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
-              >
-                <PlusIcon size={14} className="mr-1.5" />
-                Add Control
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                title="Import controls from CSV, Excel (.xlsx), PDF, or Word (.docx)"
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                <UploadIcon size={14} className="mr-1.5" />
-                Import Controls
-              </button>
-              {canManageEvidence && (
-                <button
-                  onClick={() => setIsBulkUploadOpen(true)}
-                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                  aria-label="Open bulk evidence upload modal"
-                >
-                  <UploadIcon size={14} className="mr-1.5" />
-                  Bulk Upload Evidence
-                </button>
-              )}
-              {/* Format Selector */}
-              <select
-                value={reportFormat}
-                onChange={(e) => setReportFormat(e.target.value as 'csv' | 'excel' | 'pdf')}
-                className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                <option value="csv">CSV</option>
-                <option value="excel">Excel (.xlsx)</option>
-                <option value="pdf">PDF</option>
-              </select>
-              <button
-                onClick={handleGenerateReport}
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                <FileTextIcon size={14} className="mr-1.5" />
-                Generate Report
-              </button>
-              <button
-                onClick={handleCollectEvidence}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <BinocularsIcon size={14} className="mr-1.5" />
-                Collect Evidence
-              </button>
-              <button
-                onClick={async () => {
-                  if (confirm('Run local AI Auditor evaluation on all evidence for this framework? (This may take a few minutes depending on hardware)')) {
-                    try {
-                      const res = await api.runAIAuditor(framework.id);
-                      showToast(res.message, 'success');
-                      if (onRefresh) onRefresh();
-                    } catch (e) {
-                      showToast(`Failed to run AI Audit: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
-                    }
-                  }
-                }}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-              >
-                <BrainCircuitIcon size={14} className="mr-1.5" />
-                Evaluate with AI Auditor
-              </button>
-              <button
-                onClick={() => setIsReportsModalOpen(true)}
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                <FileTextIcon size={14} className="mr-1.5" />
-                View Reports
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept=".csv,.xlsx,.xls,.pdf,.docx"
-                onChange={handleImportDoc}
-              />
-            </div>
+    <section aria-label={framework.name} className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden">
+      <div className="px-5 pt-5 pb-4 border-b border-gray-100 dark:border-white/[0.06]">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="text-xl font-semibold tracking-[-0.02em] text-gray-900 dark:text-white">{framework.name}</h3>
+            {framework.description && <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{framework.description}</p>}
           </div>
-          {/* Overall Progress Bar */}
-          <div className="text-right min-w-[150px]">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Overall Progress</p>
-            <div className="flex items-center justify-end">
-              <span className="text-lg font-bold text-primary-600 dark:text-primary-400 mr-2">{framework.progress}%</span>
+          <div className="md:w-48 flex-shrink-0">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Progress</span>
+              <span className="text-2xl leading-none font-semibold tracking-[-0.03em] tabular-nums text-gray-900 dark:text-white">{progress}%</span>
             </div>
-            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div className="bg-primary-600 h-2 rounded-full transition-all duration-500" style={{ width: `${framework.progress}%` }}></div>
+            <div className="mt-2 h-1.5 rounded-full overflow-hidden bg-gray-200 dark:bg-white/10" role="progressbar" aria-label="Framework progress" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-primary-500 dark:bg-primary-400 transition-all duration-500" style={{ width: `${progress}%` }} />
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm border-t border-gray-200 dark:border-gray-700 pt-4">
-          <div className="flex items-center text-green-600 dark:text-green-400">
-            <ShieldCheckIcon size={16} className="mr-1.5" />
-            <span className="font-semibold">{statusSummary['Implemented']}</span>
-            <span className="text-gray-500 dark:text-gray-400 ml-1.5">Implemented</span>
-          </div>
-          <div className="flex items-center text-blue-600 dark:text-blue-400">
-            <ClockIcon size={16} className="mr-1.5" />
-            <span className="font-semibold">{statusSummary['In Progress']}</span>
-            <span className="text-gray-500 dark:text-gray-400 ml-1.5">In Progress</span>
-          </div>
-          {statusSummary['At Risk'] > 0 && (
-            <div className="flex items-center text-red-600 dark:text-red-400">
-              <AlertTriangleIcon size={16} className="mr-1.5" />
-              <span className="font-semibold">{statusSummary['At Risk']}</span>
-              <span className="text-gray-500 dark:text-gray-400 ml-1.5">At Risk</span>
-            </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button onClick={() => setIsAddControlModalOpen(true)} className={primaryButton}>
+            <PlusIcon size={14} />
+            Add control
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} title="Import controls from CSV, Excel (.xlsx), PDF, or Word (.docx)" className={toolButton}>
+            <UploadIcon size={14} />
+            Import controls
+          </button>
+          {divider}
+          <button onClick={handleCollectEvidence} title="Ask every agent in this organization to collect evidence for this framework" className={toolButton}>
+            <BinocularsIcon size={14} className="text-primary-600 dark:text-primary-400" />
+            Collect evidence
+          </button>
+          {canManageEvidence && (
+            <button onClick={() => setIsBulkUploadOpen(true)} aria-label="Open bulk evidence upload modal" className={toolButton}>
+              <UploadIcon size={14} />
+              Bulk upload evidence
+            </button>
           )}
+          <button onClick={handleRunAiAuditor} className={toolButton}>
+            <BrainCircuitIcon size={14} className="text-primary-600 dark:text-primary-400" />
+            Evaluate with AI Auditor
+          </button>
+          {divider}
+          <div className="inline-flex items-center gap-1.5">
+            <select
+              value={reportFormat}
+              onChange={(e) => setReportFormat(e.target.value as 'csv' | 'excel' | 'pdf')}
+              aria-label="Report format"
+              className="h-9 pl-3 pr-8 text-[13px] font-medium rounded-xl text-gray-700 dark:text-gray-200 bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 focus:outline-none focus:border-primary-500"
+            >
+              <option value="csv">CSV</option>
+              <option value="excel">Excel (.xlsx)</option>
+              <option value="pdf">PDF</option>
+            </select>
+            <button onClick={handleGenerateReport} className={toolButton}>
+              <FileTextIcon size={14} />
+              Generate report
+            </button>
+          </div>
+          <button onClick={() => setIsReportsModalOpen(true)} className={toolButton}>
+            <FileTextIcon size={14} />
+            View reports
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".csv,.xlsx,.xls,.pdf,.docx"
+            onChange={handleImportDoc}
+          />
         </div>
       </div>
 
       <FrameworkInfoBanner framework={framework} />
 
-      <div className="p-4 flex flex-col md:flex-row gap-4">
-        <div className="flex-grow">
+      <div className="px-5 py-4 flex flex-col xl:flex-row xl:items-center gap-3">
+        <div className="relative flex-grow min-w-0">
+          <SearchIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search controls by ID, name, or description..."
+            placeholder="Search controls…"
+            aria-label="Search controls by ID, name, category or description"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            className="w-full h-9 pl-9 pr-3 text-sm rounded-xl text-gray-900 dark:text-white bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 placeholder:text-gray-400 focus:outline-none focus:border-primary-500"
           />
         </div>
-        <div className="flex-shrink-0 w-full md:w-48">
-          <div className="relative">
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as ControlStatus | 'All')}
-              className="w-full appearance-none px-3 py-2 pl-8 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            >
-              {statusOptions.map(opt => <option key={opt} value={opt}>{opt === 'All' ? 'All Statuses' : opt}</option>)}
-            </select>
-            <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
-              <FilterIcon size={14} className="text-gray-400" />
-            </div>
-          </div>
+        <div role="group" aria-label="Filter by status" className="flex-shrink-0 inline-flex p-0.5 rounded-xl overflow-x-auto bg-gray-100 dark:bg-white/[0.05] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
+          {statusOptions.map(opt => {
+            const active = statusFilter === opt;
+            const count = opt === 'All' ? totalControls : statusSummary[opt];
+            return (
+              <button
+                key={opt}
+                onClick={() => setStatusFilter(opt)}
+                aria-pressed={active}
+                className={`flex items-center gap-1.5 whitespace-nowrap h-8 px-2.5 rounded-[10px] text-xs font-medium transition-colors ${active
+                  ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+              >
+                {opt !== 'All' && <span className={`h-1.5 w-1.5 rounded-full ${statusDots[opt]}`} aria-hidden="true" />}
+                {opt}
+                <span className="tabular-nums text-gray-500 dark:text-gray-400">{count}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-            <tr>
-              <th scope="col" className="px-6 py-3">Control ID</th>
-              <th scope="col" className="px-6 py-3">Control Name</th>
-              <th scope="col" className="px-6 py-3">Status</th>
-              <th scope="col" className="px-6 py-3">Last Reviewed</th>
-              <th scope="col" className="px-6 py-3">Evidence</th>
+      <div className="overflow-x-auto border-t border-gray-100 dark:border-white/[0.06]">
+        <table className="w-full text-sm text-left">
+          <thead>
+            <tr className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-white/[0.06]">
+              <th scope="col" className="px-5 py-2.5">ID</th>
+              <th scope="col" className="px-5 py-2.5">Control</th>
+              <th scope="col" className="px-5 py-2.5">Status</th>
+              <th scope="col" className="px-5 py-2.5 whitespace-nowrap">Last reviewed</th>
+              <th scope="col" className="px-5 py-2.5">Evidence</th>
             </tr>
           </thead>
           <tbody>
-            {filteredControls.map(control => (
-              <React.Fragment key={control.id}>
-                <tr
-                  className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600/50 cursor-pointer"
-                  onClick={() => setExpandedControlId(expandedControlId === control.id ? null : control.id)}
-                >
-                  <td className="px-6 py-4 font-mono text-xs font-medium text-gray-900 dark:text-white">{control.id}</td>
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-gray-800 dark:text-gray-200">{control.name}</div>
-                    {control.category && (
-                      <div className="mt-1.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${categoryClasses[control.category] || 'bg-gray-100 text-gray-800'}`}>
+            {filteredControls.map(control => {
+              const expanded = expandedControlId === control.id;
+              const detailsId = `control-${control.id.replace(/[^A-Za-z0-9_-]/g, '_')}-details`;
+              const evidenceCount = (control.evidence?.length || 0) +
+                assetComplianceData
+                  .filter(ac => ac.controlId === control.id)
+                  .reduce((sum, ac) => sum + (ac.evidence?.length || 0), 0);
+              return (
+                <React.Fragment key={control.id}>
+                  <tr
+                    className={`border-b border-gray-100 dark:border-white/[0.05] cursor-pointer transition-colors ${expanded ? 'bg-primary-500/[0.04]' : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]'}`}
+                    onClick={() => toggleControl(control.id)}
+                  >
+                    <td className="px-5 py-3.5 align-top font-mono text-xs font-medium text-gray-900 dark:text-white whitespace-nowrap">{control.id}</td>
+                    <td className="px-5 py-3.5 align-top min-w-[260px]">
+                      <div className="font-semibold text-gray-900 dark:text-gray-100">{control.name}</div>
+                      {control.category && (
+                        <span className={`mt-1.5 inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full ${categoryChip}`}>
                           {categoryIcons[control.category]}
                           {control.category}
                         </span>
-                      </div>
-                    )}
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{control.description}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusClasses[control.status]}`}>
-                      {control.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-xs font-medium">{control.lastReviewed}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col space-y-2">
+                      )}
+                      {control.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{control.description}</p>}
+                    </td>
+                    <td className="px-5 py-3.5 align-top">
+                      <span className={`inline-block whitespace-nowrap px-2 py-0.5 text-[11px] font-semibold rounded-full ${statusClasses[control.status]}`}>
+                        {control.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 align-top text-xs tabular-nums text-gray-600 dark:text-gray-300 whitespace-nowrap">{control.lastReviewed || '—'}</td>
+                    <td className="px-5 py-3.5 align-top">
                       {control.manual_evidence_instructions && (
-                        <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded border border-blue-100 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300">
-                          <strong className="block mb-1 font-semibold">Manual Collection Guide:</strong>
+                        <div className="mb-2 p-2.5 rounded-lg text-xs text-blue-900 dark:text-blue-100 bg-blue-500/[0.06] ring-1 ring-inset ring-blue-500/20">
+                          <strong className="block mb-0.5 font-semibold">Manual collection guide</strong>
                           {control.manual_evidence_instructions}
                         </div>
                       )}
-                      <div className="flex items-center space-x-3 flex-wrap gap-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExpandedControlId(expandedControlId === control.id ? null : control.id);
-                          }}
-                          className="flex items-center text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 font-medium text-xs"
+                          onClick={(e) => { e.stopPropagation(); toggleControl(control.id); }}
+                          aria-expanded={expanded}
+                          aria-controls={detailsId}
+                          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium text-primary-700 dark:text-primary-300 hover:bg-primary-500/10 transition-colors whitespace-nowrap"
                         >
-                          <PaperclipIcon size={12} className="mr-1.5" />
-                          View ({
-                            (control.evidence?.length || 0) +
-                            assetComplianceData
-                              .filter(ac => ac.controlId === control.id)
-                              .reduce((sum, ac) => sum + (ac.evidence?.length || 0), 0)
-                          })
+                          <PaperclipIcon size={12} />
+                          Evidence ({evidenceCount})
                         </button>
                         {canManageEvidence && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEvidenceUploadControlId(control.id);
-                            }}
-                            className="flex items-center text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded px-2 py-0.5 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setEvidenceUploadControlId(control.id); }}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-500/25 hover:bg-emerald-500/10 transition-colors"
                             title="Upload policy document, audit report, or other evidence for this control"
                           >
-                            <UploadIcon size={11} className="mr-1" />
+                            <UploadIcon size={11} />
                             Upload
                           </button>
                         )}
                       </div>
-                    </div>
-                  </td>
-                </tr>
-                {expandedControlId === control.id && (
-                  <tr key={`${control.id}-details`}>
-                    <td colSpan={5} className="px-6 py-4 bg-gray-50 dark:bg-gray-750">
-                      <AssetComplianceList
-                        control={control}
-                        assets={assets}
-                        complianceData={assetComplianceData}
-                        onUpdateStatus={async (assetId, status) => {
-                            try {
-                                await api.updateAssetComplianceStatus(assetId, control.id, status);
-                                await refreshAssetCompliance(assetId);
-                            } catch (e) {
-                                console.error('Failed to update compliance status', e);
-                                showToast('Failed to update compliance status — please try again', 'error');
-                            }
-                        }}
-                        onEvidenceReviewed={(assetId) => {
-                          // Non-mutating refresh trigger (WR-04) — a review decision doesn't
-                          // change the asset's overall compliance status, so this refetches
-                          // directly instead of reusing onUpdateStatus's mutating write.
-                          refreshAssetCompliance(assetId);
-                        }}
-                        onUploadEvidence={async (assetId, file, description) => {
-                          try {
-                            const res = await api.uploadComplianceEvidence(assetId, control.id, file, description);
-                            if (res.success) {
-                              showToast(`Successfully uploaded evidence: ${file.name}`, 'success');
-                              await refreshAssetCompliance(assetId);
-                            }
-                          } catch (e) {
-                            console.error("Upload Error", e);
-                            showToast("Failed to upload evidence.", 'error');
-                          }
-                        }}
-                        onIngestEvidence={async (assetId, fileName, content) => {
-                          try {
-                            const asset = assets.find(a => a.id === assetId);
-                            const sourceName = `Compliance_Evidence_${control.id}_${asset?.hostname || assetId}_${fileName}`;
-                            const res = await api.ingestKnowledge(content, sourceName);
-                            if (!res.success) {
-                              console.error('Ingest failed', res);
-                            }
-                          } catch (e) {
-                            console.error("Ingest Exception", e);
-                            showToast('Error ingesting evidence.', 'error');
-                          }
-                        }}
-                        onDeleteEvidence={async (assetId, controlId, evidenceId) => {
-                          try {
-                            await api.deleteComplianceEvidence(assetId, controlId, evidenceId);
-                            showToast('Evidence deleted.', 'success');
-                            await refreshAssetCompliance(assetId);
-                          } catch (e) {
-                            console.error("Delete Error", e);
-                            showToast("Failed to delete evidence.", 'error');
-                          }
-                        }}
-                      />
-                      {canViewCoC && <ChainOfCustodyPanel controlId={control.id} />}
-                      <ControlCommentsPanel controlId={control.id} />
                     </td>
                   </tr>
-                )}
-              </React.Fragment>
-            ))}
+                  {expanded && (
+                    <tr id={detailsId}>
+                      <td colSpan={5} className="px-5 py-4 bg-gray-50/80 dark:bg-white/[0.02] border-b border-gray-100 dark:border-white/[0.05]">
+                        <AssetComplianceList
+                          control={control}
+                          assets={assets}
+                          complianceData={assetComplianceData}
+                          onUpdateStatus={async (assetId, status) => {
+                              try {
+                                  await api.updateAssetComplianceStatus(assetId, control.id, status);
+                                  await refreshAssetCompliance(assetId);
+                              } catch (e) {
+                                  console.error('Failed to update compliance status', e);
+                                  showToast('Failed to update compliance status — please try again', 'error');
+                              }
+                          }}
+                          onEvidenceReviewed={(assetId) => {
+                            // Non-mutating refresh trigger (WR-04) — a review decision doesn't
+                            // change the asset's overall compliance status, so this refetches
+                            // directly instead of reusing onUpdateStatus's mutating write.
+                            refreshAssetCompliance(assetId);
+                          }}
+                          onUploadEvidence={async (assetId, file, description) => {
+                            try {
+                              const res = await api.uploadComplianceEvidence(assetId, control.id, file, description);
+                              if (res.success) {
+                                showToast(`Successfully uploaded evidence: ${file.name}`, 'success');
+                                await refreshAssetCompliance(assetId);
+                              }
+                            } catch (e) {
+                              console.error("Upload Error", e);
+                              showToast("Failed to upload evidence.", 'error');
+                            }
+                          }}
+                          onIngestEvidence={async (assetId, fileName, content) => {
+                            try {
+                              const asset = assets.find(a => a.id === assetId);
+                              const sourceName = `Compliance_Evidence_${control.id}_${asset?.hostname || assetId}_${fileName}`;
+                              const res = await api.ingestKnowledge(content, sourceName);
+                              if (!res.success) {
+                                console.error('Ingest failed', res);
+                              }
+                            } catch (e) {
+                              console.error("Ingest Exception", e);
+                              showToast('Error ingesting evidence.', 'error');
+                            }
+                          }}
+                          onDeleteEvidence={async (assetId, controlId, evidenceId) => {
+                            try {
+                              await api.deleteComplianceEvidence(assetId, controlId, evidenceId);
+                              showToast('Evidence deleted.', 'success');
+                              await refreshAssetCompliance(assetId);
+                            } catch (e) {
+                              console.error("Delete Error", e);
+                              showToast("Failed to delete evidence.", 'error');
+                            }
+                          }}
+                        />
+                        {canViewCoC && <ChainOfCustodyPanel controlId={control.id} />}
+                        <ControlCommentsPanel controlId={control.id} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
             {filteredControls.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No controls match your search criteria.
+                <td colSpan={5} className="px-5 py-12 text-center">
+                  <ShieldCheckIcon size={28} className="mx-auto text-gray-400" />
+                  <p className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {totalControls === 0 ? 'This framework has no controls yet' : 'No controls match these filters'}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {totalControls === 0 ? 'Add a control or import them from a file.' : 'Clear the search or pick another status.'}
+                  </p>
                 </td>
               </tr>
             )}
@@ -475,6 +452,6 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
           onUploaded={() => { setIsBulkUploadOpen(false); if (onRefresh) onRefresh(); }}
         />
       )}
-    </div>
+    </section>
   );
 };

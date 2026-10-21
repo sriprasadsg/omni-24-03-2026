@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { ComplianceFramework } from '../types';
-import { ShieldCheckIcon, BotIcon, ShieldLockIcon, GavelIcon, HeartPulseIcon, CreditCardIcon, BookOpenCheckIcon, PlusIcon, XIcon, ExternalLinkIcon } from './icons';
+import { ShieldCheckIcon, BotIcon, ShieldLockIcon, GavelIcon, HeartPulseIcon, CreditCardIcon, BookOpenCheckIcon, PlusIcon, ExternalLinkIcon, SearchIcon } from './icons';
+import { Modal } from './Modal';
 import { addComplianceFramework } from '../services/apiService';
 
 // ── Official compliance framework catalog ──────────────────────────────────
@@ -37,6 +38,9 @@ const CATEGORIES = ['All', ...Array.from(new Set(FRAMEWORK_CATALOG.map(f => f.ca
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 
+const fieldCls = 'h-9 px-3 text-sm rounded-xl text-gray-900 dark:text-white bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 placeholder:text-gray-400 focus:outline-none focus:border-primary-500';
+const labelCls = 'block text-[13px] font-medium text-gray-700 dark:text-gray-300 mb-1';
+
 const AddComplianceModal: React.FC<{
     existingIds: string[];
     onClose: () => void;
@@ -47,6 +51,7 @@ const AddComplianceModal: React.FC<{
     const [search, setSearch]       = useState('');
     const [adding, setAdding]       = useState<string | null>(null);
     const [err, setErr]             = useState('');
+    const fieldId = useId();
 
     // Custom form state
     const [custom, setCustom] = useState({ name: '', shortName: '', description: '', category: '', official_url: '' });
@@ -80,127 +85,128 @@ const AddComplianceModal: React.FC<{
         finally { setAdding(null); }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">Add Compliance Framework</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><XIcon size={20} /></button>
-                </div>
+    const footer = tab === 'custom' ? (
+        <>
+            <button onClick={onClose} className="h-9 px-4 text-sm font-medium text-gray-700 dark:text-gray-200 glass rounded-xl">Cancel</button>
+            <button onClick={handleAddCustom} disabled={adding === 'custom'}
+                className="inline-flex items-center gap-1.5 h-9 px-4 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700 disabled:opacity-50">
+                <PlusIcon size={14} />
+                {adding === 'custom' ? 'Creating…' : 'Create framework'}
+            </button>
+        </>
+    ) : undefined;
 
-                {/* Tabs */}
-                <div className="flex border-b border-gray-200 dark:border-gray-700 px-6">
+    return (
+        <Modal isOpen onClose={onClose} title="Add a compliance framework" size="2xl" footer={footer}
+            icon={<ShieldCheckIcon size={20} className="text-primary-500" />}>
+            <div className="space-y-4">
+                <div role="group" aria-label="Framework source" className="inline-flex p-0.5 rounded-xl bg-gray-100 dark:bg-white/[0.05] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
                     {(['catalog', 'custom'] as const).map(t => (
-                        <button key={t} onClick={() => setTab(t)}
-                            className={`py-3 px-4 text-sm font-medium border-b-2 -mb-px capitalize transition-colors ${tab === t ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>
-                            {t === 'catalog' ? '📋 Standard Frameworks' : '✏️ Custom Framework'}
+                        <button key={t} onClick={() => { setTab(t); setErr(''); }} aria-pressed={tab === t}
+                            className={`h-8 px-3 rounded-[10px] text-[13px] font-medium transition-colors ${tab === t
+                                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}>
+                            {t === 'catalog' ? 'Standard frameworks' : 'Custom framework'}
                         </button>
                     ))}
                 </div>
 
-                {err && <p className="mx-6 mt-3 text-red-600 dark:text-red-400 text-xs bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{err}</p>}
+                {err && <p role="alert" className="text-xs text-red-700 dark:text-red-300 bg-red-500/[0.06] ring-1 ring-inset ring-red-500/20 px-3 py-2 rounded-lg">{err}</p>}
 
-                {/* Catalog tab */}
                 {tab === 'catalog' && (
-                    <div className="flex flex-col flex-1 overflow-hidden px-6 py-4 gap-3">
+                    <div className="space-y-3">
                         <div className="flex gap-2">
-                            <input
-                                placeholder="Search frameworks…"
-                                value={search} onChange={e => setSearch(e.target.value)}
-                                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:outline-none focus:border-primary-500"
-                            />
-                            <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
-                                className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                            <div className="relative flex-1 min-w-0">
+                                <SearchIcon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                <input
+                                    placeholder="Search frameworks…" aria-label="Search frameworks"
+                                    value={search} onChange={e => setSearch(e.target.value)}
+                                    className={`${fieldCls} w-full pl-9`}
+                                />
+                            </div>
+                            <select value={catFilter} onChange={e => setCatFilter(e.target.value)} aria-label="Category"
+                                className={`${fieldCls} flex-shrink-0 pr-8`}>
                                 {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                             </select>
                         </div>
-                        <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                        <ul className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
                             {filtered.length === 0 && (
-                                <p className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
+                                <li className="text-center text-gray-500 dark:text-gray-400 text-sm py-8">
                                     {existingIds.length >= FRAMEWORK_CATALOG.length ? 'All standard frameworks are already added.' : 'No frameworks match your search.'}
-                                </p>
+                                </li>
                             )}
                             {filtered.map(f => (
-                                <div key={f.id} className="flex items-start justify-between gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 transition-colors">
+                                <li key={f.id} className="flex items-start justify-between gap-3 p-3 rounded-xl border border-gray-200/80 dark:border-white/[0.07] hover:border-primary-500/40 transition-colors">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-semibold text-sm text-gray-900 dark:text-white">{f.shortName}</span>
-                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">{f.category}</span>
+                                            <span className="text-[11px] px-2 py-0.5 rounded-full text-gray-600 dark:text-gray-300 bg-gray-500/10">{f.category}</span>
                                             <a href={f.url} target="_blank" rel="noopener noreferrer"
-                                                onClick={e => e.stopPropagation()}
-                                                className="text-[10px] text-primary-500 hover:text-primary-700 flex items-center gap-0.5">
-                                                Official Docs <ExternalLinkIcon size={10} />
+                                                className="text-[11px] text-primary-700 dark:text-primary-300 hover:underline inline-flex items-center gap-0.5">
+                                                Official docs <ExternalLinkIcon size={10} />
                                             </a>
                                         </div>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{f.description}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{f.description}</p>
                                     </div>
                                     <button
                                         onClick={() => handleAddCatalog(f)}
                                         disabled={adding === f.id}
-                                        className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50"
-                                    >{adding === f.id ? 'Adding…' : '+ Add'}</button>
-                                </div>
+                                        aria-label={`Add ${f.shortName}`}
+                                        className="flex-shrink-0 inline-flex items-center gap-1 h-8 px-3 text-xs font-semibold text-white rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
+                                    ><PlusIcon size={12} />{adding === f.id ? 'Adding…' : 'Add'}</button>
+                                </li>
                             ))}
-                        </div>
+                        </ul>
                     </div>
                 )}
 
-                {/* Custom tab */}
                 {tab === 'custom' && (
-                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                    <div className="space-y-4">
                         {[
-                            { label: 'Framework Name *', key: 'name', placeholder: 'e.g. Internal Security Policy v2' },
-                            { label: 'Short Name', key: 'shortName', placeholder: 'e.g. ISP v2' },
+                            { label: 'Framework name *', key: 'name', placeholder: 'e.g. Internal Security Policy v2' },
+                            { label: 'Short name', key: 'shortName', placeholder: 'e.g. ISP v2' },
                             { label: 'Category', key: 'category', placeholder: 'e.g. Internal, Industry-Specific' },
-                            { label: 'Official / Reference URL', key: 'official_url', placeholder: 'https://…' },
+                            { label: 'Official / reference URL', key: 'official_url', placeholder: 'https://…' },
                         ].map(({ label, key, placeholder }) => (
                             <div key={key}>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>
+                                <label htmlFor={`${fieldId}-${key}`} className={labelCls}>{label}</label>
                                 <input
+                                    id={`${fieldId}-${key}`}
                                     value={(custom as any)[key]} onChange={e => setCustom({ ...custom, [key]: e.target.value })}
                                     placeholder={placeholder}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:outline-none focus:border-primary-500"
+                                    className={`${fieldCls} w-full`}
                                 />
                             </div>
                         ))}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                            <textarea rows={3} value={custom.description} onChange={e => setCustom({ ...custom, description: e.target.value })}
+                            <label htmlFor={`${fieldId}-description`} className={labelCls}>Description</label>
+                            <textarea id={`${fieldId}-description`} rows={3} value={custom.description} onChange={e => setCustom({ ...custom, description: e.target.value })}
                                 placeholder="Describe the purpose and scope of this framework…"
-                                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:outline-none focus:border-primary-500 resize-none" />
-                        </div>
-                        <div className="flex justify-end gap-3 pt-2">
-                            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg">Cancel</button>
-                            <button onClick={handleAddCustom} disabled={adding === 'custom'}
-                                className="px-4 py-2 text-sm text-white bg-primary-600 hover:bg-primary-700 rounded-lg disabled:opacity-50 flex items-center gap-1.5">
-                                <PlusIcon size={14} />
-                                {adding === 'custom' ? 'Creating…' : 'Create Framework'}
-                            </button>
+                                className={`${fieldCls} w-full h-auto py-2 resize-none`} />
                         </div>
                     </div>
                 )}
             </div>
-        </div>
+        </Modal>
     );
 };
 
 // ── Registry ───────────────────────────────────────────────────────────────
 
 const frameworkIcons: Record<string, React.ReactNode> = {
-    'iso42001': <BotIcon size={20} />,
-    'iso27001': <ShieldLockIcon size={20} />,
-    'soc2':     <ShieldCheckIcon size={20} />,
-    'gdpr':     <GavelIcon size={20} />,
-    'hipaa':    <HeartPulseIcon size={20} />,
-    'pci-dss':  <CreditCardIcon size={20} />,
-    'nistcsf':  <BookOpenCheckIcon size={20} />,
+    'iso42001': <BotIcon size={16} />,
+    'iso27001': <ShieldLockIcon size={16} />,
+    'soc2':     <ShieldCheckIcon size={16} />,
+    'gdpr':     <GavelIcon size={16} />,
+    'hipaa':    <HeartPulseIcon size={16} />,
+    'pci-dss':  <CreditCardIcon size={16} />,
+    'nistcsf':  <BookOpenCheckIcon size={16} />,
 };
 
 const statusClasses: Record<ComplianceFramework['status'], string> = {
-    Compliant:  'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
-    Pending:    'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300',
-    'At Risk':  'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
+    Compliant:  'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 ring-emerald-500/20',
+    Pending:    'text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-amber-500/20',
+    'At Risk':  'text-red-700 dark:text-red-300 bg-red-500/10 ring-red-500/20',
 };
 
 // Look up official URL for a framework that's already in the list
@@ -219,58 +225,76 @@ export const FrameworkRegistry: React.FC<FrameworkRegistryProps> = ({
     const [showModal, setShowModal] = useState(false);
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md h-full flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-lg font-semibold flex items-center">
-                        <ShieldCheckIcon className="mr-2 text-primary-500" />
-                        Frameworks
-                    </h3>
-                    <button
-                        onClick={() => setShowModal(true)}
-                        title="Add a compliance framework"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
-                    >
-                        <PlusIcon size={13} /> Add
-                    </button>
-                </div>
-                <p className="text-xs text-gray-400 dark:text-gray-500">{frameworks.length} framework{frameworks.length !== 1 ? 's' : ''} active</p>
+        <section aria-label="Frameworks" className="h-full flex flex-col rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden">
+            <div className="px-5 pt-4 pb-3 border-b border-gray-100 dark:border-white/[0.06] flex items-center justify-between gap-2">
+                <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <ShieldCheckIcon size={16} className="text-primary-500" />
+                    Frameworks
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06]">{frameworks.length}</span>
+                </h3>
+                <button
+                    onClick={() => setShowModal(true)}
+                    title="Add a compliance framework"
+                    className="inline-flex items-center gap-1 h-8 px-3 text-xs font-semibold text-white rounded-lg bg-primary-600 hover:bg-primary-700 transition-colors"
+                >
+                    <PlusIcon size={13} /> Add
+                </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {frameworks.map(framework => {
-                    const link = officialUrl(framework.id) || (framework as any).official_url;
-                    return (
-                        <button
-                            key={framework.id}
-                            onClick={() => onSelectFramework(framework)}
-                            className={`w-full text-left p-3 rounded-lg transition-colors duration-150 ${
-                                selectedFramework?.id === framework.id
-                                    ? 'bg-primary-100 dark:bg-primary-900/50 ring-2 ring-primary-500'
-                                    : 'hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                            }`}
-                        >
-                            <div className="flex justify-between items-start">
-                                <div className="flex items-center">
-                                    <span className="text-primary-500 w-5">{frameworkIcons[framework.id] ?? <ShieldCheckIcon size={20} />}</span>
-                                    <p className="ml-2 font-semibold text-gray-800 dark:text-gray-100 text-sm">{framework.shortName}</p>
-                                </div>
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusClasses[framework.status]}`}>{framework.status}</span>
-                            </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{framework.name}</p>
-                            {link && (
-                                <a
-                                    href={link} target="_blank" rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-primary-500 hover:text-primary-700"
+            {frameworks.length === 0 ? (
+                <div className="flex-1 grid place-items-center p-8 text-center">
+                    <div>
+                        <ShieldCheckIcon size={28} className="mx-auto text-gray-400" />
+                        <p className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-300">No frameworks yet</p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Frameworks your organization has purchased appear here.</p>
+                    </div>
+                </div>
+            ) : (
+                <ul className="flex-1 overflow-y-auto p-2 space-y-1 max-h-[420px] lg:max-h-none">
+                    {frameworks.map(framework => {
+                        const link = officialUrl(framework.id) || (framework as any).official_url;
+                        const isSelected = selectedFramework?.id === framework.id;
+                        const progress = Math.max(0, Math.min(100, Number(framework.progress) || 0));
+                        return (
+                            <li key={framework.id} className="relative">
+                                <button
+                                    onClick={() => onSelectFramework(framework)}
+                                    aria-current={isSelected ? 'true' : undefined}
+                                    className={`w-full text-left pl-3.5 pr-3 py-3 rounded-xl transition-colors duration-150 ${isSelected
+                                        ? 'bg-primary-500/[0.08] ring-1 ring-inset ring-primary-500/30 dark:bg-primary-400/10'
+                                        : 'hover:bg-gray-100/80 dark:hover:bg-white/[0.04]'}`}
                                 >
-                                    Official Docs <ExternalLinkIcon size={10} />
-                                </a>
-                            )}
-                        </button>
-                    );
-                })}
-            </div>
+                                    {isSelected && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-primary-500 dark:bg-primary-400" aria-hidden="true" />}
+                                    <div className="flex items-center justify-between gap-2 min-w-0">
+                                        <span className="flex items-center gap-2 min-w-0">
+                                            <span className="flex-shrink-0 text-primary-600 dark:text-primary-400">{frameworkIcons[framework.id] ?? <ShieldCheckIcon size={16} />}</span>
+                                            <span className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{framework.shortName}</span>
+                                        </span>
+                                        <span className={`flex-shrink-0 px-1.5 py-px rounded-full text-[11px] font-semibold ring-1 ring-inset ${statusClasses[framework.status] ?? statusClasses.Pending}`}>{framework.status}</span>
+                                    </div>
+                                    <p className={`text-xs text-gray-500 dark:text-gray-400 mt-1 truncate ${link ? 'pr-6' : ''}`}>{framework.name}</p>
+                                    <div className="mt-2 flex items-center gap-2" aria-hidden="true">
+                                        <div className="flex-1 h-1 rounded-full overflow-hidden bg-gray-200 dark:bg-white/10">
+                                            <div className="h-full rounded-full bg-primary-500 dark:bg-primary-400" style={{ width: `${progress}%` }} />
+                                        </div>
+                                        <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{progress}%</span>
+                                    </div>
+                                </button>
+                                {link && (
+                                    <a
+                                        href={link} target="_blank" rel="noopener noreferrer"
+                                        aria-label={`${framework.shortName} official documentation`}
+                                        title="Official documentation"
+                                        className="absolute right-2 top-[30px] grid place-items-center h-6 w-6 rounded-md text-gray-400 hover:text-primary-600 hover:bg-primary-500/10 dark:hover:text-primary-400 transition-colors"
+                                    >
+                                        <ExternalLinkIcon size={12} />
+                                    </a>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
 
             {showModal && (
                 <AddComplianceModal
@@ -279,6 +303,6 @@ export const FrameworkRegistry: React.FC<FrameworkRegistryProps> = ({
                     onAdded={f => { onFrameworkAdded?.(f); setShowModal(false); }}
                 />
             )}
-        </div>
+        </section>
     );
 };

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { Modal } from './Modal';
 
 export const AddControlModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: () => void; onAdd: (data: any) => void }) => {
   const [formData, setFormData] = useState({ id: '', name: '', description: '', category: '' });
+  const fieldId = useId();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -10,13 +11,13 @@ export const AddControlModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; o
     setFormData({ id: '', name: '', description: '', category: '' });
   };
 
-  const inputCls = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 sm:text-sm px-3 py-2";
-  const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300";
+  const inputCls = "block w-full h-9 px-3 text-sm rounded-xl text-gray-900 dark:text-white bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 placeholder:text-gray-400 focus:outline-none focus:border-primary-500";
+  const labelCls = "block text-[13px] font-medium text-gray-700 dark:text-gray-300 mb-1";
 
   const footer = (
     <>
-      <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md dark:bg-gray-700 dark:text-gray-300">Cancel</button>
-      <button type="submit" form="add-control-form" className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md">Add Control</button>
+      <button type="button" onClick={onClose} className="h-9 px-4 text-sm font-medium text-gray-700 dark:text-gray-200 glass rounded-xl">Cancel</button>
+      <button type="submit" form="add-control-form" className="h-9 px-4 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700">Add Control</button>
     </>
   );
 
@@ -25,20 +26,20 @@ export const AddControlModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; o
       <form id="add-control-form" onSubmit={handleSubmit}>
         <div className="space-y-4">
           <div>
-            <label className={labelCls}>Control ID</label>
-            <input type="text" required value={formData.id} onChange={e => setFormData({ ...formData, id: e.target.value })} className={inputCls} placeholder="e.g., CC1.1" />
+            <label htmlFor={`${fieldId}-id`} className={labelCls}>Control ID</label>
+            <input id={`${fieldId}-id`} type="text" required value={formData.id} onChange={e => setFormData({ ...formData, id: e.target.value })} className={`${inputCls} font-mono`} placeholder="e.g., CC1.1" />
           </div>
           <div>
-            <label className={labelCls}>Name</label>
-            <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputCls} placeholder="Control Name" />
+            <label htmlFor={`${fieldId}-name`} className={labelCls}>Name</label>
+            <input id={`${fieldId}-name`} type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className={inputCls} placeholder="Control Name" />
           </div>
           <div>
-            <label className={labelCls}>Description</label>
-            <textarea value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className={inputCls} rows={3} />
+            <label htmlFor={`${fieldId}-description`} className={labelCls}>Description</label>
+            <textarea id={`${fieldId}-description`} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className={`${inputCls} h-auto py-2 resize-none`} rows={3} />
           </div>
           <div>
-            <label className={labelCls}>Category</label>
-            <input type="text" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={inputCls} placeholder="Category" />
+            <label htmlFor={`${fieldId}-category`} className={labelCls}>Category</label>
+            <input id={`${fieldId}-category`} type="text" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className={inputCls} placeholder="Category" />
           </div>
         </div>
       </form>

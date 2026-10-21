@@ -5,10 +5,12 @@
  *  - A control that was added or imported shows up without a page reload.
  *  - Add / import / AI audit failures carry the server's reason.
  *  - A failed refresh keeps the frameworks on screen (the fetch answers [] on failure).
+ *  - Tiles total every framework's controls; controls filter by status; a framework's docs link is not
+ *    nested inside its row button; form fields are labelled.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
@@ -90,6 +92,50 @@ describe('Compliance screen', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['x'], 'controls.xlsx')] } });
     await waitFor(() => expect(toasts()).toContain('error: Import failed: openpyxl is required for Excel import. Install it or upload a CSV.'));
+  });
+
+  it('totals the controls of every framework', () => {
+    const risky = { ...control, id: 'CC2.1', name: 'Board oversight', status: 'At Risk' };
+    const gdpr = { id: 'gdpr', name: 'General Data Protection Regulation', shortName: 'GDPR', description: '', status: 'At Risk', progress: 10, controls: [risky] } as unknown as ComplianceFramework;
+    render(
+      <UserContext.Provider value={{ currentUser: { id: 'u' }, hasPermission: () => true } as any}>
+        <ComplianceDashboard complianceFrameworks={[soc2, gdpr]} assets={[]} assetComplianceData={[]} />
+      </UserContext.Provider>,
+    );
+    expect(within(screen.getByRole('group', { name: 'Frameworks' })).getByText('2')).toBeTruthy();
+    expect(within(screen.getByRole('group', { name: 'Controls implemented' })).getByText('of 2')).toBeTruthy();
+    expect(within(screen.getByRole('group', { name: 'Controls at risk' })).getByText('1')).toBeTruthy();
+  });
+
+  it('filters controls by status, with a count on each status', () => {
+    const risky = { ...control, id: 'CC2.1', name: 'Board oversight', status: 'At Risk' };
+    const fw = { ...soc2, controls: [control, risky] } as unknown as ComplianceFramework;
+    render(
+      <UserContext.Provider value={{ currentUser: { id: 'u' }, hasPermission: () => true } as any}>
+        <ComplianceDashboard complianceFrameworks={[fw]} assets={[]} assetComplianceData={[]} />
+      </UserContext.Provider>,
+    );
+    const filter = screen.getByRole('group', { name: 'Filter by status' });
+    fireEvent.click(within(filter).getByRole('button', { name: /At Risk/ }));
+    expect(within(filter).getByRole('button', { name: /At Risk/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Board oversight')).toBeTruthy();
+    expect(screen.queryByText('Integrity and ethics')).toBeNull();
+  });
+
+  it('a framework row and its docs link are separate controls', () => {
+    renderScreen();
+    const docs = screen.getByRole('link', { name: 'SOC 2 official documentation' });
+    expect(docs.closest('button')).toBeNull();
+    expect(screen.getByRole('button', { name: /SOC 2 \(Type II\)/ })).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('form fields are labelled', () => {
+    renderScreen();
+    fireEvent.click(screen.getByRole('button', { name: /Add control/i }));
+    expect(screen.getByLabelText('Control ID')).toBeTruthy();
+    fireEvent.click(screen.getByTitle('Add a compliance framework'));
+    fireEvent.click(screen.getByRole('button', { name: 'Custom framework' }));
+    expect(screen.getByLabelText('Framework name *')).toBeTruthy();
   });
 
   it('a failed refresh keeps the frameworks on screen', async () => {
