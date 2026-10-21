@@ -13,7 +13,10 @@ interface ThreatIntelModalProps {
 
 const ResultDisplay: React.FC<{ result: ThreatIntelResult }> = ({ result }) => {
   const isMalicious = result.verdict === 'Malicious' || result.verdict === 'Suspicious';
-  const detectionParts = result.detectionRatio.split('/');
+  // "Unknown" means no engine knew the artifact, which is not the same as clean.
+  const isUnknown = !isMalicious && result.verdict !== 'Harmless';
+  const tone = isMalicious ? 'red' : isUnknown ? 'gray' : 'green';
+  const detectionParts = (result.detectionRatio || '0/0').split('/');
   const positiveDetections = parseInt(detectionParts[0], 10);
   const totalEngines = parseInt(detectionParts[1], 10);
   const detectionPercentage = totalEngines > 0 ? (positiveDetections / totalEngines) * 100 : 0;
@@ -26,10 +29,12 @@ const ResultDisplay: React.FC<{ result: ThreatIntelResult }> = ({ result }) => {
     <div className="text-center">
       {isMalicious ? (
         <AlertTriangleIcon size={40} className="mx-auto text-red-500" />
+      ) : isUnknown ? (
+        <ShieldSearchIcon size={40} className="mx-auto text-gray-400" />
       ) : (
         <CheckIcon size={40} className="mx-auto text-green-500" />
       )}
-      <h3 className={`mt-3 text-xl font-bold ${isMalicious ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+      <h3 className={`mt-3 text-xl font-bold ${{ red: 'text-red-600 dark:text-red-400', gray: 'text-gray-700 dark:text-gray-300', green: 'text-green-600 dark:text-green-400' }[tone]}`}>
         {result.verdict}
       </h3>
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -40,7 +45,7 @@ const ResultDisplay: React.FC<{ result: ThreatIntelResult }> = ({ result }) => {
         <p className="text-sm text-gray-500 dark:text-gray-400">Detections</p>
         <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 mt-2">
           <div
-            className={`h-2.5 rounded-full ${isMalicious ? 'bg-red-500' : 'bg-green-500'}`}
+            className={`h-2.5 rounded-full ${{ red: 'bg-red-500', gray: 'bg-gray-400', green: 'bg-green-500' }[tone]}`}
             style={{ width: `${detectionPercentage}%` }}
           ></div>
         </div>

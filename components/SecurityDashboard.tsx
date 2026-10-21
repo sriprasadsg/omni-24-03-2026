@@ -46,6 +46,10 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     const [playbookToExecute, setPlaybookToExecute] = useState<Playbook | null>(null);
     const [isGeneratePlaybookModalOpen, setIsGeneratePlaybookModalOpen] = useState(false);
     const [threatIntelResultForModal, setThreatIntelResultForModal] = useState<ThreatIntelResult | null>(null);
+    // Server answers to Enable/Disable, laid over the playbooks App loaded.
+    const [playbookEnabled, setPlaybookEnabled] = useState<Record<string, boolean>>({});
+    // Lookups made on this screen, shown ahead of the feed App loaded.
+    const [newLookups, setNewLookups] = useState<ThreatIntelResult[]>([]);
 
     useEffect(() => {
         if (viewingCase) {
@@ -58,6 +62,11 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
         }
     }, [securityCases, viewingCase]);
     
+    const shownPlaybooks = playbooks.map(p => (p.id in playbookEnabled ? { ...p, enabled: playbookEnabled[p.id] } : p));
+    const shownThreatIntel = [...newLookups, ...threatIntelFeed.filter(t => !newLookups.some(n => n.id === t.id))];
+
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const eventsLast24h = securityEvents.filter(e => new Date(e.timestamp).getTime() >= dayAgo).length;
     const openCases = securityCases.filter(c => c.status !== 'Resolved').length;
     const criticalEvents = securityEvents.filter(e => e.severity === 'Critical').length;
     const highEvents = securityEvents.filter(e => e.severity === 'High').length;
@@ -116,10 +125,11 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
     };
 
     const handleTogglePlaybook = async (playbook: Playbook) => {
-        try {
-            await api.togglePlaybook(playbook.id);
-        } catch (error) {
-            console.error('Failed to toggle playbook:', error);
+        const result = await api.togglePlaybook(playbook.id);
+        if (result && typeof result.enabled === 'boolean') {
+            setPlaybookEnabled(prev => ({ ...prev, [playbook.id]: result.enabled }));
+        } else {
+            showToast(`Couldn't ${playbook.enabled === false ? 'enable' : 'disable'} "${playbook.name}". Try again.`, 'error');
         }
     };
 
@@ -127,7 +137,8 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
         try {
             const result = await api.scanArtifactWithVirusTotal(artifact, type);
             setThreatIntelResultForModal(result);
-            
+            setNewLookups(prev => [result, ...prev]);
+
             const relatedCase = securityCases.find(c => c.relatedEvents.some(e => e.id === event.id));
             if (relatedCase) {
                 const isAlreadyEnriched = relatedCase.enrichmentData.some(e => e.artifact === artifact);
@@ -137,7 +148,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                 }
             }
         } catch (error) {
-            showToast(`Failed to scan artifact: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            showToast(`Couldn't scan ${artifact}: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
         }
     };
 
@@ -150,7 +161,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 space-y-6">
                             <SecurityEventsFeed events={securityEvents} onScanArtifact={handleScanArtifact} onCreateCase={handleCreateCase} onRunPlaybook={handleRunPlaybook} />
-                            <ThreatIntelFeed feed={threatIntelFeed} onViewReport={setThreatIntelResultForModal} />
+                            <ThreatIntelFeed feed={shownThreatIntel} onViewReport={setThreatIntelResultForModal} />
                         </div>
                         <div className="lg:col-span-1">
                             <AiInsights securityEvents={securityEvents} />
@@ -160,7 +171,7 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
             case 'cases':
                 return <CaseManagement cases={securityCases} onViewCase={handleViewCase} />;
             case 'playbooks':
-                return <PlaybookManager playbooks={playbooks} onExecutePlaybook={setPlaybookToExecute} onGeneratePlaybook={() => setIsGeneratePlaybookModalOpen(true)} onTogglePlaybook={handleTogglePlaybook} />;
+                return <PlaybookManager playbooks={shownPlaybooks} onExecutePlaybook={setPlaybookToExecute} onGeneratePlaybook={() => setIsGeneratePlaybookModalOpen(true)} onTogglePlaybook={handleTogglePlaybook} />;
             default:
                 return null;
         }
@@ -172,9 +183,9 @@ export const SecurityDashboard: React.FC<SecurityDashboardProps> = (props) => {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Unified SIEM and SOAR capabilities for proactive threat detection and response.</p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Active Events (24h)</p>
-                    <p className="text-2xl font-bold">{securityEvents.length}</p>
+                <div role="group" aria-label="Events, last 24 hours" className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Events, last 24 hours</p>
+                    <p className="text-2xl font-bold">{eventsLast24h}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Open Cases</p>

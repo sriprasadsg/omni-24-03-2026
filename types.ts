@@ -1262,6 +1262,8 @@ export interface Playbook {
   description: string;
   trigger: string;
   source: 'User' | 'AI-Generated';
+  /** Absent means enabled (the backend's default). */
+  enabled?: boolean;
   conditions: PlaybookCondition[];
   steps: {
     id: string;

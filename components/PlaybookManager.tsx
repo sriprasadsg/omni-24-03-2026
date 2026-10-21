@@ -74,12 +74,12 @@ export const PlaybookManager: React.FC<PlaybookManagerProps> = ({ playbooks, onE
                         <button
                             onClick={() => onTogglePlaybook(playbook)}
                             className={`flex items-center px-3 py-1.5 text-xs font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                                (playbook as any).enabled === false
+                                playbook.enabled === false
                                     ? 'text-green-700 bg-green-100 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 focus:ring-green-500'
                                     : 'text-amber-700 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 focus:ring-amber-500'
                             }`}
                         >
-                            {(playbook as any).enabled === false ? 'Enable' : 'Disable'}
+                            {playbook.enabled === false ? 'Enable' : 'Disable'}
                         </button>
                      )}
                      {canManagePlaybooks && (

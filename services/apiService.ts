@@ -1748,13 +1748,25 @@ export const fetchProactiveInsights = async (tenantId?: string): Promise<Proacti
 };
 // export const fetchTraces = async () => { return []; };
 // export const fetchServiceMap = async () => { return null; };
+// /api/threat-intel answers in snake_case (scan_date, detection_ratio, artifact_type).
+const toThreatIntelResult = (data: any): ThreatIntelResult => ({
+    id: String(data.id ?? ''),
+    artifact: data.artifact ?? '',
+    artifactType: data.artifact_type ?? data.artifactType,
+    source: data.source || 'VirusTotal',
+    verdict: data.verdict || 'Unknown',
+    detectionRatio: data.detection_ratio ?? data.detectionRatio ?? '0/0',
+    scanDate: data.scan_date ?? data.scanDate ?? data.created_at ?? '',
+    reportUrl: data.report_url ?? data.reportUrl ?? '',
+});
+
 export const fetchThreatIntelFeed = async (tenantId?: string): Promise<ThreatIntelResult[]> => {
     try {
         const url = tenantId ? `${API_BASE}/threat-intel/feed?tenant_id=${tenantId}` : `${API_BASE}/threat-intel/feed`;
         const res = await authFetch(url);
         if (!res.ok) throw new Error('Failed to fetch threat intel feed');
         const data = await res.json();
-        return Array.isArray(data) ? data : (data.items || []);
+        return (Array.isArray(data) ? data : (data.items || [])).map(toThreatIntelResult);
     } catch (e) {
         console.warn('Backend offline for threat intel feed', e);
         return [];
@@ -3290,39 +3302,15 @@ export const fetchServiceMap = async (tenantId?: string): Promise<ServiceMap | n
 };
 
 
+// Throws with the server's reason (e.g. VirusTotal not configured) instead of returning a stand-in
+// verdict: callers store the result on a case, so it must be a lookup that really happened.
 export const scanArtifactWithVirusTotal = async (artifact: string, type: 'ip' | 'hash' | 'domain'): Promise<ThreatIntelResult> => {
-    try {
-        const res = await authFetch(`${API_BASE}/threat-intel/scan`, {
-            method: 'POST',
-            body: JSON.stringify({ artifact, type }),
-        });
-        if (res.ok) {
-            const data = await res.json();
-            return {
-                id: data.id || `vt-scan-${Date.now()}`,
-                artifact: data.artifact || artifact,
-                artifactType: data.artifact_type || type,
-                source: data.source || 'VirusTotal',
-                verdict: data.verdict || 'Unknown',
-                detectionRatio: data.detection_ratio || '0/0',
-                scanDate: data.scan_date || new Date().toISOString(),
-                reportUrl: data.report_url || '',
-            };
-        }
-    } catch (e) {
-        console.error('scanArtifactWithVirusTotal failed:', e);
-    }
-    // Offline fallback — surface unknown rather than a false "Harmless"
-    return {
-        id: `vt-offline-${Date.now()}`,
-        artifact,
-        artifactType: type,
-        source: 'VirusTotal',
-        verdict: 'Unknown',
-        detectionRatio: 'N/A',
-        scanDate: new Date().toISOString(),
-        reportUrl: '',
-    };
+    const res = await authFetch(`${API_BASE}/threat-intel/scan`, {
+        method: 'POST',
+        body: JSON.stringify({ artifact, artifact_type: type }),
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${res.status}`); }
+    return toThreatIntelResult(await res.json());
 };
 
 // --- AI Functions (Mock or Real using GoogleGenAI) ---

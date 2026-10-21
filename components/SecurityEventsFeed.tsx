@@ -28,7 +28,10 @@ const getSeverityClasses = (severity: string) => {
 
 export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, onScanArtifact, onCreateCase, onRunPlaybook }) => {
   const { timeZone } = useTimeZone();
-  const [selectedEvent, setSelectedEvent] = useState<SecurityEvent | null>(events[0] || null);
+  // Track the id, not the object: events usually arrive after mount and are replaced on refresh.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedEvent = events.find(e => e.id === selectedId) ?? events[0] ?? null;
+  const setSelectedEvent = (event: SecurityEvent) => setSelectedId(event.id);
   const { hasPermission } = useUser();
   const canManageCases = hasPermission('manage:security_cases');
   const canManagePlaybooks = hasPermission('manage:security_playbooks');
@@ -74,7 +77,7 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
                   <p><span className="font-medium text-gray-600 dark:text-gray-400">Source IP:</span> <span className="font-mono text-xs">{selectedEvent.source?.ip ?? 'N/A'}</span></p>
                   <button
                     onClick={() => onScanArtifact(selectedEvent, selectedEvent.source?.ip ?? '', 'ip')}
-                    disabled={!canInvestigate}
+                    disabled={!canInvestigate || !selectedEvent.source?.ip}
                     title="Scan with VirusTotal"
                     className="flex items-center text-xs font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:no-underline">
                     <ShieldSearchIcon size={14} className="mr-1.5" />
@@ -87,11 +90,11 @@ export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, 
                 {selectedEvent.details && (
                   <div className="pt-2">
                     <h4 className="font-medium text-gray-600 dark:text-gray-400 mb-1">Raw Details</h4>
-                    {selectedEvent.details.fileHash && (
+                    {typeof selectedEvent.details?.fileHash === 'string' && (
                       <div className="flex items-center justify-between mb-2">
-                        <p><span className="font-medium text-gray-600 dark:text-gray-400">File Hash:</span> <span className="font-mono text-xs">{selectedEvent.details.fileHash as string}</span></p>
+                        <p><span className="font-medium text-gray-600 dark:text-gray-400">File Hash:</span> <span className="font-mono text-xs">{selectedEvent.details?.fileHash as string}</span></p>
                         <button
-                          onClick={() => onScanArtifact(selectedEvent, selectedEvent.details.fileHash as string, 'hash')}
+                          onClick={() => onScanArtifact(selectedEvent, selectedEvent.details?.fileHash as string, 'hash')}
                           disabled={!canInvestigate}
                           title="Scan with VirusTotal"
                           className="flex items-center text-xs font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:no-underline">
