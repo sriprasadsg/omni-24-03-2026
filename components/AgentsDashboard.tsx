@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { AgentList } from './AgentList';
+import { AgentList, effectiveAgentStatus } from './AgentList';
 import { ServerIcon, ZapIcon, CheckIcon, AlertTriangleIcon, CogIcon, PlusCircleIcon, XCircleIcon } from './icons';
 import { Agent, AgenticStep, LogEntry, Asset, AgentUpgradeJob, Filter, Tenant } from '../types';
 import { AgentLogsModal } from './AgentLogsModal';
@@ -83,32 +83,42 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
   useEffect(() => {
-    const loadSummary = async () => {
-      if (!activeTenantId) return;
-      setIsLoadingSummary(true);
+    if (!activeTenantId) return;
+    let cancelled = false;
+    const loadSummary = async (first: boolean) => {
+      if (first) setIsLoadingSummary(true);
       try {
+        // /api/kpi/summary answers totalAgents / onlineAgents / totalAssets.
         const summary = await fetchKpiSummary(activeTenantId);
-        if (summary) {
-          setTotalAgentsCount(summary.total_agents);
-          setOnlineAgentsCount(summary.online_agents);
-          setTotalAssetsCount(summary.total_assets);
+        if (summary && !cancelled) {
+          setTotalAgentsCount(summary.totalAgents ?? summary.total_agents ?? null);
+          setOnlineAgentsCount(summary.onlineAgents ?? summary.online_agents ?? null);
+          setTotalAssetsCount(summary.totalAssets ?? summary.total_assets ?? null);
         }
       } catch (err) {
         console.error("Failed to fetch agent summary:", err);
       } finally {
-        setIsLoadingSummary(false);
+        if (first && !cancelled) setIsLoadingSummary(false);
       }
     };
 
-    loadSummary();
+    loadSummary(true);
+    const timer = setInterval(() => loadSummary(false), 60_000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [activeTenantId]);
 
-  const onlineAgents = onlineAgentsCount ?? agents.filter(a => a.status === 'Online').length;
-  // Share of the fleet online right now (no uptime history is kept, so no "average uptime")
-  const fleetTotal = totalAgentsCount ?? agents.length;
-  const offlineAgents = (totalAgentsCount && onlineAgentsCount !== null)
-    ? (totalAgentsCount - onlineAgentsCount)
-    : agents.filter(a => a.status === 'Offline').length;
+  // The agents list is the first page (50) of /api/agents and refreshes every 5s; the summary counts the
+  // whole fleet. Count from the live list unless the summary shows the list is cut off.
+  const listIsPartial = totalAgentsCount !== null && totalAgentsCount > agents.length;
+  const fleetTotal = listIsPartial ? (totalAgentsCount as number) : agents.length;
+  const statusCounts = useMemo(() => {
+    const now = Date.now();
+    const counts = { Online: 0, Offline: 0, Error: 0, Quarantined: 0 } as Record<string, number>;
+    agents.forEach(a => { const s = effectiveAgentStatus(a, now); counts[s] = (counts[s] || 0) + 1; });
+    return counts;
+  }, [agents]);
+  const onlineAgents = listIsPartial && onlineAgentsCount !== null ? onlineAgentsCount : statusCounts.Online;
+  const offlineAgents = statusCounts.Offline;
   const errorAgent = useMemo(() => agents.find(a => a.status === 'Error'), [agents]);
 
   const agentLogs = useMemo(() => {
@@ -180,12 +190,6 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
     }
   };
 
-
-  const handleRestartAgent = (agent: Agent) => {
-    if (window.confirm(`Are you sure you want to restart the agent on ${agent.hostname}?`)) {
-      console.log(`Restart command issued for agent on: ${agent.hostname}`);
-    }
-  };
 
   const handleViewLogs = (agent: Agent) => {
     setViewingAgentLogs(agent);
@@ -341,7 +345,7 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Total Agents</p>
               <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-                {isLoadingSummary ? '...' : (totalAgentsCount ?? agents.length)}
+                {isLoadingSummary ? '...' : fleetTotal}
               </p>
             </div>
           </div>
@@ -385,7 +389,7 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Errors</p>
-              <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{errorAgent ? agents.filter(a => a.status === 'Error').length : 0}</p>
+              <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{statusCounts.Error}</p>
             </div>
           </div>
         </div>
@@ -497,6 +501,11 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
                 {agents.length} / {FREE_TIER_AGENT_LIMIT} agents · Free
               </span>
             )}
+            {listIsPartial && (
+              <span className="ml-3 text-xs font-normal text-amber-700 dark:text-amber-300">
+                Showing the first {agents.length} of {fleetTotal}
+              </span>
+            )}
           </h3>
           {canRemediate && (
             <button
@@ -519,7 +528,6 @@ export const AgentsDashboard: React.FC<AgentsDashboardProps> = ({ agents, assets
           upgradingAgentIds={upgradingAgentIds}
           onToggleSelection={handleToggleSelection}
           onSelectAll={handleSelectAll}
-          onRestartAgent={handleRestartAgent}
           onViewLogs={handleViewLogs}
           onRunDiagnostics={handleRunDiagnostics}
           onViewDetails={setViewingAgentDetails}

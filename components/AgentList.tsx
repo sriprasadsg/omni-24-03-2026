@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Agent, AgentPlatform, AgentStatus, Asset, Filter } from '../types';
 import {
     WindowsIcon, LinuxIcon, DockerIcon, KubernetesIcon, ServerIcon, HistoryIcon,
-    RefreshCwIcon, FileTextIcon, TerminalSquareIcon, ArrowUpIcon, ArrowDownIcon,
+    FileTextIcon, TerminalSquareIcon, ArrowUpIcon, ArrowDownIcon,
     FilterIcon, CheckIcon, XCircleIcon, AlertCircleIcon, ZapIcon, CogIcon, DownloadIcon, PlusCircleIcon, TrashIcon, ShieldIcon, WifiIcon
 } from './icons';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -18,7 +18,6 @@ interface AgentListProps {
     upgradingAgentIds: Set<string>;
     onToggleSelection: (agentId: string) => void;
     onSelectAll: (filteredAgentIds: string[]) => void;
-    onRestartAgent: (agent: Agent) => void;
     onViewLogs: (agent: Agent) => void;
     onRunDiagnostics: (agent: Agent) => void;
     onViewDetails: (agent: Agent) => void;
@@ -73,6 +72,15 @@ const platformIcons: Record<AgentPlatform, React.ReactNode> = {
 
 const statusOptions: ('All' | AgentStatus)[] = ['All', 'Online', 'Offline', 'Error', 'Quarantined'];
 
+// Heartbeat staleness: an agent reported Online is effectively offline after 2 missed minutes
+// (4x 30s heartbeat). Cards, the status filter and the dashboard counts all use this.
+export const AGENT_OFFLINE_AFTER_SECS = 120;
+export const effectiveAgentStatus = (agent: Agent, now = Date.now()): AgentStatus => {
+    const lastSeenMs = agent.lastSeen ? new Date(agent.lastSeen).getTime() : 0;
+    const staleSecs = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : Infinity;
+    return agent.status === 'Online' && staleSecs > AGENT_OFFLINE_AFTER_SECS ? 'Offline' : agent.status;
+};
+
 const parseLastSeen = (lastSeen: string): number => {
     // A more robust parser
     const now = new Date().getTime();
@@ -103,7 +111,6 @@ const AgentCard: React.FC<{
     isSelected: boolean;
     isUpgrading: boolean;
     onToggleSelection: (agentId: string) => void;
-    onRestartAgent: (agent: Agent) => void;
     onViewLogs: (agent: Agent) => void;
     onRunDiagnostics: (agent: Agent) => void;
     onViewDetails: (agent: Agent) => void;
@@ -115,7 +122,7 @@ const AgentCard: React.FC<{
     onQuarantineAgent?: (agent: Agent) => void;
     onToggleSoftwareExclusion?: (agent: Agent) => void;
     onRequestDelete: (agent: Agent) => void;
-}> = ({ agent, asset, isSelected, isUpgrading, onToggleSelection, onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs, canRemediate, canViewLogs, onDeleteAgent, onQuarantineAgent, onToggleSoftwareExclusion, onRequestDelete }) => {
+}> = ({ agent, asset, isSelected, isUpgrading, onToggleSelection, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs, canRemediate, canViewLogs, onDeleteAgent, onQuarantineAgent, onToggleSoftwareExclusion, onRequestDelete }) => {
     const { timeZone } = useTimeZone();
 
     const handleDeleteClick = (e: React.MouseEvent) => {
@@ -123,13 +130,11 @@ const AgentCard: React.FC<{
         onRequestDelete(agent);
     };
 
-    // Heartbeat staleness — agent is effectively offline after 2 missed minutes (4× 30s heartbeat)
     const now = new Date().getTime();
     const lastSeenMs = agent.lastSeen ? new Date(agent.lastSeen).getTime() : 0;
     const staleSecs = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : Infinity;
-    const _OFFLINE_THRESHOLD = 120; // 2 minutes = 4 missed heartbeats
-    const effectiveStatus: AgentStatus =
-        agent.status === 'Online' && staleSecs > _OFFLINE_THRESHOLD ? 'Offline' : (agent.status as AgentStatus);
+    const _OFFLINE_THRESHOLD = AGENT_OFFLINE_AFTER_SECS;
+    const effectiveStatus = effectiveAgentStatus(agent, now);
     const info = statusInfo[effectiveStatus] || statusInfo.Offline;
     const hearbeatColor = staleSecs < _OFFLINE_THRESHOLD
         ? 'text-green-500' : staleSecs < 600
@@ -255,7 +260,6 @@ const AgentCard: React.FC<{
                             )}
                             {canRemediate && (
                                 <>
-                                    <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRestartAgent(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Restart Agent"><RefreshCwIcon size={16} /></button>
                                     <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRunDiagnostics(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-green-600 hover:bg-green-50 dark:text-gray-400 dark:hover:text-green-400 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Run Diagnostics"><TerminalSquareIcon size={16} /></button>
                                     {onQuarantineAgent && agent.status !== 'Quarantined' && (
                                         <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onQuarantineAgent(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-amber-50 dark:text-gray-400 dark:hover:text-amber-400 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Quarantine Agent"><ShieldIcon size={16} /></button>
@@ -292,7 +296,7 @@ const AgentCard: React.FC<{
 export const AgentList: React.FC<AgentListProps> = (props) => {
     const {
         agents, assets, selectedAgentIds, upgradingAgentIds, onToggleSelection, onSelectAll,
-        onRestartAgent, onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs,
+        onViewLogs, onRunDiagnostics, onViewDetails, onAuthorizeRemediation, onViewRemediationLogs,
         onBulkDiagnostics, onBulkRemediate, onBulkDelete, onRegisterAgent, filters
     } = props;
 
@@ -327,12 +331,19 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
     const sortedAndFilteredAgents = useMemo(() => {
         let filteredAgents = [...agents];
 
+        const now = Date.now();
         if (statusFilter !== 'All') {
-            filteredAgents = filteredAgents.filter(agent => agent.status === statusFilter);
+            filteredAgents = filteredAgents.filter(agent => effectiveAgentStatus(agent, now) === statusFilter);
         }
         if (platformFilter !== 'All') {
             filteredAgents = filteredAgents.filter(agent => agent.platform === platformFilter);
         }
+        // Filters set by a command ("show agents in error"): status and platform, any case.
+        filters.forEach(f => {
+            const want = String(f.value).toLowerCase();
+            if (f.type === 'status') filteredAgents = filteredAgents.filter(a => effectiveAgentStatus(a, now).toLowerCase() === want);
+            if (f.type === 'platform') filteredAgents = filteredAgents.filter(a => String(a.platform).toLowerCase() === want);
+        });
 
         if (sortConfig !== null) {
             filteredAgents.sort((a, b) => {
@@ -341,8 +352,9 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                     valA = parseLastSeen(a.lastSeen);
                     valB = parseLastSeen(b.lastSeen);
                 } else {
-                    valA = a[sortConfig.key];
-                    valB = b[sortConfig.key];
+                    // Numeric-aware, so version 2.1.10 sorts after 2.1.9.
+                    const order = String(a[sortConfig.key] ?? '').localeCompare(String(b[sortConfig.key] ?? ''), undefined, { numeric: true, sensitivity: 'base' });
+                    return sortConfig.direction === 'ascending' ? order : -order;
                 }
 
                 if (valA < valB) {
@@ -359,7 +371,7 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
         const uniqueAgents = Array.from(new Map(filteredAgents.map(a => [a.id, a])).values());
 
         return uniqueAgents;
-    }, [agents, statusFilter, platformFilter, sortConfig]);
+    }, [agents, statusFilter, platformFilter, sortConfig, filters]);
 
     // FIX: Added JSX return statement to fix compile error.
     const filteredAgentIds = useMemo(() => sortedAndFilteredAgents.map(a => a.id), [sortedAndFilteredAgents]);
@@ -433,7 +445,6 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                                     isSelected={selectedAgentIds.has(agent.id)}
                                     isUpgrading={upgradingAgentIds.has(agent.id)}
                                     onToggleSelection={onToggleSelection}
-                                    onRestartAgent={onRestartAgent}
                                     onViewLogs={onViewLogs}
                                     onRunDiagnostics={onRunDiagnostics}
                                     onViewDetails={onViewDetails}
@@ -455,12 +466,20 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                             <ServerIcon size={48} className="text-gray-400 dark:text-gray-500" strokeWidth={1} />
                         </div>
                         <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                            {filters.length > 0 ? 'No agents match your filter' : 'No agents registered yet'}
+                            {agents.length > 0 ? 'No agents match these filters' : 'No agents registered yet'}
                         </h3>
                         <p className="mt-2 text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8">
-                            {filters.length > 0 ? 'Try adjusting your filters or search criteria.' : 'Get started by running the installation script on your hosts or manually registering an agent.'}
+                            {agents.length > 0 ? 'Pick another status or platform to see them.' : 'Get started by running the installation script on your hosts or manually registering an agent.'}
                         </p>
-                        {filters.length === 0 && (
+                        {agents.length > 0 && (
+                            <button
+                                onClick={() => { setStatusFilter('All'); setPlatformFilter('All'); }}
+                                className="px-5 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700"
+                            >
+                                Show all agents
+                            </button>
+                        )}
+                        {agents.length === 0 && (
                             <div className="flex justify-center items-center space-x-4">
                                 <button
                                     onClick={() => document.getElementById('agent-installation-section')?.scrollIntoView({ behavior: 'smooth' })}
