@@ -1,10 +1,6 @@
-
-
-
-
 import React, { useState } from 'react';
-import { SecurityEvent, AlertSeverity } from '../types';
-import { ShieldSearchIcon } from './icons';
+import { SecurityEvent } from '../types';
+import { ShieldSearchIcon, ActivityIcon, ExternalLinkIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
 import { useTimeZone } from '../contexts/TimeZoneContext';
 
@@ -15,126 +11,175 @@ interface SecurityEventsFeedProps {
   onRunPlaybook?: (event: SecurityEvent) => void;
 }
 
-const getSeverityClasses = (severity: string) => {
-  const s = severity?.charAt(0).toUpperCase() + severity?.slice(1).toLowerCase();
-  const classes: Record<string, { bg: string; text: string; ring: string }> = {
-    Critical: { bg: 'bg-red-100 dark:bg-red-900/50', text: 'text-red-800 dark:text-red-300', ring: 'ring-red-500/20' },
-    High: { bg: 'bg-orange-100 dark:bg-orange-900/50', text: 'text-orange-800 dark:text-orange-300', ring: 'ring-orange-500/20' },
-    Medium: { bg: 'bg-amber-100 dark:bg-amber-900/50', text: 'text-amber-800 dark:text-amber-300', ring: 'ring-amber-500/20' },
-    Low: { bg: 'bg-blue-100 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300', ring: 'ring-blue-500/20' },
-  };
-  return classes[s] || classes.Low;
+const severityPills: Record<string, string> = {
+  Critical: 'text-red-700 dark:text-red-300 bg-red-500/10 ring-red-500/20',
+  High: 'text-orange-700 dark:text-orange-300 bg-orange-500/10 ring-orange-500/20',
+  Medium: 'text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-amber-500/20',
+  Low: 'text-blue-700 dark:text-blue-300 bg-blue-500/10 ring-blue-500/20',
 };
+
+// Agents report severity in any case ("critical", "HIGH").
+const SeverityPill: React.FC<{ severity: string }> = ({ severity }) => {
+  const s = severity ? severity.charAt(0).toUpperCase() + severity.slice(1).toLowerCase() : 'Low';
+  return (
+    <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold ring-1 ring-inset ${severityPills[s] || severityPills.Low}`}>
+      {severity}
+    </span>
+  );
+};
+
+const scanButton = 'flex-shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium text-primary-700 dark:text-primary-300 ring-1 ring-inset ring-primary-500/25 hover:bg-primary-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent';
+const term = 'text-gray-500 dark:text-gray-400';
 
 export const SecurityEventsFeed: React.FC<SecurityEventsFeedProps> = ({ events, onScanArtifact, onCreateCase, onRunPlaybook }) => {
   const { timeZone } = useTimeZone();
   // Track the id, not the object: events usually arrive after mount and are replaced on refresh.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedEvent = events.find(e => e.id === selectedId) ?? events[0] ?? null;
-  const setSelectedEvent = (event: SecurityEvent) => setSelectedId(event.id);
   const { hasPermission } = useUser();
   const canManageCases = hasPermission('manage:security_cases');
   const canManagePlaybooks = hasPermission('manage:security_playbooks');
   const canInvestigate = hasPermission('investigate:security');
 
+  const fileHash = typeof selectedEvent?.details?.fileHash === 'string' ? selectedEvent.details.fileHash : null;
+  // fetchSecurityEvents fills a missing IP with 'N/A'.
+  const sourceIp = selectedEvent?.source?.ip && selectedEvent.source.ip !== 'N/A' ? selectedEvent.source.ip : null;
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="max-h-[350px] overflow-y-auto pr-2">
-        <div className="space-y-3">
-          {events.map(event => (
-            <div
-              key={event.id}
-              onClick={() => setSelectedEvent(event)}
-              className={`p-3 rounded-lg cursor-pointer transition-all ${selectedEvent?.id === event.id
-                ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/30'
-                : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                }`}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-semibold text-gray-800 dark:text-gray-200">{event.description}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {new Date(event.timestamp).toLocaleString(undefined, { timeZone })} | Host: {event.source?.hostname ?? 'Unknown'}
-                  </p>
-                </div>
-                <span className={`ml-4 flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full ring-1 ring-inset ${getSeverityClasses(event.severity).bg} ${getSeverityClasses(event.severity).text} ${getSeverityClasses(event.severity).ring}`}>
-                  {event.severity}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+    <section aria-label="Security events" className="h-full flex flex-col rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden">
+      <div className="px-5 pt-4 pb-3 border-b border-gray-100 dark:border-white/[0.06] flex items-center justify-between">
+        <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <ActivityIcon size={16} className="text-primary-500" />
+          Events
+        </h3>
+        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold tabular-nums text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-white/[0.06]">{events.length}</span>
       </div>
-      <div>
-        {selectedEvent ? (
-          <div className="space-y-4">
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
-              <h3 className="font-semibold mb-2">Event Details</h3>
-              <div className="text-sm space-y-2">
-                <p><span className="font-medium text-gray-600 dark:text-gray-400">Description:</span> {selectedEvent.description}</p>
-                <p><span className="font-medium text-gray-600 dark:text-gray-400">Type:</span> {selectedEvent.type}</p>
-                <div className="flex items-center justify-between">
-                  <p><span className="font-medium text-gray-600 dark:text-gray-400">Source IP:</span> <span className="font-mono text-xs">{selectedEvent.source?.ip ?? 'N/A'}</span></p>
+
+      {events.length === 0 || !selectedEvent ? (
+        <div className="flex-1 grid place-items-center p-8 text-center">
+          <div>
+            <ActivityIcon size={28} className="mx-auto text-gray-400" />
+            <p className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-300">No security events</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Events your agents raise appear here.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <ul className="p-2 space-y-1 overflow-y-auto max-h-[360px] lg:max-h-none border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-white/[0.06]">
+            {events.map(event => {
+              const isSelected = event.id === selectedEvent.id;
+              return (
+                <li key={event.id} className="relative">
                   <button
-                    onClick={() => onScanArtifact(selectedEvent, selectedEvent.source?.ip ?? '', 'ip')}
-                    disabled={!canInvestigate || !selectedEvent.source?.ip}
-                    title="Scan with VirusTotal"
-                    className="flex items-center text-xs font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:no-underline">
-                    <ShieldSearchIcon size={14} className="mr-1.5" />
+                    type="button"
+                    onClick={() => setSelectedId(event.id)}
+                    aria-current={isSelected ? 'true' : undefined}
+                    className={`w-full text-left pl-3.5 pr-3 py-3 rounded-xl transition-colors duration-150 ${isSelected
+                      ? 'bg-primary-500/[0.08] ring-1 ring-inset ring-primary-500/30 dark:bg-primary-400/10'
+                      : 'hover:bg-gray-100/80 dark:hover:bg-white/[0.04]'
+                      }`}
+                  >
+                    {isSelected && <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-primary-500 dark:bg-primary-400" aria-hidden="true" />}
+                    <div className="flex items-start justify-between gap-3 min-w-0">
+                      <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2">{event.description}</p>
+                      <SeverityPill severity={event.severity} />
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center min-w-0">
+                      <span className="truncate">{event.source?.hostname ?? 'Unknown host'}</span>
+                      <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
+                      <span className="flex-shrink-0 tabular-nums">
+                        {new Date(event.timestamp).toLocaleString(undefined, { timeZone, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="flex flex-col min-h-0">
+            <div className="p-5 flex-1 overflow-y-auto">
+              <div className="flex items-start justify-between gap-3">
+                <h4 className="text-[15px] font-semibold text-gray-900 dark:text-white">{selectedEvent.description}</h4>
+                <SeverityPill severity={selectedEvent.severity} />
+              </div>
+              <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm text-gray-800 dark:text-gray-200">
+                <dt className={term}>Type</dt>
+                <dd>{selectedEvent.type}</dd>
+                <dt className={term}>Time</dt>
+                <dd className="tabular-nums">{new Date(selectedEvent.timestamp).toLocaleString(undefined, { timeZone, dateStyle: 'medium', timeStyle: 'medium' })}</dd>
+                <dt className={term}>Host</dt>
+                <dd>{selectedEvent.source?.hostname ?? 'Unknown'}</dd>
+                <dt className={`${term} self-center`}>Source IP</dt>
+                <dd className="flex items-center justify-between gap-2 min-w-0">
+                  <span className="font-mono text-[13px] truncate">{sourceIp ?? '—'}</span>
+                  <button
+                    onClick={() => sourceIp && onScanArtifact(selectedEvent, sourceIp, 'ip')}
+                    disabled={!canInvestigate || !sourceIp}
+                    title="Check this IP with VirusTotal"
+                    className={scanButton}>
+                    <ShieldSearchIcon size={13} />
                     Scan IP
                   </button>
-                </div>
+                </dd>
                 {selectedEvent.mitreAttack && (
-                  <p><span className="font-medium text-gray-600 dark:text-gray-400">MITRE ATT&CK:</span> <a href={selectedEvent.mitreAttack.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">{selectedEvent.mitreAttack.technique}</a></p>
+                  <>
+                    <dt className={term}>MITRE ATT&CK</dt>
+                    <dd>
+                      <a href={selectedEvent.mitreAttack.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary-700 dark:text-primary-300 hover:underline">
+                        {selectedEvent.mitreAttack.technique}
+                        <ExternalLinkIcon size={12} />
+                      </a>
+                    </dd>
+                  </>
                 )}
-                {selectedEvent.details && (
-                  <div className="pt-2">
-                    <h4 className="font-medium text-gray-600 dark:text-gray-400 mb-1">Raw Details</h4>
-                    {typeof selectedEvent.details?.fileHash === 'string' && (
-                      <div className="flex items-center justify-between mb-2">
-                        <p><span className="font-medium text-gray-600 dark:text-gray-400">File Hash:</span> <span className="font-mono text-xs">{selectedEvent.details?.fileHash as string}</span></p>
-                        <button
-                          onClick={() => onScanArtifact(selectedEvent, selectedEvent.details?.fileHash as string, 'hash')}
-                          disabled={!canInvestigate}
-                          title="Scan with VirusTotal"
-                          className="flex items-center text-xs font-medium text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:no-underline">
-                          <ShieldSearchIcon size={14} className="mr-1.5" />
-                          Scan Hash
-                        </button>
-                      </div>
-                    )}
-                    <pre className="p-2 bg-gray-900 dark:bg-black rounded-md text-xs text-gray-300 whitespace-pre-wrap">
-                      {JSON.stringify(selectedEvent.details, null, 2)}
-                    </pre>
-                  </div>
+                {fileHash && (
+                  <>
+                    <dt className={`${term} self-center`}>File hash</dt>
+                    <dd className="flex items-center justify-between gap-2 min-w-0">
+                      <span className="font-mono text-xs truncate" title={fileHash}>{fileHash}</span>
+                      <button
+                        onClick={() => onScanArtifact(selectedEvent, fileHash, 'hash')}
+                        disabled={!canInvestigate}
+                        title="Check this file hash with VirusTotal"
+                        className={scanButton}>
+                        <ShieldSearchIcon size={13} />
+                        Scan hash
+                      </button>
+                    </dd>
+                  </>
                 )}
-              </div>
+              </dl>
+              {selectedEvent.details && (
+                <div className="mt-5">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Raw details</p>
+                  <pre className="p-3 rounded-xl bg-gray-950 text-gray-200 text-xs font-mono whitespace-pre-wrap break-all ring-1 ring-inset ring-white/[0.06] max-h-56 overflow-auto">
+                    {JSON.stringify(selectedEvent.details, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
-            <div className="flex space-x-2">
+            <div className="px-5 py-3 border-t border-gray-100 dark:border-white/[0.06] flex gap-2">
               <button
-                onClick={() => selectedEvent && onCreateCase?.(selectedEvent)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                onClick={() => onCreateCase?.(selectedEvent)}
+                className="flex-1 h-10 px-4 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!canManageCases}
-                title={!canManageCases ? "You don't have permission to create cases" : "Create a new case from this event"}
+                title={!canManageCases ? "You don't have permission to create cases" : 'Open a case for this event'}
               >
-                Create Case
+                Create case
               </button>
               <button
-                onClick={() => selectedEvent && onRunPlaybook?.(selectedEvent)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 rounded-lg hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-300 dark:hover:bg-primary-900 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+                onClick={() => onRunPlaybook?.(selectedEvent)}
+                className="flex-1 h-10 px-4 text-sm font-medium text-gray-700 dark:text-gray-200 glass rounded-xl transition-all hover:border-primary-500/40 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!canManagePlaybooks}
-                title={!canManagePlaybooks ? "You don't have permission to run playbooks" : "Run an automation playbook"}
+                title={!canManagePlaybooks ? "You don't have permission to run playbooks" : 'Run an automation playbook'}
               >
-                Run Playbook
+                Run playbook
               </button>
             </div>
           </div>
-        ) : (
-          <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Select an event to view details</p>
-          </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </section>
   );
 };

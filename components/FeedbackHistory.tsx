@@ -8,7 +8,7 @@ interface FeedbackHistoryProps {
 
 export const FeedbackHistory: React.FC<FeedbackHistoryProps> = ({ history }) => {
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex-shrink-0">
+    <div className="border-t border-gray-100 dark:border-white/[0.06] px-5 py-3 flex-shrink-0">
       <h4 className="text-sm font-semibold flex items-center text-gray-700 dark:text-gray-300 mb-2">
         <HistoryIcon className="mr-2" size={16} />
         Feedback History

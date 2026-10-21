@@ -1,8 +1,6 @@
-
 import React from 'react';
 import { SecurityCase, CaseStatus } from '../types';
-// FIX: Replaced non-existent BoxIcon and added BoxIcon to icons.tsx.
-import { BoxIcon } from './icons';
+import { BoxIcon, UserIcon } from './icons';
 
 interface CaseManagementProps {
   cases: SecurityCase[];
@@ -11,50 +9,67 @@ interface CaseManagementProps {
 
 const statusColumns: CaseStatus[] = ['New', 'In Progress', 'On Hold', 'Resolved'];
 
-const statusStyles: Record<CaseStatus, { bg: string; text: string; border: string }> = {
-  New: { bg: 'bg-blue-50 dark:bg-blue-900/50', text: 'text-blue-800 dark:text-blue-300', border: 'border-blue-500' },
-  'In Progress': { bg: 'bg-amber-50 dark:bg-amber-900/50', text: 'text-amber-800 dark:text-amber-300', border: 'border-amber-500' },
-  'On Hold': { bg: 'bg-gray-100 dark:bg-gray-700/50', text: 'text-gray-800 dark:text-gray-300', border: 'border-gray-500' },
-  Resolved: { bg: 'bg-green-50 dark:bg-green-900/50', text: 'text-green-800 dark:text-green-300', border: 'border-green-500' },
+const statusDots: Record<CaseStatus, string> = {
+  New: 'bg-blue-500',
+  'In Progress': 'bg-amber-500',
+  'On Hold': 'bg-gray-400',
+  Resolved: 'bg-emerald-500',
 };
 
-const CaseCard: React.FC<{ caseItem: SecurityCase; onClick: () => void }> = ({ caseItem, onClick }) => {
-  const styles = statusStyles[caseItem.status];
-  return (
-    <button 
-      onClick={onClick}
-      className={`w-full text-left p-3 rounded-lg shadow-sm border ${styles.bg} border-gray-200 dark:border-gray-700 hover:shadow-md hover:ring-2 hover:ring-primary-500 transition-all focus:outline-none focus:ring-2 focus:ring-primary-500`}
-    >
-      <div className="flex justify-between items-start">
-        <p className="font-semibold text-sm text-gray-800 dark:text-gray-200">{caseItem.title}</p>
-        <span className={`text-xs font-bold ${styles.text}`}>{caseItem.id}</span>
-      </div>
-      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
-        <p>Severity: <span className="font-medium">{caseItem.severity}</span></p>
-        <p>Owner: <span className="font-medium">{caseItem.owner || 'Unassigned'}</span></p>
-        <p>Last Update: {new Date(caseItem.updatedAt).toLocaleDateString()}</p>
-      </div>
-    </button>
-  );
+const severityPills: Record<string, string> = {
+  Critical: 'text-red-700 dark:text-red-300 bg-red-500/10 ring-red-500/20',
+  High: 'text-orange-700 dark:text-orange-300 bg-orange-500/10 ring-orange-500/20',
+  Medium: 'text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-amber-500/20',
+  Low: 'text-blue-700 dark:text-blue-300 bg-blue-500/10 ring-blue-500/20',
 };
+
+const CaseCard: React.FC<{ caseItem: SecurityCase; onClick: () => void }> = ({ caseItem, onClick }) => (
+  <button
+    onClick={onClick}
+    className="w-full text-left p-3.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-sm hover:border-primary-500/40 hover:shadow-card transition-all"
+  >
+    <div className="flex items-start justify-between gap-2">
+      <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2">{caseItem.title}</p>
+      <span className={`flex-shrink-0 px-1.5 py-px rounded-full text-[11px] font-semibold ring-1 ring-inset ${severityPills[caseItem.severity] || severityPills.Low}`}>{caseItem.severity}</span>
+    </div>
+    <p className="mt-1 font-mono text-[11px] text-gray-500 dark:text-gray-400 truncate">{caseItem.id}</p>
+    <div className="mt-2.5 flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <span className="flex items-center gap-1 min-w-0">
+        <UserIcon size={12} className="flex-shrink-0" />
+        <span className="truncate">{caseItem.owner || 'Unassigned'}</span>
+      </span>
+      <span className="flex-shrink-0 tabular-nums" title="Last update">{new Date(caseItem.updatedAt).toLocaleDateString()}</span>
+    </div>
+  </button>
+);
 
 export const CaseManagement: React.FC<CaseManagementProps> = ({ cases, onViewCase }) => {
   return (
-    <div className="w-full">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statusColumns.map(status => (
-          <div key={status} className="bg-gray-100 dark:bg-gray-900/50 rounded-lg">
-            <h3 className={`p-3 text-sm font-semibold border-b-2 ${statusStyles[status].border} ${statusStyles[status].text}`}>
-              {status} ({cases.filter(c => c.status === status).length})
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+      {statusColumns.map(status => {
+        const columnCases = cases.filter(c => c.status === status);
+        return (
+          <section key={status} aria-label={`${status} cases`} className="rounded-2xl bg-gray-100/70 dark:bg-white/[0.03] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06] flex flex-col">
+            <h3 className="px-4 pt-3.5 pb-2 flex items-center gap-2 text-[13px] font-semibold text-gray-800 dark:text-gray-200">
+              <span className={`h-2 w-2 rounded-full ${statusDots[status]}`} aria-hidden="true" />
+              {status}
+              <span className="ml-auto px-1.5 py-px rounded-full text-[11px] font-semibold tabular-nums text-gray-600 dark:text-gray-300 bg-white dark:bg-white/[0.06] ring-1 ring-inset ring-gray-200/70 dark:ring-transparent">{columnCases.length}</span>
             </h3>
-            <div className="p-3 space-y-3 max-h-[60vh] overflow-y-auto">
-              {cases.filter(c => c.status === status).map(caseItem => (
-                <CaseCard key={caseItem.id} caseItem={caseItem} onClick={() => onViewCase(caseItem)} />
-              ))}
+            <div className="px-3 pb-3 space-y-2.5 max-h-[60vh] overflow-y-auto">
+              {columnCases.length === 0 ? (
+                <div className="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                  <BoxIcon size={18} className="mx-auto mb-1.5 text-gray-400" />
+                  No cases
+                </div>
+              ) : (
+                columnCases.map(caseItem => (
+                  <CaseCard key={caseItem.id} caseItem={caseItem} onClick={() => onViewCase(caseItem)} />
+                ))
+              )}
             </div>
-          </div>
-        ))}
-      </div>
+          </section>
+        );
+      })}
     </div>
   );
 };

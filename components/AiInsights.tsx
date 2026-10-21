@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { fetchHealthAnalysis, fetchSecurityAnalysis } from '../services/apiService';
 import { Metric, Alert, FeedbackLog, SecurityEvent } from '../types';
-import { BotIcon, ThumbsUpIcon, ThumbsDownIcon } from './icons';
+import { BotIcon, ThumbsUpIcon, ThumbsDownIcon, AlertTriangleIcon } from './icons';
 import { FeedbackHistory } from './FeedbackHistory';
 
 interface AiInsightsProps {
@@ -120,33 +120,31 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
   const title = isSecurityContext ? "AI-Powered Security Analysis" : "AI-Driven Health Analysis";
   const buttonText = isLoading ? 'Analyzing...' : analysis ? 'Refresh Analysis' : 'Generate Analysis';
   const placeholderText = isSecurityContext
-    ? "Click 'Generate Analysis' for an AI-powered summary of the selected security events."
+    ? "Generate an AI summary of the events in the feed."
     : "AI analysis is running automatically. Results will appear here shortly.";
 
 
   return (
-    <div className="glass dark:glass rounded-2xl border border-white/20 dark:border-white/5 h-full flex flex-col shadow-xl overflow-hidden">
-      <div className="p-6 border-b border-white/10 dark:border-white/5 flex justify-between items-center flex-shrink-0 bg-primary-500/5">
-        <h3 className="text-xl font-extrabold flex items-center tracking-tight text-gray-800 dark:text-white">
-          <div className="p-2 bg-white/50 dark:bg-white/5 rounded-xl mr-3">
-            <BotIcon className="text-primary-600 dark:text-primary-400" size={24} />
-          </div>
+    <section aria-label={title} className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card h-full flex flex-col overflow-hidden">
+      <div className="px-5 pt-4 pb-3 border-b border-gray-100 dark:border-white/[0.06] flex justify-between items-center gap-3 flex-shrink-0">
+        <h3 className="text-[15px] font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
+          <BotIcon className="text-primary-500" size={16} />
           {title}
         </h3>
         <button
           onClick={handleGenerateAnalysis}
           disabled={isLoading}
-          className="px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-primary-600 to-indigo-600 rounded-xl shadow-lg shadow-primary-500/20 hover:shadow-primary-500/40 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-shrink-0 h-9 px-4 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {buttonText}
         </button>
       </div>
-      <div className="p-6 flex-grow min-h-[200px] overflow-y-auto bg-white/30 dark:bg-transparent">
+      <div className="p-5 flex-grow min-h-[200px] overflow-y-auto">
         {isLoading && <LoadingSkeleton />}
-        {error && <div className="p-4 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-600 dark:text-rose-400 text-sm font-medium">{error}</div>}
+        {error && <div className="p-3.5 rounded-xl text-sm font-medium text-red-700 dark:text-red-300 bg-red-500/[0.06] ring-1 ring-inset ring-red-500/20">{error}</div>}
         {limitedMode && !isLoading && (
-          <div className="mb-4 flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl text-amber-700 dark:text-amber-400 text-xs font-medium">
-            <span className="text-base leading-none mt-0.5">⚠️</span>
+          <div className="mb-4 flex items-start gap-2 p-3 rounded-xl text-xs font-medium text-amber-800 dark:text-amber-300 bg-amber-500/[0.08] ring-1 ring-inset ring-amber-500/25">
+            <AlertTriangleIcon size={15} className="flex-shrink-0 mt-px" />
             <span>
               <strong>AI running in limited mode</strong> — no LLM provider is configured.
               Configure an LLM (Anthropic, Gemini, or Ollama) in{' '}
@@ -183,12 +181,12 @@ export const AiInsights: React.FC<AiInsightsProps> = ({ metrics, alerts, securit
           </div>
         )}
         {!analysis && !isLoading && !error && (
-          <div className="text-center text-gray-500 dark:text-gray-400 flex items-center justify-center h-full">
+          <div className="text-center text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center h-full">
             <p>{placeholderText}</p>
           </div>
         )}
       </div>
       <FeedbackHistory history={history} />
-    </div>
+    </section>
   );
 };

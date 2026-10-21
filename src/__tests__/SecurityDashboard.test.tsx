@@ -5,6 +5,8 @@
  *  - The threat-intel feed maps the API's snake_case fields (rows showed "undefined" / "Invalid Date").
  *  - Enable/Disable on a playbook shows the state the server answered with.
  *  - The 24-hour tile counts the last 24 hours; events that load after mount can be inspected.
+ *  - A disabled playbook is marked, cannot be run, and is skipped by "Run playbook" on an event.
+ *  - Empty events, lookups and playbooks say so.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -128,19 +130,54 @@ describe('Security Operations screen', () => {
     expect(screen.getAllByText('Mimikatz detected').length).toBeGreaterThan(1);
   });
 
+  it('Scan IP is off for an event without an IP', () => {
+    renderScreen({ securityEvents: [{ ...recent, source: { ip: 'N/A', hostname: 'host-a' } }] });
+    expect(screen.getByRole('button', { name: /Scan IP/ })).toBeDisabled();
+  });
+
   it("Enable/Disable shows the server's answer", async () => {
     fetchMock.mockResolvedValue(json({ id: 'pb-1', enabled: false }));
     renderScreen();
-    fireEvent.click(screen.getByRole('button', { name: /SOAR Playbooks|Playbooks/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Playbooks/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     expect(await screen.findByRole('button', { name: 'Enable' })).toBeTruthy();
     expect(fetchMock.mock.calls[0][0]).toBe('/api/playbooks/pb-1/toggle');
   });
 
+  it('Run playbook from an event skips disabled playbooks', () => {
+    const off: Playbook = { ...playbook, id: 'pb-0', name: 'Old sweep', enabled: false };
+    renderScreen({ playbooks: [off, playbook] });
+    fireEvent.click(screen.getByRole('button', { name: 'Run playbook' }));
+    expect(screen.getByText('Isolate host')).toBeTruthy();
+    expect(screen.queryByText('Old sweep')).toBeNull();
+  });
+
+  it('a disabled playbook is marked and cannot be run', () => {
+    renderScreen({ playbooks: [{ ...playbook, enabled: false }] });
+    fireEvent.click(screen.getByRole('button', { name: /Playbooks/ }));
+    expect(screen.getByText('Disabled')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Run playbook' })).toBeDisabled();
+  });
+
+  it('says so when there are no events, lookups or playbooks', () => {
+    renderScreen({ securityEvents: [], playbooks: [] });
+    expect(screen.getByText('No security events')).toBeTruthy();
+    expect(screen.getByText('No lookups yet')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Playbooks/ }));
+    expect(screen.getByText('No playbooks yet')).toBeTruthy();
+  });
+
+  it('feed rows open their report', () => {
+    const lookup = { id: 's1', artifact: 'evil.test', artifactType: 'domain' as const, source: 'VirusTotal', verdict: 'Suspicious' as const, detectionRatio: '3/90', scanDate: hoursAgo(2), reportUrl: '' };
+    renderScreen({ threatIntelFeed: [lookup] });
+    fireEvent.click(screen.getByRole('button', { name: 'Report for evil.test' }));
+    expect(screen.getByText('Threat Intelligence Scan')).toBeTruthy();
+  });
+
   it('a refused toggle keeps the state and says so', async () => {
     fetchMock.mockResolvedValue(json({ detail: 'Not authorized' }, 403));
     renderScreen();
-    fireEvent.click(screen.getByRole('button', { name: /SOAR Playbooks|Playbooks/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Playbooks/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     await waitFor(() => expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Isolate host'), 'error'));
     expect(screen.getByRole('button', { name: 'Disable' })).toBeTruthy();
