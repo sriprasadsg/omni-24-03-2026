@@ -9,7 +9,7 @@ interface AgentUpgradeManagerProps {
   selectedAgentIds: Set<string>;
   jobs: AgentUpgradeJob[];
   onScheduleUpgrade: (agentIds: string[], targetVersion: string) => void;
-  managerRef: React.RefObject<HTMLDivElement>;
+  managerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const statusInfo: Record<AgentUpgradeJobStatus, { icon: React.ReactNode; classes: string; }> = {
@@ -61,21 +61,21 @@ export const AgentUpgradeManager: React.FC<AgentUpgradeManagerProps> = ({ agents
     };
     
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md" ref={managerRef}>
+        <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden" ref={managerRef}>
             <button
-                className="w-full p-4 flex justify-between items-center text-left"
+                className="w-full px-5 py-4 flex justify-between items-center text-left hover:bg-gray-50/80 dark:hover:bg-white/[0.02] transition-colors"
                 onClick={() => setIsOpen(!isOpen)}
                 aria-expanded={isOpen}
             >
-                <h3 className="text-lg font-semibold flex items-center">
-                    <UploadCloudIcon className="mr-2 text-primary-500" />
-                    Agent Upgrade Manager
+                <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <UploadCloudIcon size={16} className="text-primary-500" />
+                    Agent upgrades
                 </h3>
                 <ChevronDownIcon size={20} className={`text-gray-500 dark:text-gray-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="p-5 border-t border-gray-100 dark:border-white/[0.06]">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end p-4 rounded-xl bg-gray-50 dark:bg-white/[0.03] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 {selectedAgentIds.size > 0 ? `${selectedAgentIds.size} agent(s) selected.` : 'Select agents from the list above.'}

@@ -1,10 +1,9 @@
-
 import React, { useState, useMemo } from 'react';
 import { Agent, AgentPlatform, AgentStatus, Asset, Filter } from '../types';
 import {
     WindowsIcon, LinuxIcon, DockerIcon, KubernetesIcon, ServerIcon, HistoryIcon,
     FileTextIcon, TerminalSquareIcon, ArrowUpIcon, ArrowDownIcon,
-    FilterIcon, CheckIcon, XCircleIcon, AlertCircleIcon, ZapIcon, CogIcon, DownloadIcon, PlusCircleIcon, TrashIcon, ShieldIcon, WifiIcon
+    CogIcon, DownloadIcon, PlusCircleIcon, TrashIcon, ShieldIcon, WifiIcon, ZapIcon
 } from './icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useUser } from '../contexts/UserContext';
@@ -34,40 +33,27 @@ interface AgentListProps {
     onToggleSoftwareExclusion?: (agent: Agent) => void;
 }
 
-const statusInfo: Record<AgentStatus, {
-    icon: React.ReactNode;
-    cardBorder: string;
-    badgeClasses: string;
-}> = {
-    Online: {
-        icon: <CheckIcon size={14} className="mr-1.5" />,
-        cardBorder: 'border-l-4 border-green-500',
-        badgeClasses: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
-    },
-    Offline: {
-        icon: <XCircleIcon size={14} className="mr-1.5" />,
-        cardBorder: 'border-l-4 border-gray-500',
-        badgeClasses: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-    },
-    Error: {
-        icon: <AlertCircleIcon size={14} className="mr-1.5" />,
-        cardBorder: 'border-l-4 border-red-500',
-        badgeClasses: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 font-bold',
-    },
-    Quarantined: {
-        icon: <ShieldIcon size={14} className="mr-1.5" />,
-        cardBorder: 'border-l-4 border-amber-500',
-        badgeClasses: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 font-bold',
-    },
+const statusPills: Record<AgentStatus, string> = {
+    Online: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 ring-emerald-500/20',
+    Offline: 'text-gray-700 dark:text-gray-300 bg-gray-500/10 ring-gray-500/20',
+    Error: 'text-red-700 dark:text-red-300 bg-red-500/10 ring-red-500/20',
+    Quarantined: 'text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-amber-500/20',
+};
+
+const statusDots: Record<AgentStatus, string> = {
+    Online: 'bg-emerald-500',
+    Offline: 'bg-gray-400',
+    Error: 'bg-red-500',
+    Quarantined: 'bg-amber-500',
 };
 
 const platformIcons: Record<AgentPlatform, React.ReactNode> = {
-    Linux: <LinuxIcon size={20} className="text-gray-500 dark:text-gray-400" />,
-    Windows: <WindowsIcon size={20} className="text-blue-500" />,
-    macOS: <ServerIcon size={20} className="text-gray-500 dark:text-gray-400" />,
-    Docker: <DockerIcon size={20} className="text-sky-600" />,
-    Kubernetes: <KubernetesIcon size={20} className="text-indigo-500" />,
-    'AWS EC2': <ServerIcon size={20} className="text-orange-500" />,
+    Linux: <LinuxIcon size={18} className="text-gray-600 dark:text-gray-300" />,
+    Windows: <WindowsIcon size={18} className="text-blue-600 dark:text-blue-400" />,
+    macOS: <ServerIcon size={18} className="text-gray-600 dark:text-gray-300" />,
+    Docker: <DockerIcon size={18} className="text-sky-600 dark:text-sky-400" />,
+    Kubernetes: <KubernetesIcon size={18} className="text-blue-600 dark:text-blue-400" />,
+    'AWS EC2': <ServerIcon size={18} className="text-orange-600 dark:text-orange-400" />,
 };
 
 const statusOptions: ('All' | AgentStatus)[] = ['All', 'Online', 'Offline', 'Error', 'Quarantined'];
@@ -105,6 +91,9 @@ const parseLastSeen = (lastSeen: string): number => {
     return value; // Assume seconds
 };
 
+const iconButton = 'grid place-items-center h-8 w-8 rounded-lg text-gray-500 dark:text-gray-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+const term = 'text-gray-500 dark:text-gray-400';
+
 const AgentCard: React.FC<{
     agent: Agent;
     asset: Asset | undefined;
@@ -135,12 +124,11 @@ const AgentCard: React.FC<{
     const staleSecs = lastSeenMs > 0 ? Math.floor((now - lastSeenMs) / 1000) : Infinity;
     const _OFFLINE_THRESHOLD = AGENT_OFFLINE_AFTER_SECS;
     const effectiveStatus = effectiveAgentStatus(agent, now);
-    const info = statusInfo[effectiveStatus] || statusInfo.Offline;
     const hearbeatColor = staleSecs < _OFFLINE_THRESHOLD
-        ? 'text-green-500' : staleSecs < 600
-        ? 'text-amber-400' : 'text-red-400';
+        ? 'text-emerald-700 dark:text-emerald-300' : staleSecs < 600
+        ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300';
     const hearbeatDot = staleSecs < _OFFLINE_THRESHOLD
-        ? 'bg-green-500 animate-pulse' : staleSecs < 600
+        ? 'bg-emerald-500 animate-pulse' : staleSecs < 600
         ? 'bg-amber-400' : 'bg-red-500';
     const lastSeenLabel = (() => {
         if (!lastSeenMs) return '—';
@@ -157,136 +145,138 @@ const AgentCard: React.FC<{
     );
     const remediationDisabled = recentAttempts.length >= 3;
     const hasRemediationAttempts = agent.remediationAttempts && agent.remediationAttempts.length > 0;
+    const isExcluded = !!(agent as any).excludeFromSoftwareOps;
 
     return (
-        <div className={`glass rounded-2xl shadow-lg flex flex-col justify-between transition-all duration-300 w-full relative ${info.cardBorder} ${isSelected ? 'ring-2 ring-primary-500 shadow-[0_0_20px_rgba(14,165,233,0.4)]' : 'hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(14,165,233,0.2)]'} ${isUpgrading ? 'opacity-70' : ''}`}>
-            <div className="absolute top-4 right-4 z-10">
-                <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={(e) => {
-                        e.stopPropagation();
-                        onToggleSelection(agent.id);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-5 w-5 rounded text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:checked:bg-primary-500"
-                    aria-label={`Select agent ${agent.hostname}`}
-                />
-            </div>
-            <div role="button" tabIndex={0} onClick={() => onViewDetails(agent)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onViewDetails(agent); }} className="p-5 h-full cursor-pointer hover:bg-white/5 dark:hover:bg-gray-700/30 transition-colors rounded-t-2xl">
-                <div>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h4 className="font-bold text-lg text-gray-900 dark:text-white truncate pr-10">{agent.hostname}</h4>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-1">{agent.ipAddress}</p>
-                        </div>
-                        <div className="flex items-center">
-                            {/* FIX: Wrapped CogIcon in a span to apply the title attribute, resolving a TypeScript error. */}
-                            {isUpgrading && <span title="Upgrade in progress"><CogIcon size={16} className="text-amber-500 animate-spin mr-2" /></span>}
-                            {agent.tenantId === 'platform-admin' && (
-                                <span className="flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 shadow-sm border border-purple-200 dark:border-purple-700 uppercase tracking-wider mr-2" title="Belongs to Platform Super Admin">
-                                    <ShieldIcon size={12} className="mr-1" />
-                                    Super Admin
-                                </span>
-                            )}
-                            <span className={`flex items-center text-xs font-bold px-2.5 py-1 rounded-full ${info.badgeClasses} shadow-sm`}>
-                                {info.icon}
-                                <span>{effectiveStatus}</span>
-                            </span>
-                        </div>
-                    </div>
-                    <div className="mt-4 text-sm text-gray-600 dark:text-gray-300 space-y-2">
-                        <div className="flex items-center">
-                            <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">OS</span>
-                            <div className="flex items-center space-x-2 text-gray-800 dark:text-gray-200">
-                                {platformIcons[agent.platform]}
-                                <span className="font-medium">{asset?.osName || agent.platform}</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center">
-                            <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Version</span>
-                            <span className="text-gray-800 dark:text-gray-200 font-mono text-xs">{agent.version}</span>
-                        </div>
-                        <div className="flex items-center">
-                            <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Last Seen</span>
-                            <span className="flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${hearbeatDot}`} title={agent.lastSeen ? new Date(agent.lastSeen).toLocaleString(undefined, { timeZone }) : 'Never'} />
-                                <span className={`text-xs font-medium ${hearbeatColor}`}>{lastSeenLabel}</span>
-                            </span>
-                        </div>
-                        {agent.publicIp && (
-                            <div className="flex items-center">
-                                <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Public IP</span>
-                                <span className="text-gray-800 dark:text-gray-200 font-mono text-xs">{agent.publicIp}</span>
-                            </div>
-                        )}
-                        {agent.geo && formatGeo(agent.geo) && (
-                            <div className="flex items-center">
-                                <span className="w-24 font-medium text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Location</span>
-                                <span className="text-gray-800 dark:text-gray-200 text-xs flex items-center gap-1.5">
-                                    {agent.geo.country_code && <span aria-hidden>{flagEmoji(agent.geo.country_code)}</span>}
-                                    <span className="truncate">{formatGeo(agent.geo)}</span>
-                                    {agent.geo.vpn_heuristic === true && (
-                                        <span className="ml-2 inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 text-[11px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide">
-                                            <WifiIcon size={10} />
-                                            likely VPN/hosting
-                                        </span>
-                                    )}
-                                </span>
-                            </div>
-                        )}
+        <div className={`relative flex flex-col rounded-2xl bg-white dark:bg-gray-800 border shadow-card transition-colors ${isSelected
+            ? 'border-primary-500/50 ring-1 ring-primary-500/40'
+            : 'border-gray-200/80 dark:border-white/[0.07] hover:border-primary-500/30'} ${isUpgrading ? 'opacity-70' : ''}`}>
+            <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                    e.stopPropagation();
+                    onToggleSelection(agent.id);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-4 right-4 z-10 h-4 w-4 rounded accent-cyan-600 cursor-pointer"
+                aria-label={`Select agent ${agent.hostname}`}
+            />
+            <div role="button" tabIndex={0} onClick={() => onViewDetails(agent)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onViewDetails(agent); }}
+                aria-label={`${agent.hostname}, ${effectiveStatus}. Open details`}
+                className="p-5 flex-1 cursor-pointer rounded-t-2xl hover:bg-gray-50/70 dark:hover:bg-white/[0.02] transition-colors">
+                <div className="flex items-start gap-3 pr-7">
+                    <span className="grid place-items-center h-10 w-10 flex-shrink-0 rounded-xl bg-gray-100 dark:bg-white/[0.05] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
+                        {platformIcons[agent.platform] ?? <ServerIcon size={18} className="text-gray-500" />}
+                    </span>
+                    <div className="min-w-0">
+                        <h4 className="font-semibold text-[15px] text-gray-900 dark:text-white truncate">{agent.hostname}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5 truncate">{agent.ipAddress}</p>
                     </div>
                 </div>
-            </div>
-            <div className="px-5 pb-5">
-                <div className="mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50 flex items-center justify-end space-x-2">
-                    {canRemediate && agent.status === 'Error' ? (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onAuthorizeRemediation(agent); }}
-                            disabled={remediationDisabled || isUpgrading}
-                            title={isUpgrading ? "Agent is currently being upgraded." : remediationDisabled ? `Remediation limit reached (${recentAttempts.length}/3 in last hour). Try again later.` : "Autonomous Remediation"}
-                            className={`flex items-center px-3 py-1.5 text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-500 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 shadow-lg shadow-primary-500/30 ${remediationDisabled || isUpgrading ? 'grayscale cursor-not-allowed' : 'hover:from-primary-500 hover:to-primary-400 animate-pulse'}`}
-                        >
-                            <ZapIcon size={14} className="mr-1.5" />
-                            Remediate
-                        </button>
-                    ) : (
-                        <>
-                            {hasRemediationAttempts && (
-                                <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onViewRemediationLogs(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:text-gray-400 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="View Remediation History"><HistoryIcon size={16} /></button>
-                            )}
-                            {canViewLogs && (
-                                <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onViewLogs(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="View Logs"><FileTextIcon size={16} /></button>
-                            )}
-                            {canRemediate && (
-                                <>
-                                    <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRunDiagnostics(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-green-600 hover:bg-green-50 dark:text-gray-400 dark:hover:text-green-400 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Run Diagnostics"><TerminalSquareIcon size={16} /></button>
-                                    {onQuarantineAgent && agent.status !== 'Quarantined' && (
-                                        <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onQuarantineAgent(agent); }} className="p-2 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-amber-50 dark:text-gray-400 dark:hover:text-amber-400 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Quarantine Agent"><ShieldIcon size={16} /></button>
-                                    )}
-                                    {onToggleSoftwareExclusion && (
-                                        <button
-                                            disabled={isUpgrading}
-                                            onClick={(e) => { e.stopPropagation(); onToggleSoftwareExclusion(agent); }}
-                                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${(agent as any).excludeFromSoftwareOps ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/30 hover:text-amber-700' : 'text-gray-500 hover:text-amber-500 hover:bg-amber-50 dark:text-gray-400 dark:hover:text-amber-400 dark:hover:bg-amber-900/20'}`}
-                                            title={(agent as any).excludeFromSoftwareOps ? 'Remove software exclusion' : 'Exclude from software operations'}
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                                                <line x1="8" y1="21" x2="16" y2="21"></line>
-                                                <line x1="12" y1="17" x2="12" y2="21"></line>
-                                                {(agent as any).excludeFromSoftwareOps && <line x1="4" y1="4" x2="20" y2="20" strokeWidth="2.5"></line>}
-                                            </svg>
-                                        </button>
-                                    )}
-                                    {onDeleteAgent && (
-                                        <button disabled={isUpgrading} onClick={handleDeleteClick} className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Delete Agent"><TrashIcon size={16} /></button>
-                                    )}
-                                </>
-                            )}
-                        </>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ring-1 ring-inset ${statusPills[effectiveStatus] || statusPills.Offline}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusDots[effectiveStatus] || statusDots.Offline}`} aria-hidden="true" />
+                        {effectiveStatus}
+                    </span>
+                    {isUpgrading && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-1 ring-inset ring-amber-500/20" title="Upgrade in progress">
+                            <CogIcon size={11} className="animate-spin" /> Upgrading
+                        </span>
+                    )}
+                    {agent.tenantId === 'platform-admin' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold text-primary-700 dark:text-primary-300 bg-primary-500/10 ring-1 ring-inset ring-primary-500/20" title="Belongs to Platform Super Admin">
+                            <ShieldIcon size={11} /> Super Admin
+                        </span>
+                    )}
+                    {isExcluded && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-1 ring-inset ring-amber-500/20" title="Excluded from software operations">
+                            No software ops
+                        </span>
                     )}
                 </div>
+                <dl className="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13px] text-gray-800 dark:text-gray-200">
+                    <dt className={term}>OS</dt>
+                    <dd className="truncate">{asset?.osName || agent.platform}</dd>
+                    <dt className={term}>Version</dt>
+                    <dd className="font-mono text-xs self-center">{agent.version}</dd>
+                    <dt className={term}>Last seen</dt>
+                    <dd className="flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${hearbeatDot}`} title={agent.lastSeen ? new Date(agent.lastSeen).toLocaleString(undefined, { timeZone }) : 'Never'} />
+                        <span className={`text-xs font-medium ${hearbeatColor}`}>{lastSeenLabel}</span>
+                    </dd>
+                    {agent.publicIp && (
+                        <>
+                            <dt className={term}>Public IP</dt>
+                            <dd className="font-mono text-xs self-center truncate">{agent.publicIp}</dd>
+                        </>
+                    )}
+                    {agent.geo && formatGeo(agent.geo) && (
+                        <>
+                            <dt className={term}>Location</dt>
+                            <dd className="text-xs flex items-center gap-1.5 min-w-0 self-center">
+                                {agent.geo.country_code && <span aria-hidden>{flagEmoji(agent.geo.country_code)}</span>}
+                                <span className="truncate">{formatGeo(agent.geo)}</span>
+                                {agent.geo.vpn_heuristic === true && (
+                                    <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 ring-1 ring-inset ring-amber-500/20">
+                                        <WifiIcon size={10} />
+                                        likely VPN/hosting
+                                    </span>
+                                )}
+                            </dd>
+                        </>
+                    )}
+                </dl>
+            </div>
+            <div className="px-3 py-2 border-t border-gray-100 dark:border-white/[0.06] flex items-center justify-end gap-1 min-h-[49px]">
+                {canRemediate && agent.status === 'Error' ? (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onAuthorizeRemediation(agent); }}
+                        disabled={remediationDisabled || isUpgrading}
+                        title={isUpgrading ? "Agent is currently being upgraded." : remediationDisabled ? `Remediation limit reached (${recentAttempts.length}/3 in last hour). Try again later.` : "Autonomous Remediation"}
+                        className="flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-white rounded-lg bg-primary-600 hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <ZapIcon size={13} />
+                        Remediate
+                    </button>
+                ) : (
+                    <>
+                        {hasRemediationAttempts && (
+                            <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onViewRemediationLogs(agent); }} className={`${iconButton} hover:text-primary-700 hover:bg-primary-500/10 dark:hover:text-primary-300`} title="View Remediation History" aria-label={`Remediation history for ${agent.hostname}`}><HistoryIcon size={16} /></button>
+                        )}
+                        {canViewLogs && (
+                            <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onViewLogs(agent); }} className={`${iconButton} hover:text-gray-900 hover:bg-gray-900/[0.05] dark:hover:text-white dark:hover:bg-white/[0.07]`} title="View Logs" aria-label={`Logs for ${agent.hostname}`}><FileTextIcon size={16} /></button>
+                        )}
+                        {canRemediate && (
+                            <>
+                                <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onRunDiagnostics(agent); }} className={`${iconButton} hover:text-emerald-700 hover:bg-emerald-500/10 dark:hover:text-emerald-300`} title="Run Diagnostics" aria-label={`Run diagnostics on ${agent.hostname}`}><TerminalSquareIcon size={16} /></button>
+                                {onQuarantineAgent && agent.status !== 'Quarantined' && (
+                                    <button disabled={isUpgrading} onClick={(e) => { e.stopPropagation(); onQuarantineAgent(agent); }} className={`${iconButton} hover:text-amber-700 hover:bg-amber-500/10 dark:hover:text-amber-300`} title="Quarantine Agent" aria-label={`Quarantine ${agent.hostname}`}><ShieldIcon size={16} /></button>
+                                )}
+                                {onToggleSoftwareExclusion && (
+                                    <button
+                                        disabled={isUpgrading}
+                                        onClick={(e) => { e.stopPropagation(); onToggleSoftwareExclusion(agent); }}
+                                        aria-pressed={isExcluded}
+                                        className={`${iconButton} ${isExcluded ? 'text-amber-700 dark:text-amber-300 bg-amber-500/10' : 'hover:text-amber-700 hover:bg-amber-500/10 dark:hover:text-amber-300'}`}
+                                        title={isExcluded ? 'Remove software exclusion' : 'Exclude from software operations'}
+                                        aria-label={isExcluded ? `Include ${agent.hostname} in software operations` : `Exclude ${agent.hostname} from software operations`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                                            {isExcluded && <line x1="4" y1="4" x2="20" y2="20" strokeWidth="2.5"></line>}
+                                        </svg>
+                                    </button>
+                                )}
+                                {onDeleteAgent && (
+                                    <button disabled={isUpgrading} onClick={handleDeleteClick} className={`${iconButton} hover:text-red-700 hover:bg-red-500/10 dark:hover:text-red-300`} title="Delete Agent" aria-label={`Delete ${agent.hostname}`}><TrashIcon size={16} /></button>
+                                )}
+                            </>
+                        )}
+                    </>
+                )}
             </div>
         </div>
     );
@@ -300,8 +290,6 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
         onBulkDiagnostics, onBulkRemediate, onBulkDelete, onRegisterAgent, filters
     } = props;
 
-    const { timeZone } = useTimeZone();
-
     const { hasPermission } = useUser();
     const canRemediate = hasPermission('remediate:agents');
     const canViewLogs = hasPermission('view:agent_logs');
@@ -314,6 +302,13 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
 
     const uniquePlatforms = useMemo(() => ['All', ...Array.from(new Set(agents.map(a => a.platform)))], [agents]);
 
+    const statusCounts = useMemo(() => {
+        const now = Date.now();
+        const counts: Record<string, number> = { All: agents.length };
+        agents.forEach(a => { const s = effectiveAgentStatus(a, now); counts[s] = (counts[s] || 0) + 1; });
+        return counts;
+    }, [agents]);
+
     const requestSort = (key: SortableKeys) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -324,8 +319,8 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
 
     const getSortIndicator = (key: SortableKeys) => {
         if (!sortConfig || sortConfig.key !== key) return null;
-        if (sortConfig.direction === 'ascending') return <ArrowUpIcon size={12} className="ml-1 inline-block" />;
-        return <ArrowDownIcon size={12} className="ml-1 inline-block" />;
+        if (sortConfig.direction === 'ascending') return <ArrowUpIcon size={12} className="inline-block" />;
+        return <ArrowDownIcon size={12} className="inline-block" />;
     };
 
     const sortedAndFilteredAgents = useMemo(() => {
@@ -373,70 +368,89 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
         return uniqueAgents;
     }, [agents, statusFilter, platformFilter, sortConfig, filters]);
 
-    // FIX: Added JSX return statement to fix compile error.
     const filteredAgentIds = useMemo(() => sortedAndFilteredAgents.map(a => a.id), [sortedAndFilteredAgents]);
     const allOnPageSelected = filteredAgentIds.length > 0 && filteredAgentIds.every(id => selectedAgentIds.has(id));
 
+    const sortButton = (key: SortableKeys, label: string) => (
+        <button
+            onClick={() => requestSort(key)}
+            aria-pressed={sortConfig?.key === key}
+            className={`flex items-center gap-1 whitespace-nowrap h-8 px-2.5 rounded-[10px] text-xs font-medium transition-colors ${sortConfig?.key === key
+                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+        >
+            {label} {getSortIndicator(key)}
+        </button>
+    );
+
     return (
         <div>
-            {/* Filter and Controls Bar with Glassmorphism */}
-            <div className="p-4 border-b border-gray-200/50 dark:border-gray-700/50 flex flex-col md:flex-row gap-4 items-center glass rounded-t-xl mb-4 bg-white/50 dark:bg-gray-800/50">
-                <div className="relative flex-grow w-full md:w-auto group">
-                    <FilterIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as 'All' | AgentStatus)}
-                        className="w-full pl-10 pr-4 py-2 bg-white/80 dark:bg-gray-700/80 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm sm:text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    >
-                        {statusOptions.map(opt => <option key={opt} value={opt}>{opt === 'All' ? 'All Statuses' : opt}</option>)}
-                    </select>
+            <div className="px-5 py-3 border-b border-gray-100 dark:border-white/[0.06] flex flex-col xl:flex-row xl:items-center gap-3">
+                <div role="group" aria-label="Filter by status" className="inline-flex self-start p-0.5 rounded-xl overflow-x-auto max-w-full bg-gray-100 dark:bg-white/[0.05] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
+                    {statusOptions.map(opt => (
+                        <button
+                            key={opt}
+                            onClick={() => setStatusFilter(opt)}
+                            aria-pressed={statusFilter === opt}
+                            className={`flex items-center gap-1.5 whitespace-nowrap h-8 px-2.5 rounded-[10px] text-xs font-medium transition-colors ${statusFilter === opt
+                                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+                        >
+                            {opt !== 'All' && <span className={`h-1.5 w-1.5 rounded-full ${statusDots[opt]}`} aria-hidden="true" />}
+                            {opt}
+                            <span className="tabular-nums text-gray-500 dark:text-gray-400">{statusCounts[opt] || 0}</span>
+                        </button>
+                    ))}
                 </div>
-                <div className="relative flex-grow w-full md:w-auto group">
-                    <FilterIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
-                    <select
-                        value={platformFilter}
-                        onChange={(e) => setPlatformFilter(e.target.value as 'All' | AgentPlatform)}
-                        className="w-full pl-10 pr-4 py-2 bg-white/80 dark:bg-gray-700/80 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm sm:text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                    >
-                        {uniquePlatforms.map((opt, i) => <option key={`platform-${opt}-${i}`} value={opt}>{opt === 'All' ? 'All Platforms' : opt}</option>)}
-                    </select>
-                </div>
-                <div className="flex-shrink-0 flex items-center space-x-3 bg-white/50 dark:bg-gray-800/50 p-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider pl-1">Sort</span>
-                    <div className="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
-                    <button onClick={() => requestSort('hostname')} className={`text-xs font-medium px-2 py-1 rounded transition-colors ${sortConfig?.key === 'hostname' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300' : 'text-gray-600 dark:text-gray-300 hover:text-primary-500'}`}>Hostname {getSortIndicator('hostname')}</button>
-                    <button onClick={() => requestSort('version')} className={`text-xs font-medium px-2 py-1 rounded transition-colors ${sortConfig?.key === 'version' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300' : 'text-gray-600 dark:text-gray-300 hover:text-primary-500'}`}>Version {getSortIndicator('version')}</button>
-                    <button onClick={() => requestSort('lastSeen')} className={`text-xs font-medium px-2 py-1 rounded transition-colors ${sortConfig?.key === 'lastSeen' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300' : 'text-gray-600 dark:text-gray-300 hover:text-primary-500'}`}>Last Seen {getSortIndicator('lastSeen')}</button>
+                <select
+                    value={platformFilter}
+                    onChange={(e) => setPlatformFilter(e.target.value as 'All' | AgentPlatform)}
+                    aria-label="Platform"
+                    className="h-9 pl-3 pr-8 text-[13px] font-medium rounded-xl text-gray-700 dark:text-gray-200 bg-white dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 focus:outline-none focus:border-primary-500 self-start"
+                >
+                    {uniquePlatforms.map((opt, i) => <option key={`platform-${opt}-${i}`} value={opt}>{opt === 'All' ? 'All platforms' : opt}</option>)}
+                </select>
+                <div role="group" aria-label="Sort by" className="xl:ml-auto inline-flex self-start items-center max-w-full overflow-x-auto p-0.5 rounded-xl bg-gray-100 dark:bg-white/[0.05] ring-1 ring-inset ring-gray-200/70 dark:ring-white/[0.06]">
+                    <span className="px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Sort</span>
+                    {sortButton('hostname', 'Hostname')}
+                    {sortButton('version', 'Version')}
+                    {sortButton('lastSeen', 'Last seen')}
                 </div>
             </div>
 
             {canRemediate && selectedAgentIds.size > 0 && (
-                <div className="p-4 border border-primary-200 dark:border-primary-800 bg-primary-50/50 dark:bg-primary-900/20 flex flex-col sm:flex-row justify-between items-center gap-4 rounded-lg mb-4 backdrop-blur-sm">
-                    <p className="text-sm font-semibold text-primary-800 dark:text-primary-200">{selectedAgentIds.size} agent(s) selected.</p>
-                    <div className="flex items-center space-x-3">
-                        <button onClick={onBulkRemediate} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-primary-600 rounded-lg hover:bg-primary-700 shadow-md shadow-primary-500/20 transition-all">Remediate</button>
-                        <button onClick={onBulkDiagnostics} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 shadow-sm dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">Diagnostics</button>
-                        {onBulkDelete && <button onClick={onBulkDelete} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-red-700 bg-red-50 border border-red-300 rounded-lg hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/50 transition-all">Delete</button>}
-                    </div>
+                <div role="region" aria-label="Bulk actions" className="mx-5 mt-4 flex flex-wrap items-center gap-2 px-2.5 py-1.5 rounded-xl bg-primary-500/[0.08] ring-1 ring-inset ring-primary-500/25">
+                    <span className="text-xs font-semibold text-primary-700 dark:text-primary-300 tabular-nums">{selectedAgentIds.size} selected</span>
+                    <button onClick={onBulkRemediate} className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors">
+                        <ZapIcon size={13} /> Remediate
+                    </button>
+                    <button onClick={onBulkDiagnostics} className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-900/[0.05] dark:hover:bg-white/[0.07] transition-colors">
+                        <TerminalSquareIcon size={13} /> Diagnostics
+                    </button>
+                    {onBulkDelete && (
+                        <button onClick={onBulkDelete} className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs font-medium text-red-700 dark:text-red-300 hover:bg-red-500/10 transition-colors">
+                            <TrashIcon size={13} /> Delete
+                        </button>
+                    )}
                 </div>
             )}
 
-            <div className="p-4 pt-0">
+            <div className="p-5">
                 {sortedAndFilteredAgents.length > 0 ? (
                     <>
-                        <div className="flex items-center mb-4 pl-1">
+                        <div className="flex items-center mb-4">
                             <input
                                 id="select-all-agents"
                                 type="checkbox"
                                 checked={allOnPageSelected}
                                 onChange={() => onSelectAll(filteredAgentIds)}
-                                className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                                className="h-4 w-4 rounded accent-cyan-600 cursor-pointer"
                             />
-                            <label htmlFor="select-all-agents" className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                            <label htmlFor="select-all-agents" className="ml-2 text-[13px] font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
                                 Select all ({filteredAgentIds.length})
                             </label>
                         </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                             {sortedAndFilteredAgents.map(agent => (
                                 <AgentCard
                                     key={agent.id}
@@ -461,38 +475,36 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                         </div>
                     </>
                 ) : (
-                    <div className="text-center py-24 px-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-800/30 backdrop-blur-sm">
-                        <div className="w-24 h-24 mx-auto bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                            <ServerIcon size={48} className="text-gray-400 dark:text-gray-500" strokeWidth={1} />
-                        </div>
-                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    <div className="py-14 text-center">
+                        <ServerIcon size={28} className="mx-auto text-gray-400" />
+                        <h3 className="mt-3 text-sm font-medium text-gray-700 dark:text-gray-300">
                             {agents.length > 0 ? 'No agents match these filters' : 'No agents registered yet'}
                         </h3>
-                        <p className="mt-2 text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8">
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto">
                             {agents.length > 0 ? 'Pick another status or platform to see them.' : 'Get started by running the installation script on your hosts or manually registering an agent.'}
                         </p>
                         {agents.length > 0 && (
                             <button
                                 onClick={() => { setStatusFilter('All'); setPlatformFilter('All'); }}
-                                className="px-5 py-2.5 text-sm font-semibold text-white bg-primary-600 rounded-xl hover:bg-primary-700"
+                                className="mt-5 h-9 px-4 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700"
                             >
                                 Show all agents
                             </button>
                         )}
                         {agents.length === 0 && (
-                            <div className="flex justify-center items-center space-x-4">
+                            <div className="mt-5 flex justify-center items-center gap-2">
                                 <button
                                     onClick={() => document.getElementById('agent-installation-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="flex items-center px-6 py-3 text-sm font-bold text-white bg-primary-600 rounded-xl hover:bg-primary-700 shadow-lg shadow-primary-500/30 transition-all hover:scale-105"
+                                    className="flex items-center gap-2 h-9 px-4 text-sm font-semibold text-white rounded-xl bg-primary-600 hover:bg-primary-700"
                                 >
-                                    <DownloadIcon size={18} className="mr-2" />
+                                    <DownloadIcon size={15} />
                                     Install Agent
                                 </button>
                                 <button
                                     onClick={onRegisterAgent}
-                                    className="flex items-center px-6 py-3 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 shadow-md dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-all hover:scale-105"
+                                    className="flex items-center gap-2 h-9 px-4 text-sm font-medium text-gray-700 dark:text-gray-200 glass rounded-xl"
                                 >
-                                    <PlusCircleIcon size={18} className="mr-2" />
+                                    <PlusCircleIcon size={15} />
                                     Manual Register
                                 </button>
                             </div>
@@ -515,6 +527,6 @@ export const AgentList: React.FC<AgentListProps> = (props) => {
                 confirmText="Delete"
                 isDestructive={true}
             />
-        </div >
+        </div>
     );
 };

@@ -8,7 +8,7 @@ interface AutonomousOpsLogProps {
 }
 
 const stepIcons: Record<AgenticStep['type'], { icon: React.ReactNode; color: string; }> = {
-  goal: { icon: <ZapIcon />, color: 'text-indigo-500 dark:text-indigo-400' },
+  goal: { icon: <ZapIcon />, color: 'text-primary-500 dark:text-primary-400' },
   thought: { icon: <MessageSquareQuoteIcon />, color: 'text-sky-500 dark:text-sky-400' },
   action: { icon: <TerminalIcon />, color: 'text-amber-500 dark:text-amber-400' },
   observation: { icon: <EyeIcon />, color: 'text-green-500 dark:text-green-400' },
@@ -27,7 +27,7 @@ export const AutonomousOpsLog: React.FC<AutonomousOpsLogProps> = ({ steps }) => 
   return (
     <div
       ref={logContainerRef}
-      className="p-3 bg-gray-900 dark:bg-black rounded-md max-h-64 overflow-y-auto font-mono text-sm"
+      className="p-3 bg-gray-950 text-gray-200 rounded-xl ring-1 ring-inset ring-white/[0.06] max-h-64 overflow-y-auto font-mono text-sm"
     >
       <div className="space-y-3">
         {steps.map((step, index) => {

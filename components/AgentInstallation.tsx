@@ -212,14 +212,15 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
     const isFreeTierDownloadable = !!effectiveTenantId;
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-white/[0.07] shadow-card overflow-hidden">
             <button
-                className="w-full p-4 flex justify-between items-center text-left"
+                className="w-full px-5 py-4 flex justify-between items-center text-left hover:bg-gray-50/80 dark:hover:bg-white/[0.02] transition-colors"
                 onClick={() => setIsOpen(!isOpen)}
                 aria-expanded={isOpen}
             >
-                <h3 className="text-lg font-semibold flex items-center">
-                    Agent Installation
+                <h3 className="text-[15px] font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <DownloadIcon size={16} className="text-primary-500" />
+                    Agent installation
                 </h3>
                 <ChevronDownIcon
                     size={20}
@@ -228,7 +229,7 @@ export const AgentInstallation: React.FC<AgentInstallationProps> = ({ registrati
             </button>
 
             {isOpen && (
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="p-5 border-t border-gray-100 dark:border-white/[0.06]">
                     {fetchingKey ? (
                         <div className="p-4 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
                             <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">

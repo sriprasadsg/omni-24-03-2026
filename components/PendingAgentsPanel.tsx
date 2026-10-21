@@ -169,7 +169,7 @@ export const PendingAgentsPanel: React.FC<{ tenantId?: string | null }> = ({ ten
     const btn = 'px-2 py-1 text-xs rounded-md disabled:opacity-50';
 
     return (
-        <div className="mb-6 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4"
+        <div className="rounded-2xl p-5 bg-amber-500/[0.06] ring-1 ring-inset ring-amber-500/25"
              data-testid="pending-agents-panel">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <h3 className="text-sm font-bold text-gray-800 dark:text-white">

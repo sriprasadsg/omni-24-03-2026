@@ -82,6 +82,20 @@ describe('Agents screen', () => {
     expect(cards()).toEqual(['Select agent WKS-102']);
   });
 
+  it('the tiles count a stale agent as offline', async () => {
+    renderScreen([fresh, stale], { summary: { totalAgents: 2, onlineAgents: 2 } });
+    await screen.findAllByText('WKS-101');
+    expect(within(screen.getByRole('group', { name: 'Agents' })).getByText('2')).toBeTruthy();
+    expect(within(screen.getByRole('group', { name: 'Online' })).getByText('1')).toBeTruthy();
+    expect(within(screen.getByRole('group', { name: 'Offline' })).getByText('1')).toBeTruthy();
+  });
+
+  it('card actions are labelled', () => {
+    renderScreen([fresh]);
+    expect(screen.getByRole('button', { name: 'Run diagnostics on WKS-101' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Logs for WKS-101' })).toBeTruthy();
+  });
+
   it('has no Restart button', () => {
     renderScreen([fresh]);
     expect(screen.queryByTitle('Restart Agent')).toBeNull();
