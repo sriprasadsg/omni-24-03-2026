@@ -979,7 +979,7 @@ export const addComplianceControl = async (frameworkId: string, control: any) =>
         method: 'POST',
         body: JSON.stringify(control)
     });
-    if (!res.ok) throw new Error("Failed to add control");
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Failed to add control'); }
     return await res.json();
 };
 
@@ -993,7 +993,7 @@ export const importComplianceControls = async (frameworkId: string, file: File) 
         body: formData
     });
 
-    if (!res.ok) throw new Error("Import failed");
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Import failed'); }
     return await res.json();
 };
 
@@ -1001,7 +1001,7 @@ export const runAIAuditor = async (frameworkId: string) => {
     const res = await authFetch(`${API_BASE}/compliance/audit-framework/${frameworkId}`, {
         method: 'POST'
     });
-    if (!res.ok) throw new Error("AI Audit failed");
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'AI Audit failed'); }
     return await res.json();
 };
 

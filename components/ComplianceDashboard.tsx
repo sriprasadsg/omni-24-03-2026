@@ -36,7 +36,8 @@ export const ComplianceDashboard: React.FC<ComplianceDashboardProps> = ({ compli
     const handleRefresh = useCallback(async () => {
         try {
             const fresh = await fetchComplianceFrameworks();
-            if (fresh) {
+            // fetchComplianceFrameworks answers [] when the request fails; keep what is on screen.
+            if (fresh && fresh.length > 0) {
                 setFrameworks(fresh);
                 if (selectedFramework) {
                     const updated = (fresh as ComplianceFramework[]).find(f => f.id === selectedFramework.id);

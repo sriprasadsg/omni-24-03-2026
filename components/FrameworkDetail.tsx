@@ -57,8 +57,10 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
       await api.addComplianceControl(framework.id, data);
       showToast('Control added successfully!', 'success');
       setIsAddControlModalOpen(false);
+      // The new control lives on the framework, which the parent owns.
+      if (onRefresh) onRefresh();
     } catch (e) {
-      showToast('Failed to add control', 'error');
+      showToast(`Failed to add control: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
     }
   };
 
@@ -68,6 +70,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
       try {
         const res = await api.importComplianceControls(framework.id, file);
         showToast(`Successfully imported ${res.count} controls from ${file.name}`, 'success');
+        if (onRefresh) onRefresh();
       } catch (err: any) {
         showToast(`Import failed: ${err?.message ?? 'Unknown error'}`, 'error');
       }
@@ -103,7 +106,8 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
         res = await api.generateComplianceReport(framework.id);
       }
 
-      if (res?.filename) {
+      // The report endpoints answer { success, report: { filename, ... } }.
+      if (res?.report?.filename ?? res?.filename) {
         showToast(`${reportFormat.toUpperCase()} report generated successfully!`, 'success');
         setIsReportsModalOpen(true);
       } else {
@@ -207,7 +211,7 @@ export const FrameworkDetail: React.FC<FrameworkDetailProps> = ({ framework, ass
                       showToast(res.message, 'success');
                       if (onRefresh) onRefresh();
                     } catch (e) {
-                      showToast('Failed to run AI Audit.', 'error');
+                      showToast(`Failed to run AI Audit: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
                     }
                   }
                 }}
