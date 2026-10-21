@@ -79,6 +79,8 @@ Filled by validate-phase 2026-10-19. Backend commands run as `backend/venv/bin/p
 
 **Runs 2026-10-19:** vitest `src/__tests__` 413 passed; Phase 77 backend set 584 passed; supporting modules 388 passed; `test_catalogue_route_parity.py` 50 passed; `npm run build` OK. After the WR-01 fix (a1f4488d1, refresh guard in `catalogueAccess.test.ts`): vitest 414 passed, build OK; no backend file changed. After WR-08/09/10 (b76b8af8d, 41fb29db5, 3bb575186): vitest 420 passed. After WR-02/03 (bee9299ce, MFA on sockets and cache invalidation; new tests in `test_custom_role_mfa.py`, `test_role_write_api.py`): full backend 4048 passed / 47 skipped.
 
+
+**Re-run 2026-10-21** (covered files changed by the Spatial Glass screen pass): Phase 77 backend set 889 passed in 75 s; vitest `src/__tests__` 836 passed; `npm run build` OK. All 27 rows stay green.
 ---
 
 ## Wave 0 Requirements
@@ -98,6 +100,8 @@ Filled by validate-phase 2026-10-19. Backend commands run as `backend/venv/bin/p
 | Zero-access page fits at 320px with a long email (UI-SPEC C15) | ACC-06 | Visual layout | Sign in as a role with no screens on a 320px viewport |
 | Sidebar updates after an admin edits a role, on next window focus, without re-login | ACC-08 | Needs two live sessions and a deployed backend | After deploy: user A open; admin edits A's custom role; refocus A's tab |
 | Restricted roles meet no raw 403s, toasts or offline banner (with Phase 76's guards live) | ACC-06 | Needs the deployed backend | Sign in as viewer, itam_viewer and analyst and click through every visible screen |
+
+All four confirmed on the live system in `77-UAT.md` (2026-10-21): tests 1 (role edit refresh), 2 (restricted roles, no raw 403s) and 3 (layout at 320/375/768 px, light and dark).
 
 ---
 
