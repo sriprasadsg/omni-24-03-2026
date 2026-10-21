@@ -47,6 +47,14 @@ findings:
     severity: warning
     disposition: open
     title: "`authFetch` still signs the user out when a caller's `AbortSignal` fires during the post-401 retry"
+  - id: WR-12
+    severity: warning
+    disposition: open
+    title: "Approving a sign-up is not atomic; a failure between the two writes strands the admin as `Pending` and cannot be retried"
+  - id: WR-13
+    severity: warning
+    disposition: open
+    title: "A pending sign-up claims its email address with no verification and no expiry"
   - id: IN-01
     severity: info
     disposition: open
@@ -99,9 +107,25 @@ findings:
     severity: info
     disposition: open
     title: "A `create_role` whose read-after-write check fails leaves the role created, unaudited, and answers 503"
-open: 17
-total: 24
-recorded: 2026-10-19T17:51:37.822Z
+  - id: IN-14
+    severity: info
+    disposition: open
+    title: "Changed `apiService.ts` error paths build `Error(e.detail)` from a value that is not always a string, and the threat-intel mapper can emit empty ids"
+  - id: IN-15
+    severity: info
+    disposition: open
+    title: "The \"known gap\" list in `catalogueAccess.test.ts` was extended to make the test pass, and the Sidebar guard is text matching"
+  - id: IN-16
+    severity: info
+    disposition: open
+    title: "A hash that names a denied page wins over the landing page, so a different user signing in after a session end lands on the no-access panel"
+  - id: IN-17
+    severity: info
+    disposition: open
+    title: "\"One list\" claim of `useVisibleNav` is not true for the Header, and `useNavMemory` shows the previous user's pins for one render"
+open: 22
+total: 30
+recorded: 2026-10-21T13:45:06.124Z
 ---
 
 # Phase 77: Code Review Disposition
@@ -119,6 +143,8 @@ recorded: 2026-10-19T17:51:37.822Z
 | WR-09 | warning | fixed | 41fb29db5 (timeout + catch; confirmed resolved in review pass 3), timeout reworked in 3bb575186 |
 | WR-10 | warning | fixed | 3bb575186 (race instead of abort; regression test reproduces the sign-out; not re-reviewed) |
 | WR-11 | warning | open | - |
+| WR-12 | warning | open | - |
+| WR-13 | warning | open | - |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
@@ -132,6 +158,10 @@ recorded: 2026-10-19T17:51:37.822Z
 | IN-11 | info | open | - |
 | IN-12 | info | fixed | 2bc310005 (per-tenant generation guard; role writes inside _role_write; confirmed resolved in review pass 5) |
 | IN-13 | info | open | - |
+| IN-14 | info | open | - |
+| IN-15 | info | open | - |
+| IN-16 | info | open | - |
+| IN-17 | info | open | - |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
