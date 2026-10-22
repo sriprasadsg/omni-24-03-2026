@@ -163,8 +163,12 @@ def test_golden_path_evidence_to_remediation():
         if len(args) >= 2 and isinstance(args[1], dict):
             if "$set" in args[1] and args[1]["$set"].get("agent_type") == "rust":
                 agent_type_found = True
-            if "$push" in args[1] and args[1]["$push"].get("evidence", {}).get("systemGenerated"):
-                evidence_pushed = True
+            if "$push" in args[1]:
+                ev = args[1]["$push"].get("evidence", {})
+                # evidence is bulk-pushed as {"$each": [<doc>, ...]}; unwrap it
+                items = ev.get("$each", [ev]) if isinstance(ev, dict) else [ev]
+                if any(isinstance(i, dict) and i.get("systemGenerated") for i in items):
+                    evidence_pushed = True
     assert agent_type_found, "agent_type='rust' not in $set"
     assert evidence_pushed, "no systemGenerated=True evidence pushed"
 

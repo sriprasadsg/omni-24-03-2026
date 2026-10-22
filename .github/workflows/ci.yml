@@ -43,8 +43,8 @@ jobs:
       - name: Security scan (bandit)
         run: |
           pip install bandit[toml]
-          bandit -r . -ll -x ./tests,./scripts -f json -o bandit-report.json || true
-          bandit -r . -ll -x ./tests,./scripts
+          bandit -c pyproject.toml -r . -ll -x ./tests,./scripts -f json -o bandit-report.json || true
+          bandit -c pyproject.toml -r . -ll -x ./tests,./scripts
 
       - name: Type check (pyright)
         run: |
@@ -64,6 +64,9 @@ jobs:
           MONGODB_URL: mongodb://localhost:27017
         run: |
           pip install pytest pytest-asyncio httpx slowapi pytest-cov
+          # Tests assert the JWT secret is >=32 chars. Fall back to a strong ephemeral
+          # key when the repo secret is unset/short so the suite is self-contained.
+          export JWT_SECRET_KEY="${JWT_SECRET_KEY:-$(python -c 'import secrets; print(secrets.token_urlsafe(48))')}"
           pytest tests/ --tb=short -q --cov=. --cov-report=term-missing --cov-fail-under=30
 
     services:

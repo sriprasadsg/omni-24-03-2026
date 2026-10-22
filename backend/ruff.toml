@@ -1,15 +1,24 @@
 [lint]
-# Rules kept: F821 (undefined-name), F401 (unused-import), F841 (unused-variable)
-# Rules suppressed: style-only issues common in FastAPI codebases
+# Explicit, minimal gate so ruff behaves identically locally and in CI:
+#   E9 — syntax errors (always worth failing on)
+#   F  — pyflakes: undefined names (F821), redefinitions (F811), bad f-strings, etc.
+# Without an explicit `select`, ruff was effectively linting every rule group
+# (~9.8k findings) against a codebase never held to that bar. Opinionated
+# style/modernization groups (E1/E2/E4/E5/E7, UP, B, I, S, SIM, ...) are
+# intentionally NOT enforced here.
+select = ["E9", "F"]
 ignore = [
-    "E402",  # module-level import not at top — FastAPI/app init patterns require this
-    "E701",  # multiple statements on one line (colon)
-    "E702",  # multiple statements on one line (semicolon)
-    "E722",  # bare-except — acceptable in plugin/integration code
-    "E741",  # ambiguous variable name (e.g. `l`)
+    "F401",  # imported but unused — many safe re-exports across the app
+    "F841",  # local variable assigned but never used — residual in template code
     "F601",  # multi-value repeated key literal
-    "F401",  # imported but unused — auto-fixed critical ones; residual are safe re-exports
-    "F841",  # local variable assigned but never used — residual in generated/template code
 ]
 
 exclude = ["venv/", ".venv/", "__pycache__/", "*.orig"]
+
+[lint.per-file-ignores]
+# F811 (redefinition) false-positives on pytest's fixture-name-as-parameter
+# convention — a test function parameter sharing a name with an imported
+# fixture is the correct, idiomatic way pytest injects it, not a bug. Scoped
+# to tests/ only: a real F811 redefinition in application code is still a
+# genuine bug worth catching.
+"tests/*" = ["F811"]

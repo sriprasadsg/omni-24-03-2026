@@ -175,7 +175,7 @@ def test_xlsx_header_fields():
         f"_generate_excel missing 'tenant_id' parameter; found: {list(params_single.keys())}"
     )
     assert params_single["tenant_id"].default is None, (
-        f"'tenant_id' in _generate_excel should default to None"
+        "'tenant_id' in _generate_excel should default to None"
     )
 
     sig_all = inspect.signature(_generate_all_excel)
