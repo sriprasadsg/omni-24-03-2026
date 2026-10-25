@@ -1,6 +1,7 @@
 # Phase 81: Autonomy Gate, Stop Switch & Activity Ledger - Research
 
 **Researched:** 2026-10-25
+**Reconciled with CONTEXT.md D-21..D-25 (2026-10-25, orchestrator):** the user resolved this file's Open Questions 1-8 after it was written. Where they differ, `81-CONTEXT.md` wins: **D-23 overrides Assumption A3** (an unticked tenant is Off: refused, nothing recorded; only an unreadable setting is Suggest), so the GATE-02 rows below that say "cap at Suggest" are superseded; D-21 adopts Open Question 1's recommended XDR fence; D-22 adopts Open Question 2's controls strip; D-24 adopts Open Questions 3-5 and 8 (Analyst view, Platform tenant Off, GATE-12 cadence test, legacy approve/deny permission); **D-25 (new)** adds the Super Admin platform-wide Stop/Resume buttons on the screen (route `control:platform_autonomous_ops`) and requires the status/activity API to return `by = "Platform administrator"` to tenant viewers for platform-scope stops.
 **Domain:** Policy-gated autonomous operations core (FastAPI + MongoDB multi-tenant platform; Python backend, React/Vitest frontend, Rust agent only for one folded test todo)
 **Confidence:** HIGH for integration points and test-impact (every file below was opened this session; live Mongo read-only queries and two live test runs were done). MEDIUM for UI scope (open question 2). Design recommendations are marked "Recommendation"; facts carry provenance tags.
 

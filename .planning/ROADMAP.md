@@ -333,11 +333,34 @@ Plans:
   3. The legacy LLM-driven remediation path (`run_cycle` / `generate_plan` / `execute_plan`) and the 0.90 confidence auto-approve for automatic actions are gone, and a test proves only registry-listed playbook actions can reach the agent queue. Shadow mode is on by default at deployment: the gate records what it would have done and dispatches nothing. A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; either takes effect without a restart — new decisions halt, automatic instructions already queued are held back at the next agent poll, and pending approvals and rollouts freeze. When several automatic actions in a row for a tenant are undone or fail, that tenant drops to Suggest and the on-call channel is told.
   4. Every decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention. An approval dispatches exactly once even if clicked twice, and an approval left pending past its expiry counts as denied. Automatic sweeps run one at a time across the deployment, and a two-tenant test shows no action or record crosses tenants. Agent online/offline status refreshes every 5 minutes as documented.
   5. An operator with the Autonomous Ops screen enabled and the matching permission opens it from the catalogue and sees actions in the states Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result; in shadow mode "would have done" entries are clearly labelled as a simulation. A copy check fails the build if Autonomous Ops screens or docs use any of the banned terms listed in ACTV-08.
-**Plans**: TBD
+**Plans**: 12 plans in 5 waves (0/12 executed)
 **UI hint**: yes
 **Research**: None — internal composition over code already read (standard patterns).
 **Live-only verification** (operator steps, not unit-testable): apply migration 024 and restart the backend; flip the platform stop on the live server and confirm a real agent poll holds back a queued automatic instruction without a restart; confirm agent online/offline status refreshes on the 5-minute cadence. Until Phase 83 adds a security sweep nothing automatic runs, so live Activity data is limited to gate and shadow entries — intended.
 **Decisions to settle before planning**: D1–D4 (see `.planning/research/SUMMARY.md`).
+
+Plans:
+**Wave 1**
+- [ ] 81-01-PLAN.md — Tracer: decision core package part 1 (registry with GATE-04 raise-only pinned on the vendored playbooks, settings, write-ahead ledger, ordered gate structure with eligibility/class/shadow steps, the only stamped writers) (GATE-02/03/04/07/09; D-02, D-04, D-16, D-23)
+- [ ] 81-02-PLAN.md — Tracer: catalogue entry, tenant switch and the four permission strings; approve tier MFA-gated, platform stop platform-only (GATE-13, ACTV-01; D-05..D-09)
+- [ ] 81-03-PLAN.md — Tracer: agent status cadence fix, lock renewal, tenant-filtered duplicate check, legacy loop removed, folded Rust todo closed (GATE-11/12, GATE-05; D-24)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 81-11-PLAN.md — Tracer: decision core part 2 (never-touch list, host cap, rate limit, dedupe/cooldown, stops and level, both shadow layers, messages module, exhaustive enumeration) (GATE-02/03/04/08/09; D-02, D-04, D-17, D-19, D-20, D-23)
+- [ ] 81-07-PLAN.md — Read-only Autonomous Ops screen: activity list in six states plus simulation, shared status poller (ACTV-01/03; D-22)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 81-04-PLAN.md — Approvals (single-use, 24 h expiry), undo, circuit breaker, reconciler under a renewed lock, two-tenant isolation (GATE-10/11/14; D-12, D-13, D-16, D-18)
+- [ ] 81-05-PLAN.md — Stop switch press/clear and hold-back at every agent delivery path including response tasks (GATE-06; D-11..D-15, D-21)
+- [ ] 81-06-PLAN.md — XDR auto-playbook fence, selectors record suggestions only, 0.90 confidence bypass removed (GATE-03/05; D-21)
+- [ ] 81-12-PLAN.md — Tracer: migration 024 gives every tenant an explicit stored level (platform-admin Off) and new tenants get the default at creation (GATE-01; D-01, D-24)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 81-08-PLAN.md — Remediation routed through the gate (shipped block_ip playbook stays automatic), legacy LLM path deleted, structural tests (GATE-03/04/05/07/10; D-24)
+- [ ] 81-09-PLAN.md — Tenant and platform API routes with the permission matrix and D-25 name masking (GATE-06/08/09/13, ACTV-01; D-03, D-08, D-10, D-11, D-25)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 81-10-PLAN.md — Status card, Stop/Resume dialogs (tenant and platform), app-wide stop banner, ACTV-08 copy check (ACTV-08, GATE-06; D-15, D-22, D-25)
 
 ### Phase 82: Platform Self-Healing & Scheduled Retention
 

@@ -61,6 +61,8 @@ created: "2026-10-25"
 | TBD | TBD | TBD | ACTV-03 | — | Shadow rows labelled as a simulation | component | `npx vitest run src/__tests__/AutonomousOpsActivity.test.tsx` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | ACTV-08 | — | Banned terms fail both gates; negative controls; Windows Autopilot screen and `.planning/**` out of scope | pytest + vitest | `pytest backend/tests/test_autonomous_ops_copy.py` ; `npx vitest run src/__tests__/autonomousOpsCopy.test.ts` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | D-15 | — | Stop banner shown only to users who can view the screen, with who/when/why | component | `npx vitest run src/__tests__/AutonomousOpsStopBanner.test.tsx` | ❌ W0 | ⬜ pending |
+| TBD | TBD | TBD | D-25 | — | Super Admin Stop all / Resume all organizations controls render only for `control:platform_autonomous_ops`; resume needs a typed reason | component + real-app probe | `npx vitest run src/__tests__/AutonomousOpsActivity.test.tsx` ; `pytest backend/tests/test_autonomous_ops_endpoints.py` | ❌ W0 | ⬜ pending |
+| TBD | TBD | TBD | D-25 | — | Platform-scope stop returns `by = "Platform administrator"` to tenant viewers and the real name to platform staff | real-app probe | `pytest backend/tests/test_autonomous_ops_endpoints.py` | ❌ W0 | ⬜ pending |
 | TBD | TBD | TBD | Folded todo | — | Rust integration suite green; todo moved to completed | cargo | `cd agent-install/omni-agent-rs && PATH=$HOME/.cargo/bin:$PATH cargo test --offline --test integration` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
