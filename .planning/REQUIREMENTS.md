@@ -1,10 +1,118 @@
-# Requirements: Catalogue Access Control & Asset Costing (v4.2)
+# Requirements: Autonomous Ops (v4.3), plus paused v4.2
 
-**Defined:** 2026-10-12
+**Defined:** 2026-10-25
 **Core Value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with evidence proving it — at any moment.
+**Goal (v4.3):** The platform handles routine security response, patching, its own health and first-line support on its own within per-tenant limits, and asks a person only to approve destructive actions.
+**Naming rule:** the feature is "Autonomous Ops" — never "ASI", never "Autopilot" (Windows Autopilot already exists).
+**Locked decisions:** per-tenant level Off / Suggest / Undoable-auto (default Undoable-auto); undoable actions (block IP, quarantine file, restart a service) run on their own, destructive ones (isolate host, kill process, patch reboot) wait for one approval click; fixed, tested rules choose every action and the LLM only summarises and suggests. Research: `.planning/research/SUMMARY.md`.
+
+**v4.2 is paused, not complete** — its open requirements (ACC-03, COST-01..08) are kept unchanged in the second half of this file and resume after v4.3.
+
+## v1 Requirements (v4.3)
+
+### 1. Autonomy Policy & Safety Core
+
+- [ ] **GATE-01**: Each tenant has an autonomy level (Off / Suggest / Undoable-auto) stored in the database; new tenants default to Undoable-auto and every existing tenant is given an explicit stored level by migration.
+- [ ] **GATE-02**: Only tenants whose Autonomous Ops screen a Super Admin has ticked are eligible for autonomous actions, and a tenant whose level cannot be read is treated as Suggest (fail closed).
+- [ ] **GATE-03**: Every autonomous action passes one decision function that applies, in order: platform stop, tenant eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression — and only that gate writes autonomous agent instructions (a structural test fails on any other writer).
+- [ ] **GATE-04**: Action classes come from a code-owned registry (auto or approval, plus the undo action): block IP, quarantine file and restart service are auto; isolate host, kill process and patch reboot need approval; a playbook's YAML may raise a class but never lower it.
+- [ ] **GATE-05**: No autonomous path dispatches an LLM-written script or an LLM-chosen action: the legacy `run_cycle` / `generate_plan` / `execute_plan` path is removed, the 0.90 confidence auto-approve bypass no longer applies to autonomous actions, and a test proves only registry-listed playbook actions reach the agent queue.
+- [ ] **GATE-06**: A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; a stop takes effect without a restart, halts new decisions, holds back autonomous instructions already queued at agent delivery, and freezes pending approvals and rollouts.
+- [ ] **GATE-07**: Every autonomous decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention.
+- [ ] **GATE-08**: The platform host, its own IP addresses and the management network can never be blocked, isolated or patched autonomously, and a per-decision cap limits how many hosts one decision can touch.
+- [ ] **GATE-09**: The operator can run in shadow mode (on by default at deployment), in which the gate records what it would have done without dispatching anything.
+- [ ] **GATE-10**: An approval dispatches exactly once even if clicked twice (atomic, single-use), and an approval left pending past its expiry counts as denied.
+- [ ] **GATE-11**: Autonomous sweeps run one at a time across the deployment (lock with renewal), set the tenant explicitly on every write and reset tenant context per tenant; a two-tenant test proves no autonomous action or record crosses tenants.
+- [ ] **GATE-12**: Agent online/offline status refreshes every 5 minutes as documented (the loop no longer sleeps 3600 s after its first pass), so health checks read current data.
+- [ ] **GATE-13**: Changing a tenant's level, approving or undoing actions, and flipping the platform stop are separate permissions; a Super Admin sets the highest level a tenant may use and tenant admins can choose only at or below it.
+- [ ] **GATE-14**: When several autonomous actions in a row for a tenant are undone or fail, that tenant drops to Suggest automatically and the on-call channel is told (circuit breaker).
+
+### 2. Security Response
+
+- [ ] **RESP-01**: A security sweep turns native findings (malicious scan verdict, agent vulnerability, file-integrity change) into playbook actions through the gate, replacing the legacy remediation loop.
+- [ ] **RESP-02**: At Undoable-auto a malicious single IP address is blocked automatically for a set time (default 24 h); the agent removes the block at expiry even if it has lost contact with the platform, an operator can undo it from the Activity view, and blocking a range needs approval.
+- [ ] **RESP-03**: At Undoable-auto a malicious file is quarantined automatically (moved, never deleted) and an operator can restore it with one click.
+- [ ] **RESP-04**: A failed service on an endpoint is restarted automatically within a restart budget; once the budget is used up further restarts need approval.
+- [ ] **RESP-05**: Kill process and isolate host appear as approval cards; isolation always keeps the agent's management connection open and reverts automatically after a set time unless an operator confirms it.
+- [ ] **RESP-06**: Each action is verified by its own check (e.g. the firewall rule exists, the file is in quarantine), not by re-reading the original finding, so a successful block is never rolled back.
+- [ ] **RESP-07**: The same finding does not create a new action every cycle (dedupe per tenant, finding and action), and an action an operator undid is not redone for 24 hours.
+- [ ] **RESP-08**: An action runs on its own only when two independent signals agree (e.g. scan verdict and threat intel); a single signal becomes a suggestion (corroboration rule).
+- [ ] **RESP-09**: A burst of related alerts on one host becomes one approval card per incident, not one per alert (incident grouping).
+- [ ] **RESP-10**: The Rust agent (with Python agent parity where that agent stays supported) gains restart service, quarantine and restore file, isolate and restore host, and reboot host; each new action is gated by the tenant's agent-capability ticks, and rules that need it stay dormant until the agent reports support.
+- [ ] **RESP-11**: Existing fan-out paths that bypass the gate (swarm "propagate antibody", SOAR block/isolate plugins) are fenced so they cannot dispatch autonomous containment.
+
+### 3. Staged Patching
+
+- [ ] **PTCH-01**: An operator can define rollout rings per tenant (a canary ring, then larger stages); a rollout moves to the next ring only after a soak period and a passing health gate.
+- [ ] **PTCH-02**: The health gate combines the install result, the post-install inventory, a fresh heartbeat after reboot and key services; missing data halts the rollout.
+- [ ] **PTCH-03**: A stage also halts when more than a set share of its hosts fail, with a minimum sample size (failure-rate gate).
+- [ ] **PTCH-04**: A failed stage halts the rollout and reverts the patch where the operating system supports it; the UI says "halts on failure; reverts where supported" and never promises an unqualified rollback.
+- [ ] **PTCH-05**: Rollouts run only inside the maintenance window recorded in Change Management.
+- [ ] **PTCH-06**: Installs run on their own only in the canary ring and only for patch classes marked reversible; other installs and every reboot need one approval per stage.
+- [ ] **PTCH-07**: The platform's own host is never patched by a rollout, a host is in at most one active rollout, and patch instructions expire.
+
+### 4. Platform Self-Healing
+
+- [ ] **HEAL-01**: A watchdog running outside the backend (systemd timer) checks backend readiness, MongoDB and Ollama (only where Ollama is expected) every minute and restarts a failed service from a fixed allowlist, MongoDB before the backend.
+- [ ] **HEAL-02**: Restarts follow a budget with backoff; when the budget is used up the watchdog stops restarting and pages once.
+- [ ] **HEAL-03**: The operator is warned 30, 14, 7 and 1 days before a certificate expires and when a disk passes 80, 90 and 95 percent; the platform never renews certificates or deletes files on its own.
+- [ ] **HEAL-04**: The operator is warned days ahead when a disk will fill at its current growth rate (disk-growth forecast).
+- [ ] **HEAL-05**: On-call alerts go to a configured webhook or PagerDuty with deduplication; the operator can send a test alert, sees a banner when no working channel is configured, and is alerted when the watchdog itself stops reporting.
+- [ ] **HEAL-06**: Data retention runs on a schedule per tenant in bounded batches, never touches audit logs, the audit ledger or decision records, and its first run is a dry-run count the operator confirms.
+- [ ] **HEAL-07**: Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope.
+- [ ] **HEAL-08**: The repo ships the watchdog unit files, service drop-ins and an install checklist; installing them on the live server stays the operator's step.
+
+### 5. Service Desk
+
+- [ ] **DESK-01**: A new first-line ticket gets an answer drafted from the tenant's knowledge base with cited articles; at Undoable-auto a qualifying answer is posted marked "AI-assisted", at Suggest it is an internal draft, and the ticket closes only when the requester confirms.
+- [ ] **DESK-02**: A ticket is escalated to a person, never answered, when no article matches well enough, when the requester asks for a person, or when it concerns security, billing, legal or account access; the model's own confidence is never used to decide.
+- [ ] **DESK-03**: Ticket text can never trigger an action; links and HTML are stripped before the model sees it, and a prompt-injection test set passes.
+- [ ] **DESK-04**: When the language model is unavailable or only the mock provider is active, the ticket is escalated; no placeholder answer is ever posted.
+- [ ] **DESK-05**: Answers are generated asynchronously one at a time with timeouts sized for the CPU-only server, and the real response time is measured on it.
+- [ ] **DESK-06**: The operator sees the questions that had to be escalated because no article covered them (knowledge-gap list).
+- [ ] **DESK-07**: A starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) is available to seed a tenant's knowledge base.
+
+### 6. Activity View
+
+- [ ] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
+- [ ] **ACTV-02**: An operator can approve or deny pending actions and undo done actions that have an inverse, from the same screen.
+- [ ] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
+- [ ] **ACTV-04**: Each tenant gets one daily digest: what ran, what was undone, and what is waiting for approval.
+- [ ] **ACTV-05**: The operator can see per-rule statistics: how often each rule fired and was approved, denied or undone.
+- [ ] **ACTV-06**: The operator can export the activity log as CSV or PDF.
+- [ ] **ACTV-07**: The screen shows an estimate of operator time saved, labelled as an estimate.
+- [ ] **ACTV-08**: A copy check fails the build if Autonomous Ops screens or docs use "ASI", "Autopilot", "fully autonomous" or an unqualified "rollback".
+
+## v2 Requirements (v4.3 deferred)
+
+- **AOPS-F1**: Per-tenant custom autonomy rules authored in the UI.
+- **AOPS-F2**: A full on-call product (escalation tiers, acknowledge, repeat paging) instead of webhook/PagerDuty delivery.
+- **AOPS-F3**: Mapping autonomous actions to compliance-control evidence.
+- **AOPS-F4**: Known-bad patch list shared across tenants.
+
+## Out of Scope (v4.3)
+
+| Feature | Reason |
+|---------|--------|
+| "Artificial super intelligence" or any claim of it | Does not exist; the feature is rule-based automation and must never be marketed otherwise |
+| LLM choosing an action, target or parameters | Locked decision 3: fixed, tested rules decide; the LLM only summarises and suggests |
+| Auto-approval from a confidence score | An approval-required action must always wait for a person |
+| Rebooting endpoints without approval | Reboots are destructive per the locked split |
+| Deleting files to free disk space | Irreversible; disk issues are warned and paged, not fixed by deletion |
+| Automatic certificate renewal | Agents pin the backend certificate; a silent renewal would cut them off |
+| Cross-tenant autonomy (one decision acting in several tenants) | Multi-tenant isolation; MSP-wide actions stay manual |
+| Editable activity records | Records are evidence; corrections are new records |
+| The app installing systemd units, editing sudoers or restarting the live server | Live-server changes stay the operator's step |
+| Self-learning rules or a larger/GPU model | Out of reach on the 2 vCPU / 7 GB / no-GPU server and contrary to fixed rules |
+
+---
+
+# Paused milestone v4.2: Catalogue Access Control & Asset Costing
+
+**Defined:** 2026-10-12. **Status:** paused 2026-10-25 for v4.3; resumes afterwards.
 **Goal:** Give tenants role-scoped visibility of the left-nav catalogues and a cost view of their assets at organization and endpoint level, both built on systems already shipped (RBAC, ITAM finance). No new permission model; one minimal additive cost field.
 
-## v1 Requirements
+## v1 Requirements (v4.2)
 
 ### 1. Catalogue Access Control
 
@@ -29,9 +137,7 @@
 - [ ] **COST-07**: Every cost route requires an explicit tenant (a `platform-admin` context with no tenant returns 400), uses no `$lookup` or request-cache, and is covered by a mandatory two-tenant isolation test.
 - [ ] **COST-08**: A "Costs" tab in the existing ITAM console (no new sidebar module or permission) shows the org summary and per-asset breakdown with a coverage banner, shared currency formatting, and export through the existing report registry.
 
-## v2 Requirements
-
-### Deferred
+## v2 Requirements (v4.2 deferred)
 
 - **COST-F1**: Consumable and component cost fields and rollups.
 - **COST-F2**: Display/selectable currency and FX (single implicit currency per tenant in v4.2).
@@ -40,7 +146,7 @@
 - **ACC-F1**: ITAM/console *tab-level* permission gating (cost lives under `view:itam` in v4.2).
 - **ACC-F2**: Guarding the remaining (non-priority) unguarded routers recorded in the gap ledger.
 
-## Out of Scope
+## Out of Scope (v4.2)
 
 | Feature | Reason |
 |---------|--------|
@@ -54,7 +160,7 @@
 
 ## Traceability
 
-Populated during roadmap creation (2026-10-12). Each requirement maps to exactly one phase.
+Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3 rows are filled by the v4.3 roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -77,12 +183,11 @@ Populated during roadmap creation (2026-10-12). Each requirement maps to exactly
 | COST-08 | Phase 80 | Pending |
 
 **Coverage:**
-- v1 requirements: 17 total (ACC: 9, COST: 8)
-- Mapped to phases: 17
-- Unmapped: 0
+- v4.3 v1 requirements: 55 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8) — mapped by the v4.3 roadmap
+- v4.2 v1 requirements: 17 total (ACC 9, COST 8) — mapped to Phases 75–80, unchanged
 
-**Per phase:** Phase 75 = 2 (ACC-01, ACC-02) | Phase 76 = 3 (ACC-03, ACC-04, ACC-05) | Phase 77 = 4 (ACC-06..09) | Phase 78 = 5 (COST-01, 02, 03, 06, 07) | Phase 79 = 2 (COST-04, COST-05) | Phase 80 = 1 (COST-08)
+**Per phase (v4.2):** Phase 75 = 2 (ACC-01, ACC-02) | Phase 76 = 3 (ACC-03, ACC-04, ACC-05) | Phase 77 = 4 (ACC-06..09) | Phase 78 = 5 (COST-01, 02, 03, 06, 07) | Phase 79 = 2 (COST-04, COST-05) | Phase 80 = 1 (COST-08)
 
 ---
-*Requirements defined: 2026-10-12*
-*Last updated: 2026-10-12 after v4.2 roadmap creation (traceability populated)*
+*Requirements defined: 2026-10-12 (v4.2), 2026-10-25 (v4.3)*
+*Last updated: 2026-10-25 after defining v4.3 requirements (v4.2 paused, rows unchanged)*
