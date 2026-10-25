@@ -1,7 +1,8 @@
 ---
 phase: "81"
 slug: autonomy-gate-stop-switch-activity-ledger
-status: draft
+status: approved
+reviewed_at: "2026-10-25"
 shadcn_initialized: false
 preset: none
 created: "2026-10-25"
@@ -333,9 +334,39 @@ Destructive actions in this phase: Stop (tenant) and Stop all organizations (pla
 
 ## UI Considerations
 
-> Populated by the ui-phase UI-consideration probe (Step 9.5) after checker approval; rows are replaced, not appended, on a re-run. State coverage for the surfaces above is already contracted in "Screens and States" (loading, empty, error, populated, partial, overflow, zero-one-many and long-text for the status card, activity list, banner and dialogs) and in the Copywriting Contract (empty and error copy).
+> Populated by the ui-phase UI-consideration probe (Step 9.5) on 2026-10-25 after checker approval; replaced, not appended, on a re-run. Empty and error COPY lives in the Copywriting Contract; this section records state coverage only. Coverage: 26 applicable, 25 resolved (verification: explicit), 1 dismissed, 0 unresolved, 0 unclassified.
 
-Surfaces for the probe: S1 stop banner (static-content, interactive-control), S2 status card (static-content), S3 stop and resume dialogs (form, interactive-control), S4 filter group (nav), S5 activity list (list-collection), S6 empty-state card (static-content).
+Surfaces and confirmed kinds (author-corrected from the heuristic): S1 stop banner (static-content, interactive-control), S2 status card (static-content, interactive-control), S3 stop and resume dialogs (form, interactive-control), S4 filter group (nav), S5 activity list (list-collection), S6 empty-state card (static-content).
+
+Resolved (explicit):
+- S1 loading: No stop banner renders until the first status poll succeeds; a first-load failure renders no banner.
+- S1 error: A failed status poll keeps the last known banner state; the banner never shows its own fetch error.
+- S1 overflow: At most two banners stack (platform first, then organization); under 640px the View details button wraps below the text.
+- S1 long-text: Banner detail text wraps (break-words) and is clamped to 2 lines, with the full text in the element's title attribute.
+- S2 loading: While status loads, the four readout cells render as h-16 skeleton blocks and the controls row as one h-10 w-56 skeleton, with aria-busy="true" on the card.
+- S2 error: When status fails to load, the card shows a role="alert" block "Couldn't load the current status." with a Try again button; Stop stays available to holders of the stop permission and Resume is disabled until status loads.
+- S2 overflow: The readout grid is 1 column below sm, 2 columns from sm and 4 columns from xl.
+- S2 long-text: Helper lines, the stop reason and the tenant name wrap with break-words; nothing is truncated.
+- S3 empty: The Stop dialog submits with an empty reason; the Resume confirm button stays disabled until the trimmed reason is non-empty, and an empty submit shows "Enter a reason to resume."
+- S3 loading: While a Stop or Resume request is in flight the confirm button is disabled with the pending label (Stopping... / Resuming...) and Cancel stays enabled; repeated clicks are ignored.
+- S3 error: On failure the dialog stays open, the typed reason is preserved and a role="alert" block shows the server message; a 409 closes the dialog with an info toast naming who stopped it, and a 403 on Resume closes it with "Only a platform administrator can resume this stop."
+- S3 partial: A reason made only of whitespace counts as empty (trimmed before validation).
+- S3 long-text: Reason fields accept at most 500 characters (maxLength) and show a {n}/500 counter.
+- S4 loading: Filter pills stay interactive while the list loads; a per-filter count appears only when the first page returns a counts object (no zeros are guessed).
+- S4 error: Filter pills stay enabled when the activity list fails to load.
+- S4 overflow: The filter group wraps (flex-wrap, gap-2) on narrow screens; no horizontal scroll.
+- S5 empty: An empty list shows the empty-state card: "No activity yet" (live or shadow-mode variant) under All, and "No {state} actions." with a Show all activity button under a state or Simulation filter.
+- S5 loading: First-page loads and filter changes show five skeleton rows (h-14 at xl, h-24 below) with aria-busy="true"; background refreshes (poll, focus) show no skeleton or spinner.
+- S5 error: A first-page failure shows a role="alert" block "Couldn't load activity. Check your connection and try again." with Try again; a failed Load more keeps the loaded rows and shows "Couldn't load more activity. Try again." with Try again.
+- S5 populated: The list shows 25 rows per page, newest first, as a 5-column table at xl (1280px) and wider and as stacked cards below, with a Load more button until the last page.
+- S5 partial: A row with no target or no result shows "—" in that cell (table) or that dl value (cards); the row still renders.
+- S5 overflow: Long host names and reasons wrap (break-words) and long IP addresses, file paths and service names wrap with break-all; no cell truncates.
+- S5 zero-one-many: The footer reads "Showing 1 action" for one row and "Showing {n} actions" (or "Showing {n} of {total} actions") otherwise; with 0 rows the empty-state card replaces the list and no footer or Load more is shown.
+- S6 overflow: The empty-state body is centred and limited to max-w-prose.
+- S6 long-text: Empty-state heading and body wrap within max-w-prose, including long tenant names.
+
+Dismissed:
+- S4 long-text — dismissed: the filter labels are fixed single words plus an optional number; no user or server text appears in them.
 
 ---
 
@@ -378,17 +409,19 @@ Surfaces for the probe: S1 stop banner (static-content, interactive-control), S2
 | A8 | Platform-wide Stop and Resume buttons for the Super Admin are included in the UI (not API-only). | D-11, D-22 ("Stop and Resume buttons"); a platform-wide brake that needs a curl command defeats D-11 |
 | A9 | Rows are read-only with no action column in Phase 81. Phase 83 adds an Actions column; the table layout leaves the last column free. | D-22, Phase 83 scope |
 | A10 | Display labels for actions, reasons, rule ids and results come from the server (`messages.py`), so the banned-terms copy check covers them; the frontend adds only static labels listed above. | Research Q8 |
+| A11 | For a **platform-scope** stop (and its control rows), the API returns `by = "Platform administrator"` to tenant viewers and the real display name only to platform staff (Super Admin, Platform Support). Tenant-scope stops show the real name to everyone who can view the screen. The UI renders `{name}` as returned, so no UI change is needed. | User decision 2026-10-25 (keep platform staff identities private from customers) |
+| A12 | A8 confirmed by the user on 2026-10-25: the Super Admin `Stop all organizations` / `Resume all organizations` controls ship in Phase 81. | User decision 2026-10-25 |
 
 ---
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS (section omitted, `Tool: none`)
+- [x] Dimension 1 Copywriting: FLAG (non-blocking: generic secondary labels Cancel / Refresh / Load more / Try again)
+- [x] Dimension 2 Visuals: FLAG (non-blocking: primary visual anchor not declared; the status card under the h1 is the intended anchor, the stop banner outranks it when active)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS (`Tool: none`; the in-house primitives table is a non-exhaustive known-good list)
 
-**Approval:** pending
+**Approval:** approved 2026-10-25 by gsd-ui-checker (APPROVED, 2 non-blocking FLAGs)
