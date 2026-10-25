@@ -23,7 +23,7 @@
 - [ ] **GATE-09**: The operator can run in shadow mode (on by default at deployment), in which the gate records what it would have done without dispatching anything.
 - [ ] **GATE-10**: An approval dispatches exactly once even if clicked twice (atomic, single-use), and an approval left pending past its expiry counts as denied.
 - [ ] **GATE-11**: Autonomous sweeps run one at a time across the deployment (lock with renewal), set the tenant explicitly on every write and reset tenant context per tenant; a two-tenant test proves no autonomous action or record crosses tenants.
-- [ ] **GATE-12**: Agent online/offline status refreshes every 5 minutes as documented (the loop no longer sleeps 3600 s after its first pass), so health checks read current data.
+- [ ] **GATE-12**: Agent online/offline status refreshes every 5 minutes as documented, pinned by a test, and the offline notification names the agents that actually went offline, so health checks read current data. (Corrected 2026-10-25: the loop already polls every 30 s; the earlier "3600 s sleep" premise was a misread.)
 - [ ] **GATE-13**: Changing a tenant's level, approving or undoing actions, and flipping the platform stop are separate permissions; a Super Admin sets the highest level a tenant may use and tenant admins can choose only at or below it.
 - [ ] **GATE-14**: When several autonomous actions in a row for a tenant are undone or fail, that tenant drops to Suggest automatically and the on-call channel is told (circuit breaker).
 
