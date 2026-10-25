@@ -1,0 +1,1 @@
+{"content":"systemd.service: WatchdogSec needs WATCHDOG=1 notifications; Restart=on-failure/on-watchdog restarts on expiry; NotifyAccess=main default for Type=notify; RestartSteps/RestartMaxDelaySec give exponential backoff; StartLimitBurst throttles.","source":"web","provider":"webfetch","confidence":"MEDIUM","fetched_at":"2026-10-25T12:18:44.984Z","ttl":86400000,"kind":"web"}

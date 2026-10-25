@@ -1,273 +1,407 @@
-# Feature Research — v4.2 Catalogue Access Control & Asset Costing
+# Feature Research
 
-**Domain:** Permission-gated navigation in a multi-tenant SaaS console (Feature 1) and ITAM asset cost rollup / TCO-lite (Feature 2), added to an existing FastAPI + React/TS + MongoDB platform
-**Researched:** 2026-10-12
-**Confidence:** MEDIUM overall. Codebase findings are HIGH (read directly from source). Product-behavior conventions (Snipe-IT / ServiceNow / Lansweeper style costing, nav-gating patterns) are MEDIUM: web search returned only generic secondary sources, so conventions are stated from domain knowledge and marked as such.
-**Supersedes:** the 2026-08-04 FEATURES.md (v4.0 ITAM lifecycle research); that milestone is shipped.
+**Domain:** Autonomous operations (security response, staged patching, platform self-healing, AI first-line service desk, autonomy controls and activity view) added to an existing multi-tenant MSP security/compliance/ITAM platform
+**Milestone:** v4.3 Autonomous Ops (phases start at 81)
+**Researched:** 2026-10-25
+**Confidence:** MEDIUM-HIGH overall. Autonomy-level, approval, undo and audit patterns are well documented (Microsoft Defender, HIGH). Patch-ring health gates, PagerDuty tiers and service-desk deflection rest partly on vendor blogs and secondary sources (MEDIUM). Findings about THIS codebase come from reading the source directly (HIGH).
 
----
+**Naming rule (locked):** never label any of this "ASI" or "Autopilot" (Windows Autopilot already exists as `autopilot_service.py`). Use "Autonomous Ops". The UI copy should say "automatic" and "needs approval", not "AI-driven".
 
-## Existing System Baseline (grounding — read from code, do not re-build)
-
-### Feature 1 baseline (RBAC / nav)
-
-| Fact | Where | Implication |
-|------|-------|-------------|
-| Sidebar already filters by permission: `navGroups` items carry `permission: 'view:...'`; `visibleGroups` drops items where `hasPermission()` is false and drops empty groups; super-admin bypasses; `manage:tenants` hidden when super-admin is viewing a tenant | `components/Sidebar.tsx` L208-466 | The "hide menu items" behavior largely EXISTS. v4.2 is about making it authoritative, consistent with the backend, and visible to admins, not building it from scratch. |
-| ~187 nav items, **89 distinct permission strings** | `Sidebar.tsx` | Large surface; need a registry + automated check, not hand audits. |
-| **Second hand-maintained map** `viewPermissionMap: Record<AppView, Permission>` used by `handleSetCurrentView` (click and hash-deep-link guard) | `App.tsx` L242-446, L1379-1395 | Two sources of truth. **9 views disagree** with the sidebar permission today: `agentCapabilities`, `jobs`, `llmops`, `persistenceDetection`, `sustainability`, `swarm`, `unifiedOps`, `vulnerabilityManagement`, `zeroTrustQuantum`. Item can render in the nav yet the click is silently refused (or vice versa). |
-| Blocked navigation is silent: `console.warn` only, no user-visible state | `App.tsx` L1392 | No fallback/empty state exists. |
-| `hasPermission` fails OPEN if `UserContext` is absent: `userContext?.hasPermission \|\| (() => true)` | `Sidebar.tsx` L178 | Must become fail-closed. |
-| `currentView` initial state is `'dashboard'`; `renderView()` switches on `currentView` with no permission check at render time | `App.tsx` L481, L1806 | Guard exists only at the navigation entry points, not at render. Any direct `setCurrentView` caller bypasses it. |
-| Frontend effective permissions = login-time `user.permissions` (from the `db.roles` doc via `find_role_doc`) ∩ tenant `enabledFeatures`; if the list is empty it falls back to the `/api/roles` **static stub** (`Admin -> ["all"]`) | `App.tsx` L1185-1242, `authentication_endpoints.py` L223-231, `role_endpoints.py` | Frontend evaluator is NOT the backend evaluator. Backend `verify_permission` = hardcoded `DEFAULT_PERMISSIONS` dict first, then `db.roles` doc. A role with defaults but no role doc logs in with `permissions: []`. UI and API can disagree. |
-| Backend evaluator: `rbac_utils.verify_permission` / `require_permission`; ITAM uses `_require_itam_viewer` (`view:itam` OR `manage:assets`, plus API-key scope narrowing) and `_require_itam_admin` (`manage:assets`) | `rbac_utils.py`, `itam_asset_endpoints.py` L38-95 | The "mirror backend authorization" target. Reuse, do not fork. |
-| Backend `require_permission('view:...')` coverage is thin: of 89 nav permission strings, most `require_permission` call sites use `manage:*`/`investigate:*`; a spot grep found few `view:` guards (e.g. `view:security`, `view:reporting`, `view:dashboard`, `view:compliance`, `view:devsecops`) | `grep require_permission backend/*.py` | Many catalogues are UI-gated only. "Mirrors backend" cannot be asserted without a parity audit. (Grep covers only the literal `require_permission("x")` form; other guard styles may exist. Treat as a lead, verify in phase research.) |
-| 3 nav permissions are granted by no seeded default role: `view:goal_system`, `view:jobs`, `view:predictive_health` | grep of `app_startup.py`, `rbac_utils.py`, `authentication_endpoints.py`, `rbac_service.py` | Those catalogues are visible to super-admin only unless a custom role doc grants them. |
-| Three orthogonal gates already stack on a nav item: role permission, tenant `enabledFeatures`/bundle (`featureKey`), subscription tier (`minTier` -> shown **locked**) | `Sidebar.tsx` L449-463 | Keep distinct: permission-denied = hidden; tier-locked = shown with lock. Do not merge. |
-| "Phase 36 ReBAC" is an OpenFGA wrapper (`rebac_service.py`) that the sidebar does NOT consult. Nav gating is flat role-permission. | `rebac_service.py` | The milestone phrase "ReBAC permissions" means the flat `view:` permissions on roles, not OpenFGA tuples. Requirements should say "role permissions (`rbac_utils`/`db.roles`)". |
-
-### Feature 2 baseline (ITAM cost data)
-
-| Fact | Where | Implication |
-|------|-------|-------------|
-| Asset purchase cost: `purchaseCostCents` (int, `>=0`), `purchaseDate` (ISO), `poNumber`, `purchase_order_id`, `warrantyMonths`, `lifecycleStatus`, `modelId`, `locationId` | `itam_models.py` L123-157, L270-295 | Per-asset purchase cost exists. |
-| Depreciation policy lives on the **model** (`usefulLifeYears`, `salvageValueCents` on `asset_models`), not the asset | `itam_finance_endpoints.py` L160-190, `itam_models.py` L218-232 | Book value needs asset + model join. Assets without a model policy have no book value. |
-| `compute_book_value(purchase_date, purchase_cost_cents, useful_life_years, salvage_value_cents, now)`: straight-line, whole-year steps, floors at salvage, read-time only, never persisted. Returns `bookValueCents`, `yearsElapsed`, `annualDepreciationCents` | `itam_finance_service.py` L70-115 | The single source of truth for book value. Costing MUST call it verbatim. |
-| Per-asset read route `GET /api/assets/{id}/book-value` (viewer-gated); `reason` codes `no_purchase_record`, `no_depreciation_policy_assigned` | `itam_finance_endpoints.py`, `itam_finance_service.py` L48-49 | Existing per-asset contract to mirror for the endpoint-level view. |
-| Org-level book-value rollup ALREADY exists as a KPI: `_compute_asset_value_kpi` sums `bookValueCents`, tallies `withoutPolicyCount`, never fakes zero, `hasData:false` when empty, drill-down to `asset_value` report | `itam_reporting_kpis.py` L60-125, `itam_reporting_prebuilt.py` L120-175 | Do not write a second rollup that can disagree (PROJECT.md decision: "every ITAM report/KPI reuses its owning surface's computation verbatim"). Extract/extend, then have KPI + new cost view share one function. |
-| **Licenses have NO cost field.** `LicenseCreate` = `name, notes, seatCount, expiryDate, isReassignable, manufacturerId, productKey` (`extra="forbid"`). **Consumables and components have no cost field either.** | `itam_models.py` L84-91, L319-345, L391-475 | **Biggest scope finding.** "License spend" and "allocated license cost" cannot be computed from existing data. See Open Decision D-1. |
-| License seats: `license_assignments` rows `{licenseId, targetType: "user"\|"asset", targetId}`; unique on (licenseId, targetType, targetId); `seatCount` on license | `itam_license_service.py`, `itam_models.py` L361-380 | Seat-to-asset allocation is possible for `targetType == "asset"`; user-assigned seats have no asset to land on. |
-| **No currency anywhere in ITAM.** Asset costs are integer cents with implicit currency. `finops_service.py` hardcodes `"USD"`. PO model uses **float** `total_cost`/`unit_price`; asset request `estimated_cost` is float. | `itam_models.py`, `finops_service.py` L137,184 | Single implicit currency. Cents arithmetic must stay integer. Do not sum PO float totals with asset cents. |
-| Reporting framework: pre-built report registry, custom report builder, PDF/Excel/CSV export, KPI tiles with drill-down | `itam_reporting_*.py`, `ItamKpiPanel.tsx` | Cheap export/drill-down path for a new `asset_cost` report. |
-| UI home: `components/itam/FinancePanel.tsx` inside `ITAMConsole` (tab list `catalog, lifecycle, finance, purchaseOrders, requests, licenses, ...`) | `ITAMConsole.tsx` L32-49 | Natural place for an org/asset cost view without a new sidebar module or permission. |
-| Agent-discovered assets are keyed `asset-{hostname}` and may carry no purchase data | `.planning` baseline, `assets` collection | "Endpoint cost" = the ITAM asset record. Many endpoints will legitimately have no cost. |
+**Non-negotiable invariants (locked decisions, every category inherits them):**
+1. Per-tenant level: Off / Suggest / Undoable-auto (default Undoable-auto). Undoable actions run alone; destructive actions wait for one approval click.
+2. Fixed, tested rules pick every action. The local LLM (Ollama llama3.2:3b, CPU only) only summarises and suggests. No LLM output ever becomes a command, a parameter, a target or an approval.
+3. Everything audited, undoable where possible, one global stop switch.
 
 ---
 
-# FEATURE 1 — Role-based catalogue access
+## How mature products behave (what operators already expect)
 
-## How mature multi-tenant apps do it (conventions, MEDIUM confidence)
+| Product | Pattern | What to copy | What not to copy |
+|---------|---------|--------------|------------------|
+| Microsoft Defender for Endpoint AIR | Levels: Full / Semi (approve all, core folders, non-temp folders) / None, set per device group. Action Center has Pending and History tabs. Pending actions time out after 7 days and the timeout counts as a rejection. Any executed remediation can be undone from History, and a quarantine undo can extend to other instances of the same file. Microsoft notes that AIR stopped running as a separate experience on 2026-09-01 and the capability moved into the default antivirus stack. | Level names that say what happens. Pending/History split. Timeout equals reject. Undo lives in the history list. Bulk undo of the same artefact. | Microsoft's "No automation, not recommended" shaming. Default-Full is fine for us only because the locked default is "Undoable-auto", not Full. |
+| SentinelOne | Protect vs Detect policy modes. Protect auto-kills and quarantines, Detect only alerts. Rollback exists as a separate remediation. | Two-axis thinking: what the policy may do automatically versus what is only reported. Rollback as a first-class verb. | Cloud-ML verdicts deciding actions. We use fixed rules. |
+| CrowdStrike Falcon Fusion | SOAR workflows with a human-input step. Common "human-in-the-loop containment" pattern gates host containment behind analyst approval. Lifting containment is a distinct console action. Fusion workflows can be scheduled. | Approval as a workflow step, containment and release as a pair, workflow scheduling. | Analyst-authored free-form workflows for tenants (too much surface for v4.3). |
+| Windows Update for Business / Intune rings and Autopatch | Ring-based phased rollout. Autopatch watches device telemetry and can pause progression to the next ring when failures spike. Admins keep a manual halt. Third-party sources only on thresholds, so treat thresholds as our own design. | Rings, soak time between rings, automatic hold on failure, manual pause always available. | Letting users defer 35 days (Intune "pause" default). Our device owners are tenants' end users, so deferral policy is a tenant setting. |
+| Kubernetes / systemd | Liveness vs readiness. Restart with exponential backoff (10s, 20s, 40s ... capped at 5 min; backoff resets after ~10 min of clean running). `Restart=on-failure` with `StartLimitBurst` inside `StartLimitIntervalSec` stops retrying and leaves the unit failed. The common production failure is an endless restart loop. | Consecutive-failure threshold before acting, backoff, restart budget, give up and page a human when the budget is spent. | Restart policy "Always" without a budget. |
+| PagerDuty | Escalation policy with tiers, ack timeout per tier (default 30 min, teams commonly use 5-15), repeat the whole policy a bounded number of times, acknowledging stops escalation, acknowledged-but-unresolved can re-trigger after a timeout, alert grouping so a flood is one incident. Real example: two 10-minute tiers repeated 5 times. | Tiers + timeouts + bounded repeat + ack stops + grouping. | Per-person notification-rule sprawl. Escalation policy overrides personal rules anyway. |
+| ServiceNow / Freshservice / Zendesk AI deflection | Confidence bands: high resolves, middle drafts a reply for an agent (internal note), low hands off. Escalate regardless of confidence on explicit "human please", negative sentiment, billing/legal/security-account topics and SLA risk. Handoff carries the conversation and drafted suggestions. Weak knowledge bases make AI worse than a human. Threshold must be adjustable. | Three-band routing, mandatory escalation triggers, context on handoff, show which KB article answered. | Confidence numbers from a 3B model as the only gate (see service desk anti-features). |
 
-1. **Menu is derived from permission, per item, default-deny.** Items the user cannot use are *absent*, not greyed out (GitHub, Azure Portal, Okta admin, Jira admin, AWS console services via IAM). Greyed/locked rendering is reserved for *plan/tier* gating (upsell), not for authorization.
-2. **Groups with no visible children disappear.** (Already implemented.)
-3. **Route guard is separate from the menu.** Hiding a link does not stop a deep link, bookmark, or hash change; the router guard re-checks the same predicate and renders an explicit "no access" screen (403 page) rather than a blank page, silent no-op, or redirect loop. Standard guidance: client-side gating is UX; the API is the security boundary.
-4. **One predicate, one registry.** Menu, guard, and API reference the same permission key. Drift between "link visible" and "page allowed" is the classic bug class; mature apps generate both from one route/nav definition (and/or from a server-provided effective-permission set).
-5. **Server is the authority for effective permissions.** The client receives the *evaluated* permission set (what the API will accept), not a re-implementation of role logic. Permissions refresh on role change (re-fetch on focus/interval or on a 403), not only at login.
-6. **API 403 inside a visible page is handled gracefully** (permission revoked mid-session): inline "you no longer have access" state, not a toast storm.
-7. **Admins can see what a role grants.** Role editors show the effective capability/menu set; larger products offer a role x module matrix or "preview as role".
-8. **Super/platform admin sees everything; tenant-scoped admins see their tenant's enabled modules.**
+---
 
-## Table Stakes
+## Feature Landscape
 
-| Feature | Why Expected | Complexity | Notes / Dependencies |
-|---------|--------------|------------|----------------------|
-| T1-01 Single authoritative **nav registry** (view id -> permission, group, label) consumed by BOTH `Sidebar` and the `App.tsx` navigation guard; delete the duplicate `viewPermissionMap` permission values | Spec says "UI gating mirrors backend route authorization"; today 9 views already disagree | MEDIUM | Touch `Sidebar.tsx` `navGroups`, `App.tsx` `viewPermissionMap`. Mechanical but wide (187 items). A unit test that sidebar and guard agree for every view is the acceptance test. |
-| T1-02 **Fail-closed default**: no `UserContext` or no `permission` on an item -> hidden / denied | Default-deny is the baseline of any access-control UI; current `() => true` fallback is fail-open | LOW | `Sidebar.tsx` L178. |
-| T1-03 **Render-time guard**: `renderView()` (or a wrapper) re-checks the permission for `currentView` before rendering any module | Menu hiding != access control; `setCurrentView` has callers other than the guarded handler | LOW-MEDIUM | `App.tsx` L1806. Audit direct `setCurrentView(...)` callers; route them through the guarded handler or guard at render. |
-| T1-04 **Visible "no access" state** replacing silent `console.warn`: names the module, says contact your admin, offers return to Overview | Silent no-op reads as a broken app; every mature app has a 403 page | LOW | New small component; reuse existing empty-state styling. Do NOT leak other tenants' info. |
-| T1-05 **Backend parity for gated catalogues**: every catalogue whose nav permission is `view:X` has its list/read routes guarded by `require_permission("view:X")` (or the module's existing equivalent). Produce a parity matrix; fix gaps for catalogues in scope | The milestone's stated defense-in-depth requirement; spot grep shows thin `view:` coverage | HIGH (breadth) / LOW per route | Largest risk in the milestone. Scope by sensitivity and by "what the sidebar exposes", not by touching all ~187 modules blindly. Router-level `dependencies=[Depends(require_permission(...))]` is cheaper than per-route edits. Must not break the API-key scope-narrowing path (`_scopes_allow`). |
-| T1-06 **Effective-permission source of truth is the backend evaluator**: `/api/auth/me` (and login) return permissions computed by the same function the guards use (`DEFAULT_PERMISSIONS` UNION `db.roles` doc), instead of only the raw `db.roles` doc; remove reliance on the `/api/roles` static stub for non-super-admins | A role that has defaults but no role doc logs in with `permissions: []` and falls back to a stub; UI/API can disagree | MEDIUM | `authentication_endpoints.py` L223-231 & `/me` L253-281; `rbac_utils.verify_permission`; `App.tsx` L1185-1242. Keep `rbac_service._normalize_role` as the only role normalizer (existing PROJECT decision). |
-| T1-07 **Seed gap closure**: nav permissions granted by no default role (`view:jobs`, `view:goal_system`, `view:predictive_health`) are either granted to appropriate default roles or consciously left super-admin-only (documented) | Otherwise "role holds the matching view: permission" is vacuous for those catalogues | LOW | Decision, then edit `app_startup.py`/`rbac_utils.py` seed dicts in lockstep (they are duplicated; see Pitfall: lockstep edits, as in Phase 25). |
-| T1-08 **Tenant isolation holds**: nav/permission evaluation uses the caller's own tenant role docs only; super-admin "view as tenant" does not leak other tenants' role definitions | Non-negotiable platform invariant | LOW (verify) | `find_role_doc(db, role, tenant_id)` already handles tenant + global; add a regression test. |
-| T1-09 **Permission changes take effect without re-login** (re-fetch effective permissions on window focus / after role edit / on first 403) | Nav derived only from login-time permissions leaves revoked users seeing modules until token expiry | LOW-MEDIUM | `App.tsx` already fetches roles; add a lightweight `/me` refresh. |
-| T1-10 Keep **tier-lock vs permission-hide** semantics distinct and unchanged | Existing behavior users already see | LOW | Regression test only. |
+### Category 1: Autonomy controls (the cross-cutting layer, build first)
 
-## Differentiators
+#### Table stakes
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| D1-01 **Admin "what can this role see" view**: in role management, a read-only grouped list of the catalogues a role resolves to, computed from the same registry (T1-01) + the role's permission list | Directly answers "admin visibility of what a role can see"; makes the feature auditable; sells RBAC to compliance buyers | MEDIUM | Reuse registry + a shared `visibleViewsFor(permissions)` pure function. No new data model. Surfaces in the existing role/user management UI (`roleManagement`/`userManagement`, `manage:rbac`). |
-| D1-02 **Role x catalogue matrix** (rows = roles, columns = catalogue groups) | Fast review of least-privilege across roles; useful for access reviews (platform already has an Access Reviews module) | MEDIUM | Same pure function over all roles in the tenant. Read-only. |
-| D1-03 **CI parity test**: for every nav permission string, assert either a backend route guard exists or an explicit, reviewed "UI-only" allowlist entry | Makes "UI mirrors backend" a permanent regression net instead of a one-off audit | MEDIUM | Static scan of `require_permission(...)` literals vs registry. Fits the existing pytest suite. |
-| D1-04 **Sub-module (tab) gating inside multi-tab consoles** (e.g. ITAM console tabs: finance/settings/purchase orders visible only if the role's backend guards would allow them) | An `itam_viewer` currently sees tabs whose writes/reads would 403 | MEDIUM | `ITAMConsole.tsx` TABS is static. Optional; do after catalogue-level gating. Keep to ITAM console to avoid creep. |
-| D1-05 Audit log entry for **denied navigation / 403 on a gated catalogue** | Compliance-product expectation (who tried to reach what) | LOW-MEDIUM | Only if existing audit sink makes it a one-liner; otherwise defer. |
+| Feature | Why expected | Complexity | Notes / dependency on existing code |
+|---------|--------------|------------|-------------------------------------|
+| Per-tenant autonomy level: Off / Suggest / Undoable-auto, default Undoable-auto | Every mature product has named levels; Defender's Full/Semi/None is the reference. | LOW-MED | Today tenant gating is `tenants.enabledFeatures` containing `autonomousRemediation`, plus a GLOBAL env `AUTONOMOUS_REMEDIATION_DRY_RUN` (default true). The new level must replace both as the single source of truth, and the env dry-run must become "global ceiling", not a second competing switch. Store on the tenant doc; reuse the per-tenant feature-switch (C6) infrastructure for the Activity screen visibility. |
+| One shared decision function: `decide(action, tenant_level, asset, context) -> run / ask / suggest / refuse` | Operators expect the same rule everywhere (security, patch, self-heal). Divergent gates are the classic bug class (this repo already has two). | MED | Extends `backend/backend_safety.py::evaluate_action` and the playbook `destructive` flag. See conflicts below. |
+| Action reversibility classes: `undoable`, `destructive`, `informational` | The locked split (block IP, quarantine, restart = undoable; isolate, kill, reboot = destructive) needs to be data, not scattered `if`s. | LOW | Today every shipped YAML playbook sets `destructive: true` (including `block_ip` and `disable_service`, which HAVE rollbacks), so today they ALL wait for approval. Needs a second field such as `reversible: true` and a rule: auto-run only if reversible AND rollback steps exist. `kill_process` and `restore_file` have `rollback: []` and stay gated. |
+| Global stop switch (platform-wide) plus per-tenant pause | Every vendor has a "halt all automation" button; MSPs expect it for incidents. | LOW-MED | Must be re-checked immediately before EVERY dispatch, not only at cycle start (fail closed if the flag read fails). Stops new actions and new stages; does not silently roll back things in flight (it leaves them and surfaces them in Activity). Also must be flippable without the UI (CLI or flag file) because the incident may be the UI. Should itself be audited and notify operators. |
+| Approval inbox with expiry | Defender: Pending tab, 7-day timeout = reject. | LOW | `approve_remediation` / `deny_remediation` and `/api/remediation/{id}/approve|deny` already exist; Agent Approvals and Deployment Approvals screens exist. Add: single unified pending list, expiry (default deny), approver identity, and a "why / what / how many machines" card. |
+| Undo button on every undoable action | Defender History undo; operators judge autonomy by how cheap a mistake is to reverse. | MED | Playbook `rollback` blocks already exist and dispatch through `agent_instructions`. Needs: persisted inverse (computed at action time, not at undo time), undo audit entry linked to the original, and "undo failed" handling. |
+| Blast-radius limits | Operators fear one bad rule touching the fleet. | MED | Existing: per-agent concurrency lease (`REMEDIATION_MAX_CONCURRENT_PER_AGENT`=2), severity ceiling (`MAX_AUTO_SEVERITY`=medium), 5-minute dedup. Missing: per-decision asset cap, per-tenant actions-per-hour cap, per-rule cap. `evaluate_action` already takes a `blast_radius` argument that no autonomy path enforces. |
+| Never-touch list (exclusions) | Auto-blocking your own gateway or DNS is the textbook outage. | LOW-MED | Per-tenant list of protected IPs/ranges, assets, services. Seed with the platform's own backend, MongoDB, Ollama addresses and RFC1918 default gateways. Refuse `/0`, loopback, private-range blocks unless exact entry is approved. |
+| Complete audit of every decision, including refusals and "suggest only" | Auditors and MSP clients ask "why did it not act?" as often as "why did it act?". | MED | Reuse `audit_ledger.record` (hash chain, spool-on-failure) and `remediation_audit_service.write_audit` (insert-only). Record the rule id, inputs, level in force, decision, actor, outcome. |
+| Activity view (see Category 6 below) | Defender Action Center. | MED | See below. |
 
-## Anti-Features
+#### Differentiators
 
-| Anti-Feature | Why Requested | Why Problematic | Alternative |
+| Feature | Value | Complexity | Notes |
+|---------|-------|------------|-------|
+| Circuit breaker: auto-downgrade a tenant to Suggest when N autonomous actions fail or are undone in a window | Self-limiting autonomy builds MSP trust; no mainstream SMB tool does this visibly. | MED | Deterministic counters only. Writes an audit entry and notifies. Operator re-enables explicitly. |
+| "Would have done" shadow records in Suggest and Off-with-learning | Lets an MSP trial Undoable-auto per tenant with evidence. | LOW-MED | Same decision function, outcome `suggested`. Free once the decision function exists. |
+| Maintenance windows / change freeze honoured by all four domains | MSP clients have freeze periods. | MED | Integrate with existing Change Management (`change_management_service.py`). If a change is in freeze, autonomy downgrades to Suggest for patching and restarts. |
+| Per-domain override (security / patching / self-heal / service desk) under the tenant level | Defender allows per-group levels. Patching often needs to be stricter than blocking an IP. | LOW | Keep to one level plus four on/off toggles. Do NOT build per-rule per-tenant matrices in v4.3. |
+| Per-rule health stats (fired, undone, failed, approval rate) | Tells the operator which rule to tighten. | LOW | Derived from the activity collection. |
+
+#### Anti-features
+
+| Anti-feature | Why requested | Why problematic | Alternative |
 |--------------|---------------|-----------------|-------------|
-| New permission model / `catalogue:*` permission namespace / per-catalogue ACL tuples | "Cleaner" mapping of menu to access | Explicitly out of scope; duplicates `view:` permissions, creates a third source of truth, needs a migration | Reuse existing `view:` strings; fix mapping drift (T1-01) |
-| Routing nav decisions through OpenFGA/ReBAC tuples | Milestone text mentions "Phase 36 ReBAC" | Sidebar does not use OpenFGA today; per-item network authz checks for ~187 items = latency + new failure mode | Keep flat role permissions for nav; ReBAC stays for resource-level checks |
-| Showing denied catalogues greyed/locked with "request access" | Discoverability | Leaks existence of security modules to low-privilege users; conflicts with tier-lock visual language | Hide; admins use D1-01 to see the grants |
-| Frontend-only enforcement ("hide and done") | Fast | Zero security; URL/API still open | T1-03 + T1-05 |
-| "Impersonate role" / "view as user" mode | Admin convenience | High-risk (session confusion, audit complexity, token handling) | Read-only preview (D1-01) |
-| Server-driven menu (backend returns the whole nav tree) | Single source of truth | Rewrites 187 items + icons + labels; large regression surface for a gating milestone | Shared frontend registry + effective-permission set from server (T1-01/T1-06) |
-| Per-user nav overrides / custom hide lists | Personalization | Muddies "role determines visibility"; breaks audit story | Out of scope; favorites/pins would be a separate feature |
-| Granting access by hiding `manage:*` logic in the client | Convenience | Client must never decide manage rights | Server returns effective set |
+| Confidence-score auto-approval of destructive actions | "If we are 95% sure, why ask?" | `backend_safety.py` already contains `AUTO_APPROVE_CONFIDENCE_THRESHOLD = 0.90` that lets an approval-required action proceed. It contradicts the locked "destructive waits for one click" decision. A score from any model or heuristic is not an approval. | Remove or hard-disable that bypass for autonomy paths. A regression test proves no score, severity or source bypasses approval (same stance as v3.4 Phase 55 D-04). |
+| Two inconsistent action classifications | Historical drift. | `backend_safety.py` lists `kill_process` as SAFE and `restart_service` as APPROVAL_REQUIRED. The locked decision says the opposite for both. Whichever is read first wins, silently. | One classification table, one owner, tests that pin each action to its class. |
+| LLM decides action, target, parameters or script | "Smarter responses." | The legacy `AutonomousRemediationService.generate_plan()`/`run_cycle()` path does exactly this: `run_remediation_script` with an AI-generated script, and an "agentic" tool choice for alerts. | Autonomy drives only the playbook path (`remediate()` with YAML playbooks). The legacy `run_cycle` path must be unreachable from autonomy, or removed. |
+| Implicit "run as root" free-form script action | Flexibility. | Unbounded blast radius. | Only named, parameter-validated actions the agent already implements. |
+| Autonomy that cannot be switched off during an incident | Simplicity. | Operators lose trust the first time they cannot stop it. | Global stop plus per-tenant pause, both outside the normal UI path. |
+| Autonomy that acts across tenants | Efficiency ("block this IP everywhere"). | Violates tenant isolation. Recent hardening made the DB wrapper auto-scope tenants. | Cross-tenant suggestions only, shown to the MSP operator, each applied per tenant under that tenant's level. |
+| Per-tenant custom rule authoring in v4.3 | MSP asks. | Untested rules are the risk the locked decision removes. | Ship a fixed, tested rule set; tenants choose level and exclusions only. |
 
 ---
 
-# FEATURE 2 — Asset costing (organization and endpoint level)
+### Category 2: Security response
 
-## How asset costs are typically rolled up and shown (conventions, MEDIUM confidence)
+#### Table stakes
 
-- **Two numbers, never one.** ITAM tools (Snipe-IT, GLPI, ServiceNow, Lansweeper) show *Purchase / original cost* and *Current (depreciated / book) value* side by side; both roll up to org totals. Disposed/retired assets are shown separately or filtered, not silently mixed into "current value".
-- **Org total is the sum of the rows beneath it**, and the drill-down must reconcile exactly to the headline figure (the tile-says-X, report-says-Y bug is trust-breaking; PROJECT.md already records this as a decision).
-- **Coverage is explicit.** Assets missing a cost or a depreciation policy are counted and surfaced ("42 of 310 assets have no purchase cost"), not treated as $0 and not silently dropped.
-- **Groupings:** by category / model / location / lifecycle status / purchase year, plus an assets-table export (CSV/Excel). Per-asset detail shows purchase cost, purchase date, age, annual depreciation, book value, % depreciated.
-- **Software cost is a different shape than hardware cost.** A license has a purchase/subscription cost and a seat count; per-seat cost = cost / seats. Seat-level allocation to a device = per-seat cost x seats assigned to that device. Idle (unassigned) seats are a recognized optimization signal. Licenses are normally *not* depreciated alongside hardware in ITAM views (tools like Snipe-IT track license purchase cost; some finance teams amortize, which is out of scope here).
-- **Currency:** ITAM tools store one currency per instance/tenant and format with a configured symbol; real multi-currency with FX is a finance-system (ERP) concern. Mixed-currency summation without conversion is a known correctness bug.
-- **TCO** in the textbook sense (purchase + operation + maintenance + disposal) requires data ITAM tools usually do not hold; mid-market ITAM shows "acquisition cost + licenses" and calls it cost, not TCO.
+| Feature | Why expected | Complexity | Notes / dependency |
+|---------|--------------|------------|--------------------|
+| Alert/finding to playbook mapping with fixed, tested rules | Defender AIR, S1 Protect, Falcon Fusion all do this. | MED | Extends `remediation_playbook_service.select_playbook` and `backend/playbooks/*.yaml` (block_ip, disable_service, kill_process, patch_package, restore_file, rotate_key). A rule table keyed by finding class + severity + corroboration. |
+| Undoable actions auto-run under Undoable-auto | Locked decision 1. | MED | Needs the reversibility split above. The playbooks for block_ip and disable_service already carry rollbacks. |
+| Destructive actions queue for approval with one click | Locked decision 1. | LOW | Existing `pending_approval` state and approve/deny endpoints. UI: approvals card and push notification. |
+| Verify after action, roll back on verify-fail | Existing (v3.4 `_dispatch_and_verify`). | LOW | Keep. Verification currently covers vuln, FIM and nscan finding classes. |
+| Auto-expiry of containment (TTL on blocks) | Industry norm: temporary blocks with an expiry and an extend button, so a mistake self-heals. | LOW-MED | New. A sweeper dispatches `unblock_ip` at TTL. Use the same scheduler as retention. Default 24 h, tenant-adjustable. |
+| Cooldown and dedup | Existing 5-minute dedup (`ResponseOrchestrator.is_duplicate_task`). | LOW | Keep. Add repeat-offender escalation (same finding again after undo = ask, never retry silently). |
+| Notification on every automatic action | Operators want to know. | LOW | `notification_service.send_alert` (email/sms/slack/webhook). Batch into a digest by default; immediate for destructive pending. |
+| Missing agent actions for the locked action list | `quarantine_file`, `restart_service` and `isolate_host` are named in the decision but the shipped Rust agent only handles `kill_process`, `restore_file`, `block_ip`, `unblock_ip`, `disable_service`, `enable_service`, `rotate_key` (see `agent-install/omni-agent-rs/src/instructions.rs`). Backend `agent_capabilities.py` lists `isolate_host` but the agent has no handler. | HIGH | New agent release required (agent publish pipeline already exists, version 2.1.x). Each new action needs its inverse: quarantine/restore-from-quarantine, restart (self-inverse, idempotent), isolate/release-isolation. Per-tenant agent capabilities (C6) must gate each new action. |
+| Audit entry per step with before/after state | Existing immutable `remediation_audit`. | LOW | Add the autonomy level in force and the rule id. |
 
-## Table Stakes
+#### Differentiators
 
-| Feature | Why Expected | Complexity | Notes / Dependencies |
-|---------|--------------|------------|----------------------|
-| T2-01 **Org-level cost summary** for the tenant: total purchase cost, total current book value, asset counts (with cost / without cost / without depreciation policy) | The milestone goal; the core of any ITAM cost view | MEDIUM | Build on `_compute_asset_value_kpi` logic (`itam_reporting_kpis.py`) + `compute_book_value`. Extract one shared per-asset cost function used by KPI, pre-built report, and the new endpoint. |
-| T2-02 **Endpoint/asset-level cost**: per asset purchase cost, purchase date, depreciation basis (life/salvage from model), annual depreciation, book value, with the same reason codes as `GET .../book-value` when data is missing | Milestone goal; drill-down target of T2-01 | LOW-MEDIUM | Existing `GET /api/assets/{id}/book-value` is the per-asset seed; extend response or add `/cost`. Viewer-gated (`_require_itam_viewer`). |
-| T2-03 **Reconciliation**: org totals equal the sum of the per-asset rows plus explicitly labelled unattributed buckets; tested | Trust. Per PROJECT.md key decision (reports reuse owning computation verbatim) | LOW (design) | Single function; test asserts `sum(rows) == headline`. |
-| T2-04 **Missing-data honesty**: asset with no `purchaseCostCents` -> "cost not recorded" (null), never `0`; asset with cost but no model policy -> purchase cost counted, book value null + `withoutPolicyCount`; `hasData:false` for empty tenant | Existing KPI already behaves this way; a cost view that shows $0 for unrecorded endpoints would mislead (many agent-discovered endpoints have no purchase data) | LOW | Note: the current KPI drops assets with cost-but-no-policy from the *whole* tally; costing needs purchase-total to include them and book-value-total to exclude them, with both counts. |
-| T2-05 **Integer-cents arithmetic and explicit currency label**: all rollups in integer cents; every amount rendered with a clearly stated tenant currency (default USD constant today), never a bare number or assumed `$` | Float money is a known bug source (PO model already uses floats; do not mix) | LOW | Format only at the UI edge. Do NOT add PO `total_cost` into asset totals. |
-| T2-06 **Lifecycle-aware scope**: current book value excludes disposed/retired assets by default (shown separately or via filter); counts reflect the filter | Standard ITAM expectation; otherwise "current value" includes things already gone | LOW-MEDIUM | Uses `lifecycleStatus` on the asset. Define the included set in requirements (e.g. exclude disposed). |
-| T2-07 **License cost at org level**: total license spend and (assigned vs unassigned) split, from the licenses catalogue | Explicitly in the milestone ("license spend") | MEDIUM | **BLOCKED on D-1: no cost field exists on licenses.** Needs one additive optional field on License create/update/edit form (see D-1). |
-| T2-08 **Allocated license cost per endpoint**: per-seat cost (license cost / `seatCount`) x seats assigned with `targetType == "asset"` for that asset, listed per license | Explicitly in the milestone ("allocated license cost") | MEDIUM | Uses `license_assignments` (unique per license+target). Seats assigned to `user` targets are shown at org level as "assigned to users (not attributed to an endpoint)", never guessed onto a device. Guard `seatCount == 0` (divide by zero). |
-| T2-09 **Authorization + tenant isolation**: cost endpoints use the existing `_require_itam_viewer` (`view:itam` or `manage:assets`, API-key scope-aware); every query tenant-scoped via the DB wrapper | Costs are financial data; the existing book-value route is already viewer-gated | LOW | Do not invent a `view:costs` permission (no new permission model). If the product owner wants costs hidden from `itam_viewer`, use the existing `manage:finance`/`manage:itam` permissions that already exist on `itam_admin`; this is a requirements decision (D-2). |
-| T2-10 **UI placement in the existing ITAM console** (Finance tab section or sibling "Cost" tab) with org summary cards + per-asset table (sortable, filterable) and per-asset detail | Avoids a new sidebar module/permission; mirrors where users already look for finance data | MEDIUM | `FinancePanel.tsx`, `ITAMConsole.tsx` TABS. |
-| T2-11 **CSV/Excel export** of the per-asset cost table | Every ITAM tool exports asset cost; reporting framework makes it cheap | LOW | Register an `asset_cost` entry in `itam_reporting_prebuilt.py`'s registry (PDF/Excel/CSV exporters exist). Keep CSV formula-injection protection already built in Phase 70. |
-| T2-12 Cost view works for a **super-admin viewing a selected tenant** and never crosses tenants | Existing console pattern (`isSuperAdminView`, `tenants` prop) | LOW | Follow `FinancePanel` conventions. |
+| Feature | Value | Complexity | Notes |
+|---------|-------|------------|-------|
+| Corroboration rules (e.g. two independent signals before auto-block) | Cuts false positives without an ML score. | MED | Deterministic: count distinct sources (native scan + UEBA + SIEM correlation, `SiemEngine.correlate_native_findings`). |
+| Quarantine-not-delete, always | Safe by construction and matches Defender's quarantine + undo. | MED | Moves a file to a protected folder with hash recorded; restore returns it. Never deletes. |
+| Time-boxed isolation after approval, with release reminder | Isolated hosts get forgotten. | MED | Isolation needs approval, then auto-prompts for release at N hours (prompt, not auto-release, unless tenant opts in). |
+| Incident grouping on the Activity view | One compromise, ten findings = one story. | MED | Group by asset and time window. |
+| LLM-written plain-English summary of the incident, labelled "AI summary" | Saves reading raw JSON. | LOW | Runs after the decision, read-only, optional, skipped if Ollama is down. The decision record does not depend on it. |
+| Ticket auto-created per destructive approval or failed verification | Closes the loop with Jira/ServiceNow bridge. | LOW | Reuse `ticketing_bridge`, `_create_failure_ticket`. |
 
-## Differentiators
+#### Anti-features
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| D2-01 **Group-by breakdowns** (category, model, location, lifecycle status, purchase year) with totals | Answers "where is our money" fast; standard in mature ITAM | MEDIUM | Aggregation over the same shared per-asset function. Reconcile to headline. |
-| D2-02 **Cost-coverage indicator** ("N% of assets have purchase cost; M lack a depreciation policy") with a link to the offending assets | Turns the missing-data honesty into a data-quality worklist; fits the platform's compliance-evidence mindset | LOW | Falls out of T2-04 counts + existing filtered asset list. |
-| D2-03 **Idle-seat cost** (unassigned seats x per-seat cost) and license-expiry-with-cost forecast (next 12 months) | Software cost optimization is the main reason buyers want license cost in ITAM | MEDIUM | Uses existing `expiryDate`, `_next_twelve_month_keys`-style bucketing. Depends on D-1 cost field. |
-| D2-04 **Total endpoint cost** line = purchase cost + allocated license cost, displayed with book value as a separate line (do not add a depreciating stock value to a flow) | Single "what does this endpoint cost us" figure | LOW | Pure presentation; define the formula in requirements. |
-| D2-05 **MSP cross-tenant rollup** for super-admins (per-tenant rows, no cross-tenant sum unless currencies are known identical) | Matches the MSP positioning in PROJECT.md | MEDIUM | Super-admin only. Per-tenant rows; no grand total in v4.2. |
-| D2-06 Configurable **tenant display currency code** (symbol only, no FX) | Non-USD tenants see correct symbols | LOW-MEDIUM | Needs one setting (existing `itam_warranty_alert_window`-style settings doc is the precedent). Defer if D-1 already stretches scope. |
-| D2-07 Cost KPI tile(s) on the existing ITAM KPI dashboard with drill-down to the cost table | Consistency with Phase 72 dashboard | LOW | `ItamKpiPanel.tsx`; reuse `drilldownReportKey`. |
-
-## Anti-Features
-
-| Anti-Feature | Why Requested | Why Problematic | Alternative |
+| Anti-feature | Why requested | Why problematic | Alternative |
 |--------------|---------------|-----------------|-------------|
-| New cost-entry system / separate cost ledger / cost-center module | "Real" costing | Explicitly out of scope; duplicates `purchaseCostCents`, PO data | Roll up existing fields; at most ONE additive optional cost field on License (D-1) |
-| Multi-currency with FX conversion / historical exchange rates | Global tenants | Needs a rates source, rounding policy, restatement rules; correctness minefield; no currency data exists | Single tenant currency, label explicitly, never sum across currencies |
-| Declining-balance / MACRS / units-of-production depreciation | Snipe-IT offers more methods | Breaks the "reuse `compute_book_value` verbatim" invariant; only straight-line is shipped and tested | Keep straight-line; revisit as its own milestone |
-| True TCO (maintenance, support labor, power, disposal costs) | "Total cost of ownership" is a buzzword | No data source in the platform; invented numbers | Label the figure "acquisition + license cost" |
-| Depreciating licenses | Finance teams amortize software | No amortization schedule/data; scope creep | Show license cost as spend, not as a depreciating asset |
-| Summing PO `total_cost` into asset totals | PO has a cost | Double-counts purchases already on the asset (`purchaseCostCents` + `purchase_order_id` link); PO fields are floats | PO spend remains in the PO panel; costing uses asset cents only |
-| Persisting computed book value / cost snapshots | Faster queries | Contradicts D-04 (never persisted); staleness; new write paths | Compute at read time; add caching only if measured necessary |
-| Guessing user-assigned seat cost onto the user's devices | Wants "complete" per-endpoint figure | Fabricates attribution (one user, many devices) | Show as "assigned to users - not attributed to an endpoint" |
-| Consumable/component costing in v4.2 | Milestone text says "licenses/consumables" | Consumables/components have no cost field and are checked out to users/locations (no asset link; components do have `assetIds`) | Defer to a follow-up; if requirements insist, org-level only after adding a unit-cost field (second D-1-style decision) |
-| Budgeting, forecasting, chargeback invoicing | Natural next step | Different product surface (FinOps-style) | Out of scope |
+| Auto-kill process, auto-isolate host, auto-restore file | "Fastest containment." | Destructive per locked decision. `kill_process` and `restore_file` have no rollback. | Queue for approval; make the card one click with the process tree and asset criticality shown. |
+| Auto-block by wildcard or CIDR in rules | Block a whole bad subnet. | Self-lockout and customer outage. | Single IPs only automatically; ranges need approval. |
+| Auto-block IPs from a threat feed with no corroboration | Feed says "bad". | Stale or poisoned feeds (and the platform's feeds are signed bundles, not live). | Corroboration rule plus TTL. |
+| Autonomy on critical or high-criticality assets | "Protect the crown jewels first." | Those are the machines where a wrong action costs most. `backend_safety.HIGH_CRITICALITY_LEVELS` already says they always need a human. | Keep: critical/high assets always ask, whatever the level. |
+| Retry-until-success loops on a failed action | Persistence. | Amplifies a bad action. | One attempt, one verify, one rollback, then escalate (ticket + notification). |
+| UEBA or SOAR playbooks triggering actions outside the same gate | Existing SOAR/UEBA already act. | A second code path with weaker checks. | Route UEBA, SOAR and Active Response automatic triggers through the one decision function; keep manual operator use unchanged. |
 
 ---
 
-## Open Decisions for Requirements (flag to the user)
+### Category 3: Staged patching with health gates
 
-| ID | Decision | Why it matters | Recommendation |
-|----|----------|----------------|----------------|
-| **D-1** | Licenses (and consumables/components) have **no cost field**. "Total license spend" and "allocated license cost per endpoint" are impossible without data. | Violates the milestone premise "reuse existing data only" for the license half of Feature 2. | Add exactly **one optional, additive** `purchaseCostCents` (total cost for the license, integer cents) to License create/update/response and the existing `LicensesPanel` form. Note `extra="forbid"` on the Pydantic models, so the model change is mandatory, not optional. Treat absence as "cost not recorded". Alternatively ship asset-level cost only and display licenses as seat counts. Do NOT do consumables/components in v4.2. |
-| **D-2** | Who may see costs: any `view:itam` holder (matches existing `GET .../book-value`) or only admins (`manage:assets`/`manage:itam`)? | Costs are sensitive; `itam_viewer` can already read book value. | Default: same as existing book-value (`_require_itam_viewer`), because hiding it only in the new view while the old route exposes it is inconsistent. |
-| **D-3** | Definition of "current" rollup scope (exclude disposed? archived?). | Changes headline numbers. | Exclude disposed/retired from current book value, include in purchase total only if a "include disposed" filter is on; state in the UI. |
-| **D-4** | Parity scope for Feature 1 (T1-05): all ~187 catalogues or those in specified groups? | Backend guard retrofits are the milestone's largest unknown. | Ship the registry, guard, no-access state, and D1-03 test for all; retrofit backend guards in priority order (financial, identity, security-operations, ITAM), with the rest on a reviewed "UI-only" allowlist. |
+#### Table stakes
+
+| Feature | Why expected | Complexity | Notes / dependency |
+|---------|--------------|------------|--------------------|
+| Rings/stages (canary, pilot, broad) with a soak time between them | Intune/Autopatch/WSUS/Tanium all do rings. | MED | `deployment_service.py` already creates 4-stage jobs (TEST/DEV/STAGING/PRODUCTION) with percentages and a `staged_deployments` collection. Those are environment-named; MSP fleets need ring-named stages and a canary of 1-5 machines. Rename/extend, do not duplicate. |
+| Scheduled start in a maintenance window per tenant timezone | MSPs patch off-hours. | MED | `scheduler.py` (APScheduler) and `report_schedule_timing.py` exist. Add window + timezone. |
+| Health check after each stage, auto-halt on failure | The locked requirement; Autopatch behaves this way. | MED-HIGH | `config.health_check_enabled` is set in `deployment_service` but nothing reads it; `update_stage_progress` counts per-asset PATCH success, not post-patch HEALTH. Define health deterministically: agent heartbeat returns within N minutes, critical services running, no new critical alert on the asset, install result OK. |
+| Automatic rollback on failed gate | Locked requirement. | HIGH | `trigger_rollback` exists in `deployment_service`; confirm it dispatches real work to agents (memory notes OS patching was once "fake end to end" and later fixed; verify before trusting it). Windows rollback is limited (uninstall KB where possible, otherwise restore point/snapshot); say so honestly in the UI: "rolled back" vs "halted, manual action needed". |
+| Pause / resume / cancel by an operator any time | Every rollout tool has it. | LOW | Plus the global stop switch. |
+| Reboot handled as a destructive action with ONE approval for the batch | Locked decision (patch reboot = destructive). | MED | One approval per stage ("reboot 14 machines at 02:00"), not per machine. Show deferral to next window if declined or expired. |
+| Preflight checks per machine | Prevents patching a sick machine. | MED | Disk free, pending reboot flag, agent online, not on exclusion list, not under change freeze. |
+| Result report per stage and per rollout | Auditors and clients ask. | LOW | Reuse `PatchDeploymentJobs.tsx`, `deployment_result_endpoints.py`. |
+| Exclusion/hold lists (critical servers manual only) | Common MSP practice. | LOW | Reuse the never-touch list from Category 1. |
+
+#### Differentiators
+
+| Feature | Value | Complexity | Notes |
+|---------|-------|------------|-------|
+| Failure-rate gate with a minimum sample (e.g. halt if over X% fail AND at least N machines) | Avoids halting on one flaky laptop in a ring of 3, avoids ignoring failure in a ring of 300. | LOW-MED | Deterministic thresholds, tenant-tunable within safe bounds. |
+| Auto-skip a patch that failed twice in earlier rings and mark it "known bad" | Stops repeating a bad KB across tenants. | MED | Platform-level known-bad list (operator-curated, not LLM). |
+| Canary chosen by rule (lowest-criticality, most-recently-healthy machines) | Better canary than random. | LOW-MED | Derived from asset criticality and heartbeat uptime. |
+| Rollout timeline with gate results shown per stage | Makes "why did it halt" obvious. | LOW-MED | Part of the Activity view. |
+
+#### Anti-features
+
+| Anti-feature | Why requested | Why problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| Auto-reboot without approval | "Patches need reboots." | Destructive per the locked decision; data loss for logged-in users. | Per-stage reboot approval; schedule inside the window. |
+| Auto-progress past a stage with no health signal | Speed. | A missing signal is not a pass. | Treat "no data" as fail-closed (halt). |
+| LLM choosing which patches or which machines | "Smart prioritisation." | No LLM in execution path. | Deterministic priority from severity, CVSS/KEV and asset criticality. |
+| Patching the platform host itself automatically | Self-maintenance. | The platform is the thing that would roll back. | Self-healing only warns; the host patch stays the user's step. |
+| Auto-uninstall of a patch based on a user complaint | Responsive. | Unverifiable input. | Ticket plus operator-triggered rollback. |
+
+---
+
+### Category 4: Platform self-healing
+
+#### Table stakes
+
+| Feature | Why expected | Complexity | Notes / dependency |
+|---------|--------------|------------|--------------------|
+| Out-of-process watchdog (systemd unit/timer) probing backend, MongoDB, Ollama | A process cannot reliably watch or restart itself. Kubernetes/systemd both supervise from outside. | MED | The backend can only act on Mongo or Ollama while it itself is up. A separate lightweight unit is required for "backend is down". Installing units on the live VM is the user's step (project memory; never run `run-on-ubuntu.sh`, it touches ufw). Ship units + a script, do not apply them. |
+| Liveness vs readiness distinction | Process up is not the same as working. | LOW | e.g. backend `/api/health` answers AND a Mongo ping works; Ollama `/api/tags` answers. `health_service.py` and System Health / API Status screens exist; extend, do not rebuild. |
+| N consecutive failures before acting | Avoids restarts on blips. | LOW | Typical 3 probes. |
+| Restart with backoff and a restart budget; then stop and page | K8s CrashLoopBackOff (10s to 5 min cap) and systemd StartLimit. Endless loops are the classic failure. | MED | Budget per service per hour; after it is spent mark "needs human" and alert. Memory note: mongod once failed to start after a kernel update and was fixed by a drop-in; a watchdog must not hammer a service that cannot start. |
+| Expected-state config per service | Ollama is intentionally inactive on this VM. Alerting on it forever is noise. | LOW | `expected: running | stopped | optional`. |
+| Certificate expiry warnings at 30 / 14 / 7 / 1 days | Standard thresholds. | LOW-MED | `certificate_endpoints.py` exists for tenant/agent certs; add the platform's own TLS (probe the live listener, not just files). Warn only; renewal stays human. |
+| Disk usage warnings at 80 / 90 / 95 percent | Standard. | LOW | Include MongoDB data dir, logs and backup dir. 7 GB VM makes this real (project notes: heartbeats ~815 MB/day/endpoint raw). |
+| Scheduled retention job | Manual today (`retention_service.run_cleanup`, `retention_endpoints.py`). | MED | Cron with per-tenant policy, dry-run preview count, max-delete guard (abort and alert if a run would delete far more than the previous run), run record in Activity. See anti-feature on audit logs. |
+| On-call alerting with tiers, ack timeout and bounded repeat | PagerDuty pattern. | MED-HIGH | `notification_service` has email/sms/slack/webhook; nothing models schedules, tiers or acknowledgement. Build the minimum: ordered contact list, per-tier timeout, ack link, repeat N times. Optional webhook to PagerDuty/Opsgenie rather than rebuilding all of it. |
+| Alert about alert delivery failure | If SMTP is unset (it is on this VM, see optional-integrations note) the on-call feature silently does nothing. | LOW | Show "no working channel configured" prominently; test-notification button; never claim "on-call covered" without a passing test. |
+| Heartbeat/dead-man's switch for the watchdog itself | Silence must be detectable. | LOW-MED | Watchdog writes a heartbeat; the platform raises an alert when it stops. An external ping URL is optional. |
+
+#### Differentiators
+
+| Feature | Value | Complexity | Notes |
+|---------|-------|------------|-------|
+| Alert grouping and dependency suppression (MongoDB down means do not also page about every API check) | Prevents a page storm. | MED | A small static dependency graph. |
+| Self-heal timeline in the Activity view with "restarted X at T, healthy after Y s" | Shows value to the MSP. | LOW | Same activity collection. |
+| Capacity forecast (disk fill date) | Warn days ahead rather than at 90 percent. | LOW-MED | Linear fit over recent samples. Deterministic. |
+| Degradation modes: Ollama down, service-desk AI falls back to "escalate to human" with a banner | The LLM is optional, the product stays honest. | LOW | Ties Category 5 to Category 4. |
+
+#### Anti-features
+
+| Anti-feature | Why requested | Why problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| Unlimited auto-restart | "Keep it up." | Restart loops mask real faults and can corrupt MongoDB. | Budget, backoff, page. |
+| Auto-delete data or backups to free disk | Disk is full. | Destroys evidence and backups; the audit ledger is hash-chained. | Warn; only the scheduled retention policy deletes, and only what policy names. |
+| Retention job that touches the audit ledger or Autonomous Ops decision records | "Clean everything." | `RetentionService.cleanup_audit_logs` deletes `audit_logs` older than 90 days by default (it keeps a purge checkpoint so the chain still verifies). If the Activity view reads only `audit_logs`, actions vanish from view after 90 days. | Give autonomy decisions their own collection and longer retention floor; exclude them from the default run; keep ledger checkpointing. |
+| Auto-renew certificates or auto-rotate secrets | Convenience. | Wrong renewal breaks every agent (agent TLS pinning is in place). | Warn early; renewal is a human step with a checklist. |
+| Restarting MongoDB or the OS from inside the backend process | "Self-contained." | The backend dies with it and cannot verify. | Watchdog outside, user installs. |
+| Auto-applying OS patches or kernel updates on the platform VM | "Self-maintenance." | A kernel update already broke mongod once on this VM. | Notify only. |
+| Building a full on-call product (calendars, shift swaps, mobile app) | PagerDuty parity. | Months of scope for a side feature. | Contact list with tiers + webhook out to a real on-call tool. |
+
+---
+
+### Category 5: Service desk (AI first-line answers)
+
+#### Table stakes
+
+| Feature | Why expected | Complexity | Notes / dependency |
+|---------|--------------|------------|--------------------|
+| AI drafts or sends a first answer to a new ticket from the knowledge base only | ServiceNow/Freshservice/Zendesk deflection norm. | MED | `rag_service.py` (query with tenant filter), `knowledge_endpoints.py` `/query`, tickets stack (`tickets_service.py`, `tickets_workflow_endpoints.py`), AI Assistant. Answer is built from retrieved KB passages, quoting and linking them. |
+| Cite the KB article(s) used | Trust and verifiability. | LOW | Show title and link in the reply. |
+| Escalate when unsure and say so to the user | Locked decision. | MED | Escalation triggers are RULES, not only the model's opinion: no KB hit above a retrieval-score floor, fewer than N supporting passages, user asked for a human, negative sentiment keywords, security/account/billing/legal keywords, ticket category on a never-auto list, reopened ticket, SLA about to breach, VIP user. |
+| Three outcomes: answer, draft-for-agent, escalate | Industry confidence bands. | MED | Level mapping: Off = nothing; Suggest = always draft for the agent (internal note); Undoable-auto = send answer only when rules say so, else draft or escalate. A sent answer is reversible only by a follow-up, so it needs the gentlest default. |
+| Handoff with context | Agents hate re-asking. | LOW | Attach retrieved passages, the draft, the reason for escalation. |
+| "Did this solve it?" confirmation and auto-close only after confirmation or timeout | Prevents false deflection. | LOW-MED | Reopen on negative reply; reopened tickets always escalate. |
+| Tenant isolation of the knowledge base | MSP multi-tenant. | LOW (exists) | `rag_service.query(tenant_id=...)`; test that tenant A's KB never answers tenant B (global vs tenant docs distinction already present). |
+| Visible "AI-assisted" label | Honesty; avoids a human-impersonation complaint. | LOW | On every AI reply. |
+| Ollama-down fallback: skip AI, route normally | The VM's Ollama is inactive today. | LOW | Ticket flow must not depend on the model. |
+
+#### Differentiators
+
+| Feature | Value | Complexity | Notes |
+|---------|-------|------------|-------|
+| KB gap detection: tickets escalated for no-answer become "suggest an article" items | Makes the KB improve; addresses the weak-KB failure mode. | MED | Group unanswered by question embedding; LLM may only summarise the cluster. |
+| Deflection analytics (answered, confirmed, reopened, escalated; top articles) | MSP proof of value. | LOW-MED | Feeds the Activity view. |
+| Per-category auto-answer allowlist (password-reset how-to yes, access requests no) | Tenant control without per-rule authoring. | LOW | A list of categories, default conservative. |
+| Prompt-injection hardening on ticket text and KB text | Tickets are untrusted input. | MED | Retrieval passages and ticket body are treated as data; model output is displayed as text only; no tool calls from this path. |
+
+#### Anti-features
+
+| Anti-feature | Why requested | Why problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| AI performs actions from ticket text ("reset my MFA", "unlock my account", "install X") | Real self-service. | Ticket text is untrusted; an LLM turning it into an action is exactly the path locked decision 3 forbids. | The AI links the documented how-to or opens a request that goes through existing approval workflows (JIT access, asset requests). |
+| Answering without a KB source (model's own knowledge) | Higher deflection rate. | A 3B model hallucinates; wrong answers cost more than escalations. | No retrieval hit means escalate. |
+| Using the model's self-reported "confidence" as the gate | Easy to implement. | Small models are poorly calibrated. | Gate on retrieval score, passage count, category and keyword rules; the model only drafts text. |
+| Auto-closing tickets without user confirmation | Better metrics. | Hidden failures, angry users. | Close on confirmation or a long timeout with a reopen link. |
+| Auto-answering security incidents, billing, legal, account-compromise tickets | Volume. | Regulated and high-risk topics are the standard escalation list. | Always escalate and notify. |
+| Training or fine-tuning on tenant tickets | "Gets better over time." | Cross-tenant leakage risk; the project's own-LLM work is a separate effort. | Improve the KB, not the model. |
+
+---
+
+### Category 6: Activity view (what Autonomous Ops did, why, undo)
+
+#### Table stakes
+
+| Feature | Why expected | Complexity | Notes / dependency |
+|---------|--------------|------------|--------------------|
+| One chronological feed across security, patching, self-healing and service desk | Defender Action Center sets the expectation. | MED | New `autonomy_actions` (decision record) collection written by the single decision function. Do not infer the feed from `audit_logs` (that gets purged by retention). |
+| Tabs/filters: Pending approval, Done, Undone, Failed, Refused (blocked by limit, exclusion or level), Suggested | Defender Pending/History. | LOW-MED | Status is an enum on each record. |
+| Each row: what, target, when, which rule, level in force, who approved, outcome, undo | The stated purpose. | MED | "Why" comes from the rule id plus the triggering evidence; an optional AI summary is clearly labelled. |
+| Undo from the row | Locked requirement. | MED | Undo disabled with the reason when the action is not undoable ("destructive, no rollback") or already undone. |
+| Approve/deny from the same list | Fewer places to look. | LOW | Reuses existing endpoints. |
+| Link to the immutable ledger entry | Auditors. | LOW | Store the ledger `seq`/`hash` on the record. |
+| Tenant-scoped for tenant admins; cross-tenant roll-up for the MSP operator | Multi-tenant. | MED | Follow the tenant wrapper conventions; add a feature switch so the screen appears only where enabled. |
+| Global stop switch and the tenant level visible at the top of the page | Operators check state first. | LOW | Banner when stopped or in Suggest. |
+| Export (CSV/PDF) | Compliance evidence. | LOW | Existing export patterns. |
+
+#### Differentiators
+
+| Feature | Value | Complexity | Notes |
+|---------|-------|------------|-------|
+| "While you were away" digest (email/Slack) | Operators do not live in the console. | LOW-MED | Counts are deterministic; an optional AI-written paragraph is labelled. |
+| Hours-saved estimate | MSP billing story. | LOW | Fixed minutes per action type; show the assumption. |
+| Per-rule undo rate and approval rate | Tune the rules. | LOW | See Category 1. |
+| Filter by incident / rollout ID | Follow one story end to end. | MED | Needs correlation ids. |
+| Compliance mapping of autonomous actions to controls (change evidence) | The platform's core value is compliance evidence. | MED | Feed autonomous actions into evidence for change-management controls. Defer unless cheap. |
+
+#### Anti-features
+
+| Anti-feature | Why requested | Why problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| Editable or deletable activity records | Tidy up. | Defeats audit; the ledger is append-only. | Undo creates a new linked record. |
+| AI-generated "reason" shown as fact | Nicer prose. | A 3B model can misstate why. | Show rule id and evidence first; AI summary second, labelled. |
+| Real-time everything (websocket stream of every probe) | Dashboard feel. | Load on a 2 vCPU VM. | Poll or refresh on demand; websocket only for pending approvals. |
+| A separate new audit store | Isolation. | Two truths. | The decision record is the view, the ledger is the proof; link them. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-T1-01 nav registry ──requires──> (nothing; refactor of Sidebar.tsx + App.tsx map)
-    ├──enables──> T1-03 render-time guard ──enables──> T1-04 no-access state
-    ├──enables──> D1-01 role->visible catalogues view ──enables──> D1-02 role x catalogue matrix
-    └──enables──> D1-03 CI parity test <──requires── T1-05 backend parity audit
+Autonomy level + decision function (Cat 1)
+    └──requires──> action reversibility classes (playbook "reversible" field)
+    └──requires──> single action classification (retire conflicting backend_safety tables)
+    └──requires──> global stop switch read at dispatch time
 
-T1-06 backend-evaluated effective permissions ──enhances──> T1-01 (UI and API share one evaluator)
-T1-07 seed gap closure ──requires──> T1-06 (so the grants are actually delivered to the client)
-T1-09 live permission refresh ──requires──> T1-06 (/me returns evaluated set)
+Security response auto-run (Cat 2)
+    └──requires──> decision function
+    └──requires──> new Rust agent actions: quarantine_file, restart_service, isolate_host (+ inverses)
+                       └──requires──> agent release + per-tenant agent capability gates (C6)
+    └──requires──> never-touch list, blast-radius caps
+    └──enhances──> auto-expiry sweeper (needs scheduler)
 
-T2-04 missing-data honesty ──enables──> T2-01 org summary ──enables──> T2-03 reconciliation
-T2-02 per-asset cost ──requires──> compute_book_value (itam_finance_service.py) + model depreciation policy
-T2-01 ──requires──> shared per-asset cost function (extracted from _compute_asset_value_kpi)
-T2-07 license org spend ──requires──> D-1 license cost field
-T2-08 allocated license cost per asset ──requires──> T2-07 + license_assignments (targetType=asset)
-D2-03 idle-seat / renewal forecast ──requires──> D-1 cost field + T2-08
-D2-04 total endpoint cost ──requires──> T2-02 + T2-08
-T2-11 export ──requires──> T2-02 + reporting registry (itam_reporting_prebuilt.py)
-T2-10 UI ──requires──> T2-01/T2-02 endpoints
+Staged patching (Cat 3)
+    └──requires──> decision function (reboot = destructive approval)
+    └──requires──> real health signal (heartbeat return, service check, new alerts)
+    └──requires──> working rollback in deployment_service.trigger_rollback (verify first)
+    └──enhances──> maintenance windows (Change Management)
 
-Cross-feature:
-Costing UI (T2-10) lives in the ITAM console, which is itself a gated catalogue (view:itam).
-Cost endpoints reuse _require_itam_viewer; no coupling that would force new permissions.
+Self-healing (Cat 4)
+    └──requires──> out-of-process watchdog (user installs on VM)
+    └──requires──> working notification channel (SMTP/Slack currently unconfigured on this VM)
+    └──requires──> scheduler for retention + cert/disk probes
+    └──enhances──> service desk (Ollama down means fallback)
+
+Service desk (Cat 5)
+    └──requires──> decision function (level mapping, sent-answer rules)
+    └──requires──> KB with usable content per tenant (RAG store; seed or ingest first)
+    └──requires──> escalation rules (reuse tickets_escalation_service + SLA)
+
+Activity view (Cat 6)
+    └──requires──> decision-record collection written by everything above
+    └──requires──> undo registry (stored inverse per action)
+    └──enhances──> every category (shows value, tunes rules)
+
+LLM summaries ──enhances──> Activity view and incident cards (never required by any of them)
+
+Auto-approve by confidence ──conflicts──> locked "destructive waits for a click"
+Legacy run_cycle / generate_plan (LLM scripts) ──conflicts──> "no LLM in execution path"
 ```
 
 ### Dependency Notes
 
-- **T1-01 before everything in Feature 1:** the 9 existing mismatches mean any new guard/state would inherit inconsistent answers.
-- **T1-06 is the keystone for "mirrors backend":** without a server-evaluated permission set the client keeps a parallel evaluator.
-- **D-1 gates half of Feature 2:** requirements must resolve it before planning license phases; asset-level cost (T2-01/02/03/04/05/06/09/10/11) is unblocked and should land first.
-- **Features are independent of each other:** sequence is free; Feature 1 touches `Sidebar.tsx`/`App.tsx`/auth endpoints, Feature 2 touches `itam_*` and ITAM UI. Only shared file risk is `App.tsx` (both may add nothing there for Feature 2, so low conflict).
+- **Everything requires Category 1 and Category 6's record format first.** Without one decision function and one decision record, each domain would invent its own gate and its own log, which is the situation `backend_safety.py` and the legacy remediation cycle already show.
+- **Security response is gated on an agent release.** The shipped Rust agent has `block_ip` and `unblock_ip` and `disable_service`/`enable_service`, so "block IP" can be auto-run with only a backend change. `quarantine_file`, `restart_service`, `isolate_host` and a reboot action need agent code and a published build, which the user rolls out. Plan the backend rule and the agent action as a pair and keep the rule dormant until the capability is advertised by the agent.
+- **Patching gate quality depends on the health signal, not the UI.** A "health check" that only reads the install exit code is not a health gate.
+- **Self-healing cannot be fully delivered by code in the repo.** The watchdog units and any restart permission are applied on the VM by the user; the repo ships the files and a verification checklist.
+- **Service desk depends on KB content.** Zero KB articles means everything escalates; that is correct behaviour but means no visible value, so seed content and a "KB coverage" indicator matter.
+- **Retention must not eat the evidence.** Scheduling retention (Cat 4) before autonomy records have their own collection and floor (Cat 6) would silently shorten the audit trail.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v4.2)
+### Launch With (v4.3 core)
 
-**Feature 1**
-- [ ] T1-01 nav registry shared by Sidebar + guard (9 mismatches resolved)
-- [ ] T1-02 fail-closed default
-- [ ] T1-03 render-time guard + T1-04 visible no-access state
-- [ ] T1-06 server-evaluated effective permissions in login and `/me`
-- [ ] T1-05 backend parity matrix + guards for in-scope catalogues (per D-4), T1-07 seed gap decision
-- [ ] T1-08 tenant-isolation regression test, T1-10 tier-lock regression test
-- [ ] D1-01 "what can this role see" view (the explicit admin-visibility ask)
+- [ ] Autonomy level per tenant + global stop + decision function + reversibility classes + never-touch list + blast-radius caps — everything else depends on it.
+- [ ] Decision-record collection + Activity view with Pending/Done/Undone/Failed/Refused, approve/deny, undo — the operator's window into autonomy.
+- [ ] Security response: block IP auto (existing agent action) with TTL expiry and undo; kill_process / restore_file / patch reboot through approval; remove or fence the confidence bypass and the legacy LLM path.
+- [ ] Self-healing: external watchdog for backend, MongoDB, Ollama with budget; disk and cert warnings; scheduled retention with dry-run and delete guard; on-call tiers with ack timeout and alert-channel test.
+- [ ] Staged patching: rings, maintenance window, health gate that halts, rollback where supported, per-stage reboot approval.
+- [ ] Service desk: KB-only answers with citation, rule-based escalation, draft-for-agent in Suggest mode, "AI-assisted" label.
 
-**Feature 2**
-- [ ] T2-01..T2-06, T2-09, T2-10, T2-11, T2-12 (asset-level + org-level hardware cost, honest about missing data, reconciled, exportable)
-- [ ] T2-07/T2-08 license spend and per-endpoint allocation, **conditional on D-1 being approved**
+### Add After Validation (v4.3.x)
 
-### Add After Validation (v4.x)
+- [ ] New agent actions quarantine_file, restart_service, isolate_host with inverses — after the agent release path is proven for block_ip.
+- [ ] Circuit breaker auto-downgrade, per-rule stats, incident grouping, known-bad patch list.
+- [ ] KB gap detection and deflection analytics.
+- [ ] Digest email, hours-saved estimate, disk fill forecast.
 
-- [ ] D1-02 role x catalogue matrix, D1-03 CI parity test (promote to launch if cheap during T1-05), T1-09 live refresh (promote if auth refresh is easy)
-- [ ] D2-01 group-by breakdowns, D2-02 coverage indicator, D2-07 KPI tile
-- [ ] D1-04 ITAM tab-level gating
+### Future Consideration (v5+)
 
-### Future Consideration
+- [ ] Per-tenant custom rules or tenant-authored playbooks (needs a tested rule sandbox).
+- [ ] Full on-call product (calendars, swaps) — integrate PagerDuty/Opsgenie instead.
+- [ ] Autonomous actions as compliance evidence.
+- [ ] Any self-learning or LLM-assisted rule tuning.
 
-- [ ] D2-03 idle-seat/renewal forecast, D2-05 MSP cross-tenant rollup, D2-06 display currency
-- [ ] Consumable/component costing, additional depreciation methods, true TCO, FX
+---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| T1-01 shared nav registry | HIGH | MEDIUM | P1 |
-| T1-02 fail-closed | HIGH | LOW | P1 |
-| T1-03/04 render guard + no-access state | HIGH | LOW-MED | P1 |
-| T1-06 server-evaluated permissions | HIGH | MEDIUM | P1 |
-| T1-05 backend parity (in-scope) | HIGH | HIGH (breadth) | P1 |
-| D1-01 role -> visible catalogues | HIGH | MEDIUM | P1 |
-| D1-03 parity CI test | MEDIUM | MEDIUM | P2 |
-| T1-09 live refresh | MEDIUM | LOW-MED | P2 |
-| D1-02 role matrix | MEDIUM | MEDIUM | P2 |
-| T2-01/02/03/04/05/06 asset + org hardware cost | HIGH | MEDIUM | P1 |
-| T2-09/12 authz + tenant scope | HIGH | LOW | P1 |
-| T2-10/11 UI + export | HIGH | MEDIUM | P1 |
-| T2-07/08 license spend + allocation | HIGH | MEDIUM | P1 (blocked on D-1) |
-| D2-01 group-by | MEDIUM | MEDIUM | P2 |
-| D2-02 coverage indicator | MEDIUM | LOW | P2 |
-| D2-03 idle-seat/forecast | MEDIUM | MEDIUM | P3 |
-| D2-05 MSP rollup | MEDIUM | MEDIUM | P3 |
-| D2-06 currency code | LOW | LOW-MED | P3 |
+| Autonomy level + decision function + stop switch | HIGH | MEDIUM | P1 |
+| Reversibility classes and single action table | HIGH | LOW | P1 |
+| Decision record + Activity view with undo | HIGH | MEDIUM | P1 |
+| Never-touch list and blast-radius caps | HIGH | MEDIUM | P1 |
+| Auto block IP with TTL and undo | HIGH | LOW-MEDIUM | P1 |
+| Destructive approval card (kill, reboot) | HIGH | LOW | P1 |
+| Watchdog + restart budget + alert on exhaustion | HIGH | MEDIUM | P1 |
+| Disk and certificate warnings | HIGH | LOW | P1 |
+| Scheduled retention with guard | MEDIUM | MEDIUM | P1 |
+| On-call tiers with ack timeout | HIGH | MEDIUM-HIGH | P1 |
+| Staged rollout with health-gate halt | HIGH | HIGH | P1 |
+| Auto rollback on failed gate | HIGH | HIGH | P1 |
+| KB-only first-line answer + rule-based escalation | HIGH | MEDIUM | P1 |
+| New agent actions (quarantine, restart, isolate) | HIGH | HIGH | P2 |
+| Corroboration rules | MEDIUM | MEDIUM | P2 |
+| Circuit breaker | MEDIUM | MEDIUM | P2 |
+| Maintenance windows from Change Management | MEDIUM | MEDIUM | P2 |
+| Incident grouping | MEDIUM | MEDIUM | P2 |
+| KB gap detection | MEDIUM | MEDIUM | P2 |
+| Digest and hours-saved | LOW-MEDIUM | LOW | P3 |
+| Disk forecast | LOW-MEDIUM | LOW | P3 |
+| Compliance mapping of actions | LOW-MEDIUM | MEDIUM | P3 |
 
-## Competitor / Convention Analysis
+**Priority key:** P1 must have for launch, P2 should have, P3 nice to have.
 
-| Aspect | Snipe-IT / GLPI style (MEDIUM) | Enterprise (ServiceNow, Azure/Okta consoles) (MEDIUM) | Our Approach |
-|--------|-------------------------------|-------------------------------------------------------|--------------|
-| Nav gating | Role/permission-driven menu, hidden when not permitted | Hidden items + 403 page; admin role-capability views | Hide + 403 state + admin "role sees" view |
-| Asset cost | Purchase cost + depreciated value per asset, asset reports, CSV export | Cost per CI/asset, roll-ups by group, TCO with extra cost sources | Purchase + book value, org + asset, export; label "acquisition + license" |
-| License cost | Purchase cost on the license, seats | Cost per seat, optimization (idle seats) | Add one cost field (D-1); per-seat allocation to assets |
-| Currency | One instance currency | Multi-currency via finance integrations | Single labelled tenant currency; no FX |
+---
+
+## Competitor Feature Analysis
+
+| Feature | Microsoft Defender AIR | SentinelOne / CrowdStrike | Tanium / Intune / Autopatch | PagerDuty | Service-desk AI (ServiceNow, Freshservice, Zendesk) | Our approach |
+|---------|------------------------|---------------------------|-----------------------------|-----------|------------------------------------------------------|--------------|
+| Autonomy levels | Full / Semi variants / None per device group | Protect vs Detect policy; Fusion human-input step | Rings plus manual approvals | n/a | Per-intent thresholds | Off / Suggest / Undoable-auto per tenant, plus four domain toggles |
+| Approvals | Pending tab, 7-day timeout counts as reject | Analyst approval step in workflow | Approval gates between rings | Ack | Draft for agent | One-click, expires to deny |
+| Undo | History tab, bulk "all instances" | Rollback, lift containment | Pause and rollback via reporting | n/a | Follow-up reply | Undo on every undoable row, inverse stored at action time |
+| Halt all | Turn level to None | Policy to Detect | Pause rings | Maintenance windows | Disable bot | Global stop checked at dispatch plus per-tenant pause |
+| Blast radius | Per device group | Per policy and group | Ring size, canary | n/a | n/a | Per-decision asset cap, per-hour cap, concurrency lease, never-touch list |
+| Audit/activity | Action Center | Activity feed | Update reports | Incident log | Conversation log | Decision record + hash-chained ledger link |
+| Decision engine | Cloud ML plus rules | ML plus rules | Telemetry-based | Rules | LLM plus retrieval | Fixed tested rules only; LLM summarises |
+
+---
 
 ## Sources
 
-- Codebase (HIGH): `components/Sidebar.tsx`, `App.tsx` (L242-446 `viewPermissionMap`, L1185-1242, L1379-1395, L1806), `backend/rbac_utils.py`, `backend/authentication_endpoints.py` (L215-281), `backend/role_endpoints.py`, `backend/rebac_service.py`, `backend/itam_finance_service.py`, `backend/itam_finance_endpoints.py`, `backend/itam_models.py`, `backend/itam_license_service.py`, `backend/itam_reporting_kpis.py`, `backend/itam_reporting_prebuilt.py`, `backend/itam_asset_endpoints.py`, `components/itam/ITAMConsole.tsx`, `.planning/PROJECT.md`
-- Web (LOW-MEDIUM, generic secondary sources): [Snipe-IT overview (Dashen)](https://dashen-tech.com/en/dev-tools/snipe-it-self-hosted-asset-management/) - straight-line/declining depreciation, license seats; [Angular role-based security (Microsoft DevBlogs)](https://devblogs.microsoft.com/premier-developer/angular-how-to-implement-role-based-security/) - route guards vs hidden menu items, client-side authz is UX only; [ITAM cost / TCO (NinjaOne)](https://www.ninjaone.com/itam-software-cost/) and [Xurrent ITAM glossary](https://www.xurrent.com/glossary/it-asset-management-itam) - TCO and cost-allocation concepts
-- Conventions not backed by a specific fetched source (stated from domain knowledge, MEDIUM): hide-vs-lock semantics, reconciliation and coverage UX, single-currency-per-instance norm, license per-seat allocation.
+- Microsoft Learn, "Automation levels in automated investigation and remediation" (fetched 2026-10-25; page updated 2026-08-14). HIGH: levels, Pending/History, 7-day timeout, undo, 2026-09-01 change. https://learn.microsoft.com/en-us/defender-endpoint/automation-levels
+- Microsoft Learn Action Center review and undo guidance (via search results). MEDIUM-HIGH.
+- Recast Software, Windows Autopatch article and Intune update rings blog (via search). MEDIUM-LOW: Autopatch pause-on-failure thresholds are not documented in the retrieved Microsoft pages, so thresholds here are our own design.
+- CrowdStrike Tech Hub human-in-the-loop containment pattern, Falcon Fusion human-input and scheduling blog (via search). MEDIUM. SentinelOne protect/detect from a third-party runbook. LOW-MEDIUM.
+- Kubernetes CrashLoopBackOff references (Komodor, GKE docs, Netdata via search). MEDIUM-HIGH for the 10s-to-5min backoff and 10-minute reset. systemd `Restart`/`StartLimit*` from background knowledge, not re-verified. MEDIUM.
+- PagerDuty Escalation Policy Basics and community posts, GitLab handbook (via search). MEDIUM: default 30-minute timeout, repeat up to nine times, ack stops escalation.
+- Service-desk deflection guides (eesel.ai, Darwin, Auralis) via search. LOW-MEDIUM, vendor blogs: three confidence bands, escalation triggers. The Zendesk escalation-cause percentages and the "37% more likely" figure could not be verified and are NOT relied on.
+- Codebase reading (HIGH), all in this repo: `backend/autonomous_remediation_service.py`, `backend/playbooks/*.yaml`, `backend/remediation_playbook_service.py`, `backend/remediation_control_endpoints.py`, `backend/remediation_audit_service.py`, `backend/backend_safety.py`, `backend/deployment_service.py`, `backend/retention_service.py`, `backend/audit_ledger.py`, `backend/notification_service.py`, `backend/rag_service.py`, `backend/scheduler.py`, `backend/health_service.py`, `agent-install/omni-agent-rs/src/instructions.rs`, `.planning/PROJECT.md`.
+- Research method note: the GSD research-plan/research-store seam was not run; searches used the built-in WebSearch/WebFetch and confidence tiers above were assigned manually.
 
 ---
-*Feature research for: v4.2 Catalogue Access Control & Asset Costing*
-*Researched: 2026-10-12*
+*Feature research for: Autonomous Ops (milestone v4.3)*
+*Researched: 2026-10-25*

@@ -1,425 +1,563 @@
-# Pitfalls Research: v4.2 Catalogue Access Control & Asset Costing
+# Pitfalls Research
 
-**Domain:** Adding (1) permission-driven left-nav gating and (2) tenant/endpoint cost rollups to an existing multi-tenant security/compliance + ITAM platform (FastAPI + Motor/MongoDB, React/TS, Python + Rust agents)
-**Researched:** 2026-10-12
-**Confidence:** HIGH. Almost every finding is a primary-source read of this repo (file and line cited). Generic cost-accounting guidance is marked MEDIUM. No external sources were needed. This replaces the prior v4.0 PITFALLS.md. The v4.0 tenant-isolation/background-scheduler pitfall still applies to any cost sweep or snapshot job.
+**Domain:** Adding Autonomous Ops (autonomous security response, staged patching with halt/rollback, platform self-healing, AI first-line service desk) to an existing multi-tenant MSP security/compliance/ITAM platform (FastAPI + MongoDB + Rust agent, single 2 vCPU / 7 GB VM)
+**Milestone:** v4.3 Autonomous Ops (phases start at 81)
+**Researched:** 2026-10-25
+**Confidence:** HIGH for findings tagged [CODE] (read directly from this repo on 2026-10-25); MEDIUM for [EXT] items (web search snippets and general SRE/LLM-security practice, not re-verified against primary sources)
 
-**Method note:** Verified against `backend/rbac_utils.py`, `backend/rbac_service.py`, `backend/tenant_middleware.py`, `backend/database.py` (`TenantIsolatedCollection`), `backend/authentication_service.py`, `backend/authentication_endpoints.py`, `backend/asset_endpoints.py`, `backend/itam_finance_service.py`, `backend/itam_finance_endpoints.py`, `backend/itam_license_service.py`, `backend/itam_reporting_kpis.py`, `backend/itam_models.py`, `backend/cache_service.py`, `components/Sidebar.tsx`, `contexts/UserContext.tsx` and `App.tsx`. I also ran a scripted diff of the 188 sidebar items against the backend permission tables and against `viewPermissionMap`.
+Phase labels used below (map to roadmap numbers 81+ in whatever order the roadmapper picks):
+**P-Core** = autonomy policy, global stop, single enqueue choke point, audit. **P-Sec** = security response. **P-Patch** = staged patching. **P-Heal** = self-healing. **P-Desk** = service desk. **P-UI** = activity view and undo.
 
-Suggested phase numbers continue from 75, as the milestone requires. They are labels for the roadmapper, not commitments:
-
-| Label | Scope |
-|-------|-------|
-| **P75** | Backend authorization audit and enforcement for every catalogue's routes, plus the permission manifest |
-| **P76** | Sidebar and route gating UI (fail-closed, single source of truth, refresh, empty state) |
-| **P77** | Cost data foundation and rollup service (money model, license/consumable cost source, tenant scoping) |
-| **P78** | Org-level cost API and UI |
-| **P79** | Endpoint-level cost API and UI (asset mapping, license allocation) |
+The most important single finding: **the engine this milestone builds on is not yet safe to switch on.** The v3.4 engine has a safe `remediate()` path (playbooks, approval gate, lease, audit) that is called from only one place (UEBA). The scheduled loop calls a different, older path (`run_cycle`) that uses LLM-generated plans, ignores `requires_approval`, and is held back only by `AUTONOMOUS_REMEDIATION_DRY_RUN=true`. v4.3 must re-route and harden before anything is turned on (Pitfalls 1, 2, 3).
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1 (TOP): Hiding the menu item without the backend enforcing the matching permission (defense in depth missing)
+### Pitfall 1: Flipping dry-run off activates the legacy LLM-in-the-loop path
 
 **What goes wrong:**
-The sidebar hides "Compliance" (or any other catalogue) from a role. Any logged-in user of that tenant can still `curl` the catalogue's routes and get data, because many routers only check that the caller is authenticated, not that they hold the permission the nav item claims. The UI looks locked and the system is open.
+`app_background_tasks.autonomous_remediation_loop` calls `run_cycle()`. `run_cycle` calls `generate_plan()` then `execute_plan()`. `generate_plan` pulls scripts from `RemediationService.generate_fix_proposal` (LLM-written script text) and tool choices from `agentic.run()` (LLM picks `tool_name`). `RemediationPlan.requires_approval` is computed but **never read** by `run_cycle` or `execute_plan`; `execute_plan` only checks the module-level `AUTONOMOUS_REMEDIATION_DRY_RUN` constant. The day someone sets the env var to `false` to "turn on autonomy", LLM-authored scripts run on endpoints with no approval, contradicting locked decision 3 (rules choose, LLM only suggests). The deterministic `remediate()` path is called only from `ueba_service._dispatch_anomaly_remediation`.
 
-**Why it happens / evidence in this repo:**
-- 269 `*endpoints*.py` files exist. A scripted check found about 50 that import `get_current_user` and contain none of `require_permission`, `verify_permission`, `require_role`, `has_permission`, `_require_itam_admin` or `require_super_admin`. Many map directly to sidebar catalogues:
-
-| Backend file | Catalogue it backs |
-|--------------|--------------------|
-| `compliance_*` (9 files) | `view:compliance` (23 nav items) |
-| `attack_path_endpoints.py` | `view:attack_path` |
-| `automation_endpoints.py` | `view:automation` |
-| `dora_endpoints.py` | `view:dora_metrics` |
-| `ai_system_endpoints.py` | `view:ai_governance` |
-| `tracing_endpoints.py` | `view:tracing` |
-| `asset_endpoints.py` | `view:assets` |
-| `agent_*` (7 files) | `view:agents` |
-
-- The sharpest example is `backend/asset_endpoints.py`. `GET /api/assets` and `GET /api/assets/{id}` depend only on `get_current_user` and project `{"_id": 0}`. The response includes `purchaseCostCents` and `purchaseDate`. The "view:assets" catalogue is therefore open to every authenticated tenant user, and it exposes the same cost data that `GET /{id}/book-value` correctly protects with `_require_itam_viewer`. The new costing feature must not widen this existing hole. Cost fields must be field-gated, or the asset list must be permission-gated.
-- The existing precedent that worked is Phase 63. Consumable/component routers used bare `get_current_user` and were found as audit BLOCKERs. The fix was to switch them to `_require_itam_admin`. Phase 62 deliberately shipped an unrestricted GET with an admin-gated PATCH. Catalogue gating needs the same discipline across every router, not only the ones ITAM already covers.
+**Why it happens:**
+Two generations of the engine coexist (pre-Phase-53 loop, Phase-53 playbook engine). The loop was never migrated because dry-run kept it harmless. [CODE]
 
 **How to avoid:**
-1. **Backend first.** P75 completes before the UI work ships. A nav item may only be gated on `view:X` once every route behind that nav item is verified to enforce `view:X` (or a stricter permission).
-2. **Build the manifest.** Create one table: nav view, then permission, then backend router(s) and prefix, then dependency used. Generate it from `Sidebar.tsx` plus an `app.routes` introspection so it cannot rot.
-3. **Add a deny-by-default contract test.** For each nav view, call every GET route with (a) a token whose role lacks the permission, expecting 403, and (b) one that has it, expecting non-403. Introspect `app.routes` for any `/api` route whose dependency tree lacks a permission dependency and fail on the new ones (allowlist the intentionally public ones). The Phase 63 review already noted that RBAC test classes assert 403 on only 1-2 of the routes they gate. This milestone needs a per-route sweep.
-4. Prefer router-level `dependencies=[Depends(require_permission("view:X"))]` over per-handler wiring, so a new route inherits the guard.
-5. Reads need `view:X`. Writes keep their existing `manage:X`. Do not use a `view:` permission to unlock a write.
+- In P-Core, make the loop call `remediate()` only; delete or hard-disable `generate_plan`/`execute_plan`/`verify_remediation` for `vulnerability`, `cspm`, `alert`, `compliance` types (move them to "suggest only": write a suggestion record, never an instruction).
+- Replace the env-var dry-run with a DB-backed per-tenant autonomy level plus a global stop (Pitfall 19). Keep the env var only as an extra deny.
+- Add a test: with autonomy=Undoable-auto and a finding of each type, assert that the only documents that can reach `agent_instructions` carry `source=playbook` and a `playbook` name from `ACTION_MAP`, and that no code path imports `agentic_service` or `ai_remediation_service` from the execution path.
 
 **Warning signs:**
-- A viewer or analyst token returns 200 on a route whose nav item they cannot see.
-- A grep for `get_current_user` with no `require_*` nearby in a router that a nav item points at.
-- A PR that edits only `Sidebar.tsx`.
+`agent_instructions` rows with `type=run_remediation_script` or `apply_cloud_remediation`; `source_service` of `agentic`/`ai_remediation` in `agent_ai_decisions`; any `script` field non-empty on an autonomous instruction.
 
-**Phase to address:** P75 (enforcement and manifest), then P76 consumes the manifest. The manifest is the contract between the phases.
+**Phase to address:** P-Core (first plan of the milestone; before anything else is enabled).
 
 ---
 
-### Pitfall 2: Two divergent permission tables and about 30 sidebar permissions that no backend role grants
+### Pitfall 2: Many dispatch paths bypass the new policy layer
 
 **What goes wrong:**
-"Show an item only when the role holds the matching view: permission" silently hides about a third of the catalogues from every non-super-admin. Alternatively, someone "fixes" the empty menus by granting the missing permissions broadly and over-grants.
+The autonomy level, blast-radius cap and audit are bolted onto `remediate()` while other code keeps enqueueing agent work directly. There are about 46 `agent_instructions`/`instructions` `insert_one`/`insert_many` sites across 27 backend files (agentic_service, soar_engine, swarm_service, swarm_endpoints, correlation_engine_threat, chaos_engineering_service, playbook_engine_actions, response_endpoints, patch_core_endpoints, ...). `swarm_service.propagate_antibody` is the clearest example: one request inserts `apply_block_rule` into the `instructions` collection (a different queue from `agent_instructions`) for up to 1000 online agents in the tenant, with no cap, no approval, no autonomy check, no audit, an unvalidated `indicator` (can be empty or a gateway IP), and `print()` for logging. [CODE]
 
-**Why it happens / evidence:**
-- A scripted diff of the 188 sidebar items (89 distinct permission strings) against the built-in role tables found 29 strings absent from both `rbac_service.default_roles` and `rbac_utils.verify_permission`'s `DEFAULT_PERMISSIONS`. Examples: `view:mdm`, `view:mam`, `view:autopilot`, `view:app_catalog`, `view:jobs`, `view:web_monitoring`, `view:predictive_health`, `view:goal_system`, `view:zero_trust`, `view:fim`, `view:sca`, `view:mssp`, `view:security_copilot`, `view:config_drift`, `view:retention_policies`, `view:analytics`.
-- Another 17 are in only one of the two tables, for example `view:unified_ops`, `view:integrations`, `view:xai`, `view:remote_access`, `manage:agents` (absent from `rbac_service`) and `view:vector_db`, `view:webgpu_inference` (absent from `rbac_utils`).
-- Those sidebar strings are matched against the user's `permissions` array. That array comes only from the `roles` collection document, via `find_role_doc` in `authentication_endpoints.py` (the `/login` handler around line 229, and `/me` around line 279). Built-in defaults that `verify_permission` uses are never sent to the client. The UI can therefore show nothing for a role the backend would happily authorize, or the reverse.
-- Two enforcement stacks coexist. `rbac_utils.verify_permission` and `require_permission` check defaults first, then the DB role. `rbac_service.has_permission` checks the DB role first, then falls back to its own in-memory `default_roles`. Their default tables have already drifted, and `rbac_utils` comments say so. A new gate on either stack can disagree with a nav item evaluated against the other.
-- The `viewPermissionMap` in `App.tsx` (used by `handleSetCurrentView` and the hash router) disagrees with `Sidebar.tsx`'s per-item permission for 9 views: `unifiedOps`, `sustainability`, `agentCapabilities`, `jobs`, `zeroTrustQuantum`, `vulnerabilityManagement`, `persistenceDetection`, `llmops`, `swarm`. A user can see an item the router then silently refuses, or navigate by hash to one the menu hides.
+**Why it happens:**
+Features accreted over 80 phases; each wrote to the queue directly. A policy layer added at one call site feels complete in review.
 
 **How to avoid:**
-- Pick one source of truth, a single permission catalogue that backend dependencies, role seeding and the frontend nav all read from. At minimum, one JSON/TS manifest that `Sidebar.tsx` and `viewPermissionMap` both import, plus a test asserting every manifest permission exists in the effective default roles.
-- Decide deliberately which built-in role gets each currently-ungranted `view:` string. Do not blanket-add them to "user"/"viewer". Record the decision in the manifest.
-- The milestone says "no new permission model". Honor that by reconciling existing strings, not inventing new ones. Treat `view:itam` vs `view:assets` carefully: ITAM viewers get `view:itam`, but plain "user"/"viewer" roles have only `view:assets`.
-- Existing tenant-defined role documents will not contain any strings added to defaults. Plan a data decision: either defaults are authoritative for the UI too (return effective permissions from `/me`, see Pitfall 5), or run a migration over custom roles.
+- P-Core introduces one function, `enqueue_agent_action(tenant_id, agent_id, action, params, actor, decision_id, risk_tier)`, which: checks the tenant's autonomy level and the global stop, enforces the blast cap, validates params (protected targets), writes the intent audit record, then inserts. 
+- Migrate the autonomous-relevant callers (remediation engine, propagate-antibody, SOAR/agentic/response_orchestrator `_dispatch`, patch deployment) onto it. For human-initiated manual actions keep behaviour but still route through it with `actor=user` so they are audited and counted against the cap.
+- Add a repo test (grep-style, like existing structural tests) that fails on any new direct `agent_instructions.insert_*` / `instructions.insert_*` outside the allowlist file.
+- Decide explicitly: propagate-antibody becomes risk-tier "undoable" only with a validated indicator, per-decision cap, and an `unblock` pair; otherwise it is approval-gated.
 
 **Warning signs:**
-- Test accounts with role "user" or "viewer" see far fewer items than expected.
-- `console.warn("User does not have permission to view: ...")` in the browser for an item the menu displayed.
-- A permission string added to `Sidebar.tsx` with no matching string in any backend table.
+Audit entries missing for instructions that exist; `source: immune_system` instructions with no `decision_id`; an agent receiving block rules while its tenant is set to Off.
 
-**Phase to address:** P75 (reconcile tables, define the manifest), enforced in P76.
+**Phase to address:** P-Core (choke point), P-Sec (migrate propagate-antibody, response_orchestrator, SOAR).
 
 ---
 
-### Pitfall 3: The frontend trusts a client-side permission list, and the Sidebar fails open
+### Pitfall 3: "Destructive" vs "undoable" is not what the playbooks currently say
 
 **What goes wrong:**
-Frontend permission state is treated as authoritative. It is a UI hint only. It is also computed in ways that can fail open or diverge from the backend.
+Locked decision 1 says block IP, quarantine file and restart service run on their own; isolate host, kill process and patch reboot wait for approval. The current playbooks disagree: `block_ip`, `disable_service`, `restore_file`, `rotate_key`, `kill_process` are all `destructive: true` (so they all park for approval, and approval fatigue starts on day one), while `patch_package` is `destructive: false` with `rollback: []`, so it auto-dispatches an upgrade that cannot be reverted. The Rust agent has no `restart_service`, `quarantine_file` or `isolate_host` instruction at all (only `kill_process`, `restore_file`, `block_ip`, `unblock_ip`, `disable_service`, `enable_service`, `rotate_key`, `rotate_key_rollback`, `upgrade_software`), so two of the three "undoable" examples cannot be executed today. A boolean `destructive` flag cannot express "runs alone, but must be undoable". [CODE]
 
-**Why it happens / evidence:**
-- `Sidebar.tsx` line about 168: `const hasPermission = userContext?.hasPermission || (() => true);`. If the context is ever missing or not yet provided, every nav item renders. The context default in `UserContext.tsx` is `() => false`, so the two defaults disagree. The fail-open fallback must go.
-- `App.tsx` lines about 1185-1241 build `hasPermission` from `currentUser.permissions` (set at login) and then intersect it with `tenant.enabledFeatures`. The backend does no such intersection. A permission the backend would allow can be hidden because the tenant's feature list lacks it, and vice versa. The UI effectively adds a second, undocumented gate that does not exist server-side. Any "UI mirrors the backend" claim must account for it.
-- When `permissions` is empty, the UI falls back to `roles.find(...)` by lowercase name. That is a third derivation path.
-- Bypass paths around the gate exist. `App.tsx` line about 2192 passes `onNavigate={(view) => setCurrentView(view as any)}`, and lines about 807, 1066 and 1365 call `setCurrentView` directly, so only the sidebar/hash/command paths go through `handleSetCurrentView`. `renderView()` itself has no permission check. Anything that sets `currentView` without the guard renders the dashboard.
-- Tampering with the client list (devtools, `sessionStorage`) is irrelevant if Pitfall 1 is fixed, which is why Pitfall 1 is the top item. Without it, this is the whole security model.
+**Why it happens:**
+The v3.4 flag meant "needs an operator" not "irreversible". It was set conservatively and one non-reversible action was marked safe.
 
 **How to avoid:**
-- Treat `permissions` as presentation state. State this in code comments and docs.
-- Make the nav gate fail closed: `hasPermission` defaults to `() => false`, and an unloaded context renders a skeleton, not the full menu.
-- Add a guard inside `renderView()` (or a wrapper `<RequirePermission view=...>`) so every code path that sets `currentView` is gated. Route all `setCurrentView` calls through one guarded function.
-- If the `enabledFeatures` intersection stays, mirror it on the backend or drop it from the permission check and keep it as a separate "feature locked" state (`featureKey`/`minTier` already model that).
-- Have the backend return effective permissions (defaults plus role doc) so the client list is a faithful projection of what `verify_permission` would answer.
+- Replace the boolean with an explicit `risk_tier` per action (`undoable` | `approval_required`) plus an `undo_action` pairing, defined in `ACTION_MAP`, validated at load. `undoable` requires a registered undo verb that exists on the agent and a round-trip test (apply, verify state changed, undo, verify state restored) on both Linux and Windows.
+- Add the missing agent verbs (restart_service, quarantine_file with a reversible restore, isolate_host with a management-channel carve-out) as agent work in P-Sec, and publish a new agent version; until a verb is on the fleet, the engine must treat it as unavailable and downgrade to Suggest (check agent version in the enqueue choke point).
+- Re-tier `patch_package` as `approval_required` unless the patch class is proven reversible (Pitfall 9).
 
 **Warning signs:**
-- A nav item visible when the user context is `null`.
-- `setCurrentView(` calls outside the guarded handler.
-- An item visible to a role and 403 on click, or hidden but the API works.
+A playbook step with `destructive: false` and empty `rollback`; `ACTION_MAP` containing an action with no agent handler; approval queue filled with `block_ip` requests.
 
-**Phase to address:** P76 (UI), with P75 providing the effective-permission endpoint.
+**Phase to address:** P-Core (schema), P-Sec (agent verbs and tests).
 
 ---
 
-### Pitfall 4: Super-admin / platform-admin handling is inconsistent and leaks across tenants
+### Pitfall 4: False-positive containment cascades (no idempotency, no real dedup, no brake)
 
 **What goes wrong:**
-Gating tests pass as super-admin (everything visible) and hide real role bugs. Separately, super-admin requests to cost endpoints aggregate every tenant's data.
+(a) `scan_for_remediable_findings` re-reads every `Malicious` scan result, every open agent vuln and every `Changed` FIM event on each cycle (up to 100-200 each, no "already handled" marker). `remediation_id` embeds a timestamp, so every cycle creates a new request, a new approval, a new dispatch for the same finding. (b) The dedup that looks like protection is a no-op: `is_duplicate_task` queries `response_tasks`, but `remediate()` writes `remediation_requests`/`agent_instructions`, and the UEBA path calls `is_duplicate_task(action="remediate_anomaly")`, an action nothing ever writes. (c) A bad feed update (signed bundled feeds are updated in bulk) or a bad detection rule flips many hosts at once, and the engine acts on all of them in one cycle. (d) FIM "Changed" fires after every legitimate patch, so `restore_file` proposals revert patched binaries. [CODE]
 
-**Why it happens / evidence:**
-- Client super-admin checks differ by place. `Sidebar.tsx` `visibleGroups` recognises `'Super Admin'`, `'superadmin'`, `'super_admin'`. `App.tsx` `hasPermission` recognises `'super admin'`, `'superadmin'`, `'super_admin'`, `'platform-admin'`. `handleSetCurrentView` recognises only `'Super Admin'` and `'superadmin'`. The backend normalises everything through `rbac_service._normalize_role`, which folds `platform-admin` into `super_admin`.
-- The `TenantMiddleware` `X-Tenant-ID` override applies only for `role in ["super_admin","Super Admin","superadmin"]`, not for `platform-admin`.
-- Super-admin tokens carry `tenant_id = "platform-admin"`. `TenantIsolatedCollection._inject_tenant_id` and `.aggregate` skip tenant scoping entirely when `get_tenant_id() == "platform-admin"`. So **any cost route that uses `get_database()` and no explicit tenant scope, called by a super-admin without `X-Tenant-ID`, returns the sum across all tenants** (and across currencies, see Pitfall 11). `asset_endpoints.get_assets` already shows the pattern of a super-admin being allowed an optional `tenant_id` query parameter.
-- The Sidebar shows every item to a super-admin even while "viewing a tenant". There is no way to preview what a tenant role sees.
+**Why it happens:**
+Dedup was written for the older `response_tasks` collection; the playbook engine was added later with its own collections. No component owns "have we already decided about this finding".
 
 **How to avoid:**
-- Cost endpoints must require an explicit resolved tenant. If the caller is `platform-admin` and no `X-Tenant-ID`/`tenant_id` is supplied, either return 400 ("select a tenant") or return a per-tenant breakdown, never a silent global sum. Add `tenantId` to every aggregation `$match` explicitly (defense in depth on top of the wrapper), as `itam_reporting_kpis.compute_itam_kpis(db, tenant_id)` already accepts a `tenant_id` argument.
-- Centralise one `isSuperAdmin(role)` helper on the client, mirroring `is_super_admin`/`_normalize_role`, and replace all five hand-rolled checks.
-- Add role-fixture tests for gating. Never rely on super-admin sessions to validate nav behaviour. Consider a super-admin "preview as role" later, but do not build it in this milestone.
-- Note that the X-Tenant-ID override is logged but is a cross-tenant read path. Cost views are financial data, so keep the audit log entry.
+- Idempotency key `(tenant, finding_type, finding_id, playbook)` stored as a unique-indexed `autonomy_decisions` document; a repeat finding updates `last_seen` and does nothing else; a cooldown (for example 24 h) after any non-success outcome before re-attempting.
+- Blast-radius cap enforced at the choke point and counted from the DB, not memory: max N hosts per decision, max M autonomous actions per tenant per hour, per action class. Exceeding the cap does not queue silently; it flips that action class for that tenant to Suggest, writes an audit entry and sends one alert (a circuit breaker with explicit manual reset).
+- Cascade guard: if more than X% of a tenant's online endpoints produce the same finding within a window, treat it as a detection problem (feed/rule), not an incident: stop acting, alert once.
+- Suppress FIM `restore_file` for paths touched by a patch job in the preceding window (consume the patch job's expected-change list), and keep FIM restore approval-gated.
+- A protected-target list (the platform's own IP/hostname, the agent's management channel, gateway/DNS, domain controllers, tenant-defined crown-jewel hosts) checked at enqueue.
 
 **Warning signs:**
-- A cost total larger than the tenant's asset count could explain, when viewed as super-admin.
-- A super-admin screen with no tenant picker whose numbers change when tenants are added.
-- Different role strings behaving differently in Sidebar vs router.
+More than one `remediation_requests` row for the same `findingId`; pending-approval count growing linearly with time; actions per hour proportional to endpoint count; a spike right after a feed update or patch window.
 
-**Phase to address:** P78 and P79 (cost scoping), P76 (client helper).
+**Phase to address:** P-Core (idempotency, cap, breaker), P-Sec (protected targets, cascade guard, FIM/patch interlock).
 
 ---
 
-### Pitfall 5: Stale permissions after a role change
+### Pitfall 5: Verification measures the wrong thing and triggers wrong rollbacks or perpetual escalation
 
 **What goes wrong:**
-An admin removes a role's permission or re-roles a user. The sidebar and in-flight session still reflect the old state, or the backend enforces the old role.
+`_check_nscan_resolved` re-scans the same target and reads its verdict. For a `block_ip` playbook the IP's verdict comes from the feed and does not change because a firewall rule was added, so the verdict stays `Malicious`, verification returns `failed`, and the engine **rolls back the block it just applied** (dispatches `unblock_ip`). For `kill_process` on a file path the file is still on disk and still Malicious, so verification says `failed`, there is no rollback, and an `ESC-` critical alert is inserted every time. Other finding types return `unverified` unconditionally. Rollback is dispatched without polling its result, and only on `failed` (never on `unverified` or `dispatch_incomplete`). [CODE]
 
-**Why it happens / evidence:**
-- Backend `role` comes from the JWT claim (`verify_token`: `payload.get("role")`), valid up to `ACCESS_TOKEN_EXPIRE_MINUTES` (default 60, max 120). Re-roling a user does call `revoke_user_sessions` (`user_endpoints.py` line about 402), so that case is mostly covered and forces a fresh login. Grep shows `revoke_user_sessions` is called from `user_endpoints.py` and `tenant_endpoints.py` only. I found no caller in a role-permission-edit path. Editing what a role can do does not invalidate the sessions of users holding it.
-- The role document is re-read per request in `verify_permission`, so the backend picks up a role-permission edit immediately. The client list does not: it is fetched at login and held in React state until reload. A revoked permission stays visible (benign: the click gets 403). A newly granted permission stays hidden until re-login (annoying, and "I granted it but it's not there" support tickets).
-- `@cached` (`cache_service.py`) keys on function name plus stringified kwargs. It currently varies by user (the `TokenData` dataclass repr is in the kwargs), but a cost endpoint that is `@cached` and derives the tenant from the ContextVar rather than a kwarg would share one cache entry across tenants (see Pitfall 8).
+**Why it happens:**
+Verification was grounded in "is the finding still reported" which fits patches/FIM, not containment actions.
 
 **How to avoid:**
-- The client must tolerate drift. On a 403 from any `/api` call, refetch `/api/auth/me` and recompute the nav. Also refetch on window focus and on a modest interval, or push a WebSocket "permissions changed" event (the repo already has socket infrastructure).
-- Have role-permission edits call `revoke_user_sessions` for affected users, or at least emit the refresh event.
-- Never cache a permission-gated response without keying on tenant and role/permission set. Prefer not caching cost endpoints at all, or cache with an explicit `tenant_id` and permission key.
-- Treat the server as the only authority. Stale UI only ever costs convenience if Pitfall 1 is closed.
+- Verification is per action, defined in the playbook: `block_ip` verifies by an agent-side rule-present check (agent reports firewall state); `kill_process` verifies process absent; `restore_file` verifies hash equals baseline; `restart_service` verifies service active for N seconds. Add `verify:` blocks to the YAML schema and test each against the real agent response.
+- Distinguish "action took effect" from "threat gone". Only the first gates rollback.
+- Rollback steps must be polled and audited like forward steps; `unverified` after dispatch must hold the item for a human, never silently stay `dispatching`.
+- Test: block a documentation IP (192.0.2.x) end to end and assert the audit trail ends in `verified`, not `rollback_dispatched`.
 
 **Warning signs:**
-- A grant made in settings does not appear without logout/login.
-- A cost response still returned after the role lost `view:itam`.
+Audit sequences `dispatched -> verified(failed) -> rollback_dispatched` for block_ip; many `ESC-` alerts; requests stuck in `dispatching`.
 
-**Phase to address:** P76 (refresh and 403 handling), P75 (revocation on role edit).
+**Phase to address:** P-Sec.
 
 ---
 
-### Pitfall 6: Empty-sidebar lockout and silent navigation failure
+### Pitfall 6: "Undo" that does not undo
 
 **What goes wrong:**
-A role holds no, or few, matching permissions. The user lands on a blank or broken page with no explanation and no way to proceed.
-
-**Why it happens / evidence:**
-- `visibleGroups` drops empty groups, so a role with zero matches yields an empty `<nav>`. Roles that already trip this: custom tenant roles that lack `view:dashboard`, and the ITAM roles. `itam_viewer` holds only `view:assets`, `view:licenses`, `view:itam`. It has no `view:dashboard` and no `view:profile`, so the default landing view and the Profile page are both unreachable.
-- `handleSetCurrentView` on a denied view only does `console.warn`; the user sees nothing happen. App initialisation and logout call `setCurrentView('dashboard')` (lines about 807 and 1365) regardless of whether the user may view it.
-- The hash router (`hashchange` handler around line 645) routes deep links through the same guard, so a bookmarked forbidden view is silently ignored and leaves the previous view showing.
+- Linux `block_ip` uses `iptables -I INPUT -s ip -j DROP` (inserts a duplicate on every call) and `unblock_ip` uses `-D` (removes one copy). Block twice, undo once: the IP stays blocked while the UI says undone. Windows uses one rule name per IP, so a second block is a name collision and one delete removes the rule for both reasons.
+- Two reasons to block the same IP (auto decision plus operator decision) share one rule; undoing the auto decision removes the operator's block.
+- `enable_service` "undoes" `disable_service` by enabling and starting, even if the service was originally disabled or stopped, so undo changes the pre-state.
+- `kill_process`, `restore_file`, `patch_package` have `rollback: []` and are irreversible; the Activity view must not show an undo button for them.
+- Iptables rules are not persistent and `-I` rules are lost on reboot; the platform thinks a block exists that does not.
+- Undo clicked days later, after other state changed. [CODE]
 
 **How to avoid:**
-- Landing view = the first nav item the user can see, not a hard-coded `'dashboard'`.
-- Always render a minimal footer: Profile (or a guaranteed-safe item), Sign out, and a "No catalogues are assigned to your role. Contact your administrator" empty state. Never an empty void.
-- A denied navigation shows a visible "You don't have access to X" notice (toast or inline), and the URL hash is reset.
-- Add a test: for every built-in role, `visibleGroups` is non-empty and the landing view is permitted.
+- Capture pre-state before acting (service enabled/active, rule present, file hash) and restore to that state, not to a hard-coded one. Store it on the decision record.
+- Make apply idempotent (check-then-add) and reference-counted per `(target, reason)`; a rule is removed only when its last reason is undone. Tag rules with the decision id (rule name or comment).
+- Time-to-live on blocks and quarantines, enforced agent-side (agent removes the rule after TTL if no renewal), which also covers the control-channel risk (Pitfall 7).
+- Undo is a first-class action through the same choke point, audited, and shows a precondition check ("rule still present; pre-state was X").
+- Show irreversible actions as "approval required, cannot be undone".
 
 **Warning signs:**
-- A blank `<nav>` for any seeded role.
-- A "dashboard" render for a user whose role cannot view the dashboard.
+Undo succeeds but a firewall listing still shows the rule; duplicate iptables rules for one IP.
 
-**Phase to address:** P76.
+**Phase to address:** P-Sec (agent semantics), P-UI (undo surface).
 
 ---
 
-### Pitfall 7: The cost data sources the milestone assumes do not exist (licenses and consumables have no cost field)
+### Pitfall 7: Containment severs the control channel (block the wrong IP, isolate the management path)
 
 **What goes wrong:**
-The plan says to "roll up license spend and allocated license cost from existing data". There is no cost data to roll up. A rollup built anyway returns zero or fabricated numbers, or someone invents a hidden cost-entry system, contradicting "no new cost-entry system".
-
-**Why it happens / evidence:**
-- `itam_models.License` has `seatCount`, `expiryDate`, `isReassignable`, `productKey`, `manufacturerId`. There is no cost, price, billing cycle or currency. `Consumable` has `initialQuantity`, `unitType`, `reorderThreshold`, and no unit cost. `Component` is the same. `grep -iE "cost|price|spend"` over `itam_license_endpoints.py`, `itam_consumable_endpoints.py`, `itam_component_endpoints.py` and `LicensesPanel.tsx` returns nothing.
-- Money that does exist: `Asset.purchaseCostCents` (int), model-level `usefulLifeYears` and `salvageValueCents`, `PurchaseOrder.total_cost` and `PurchaseOrderItem.unit_price` as **floats**, and `AssetRequest.estimated_cost` as a float. Purchase orders carry free-text `items[].name`, with no link to a license or consumable.
-- The Phase 71 summary line "purchase/PO/supplier" lives on the asset, not the license.
+`block_ip` has no protected-address check (only `validate_ip` syntax). Dropping inbound packets from the backend address, DNS or the gateway also drops the replies to the agent's own outbound calls, so the agent can no longer poll for the `unblock_ip`. `isolate_host` (approval-gated) has the same failure at larger scale. A scan verdict on a shared IP (CDN, the VM's own cloud metadata address, a customer gateway) becomes a self-inflicted outage across a tenant. [CODE]
 
 **How to avoid:**
-- Resolve this at requirements time, before P77. Options, in order of preference:
-  1. Add a minimal, optional, integer-cents `costCents` (plus an explicit billing basis: one-time or per-year) to `License`, and `unitCostCents` to `Consumable`. This is a field extension on existing entities, not a new cost-entry system.
-  2. Defer license and consumable cost and ship asset purchase/book-value rollups only, labelling the license line "not tracked".
-  3. Derive from POs only if a real PO-to-license link is added (it does not exist today).
-- Whatever is chosen, the UI must show **coverage** ("12 of 40 licenses priced") next to every total, so zero is never confused with unpriced.
-- Do not let the v4.2 rollups silently treat `None` as 0 (see Pitfall 10).
+- Enqueue-time protected list: platform backend host/IP, tenant's configured management ranges, link-local/metadata, loopback, and the tenant's gateway/DNS from agent telemetry. Agent-side hard refusal too (defence in depth), mirroring `kill_process` refusing its own PID.
+- Dead-man's-switch: every network-affecting action carries an agent-side expiry; the agent reverts it if it has not heard from the backend within N minutes after applying (this is also the safe answer to "agent offline when undo is queued").
+- `isolate_host` must keep an explicit allow rule to the platform and has approval + short TTL.
+- Test: attempt to block the backend IP and a /8; assert refusal and an audit record.
 
 **Warning signs:**
-- The requirement "license spend" has no field in the schema.
-- A rollup test that uses fixtures with a cost field production data does not have.
+Agent goes Offline immediately after a block action; offline agents whose last instruction was a network action.
 
-**Phase to address:** Requirements/P77 (decision), P77 (schema change if option 1).
+**Phase to address:** P-Sec.
 
 ---
 
-### Pitfall 8: Multi-tenant cost leakage through aggregation, caching and raw handles
+### Pitfall 8: Approval fatigue and approval races
 
 **What goes wrong:**
-One tenant sees another tenant's totals, or a super-admin sees a blended total.
-
-**Why it happens / evidence:**
-- The wrapper helps: `TenantIsolatedCollection.aggregate` prepends `{"$match": {"tenantId": ...}}`. That protects **only the first stage**. A `$lookup` into another collection from inside a pipeline reads the foreign collection through the raw Motor driver and is **not** tenant-filtered. An asset to `asset_models`, `suppliers`, `purchase_orders`, `license_assignments` join done with `$lookup` can pull rows from other tenants. Existing KPIs avoid this by doing batched `find` calls per collection through the isolated handle (`itam_reporting_kpis._compute_asset_value_kpi` uses `db.asset_models.find({"id": {"$in": model_ids}})`). Follow that pattern or add an explicit `tenantId` match inside every `$lookup` sub-pipeline.
-- Model IDs, supplier IDs and PO IDs are looked up by `id`. Always scope by tenant, and never trust an ID supplied by the client without tenant-scoped resolution (the Phase 71 review found exactly this, T-71-04: `purchase_order_id` accepted without ownership check).
-- `@cached(ttl=60, key_prefix="assets")` keys on `func.__name__` and non-`request`/`db` kwargs. A cost endpoint where the tenant comes from the ContextVar (not a kwarg) would collide across tenants. Do not apply `@cached` to cost endpoints, or key on tenant explicitly.
-- Background jobs run without a tenant ContextVar. The wrapper then fails closed with `NON_EXISTENT_TENANT_ISOLATION_EMERGENCY`, so a nightly cost-snapshot job silently computes nothing. The "fix" of using the raw handle (as the warranty sweep does) removes isolation. The v4.0 research and `compliance_remediation_sla_service.py` document the correct loop-per-tenant pattern with `set_tenant_id`/`reset_tenant_id` in `try/finally`. If P78/P79 add snapshots or trend history, reuse that pattern. Prefer compute-at-read (as depreciation already does, per D-04) so there is no job to get wrong.
-- Collections exempted from isolation (`TENANT_ISOLATION_EXEMPT_COLLECTIONS`: `tenants`, `system_features`, etc.) are shared. Do not read tenant currency or settings from a place that returns another tenant's row.
+One approval click is the entire safety model for destructive actions, so its quality matters. Today: no expiry (an approval clicked three days later dispatches against a stale finding and an agent that has since changed); duplicates per cycle (Pitfall 4); `approve_remediation` does `find_one` then `update_one` without a status condition, so a double click or two admins dispatch the playbook twice (the lease only bounds concurrency to 2); the approver is not required to differ from anything; approvals have no context (what, why, which host, what will be undone). Above roughly a dozen pending items per day per operator people start clicking through. [CODE][EXT]
 
 **How to avoid:**
-- All cost reads go through the tenant-isolated handle plus an explicit `tenantId` in the query. No `$lookup`. No raw `db._db`.
-- A mandatory two-tenant fixture test for every cost route: seed tenants A and B with distinct costs, assert A's response contains only A's numbers, assert a super-admin without a tenant is rejected or returns a labelled breakdown (see Pitfall 4).
-- The existing Phase 72 decision "every report/KPI reuses its owning surface's computation function verbatim" is the right precedent. Org-level cost must call `compute_book_value` and share the asset-selection logic with the KPI. Do not re-derive depreciation in a third place.
+- Approval is an atomic compare-and-set (`update_one({id, status: "pending_approval"}, {$set: {status: "dispatching"}})` and check `matched_count`), then re-validate the finding at approval time (still present, agent online, same agent version, not protected, tenant autonomy not Off).
+- Expiry (for example 24 h) moves the item to `expired` (safe default is do nothing), with an audit record and a visible state.
+- Group by incident (one approval card for "same finding across hosts"), show blast radius, evidence, exact action and undo availability, and cap pending per tenant (past the cap, new items become digest entries, not new cards).
+- No "approve all" for destructive actions. Track approval metrics (time to decision, deny rate); a near-100% approve rate with sub-3-second decisions is a fatigue alarm.
+- Approvals are a permission distinct from view (`approve:autonomous_actions`), role-checked per tenant.
 
 **Warning signs:**
-- `$lookup` in a cost pipeline.
-- `@cached` on a route that reads the ContextVar tenant.
-- A totals mismatch between the new cost view and the existing "asset value" KPI tile for the same tenant (trust-breaking bug class per Phase 72).
+Median approval time under a few seconds; items with `status=dispatching` and two `override_approved` audit rows; pending queue older than expiry.
 
-**Phase to address:** P77 (service design), P78 (org route), P79 (endpoint route). The two-tenant test is a P78 exit criterion.
+**Phase to address:** P-Core (state machine and atomicity), P-UI (cards, grouping, metrics).
 
 ---
 
-### Pitfall 9: Depreciation / book-value math errors and policy-source confusion
+### Pitfall 9: Patch "rollback" that is not a rollback
 
 **What goes wrong:**
-The cost view shows book values that disagree with the existing per-asset and KPI figures, or that are subtly wrong.
-
-**Why it happens / evidence:**
-- `compute_book_value` is **whole-year step depreciation**: `years_elapsed` increments only on the anniversary, so book value is flat for 12 months then drops. An asset bought 11 months ago shows full purchase cost. A "straight-line" expectation of monthly decline will be violated. Annual depreciation is `(cost - salvage) // useful_life` using **integer division**, so up to `useful_life - 1` cents per asset are never depreciated, and book value at end of life is `cost - years*floor(...)`, which is not exactly salvage (it is floored up to `max(.., salvage)`, so it can sit slightly above salvage then clamp). Rolled up over thousands of assets, rounding drift exists. Document it as the platform's definition (Phase 59 D-04) and test against it; do not "improve" it in the rollup only.
-- **Two competing policy sources.** The endpoint and the KPI use the asset-model's `usefulLifeYears`/`salvageValueCents`. The `Asset` and `ManualAssetCreate` models also carry **asset-level** `useful_life_years` and `salvage_value` (a **float**, dollars not cents) that `get_asset_book_value` ignores. A rollup that reads the asset-level fields would disagree with the live panel. Use the model-level policy exactly as `get_asset_book_value` does, or deliberately define an override order and apply it in `compute_book_value`'s caller everywhere.
-- Non-depreciating states: disposed/retired/lost assets. The existing KPI counts every asset including those; decide whether disposed assets contribute purchase cost, book value (should be 0 or excluded) or neither, and apply it uniformly in both KPI and cost view.
-- Date edge cases: `purchaseDate` strings that are naive vs tz-aware, a purchase date in the future (negative years clamps to 0, so book value = full cost; arguably should flag), `now` captured per-asset vs once per request (use one `now` for the whole rollup for stable totals).
-- Cents vs dollars: PO and request fields are float dollars, assets are int cents. Mixing them in one sum without conversion is an off-by-100 bug, and float sums accumulate error.
+The agent's `upgrade_software` installs a package with `install_package(pkg, true)`; there is no recorded previous version, no snapshot, and the playbook states `rollback: []`. Windows cumulative updates and servicing-stack updates are generally not removable; Linux downgrades need the old version still available in the repo or cache and can break dependent packages; any action that needs a reboot is one-way once rebooted (and "patch reboot" is itself the approval-gated action). Calling the halt-and-revert behaviour "rollback" in code, UI and marketing sets an expectation the system cannot meet. [CODE][EXT]
 
 **How to avoid:**
-- Org and endpoint cost call `compute_book_value` only. Add a golden-value test table (cost, salvage, life, purchase date, `now`, expected cents) that both the KPI and the cost rollup must satisfy, including life=1, salvage>=cost, cost=0, leap-day purchase, anniversary-day boundary, and future date.
-- Do integer-cents arithmetic end to end. Convert PO floats once at the boundary with `Decimal`/rounding rules, only if POs are used at all.
-- Surface the whole-year behavior in the UI copy ("depreciates annually on purchase anniversary") so users do not file a bug.
-- Define disposed-asset treatment in requirements.
+- Name two different things: **halt** (stop remaining stages, always possible) and **revert** (restore the previous version, only when proven). Each patch item records `reversible: true|false` and `previous_version` captured pre-install.
+- Only mark Linux package patches reversible when the previous version is confirmed installable (agent checks `apt-cache policy`/`dnf history`/`zypper` before install); Windows updates default to non-reversible unless a tested `wusa /uninstall` or equivalent path exists for that KB class.
+- Non-reversible patch classes require approval for the stage that includes more than the canary group, and the UI says "halts on failure; cannot be reverted".
+- Test on throwaway VMs for each OS family: install, health-fail, revert, confirm version restored; document the matrix of what is and is not reversible. This is a research flag (see summary).
 
 **Warning signs:**
-- Org total differs from the dashboard "Total book value" tile by any amount.
-- Sums differing by a few cents with life > 1.
-- Any `* 100` or `/ 100` in new cost code.
+Rollout record says `rolled_back` while agent inventory still shows the new version; `rollback` arrays that are empty or only enable/disable.
 
-**Phase to address:** P77.
+**Phase to address:** P-Patch.
 
 ---
 
-### Pitfall 10: Null / unpriced / unmapped assets silently treated as zero, hiding coverage gaps
+### Pitfall 10: Health checks read stale signals (agent status, pending list, vuln status)
 
 **What goes wrong:**
-The cost view looks authoritative but reports a small number because most assets have no cost, no purchase date, or no depreciation policy. Agent-discovered assets (the bulk of the inventory) have none of these.
-
-**Why it happens / evidence:**
-- Assets are discovered by agents via heartbeat upsert (`agent_heartbeat_endpoints.py` upserts into `db.assets` by `id` with `$setOnInsert type: "server"`) or created manually (`itam_asset_endpoints.create_manual_asset`) in the **same** `assets` collection. Agent-discovered rows have no `purchaseCostCents`, `purchaseDate`, `modelId`, `assetTag` or `lifecycleStatus` (read-time default). `get_asset_book_value` returns `bookValueCents: None` with `reason` (`no_purchase_record` / `no_depreciation_policy_assigned`). The KPI counts these in `withoutPolicyCount` but its total silently excludes them.
-- Mongo `None` vs missing vs `0`: `purchaseCostCents: 0` is a legitimate value (donated or internally built), and distinct from null.
-- A single asset can exist as two records (agent-discovered and manually entered ITAM record for the same physical device) because nothing reconciles `hostname`/`serialNumber`. That is both a double-count (Pitfall 12) and a missing-cost problem.
+- `monitor_agent_status` is documented as "mark Offline if inactive > 5 min" but the loop sleeps 30 s at the top and `3600` s at the bottom: after the first pass it runs hourly, so a host that died after a patch stays `Online` for up to about an hour. A staged rollout that uses "agent still Online" as its health check will never halt on a bricked host. 
+- The patch pending list was already observed stale for up to an hour after install (hourly agent scan); fixed for display, but a stage gate that reads inventory repeats the problem. 
+- `_verify_vuln_resolved` waits for the next ingest cycle, up to its 60 s timeout, then returns `failed`/`unverified` for a patch that did succeed. [CODE]
 
 **How to avoid:**
-- Every response includes `pricedCount`, `unpricedCount`, `noPolicyCount`, `totalAssets`, and a per-reason breakdown, and the UI renders "Totals cover X of Y assets" prominently with a drill-down to the unpriced list (reuse the `asset_value` report/drill-down key pattern).
-- Keep `None` distinct from `0` throughout. A tenant with no priced assets returns `total: null` / `hasData: false` (the KPI's convention), not `0`.
-- Decide and document the endpoint mapping rule: how an agent endpoint is tied to an ITAM costed record (asset id, serial, or hostname), and where no mapping exists, show the row as "unmapped". Do not guess a match by hostname alone across the fleet without a uniqueness check.
+- Fix `monitor_agent_status` cadence first (check every 30-60 s; keep the 5 min threshold) and add a test with a frozen clock.
+- A stage's health gate is a composite, evaluated after a soak longer than the agent rescan interval: (1) the instruction result from the agent (`SUCCESS`/`FAILURE`), (2) post-install forced rescan or inventory update received after the install timestamp, (3) heartbeat received after reboot with a new boot id, (4) agent version and services expected-running match, (5) optional tenant-defined check. Missing evidence is `unknown`, which halts, never passes.
+- Use event time (agent-reported timestamps), not backend receipt time, when comparing before and after.
 
 **Warning signs:**
-- Org total of `0` or `$0.00` on a tenant with 500 assets.
-- An asset count in the cost view that differs from the Assets page.
-- Endpoint cost view empty for agent-only tenants.
+Rollouts that never halt in testing even with an agent deliberately killed; stage advances within seconds of install.
 
-**Phase to address:** P77 (schema of response, reason codes), P79 (endpoint mapping).
+**Phase to address:** P-Patch (gate), P-Heal (agent status cadence; do this fix early, others depend on it).
 
 ---
 
-### Pitfall 11: Currency is implicit, so cross-tenant and cross-asset sums are meaningless
+### Pitfall 11: The patcher patches the platform itself, and the orchestrator is not resumable
 
 **What goes wrong:**
-Costs are presented with a `$` sign that is not true for the tenant, or sums mix currencies (especially for a super-admin cross-tenant view, or tenants whose POs are in different currencies).
-
-**Why it happens / evidence:**
-- `purchaseCostCents` has no currency. Nothing in `itam_models.py` carries one. Currency appears only in `finops_service.py`, `payment_*` and a couple of report helpers (cloud billing), unrelated to ITAM. The existing KPI returns bare `totalBookValueCents`.
+The VM runs a local agent enrolled to this platform. A tenant rollout whose target set includes that agent can reboot the host running backend, MongoDB and the orchestrating loop in the middle of a stage; in-process loops (the engine is `asyncio` tasks inside the backend) die, and nothing resumes a half-finished stage. The same applies to any restart of the backend (self-heal, deploy, OOM): in-flight `remediation_requests` stay `dispatching` forever, and `remediation_inflight` leases hold until their 300 s TTL. [CODE]
 
 **How to avoid:**
-- Explicitly scope v4.2 to a **single reporting currency per tenant**, stored as a tenant setting (a display label only, no conversion), and say so in the UI. Do not build FX conversion (out of scope, and the milestone has no new cost-entry system).
-- Never sum across tenants (see Pitfall 4). If a super-admin overview is wanted, show per-tenant rows with their own currency label and no grand total.
-- Format with `Intl.NumberFormat` from integer cents on the client; never `float` on the server.
+- Exclude the platform host's agent from autonomous patching and self-heal actions (explicit `platform_host` flag, enforced at the choke point); patch it manually.
+- Persist the rollout state machine (`rollouts`, `rollout_stages`, per-host status, deadlines) in Mongo; make every transition idempotent and the driver loop stateless so it resumes after a restart; on startup, reconcile `dispatching`/`in_progress` records older than their deadline to `unknown -> halted` with an audit entry.
+- Chaos test: kill the backend mid-stage in a test environment and assert the rollout halts or resumes with no duplicate dispatch.
 
 **Warning signs:**
-- Hard-coded `$` in cost components.
-- A grand-total row in a super-admin view.
+Rollout or remediation records stuck in a non-terminal state across a backend restart.
 
-**Phase to address:** P77 (decision), P78 (display).
+**Phase to address:** P-Patch, P-Core (crash recovery for remediation requests).
 
 ---
 
-### Pitfall 12: Double-counting shared and licensed assets, and unassigned seat cost
+### Pitfall 12: Staging mechanics that look right and fail on real tenants
 
 **What goes wrong:**
-License cost counted once per assignment target rather than once per license, assets counted in both a parent and its components, or a seat attributed to both a user and the user's endpoint.
-
-**Why it happens / evidence:**
-- `license_assignments` rows target either a `user` or an `asset` (`targetType`). Allocating license cost to endpoints naively as `licenseCost / seats` per assignment gives the right per-seat price but breaks in three ways:
-  1. **Unassigned seats.** `seatsAvailable = seatCount - assigned`. Cost for unassigned seats (shelfware) must not vanish from the org total, and must not be dumped onto any endpoint. The org total uses the full license cost; the endpoint allocation sums to `perSeat * assignedSeats`; the difference is shown as "unallocated".
-  2. **User-assigned seats.** A seat assigned to a user is not tied to an endpoint. Mapping it to the user's checked-out assets (`assignment_history`) risks counting one seat on several devices. Define a single rule (e.g. user-assigned seats are reported under the user and not allocated to endpoints, or allocated only when exactly one asset is checked out to them).
-  3. **Expired or reclaimed licenses.** `expiryDate` in the past: is its cost current spend? `reclaim_license_seat` deletes the assignment and writes history, so history is not a reliable count of seats.
-- Assets can have `parentAssetId` and `components` (attached component IDs). If component cost is ever added to the parent's cost while the component also appears as its own row, the sum doubles.
-- A seat-count race exists and the code compensates (insert, then count, then delete if over). During the window the count can transiently exceed `seatCount`. Compute `assigned` as `min(count, seatCount)` for cost purposes, or read at a consistent point.
-- The agent-plus-manual duplicate (Pitfall 10) double counts purchase cost.
+Percentage stages produce zero hosts for small tenants (10% of 3 is 0) or put the only server in the canary; canary hosts are all the same OS/role so a role-specific failure is missed; schedules ignore tenant time zone and maintenance windows; two schedules (patch rollout and the older `software_deployment_jobs` scheduler) target one host simultaneously; an instruction queued for an offline agent is delivered days later (no expiry) and installs a patch outside the window or after a halt; a halted rollout's queued instructions still go out. `simulate_software_deployment` also auto-completes jobs with "[Demo]" status when no agents were dispatched, a false-success pattern to avoid copying. [CODE]
 
 **How to avoid:**
-- Org license spend is computed per **license** (cost is an attribute of the license), never by summing over assignments.
-- Endpoint allocation is a derived, labelled field ("allocated license cost") and the invariant `sum(endpoint allocations) + unallocated == org license spend` is a test.
-- Exclude component rows from parent totals or exclude them from the top-level list, never both.
-- Decide a dedupe key for agent vs manual assets (serial number first) and report potential duplicates instead of auto-merging.
+- Stage sizing: at least 1 host, at most a cap, `ceil`, canary chosen to cover each OS family/role present; tenants with fewer than N endpoints use manual stages.
+- Per-tenant window and time zone; a rollout starting outside the window waits; a window closing mid-stage pauses.
+- Every autonomous instruction carries `expires_at`; the agent drops expired instructions; halt cancels all queued, undelivered instructions for that rollout.
+- One active rollout per host (unique index on host-in-active-rollout).
+- Never auto-complete a job with no evidence; zero targets is `failed: no_targets`, not success.
 
 **Warning signs:**
-- Endpoint allocations exceed the org total.
-- Total changes when seats are reassigned but the license did not change.
-- Same serial number on two rows.
+`pending` instructions older than the window; hosts patched outside window; rollouts with `targets: 0` marked complete.
 
-**Phase to address:** P77 (invariants), P79 (allocation).
+**Phase to address:** P-Patch.
 
 ---
 
-### Pitfall 13: Rollup performance, including unbounded reads and per-asset loops
+### Pitfall 13: The watchdog cannot see its own host dying
 
 **What goes wrong:**
-The org cost page times out or hammers Mongo for tenants with many assets, and is slower for every request because nothing is precomputed.
-
-**Why it happens / evidence:**
-- `compute_itam_kpis` does `db.assets.find({}, projection).to_list(length=None)` (unbounded) and loops in Python. That is fine at hundreds of assets, and the tenant sizes at which it stops being fine are unmeasured (assume trouble around tens of thousands, MEDIUM confidence). `list_license_assignments` caps at `to_list(length=1000)`, so a license with more than 1000 assignments is silently truncated; a cost allocation built on it would undercount.
-- A per-endpoint cost list that calls `get_asset_book_value` (which does a `find_one` on `asset_models` per call) in a loop is N+1. The KPI already shows the batched pattern: collect `modelId`s, one `$in` query.
-- Depreciation is deliberately computed at read time and never stored (D-04). That is correct for correctness but means every request recomputes.
-- The existing indexes: `assets` has `tenantId`, `id` (unique), `(tenantId, assetTag)` unique, `(tenantId, lastAuditedAt)`. There is none on `(tenantId, modelId)` or `(tenantId, lifecycleStatus)` for filtered cost slices, and none for `license_assignments` by `(tenantId, targetType, targetId)`. Verify the index set in `database.py` and `migrations/` before relying on it.
+The natural implementation is another `asyncio` loop inside the backend ("check Mongo, check Ollama, restart on failure"). If the backend, the VM, or MongoDB dies, the watchdog dies or goes blind with it: it cannot record the incident (audit needs Mongo), cannot restart itself, and cannot notify. Past evidence: after the kernel 7.0 reboot `mongod` failed to start (SERVER-121912) and the platform was down until a human added a drop-in. Alert delivery is also unproven here: SMTP, Gemini and VirusTotal keys are unset on this VM, so "alert the on-call person" may have no working channel. [CODE][memory]
 
 **How to avoid:**
-- Reuse the batched pattern: one assets read with a narrow projection (cost, date, modelId, lifecycleStatus, id), one `asset_models` `$in`, one `license_assignments` read. No per-asset queries.
-- Paginate and cap the **detail** list (endpoint-level rows) server-side, as `get_assets` does with `PaginationParams`; compute the **summary** over the full set separately. Never paginate a total.
-- Do not use a hard `to_list(length=1000)` for anything that feeds a sum. Use a count or `$group` aggregation.
-- If measured to be slow, an in-process, tenant+permission-keyed short TTL cache is acceptable. A stored snapshot is a last resort and brings the background-job tenant pitfall back (Pitfall 8).
-- Add a seeded large-tenant timing test (for example 20k assets) as an exit criterion for P78 so the claim is measured, not assumed.
+- Two layers. **In-app checks** (Mongo ping latency, Ollama reachable, cert expiry, disk %, job freshness, agent-offline ratio) run in the backend and report. **Out-of-app supervision** runs outside the process: systemd `Restart=on-failure` with `StartLimitBurst/StartLimitIntervalSec`, optionally `WatchdogSec` + `sd_notify`, a small systemd timer unit that curls `/health` and, on failure, writes to the journal and calls an external alert, and an `OnFailure=` unit. Ship these as unit files and an install note in the repo; **installing them on the live VM is the user's step** (locked), so the plan must produce artifacts and a verification checklist, not apply them.
+- Dead-man's switch: the backend pings an external heartbeat (webhook/email/another host) every minute; the silence itself is what alerts the on-call person. This is the only way to detect "the whole box is gone".
+- Alert channel health is itself a check: the on-call test message is sent on a schedule and failure is shown in the UI. If no channel is configured, the Self-healing screen says so loudly instead of implying coverage.
+- Test: stop mongod in a test environment and assert an alert is delivered and the incident is recorded after Mongo returns (spool locally, replay; reuse the `audit_ledger` spool pattern).
 
 **Warning signs:**
-- Request time that scales linearly with assets.
-- Mongo logs with many identical `asset_models` `find_one`.
-- Totals that change when a list is paginated.
+Incident timeline with a gap exactly when the platform was down; "all green" while the VM is unreachable; on-call alert test never run.
 
-**Phase to address:** P77 (batched design), P78/P79 (measure).
+**Phase to address:** P-Heal.
+
+---
+
+### Pitfall 14: Restart loops and flapping
+
+**What goes wrong:**
+Restarting is only a cure for transient faults. Environmental causes (the kernel 7 `mongod` startup failure, OOM on a 7 GB box shared by backend + MongoDB + optional Ollama, a bad config after a deploy, port already in use) turn "restart on failure" into a tight loop that burns CPU, floods logs and alerts, and can corrupt state (repeated unclean `mongod` kills, WiredTiger recovery on every start). Other traps: restarting a service that is **intentionally** off (Ollama is "inactive on this VM") and alerting forever; a restart that kills in-flight remediation and patch state (Pitfall 11); a self-heal check with no hysteresis flapping on a single slow health probe under CPU contention on 2 vCPUs. [CODE][memory]
+
+**How to avoid:**
+- Expected-state registry: each watched unit has `expected: running|optional|off`; `optional`/`off` never restarts and never alerts as failure (show "not running (expected)").
+- Restart budget with backoff: at most 3 restarts per unit per hour with exponential backoff (for example 10 s, 60 s, 5 min); after the budget is spent, stop restarting, mark `needs_human`, page once, and keep the incident open. Hysteresis: trip after K consecutive failed probes (K >= 3, probe timeout longer than worst-case GC/CPU stall), clear after M consecutive successes.
+- Capture evidence before restarting (last 100 journal lines, memory, disk) into the incident record; a restart without evidence destroys the diagnosis.
+- Check root-cause guards first: free disk and memory before restarting Mongo; do not restart `mongod` if the previous start failed within the last minute (go straight to human).
+- Test: a unit that fails on start must produce exactly budget-many restart attempts then one page, not an unbounded series.
+
+**Warning signs:**
+More than a handful of restart events per unit per day; identical incident titles repeating; `mongod` start-time errors in journal.
+
+**Phase to address:** P-Heal.
+
+---
+
+### Pitfall 15: Self-heal needs privilege, and the app grows root
+
+**What goes wrong:**
+To restart `omni-backend`, `mongod` or `ollama` the process needs `systemctl` rights. Typical shortcuts: run the backend as root, add broad `NOPASSWD: ALL` sudoers, or let the app write unit files/sudoers. Combined with ticket text and agent-supplied data flowing through the backend, that turns any injection or SSRF into host takeover. Memory also records that secrets and live-service restarts are the operator's job, and that `run-on-ubuntu.sh` once caused an SSH lockout through ufw. [memory]
+
+**How to avoid:**
+- The application never edits sudoers, unit files or firewall rules. Provide a fixed, reviewed sudoers drop-in or polkit rule scoped to exactly `systemctl restart|status <unit>` for an allowlist of units, plus a one-line install instruction for the operator.
+- The restart helper takes a unit name only from a hard-coded allowlist (never from DB/user input) and uses `subprocess` with an argument list, no shell.
+- Self-heal never touches networking/firewall/ssh on the host.
+- Tests: allowlist rejects any other unit name; helper refuses shell metacharacters.
+
+**Warning signs:**
+Backend unit with `User=root`; sudoers with wildcards; restart commands built via string formatting.
+
+**Phase to address:** P-Heal.
+
+---
+
+### Pitfall 16: Disk "self-healing" and the retention job destroy evidence or stall the box
+
+**What goes wrong:**
+- Retention exists as a manual job today; scheduling it daily is easy, but `retention_service.cleanup_audit_logs` deletes `audit_logs` older than 90 days platform-wide with a string timestamp compare, while `audit_ledger` keeps a per-tenant hash chain with 365-day retention and a checkpoint. Deleting ledger rows outside `audit_ledger.purge_expired` breaks chain verification and the "everything audited" promise. The Autonomous Ops decision log and the remediation audit must not fall under shorter retention than the compliance evidence it justifies.
+- A first scheduled run against years of un-pruned telemetry (Rust heartbeats are about 290 KB raw per beat; about 815 MB/day/endpoint measured earlier; several agent collections had no TTL) issues enormous `delete_many` calls on a 2 vCPU Mongo, stalling the API and filling the oplog/journal, so the disk warning "fix" causes the outage it was meant to prevent.
+- "Disk > 90%" auto-remediation that deletes data under pressure picks the wrong data; and Mongo needs headroom to delete/compact.
+- The job's lock (`distributed_lock`, 300 s TTL, no renewal) expires while the sweep is still running, so a second instance starts (Pitfall 17). [CODE]
+
+**How to avoid:**
+- Self-heal for disk is **warn early, act only through the same bounded retention job**, never ad-hoc deletes. Thresholds (for example warn 75%, urgent 85%, stop-ingest decision 92%) with hysteresis.
+- Retention runs in bounded batches (delete by `_id` range, `limit` per pass, sleep between, stop on CPU/latency budget), reports counts, and supports a dry-run count that is shown to the operator before the first live run (first run is manual, then scheduled).
+- Exclude audit/decision/approval collections from the generic retention; they are governed by the ledger's retention, with checkpointing. Retire or fence `cleanup_audit_logs` so it cannot touch the ledger collection.
+- Tenant retention policy lower bound validated against compliance frameworks the tenant bought (do not let a 7-day policy delete SOC 2 evidence).
+- Test: seed N documents, run retention in batches, assert API latency stays under budget and the hash chain still verifies.
+
+**Warning signs:**
+`audit_logs` count dropping with chain verification failures; Mongo slow-query log during the retention window; disk usage jumping up (oplog) during deletion.
+
+**Phase to address:** P-Heal (job), P-Core (audit exclusion).
+
+---
+
+### Pitfall 17: Scheduler double-runs and overlapping cycles
+
+**What goes wrong:**
+The loops are `while True: ...; await asyncio.sleep(n)` coroutines started per process: `autonomous_remediation_loop`, escalation scheduler, telemetry retention, the license seat loop. Only some APScheduler jobs use `distributed_lock`. The lock helper has a fixed TTL and no renewal or fencing token on writes: a job that outlives its TTL (retention, rollout drivers, a remediation cycle with 60 s step polls and 30 s sleeps per finding) is run again by another worker while the first continues. A second uvicorn worker (or a manual restart overlap during deploy) doubles every loop. The autonomous loop is also serial across tenants and findings, so one slow tenant delays everyone and the real period drifts far beyond 300 s. The loop also sets the tenant context once per tenant but only resets the last token (leak across iterations). [CODE]
+
+**How to avoid:**
+- One scheduling mechanism for all v4.3 jobs with: job-run records (`job_runs`: name, tenant, started, heartbeat, status), a lock with TTL **and heartbeat renewal**, and a fencing token or compare-and-set on the state each run writes. A run that finds a live run for the same `(job, tenant)` skips and records `skipped_overlap`.
+- Per-tenant isolation of runs (one tenant's slow cycle must not block others; bounded concurrency of 1-2 total on this VM).
+- Reset tenant context in a `finally` per iteration.
+- Test: start two instances of each job concurrently and assert one executes; assert a job exceeding its TTL does not get a second concurrent run (renewal works), and that a crashed holder's lock does expire.
+
+**Warning signs:**
+Duplicate audit rows with identical decision keys; two `job_runs` active for the same job; log lines from two PIDs for one loop.
+
+**Phase to address:** P-Core (job framework), applied in P-Sec/P-Patch/P-Heal.
+
+---
+
+### Pitfall 18: Cross-tenant leakage in automated actions
+
+**What goes wrong:**
+Automation runs with no human request context, which removes the tenant guard that normal routes get. Local risks: `monitor_agent_status` and the escalation scheduler run under `set_tenant_id("platform-admin")` and read/update across tenants; `is_duplicate_task` runs its cross-agent dedup without a `tenantId` filter, so one tenant's recent action can suppress another tenant's response (and the check reads across tenants); `agent_id or "auto"` makes agent-less findings share one lease key across tenants; the loop leaks tenant context tokens; `propagate_antibody` sources its tenant from the caller but nothing stops a shared indicator list; the AI chat's `cross_tenant_output_scan` is substring based and **fails open** when its lookup errors; notifications and Activity views for platform-level self-healing events could show tenant names to the wrong audience. v4.1 and the DB wrapper auto-scope tenants for requests, but platform-admin contexts bypass that. [CODE][memory]
+
+**How to avoid:**
+- Every autonomous record carries `tenantId` set from the finding/agent, never from ambient context; the choke point asserts `agent.tenantId == tenant_id` and rejects otherwise.
+- Platform-scope actions (self-heal of backend/Mongo/Ollama) are a separate scope: visible only to platform roles, never listed in tenant Activity views, and never mention tenants.
+- Fix `is_duplicate_task` to always include tenant; add a lint/test that autonomous queries include `tenantId`.
+- Per-tenant autonomy level is looked up **at action time** (not cached for hours, not read from the schedule creation time).
+- Contract test with two tenants for every autonomous path: tenant A's findings, approvals, undo, Activity feed, service-desk answers, and on-call alerts never include or affect tenant B (extend the existing `test_e2e_integration` isolation style).
+- Service desk: closed-over `tenant_id` retrieval (already the pattern), plus make the cross-tenant output scan fail closed for autonomous replies (escalate instead of sending).
+
+**Warning signs:**
+Instructions whose `tenant_id` differs from the target agent's tenant; Activity rows visible to a user from another tenant; the same lease document used by multiple tenants.
+
+**Phase to address:** P-Core (invariants), every other phase (per-feature test).
+
+---
+
+### Pitfall 19: The global stop switch only stops new decisions
+
+**What goes wrong:**
+"One switch stops everything" is checked when a decision is made. But there are queued but undelivered instructions in `agent_instructions`, requests parked in `pending_approval` that could be approved after the switch, in-flight `_dispatch_and_verify` loops that continue to rollback steps, staged rollouts with future stages scheduled, and ticket auto-answers already generated and awaiting send. The existing off-switch is an env constant read at import (`AUTONOMOUS_REMEDIATION_DRY_RUN`), which needs a restart (restarts are the user's step), and the switch's own state lives in Mongo, so a Mongo outage leaves behaviour undefined. [CODE]
+
+**How to avoid:**
+- Switch is a DB document read per action through a short-TTL cache (seconds, not minutes), plus an in-process override flag set by an endpoint for the Mongo-down case.
+- Stop semantics defined and tested: (1) no new autonomous decisions, (2) cancel all undelivered autonomous instructions (mark `cancelled_by_stop`), (3) pause rollouts at the next gate, (4) approvals on existing requests require re-checking the switch, (5) service desk stops sending AI answers and routes to humans, (6) running self-heal restarts finish but no new ones start. Document what does not stop (an action already executing on an agent) and show it.
+- **Fail closed**: if the switch or autonomy level cannot be read, do nothing autonomous and say so in the Activity view.
+- Resume is a separate, audited step; per-tenant Off applies the same rules for that tenant.
+
+**Warning signs:**
+Agent executes an action after the stop timestamp; the switch toggle takes effect only after a restart.
+
+**Phase to address:** P-Core.
+
+---
+
+### Pitfall 20: Audit gaps
+
+**What goes wrong:**
+In `_dispatch_and_verify` the audit order is act, then write `dispatched`; a crash between leaves an executed action with no record. `write_audit` failures are not handled (and `asyncio.create_task(push_ocsf_event)` keeps no reference, so it can be garbage-collected). There are two audit stores with different guarantees: `remediation_audit` (append-only by convention, no hash chain, no retention policy, no tenant-scoped sequence) and `audit_ledger` (hash chain, spool, retention checkpoint). Decisions that did **not** result in action (rate-limited, deduped, protected target, tenant Off, Suggest mode) leave no record, so "why did nothing happen" is unanswerable; setting or changing autonomy level, the global switch, a playbook edit, and an approver's denial must themselves be audited. LLM summaries stored as if they were facts blur provenance. [CODE]
+
+**How to avoid:**
+- Write-ahead: an `intent` record (decision_id, rule id, inputs, risk tier, autonomy level in force, actor=`system:autonomous_ops`) is written **before** the enqueue; the enqueue fails if the intent write fails. Result and undo records reference `decision_id`. A reconciler marks intents without a result after the deadline as `unknown`.
+- Route everything through `audit_ledger.record` (hash chain, spool) and keep `remediation_audit` as a derived view or migrate it; never two truths.
+- Record suppressed and no-op decisions with a reason code (cheap, capped by rollup/TTL on the high-volume kind).
+- Audit configuration changes: autonomy level, global stop, playbook/risk-tier edits, protected-list edits, approvals and denials, expiries.
+- Keep LLM output in a separate field marked `generated_by: llm`, never as the reason of record (the rule id is the reason).
+- Test: kill the process between enqueue and result (fault injection) and assert an intent exists and reconciles; verify the chain after a run.
+
+**Warning signs:**
+Instructions without a matching intent; a decision with only a `dispatched` row; chain verify failures; Activity view count differing from the instructions count.
+
+**Phase to address:** P-Core (schema, write-ahead), P-UI (reason codes).
+
+---
+
+### Pitfall 21: Prompt injection through ticket text
+
+**What goes wrong:**
+Ticket bodies (typed by users, imported from email, or synced from Jira/ServiceNow via the existing bridge) are untrusted third-party text that reaches `llama3.2:3b`. The existing guardrail is seven literal English regexes ("ignore previous instructions", "you are now DAN", "execute code" ...) which any paraphrase, other language, or encoding bypasses, while its PII patterns reject normal tickets (any email address, and the phone pattern `\b\+?1?\d{9,15}\b` matches any 9-15 digit number such as serials and ticket ids), so legitimate tickets are blocked while attacks pass. Indirect injection arrives via the knowledge base if resolved tickets or user comments are fed back into it ("learning from tickets"), and via answers that render links or images (data exfiltration through markdown image URLs). A small 3B model is far easier to steer than a frontier model. [CODE][EXT: OWASP LLM01 guidance recommends least privilege, tiered tool access and marking untrusted content, and notes no filter is reliable]
+
+**How to avoid:**
+- Structural, not textual, defences: the service-desk assistant has **no tools with side effects** (retrieval over the tenant's published KB only; keep `search_evidence`-style tenant-closed tools); nothing parses LLM output into actions, status changes, or commands; the model cannot set ticket status, assignee, priority, or call the remediation engine.
+- Untrusted text is delimited and labelled as data in the prompt; output is schema-constrained (answer, cited_article_ids, confidence-from-retrieval) and the sender code, not the model, composes the final message.
+- Output sanitization: strip links, HTML, markdown images and anything not from the KB allowlist of domains; reject answers containing commands or URLs not present in the cited article.
+- KB hygiene: only curated, human-approved articles are retrievable by the assistant; tickets never auto-promote into the KB.
+- Replace the regex guard with: length caps, instruction-pattern heuristics as one signal only, and a hard rule that any ticket flagged or low-retrieval goes to a human.
+- Red-team test set (paraphrased, multilingual, base64, "system:" role spoofing, hidden text in HTML email) run in CI against the real prompt; success criterion is "no action, no leak, escalates", not "model refuses".
+
+**Warning signs:**
+Answers that mention content not in any cited article; answers containing URLs; the assistant "following" instructions found in ticket text in manual tests.
+
+**Phase to address:** P-Desk.
+
+---
+
+### Pitfall 22: An LLM hallucinating first-line answers (and the legal exposure)
+
+**What goes wrong:**
+A CPU-only 3B model produces fluent, confident wrong answers: invented admin steps, nonexistent menu items, wrong compliance or policy statements, security-weakening advice ("disable the firewall to test"). The platform is an MSP tool, so an answer is effectively the MSP's statement to its client. Companies are held responsible for what their chatbot says (Moffatt v. Air Canada, BC Civil Resolution Tribunal, 2024: the airline was liable for chatbot misinformation; tribunal-level, limited precedent value). Self-reported model confidence is not calibrated. With Ollama inactive on this VM and 10-60 s CPU latency per answer, naive implementations time out and either hang tickets or send nothing. Two-way ticket bridges can also loop: the AI comment syncs to Jira/ServiceNow, the webhook returns it as a new comment, and the assistant answers itself. [EXT][CODE]
+
+**How to avoid:**
+- Extractive-first design: answer only when retrieval returns an article above a similarity threshold, quote or closely paraphrase it, and cite article ids; the sender verifies every cited id exists and belongs to the tenant (reuse `ai_orchestration/validators.py` citation validation). No grounded article means escalate, never "best effort".
+- Confidence comes from retrieval and validation outcomes, not from asking the model.
+- Scope allowlist of categories the AI may answer (how-to, known issue, status); never security advice that reduces protection, never policy/compliance/pricing/legal statements, never account or access changes.
+- The AI never closes a ticket: it posts "proposed answer" and the requester confirms ("did this solve it?"); a negative or no response escalates at the SLA step; the AI answers a ticket at most once (and at most twice including follow-up) to prevent ping-pong.
+- Ignore comments authored by the AI (`author=system:ai`) and bridge-originated echoes of them; per-ticket and per-sender rate limits.
+- Visibly label AI answers ("Automated answer from article X; reply to reach a person").
+- Bound compute: queue with concurrency 1 on this VM, request timeout (for example 30-45 s), circuit breaker, and fallback to templated acknowledgement + escalation when Ollama is down or slow.
+- Evaluation set including unanswerable and adversarial questions; release gate such as 100% escalation on out-of-KB questions and a measured wrong-answer rate on in-KB questions before default-on.
+
+**Warning signs:**
+Answers with no citations; sources not in the tenant's KB; a growing share of tickets reopened after AI answers; AI comments appearing as inbound webhook events.
+
+**Phase to address:** P-Desk.
+
+---
+
+### Pitfall 23: Alert storms from three new event sources
+
+**What goes wrong:**
+Security response, patching and self-healing each emit notifications, and they interact: a patch reboot makes agents go Offline (one `agent.offline` notification **per agent**, as `monitor_agent_status` already does), FIM and anomaly detectors fire on new binaries, self-heal restarts something, and each stage failure notifies. A platform or network blip marks many agents offline at once. The legacy loop adds an `ESC-` alert and a failure ticket every cycle per unverified finding (`_create_failure_ticket`, `ESC-{remediation_id}`), and every audit write also pushes an OCSF event to subscribed SIEMs, so an incident floods external systems too. [CODE]
+
+**How to avoid:**
+- One notification pipeline for Autonomous Ops with dedup keys, grouping by incident, per-channel rate limits, severity-based routing, and quiet digest for info-level events; one open incident per `(scope, subject, class)`, updated rather than duplicated.
+- Correlation rule: if more than X% of a tenant's agents (or any platform's agents) go offline within a short window, send one "possible platform/network problem" alert and suppress per-agent alerts; if the platform itself is the suspect (Pitfall 13), the dead-man's switch path is used.
+- Maintenance windows: a patch rollout registers expected-offline/expected-change for its hosts (reboot window), suppressing offline alerts, FIM-restore proposals and anomaly escalations from the same hosts until the window closes plus grace.
+- Cap and rollup what is pushed to SIEM (summary events for high-volume kinds).
+- Test: simulate 200 agents offline and a 50-host patch reboot; assert alert count stays within a small bound.
+
+**Warning signs:**
+Notification volume correlating with endpoint count; identical titles repeating; on-call acknowledging in batches.
+
+**Phase to address:** P-Heal (pipeline, correlation), P-Patch (maintenance windows), P-Core (rollup).
+
+---
+
+### Pitfall 24: Over-claiming autonomy
+
+**What goes wrong:**
+Copy, sidebar labels, release notes, demo scripts and sales material say "fully autonomous", "self-healing", "zero-touch", "AI-driven response", "undo anything", "ASI" or "Autopilot", while the product delivers rule-based automation with approval gates, partial reversibility, and an LLM that only summarises. Verification reports for this project show several `human_needed` live-environment checks; claiming them as done compounds this. Regulators treat exaggerated AI capability claims as deceptive under existing consumer-protection law (FTC "Operation AI Comply", 2024; the "AI washing" theme also appears in SEC actions), and an MSP that repeats the claim to its clients inherits the exposure. [EXT]
+
+**How to avoid:**
+- Product vocabulary decided once and enforced: "Autonomous Ops" (never "ASI", never "Autopilot"; the sidebar already has Windows Autopilot), "automatic within limits you set", "undo" only where an undo is registered, "needs your approval" for destructive actions, "AI summaries and suggestions" for LLM output.
+- UI states what happened and what could not be undone; the autonomy-level control explains each level in one sentence including limits; every automated item shows the rule that triggered it.
+- A claims checklist per phase: each user-visible promise maps to a passing test (for example "halts and rolls back" maps to the P-Patch revert matrix, and the copy says "halts; reverts where supported").
+- A copy lint in CI that fails on banned terms in frontend strings and docs.
+- Do not promise outcomes (prevents breach, guarantees patched) and do not show compliance-status effects from automated actions without evidence.
+
+**Warning signs:**
+Strings like "autopilot", "ASI", "fully automatic", "guaranteed", "zero-touch" in the UI or docs; features described that depend on live-only checks that are still `human_needed`.
+
+**Phase to address:** P-UI (copy), every phase for claims checklist; final milestone gate.
+
+---
+
+### Pitfall 25: Default-on for existing tenants, and who may raise autonomy
+
+**What goes wrong:**
+Default is Undoable-auto (locked). On deploy every existing tenant silently starts having actions taken on its endpoints, unannounced to MSP clients whose contracts may not allow it, and before anyone has seen a single would-have-done decision. Related: who may set the level (a client tenant admin raising their own autonomy above what the MSP agreed; a viewer changing it); platform-level vs tenant-level policy; changes by API tokens; and tenants created via sign-up approval and "Overview only" feature gating, where autonomous features must follow the same per-tenant feature-switch rules (every sidebar item is switchable; new screens must be registered, and the new Autonomous Ops screens must be switchable and default correctly for sign-up tenants). [CODE][memory]
+
+**How to avoid:**
+- This does not reopen decision 1: new tenants get Undoable-auto, but the migration writes an **explicit** stored value for every existing tenant. Recommend a bounded "observe first" soak at rollout (global switch on Suggest platform-wide for the first days, recording would-have-acted decisions in the Activity view) and a release note; the user decides when to lift it.
+- Permission: `manage:autonomy` (change level) and `approve:autonomous_actions` separate from view, super-admin able to cap a tenant's maximum level; every change audited with before/after.
+- Register the new screens in the feature-switch catalogue and the tenant-sees-only-selected rules so a sign-up tenant does not receive them by default.
+- Test: after migration every tenant document has an explicit level; a tenant admin without the permission gets 403.
+
+**Warning signs:**
+Tenants with no stored level; autonomous actions in a tenant whose admins have never opened the screen.
+
+**Phase to address:** P-Core.
 
 ---
 
 ## Moderate Pitfalls
 
-### Pitfall 14: Cost data exposed to users who can only see the catalogue
+### Pitfall 26: Existing engine defects to fix before relying on it
+**What goes wrong:** `_acquire_agent_lease` counts then inserts (check-then-act race at the cap); `scan_for_remediable_findings` queries policies inside the per-finding loop (N+1 on a 2 vCPU box, up to 200 findings times a policies query) and silently truncates at `to_list(200)`/`100`; severity ceiling is skipped for nscan/vuln/fim sections; `_finding_from_request_doc` approval replay uses stored finding details with no re-check; stale `_tctx` unbound in `finally` if `set_tenant_id` raises. [CODE]
+**Prevention:** Atomic lease via unique index on `(agentId, slot)` or `findOneAndUpdate` counter; hoist policy load per cycle; paginate with a backlog counter surfaced in the UI ("N findings not yet processed"); apply the ceiling uniformly; add tests for each.
+**Phase:** P-Core / P-Sec.
 
-**What goes wrong:** The cost screen or cost fields are gated only by "can see ITAM / assets", so ordinary users or viewers see purchase prices.
-**Why:** `user` and `viewer` default roles hold `view:assets`; `itam_viewer` holds `view:itam`. `_require_itam_viewer` accepts `view:itam` or `manage:assets`. Cost is more sensitive than inventory.
-**Prevention:** Decide the cost permission explicitly. The milestone forbids a new permission model, so reuse an existing string: `view:finops` (granted to `admin`, `user`, `viewer` today, so too broad) or `manage:finance` (held by `itam_admin`) are the candidates, or `view:itam` for org-level only. Record the choice in the manifest. Strip cost fields from `GET /api/assets*` for callers without it (Pitfall 1).
-**Phase:** P75 (decision), P78/P79.
+### Pitfall 27: Polling remediation steps inside the request/loop thread
+**What goes wrong:** Step polling (60 s), verify polling (60 s) and a 30 s sleep run serially per finding inside the loop; a handful of findings stalls the cycle for many minutes and delays other tenants. UEBA runs `remediate()` in `BackgroundTasks` (up to about 120 s each) which can pile up with a flood of anomalies.
+**Prevention:** Decouple: the engine writes a decision and returns; a bounded worker pool (2) advances decisions; completion is driven by the agent result callback, with a timeout sweeper, not a sleeping coroutine.
+**Phase:** P-Core.
 
-### Pitfall 15: Duplicated `_require_itam_admin`/`_require_itam_viewer` guards drift
+### Pitfall 28: Undo/approval over a stale or offline agent
+**What goes wrong:** An undo or approved action queued for an agent that is offline executes whenever it returns, long after the context changed. 
+**Prevention:** `expires_at` on every instruction; undo against an offline agent is "pending, will run when agent returns, expires in X" with the dead-man's-switch as backstop; show the real state in Activity.
+**Phase:** P-Core, P-UI.
 
-**What goes wrong:** The cost router copies a guard, and a later change updates one copy.
-**Why:** `itam_catalog_endpoints.py` already keeps an independent duplicate (flagged T-73-04 and in `deferred-items.md`).
-**Prevention:** Import the canonical guard. The cost router must use the dual session/API-key dependency and the scope-narrowing check (`_scopes_allow`), so a scoped API token cannot read cost data its scopes exclude. Add a scope-narrowing test.
-**Phase:** P78.
+### Pitfall 29: Cert-expiry "healing" that breaks pinned agents
+**What goes wrong:** The platform pins its TLS identity in agents (tenant-boundary hardening added agent TLS pinning). Any automated certificate renewal or replacement changes the leaf/key and can lock out the whole fleet at once; renewal also needs operator-controlled secrets. [memory]
+**Prevention:** v4.3 scope is **warning only** (matches the milestone): warn at 30/14/7/3 days, include which certificates and whether agents pin them, include the operator procedure (pin rollover with overlap). Never auto-replace a cert.
+**Phase:** P-Heal.
 
-### Pitfall 16: Hidden catalogue entries still reachable through other UI surfaces
+### Pitfall 30: Antivirus and EDR on the endpoint reacting to the agent's own remediation
+**What goes wrong:** Capture PowerShell for remote desktop was quarantined by Microsoft Defender earlier; firewall commands (`netsh`, `iptables`), process termination, and service changes are classic EDR heuristics. Autonomous actions on an endpoint may be blocked, quarantined or flagged, producing false "failed verification" and false rollbacks. [memory]
+**Prevention:** Prefer native API calls over shelling out where possible (as done for GDI capture); classify "blocked by local security product" as its own result, not `FAILURE`; do not auto-retry it; document required AV exclusions for operators; test on a real Windows endpoint with Defender on before enabling by default (live-only check, flag it).
+**Phase:** P-Sec, P-Patch.
 
-**What goes wrong:** Global search, the command palette (`handleExecuteCommand` `navigateToView`), notifications, "recent" links, breadcrumbs and dashboard tiles still link to forbidden views.
-**Prevention:** Funnel all navigation through the one guarded function (Pitfall 3). Filter search results and dashboard tiles by the same manifest.
-**Phase:** P76.
+### Pitfall 31: Ollama as a shared-resource hazard
+**What goes wrong:** On 2 vCPU / 7 GB with MongoDB and the backend, loading a 3B model (about 2-3 GB resident) for ticket answers or summaries starves Mongo and the API; model unload/reload cycles stall; concurrent answers queue up; self-heal restarts it under memory pressure (Pitfall 14).
+**Prevention:** Single-flight queue (concurrency 1), `keep_alive` policy, a memory-headroom check before loading, request timeouts, and a degraded mode that bypasses the LLM entirely (templated summaries, escalation). All Autonomous Ops decisions must work with the LLM absent (they already must by decision 3); add a test that runs every flow with Ollama down.
+**Phase:** P-Desk, P-Heal.
 
-### Pitfall 17: Tier/feature locking conflated with permission gating
+### Pitfall 32: SIEM/OCSF and webhook fan-out of autonomous events
+**What goes wrong:** Every `write_audit` fires a fire-and-forget push; high-volume suppress/no-op audit records (Pitfall 20) would flood external SIEM endpoints and amplify any loop.
+**Prevention:** Only push action-level events (intent, result, undo, approval); roll up suppressed ones; keep task references so pushes are not garbage-collected.
+**Phase:** P-Core.
 
-**What goes wrong:** `minTier`/`featureKey` produce a visible-but-locked item ("Requires Pro plan"); permission gating produces a hidden item. Treating "locked" as "authorized" or vice versa shows upgrade prompts to roles that could never use the feature.
-**Prevention:** Evaluate permission first (hide), then tier (lock). Keep the two in separate, tested code paths, as `visibleGroups` does today. Do not add cost to the tier system.
-**Phase:** P76.
-
-### Pitfall 18: Rollups drift from existing KPI and report numbers
-
-**What goes wrong:** A third computation of "total book value" returns a different number from `itam_reporting_kpis` and the `asset_value` pre-built report.
-**Prevention:** Extract the asset-selection plus `compute_book_value` loop into one shared function and have KPI, pre-built report and cost view call it. Add a parity test across all three.
-**Phase:** P77.
-
-### Pitfall 19: Date and timezone handling in cost-as-of
-
-**What goes wrong:** "As of" dates use server-local `now`, so anniversary boundaries differ by timezone, and a tenant sees a drop a day early or late.
-**Prevention:** Use UTC consistently as `compute_book_value` does; expose `computedAt` (already in the book-value response). Do not add per-tenant timezone logic.
-**Phase:** P77.
+---
 
 ## Minor Pitfalls
 
-### Pitfall 20: Accordion height with filtered items
-**What goes wrong:** `SidebarGroup` sizes `maxHeight` from `group.items.length * 44 + 8`, which already uses the filtered list. A future change that computes it from the unfiltered list clips items.
-**Prevention:** Keep computing from the filtered items; add a small render test.
+### Pitfall 33: Activity view that cannot be trusted or loads slowly
+**What goes wrong:** Querying large audit collections without compound indexes `(tenantId, ts)`; no pagination; polling instead of push; mixing LLM text with facts; showing an undo button for items whose undo preconditions are false.
+**Prevention:** Indexes in the migration, cursor pagination, undo button computed from server-side `undoable_now`, "reason" shows the rule id and inputs.
+**Phase:** P-UI.
 
-### Pitfall 21: Localization and number formatting
-**What goes wrong:** `itamI18n.tsx` exists for ITAM panels; new cost strings and number formats added outside it.
-**Prevention:** Add cost strings to the same i18n module and format via `Intl`.
+### Pitfall 34: Clock and timestamp format inconsistency
+**What goes wrong:** Mixed ISO strings, BSON dates and ObjectId-time (the repo already mixes them: `remediation_inflight.expiresAt` compared as ISO strings, retention uses ObjectId time); string comparisons across mixed formats silently mis-order or never expire.
+**Prevention:** New collections use BSON Date only; add TTL indexes where expiry is the intent; one helper for "now".
+**Phase:** P-Core.
 
-### Pitfall 22: CSV/PDF export of cost data
-**What goes wrong:** Exports bypass the new permission or leak formulas (CSV injection).
-**Prevention:** Reuse the formula-safe export path from Phase 70/72 and apply the same cost permission.
+### Pitfall 35: Tests that pass because Mongo and the agent are mocked
+**What goes wrong:** Previous milestones closed with `human_needed` for live checks, and this milestone's risk is almost entirely in live behaviour (firewall state, reboots, systemd). Unit tests of `remediate()` with mocked `agent_instructions` cannot catch Pitfalls 5, 6, 7, 9.
+**Prevention:** For each action class an integration test against a real agent in a disposable environment, recorded as an explicit verification item; keep the live-only list short and named in the roadmap rather than discovered at the end.
+**Phase:** every phase; verification plan.
 
 ---
 
@@ -427,127 +565,153 @@ The org cost page times out or hammers Mongo for tenants with many assets, and i
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Gate nav on `Sidebar.tsx` only, "backend later" | Ships the visible feature fast | Security by obscurity; every unguarded route stays open | Never |
-| Add the missing `view:` strings to `user`/`viewer` to make menus appear | Menus show immediately | Silent over-grant of whole catalogues | Never (decide per role in the manifest) |
-| Keep two default permission tables | No refactor | Drift continues (29 + 17 mismatches today) | Only if a test fails on any mismatch |
-| Re-derive book value in the cost service | Avoids touching shared code | A third, divergent number | Never |
-| Treat `None` cost as 0 | Simple sums | Misleading totals, hidden coverage gaps | Never |
-| Cache cost responses with `@cached` | Fast page | Cross-tenant/cross-role leak risk | Only with tenant and permission in the key |
-| Precomputed nightly cost snapshot | Fast reads | Background-job tenant-context bug class returns | Only after compute-at-read is measured too slow |
-| Add a cost float field to License | Quick schema | Float money drift | Never; use integer cents |
+| Keep env-var `AUTONOMOUS_REMEDIATION_DRY_RUN` as the master switch | No new code | Needs restart (the user's step), cannot be per tenant, cannot cancel queued work | Never as the only control; fine as an extra deny |
+| Add autonomy checks only inside `remediate()` | One file to change | 40+ other enqueue sites bypass it | Never |
+| Boolean `destructive` instead of risk tier + undo pairing | Already exists | Cannot express "auto but must be undoable"; wrong approvals | Never for v4.3 |
+| In-process asyncio watchdog only | Fast to build | Blind when backend/VM/Mongo die | Only as the in-app layer next to an external supervisor and dead-man's switch |
+| Reuse `remediation_audit` as the activity store | No migration | No hash chain, no retention policy, no suppressed-decision records | Only as a derived view over `audit_ledger` |
+| Percent-based canary stages | Simple | Zero/one-host stages on small tenants | Only with min 1, cap, and OS/role coverage |
+| Call halting "rollback" | Matches the spec wording | False expectations, support and legal exposure | Never; use "halt" and "revert where supported" |
+| Let LLM text be the decision "reason" | Readable | Unreproducible, injectable, untestable | Never; store rule id as reason, LLM text as an annotation |
+| Shared notification channel for all event kinds | No design work | Alert storms; on-call ignores it | Never past the first demo |
+| Retention via one big `delete_many` | Three lines | Stalls Mongo on 2 vCPU | Only against collections known small |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| `TenantIsolatedCollection.aggregate` | Assuming `$lookup` targets are tenant-filtered | Only stage 0 is injected. Use batched `find` per collection, or add `tenantId` inside every lookup |
-| `platform-admin` token | Running cost query with no tenant | Require an explicit tenant or return a per-tenant breakdown, never a blended sum |
-| `rbac_utils.verify_permission` vs `rbac_service.has_permission` | Mixing them in one router | Pick one per router, from the manifest. Reconcile their default tables |
-| `/api/auth/me` `permissions` | Treating it as the effective permission set | It is the role document's list only. Return effective permissions (defaults + doc) |
-| `get_current_user_or_api_key` | Cost route accepting API keys without scope check | Apply `_scopes_allow` for the cost permission |
-| Agent heartbeat upsert into `assets` | Assuming discovered assets carry cost/model/policy | They carry none. Surface as unpriced |
-| `license_assignments` | Counting assignments as cost or capping reads at 1000 | Cost per license. Counts via `count_documents` or `$group` |
-| `@cached` decorator | Using it on tenant-from-ContextVar handlers | Avoid, or key on tenant and permission |
+| Agent instruction queue (`agent_instructions` vs `instructions`) | Two queues with different consumers; enqueue to the wrong one; no expiry | Single choke point, one queue per semantic, `expires_at`, result callback with decision id |
+| Rust agent result callback | Polling the DB for status with sleeps | Event-driven completion + timeout sweeper; treat missing result as `unknown` |
+| MongoDB on kernel 7 | Restarting mongod blindly; assuming start succeeds | Check last start result; `GLIBC_TUNABLES` drop-in is a known requirement; verify in the self-heal checklist |
+| systemd | App edits units/sudoers; no start limits | Operator-installed units with `StartLimit*`, scoped sudoers allowlist, app only calls an allowlisted helper |
+| Ollama | Treat as always present; unbounded concurrency | Optional dependency with expected-state flag, single-flight, timeouts, no-LLM fallback |
+| Jira/ServiceNow ticket bridge | AI comment echoes back as an inbound event | Author marker + echo suppression + once-only answer |
+| Notification/SMTP | Assume configured (keys unset on this VM) | Channel health check, "no on-call channel configured" state shown in UI |
+| `audit_ledger` | Writing to a second audit collection; deleting rows outside `purge_expired` | One writer, chain preserved, retention via ledger API |
+| `distributed_lock` | Treating the TTL as the job duration | Renewal + fencing; job-run records |
+| Tenant context (contextvars) | Setting per tenant in a loop and resetting once | `try/finally` per iteration; explicit `tenantId` on every record |
+| SIEM OCSF push | Pushing every audit row | Push action-level events only; rollups |
+| Microsoft Defender/EDR | Shelling out to netsh/powershell | Native calls where possible; classify "blocked by local security" |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Unbounded `to_list(length=None)` over assets | Slow page, high memory | Narrow projection, `$group` where possible, paginate detail rows | Likely in the tens of thousands of assets per tenant (unmeasured) |
-| N+1 `asset_models` lookup per asset | Chatty Mongo log | One `$in` batch, as the KPI does | Hundreds of assets |
-| `to_list(length=1000)` assignments | Silent undercount | `count_documents` | A license with more than 1000 seats |
-| Recompute on every request | Linear latency | Short TTL cache keyed by tenant and permission | High refresh rates on a large tenant |
-| Missing compound index for filtered slices | Collection scans | Verify or add `(tenantId, modelId)`, `(tenantId, lifecycleStatus)` | Large collections |
-| Permission check hitting DB on every route | Added latency | Defaults are checked first, the DB role lookup only on miss. Keep this order | Many gated calls per page load |
+| Serial per-tenant, per-finding loop with 30-60 s waits | Cycle time exceeds interval; other tenants starved | Decision queue + worker pool(2), callback-driven completion | A handful of findings per tenant, or tens of tenants |
+| Policies queried per finding (N+1) | Mongo CPU spikes each cycle | Load once per cycle, cache within the cycle | Hundreds of open findings |
+| `to_list(200)` silent truncation | Findings never processed | Pagination + visible backlog counter | More than 200 open findings in a tenant |
+| Heartbeats ~290 KB raw each | Disk fill, slow queries, slow retention | TTLs on all agent collections, bounded-batch retention, disk early warning | Already true (about 815 MB/day/endpoint) |
+| Unbatched retention delete | API stalls, oplog growth | Batches with sleep and latency budget; dry-run first | First scheduled run after backlog |
+| LLM on CPU | 10-60 s answers, Mongo starvation | Concurrency 1, timeouts, no-LLM fallback, extractive-first | Two simultaneous answers on 2 vCPU |
+| Activity queries without compound indexes | Slow UI | `(tenantId, ts)` and `(tenantId, decision_id)` indexes in migration | Tens of thousands of entries per tenant |
+| Websocket broadcast per audit row | CPU burst during storms | Coalesce events (per second), broadcast summaries | A containment cascade |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| UI-only gating | Unauthorized read of any ungated catalogue (HIGH) | P75 router-level guards plus contract test |
-| `GET /api/assets*` returning cost fields to everyone authenticated | Purchase prices leak to all tenant users (HIGH) | Field-gate or permission-gate before shipping costing |
-| Super-admin cross-tenant cost aggregate | Blended/leaked totals (HIGH) | Explicit tenant required |
-| Sidebar `hasPermission` fail-open fallback | Full menu when context is missing (MEDIUM) | Default to deny |
-| `setCurrentView` bypass paths | Forbidden views render (MEDIUM, UI-only) | Guard `renderView`, single navigation function |
-| Role permission edits not revoking sessions | Stale access until JWT expiry (MEDIUM) | Revoke or refresh on role edits |
-| Cost route ignoring API-key scope | Scoped token reads cost (MEDIUM) | `_scopes_allow` |
-| Tenant ID taken from the request instead of the token | Cross-tenant read (HIGH) | Context-var tenant only, as the wrapper enforces |
+| Ticket text inside the model's trust boundary | Injection, data exfiltration via links, social engineering of staff | No side-effect tools, schema-constrained output, link stripping, KB curation (Pitfall 21) |
+| LLM output parsed into actions | Attacker-controlled actions | Rules only; LLM annotates (locked decision 3) |
+| Approval is the only gate and is replayable | Stale/duplicated destructive actions | Atomic CAS, expiry, re-validation (Pitfall 8) |
+| Broad sudoers/root for self-heal | Host takeover through any injection | Scoped allowlist drop-in, fixed unit names |
+| Autonomous queries without `tenantId` | Cross-tenant effects and reads | Mandatory tenant param, two-tenant contract tests |
+| Platform-admin context in loops | Bypasses tenant guard | Platform scope separated; per-record tenant assertion |
+| Auto-block of shared/management IPs | Self-inflicted outage or DoS-by-feed | Protected list, TTL, dead-man's switch |
+| Autonomy setting editable by too many roles | Client raises own autonomy beyond MSP agreement | Dedicated permission, platform cap, audit of changes |
+| Block-rule propagation to all agents | One bad indicator hits a whole tenant | Per-decision cap, validation, approval for fleet-wide |
+| Secrets in decision/audit records (script text, params) | Credential leak via Activity view/SIEM | Redact params by key class; never store scripts (there are none after Pitfall 1) |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Silent denied navigation | "Click does nothing" | Visible notice and hash reset |
-| Blank sidebar for a role | Locked out with no explanation | Empty state plus profile/sign-out |
-| Cost total with no coverage | False confidence | "X of Y priced" with drill-down |
-| Zero vs unknown | Misread spend | `—` for unknown, `0` only when true |
-| `$` assumed | Wrong currency | Tenant currency label |
-| Flat book value for 11 months | "It's not depreciating" | Copy explaining annual steps |
-| New grants only appear after relogin | Support tickets | Refresh on focus/403 |
+| Approval cards without context | Blind clicking | Show what, why (rule), where, blast radius, undo availability, evidence |
+| One card per host for one incident | Fatigue | Group by incident; cap and digest |
+| "Autonomous" with no visible limits | Distrust or over-trust | Level descriptions, caps and current counters visible |
+| Undo button that sometimes fails | Lost trust | Compute `undoable_now`; show preconditions and result |
+| Silent "nothing happened" | Operators assume the system is broken or that it is working | Show suppressed/not-acted reasons and the current switch/level state |
+| AI answer indistinguishable from human | Client feels deceived; liability | Label automated answers, easy "talk to a person" |
+| Dashboard green when the alert channel is not configured | False assurance | Explicit "alerting not configured" banner |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Catalogue gating:** every nav item's backend routes return 403 for a role lacking the permission. Verify with a per-route sweep, not a sample.
-- [ ] **Catalogue gating:** `GET /api/assets` and `/api/assets/{id}` no longer return cost fields to roles without the cost permission.
-- [ ] **Permission strings:** every sidebar permission exists in the effective default role tables and in `viewPermissionMap` with the same value.
-- [ ] **Fail-closed:** Sidebar with a null user context renders no catalogue items.
-- [ ] **Navigation:** all `setCurrentView` call sites go through the guarded handler; `renderView` rejects forbidden views.
-- [ ] **Empty role:** each built-in role has at least one visible item and a permitted landing view.
-- [ ] **Super-admin:** gating verified with real role fixtures, not only as super-admin; `platform-admin` string handled identically on client and server.
-- [ ] **Role change:** a role-permission edit is reflected in the sidebar without logout, or the sessions are revoked.
-- [ ] **Tenant isolation:** two-tenant fixture test on every cost route, including super-admin with no tenant.
-- [ ] **Parity:** org total equals the Phase 72 KPI tile and the `asset_value` report for the same tenant.
-- [ ] **Coverage:** every total shows priced/unpriced/no-policy counts; null is not zero.
-- [ ] **License cost source:** the schema actually has a license cost field (or the requirement was explicitly descoped).
-- [ ] **Allocation invariant:** endpoint allocations plus unallocated equal org license spend.
-- [ ] **Math:** golden-value tests for whole-year depreciation, rounding, life=1, future date, disposed assets.
-- [ ] **Scale:** timing test on a seeded large tenant; no `$lookup`, no N+1.
-- [ ] **API key scope:** a narrowly scoped token cannot read cost.
+- [ ] **Autonomy level:** often missing action-time lookup and queue draining on change - verify setting Off cancels undelivered instructions and blocks the next scheduled cycle.
+- [ ] **Global stop:** often only blocks new decisions - verify queued instructions, pending approvals, rollout stages and AI replies all respect it, and that unreadable switch state means no action.
+- [ ] **Block IP undo:** often leaves duplicate rules - verify block twice, undo once, then confirm firewall state per OS.
+- [ ] **Protected targets:** often missing agent-side refusal - verify blocking the backend IP is refused by both backend and agent.
+- [ ] **Verification:** often checks the finding verdict - verify a successful block does not roll itself back.
+- [ ] **Approval:** often non-atomic - verify two simultaneous approvals dispatch once.
+- [ ] **Patch halt:** often never triggers because agent status is stale - verify killing an agent after install halts the rollout within the soak window.
+- [ ] **Patch revert:** often untested - verify per OS family and list non-reversible classes in the UI.
+- [ ] **Rollout resume:** often in-memory - verify a backend restart mid-stage halts or resumes without duplicates.
+- [ ] **Watchdog:** often inside the backend - verify an alert arrives when the backend or mongod is stopped and when the heartbeat stops.
+- [ ] **Restart budget:** often unbounded - verify a failing unit gets budget-many restarts then one page.
+- [ ] **Retention schedule:** often deletes audit - verify the ledger hash chain verifies after a scheduled run and API latency stays in budget.
+- [ ] **Scheduler:** often runs twice on overlap - verify two concurrent starts produce one run, including a run longer than the lock TTL.
+- [ ] **Tenant isolation:** often only tested for routes - verify two-tenant tests for each autonomous loop, Activity feed and desk answer.
+- [ ] **Service desk:** often answers when it should not - verify out-of-KB and injection test sets escalate with no side effects and no URLs.
+- [ ] **Alerting:** often per-event - verify a 200-agent offline simulation produces a bounded alert count.
+- [ ] **Audit:** often written after the act - verify intent exists for every instruction, including after fault injection.
+- [ ] **Copy:** often drifts - verify the banned-terms lint passes and every claim maps to a test.
+- [ ] **Existing tenants:** often default silently - verify each has an explicit stored level and the observe-first decision is recorded.
+- [ ] **Everything works with Ollama down:** verify each flow with the LLM absent.
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| UI-only gating shipped | HIGH | Treat as an incident. Run the route sweep, add router-level guards, rotate nothing but audit access logs for the exposed prefixes |
-| Cost fields leaked via `/api/assets` | MEDIUM | Gate or strip fields, review access logs, notify per policy |
-| Cross-tenant total shown | HIGH | Disable the route, fix scoping, add the two-tenant test, assess disclosure |
-| Role over-granted to make menus show | MEDIUM | Revert the role defaults, migrate custom role docs, revoke sessions |
-| Divergent book-value numbers | LOW | Point the cost view at the shared function, add the parity test |
-| Totals silently exclude unpriced | LOW | Add coverage fields and UI copy |
-| License cost field missing | MEDIUM | Add optional integer-cents field, backfill by tenant admins, show coverage meanwhile |
-| Stale client permissions | LOW | Add `/me` refetch on 403 and focus |
+| Containment cascade (many hosts blocked/isolated) | HIGH | Global stop; undo by decision group; agent TTL expiry will lift blocks; review audit by `decision_id`; add protected targets and lower caps before re-enabling |
+| Agent lost its control channel after a block | MEDIUM-HIGH | Rely on agent-side TTL revert; otherwise manual access on the host; add the protected list entry |
+| Restart loop on mongod/ollama | MEDIUM | Stop the restart (budget should have); operator checks journal and the GLIBC drop-in; fix cause; clear `needs_human` |
+| Bad patch reached stage 2+ | MEDIUM-HIGH | Halt rollout, cancel undelivered instructions, revert where reversible, otherwise manual remediation and tenant comms; record in incident |
+| Duplicate approval dispatch | LOW-MEDIUM | Check audit for double `override_approved`; verify host state; add CAS (Pitfall 8) |
+| Wrong AI answer sent | MEDIUM | Post correction through a human, mark the KB article/answer, add to the eval set, consider raising retrieval threshold or pausing AI answers for that tenant |
+| Injection suspected | MEDIUM | Disable service desk AI (switch), review conversations and any links sent, rotate anything exposed, extend red-team set |
+| Retention deleted audit or evidence | HIGH | Restore from backup (the repo has backups from the production-readiness work), re-run chain verification from checkpoint; fence the deleter |
+| Alert storm | LOW | Mute by incident key, enable correlation rule, lower channel rate; review dedup |
+| Cross-tenant effect | HIGH | Stop switch, identify records via `tenantId` mismatch query, notify affected tenants per policy, add the contract test that would have caught it |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| 1. UI-only gating (top) | P75 (enforce), P76 (consume) | Per-route 403 sweep over the manifest; no new `/api` route without a permission dependency |
-| 2. Divergent tables, ungranted strings | P75 | Test: every manifest permission is granted by at least one built-in role; the two tables agree |
-| 3. Client trust, fail-open | P76 | Null-context renders nothing; `renderView` guard test |
-| 4. Super-admin / cross-tenant | P76, P78, P79 | Role-fixture gating tests; super-admin without tenant gets 400/breakdown |
-| 5. Stale permissions | P75, P76 | Edit a role, assert refresh or session revoke |
-| 6. Empty-sidebar lockout | P76 | Each built-in role has a visible item and landing view |
-| 7. Missing license/consumable cost source | Requirements, P77 | Schema has the field, or the descoped requirement is recorded |
-| 8. Tenant leakage in aggregation/cache | P77, P78, P79 | Two-tenant test on every cost route; no `$lookup`/`@cached` |
-| 9. Depreciation math | P77 | Golden-value table; KPI/report/cost parity |
-| 10. Null / unmapped | P77, P79 | Coverage counts in every response |
-| 11. Currency | P77, P78 | Tenant currency label; no cross-tenant sum |
-| 12. Double counting | P77, P79 | Allocation invariant test; duplicate-serial report |
-| 13. Performance | P77, P78, P79 | Large-tenant timing test; no N+1 |
-| 14. Cost permission too broad | P75, P78 | Viewer/user role gets 403 on cost routes |
-| 15. Guard duplication / API-key scope | P78 | Scoped-token test |
-| 16. Other UI surfaces | P76 | Search, palette and notifications respect the manifest |
-| 17. Tier vs permission | P76 | Separate tests |
-| 18. KPI drift | P77 | Shared function, parity test |
-| 19. Timezone | P77 | UTC golden tests |
+| 1 Legacy LLM path goes live | P-Core | Test: only playbook-sourced instructions reach the queue; no agentic/ai_remediation imports in execution path |
+| 2 Bypass of policy layer | P-Core, P-Sec | Structural test on direct inserts; propagate-antibody respects Off and cap |
+| 3 Destructive vs undoable | P-Core, P-Sec | Schema validation for `risk_tier` + undo; round-trip tests per OS; agent version gate |
+| 4 Cascades, no idempotency | P-Core, P-Sec | Unique decision key test; cap/breaker test with simulated 50 findings; patch/FIM interlock test |
+| 5 Wrong verification | P-Sec | Block 192.0.2.x ends in `verified` not rollback |
+| 6 Undo does not undo | P-Sec, P-UI | Double block/single undo test; pre-state restore test; refcount test |
+| 7 Control channel severed | P-Sec | Protected target refusal (backend + agent); dead-man's-switch revert test |
+| 8 Approval fatigue/races | P-Core, P-UI | CAS test; expiry test; grouped cards; approval-time metric |
+| 9 Rollback not a rollback | P-Patch | Revert matrix per OS; UI wording "halt / revert where supported" |
+| 10 Stale health signals | P-Heal (cadence), P-Patch (gate) | Frozen-clock test of agent status cadence; kill-agent test halts rollout |
+| 11 Patching the platform/not resumable | P-Patch, P-Core | Platform host excluded; mid-stage restart chaos test |
+| 12 Staging mechanics | P-Patch | Small-tenant sizing test; instruction expiry test; no auto-complete with zero targets |
+| 13 Watchdog blind to host death | P-Heal | External unit files + checklist; dead-man's-switch alert test; alert channel health check |
+| 14 Restart loops/flapping | P-Heal | Restart budget + backoff test; expected-state registry test |
+| 15 Privilege creep | P-Heal | Allowlist/argument tests; reviewed sudoers drop-in provided, install is the operator's step |
+| 16 Retention/disk | P-Heal, P-Core | Batched retention latency test; chain verify after run; audit collections excluded |
+| 17 Scheduler double-runs | P-Core | Two-instance test; TTL-exceeding job test; per-iteration tenant context reset |
+| 18 Cross-tenant leakage | P-Core + each phase | Two-tenant contract tests for every loop/feed/answer; `is_duplicate_task` tenant fix |
+| 19 Stop switch scope | P-Core | Stop semantics test list (queued, approvals, rollouts, AI replies); fail-closed test |
+| 20 Audit gaps | P-Core, P-UI | Write-ahead intent test with fault injection; suppressed decisions recorded; chain verifies |
+| 21 Prompt injection | P-Desk | Red-team CI set; no tools; link stripping; KB curation rule |
+| 22 Hallucinated answers | P-Desk | Eval set with unanswerable questions (100% escalate); citation validation; once-only answer |
+| 23 Alert storms | P-Heal, P-Patch, P-Core | 200-agent offline simulation; maintenance-window suppression test |
+| 24 Over-claiming | P-UI + all phases | Banned-terms lint; claims-to-tests table in each phase verification |
+| 25 Default-on and permissions | P-Core | Migration test: every tenant has explicit level; permission 403 tests; screens in feature-switch catalogue |
+| 26-35 | As listed in each entry | Per-entry tests |
 
 ## Sources
 
-- Primary-source reads of this repository (HIGH): `backend/rbac_utils.py`, `backend/rbac_service.py`, `backend/tenant_middleware.py`, `backend/database.py`, `backend/authentication_service.py`, `backend/authentication_endpoints.py`, `backend/user_endpoints.py`, `backend/asset_endpoints.py`, `backend/itam_finance_service.py`, `backend/itam_finance_endpoints.py`, `backend/itam_license_service.py`, `backend/itam_license_endpoints.py`, `backend/itam_reporting_kpis.py`, `backend/itam_reporting_prebuilt.py`, `backend/itam_models.py`, `backend/itam_catalog_endpoints.py`, `backend/agent_heartbeat_endpoints.py`, `backend/cache_service.py`, `components/Sidebar.tsx`, `contexts/UserContext.tsx`, `App.tsx`.
-- Project history (HIGH): `.planning/PROJECT.md` (Phases 59, 60, 62, 63, 69-73 notes, including the Phase 63 audit BLOCKERs, T-71-04, T-73-04 and the Phase 72 "reuse the owning surface's computation" decision); the prior v4.0 PITFALLS.md (background-scheduler tenant isolation).
-- Scripted analysis (HIGH, reproducible): diff of Sidebar permissions against `rbac_service.default_roles`/`rbac_utils.DEFAULT_PERMISSIONS`; diff of Sidebar permissions against `viewPermissionMap`; endpoint-file scan for authentication-only routers.
-- General cost-accounting and performance guidance (MEDIUM): scale thresholds are estimates, not measurements, and should be validated in P78.
+- Repo findings read 2026-10-25 (HIGH): `/home/azureuser/enterprise-omni-agent-ai-platform/backend/autonomous_remediation_service.py`, `app_background_tasks.py`, `response_orchestrator.py`, `remediation_playbook_service.py`, `remediation_audit_service.py`, `swarm_service.py`, `distributed_lock.py`, `retention_service.py`, `audit_ledger.py`, `tickets_escalation_service.py`, `guardrail_service.py`, `ai_orchestration/guardrails.py`, `ai_assistant_service.py`, `ueba_service.py`, `playbooks/*.yaml`, and `agent-install/omni-agent-rs/src/instructions.rs` and `capabilities/remediation_actions.rs`; count of agent-queue insert sites from a grep of `backend/*.py`.
+- Project memory (user-authored notes, HIGH for local history): MongoDB on kernel 7.0 drop-in, data limits assessment, patch status stale after deploy, remote desktop Defender quarantine, optional integrations unconfigured, tenant boundary hardening, security hardening, feature switches.
+- [Moffatt v. Air Canada, 2024 BCCRT 149 coverage (American Bar Association, McMillan, Mondaq)](https://www.americanbar.org/groups/business_law/resources/business-law-today/2024-february/bc-tribunal-confirms-companies-remain-liable-information-provided-ai-chatbot/) - MEDIUM (tribunal decision, secondary coverage).
+- [FTC Operation AI Comply coverage (Davis Polk, Duane Morris)](https://www.davispolk.com/insights/client-update/ftc-announces-new-enforcement-initiative-targeting-deceptive-ai-practices) - MEDIUM (2024 coverage; final status of orders not re-verified).
+- [CrowdStrike Channel File 291 root cause analysis coverage (TechTarget, 63SATS)](https://www.techtarget.com/searchSecurity/news/366602392/CrowdStrike-details-errors-that-led-to-mass-IT-outage) - MEDIUM (staged rollout and validation lessons; secondary coverage, primary RCA not read).
+- OWASP LLM01 prompt injection guidance (search summaries; least privilege, tiered tool approval, untrusted-content marking, no fully reliable defence) - MEDIUM.
+- General SRE practice (restart budgets/backoff, hysteresis, dead-man's switch, alert grouping) - MEDIUM, widely established, not re-verified here.
 
 ---
-*Pitfalls research for: v4.2 Catalogue Access Control & Asset Costing*
-*Researched: 2026-10-12*
+*Pitfalls research for: Autonomous Ops on an existing multi-tenant MSP security/compliance/ITAM platform*
+*Researched: 2026-10-25*
