@@ -17,7 +17,8 @@
 - ✅ **[v3.4](milestones/v3.4-ROADMAP.md)** — Native Security Scanning & Autonomous Remediation Agent: built-in file/URL/IP/hash scanning (VirusTotal-like), vulnerability detection (Wazuh-like FIM/config-assessment/vuln-detection), file integrity monitoring, and autonomous remediation via playbook system. No external SIEM dependencies. 6 phases (50–55), 19 requirements. Shipped 2026-08-04. Gap-closure phases 63–66 (RBAC/label UI, rotate_key remediation, FIM process attribution, full YARA engine) promoted from backlog 2026-08-11 through 2026-08-23, tracked below.
 - ✅ **[v4.0](milestones/v4.0-ROADMAP.md)** — ITAM (IT Asset Management Lifecycle): Snipe-IT-parity asset lifecycle on top of the existing security CMDB — catalog & manual asset cataloging, check-out/check-in with append-only assignment history, offline QR/barcode labels, procurement/warranty/depreciation, software licenses & consumables, and an admin-gated ITAM console. 6 phases (56–61), 17 plans, 17/17 requirements. Shipped 2026-08-10.
 - ✅ **[v4.1](milestones/v4.1-ROADMAP.md)** — ITAM-Backlog: closed the gap between the ITAM console and Snipe-IT — user management (LDAP/SAML/2FA/API tokens), custom fields/audit trail/CSV import-export/global settings, procurement & asset workflow, reporting & dashboards, REST API & integrations. 5 phases (69–73), 26 plans, 24/24 requirements. Shipped 2026-08-26. Phases 69/70/72/73 closed `human_needed` (live-environment-only checks, accepted as override); Phase 71 fully `passed`.
-- 🚧 **v4.2 Catalogue Access Control & Asset Costing** — Role-scoped visibility of the left-nav catalogues enforced on both the sidebar and the backend routes (one effective-permission resolver, a shared catalogue manifest, a deny-by-default route-parity test), plus an organization- and endpoint-level asset cost view in the ITAM console built on the existing book-value and license data. 6 phases (75–80), 17 requirements. In progress — started 2026-10-12.
+- ⏸ **v4.2 Catalogue Access Control & Asset Costing** — Role-scoped visibility of the left-nav catalogues enforced on both the sidebar and the backend routes (one effective-permission resolver, a shared catalogue manifest, a deny-by-default route-parity test), plus an organization- and endpoint-level asset cost view in the ITAM console built on the existing book-value and license data. 6 phases (75–80), 17 requirements. In progress — started 2026-10-12. Paused 2026-10-25 for v4.3; resumes after it.
+- 🚧 **v4.3 Autonomous Ops** — One per-tenant autonomy level, one policy gate and one stop switch in front of every automatic action, with an audited Activity view and undo; automatic security response, staged patch rollouts, platform self-healing and first-line service-desk answers within limits an operator sets, asking a person only to approve destructive actions. 6 phases (81–86), 55 requirements. In progress — started 2026-10-25.
 
 ## Phases
 
@@ -310,6 +311,119 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
+## v4.3 — Autonomous Ops (Phases 81–86) — IN PROGRESS
+
+*Execution shape: Phase 81 first; Phases 82, 83 and 85 can then run in parallel; Phase 84 follows 83; Phase 86 closes the milestone after 82–85. Ships inert: shadow mode and the environment dry-run floor stay on until an operator lifts a tenant (Phase 86). v4.2 Phases 75–80 above are untouched and resume after this milestone.*
+
+- [ ] **Phase 81: Autonomy Gate, Stop Switch & Activity Ledger** - One code-owned decision gate, a stop switch, write-ahead decision records and a read-only Autonomous Ops screen, with the legacy LLM remediation path removed
+- [ ] **Phase 82: Platform Self-Healing & Scheduled Retention** - An external watchdog restarts what fails within a budget, warns before certificates expire or disks fill, pages on-call, and retention runs on a schedule
+- [ ] **Phase 83: Autonomous Security Response** - Findings become undoable containment on their own and destructive approval cards, each verified, deduplicated and undoable from the Activity screen
+- [ ] **Phase 84: Staged Patch Rollouts** - Ring-based patch rollouts with soak, a real health gate, maintenance windows and one approval per stage; halts on failure and reverts where supported
+- [ ] **Phase 85: First-Line Service Desk** - New tickets are answered from the knowledge base with citations or escalated by fixed rules, and never answered when the model is unavailable
+- [ ] **Phase 86: Activity Reporting, Hardening & Live Validation** - Daily digest, per-rule statistics, export and a time-saved estimate, plus stop drills, two-tenant isolation checks and live validation across every automatic actor
+
+### Phase 81: Autonomy Gate, Stop Switch & Activity Ledger
+
+**Goal**: Every automatic action in the platform passes one code-owned decision gate that an operator can stop instantly, that records and audits each decision before anything is dispatched, and whose results appear on a new Autonomous Ops screen — with the legacy LLM-driven remediation path removed, so the engine is safe to switch on.
+**Depends on**: Nothing in v4.3 (first phase). Builds on the already-deployed catalogue manifest and per-tenant feature switches; v4.2 Phases 78–80 are not prerequisites.
+**Requirements**: GATE-01, GATE-02, GATE-03, GATE-04, GATE-05, GATE-06, GATE-07, GATE-08, GATE-09, GATE-10, GATE-11, GATE-12, GATE-13, GATE-14, ACTV-01, ACTV-03, ACTV-08
+**Success Criteria** (what must be TRUE):
+  1. Every tenant has an explicit stored autonomy level (Off / Suggest / Undoable-auto): existing tenants receive one from the migration and new tenants default to Undoable-auto. A tenant whose Autonomous Ops screen a Super Admin has not ticked, or whose level cannot be read, is treated as Suggest. A Super Admin sets the highest level each tenant may use, a tenant admin can choose only at or below it, and changing a level, approving or undoing actions, and flipping the platform stop are separate permissions.
+  2. Every automatic action passes one ordered decision function (platform stop, eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression), and a structural test fails if any other code writes an autonomous agent instruction. Block IP, quarantine file and restart service are classed auto; isolate host, kill process and patch reboot need approval; a playbook can raise a class but never lower it. The platform host, its own IP addresses and the management network can never be blocked, isolated or patched automatically, and a per-decision cap limits how many hosts one decision can touch.
+  3. The legacy LLM-driven remediation path (`run_cycle` / `generate_plan` / `execute_plan`) and the 0.90 confidence auto-approve for automatic actions are gone, and a test proves only registry-listed playbook actions can reach the agent queue. Shadow mode is on by default at deployment: the gate records what it would have done and dispatches nothing. A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; either takes effect without a restart — new decisions halt, automatic instructions already queued are held back at the next agent poll, and pending approvals and rollouts freeze. When several automatic actions in a row for a tenant are undone or fail, that tenant drops to Suggest and the on-call channel is told.
+  4. Every decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention. An approval dispatches exactly once even if clicked twice, and an approval left pending past its expiry counts as denied. Automatic sweeps run one at a time across the deployment, and a two-tenant test shows no action or record crosses tenants. Agent online/offline status refreshes every 5 minutes as documented.
+  5. An operator with the Autonomous Ops screen enabled and the matching permission opens it from the catalogue and sees actions in the states Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result; in shadow mode "would have done" entries are clearly labelled as a simulation. A copy check fails the build if Autonomous Ops screens or docs use any of the banned terms listed in ACTV-08.
+**Plans**: TBD
+**UI hint**: yes
+**Research**: None — internal composition over code already read (standard patterns).
+**Live-only verification** (operator steps, not unit-testable): apply migration 024 and restart the backend; flip the platform stop on the live server and confirm a real agent poll holds back a queued automatic instruction without a restart; confirm agent online/offline status refreshes on the 5-minute cadence. Until Phase 83 adds a security sweep nothing automatic runs, so live Activity data is limited to gate and shadow entries — intended.
+**Decisions to settle before planning**: D1–D4 (see `.planning/research/SUMMARY.md`).
+
+### Phase 82: Platform Self-Healing & Scheduled Retention
+
+**Goal**: The platform watches its own health from outside the backend, restarts what fails within a budget, warns well before certificates expire or disks fill, pages the on-call person, and runs data retention on a schedule without ever touching audit evidence.
+**Depends on**: Phase 81 (stop switch, decision ledger, platform-scope Activity view, and the 5-minute agent status refresh from GATE-12). Independent of Phases 83–85 — can run in parallel with them.
+**Requirements**: HEAL-01, HEAL-02, HEAL-03, HEAL-04, HEAL-05, HEAL-06, HEAL-07, HEAL-08
+**Success Criteria** (what must be TRUE):
+  1. When MongoDB, the backend or (only where expected) Ollama stops, the watchdog notices within about a minute and restarts it from a fixed allowlist, MongoDB before the backend; once the restart budget is used up it backs off, stops restarting and pages exactly once.
+  2. The operator is warned 30, 14, 7 and 1 days before a certificate expires, when a disk passes 80, 90 and 95 percent, and days ahead when a disk will fill at its current growth rate; the platform never renews a certificate or deletes a file on its own.
+  3. An operator can send a test alert to the configured webhook or PagerDuty channel and see it arrive once (deduplicated); a banner shows when no working channel is configured, and an alert fires when the watchdog itself stops reporting.
+  4. Data retention runs on a schedule per tenant in bounded batches and never touches audit logs, the audit ledger or decision records; its first run is a dry-run count the operator confirms before anything is deleted.
+  5. Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope, and the repo ships the watchdog unit files, service drop-ins and an install checklist — the app itself installs nothing on the live server.
+**Plans**: TBD
+**UI hint**: yes
+**Research**: Light — polkit/sudoers scoping for the watchdog and its MongoDB authentication path (MongoDB auth is still an open readiness item).
+**Live-only verification** (operator steps): install the watchdog units, drop-ins and any scoped sudoers/polkit rule (never `run-on-ubuntu.sh`); stop and start MongoDB and the backend for real; alert delivery to the real on-call channel; confirm the first retention dry-run count before any live run.
+**Decisions to settle**: D14–D16 gate go-live, not planning.
+
+### Phase 83: Autonomous Security Response
+
+**Goal**: Security findings turn into containment on their own when it is undoable — block a malicious IP, quarantine a malicious file, restart a failed service — and into one-click approval cards when it is destructive, with each action verified, undoable from the Autonomous Ops screen where an inverse exists, and never repeated or amplified.
+**Depends on**: Phase 81 (gate, action registry, ledger, Activity screen). Independent of Phases 82 and 85 — can run in parallel with them; agent-verb groundwork (the Rust/Python parity matrix) can start during Phase 81.
+**Requirements**: RESP-01, RESP-02, RESP-03, RESP-04, RESP-05, RESP-06, RESP-07, RESP-08, RESP-09, RESP-10, RESP-11, ACTV-02
+**Success Criteria** (what must be TRUE):
+  1. A malicious scan verdict, agent vulnerability or file-integrity change becomes a playbook action through the gate, replacing the legacy remediation loop. At Undoable-auto, a malicious single IP address confirmed by two independent signals is blocked for 24 h by default (the agent removes the block at expiry even if it has lost contact with the platform), a malicious file is quarantined (moved, never deleted), and a failed service is restarted within its restart budget; a single signal becomes a suggestion, and an IP range or an exhausted restart budget needs approval.
+  2. Kill process and isolate host appear as approval cards, one card per incident rather than one per alert; isolation always keeps the agent's management connection open and reverts automatically after a set time unless an operator confirms it.
+  3. Each action is verified by its own check (the firewall rule exists, the file is in quarantine), so a successful block is never reverted; the same finding does not create a new action every cycle, and an action an operator undid is not redone for 24 hours.
+  4. From the Autonomous Ops screen an operator can approve or deny pending actions and undo done actions that have an inverse (remove a block, restore a quarantined file) with one click.
+  5. The Rust agent (with Python agent parity where that agent stays supported) supports restart service, quarantine and restore file, isolate and restore host, and reboot host; each is gated by the tenant's agent-capability ticks, and rules that need one stay dormant until the agent reports support. The swarm "propagate antibody" and SOAR block/isolate paths are fenced so they cannot dispatch automatic containment.
+**Plans**: TBD
+**UI hint**: yes
+**Research**: Needed (`/gsd-plan-phase --research-phase 83`) — cross-platform agent semantics (idempotent firewall rules, refcounted undo, `netsh` vs Defender heuristics, native APIs, isolate with management carve-out, per-action verify); re-run the `db.instructions` grep before fencing swarm and SOAR.
+**Live-only verification** (operator steps): firewall block and unblock round-trip on real Linux and Windows endpoints (EILT0197 with Defender); a block expiring while its agent is offline; quarantine and restore; isolate with the management connection kept open and the automatic revert; service restart; publish and roll out the new agent.
+**Decisions to settle before planning**: D5–D8 (see `.planning/research/SUMMARY.md`).
+
+### Phase 84: Staged Patch Rollouts
+
+**Goal**: Operators run patch rollouts in rings, each stage gated by a soak period and a real health check that halts the rollout — and reverts where the operating system supports it — on failure, inside the maintenance window, with one approval per stage for anything risky.
+**Depends on**: Phase 81 (gate, ledger, stop freezes rollouts) and Phase 83 (undo, dedupe and suppression conventions, blast-radius handling, and the reboot-host agent action from RESP-10). Independent of Phases 82 and 85.
+**Requirements**: PTCH-01, PTCH-02, PTCH-03, PTCH-04, PTCH-05, PTCH-06, PTCH-07
+**Success Criteria** (what must be TRUE):
+  1. An operator can define rollout rings per tenant (a canary ring, then larger stages); a rollout moves to the next ring only after its soak period has passed and its health gate is green.
+  2. The health gate combines the install result, the post-install inventory, a fresh heartbeat after reboot and key services, and missing data halts the rollout; a stage also halts when more than a set share of its hosts fail, once a minimum sample size is reached.
+  3. A failed stage halts the rollout and reverts the patch where the operating system supports it, and the screen says "halts on failure; reverts where supported" without ever promising an unqualified revert.
+  4. A rollout installs or advances only inside the maintenance window recorded in Change Management; outside the window nothing is installed.
+  5. Installs run on their own only in the canary ring and only for patch classes marked reversible; every other install and every reboot waits for one approval per stage. The platform's own host is never patched by a rollout, a host belongs to at most one active rollout, and patch instructions expire.
+**Plans**: TBD
+**UI hint**: yes
+**Research**: Needed (`/gsd-plan-phase --research-phase 84`) — per-OS patch reversibility matrix; health-gate signals; confirm the existing patch-revert path dispatches real agent work (OS patching was fake end to end until 2026-10-12).
+**Live-only verification** (operator steps): a real canary install plus reboot on a disposable host; revert on a supported OS; the post-reboot heartbeat feeding the gate; maintenance-window enforcement; the per-stage reboot approval click.
+**Decisions to settle before planning**: D10–D13 (see `.planning/research/SUMMARY.md`).
+
+### Phase 85: First-Line Service Desk
+
+**Goal**: New first-line tickets get a cited answer drafted from the tenant's knowledge base — posted, drafted or escalated by fixed rules — and anything the system is unsure of, anything sensitive, and everything while the language model is unavailable goes to a person.
+**Depends on**: Phase 81 (level, gate, ledger, stop). Independent of Phases 82–84 — can run in parallel with them. Live validation needs Ollama installed on the server (operator step).
+**Requirements**: DESK-01, DESK-02, DESK-03, DESK-04, DESK-05, DESK-06, DESK-07
+**Success Criteria** (what must be TRUE):
+  1. A new ticket that the knowledge base covers gets an answer with cited articles: at Undoable-auto a qualifying answer is posted marked "AI-assisted", at Suggest it is an internal draft, and the ticket closes only when the requester confirms.
+  2. A ticket is escalated to a person, never answered, when no article matches well enough, when the requester asks for a person, or when it concerns security, billing, legal or account access; the model's own confidence is never used to decide. The operator sees a knowledge-gap list of the questions escalated because no article covered them.
+  3. Ticket text can never trigger an action; links and HTML are stripped before the model sees it, and a prompt-injection test set passes.
+  4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
+  5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
+**Plans**: TBD
+**UI hint**: yes
+**Research**: Needed (`/gsd-plan-phase --research-phase 85`) — measure `llama3.2:3b` CPU tokens per second once Ollama exists; calibrate the retrieval threshold; build prompt-injection and escalation eval sets.
+**Live-only verification** (operator steps): install Ollama and pull `llama3.2:3b`; measure real CPU response time; calibrate the retrieval threshold on a real knowledge base; a real ticket round trip including requester confirmation.
+**Decisions to settle before planning**: D18 (see `.planning/research/SUMMARY.md`).
+
+### Phase 86: Activity Reporting, Hardening & Live Validation
+
+**Goal**: Operators get the daily digest, per-rule statistics, export and an honest time-saved estimate, and the whole of Autonomous Ops is proven safe end to end — stop drills, two-tenant isolation and a live-only checklist — before any tenant is lifted out of shadow mode.
+**Depends on**: Phases 82, 83, 84 and 85 (the digest, statistics, export and drills cover every automatic actor).
+**Requirements**: ACTV-04, ACTV-05, ACTV-06, ACTV-07
+**Success Criteria** (what must be TRUE):
+  1. Each tenant receives one daily digest of what ran, what was undone and what is waiting for approval.
+  2. An operator can see per-rule statistics (how often each rule fired and was approved, denied or undone) and export the activity log as CSV or PDF.
+  3. The screen shows an estimate of operator time saved, labelled as an estimate.
+  4. A live stop drill across every actor shows that the platform stop and a tenant stop halt new security decisions, hold back queued instructions, freeze pending approvals and patch rollouts, and pause AI ticket replies (this re-verifies GATE-06 against the actors built in Phases 82–85).
+  5. A two-tenant contract test per automatic loop (security response, patch rollouts, service desk, retention) shows nothing crosses tenants, and the live-only checklist (firewall round-trip, reboot gate, watchdog stop/start, alert delivery) is walked and recorded before any tenant is lifted out of shadow mode.
+**Plans**: TBD
+**UI hint**: yes
+**Research**: None — UI, tests and copy checks (standard patterns).
+**Live-only verification** (operator steps): kill-switch drills on the live server (queued instructions, pending approvals, rollouts, AI ticket replies); the observe-first soak and per-tenant lift out of shadow mode; digest delivery; CSV and PDF export download.
+**Decisions to settle**: D2 (who lifts shadow mode, and when) and D19 gate go-live (see `.planning/research/SUMMARY.md`).
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -320,3 +434,9 @@ Plans:
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
+| 81. Autonomy Gate, Stop Switch & Activity Ledger | 0/TBD | Not started | - |
+| 82. Platform Self-Healing & Scheduled Retention | 0/TBD | Not started | - |
+| 83. Autonomous Security Response | 0/TBD | Not started | - |
+| 84. Staged Patch Rollouts | 0/TBD | Not started | - |
+| 85. First-Line Service Desk | 0/TBD | Not started | - |
+| 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |

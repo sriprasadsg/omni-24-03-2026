@@ -160,7 +160,7 @@
 
 ## Traceability
 
-Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3 rows are filled by the v4.3 roadmap.
+Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3 rows populated 2026-10-25 by the v4.3 roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -181,13 +181,70 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | COST-06 | Phase 78 | Pending |
 | COST-07 | Phase 78 | Pending |
 | COST-08 | Phase 80 | Pending |
+| GATE-01 | Phase 81 | Pending |
+| GATE-02 | Phase 81 | Pending |
+| GATE-03 | Phase 81 | Pending |
+| GATE-04 | Phase 81 | Pending |
+| GATE-05 | Phase 81 | Pending |
+| GATE-06 | Phase 81 | Pending |
+| GATE-07 | Phase 81 | Pending |
+| GATE-08 | Phase 81 | Pending |
+| GATE-09 | Phase 81 | Pending |
+| GATE-10 | Phase 81 | Pending |
+| GATE-11 | Phase 81 | Pending |
+| GATE-12 | Phase 81 | Pending |
+| GATE-13 | Phase 81 | Pending |
+| GATE-14 | Phase 81 | Pending |
+| ACTV-01 | Phase 81 | Pending |
+| ACTV-03 | Phase 81 | Pending |
+| ACTV-08 | Phase 81 | Pending |
+| HEAL-01 | Phase 82 | Pending |
+| HEAL-02 | Phase 82 | Pending |
+| HEAL-03 | Phase 82 | Pending |
+| HEAL-04 | Phase 82 | Pending |
+| HEAL-05 | Phase 82 | Pending |
+| HEAL-06 | Phase 82 | Pending |
+| HEAL-07 | Phase 82 | Pending |
+| HEAL-08 | Phase 82 | Pending |
+| RESP-01 | Phase 83 | Pending |
+| RESP-02 | Phase 83 | Pending |
+| RESP-03 | Phase 83 | Pending |
+| RESP-04 | Phase 83 | Pending |
+| RESP-05 | Phase 83 | Pending |
+| RESP-06 | Phase 83 | Pending |
+| RESP-07 | Phase 83 | Pending |
+| RESP-08 | Phase 83 | Pending |
+| RESP-09 | Phase 83 | Pending |
+| RESP-10 | Phase 83 | Pending |
+| RESP-11 | Phase 83 | Pending |
+| ACTV-02 | Phase 83 | Pending |
+| PTCH-01 | Phase 84 | Pending |
+| PTCH-02 | Phase 84 | Pending |
+| PTCH-03 | Phase 84 | Pending |
+| PTCH-04 | Phase 84 | Pending |
+| PTCH-05 | Phase 84 | Pending |
+| PTCH-06 | Phase 84 | Pending |
+| PTCH-07 | Phase 84 | Pending |
+| DESK-01 | Phase 85 | Pending |
+| DESK-02 | Phase 85 | Pending |
+| DESK-03 | Phase 85 | Pending |
+| DESK-04 | Phase 85 | Pending |
+| DESK-05 | Phase 85 | Pending |
+| DESK-06 | Phase 85 | Pending |
+| DESK-07 | Phase 85 | Pending |
+| ACTV-04 | Phase 86 | Pending |
+| ACTV-05 | Phase 86 | Pending |
+| ACTV-06 | Phase 86 | Pending |
+| ACTV-07 | Phase 86 | Pending |
 
 **Coverage:**
-- v4.3 v1 requirements: 55 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8) — mapped by the v4.3 roadmap
+- v4.3 v1 requirements: 55 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8) — 55/55 mapped to Phases 81–86 by the v4.3 roadmap (2026-10-25), no orphans, no duplicates
 - v4.2 v1 requirements: 17 total (ACC 9, COST 8) — mapped to Phases 75–80, unchanged
+
+**Per phase (v4.3):** Phase 81 = 17 (GATE-01..14, ACTV-01, ACTV-03, ACTV-08) | Phase 82 = 8 (HEAL-01..08) | Phase 83 = 12 (RESP-01..11, ACTV-02) | Phase 84 = 7 (PTCH-01..07) | Phase 85 = 7 (DESK-01..07) | Phase 86 = 4 (ACTV-04..07)
 
 **Per phase (v4.2):** Phase 75 = 2 (ACC-01, ACC-02) | Phase 76 = 3 (ACC-03, ACC-04, ACC-05) | Phase 77 = 4 (ACC-06..09) | Phase 78 = 5 (COST-01, 02, 03, 06, 07) | Phase 79 = 2 (COST-04, COST-05) | Phase 80 = 1 (COST-08)
 
 ---
 *Requirements defined: 2026-10-12 (v4.2), 2026-10-25 (v4.3)*
-*Last updated: 2026-10-25 after defining v4.3 requirements (v4.2 paused, rows unchanged)*
+*Last updated: 2026-10-25 after the v4.3 roadmap mapped all 55 requirements to Phases 81–86 (v4.2 paused, rows unchanged)*

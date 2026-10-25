@@ -2,11 +2,13 @@
 gsd_state_version: "1.0"
 milestone: v4.3
 milestone_name: Autonomous Ops
+current_phase: 81
+current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: planning
-last_updated: "2026-10-25T12:11:25.246Z"
+last_updated: "2026-10-25T12:39:16.000Z"
 last_activity: 2026-10-25
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,7 +22,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 77 — Fail-Closed Sidebar, View Gate & Role Visibility
+**Current focus:** Phase 81 — Autonomy Gate, Stop Switch & Activity Ledger (milestone v4.3 Autonomous Ops; v4.2 paused)
 
 ## Current Phase
 
@@ -656,10 +658,12 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
+Phase: 81 — Autonomy Gate, Stop Switch & Activity Ledger (not started; ready to plan)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-10-25 — Milestone v4.3 started
+Status: Planning — roadmap created, 55/55 requirements mapped to Phases 81–86
+Last activity: 2026-10-25 — v4.3 roadmap created
+Progress: 0/6 phases complete (0%)
 
 ## Deferred Items
 
