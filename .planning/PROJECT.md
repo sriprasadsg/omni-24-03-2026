@@ -41,18 +41,33 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 </details>
 
-## Current Milestone: v4.2 Catalogue Access Control & Asset Costing
+## Current Milestone: v4.3 Autonomous Ops
 
-**Goal:** Give tenants role-scoped visibility of the left-nav catalogues and a cost view of their assets at organization and endpoint level — both built on systems already shipped (RBAC/ReBAC, ITAM finance).
+**Goal:** The platform handles routine security response, patching, its own health, and first-line support on its own within per-tenant limits, and asks a person only to approve destructive actions.
 
 **Target features:**
-- Role-based catalogue access — each left-sidebar module is shown only when the user's role holds the matching `view:` permission, enforced by existing RBAC (Phase 36 ReBAC / `rbac_utils`); UI hiding mirrors backend route authorization (defense in depth). No new permission model.
-- Org-level asset cost — tenant-wide cost rollup from existing ITAM procurement/depreciation/license data (total purchase cost, current depreciated book value, license spend).
-- Endpoint-level asset cost — per endpoint/asset cost (purchase cost, depreciated book value, allocated license cost).
+- Per-tenant autonomy level (Off / Suggest / Undoable-auto, default Undoable-auto) — every action audited, undoable where possible, one switch stops everything.
+- Security response — alerts become containment through the existing v3.4 remediation engine (`autonomous_remediation_service.py`, YAML playbooks, approval gate, rollback); undoable actions (block IP, quarantine file, restart a service) run on their own, destructive ones (isolate host, kill process, patch reboot) wait for one approval click; a blast-radius cap limits how many machines one decision touches.
+- Patching — scheduled staged rollouts with a health check after each stage that halts and rolls back automatically on failure.
+- Platform self-healing — watch backend, MongoDB and Ollama, restart what fails, warn before certificates expire or disks fill, run the retention job on a schedule (manual today), alert the on-call person.
+- Service desk — the AI assistant answers first-line tickets from the knowledge base and escalates anything it is unsure of.
+- Activity view — what Autonomous Ops did, why, and an undo button.
 
-**Key context:** No new permission system and no new cost-entry system — both reuse existing data (ReBAC permissions; ITAM phases 59–60). Multi-tenant isolation must hold throughout. Phases continue from 75.
+**Key context:** Never labelled "ASI" or "Autopilot" (the sidebar already has Windows Autopilot, `autopilot_service.py`). Fixed, tested rules choose every action; the local LLM (Ollama `llama3.2:3b`, inactive on this VM) only summarises and suggests — no LLM in the execution path, matching the v3.4 Phase 53 decision. VM is 2 vCPU / 7 GB / no GPU. Applying self-healing on the live VM (restarts, systemd units) is the user's step. Phases start at 81.
+
+**v4.2 Catalogue Access Control & Asset Costing — paused, still open (2026-10-25):** started 2026-10-12; Phase 77 complete, Phases 75–76 deployed awaiting verification, Phases 78–80 (costing) not started. By the user's choice v4.3 runs first and v4.2 resumes afterwards; its phase folders and requirements were deliberately left in place rather than archived.
 
 ## Requirements
+
+### Active
+
+- [ ] Per-tenant autonomy level with audit, undo and a global stop switch (v4.3)
+- [ ] Autonomous security response through the existing remediation engine, destructive actions approval-gated (v4.3)
+- [ ] Staged patch rollouts with automatic halt and rollback (v4.3)
+- [ ] Platform self-healing watchdog, expiry/disk warnings, scheduled retention (v4.3)
+- [ ] AI first-line ticket answers with escalation (v4.3)
+- [ ] Autonomous Ops activity view with undo (v4.3)
+- [ ] v4.2 costing (Phases 78–80) — resumes after v4.3
 
 ### Validated
 
@@ -170,4 +185,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-12 after starting milestone v4.2*
+*Last updated: 2026-10-25 after starting milestone v4.3 (v4.2 paused, still open)*

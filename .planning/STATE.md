@@ -1,21 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v4.2
-milestone_name: Catalogue Access Control & Asset Costing
-current_phase: 75
-current_phase_name: Permission Resolver & Single Source of Truth
+milestone: v4.3
+milestone_name: Autonomous Ops
 status: planning
-stopped_at: Phase 77 complete, ready to plan Phase 75
-last_updated: "2026-10-21T13:48:47.132Z"
-last_activity: 2026-10-21
-last_activity_desc: Phase 77 complete, transitioned to Phase 75
-state_head: 4a9e0bfa7614aa82213bc659573feac7bf794ec2
+last_updated: "2026-10-25T12:11:25.246Z"
+last_activity: 2026-10-25
 progress:
-  total_phases: 6
-  completed_phases: 1
-  total_plans: 33
-  completed_plans: 33
-  percent: 17
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -652,6 +647,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - v4.0 milestone added 2026-08-04: 6 new phases (56-61) scaffolded from research run the same day against the milestone's 4 target clusters (lifecycle/check-in-out, procurement/finance, catalog/org, licenses/consumables) plus a Snipe-IT/GLPI/Freshservice feature-convergence pass. Phase 56 (Catalog & Foundation) is the hard prerequisite for every later phase; Phase 61 (Frontend ITAM Console) is threaded last, mirroring the Phase 47/48 admin-gated nav pattern. All 17 v1 requirements (ITAM-CAT/LIFE/FIN/LIC/UI) mapped 1:1 to a phase, no orphans.
 - Phase 63 added: Close gap: ITAM-LIC-02/03 RBAC + ITAM-CAT-05 label UI
 - v4.2 milestone added 2026-10-12: 6 new phases (75-80) roadmapped from 17 v1 requirements (ACC-01..09, COST-01..08), continuing numbering from Phase 74. Two largely independent tracks: access control (75 resolver -> 76 manifest + backend guards + parity test -> 77 fail-closed sidebar/ViewGate/role view) and asset costing (78 org/endpoint cost API -> 79 license cost + allocation -> 80 Costs tab). The cost API sits on Phase 76's hardened guards (cost routes gated by `view:itam`). Backend enforcement deliberately precedes any UI claim; Phase 79 is isolated so license spend can be descoped (open decision D-1) without disturbing the hardware-cost slice. All 17 requirements mapped 1:1, no orphans.
+- v4.3 Autonomous Ops started 2026-10-25 AHEAD of v4.2's open phases, by the user's choice: v4.2 is paused, not complete (77 complete; 75–76 deployed, awaiting verification; 78–80 costing not started) and resumes after v4.3. Its phase folders were deliberately NOT archived (`phases.clear` skipped), its requirements stay in REQUIREMENTS.md, and its milestone research was copied to `milestones/v4.2-research/` before v4.3 research reused `.planning/research/`. v4.3 phases start at 81 so 78–80 keep their numbers. The user asked for "ASI"; agreed scope is Autonomous Ops — never label it ASI or "Autopilot" (Windows Autopilot already exists).
 - Phase 74 added 2026-08-26: Interactive Remote Desktop Control (Zoho Assist parity) — upgrades the existing view-only screenshot-stream remote access feature to attended interactive control (input relay, consent gate, control:remote_access permission, audit log). First phase of a new post-v4.1 cycle; no milestone version assigned yet.
 
 ### Pending Todos
@@ -660,13 +656,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Current Position
 
-Phase: 75 — Permission Resolver & Single Source of Truth
-Plan: Not started
-Status: Ready to plan
-Progress: [██░░░░░░░░] 17% (0/6 phases)
-Last activity: 2026-10-21 — Phase 77 complete, transitioned to Phase 75
-
-Next: `/gsd-plan-phase 75`
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-10-25 — Milestone v4.3 started
 
 ## Deferred Items
 
