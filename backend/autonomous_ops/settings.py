@@ -98,9 +98,11 @@ def effective_level(s: TenantSettings) -> str:
 
 
 def master_shadow() -> bool:
-    """The deployment-wide master (D-02): AUTONOMOUS_REMEDIATION_DRY_RUN, unset = true, read on
-    every call. It can only force shadow on; it never raises a level."""
-    return os.getenv(_MASTER_ENV, "true").strip().lower() in ("1", "true", "yes")
+    """The deployment-wide master (D-02): AUTONOMOUS_REMEDIATION_DRY_RUN, read on every call.
+    Shadow is off only when the stripped, lower-cased value is exactly 0, false, no or off; unset,
+    empty or any unrecognised value keeps shadow on (fail closed). It can only force shadow on;
+    it never raises a level."""
+    return os.getenv(_MASTER_ENV, "true").strip().lower() not in ("0", "false", "no", "off")
 
 
 def shadow_state(s: TenantSettings, master: Optional[bool] = None) -> Tuple[bool, Optional[str]]:

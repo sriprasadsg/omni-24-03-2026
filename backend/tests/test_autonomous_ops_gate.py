@@ -396,3 +396,43 @@ async def test_vendored_block_ip_playbook_stays_automatic_through_decide(mongo_d
                                    "playbook_raise": registry.playbook_raises(steps)})
     d = await gate.decide(mongo_db, raised, master_shadow=False)
     assert (d.outcome, d.state, d.reason) == ("needs_approval", "awaiting_approval", "playbook_raised")
+
+
+# ---------------------------------------------------------------- plan 81-17, Task 1 (tracer): WR-03
+
+_MASTER = "AUTONOMOUS_REMEDIATION_DRY_RUN"
+
+
+@pytest.mark.parametrize("value,expected", [
+    (None, True), ("", True), ("true", True), ("TRUE", True), ("true ", True), ("1", True),
+    ("yes", True), ("on", True), ("y", True), ("enabled", True), ("garbage", True),
+    ("false", False), (" FALSE ", False), ("0", False), ("no", False), ("off", False), ("Off", False),
+])
+def test_master_shadow_is_off_only_for_an_explicit_off_word(monkeypatch, value, expected):
+    """protects=GATE-09 (WR-03) / D-02: only 0, false, no, off (stripped, any case) turn the
+    deployment shadow master off; unset, empty and every unrecognised value keep shadow on."""
+    if value is None:
+        monkeypatch.delenv(_MASTER, raising=False)
+    else:
+        monkeypatch.setenv(_MASTER, value)
+    assert settings.master_shadow() is expected
+
+
+async def test_unrecognised_master_value_records_a_shadow_row_end_to_end(mongo_db, monkeypatch):
+    """protects=GATE-09 / T-81-62: tenant flag off, variable 'enabled' -> gate.decide (no
+    override) records shadow with deployment as the source and writes no instruction; with
+    'false' the same request is dispatching."""
+    await ledger.ensure_indexes(mongo_db)
+    await seed_tenant(mongo_db, "t1", shadow=False)
+    await seed_agent(mongo_db, "t1", "a1", hostname="h1", ip="10.1.1.5")
+
+    monkeypatch.setenv(_MASTER, "enabled")
+    d = await gate.decide(mongo_db, _block_ip("t1"))
+    assert (d.outcome, d.state) == ("allow_auto", "shadow") and d.recorded
+    row = await ledger.get(mongo_db, "t1", d.action_id)
+    assert {"check": "shadow", "result": "shadow", "code": "deployment"} in row["trace"]
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
+
+    monkeypatch.setenv(_MASTER, "false")
+    live = await gate.decide(mongo_db, _block_ip("t1", ip="203.0.113.9"))
+    assert (live.outcome, live.state) == ("allow_auto", "dispatching")
