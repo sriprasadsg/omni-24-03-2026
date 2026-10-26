@@ -524,7 +524,8 @@ describe('list states', () => {
     let release: (r: Response) => void = () => {};
     routeFetch({ actions: () => new Promise<Response>(res => { release = res; }) });
     const { container } = render(screenFor('Tenant Admin'));
-    const busy = container.querySelector('[aria-busy="true"]') as HTMLElement;
+    // the status card above the list is aria-busy while it loads too (81-10): find the list's own container
+    const busy = container.querySelector('[data-skeleton="row"]')?.closest('[aria-busy="true"]') as HTMLElement;
     expect(busy).not.toBeNull();
     expect(busy.querySelectorAll('[data-skeleton="row"]').length).toBe(5);
     expect(noClippingClasses(container)).toBeNull();
