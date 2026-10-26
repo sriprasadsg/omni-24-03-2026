@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: executing
-stopped_at: Completed 81-15-PLAN.md
-last_updated: "2026-10-26T18:37:28.894Z"
+stopped_at: Completed 81-16-PLAN.md
+last_updated: "2026-10-26T18:50:46.534Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 81 execution started
-state_head: 85a7dd4c5c2641cf312fde55047d76cf9cacdb2c
+state_head: 8e70012c8e11b314485cfb605306477276d4404c
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 18
-  completed_plans: 15
+  completed_plans: 16
   percent: 17
 ---
 
@@ -468,6 +468,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 81]: 81-13: gate classifies and IP-checks every playbook step and compensation step via dispatch_check; the recorded steps list is the decided plan; multi-step rows offer no undo
 - [Phase 81]: 81-14: set_level to undoable_auto clears a tripped breaker in the same update and records level_restored (rather than refusing); no_result bound defaults to 1440 min
 - [Phase 81]: 81-15: dispatch_check.bind ties each gate.execute / execute_response_task dispatch to the decided row (registry, agent in targets, decided step by canonical JSON, never-touch re-check for auto/approve); undecided addresses give step_mismatch
+- [Phase 81]: 81-16: playbook selection is tenant-scoped (load_playbooks(db, tenant_id) + _belongs); rolled_back only when every compensation step is SUCCESS, else failed rollback_incomplete with escalation; breaker.evaluate runs after failed/rolled_back outcomes
 
 ## Performance Metrics
 
@@ -638,6 +639,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 81 P13 | 20min | 2 tasks | 4 files |
 | Phase 81 P14 | 25min | 2 tasks | 5 files |
 | Phase 81 P15 | 35min | 2 tasks | 8 files |
+| Phase 81 P16 | 40 min | 2 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -672,8 +674,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-26T18:37:28.650Z
-**Stopped at:** Completed 81-15-PLAN.md
+**Last session:** 2026-10-26T18:50:46.408Z
+**Stopped at:** Completed 81-16-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -699,7 +701,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
-Plan: 4 of 18
+Plan: 5 of 18
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 81 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
