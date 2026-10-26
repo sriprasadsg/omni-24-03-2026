@@ -172,3 +172,32 @@ async def test_tenant_context_is_reset_after_the_loop_exits(mongo_db):
     await _seed(mongo_db)
     await _run_one_pass(mongo_db)
     assert get_tenant_id() is None
+
+
+_REMOVED_LOOP = "autonomous_remediation_loop"
+
+
+def test_legacy_remediation_loop_is_not_scheduled():
+    """GATE-05: nothing scheduled may reach the legacy run_cycle path."""
+    assert not hasattr(abt, _REMOVED_LOOP)
+    assert not hasattr(abt, "AutonomousRemediationService")
+
+    backend_dir = os.path.join(os.path.dirname(__file__), "..")
+    for fname in ("app_background_tasks.py", "app_startup.py"):
+        with open(os.path.join(backend_dir, fname), encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                assert all(a.name != _REMOVED_LOOP for a in node.names), fname
+                assert all(a.name != "AutonomousRemediationService" for a in node.names), fname
+            if isinstance(node, ast.Call):
+                fn = node.func
+                called = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+                if called == "create_task":
+                    # No create_task argument, however nested, may call the removed loop.
+                    for sub in ast.walk(node):
+                        if isinstance(sub, ast.Call):
+                            f = sub.func
+                            name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+                            assert name != _REMOVED_LOOP, fname
+        assert _REMOVED_LOOP not in ast.dump(tree), fname

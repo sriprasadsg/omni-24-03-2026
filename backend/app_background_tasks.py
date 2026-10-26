@@ -6,38 +6,8 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
-# New imports for autonomous remediation
-from autonomous_remediation_service import AutonomousRemediationService, AUTONOMOUS_REMEDIATION_INTERVAL_SEC
 from database import get_database
 from tenant_context import set_tenant_id, reset_tenant_id # Import set_tenant_id, reset_tenant_id
-
-
-async def autonomous_remediation_loop():
-    """Continuous loop to run autonomous remediation across tenants."""
-    logger = logging.getLogger(__name__ + ".auto_remediation")
-    logger.info("Autonomous remediation loop started (interval=%ds)", AUTONOMOUS_REMEDIATION_INTERVAL_SEC)
-
-    service = AutonomousRemediationService()
-
-    while True:
-        _tenant_ctx_token = None
-        tid = None
-        try:
-            db = get_database()
-            # Scan all tenants
-            tenants = await db._db.tenants.find({}, {"id": 1}).to_list(length=500)
-            for tenant in tenants:
-                tid = tenant.get("id")
-                if tid:
-                    _tenant_ctx_token = set_tenant_id(tid) # Set tenant context before running cycle
-                    await service.run_cycle(tid)
-        except Exception as e:
-            logger.error("Autonomous remediation loop error for tenant %s: %s", tid, e)
-        finally:
-            if _tenant_ctx_token is not None:
-                reset_tenant_id(_tenant_ctx_token) # Ensure context is reset
-
-        await asyncio.sleep(AUTONOMOUS_REMEDIATION_INTERVAL_SEC)
 
 
 # Documented cadence (GATE-12, D-24 (d)): an agent is Offline once its lastSeen is more than

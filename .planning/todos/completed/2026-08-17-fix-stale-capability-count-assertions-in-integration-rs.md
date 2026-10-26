@@ -50,3 +50,7 @@ match the current `CapabilityManager::new()` registration list in
 `agent-install/omni-agent-rs/src/capabilities/mod.rs`. Run
 `cargo test --test integration` on the actual current registration list to
 derive the correct expected values rather than guessing.
+
+## Resolution (2026-10-26, phase 81 plan 03)
+
+No source change needed: `cargo test --offline --test integration` in agent-install/omni-agent-rs already passes 21 of 21 (fixed earlier by c5a2e57ee). Closed by re-running the suite.
