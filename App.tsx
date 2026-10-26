@@ -2,6 +2,7 @@ import { UserContext } from './contexts/UserContext';
 import { TimeZoneProvider } from './contexts/TimeZoneContext';
 import { FeaturesProvider } from './contexts/FeaturesContext';
 import { AutonomousOpsStatusProvider } from './contexts/AutonomousOpsStatusContext';
+import { AutonomousOpsStopBanner } from './components/AutonomousOpsStopBanner';
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 
 // Suppress console.log in production builds
@@ -1954,6 +1955,7 @@ const App: React.FC = () => {
               />
               <AutonomousOpsStatusProvider tenantId={viewingTenantId} enabled={hasPermission('view:autonomous_ops')}>
               <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-hidden">
+                <AutonomousOpsStopBanner currentView={currentView} onViewDetails={() => handleSetCurrentView('autonomousOps')} />
                 <Header
                   allUsers={users}
                   onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}

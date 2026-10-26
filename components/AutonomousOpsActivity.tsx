@@ -3,6 +3,7 @@ import { useUser } from '../contexts/UserContext';
 import { resolveAutonomousOpsScope, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { platformTier } from '../utils/permissions';
 import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
+import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
 import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
 interface AutonomousOpsActivityProps {
@@ -76,8 +77,9 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                 </div>
             ) : (
                 <>
-                    {/* 81-10 mounts the status card here */}
-                    <div data-slot="autonomous-ops-status" />
+                    <div data-slot="autonomous-ops-status">
+                        <AutonomousOpsStatusCard tenantId={tenantId} />
+                    </div>
                     <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
                         <div className="flex flex-wrap items-center justify-between gap-4">
                             <h2 id="autonomous-ops-activity-title" className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Activity</h2>

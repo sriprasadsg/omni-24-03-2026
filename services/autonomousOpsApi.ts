@@ -82,25 +82,32 @@ export interface ActionsQuery {
     tenantId?: string | null;
 }
 
-/** A non-OK response. `detail` is the server's message, empty when it gave none. */
+/**
+ * A non-OK response. `detail` is the server's message, empty when it gave none; `by` is who holds
+ * the stop on a 409 (already masked by the server for tenant viewers, D-25).
+ */
 export class AutonomousOpsApiError extends Error {
     status: number;
     detail: string;
-    constructor(status: number, detail: string) {
+    by: string | null;
+    constructor(status: number, detail: string, by: string | null = null) {
         super(detail || `Autonomous Ops request failed (${status})`);
         this.name = 'AutonomousOpsApiError';
         this.status = status;
         this.detail = detail;
+        this.by = by;
     }
 }
 
 async function failure(res: Response): Promise<AutonomousOpsApiError> {
     let detail = '';
+    let by: string | null = null;
     try {
         const body = await res.json();
         detail = typeof body?.detail === 'string' ? body.detail : '';
+        by = typeof body?.by === 'string' && body.by ? body.by : null;
     } catch { /* non-JSON error body */ }
-    return new AutonomousOpsApiError(res.status, detail);
+    return new AutonomousOpsApiError(res.status, detail, by);
 }
 
 const withTenant = (url: string, tenantId?: string | null) =>
@@ -139,4 +146,38 @@ export function fetchPlatformAutonomousOpsStatus(): Promise<PlatformAutonomousOp
 /** GET /api/platform/autonomous-ops/actions?bucket=&limit=&cursor= (platform-scope control rows) */
 export function fetchPlatformAutonomousOpsActions(q: Omit<ActionsQuery, 'tenantId'>): Promise<AutonomousOpsActionsPage> {
     return getJson(actionsUrl(`${API_BASE}/platform/autonomous-ops/actions`, q, false));
+}
+
+export interface StopRequest {
+    /** Optional on a stop, required on a resume. Blank text is not sent. */
+    reason?: string | null;
+    /** Platform staff acting on one organization. Tenant roles never send it. */
+    tenantId?: string | null;
+}
+
+async function postStop(url: string, reason?: string | null): Promise<unknown> {
+    const trimmed = (reason ?? '').trim();
+    const res = await authFetch(url, { method: 'POST', body: JSON.stringify(trimmed ? { reason: trimmed } : {}) });
+    if (!res.ok) throw await failure(res);
+    return res.json();
+}
+
+/** POST /api/autonomous-ops/stop[?tenantId=]: 409 {detail, by} when it is already stopped. */
+export async function pressStop({ reason, tenantId }: StopRequest): Promise<AutonomousOpsStatus> {
+    return await postStop(withTenant(`${API_BASE}/autonomous-ops/stop`, tenantId), reason) as AutonomousOpsStatus;
+}
+
+/** POST /api/autonomous-ops/resume[?tenantId=]: needs a reason; 403 when only a platform administrator may clear it. */
+export async function resumeStop({ reason, tenantId }: StopRequest): Promise<AutonomousOpsStatus> {
+    return await postStop(withTenant(`${API_BASE}/autonomous-ops/resume`, tenantId), reason) as AutonomousOpsStatus;
+}
+
+/** POST /api/platform/autonomous-ops/stop (Super Admin: every organization) */
+export async function pressPlatformStop({ reason }: Pick<StopRequest, 'reason'>): Promise<PlatformAutonomousOpsStatus> {
+    return await postStop(`${API_BASE}/platform/autonomous-ops/stop`, reason) as PlatformAutonomousOpsStatus;
+}
+
+/** POST /api/platform/autonomous-ops/resume (Super Admin) */
+export async function resumePlatformStop({ reason }: Pick<StopRequest, 'reason'>): Promise<PlatformAutonomousOpsStatus> {
+    return await postStop(`${API_BASE}/platform/autonomous-ops/resume`, reason) as PlatformAutonomousOpsStatus;
 }
