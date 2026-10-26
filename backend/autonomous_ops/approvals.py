@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from . import APPROVAL_TTL, PLATFORM_TENANT_ID, ledger, messages, protected, registry, settings
-from . import gate
+from . import breaker, gate
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -170,15 +170,73 @@ async def approve(db, tenant_id: str, action_id: str, *, approver: Dict[str, Any
     return {"status": "dispatched", "dispatch": result}
 
 
-# ---------------------------------------------------------------- deny, expiry, undo (Task 2)
+# ---------------------------------------------------------------- deny, expiry
 
 async def deny(db, tenant_id: str, action_id: str, *, approver: Dict[str, Any], reason: str = "") -> Dict[str, Any]:
-    raise NotImplementedError
+    """Deny a card. Dispatches nothing, so it stays allowed during a stop."""
+    if await ledger.get(db, tenant_id, action_id) is None:
+        return {"status": "not_found"}
+    row = await ledger.transition(
+        db, tenant_id, action_id, _OPEN, "denied", actor=approver,
+        **{"approval.approver": dict(approver), "approval.decidedAt": _now(None), "approval.reason": reason or ""})
+    return {"status": "denied"} if row else {"status": "already_handled"}
 
 
 async def expire_due(db, *, now: Optional[datetime] = None, tenant_id: Optional[str] = None) -> int:
-    raise NotImplementedError
+    """Expire every open card whose 24 hours have passed (counted as denied). Ignores stops
+    (D-13). ``tenant_id`` limits the sweep to one tenant. Returns how many rows expired."""
+    now = _now(now)
+    flt: Dict[str, Any] = {"state": {"$in": list(_OPEN)}, "approval.expiresAt": {"$lte": now}}
+    if tenant_id is not None:
+        flt["tenantId"] = tenant_id
+    due = [r async for r in raw(db).autonomy_actions.find(flt, {"_id": 0, "id": 1, "tenantId": 1})]
+    expired = 0
+    for item in due:
+        try:
+            done = await ledger.transition(db, item["tenantId"], item["id"], _OPEN, "expired",
+                                           where={"approval.expiresAt": {"$lte": now}})
+        except Exception as exc:
+            logger.error("autonomous_ops: could not expire %s: %s", item.get("id"), exc)
+            continue
+        expired += 1 if done else 0
+    return expired
 
+
+# ---------------------------------------------------------------- undo
 
 async def undo(db, tenant_id: str, action_id: str, *, actor: Dict[str, Any]) -> Dict[str, Any]:
-    raise NotImplementedError
+    """Put an executed action back (D-12: works during a stop; the click is the approval)."""
+    row = await ledger.get(db, tenant_id, action_id)
+    if row is None:
+        return {"status": "not_found"}
+    if row.get("state") == "undone":
+        return {"status": "already_handled"}
+    if row.get("state") not in _UNDOABLE:
+        return {"status": "refused", "reason": "not_undoable"}
+    spec = registry.resolve(row.get("command"))
+    if spec is None or not spec.undo:
+        return {"status": "no_undo"}
+    targets = row.get("targets") or []
+    if not targets:
+        return {"status": "refused", "reason": "no_target"}
+    params = gate._undo_block(spec, row.get("params") or {})["params"]
+    block = {"available": True, "action": spec.undo, "params": params, "undoneAt": _now(None),
+             "undoneBy": dict(actor)}
+    won = await ledger.transition(db, tenant_id, action_id, _UNDOABLE, "undone", actor=actor, undo=block)
+    if won is None:
+        return {"status": "already_handled"}
+    result = await gate.execute(db, tenant_id, action_id, command=spec.undo, agent_id=targets[0], params=params,
+                                kind="undo")
+    if result.get("status") != "queued":
+        # Nothing was written to an agent: do not leave a row claiming it was put back.
+        await ledger.transition(db, tenant_id, action_id, ("undone",), row["state"], actor=actor,
+                                undo=row.get("undo") or {"available": True, "action": spec.undo, "params": params,
+                                                         "undoneAt": None, "undoneBy": None},
+                                finishedAt=row.get("finishedAt"))
+        return {"status": "refused", "reason": result.get("reason") or "dispatch_failed"}
+    tripped = False
+    try:
+        tripped = bool(await breaker.evaluate(db, tenant_id))
+    except Exception as exc:
+        logger.error("autonomous_ops: breaker check after undo of %s failed: %s", action_id, exc)
+    return {"status": "undone", "dispatch": result, "breaker_tripped": tripped}

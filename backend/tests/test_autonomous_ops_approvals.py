@@ -242,3 +242,122 @@ async def test_stop_pressed_between_the_approval_and_the_dispatch_cancels_the_ro
     assert out["status"] == "stopped"
     assert (await ledger.get(live, "t1", action_id))["state"] == "cancelled_by_stop"
     assert await live.agent_instructions.count_documents({}) == 0
+
+
+# ---------------------------------------------------------------- Task 2: deny, expiry, undo
+
+async def test_deny_stores_the_decision_and_works_during_a_stop(live):
+    action_id = await _card(live)
+    await seed_platform_stop(live)
+    out = await approvals.deny(live, "t1", action_id, approver=APPROVER, reason="not now")
+    assert out == {"status": "denied"}
+    row = await ledger.get(live, "t1", action_id)
+    assert row["state"] == "denied" and row["approval"]["approver"] == APPROVER
+    assert row["approval"]["reason"] == "not now" and row["approval"]["decidedAt"] is not None
+    assert (await approvals.deny(live, "t1", action_id, approver=APPROVER))["status"] == "already_handled"
+    assert (await approvals.deny(live, "t2", action_id, approver=APPROVER))["status"] == "not_found"
+    assert (await approvals.approve(live, "t1", action_id, approver=APPROVER))["status"] in ("already_handled", "stopped")
+    assert await live.agent_instructions.count_documents({}) == 0
+
+
+async def test_approve_exactly_at_expiry_is_expired_and_one_second_before_is_dispatched(live):
+    first, second = await _card(live, key="k1"), await _card(live, target="a1", action="reboot_host", key="k2")
+    expires = (await ledger.get(live, "t1", first))["approval"]["expiresAt"]
+    out = await approvals.approve(live, "t1", first, approver=APPROVER, now=expires)
+    assert out["status"] == "expired"
+    assert (await ledger.get(live, "t1", first))["state"] == "expired"
+    out = await approvals.approve(live, "t1", second, approver=APPROVER, now=expires - timedelta(seconds=1))
+    assert out["status"] == "dispatched"
+    assert await live.agent_instructions.count_documents({}) == 1
+
+
+async def test_expire_due_expires_every_overdue_row_of_every_tenant(live):
+    await seed_tenant(live, "t2", shadow=False)
+    await seed_agent(live, "t2", "b1")
+    a = await _card(live, key="k1")
+    b = await gate.decide(live, _req(tenant="t2", target="b1", key="k1"), master_shadow=False)
+    c = await gate.suggest(live, _req(action="reboot_host", key="k3"), master_shadow=False)
+    later = datetime.now(timezone.utc) + APPROVAL_TTL + timedelta(seconds=1)
+    assert await approvals.expire_due(live, now=datetime.now(timezone.utc)) == 0
+    assert await approvals.expire_due(live, now=later) == 3
+    assert await approvals.expire_due(live, now=later) == 0
+    for tenant, row_id in (("t1", a), ("t2", b.action_id), ("t1", c.action_id)):
+        assert (await ledger.get(live, tenant, row_id))["state"] == "expired"
+    assert await live.agent_instructions.count_documents({}) == 0
+
+
+async def test_expiry_runs_during_a_stop_and_an_expired_card_never_dispatches_after_resume(live):
+    """D-13 / PROH-81-08."""
+    action_id = await _card(live)
+    await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"stop": {"active": True}}})
+    later = datetime.now(timezone.utc) + APPROVAL_TTL + timedelta(minutes=1)
+    assert (await approvals.approve(live, "t1", action_id, approver=APPROVER, now=later))["status"] == "stopped"
+    assert (await ledger.get(live, "t1", action_id))["state"] == "awaiting_approval"
+    assert await approvals.expire_due(live, now=later) == 1
+    await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"stop": None}})
+    assert (await approvals.approve(live, "t1", action_id, approver=APPROVER, now=later))["status"] == "already_handled"
+    assert (await ledger.get(live, "t1", action_id))["state"] == "expired"
+    assert await live.agent_instructions.count_documents({}) == 0
+
+
+async def _executed_block(db, ip=IP, key=None, tenant="t1", target="a1"):
+    d = await gate.decide(db, _req(tenant=tenant, action="block_ip", ip=ip, target=target, key=key or f"b|{ip}"),
+                          master_shadow=False)
+    assert d.state == "dispatching", d
+    out = await gate.execute(db, tenant, d.action_id, command="block_ip", agent_id=target,
+                             params={"ip_address": ip})
+    assert out["status"] == "queued"
+    row = await ledger.transition(db, tenant, d.action_id, ("dispatching",), "executed")
+    assert row
+    return d.action_id
+
+
+async def test_undo_writes_one_undo_instruction_and_marks_the_row_undone(live):
+    action_id = await _executed_block(live)
+    out = await approvals.undo(live, "t1", action_id, actor=APPROVER)
+    assert out["status"] == "undone"
+    row = await ledger.get(live, "t1", action_id)
+    assert row["state"] == "undone" and row["undo"]["action"] == "unblock_ip"
+    assert row["undo"]["params"] == {"ip_address": IP} and row["undo"]["undoneAt"] is not None
+    assert row["undo"]["undoneBy"] == APPROVER and len(row["instructionIds"]) == 2
+    undo = await live.agent_instructions.find_one({"type": "unblock_ip"})
+    assert undo["autonomy"] == {"actionId": action_id, "tenantId": "t1", "kind": "undo"}
+    assert undo["payload"] == {"ip_address": IP} and undo["agent_id"] == "a1"
+    assert await live.agent_instructions.count_documents({}) == 2
+    assert (await approvals.undo(live, "t1", action_id, actor=APPROVER))["status"] == "already_handled"
+    assert await live.agent_instructions.count_documents({}) == 2
+
+
+async def test_undo_still_works_during_a_stop(live):
+    action_id = await _executed_block(live)
+    await seed_platform_stop(live)
+    assert (await approvals.undo(live, "t1", action_id, actor=APPROVER))["status"] == "undone"
+    assert await live.agent_instructions.count_documents({"type": "unblock_ip"}) == 1
+
+
+async def test_undo_of_a_row_without_an_undo_and_of_other_states(live):
+    d = await gate.decide(live, _req(action="restart_service", key="rs"), master_shadow=False)
+    await gate.execute(live, "t1", d.action_id, command="restart_service", agent_id="a1", params={})
+    await ledger.transition(live, "t1", d.action_id, ("dispatching",), "executed")
+    assert (await approvals.undo(live, "t1", d.action_id, actor=APPROVER))["status"] == "no_undo"
+    suggested = await gate.suggest(live, _req(action="block_ip", ip="203.0.113.50", key="sg"), master_shadow=False)
+    assert (await approvals.undo(live, "t1", suggested.action_id, actor=APPROVER))["status"] == "refused"
+    assert (await approvals.undo(live, "t1", "AO-none", actor=APPROVER))["status"] == "not_found"
+    assert (await approvals.undo(live, "t2", d.action_id, actor=APPROVER))["status"] == "not_found"
+
+
+async def test_undo_runs_the_breaker_afterwards(live):
+    action_id = await _executed_block(live)
+    with patch("autonomous_ops.breaker.evaluate", AsyncMock(return_value=True)) as ev:
+        out = await approvals.undo(live, "t1", action_id, actor=APPROVER)
+    ev.assert_awaited_once()
+    assert ev.await_args.args[1] == "t1" and out["status"] == "undone"
+
+
+async def test_undo_whose_instruction_cannot_be_written_puts_the_row_back(live):
+    action_id = await _executed_block(live)
+    with patch.object(gate, "execute", AsyncMock(return_value={"status": "refused", "reason": "dispatch_failed"})):
+        out = await approvals.undo(live, "t1", action_id, actor=APPROVER)
+    assert out == {"status": "refused", "reason": "dispatch_failed"}
+    row = await ledger.get(live, "t1", action_id)
+    assert row["state"] == "executed" and row["undo"]["undoneAt"] is None
