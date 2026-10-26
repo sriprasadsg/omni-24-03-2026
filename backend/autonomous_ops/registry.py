@@ -5,6 +5,12 @@ read-only mapping built at import: nothing at runtime (a playbook, a database do
 request) can add, change or lower an entry, so concurrent decisions always read the same
 classes. An action name that is not here is refused by the gate (fail closed).
 
+The class of an action comes only from this table plus one explicit playbook step key,
+``gate_class``: a step that sets it to anything other than "auto" raises the playbook to
+approval, and nothing lowers an approve action. The step key ``destructive`` is NOT an
+input: every vendored playbook step except patch_package sets it, block_ip included, so
+reading it would turn the locked automatic block-IP into an approval card (GATE-04).
+
 Never uses the ambient tenant ContextVar; it holds no tenant data at all.
 """
 from dataclasses import dataclass
@@ -60,6 +66,10 @@ ACTIONS = _specs(
 ALIASES = MappingProxyType({"patch_package": "upgrade_software", "isolate_endpoint": "isolate_host"})
 
 
+# The only playbook step key that can raise a class (GATE-04).
+GATE_CLASS_KEY = "gate_class"
+
+
 def resolve(name) -> Optional[ActionSpec]:
     """The spec for an action name (aliases followed), or None when it is not registered."""
     if not isinstance(name, str):
@@ -70,6 +80,24 @@ def resolve(name) -> Optional[ActionSpec]:
 def commands() -> frozenset:
     """Every registered command name."""
     return frozenset(ACTIONS)
+
+
+def playbook_raises(steps) -> bool:
+    """True only when some step sets ``gate_class`` to a non-empty value other than "auto"
+    (case and surrounding spaces ignored). A misspelt value therefore fails closed, toward
+    approval; "auto" is accepted and changes nothing; ``destructive`` is ignored."""
+    if not isinstance(steps, (list, tuple)):
+        return False
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        value = step.get(GATE_CLASS_KEY)
+        if value is None:
+            continue
+        value = str(value).strip().lower()
+        if value and value != "auto":
+            return True
+    return False
 
 
 def effective_class(spec: ActionSpec, *, playbook_raise: bool = False) -> str:
