@@ -4,11 +4,64 @@ All methods reference self.db and self.logger, which are set by PlaybookExecutio
 """
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+# Playbook runs started by a machine, not a person (D-21). Their containment steps pass the
+# Autonomous Ops gate; a human-started run (any other executed_by) keeps the engine's own path.
+AUTOMATIC_EXECUTORS = frozenset({"xdr-auto", "ai-selector", "fallback-selector"})
 
 
 class PlaybookActionsMixin:
     """Mixin providing all built-in _action_* handlers."""
+
+    async def _fence_automatic_step(
+        self, command: str, context: Dict[str, Any], *, agent_id: str, task_params: Dict[str, Any],
+        target: str, inputs: Dict[str, Any],
+    ) -> Optional[str]:
+        """The Autonomous Ops fence (D-21, GATE-03) for the four side-effecting actions.
+
+        Returns None for a human-started run (the caller continues on the unchanged manual path).
+        For an automatic executor it asks ``gate.decide`` first and returns the step output; a
+        response task exists only for an allowed automatic action, written by
+        ``gate.execute_response_task`` (stamped). Every other outcome writes no task."""
+        executed_by = context.get("executed_by")
+        if executed_by not in AUTOMATIC_EXECUTORS:
+            return None
+        from autonomous_ops import gate, messages, registry
+
+        tenant_id = context.get("tenant_id")
+        execution_id = context.get("execution_id")
+        trigger = (context.get("variables") or {}).get("trigger") or {}
+        label = messages.ACTION_LABELS.get(command, command).lower()
+        where = f"{target} on agent {agent_id}" if target != agent_id else f"agent {agent_id}"
+        prefix = "xdr" if executed_by == "xdr-auto" else executed_by
+        req = gate.ActionRequest(
+            tenant_id=tenant_id, kind="security", origin=executed_by, actions=[command], targets=[agent_id],
+            params=dict(task_params),
+            dedupe_key=f"{tenant_id}|xdr|{command}|{agent_id}|{target}",
+            playbook=trigger.get("pattern_id"),
+            playbook_raise=registry.playbook_raises([context.get("_current_step")]),
+            reason={"ruleId": f"{prefix}:{trigger.get('pattern_id') or 'playbook'}",
+                    "inputs": {"executionId": execution_id, **inputs}},
+            reason_text=f"A playbook step asked for: {label} ({where}).",
+            dispatcher="response_task",
+        )
+        decision = await gate.decide(self.db, req)
+        if decision.outcome == "refuse":
+            return messages.REASON_TEXT.get(decision.reason, "The request was refused.")
+        if decision.state == "shadow":
+            return messages.simulation_result(f"{label} for {where}")
+        if decision.outcome == "needs_approval":
+            return f"Waiting for approval: {label} for {where}. Nothing was done yet."
+        if decision.outcome == "suggest":
+            return f"Suggested only: {label} for {where}. Nothing was done."
+        sent = await gate.execute_response_task(
+            self.db, tenant_id, decision.action_id, action=command, agent_id=agent_id,
+            params=dict(task_params), playbook_execution_id=execution_id)
+        if sent.get("status") != "queued":
+            return f"{label.capitalize()} for {where} was not sent ({sent.get('reason')}). Nothing was done."
+        self.logger.info("Playbook queued %s task %s for %s", command, sent["task_id"], where)
+        return f"{label.capitalize()} task {sent['task_id']} queued for {where}"
 
     async def _action_log(self, params: Dict[str, Any], context: Dict[str, Any]) -> str:
         message = params.get("message", "")
@@ -115,6 +168,12 @@ class PlaybookActionsMixin:
         if not ip or not agent_id:
             raise ValueError("block_ip requires 'ip' and 'agent_id'")
 
+        fenced = await self._fence_automatic_step(
+            "block_ip", context, agent_id=agent_id, target=ip, inputs={"sourceIp": ip},
+            task_params={"ip": ip, "reason": params.get("reason", "playbook-auto")})
+        if fenced is not None:
+            return fenced
+
         since = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
         dup = await self.db.response_tasks.find_one({
             "action": "block_ip", "params.ip": ip,
@@ -147,6 +206,12 @@ class PlaybookActionsMixin:
         )
         if not agent_id:
             raise ValueError("isolate_endpoint requires 'agent_id' or 'endpoint_id'")
+
+        fenced = await self._fence_automatic_step(
+            "isolate_host", context, agent_id=agent_id, target=agent_id, inputs={"agentId": agent_id},
+            task_params={"reason": params.get("reason", "playbook-auto")})
+        if fenced is not None:
+            return fenced
 
         execution_id = context.get("execution_id", "")
         gate = await self._gate_high_risk_action(
@@ -182,6 +247,12 @@ class PlaybookActionsMixin:
         if not file_path or not agent_id:
             raise ValueError("quarantine_file requires 'file_path' and 'agent_id'")
 
+        fenced = await self._fence_automatic_step(
+            "quarantine_file", context, agent_id=agent_id, target=file_path, inputs={"filePath": file_path},
+            task_params={"file_path": file_path, "reason": params.get("reason", "playbook-auto")})
+        if fenced is not None:
+            return fenced
+
         task = {
             "task_id": f"PB-QRN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
             "agent_id": agent_id, "action": "quarantine_file",
@@ -203,6 +274,13 @@ class PlaybookActionsMixin:
         )
         if not agent_id:
             raise ValueError("rollback_ransomware requires 'agent_id'")
+
+        fenced = await self._fence_automatic_step(
+            "rollback_ransomware", context, agent_id=agent_id, target=agent_id, inputs={"agentId": agent_id},
+            task_params={"volume": params.get("volume", "C:"),
+                         "reason": params.get("reason", "playbook-auto: ransomware rollback")})
+        if fenced is not None:
+            return fenced
 
         execution_id = context.get("execution_id", "")
         gate = await self._gate_high_risk_action(

@@ -109,6 +109,9 @@ class PlaybookExecutionMixin:
         handler = self.actions.get(action_name)
         if not handler:
             raise ValueError(f"Unknown action: {action_name}")
+        # The step itself (not only its params) so the Autonomous Ops fence can read gate_class.
+        # Set just before the handler starts; the fence reads it before its first await.
+        context["_current_step"] = step
         return await handler(resolved_params, context)
 
     def _evaluate_condition(self, condition: Dict[str, Any], context: Dict[str, Any]) -> bool:
