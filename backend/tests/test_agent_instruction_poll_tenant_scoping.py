@@ -141,3 +141,22 @@ async def test_the_route_agents_reach_rewrites_the_tunnel_url_too():
         [item] = await live_poll("EILT0197", request=_request(), _tenant={"id": "t1"})
     expected = f"wss://57.154.210.55/api/tunnel/{sid}/agent"
     assert item["payload"]["url"] == expected and item["parameters"]["url"] == expected
+
+
+@pytest.mark.asyncio
+async def test_poll_with_only_unstamped_instructions_never_touches_the_autonomy_collections():
+    """Phase 81 (GATE-06): the autonomous hold-back hook is inert for plain instructions, so a
+    poll over a mocked database makes no call on the autonomy collections or the stop state."""
+    db = MagicMock()
+    plain = [{"_id": 7, "id": "plain-1", "agent_id": "agent-1", "status": "pending", "type": "custom_task",
+              "payload": {}}]
+    db.agents.find_one = AsyncMock(return_value={"id": "agent-1"})
+    db.agent_instructions.find.return_value.to_list = AsyncMock(return_value=plain)
+    db.agent_instructions.update_many = AsyncMock()
+    with patch("deployment_result_endpoints.get_database", return_value=db), \
+            patch("deployment_result_endpoints.agent_capabilities.hold_back", AsyncMock(side_effect=lambda d, t, i: i)):
+        out = await get_agent_instructions("agent-1", request=_request(), caller={"tenant_id": "t1", "sub": "agent-1"})
+
+    assert [o["type"] for o in out] == ["custom_task"]
+    for name in ("autonomy_actions", "autonomy_settings", "system_settings", "tenants"):
+        assert getattr(db, name).mock_calls == []

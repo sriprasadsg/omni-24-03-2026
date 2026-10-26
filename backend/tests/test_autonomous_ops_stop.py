@@ -136,3 +136,168 @@ async def test_tracer_tenant_stop_holds_back_the_queued_instruction_at_the_next_
     assert await _poll_tasks(live) == []
     assert (await _instr(live, task_id))["status"] == "cancelled_by_stop"
     assert (await ledger.get(live, "t1", action_id))["state"] == "cancelled_by_stop"
+
+
+# ---------------------------------------------------------------- Task 2: every other delivery path
+
+POLLS = {"deployment_result": _poll_deployment, "instruction_endpoints": _poll_unmounted}
+
+
+async def _stop_without_cancelling(db, tenant="t1"):
+    """A tenant stop written straight into the settings, so the press-time bulk cancel does not
+    run: this is the state of a stop pressed while a poll was already about to deliver."""
+    await settings.update(db, tenant, {"stop": {"active": True, "scope": "tenant", "pressedByTier": "tenant",
+                                                "pressedBy": {"username": "alice", "display": "Alice"},
+                                                "pressedAt": datetime.now(timezone.utc), "reason": None}},
+                          actor="test")
+
+
+@pytest.mark.parametrize("poll", POLLS.values(), ids=POLLS.keys())
+async def test_stamped_is_held_back_and_unstamped_delivered_by_the_other_handlers(live, poll):
+    action_id, task_id = await _queue_action(live)
+    await _human_instruction(live)
+    await _stop_without_cancelling(live)
+
+    delivered = await poll(live)
+
+    assert [d["type"] for d in delivered] == ["custom_task"]
+    assert (await _instr(live, task_id))["status"] == "cancelled_by_stop"
+    assert (await ledger.get(live, "t1", action_id))["state"] == "cancelled_by_stop"
+
+
+@pytest.mark.parametrize("poll", POLLS.values(), ids=POLLS.keys())
+async def test_a_stamped_instruction_is_delivered_when_no_stop_is_on(live, poll):
+    # control: the hold-back is a stop effect, not a blanket block on stamped work
+    action_id, task_id = await _queue_action(live)
+
+    delivered = await poll(live)
+
+    assert [d["type"] for d in delivered] == ["block_ip"]
+    assert (await ledger.get(live, "t1", action_id))["state"] == "dispatching"
+
+
+async def _queue_exempt(db, tenant="t1", agent="a1"):
+    """One undo (row undone) and one compensate (row failed) stamped instruction."""
+    ids = {}
+    for kind, state, command in (("undo", "undone", "unblock_ip"), ("compensate", "failed", "unblock_ip")):
+        row = await ledger.create_intent(db, {"tenantId": tenant, "kind": "security", "state": state,
+                                              "command": command, "actions": [command], "targets": [agent]})
+        out = await gate.execute(db, tenant, row["id"], command=command, agent_id=agent,
+                                 params={"ip_address": IP}, kind=kind)
+        assert out["status"] == "queued", out
+        ids[kind] = out["task_id"]
+    return ids
+
+
+async def test_platform_stop_holds_every_tenant_but_undo_and_compensate_flow(live):
+    await _seed(live, "t2", "a2")
+    _, t1_task = await _queue_action(live, "t1", "a1")
+    _, t2_task = await _queue_action(live, "t2", "a2", ip="203.0.113.8")
+    exempt = await _queue_exempt(live)
+    await seed_platform_stop(live)
+
+    delivered = await _poll_tasks(live)
+    other = await _poll_tasks(live, "t2", "a2")
+
+    assert sorted(d["task_id"] for d in delivered) == sorted(exempt.values())
+    assert other == []
+    assert (await _instr(live, t1_task))["status"] == "cancelled_by_stop"
+    assert (await _instr(live, t2_task))["status"] == "cancelled_by_stop"
+
+
+async def test_response_tasks_are_held_back_under_a_stop_but_manual_ones_are_returned(live):
+    d = await gate.decide(live, _req(), master_shadow=False)
+    out = await gate.execute_response_task(live, "t1", d.action_id, action="block_ip", agent_id="a1",
+                                           params={"ip_address": IP})
+    assert out["status"] == "queued"
+    await live.response_tasks.insert_one({"task_id": "RSP-manual", "agent_id": "a1", "tenantId": "t1",
+                                          "action": "kill_process", "status": "queued", "params": {}})
+    await seed_platform_stop(live)
+
+    with patch("response_orchestrator.get_database", return_value=live):
+        tasks = await ResponseOrchestrator().get_pending_tasks("a1", tenant_id="t1")
+
+    assert [t["task_id"] for t in tasks] == ["RSP-manual"]
+    held = await live.response_tasks.find_one({"task_id": out["task_id"]})
+    assert held["status"] == "cancelled_by_stop"
+    assert (await ledger.get(live, "t1", d.action_id))["state"] == "cancelled_by_stop"
+
+
+async def test_a_stop_that_cannot_be_read_withholds_stamped_and_delivers_unstamped(live):
+    action_id, task_id = await _queue_action(live)
+    await _human_instruction(live)
+
+    with patch.object(settings, "platform_stop", AsyncMock(side_effect=RuntimeError("db down"))):
+        delivered = await _poll_tasks(live)
+
+    assert [d["task_id"] for d in delivered] == ["human-1"]
+    assert (await _instr(live, task_id))["status"] == "pending"          # left as it was
+    assert (await ledger.get(live, "t1", action_id))["state"] == "dispatching"
+    # The next poll with a readable stop delivers it (nothing was cancelled by the read failure).
+    assert [d["task_id"] for d in await _poll_tasks(live)] == [task_id]
+
+
+async def test_an_unreadable_ledger_withholds_the_stamped_instruction(live):
+    _, task_id = await _queue_action(live)
+    with patch.object(delivery, "_row", AsyncMock(side_effect=delivery._Unreadable())):
+        assert await _poll_tasks(live) == []
+    assert (await _instr(live, task_id))["status"] == "pending"
+
+
+async def test_no_stamped_instruction_means_no_database_call():
+    db = MagicMock()
+    items = [{"_id": 1, "type": "custom_task"}, {"_id": 2, "type": "x", "autonomy": {}}]
+    assert await delivery.hold_back_autonomous(db, "t1", items) is items
+    assert await delivery.hold_back_response_tasks(db, "t1", [{"task_id": "r"}]) == [{"task_id": "r"}]
+    assert db.mock_calls == []
+
+
+async def test_a_row_of_another_tenant_is_withheld_and_refused(live):
+    await _seed(live, "t2", "a2")
+    action_id, _ = await _queue_action(live, "t2", "a2", ip="203.0.113.8")        # t2's row
+    await live.agent_instructions.insert_one({
+        "id": "forged", "agent_id": "a1", "tenantId": "t1", "type": "block_ip", "status": "pending",
+        "payload": {}, "triggered_by": "autonomous_ops",
+        "autonomy": {"actionId": action_id, "tenantId": "t1", "kind": "action"}})
+
+    assert await _poll_tasks(live) == []
+
+    assert (await _instr(live, "forged"))["status"] == "refused"
+    assert (await ledger.get(live, "t2", action_id))["state"] == "dispatching"     # t2's row untouched
+
+
+async def test_missing_and_non_dispatchable_rows_are_refused(live):
+    await live.agent_instructions.insert_many([
+        {"id": "ghost", "agent_id": "a1", "tenantId": "t1", "type": "block_ip", "status": "pending", "payload": {},
+         "autonomy": {"actionId": "AO-nope", "tenantId": "t1", "kind": "action"}},
+        {"id": "done", "agent_id": "a1", "tenantId": "t1", "type": "block_ip", "status": "pending", "payload": {},
+         "autonomy": {"actionId": "AO-done", "tenantId": "t1", "kind": "action"}}])
+    await ledger.create_intent(live, {"id": "AO-done", "tenantId": "t1", "kind": "security", "state": "executed",
+                                      "command": "block_ip"})
+
+    assert await _poll_tasks(live) == []
+
+    assert (await _instr(live, "ghost"))["status"] == "refused"
+    assert (await _instr(live, "done"))["status"] == "refused"
+
+
+async def test_press_bulk_cancels_for_its_scope_and_returns_the_count(live):
+    await _seed(live, "t2", "a2")
+    _, a1_task = await _queue_action(live, "t1", "a1")
+    _, a2_task = await _queue_action(live, "t2", "a2", ip="203.0.113.8")
+    exempt = await _queue_exempt(live)
+    d = await gate.decide(live, _req(ip="203.0.113.9"), master_shadow=False)
+    await gate.execute_response_task(live, "t1", d.action_id, action="block_ip", agent_id="a1", params={})
+
+    tenant = await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR)
+
+    assert tenant["cancelled"] == 2                                  # one instruction + one response task
+    assert (await _instr(live, a1_task))["status"] == "cancelled_by_stop"
+    assert (await _instr(live, a2_task))["status"] == "pending"      # other tenant untouched
+    assert [(await _instr(live, t))["status"] for t in exempt.values()] == ["pending", "pending"]
+
+    platform = await stop.press(live, scope="platform", tenant_id=None, actor=PLATFORM_ACTOR, reason="drill")
+    assert platform["status"] == "stopped" and platform["cancelled"] == 1
+    assert (await _instr(live, a2_task))["status"] == "cancelled_by_stop"
+    assert [(await _instr(live, t))["status"] for t in exempt.values()] == ["pending", "pending"]
+    assert len(await _control_rows(live, "platform_stop_pressed")) == 1

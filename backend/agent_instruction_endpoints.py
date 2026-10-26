@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from database import get_database
 from authentication_service import get_current_user
 from rbac_utils import require_permission
+from autonomous_ops import delivery
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,9 @@ async def get_agent_instructions(
         "agent_id": actual_agent_id,
         "status": "pending"
     }).to_list(length=100)
+    # A queued autonomous instruction is held back while a stop is on (GATE-06, D-12). This
+    # handler is not mounted today; hooking it keeps all three instruction polls consistent.
+    instructions = await delivery.hold_back_autonomous(db, agent.get("tenantId"), instructions)
 
     for instruction in instructions:
         await db.agent_instructions.update_one(

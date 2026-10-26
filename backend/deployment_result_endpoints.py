@@ -15,6 +15,7 @@ from database import get_database
 from authentication_service import verify_token_async
 from tunnel_endpoints import deliverable_payload
 import agent_capabilities
+from autonomous_ops import delivery
 
 router = APIRouter(tags=["Deployment Results"])
 
@@ -90,6 +91,8 @@ async def get_agent_instructions(agent_id: str, request: Request, caller: dict =
     ).to_list(length=100)
     # An instruction needing a capability the tenant's agents lack is refused, never delivered.
     instructions = await agent_capabilities.hold_back(db, caller_tenant_id, instructions)
+    # A queued autonomous instruction is held back while a stop is on (GATE-06, D-12).
+    instructions = await delivery.hold_back_autonomous(db, caller_tenant_id, instructions)
 
     if instructions:
         ids = [i["_id"] for i in instructions]

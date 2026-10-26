@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from database import get_database
+from autonomous_ops import delivery
 
 logger = logging.getLogger(__name__)
 
@@ -285,7 +286,8 @@ class ResponseOrchestrator:
         if tenant_id:
             query["tenantId"] = tenant_id
         tasks = await db.response_tasks.find(query, {"_id": 0}).to_list(length=20)
-        return tasks
+        # A queued autonomous task is held back while a stop is on (GATE-06, D-12, D-21).
+        return await delivery.hold_back_response_tasks(db, tenant_id, tasks)
 
 
 # Default built-in policies to seed on first startup
