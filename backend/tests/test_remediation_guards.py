@@ -8,6 +8,7 @@ real throwaway database, with a stand-in agent (``agent_that_completes``) so eve
 the gate wrote is checked for the stamp and for being a registry command. Console permission
 checks cover the approve tier (control:autonomous_ops) and the audit read tier.
 """
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -100,7 +101,7 @@ class TestApprovalGate:
         db = _mock_db()
         with permissive_gate("needs_approval") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             svc = AutonomousRemediationService()
             result = await svc.remediate(_file_finding())  # nscan/file -> kill_process, an approval action
         assert result["status"] == "pending_approval"
@@ -118,7 +119,7 @@ async def live(mongo_db):  # noqa: F811
     await seed_tenant(mongo_db, "t1", shadow=False)
     await seed_agent(mongo_db, "t1", "a1")
     with patch("autonomous_remediation_service.get_database", return_value=mongo_db), \
-         patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+         patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
          patch("soc_integration_service.push_ocsf_event", new=AsyncMock()):
         yield mongo_db
 
@@ -250,7 +251,7 @@ class TestRollbackAndEscalation:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             playbook = {"name": "block_ip",
                         "steps": [{"action": "block_ip", "params": {"ip_address": "{{finding.resource_id}}"}, "destructive": True}],
                         "rollback": [{"action": "unblock_ip", "params": {"ip_address": "{{finding.resource_id}}"}}]}
@@ -273,7 +274,7 @@ class TestRollbackAndEscalation:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             playbook = {"name": "kill_process",
                         "steps": [{"action": "kill_process", "params": {"target": "{{finding.resource_id}}"}, "destructive": True}],
                         "rollback": []}
@@ -297,7 +298,7 @@ class TestConcurrencyCap:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             action_id = await _row(stack)
             svc = AutonomousRemediationService()
             result = await svc._dispatch_and_verify(
@@ -316,7 +317,7 @@ class TestConcurrencyCap:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             playbook = {"name": "block_ip", "rollback": [],
                         "steps": [{"action": "block_ip", "params": {"ip_address": "1.2.3.4"}, "destructive": True}]}
             action_id = await _row(stack, _finding(), playbook)

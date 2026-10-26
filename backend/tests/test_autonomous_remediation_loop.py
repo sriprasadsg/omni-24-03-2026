@@ -7,6 +7,7 @@ as the test asks, in an in-memory ledger). The real-database proofs are in
 test_remediation_guards.py and test_autonomous_ops_structural.py.
 """
 import asyncio
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -105,7 +106,7 @@ class TestRemediateLoop:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
              patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
             svc = AutonomousRemediationService()
             result = await svc.remediate(self._finding())
@@ -129,7 +130,7 @@ class TestRemediateLoop:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
              patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
             svc = AutonomousRemediationService()
             result = await svc.remediate(self._finding())
@@ -147,7 +148,7 @@ class TestRemediateLoop:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
              patch("autonomous_remediation_service.VERIFY_TIMEOUT_SEC", 0), \
              patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
             svc = AutonomousRemediationService()
@@ -164,7 +165,7 @@ class TestRemediateLoop:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
              patch("autonomous_remediation_service.STEP_POLL_TIMEOUT_SEC", 0), \
              patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
             svc = AutonomousRemediationService()
@@ -188,7 +189,7 @@ class TestRemediateLoop:
         db.agent_instructions.insert_one = AsyncMock()
         with permissive_gate("allow_auto", shadow=True) as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", True):
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "true"}):
             svc = AutonomousRemediationService()
             result = await svc.remediate(self._finding())
         assert result["status"] == "shadow"
@@ -221,10 +222,12 @@ class TestLegacyLlmPathIsGone:
             assert not hasattr(AutonomousRemediationService, name), name
         assert not hasattr(service_module, "RemediationPlan")
         assert not hasattr(service_module, "AUTONOMOUS_REMEDIATION_INTERVAL_SEC")
+        # WR-03: the deployment shadow master is read live by the gate, never copied at import
+        assert not hasattr(service_module, "AUTONOMOUS_REMEDIATION_DRY_RUN")
 
     async def test_kept_symbols_remain(self):
         for name in ("SEVERITY_ORDER", "RemediationFinding", "_render_step_params",
-                     "AUTONOMOUS_REMEDIATION_DRY_RUN", "MAX_AUTO_SEVERITY"):
+                     "MAX_AUTO_SEVERITY"):
             assert hasattr(service_module, name), name
         assert hasattr(AutonomousRemediationService, "scan_for_remediable_findings")
 
@@ -256,7 +259,7 @@ class TestAppendOnlyAudit:
 
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
              patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
             svc = AutonomousRemediationService()
             await svc.remediate(self._finding())

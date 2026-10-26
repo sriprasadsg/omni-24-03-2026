@@ -7,7 +7,8 @@ simulation, parks an approval card, or dispatches the playbook's steps. Every st
 re-scan and compensation is written by ``gate.execute`` as a stamped registry command; this
 module writes no agent instruction itself (GATE-05). Approvals and denials go through the
 ledger (autonomous_ops.approvals) and the "remediation" dispatcher registered at the foot of
-this module. The earlier LLM path (plan generation, scripts, scheduled cycle) no longer exists.
+this module. The deployment shadow master is read by the gate on every decision. The earlier
+LLM path (plan generation, scripts, scheduled cycle) no longer exists.
 """
 import asyncio
 import logging
@@ -24,8 +25,8 @@ from tenant_context import set_tenant_id, reset_tenant_id
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-AUTONOMOUS_REMEDIATION_DRY_RUN = os.getenv("AUTONOMOUS_REMEDIATION_DRY_RUN", "true").lower() in ("1", "true", "yes")
+# Configuration. The deployment shadow master (AUTONOMOUS_REMEDIATION_DRY_RUN) is deliberately
+# not read here: gate.decide reads it through autonomous_ops.settings on every decision.
 MAX_AUTO_SEVERITY = os.getenv("MAX_AUTO_SEVERITY", "medium").lower()
 
 # Bounded polling for the 53-03 playbook loop: how long to wait for the
@@ -467,7 +468,7 @@ class AutonomousRemediationService:
             dispatcher="remediation",
             remediation_id=remediation_id,
         )
-        decision = await gate.decide(db, request, master_shadow=AUTONOMOUS_REMEDIATION_DRY_RUN)
+        decision = await gate.decide(db, request)
 
         if decision.outcome == "refuse":
             await write_audit(db, tenant_id, {**base_record, "stage": "refused", "reason": decision.reason})

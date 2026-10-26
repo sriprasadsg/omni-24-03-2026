@@ -24,6 +24,7 @@ Proves:
     vendored path (block_ip automatic, kill_process an approval card).
 """
 import inspect
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -249,7 +250,7 @@ class TestNoApprovalGateBypass:
 
         with permissive_gate(outcome="needs_approval") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
-             patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
              patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
             svc = AutonomousRemediationService()
             result = await svc.remediate(finding)
@@ -294,7 +295,7 @@ class TestGatedAtShippedDefaults:
     unchanged) is decided by the gate."""
 
     async def test_tracer_shadow_ai_anomaly_is_a_simulation_and_nothing_is_dispatched(self, live):
-        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", True):
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "true"}):
             await ueba_service._dispatch_anomaly_remediation("t1", "a1", "api.openai.com", "shadow_ai_detected", 100)
 
         rows = [r async for r in live.autonomy_actions.find({"tenantId": "t1"})]
@@ -309,7 +310,7 @@ class TestGatedAtShippedDefaults:
         assert "selected" in stages and "shadow" in stages
 
     async def test_remediate_reports_shadow_with_the_ledger_id(self, live):
-        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", True):
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "true"}):
             result = await AutonomousRemediationService().remediate(_anomaly())
         row = await live.autonomy_actions.find_one({"tenantId": "t1"})
         assert result["status"] == "shadow" and result["autonomy_action_id"] == row["id"]
@@ -317,7 +318,7 @@ class TestGatedAtShippedDefaults:
 
     async def test_tenant_shadow_flag_alone_also_simulates(self, live):
         await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": True}})
-        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             result = await AutonomousRemediationService().remediate(_ip_finding())
         assert result["status"] == "shadow"
         assert await live.agent_instructions.count_documents({}) == 0
@@ -325,7 +326,7 @@ class TestGatedAtShippedDefaults:
     async def test_unticked_tenant_gets_nothing_recorded(self, live):
         await seed_tenant(live, "t2", ticked=False)
         await seed_agent(live, "t2", "a2")
-        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", True):
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "true"}):
             result = await AutonomousRemediationService().remediate(_anomaly("t2", "a2"))
         assert result["status"] == "refused" and result["reason"] == "not_enabled"
         assert await live.autonomy_actions.count_documents({"tenantId": "t2"}) == 0
@@ -337,7 +338,7 @@ class TestGatedAtShippedDefaults:
         finding = RemediationFinding(
             finding_id="scan-2", finding_type="nscan", severity="critical", tenant_id="t1", agent_id=None,
             resource_id="203.0.113.8", details={"type": "ip", "verdict": "Malicious"})
-        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             result = await AutonomousRemediationService().remediate(finding)
         assert result["status"] == "refused" and result["reason"] == "no_target"
         assert await live.agent_instructions.count_documents({}) == 0
@@ -350,7 +351,7 @@ class TestGate04SplitOnTheVendoredPath:
     async def test_block_ip_playbook_is_dispatched_without_a_card(self, live):
         await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
         seen = AsyncMock(return_value={"status": "dispatching"})
-        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
              patch.object(AutonomousRemediationService, "_dispatch_and_verify", new=seen):
             result = await AutonomousRemediationService().remediate(_ip_finding())
 
@@ -367,7 +368,7 @@ class TestGate04SplitOnTheVendoredPath:
 
     async def test_kill_process_playbook_still_needs_a_card(self, live):
         await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
-        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             result = await AutonomousRemediationService().remediate(_anomaly())
 
         assert result["status"] == "pending_approval"

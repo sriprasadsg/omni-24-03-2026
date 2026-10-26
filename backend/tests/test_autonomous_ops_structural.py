@@ -296,8 +296,10 @@ def test_legacy_symbols_are_gone():
                  "_create_failure_ticket", "_is_tenant_enabled"):
         assert not hasattr(service, name), name
     assert not hasattr(module, "RemediationPlan")
-    for kept in ("SEVERITY_ORDER", "RemediationFinding", "_render_step_params", "AUTONOMOUS_REMEDIATION_DRY_RUN"):
+    for kept in ("SEVERITY_ORDER", "RemediationFinding", "_render_step_params"):
         assert hasattr(module, kept), kept
+    # WR-03: no import-time copy of the deployment shadow master
+    assert not hasattr(module, "AUTONOMOUS_REMEDIATION_DRY_RUN")
     assert hasattr(service, "scan_for_remediable_findings")
 
 
@@ -357,6 +359,23 @@ def test_the_findings_cover_every_vendored_playbook():
     assert set(selected) == {p["name"] for p in playbooks}, "a vendored playbook has no finding in this test"
 
 
+def test_the_remediation_service_has_one_shadow_reader_and_no_override(sources):
+    """protects=GATE-09 (WR-03) / T-81-63: no call in the service passes a master_shadow keyword and
+    the module never reads the variable itself; settings.master_shadow is the only reader."""
+    tree = ast.parse(sources["autonomous_remediation_service.py"])
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            assert "master_shadow" not in [k.arg for k in node.keywords], f"line {node.lineno} overrides the master"
+            func = node.func
+            if (isinstance(func, ast.Attribute) and func.attr in ("getenv", "get")) or \
+                    (isinstance(func, ast.Name) and func.id == "getenv"):
+                assert not any(isinstance(a, ast.Constant) and a.value == "AUTONOMOUS_REMEDIATION_DRY_RUN"
+                               for a in node.args), f"line {node.lineno} reads the shadow master itself"
+    # control: the keyword is visible to the walk
+    control = next(n for n in ast.walk(ast.parse("gate.decide(db, r, master_shadow=True)")) if isinstance(n, ast.Call))
+    assert "master_shadow" in [k.arg for k in control.keywords]
+
+
 @pytest.fixture
 async def live(mongo_db):  # noqa: F811
     protected.cache_clear()
@@ -364,7 +383,7 @@ async def live(mongo_db):  # noqa: F811
     await seed_tenant(mongo_db, "t1", shadow=False)
     await seed_agent(mongo_db, "t1", "a1")
     with patch("autonomous_remediation_service.get_database", return_value=mongo_db), \
-         patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+         patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
          patch("autonomous_remediation_service.VERIFY_TIMEOUT_SEC", 0), \
          patch("soc_integration_service.push_ocsf_event", new=AsyncMock()):
         yield mongo_db
@@ -412,3 +431,20 @@ async def test_a_script_parameter_in_a_playbook_never_reaches_an_agent(live):
     (doc,) = [d async for d in live.agent_instructions.find({})]
     assert doc["type"] == "block_ip" and doc["payload"] == {"ip_address": "203.0.113.9"}
     assert "script" not in doc["parameters"]
+
+
+async def test_the_shadow_master_is_read_live_between_two_remediate_calls(live):
+    """protects=GATE-09 (WR-03) / T-81-63: with the variable "false" the block_ip finding is dispatched;
+    flipping it to "true" in the same process makes the next decision a shadow row."""
+    first = _findings()["block_ip"]
+    second = RemediationFinding(finding_id="n-ip-2", finding_type="nscan", resource_id="203.0.113.8",
+                                severity="critical", tenant_id="t1", agent_id="a1",
+                                details={"type": "ip", "verdict": "Malicious"})
+    svc = AutonomousRemediationService()
+    with agent_that_completes("Clean"):
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
+            result = await svc.remediate(first)
+        assert result["status"] == "resolved" and result["steps_dispatched"], result   # dispatched and verified
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "true"}):
+            result = await svc.remediate(second)
+        assert result["status"] == "shadow", result
