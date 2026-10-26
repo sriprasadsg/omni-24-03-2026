@@ -20,17 +20,11 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import audit_ledger
-from autonomous_ops import SCREEN_PERMISSION, gate, ledger
+from autonomous_ops import gate, ledger
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.autonomy_support import seed_agent, seed_tenant
 
 IP = "203.0.113.7"
-
-
-async def _tenant(db, tenant_id, *, ticked=True):
-    await db.tenants.insert_one({"id": tenant_id, "name": tenant_id.upper(),
-                                 "enabledFeatures": ["view:overview"] + ([SCREEN_PERMISSION] if ticked else [])})
-    await db.autonomy_settings.insert_one({"tenantId": tenant_id, "level": "undoable_auto",
-                                           "maxLevel": "undoable_auto", "shadow": True, "stop": None})
 
 
 def _block_ip(tenant_id, agent_id="a1", ip=IP):
@@ -49,8 +43,8 @@ async def test_tracer_shadow_decision_is_written_ahead_and_listed(mongo_db):
     """Tracer. protects=GATE-03 / GATE-07 / GATE-09: the decision exists as one shadow row,
     nothing is dispatched, the audit chain holds the matching event and the list shows it."""
     await ledger.ensure_indexes(mongo_db)
-    await _tenant(mongo_db, "t1")
-    await mongo_db.agents.insert_one({"id": "a1", "tenantId": "t1", "hostname": "h1", "ipAddress": "10.1.1.5"})
+    await seed_tenant(mongo_db, "t1")
+    await seed_agent(mongo_db, "t1", "a1", hostname="h1", ip="10.1.1.5")
 
     decision = await gate.decide(mongo_db, _block_ip("t1"))
 
@@ -78,7 +72,7 @@ async def test_tracer_shadow_decision_is_written_ahead_and_listed(mongo_db):
 async def test_unticked_tenant_is_off_and_unrecorded(mongo_db):
     """protects=D-23 / GATE-02: no tick = Off; refused not_enabled, and no row, no audit event."""
     await ledger.ensure_indexes(mongo_db)
-    await _tenant(mongo_db, "t2", ticked=False)
+    await seed_tenant(mongo_db, "t2", ticked=False)
 
     decision = await gate.decide(mongo_db, _block_ip("t2"))
 
@@ -91,7 +85,7 @@ async def test_unticked_tenant_is_off_and_unrecorded(mongo_db):
 async def test_platform_tenant_is_always_off(mongo_db):
     """protects=D-04: platform-admin is Off whatever it is ticked or stored as."""
     await ledger.ensure_indexes(mongo_db)
-    await _tenant(mongo_db, "platform-admin")
+    await seed_tenant(mongo_db, "platform-admin")
 
     decision = await gate.decide(mongo_db, _block_ip("platform-admin"))
 
@@ -104,9 +98,8 @@ async def test_class_step_escalates_approve_actions_and_refuses_unregistered(mon
     """protects=GATE-04: an approve action never decides allow_auto (it needs approval), and a
     name outside the registry, an undo-only name or a probe is refused unregistered_action."""
     await ledger.ensure_indexes(mongo_db)
-    await _tenant(mongo_db, "t1")
+    await seed_tenant(mongo_db, "t1", shadow=False)
     mongo_db_shadow_off = {"master_shadow": False}
-    await mongo_db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
 
     iso = gate.ActionRequest(tenant_id="t1", kind="security", origin="test", actions=["isolate_host"],
                              targets=["a1"], params={}, dedupe_key="t1|isolate|a1")
@@ -139,8 +132,7 @@ async def test_class_step_escalates_approve_actions_and_refuses_unregistered(mon
 async def test_a_ledger_that_cannot_be_written_refuses_the_decision(mongo_db):
     """protects=GATE-07: when the insert raises, decide refuses ledger_unavailable and no
     instruction or response task is written."""
-    await _tenant(mongo_db, "t1")
-    await mongo_db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
+    await seed_tenant(mongo_db, "t1", shadow=False)
 
     class _Broken:
         async def insert_one(self, *_a, **_k):
