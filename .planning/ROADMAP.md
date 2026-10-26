@@ -334,7 +334,7 @@ Plans:
   4. Every decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention. An approval dispatches exactly once even if clicked twice, and an approval left pending past its expiry counts as denied. Automatic sweeps run one at a time across the deployment, and a two-tenant test shows no action or record crosses tenants. Agent online/offline status refreshes every 5 minutes as documented.
   5. An operator with the Autonomous Ops screen enabled and the matching permission opens it from the catalogue and sees actions in the states Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result; in shadow mode "would have done" entries are clearly labelled as a simulation. A copy check fails the build if Autonomous Ops screens or docs use any of the banned terms listed in ACTV-08.
 
-**Plans**: 14/18 plans executed (12/12 original plans executed in 5 waves; 6 gap-closure plans 81-13..81-18 in waves 5-8, not executed)
+**Plans**: 15/18 plans executed (12/12 original plans executed in 5 waves; 6 gap-closure plans 81-13..81-18 in waves 5-8, not executed)
 **UI hint**: yes
 **Research**: None — internal composition over code already read (standard patterns).
 **Live-only verification** (operator steps, not unit-testable): apply migration 024 and restart the backend; flip the platform stop on the live server and confirm a real agent poll holds back a queued automatic instruction without a restart; confirm agent online/offline status refreshes on the 5-minute cadence. Until Phase 83 adds a security sweep nothing automatic runs, so live Activity data is limited to gate and shadow entries — intended.
@@ -366,7 +366,7 @@ Plans:
 **Gap closure** *(from 81-VERIFICATION.md gaps_found 4/6 and 81-REVIEW.md CR-01, CR-02, WR-01, WR-02, WR-03)*
 - [x] 81-13-PLAN.md — Wave 5: Tracer: the gate decides every playbook step and compensation step with its own parameters and registry class, records the decided plan, multi-step rows record no undo (GATE-03/04/08/10, ACTV-01)
 - [x] 81-14-PLAN.md — Wave 5: Tracer: picked-up-but-silent instructions fail no_result after a bound (WR-01); a manual level change re-arms a tripped breaker (WR-02) (GATE-07/11/14)
-- [ ] 81-15-PLAN.md — Wave 6: Tracer: gate.execute / execute_response_task bound to the decided row (command, agent, params, never-touch at dispatch); existing tests aligned (GATE-03/08/10)
+- [x] 81-15-PLAN.md — Wave 6: Tracer: gate.execute / execute_response_task bound to the decided row (command, agent, params, never-touch at dispatch); existing tests aligned (GATE-03/08/10)
 - [ ] 81-16-PLAN.md — Wave 6: Tracer: tenant-scoped playbook selection; "Undone" only when every compensation step is confirmed, else failed rollback_incomplete with escalation; breaker sees remediation outcomes (GATE-07/08/11/14, ACTV-01)
 - [ ] 81-17-PLAN.md — Wave 7: Tracer: deployment shadow master fails closed and is read live by every path (WR-03); structural stamp scan survives an unparsable tracked file (GATE-09, GATE-03)
 - [ ] 81-18-PLAN.md — Wave 8: Tracer: approve re-checks the never-touch list against every recorded step and compensation step; approvals.undo refuses multi-step rows (no_undo) (GATE-08/10, ACTV-01)
@@ -471,7 +471,7 @@ Plans:
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
-| 81. Autonomy Gate, Stop Switch & Activity Ledger | 14/18 | In Progress | - |
+| 81. Autonomy Gate, Stop Switch & Activity Ledger | 15/18 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 0/TBD | Not started | - |
 | 83. Autonomous Security Response | 0/TBD | Not started | - |
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
