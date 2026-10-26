@@ -301,3 +301,138 @@ async def test_press_bulk_cancels_for_its_scope_and_returns_the_count(live):
     assert (await _instr(live, a2_task))["status"] == "cancelled_by_stop"
     assert [(await _instr(live, t))["status"] for t in exempt.values()] == ["pending", "pending"]
     assert len(await _control_rows(live, "platform_stop_pressed")) == 1
+
+
+# ---------------------------------------------------------------- Task 3: authority, reasons, capability map
+
+def _stop(scope="tenant", tier="tenant"):
+    return {"active": True, "scope": scope, "pressedByTier": tier, "pressedBy": {"username": "x", "display": "X"},
+            "pressedAt": datetime.now(timezone.utc), "reason": None}
+
+
+@pytest.mark.parametrize("stop_doc, super_admin, manage, expected", [
+    (_stop("tenant", "tenant"), False, True, True),          # tenant stop, tenant tier, manage holder
+    (_stop("tenant", "tenant"), True, False, True),          # tenant stop, tenant tier, Super Admin
+    (_stop("tenant", "tenant"), False, False, False),        # approver without manage
+    (_stop("tenant", "platform"), False, True, False),       # tenant stop pressed by a Super Admin, manage holder
+    (_stop("tenant", "platform"), True, False, True),        # ... the Super Admin
+    (_stop("platform", "platform"), False, True, False),     # platform stop, manage holder
+    (_stop("platform", "platform"), True, False, True),      # platform stop, Super Admin
+], ids=["tenant-manage", "tenant-superadmin", "tenant-approver-only", "platform-tier-manage",
+        "platform-tier-superadmin", "platform-manage", "platform-superadmin"])
+def test_can_clear_matrix(stop_doc, super_admin, manage, expected):
+    assert stop.can_clear(stop_doc, actor_is_super_admin=super_admin, actor_has_manage=manage) is expected
+
+
+def test_can_clear_fails_closed_on_unknown_origin():
+    assert stop.can_clear({"active": True, "scope": "tenant"}, actor_is_super_admin=False, actor_has_manage=True) is False
+    assert stop.can_clear(None, actor_is_super_admin=True, actor_has_manage=True) is False
+
+
+async def _clear(db, reason, scope="tenant", tenant="t1", **kw):
+    args = dict(actor_is_super_admin=False, actor_has_manage=True)
+    args.update(kw)
+    return await stop.clear(db, scope=scope, tenant_id=tenant if scope == "tenant" else None,
+                            actor=TENANT_ACTOR, reason=reason, **args)
+
+
+@pytest.mark.parametrize("reason", [None, "", "   \n\t ", "x" * 501], ids=["none", "empty", "blank", "501-chars"])
+async def test_clear_needs_a_real_reason_and_leaves_the_stop_on(live, reason):
+    await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR)
+
+    out = await _clear(live, reason)
+
+    assert out["status"] == "invalid_reason"
+    assert (await settings.load(live, "t1")).stop["active"] is True
+    assert await _control_rows(live, "stop_cleared") == []
+
+
+async def test_clear_with_a_reason_records_it_and_keeps_the_press_fields(live):
+    pressed = await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR, reason="  suspicious  ")
+    assert pressed["stop"]["reason"] == "suspicious"
+
+    out = await _clear(live, "  false alarm  ")
+
+    assert out["status"] == "cleared"
+    stored = (await settings.load(live, "t1")).stop
+    assert stored["active"] is False and stored["clearReason"] == "false alarm"
+    assert stored["clearedBy"]["username"] == "alice" and stored["pressedBy"]["username"] == "alice"
+    assert stored["reason"] == "suspicious" and stored["clearedAt"]
+    rows = await _control_rows(live, "stop_cleared")
+    assert len(rows) == 1 and rows[0]["reasonText"] == "false alarm"
+    assert "autonomous_ops.stop_cleared" in [e["action"] async for e in live.audit_logs.find({"tenantId": "t1"})]
+
+
+async def test_clear_checks_the_stored_origin_of_the_stop(live):
+    await stop.press(live, scope="tenant", tenant_id="t1", actor=PLATFORM_ACTOR)       # pressed at platform tier
+    assert (await _clear(live, "ok"))["status"] == "forbidden"
+    assert (await settings.load(live, "t1")).stop["active"] is True
+    assert (await _clear(live, "ok", actor_is_super_admin=True, actor_has_manage=False))["status"] == "cleared"
+
+    await stop.press(live, scope="platform", tenant_id=None, actor=PLATFORM_ACTOR)
+    assert (await _clear(live, "ok", scope="platform"))["status"] == "forbidden"
+    assert settings.stop_active(await settings.platform_stop(live))
+    out = await _clear(live, "all clear", scope="platform", actor_is_super_admin=True, actor_has_manage=False)
+    assert out["status"] == "cleared" and not settings.stop_active(await settings.platform_stop(live))
+    assert len(await _control_rows(live, "platform_stop_cleared")) == 1
+
+
+async def test_clear_when_not_stopped_and_press_when_stopped(live):
+    assert (await _clear(live, "ok"))["status"] == "not_stopped"
+    assert (await _clear(live, "ok", scope="platform", actor_is_super_admin=True))["status"] == "not_stopped"
+
+    first = await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR)
+    second = await stop.press(live, scope="tenant", tenant_id="t1", actor=PLATFORM_ACTOR, reason="again")
+
+    assert first["status"] == "stopped" and second["status"] == "already_stopped"
+    assert second["stop"]["pressedBy"]["username"] == "alice" and second["cancelled"] == 0
+    assert len(await _control_rows(live, "stop_pressed")) == 1
+
+
+async def test_press_reason_is_optional_but_capped(live):
+    too_long = await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR, reason="x" * 501)
+    assert too_long["status"] == "invalid_reason" and not settings.stop_active((await settings.load(live, "t1")).stop)
+    exact = await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR, reason="x" * 500)
+    assert exact["status"] == "stopped"
+
+
+async def test_press_notifies_once_for_each_scope(live):
+    with patch("autonomous_ops.stop.notify.notify", new=AsyncMock()) as notice:
+        await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR)
+        await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR)      # already stopped: no notice
+        await stop.press(live, scope="platform", tenant_id=None, actor=PLATFORM_ACTOR, reason="drill")
+    assert notice.await_count == 2
+    assert notice.await_args_list[1].args[1] == "platform-admin"
+    assert "drill" in notice.await_args_list[1].kwargs["message"]
+
+
+async def test_nothing_but_clear_turns_an_active_stop_off(live):
+    from autonomous_ops import reconciler
+    await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR)
+    await stop.press(live, scope="platform", tenant_id=None, actor=PLATFORM_ACTOR)
+
+    await settings.ensure_tenant(live, "t1")
+    await settings.ensure_all_tenants(live)
+    await settings.set_level(live, "t1", "suggest", actor="x")
+    await settings.set_max_level(live, "t1", "undoable_auto", actor="x")
+    await settings.set_shadow(live, "t1", True, actor="x")
+    await reconciler.tick(live)
+
+    assert settings.stop_active((await settings.load(live, "t1")).stop)
+    assert settings.stop_active(await settings.platform_stop(live))
+    # A platform clear does not touch the tenant's own stop, and vice versa.
+    await _clear(live, "ok", scope="platform", actor_is_super_admin=True)
+    assert settings.stop_active((await settings.load(live, "t1")).stop)
+
+
+def test_every_registry_command_maps_to_a_capability():
+    import agent_capabilities
+    from autonomous_ops import registry
+    missing = [n for n in sorted(registry.commands()) if agent_capabilities.instruction_capability({"type": n}) is None]
+    assert missing == []
+    want = {"restart_service": "remediation_executor", "quarantine_file": "remediation_executor",
+            "unquarantine_file": "remediation_executor", "restore_host": "remediation_executor",
+            "reboot_host": "patch_installer", "rollback_ransomware": "vss_manager",
+            "autonomous_remediation": "autonomous_response"}
+    for name, cap in want.items():
+        assert agent_capabilities.instruction_capability({"type": name}) == cap, name

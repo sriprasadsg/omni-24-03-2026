@@ -70,6 +70,12 @@ _INSTRUCTIONS: Dict[str, str] = {
     "create_ticket": "ticket_reporter", "report_ticket": "ticket_reporter", "ticket_created": "ticket_reporter",
     "create_vss_snapshot": "vss_manager", "run_vss_rollback_check": "vss_manager",
     "process_injection": "process_injection_simulation",
+    # Autonomous Ops registry commands (Phase 81): each one needs the capability that carries it out.
+    "restart_service": "remediation_executor",
+    "quarantine_file": "remediation_executor", "unquarantine_file": "remediation_executor",
+    "restore_host": "remediation_executor",
+    "reboot_host": "patch_installer",
+    "rollback_ransomware": "vss_manager",
 }
 _PREFIXES = [(name[:-1], cap) for name, cap in _INSTRUCTIONS.items() if name.endswith("*")]
 

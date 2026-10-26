@@ -189,3 +189,17 @@ async def test_an_agent_upload_of_an_unticked_capability_is_refused(module, call
     with pytest.raises(HTTPException) as refused:
         await call(mod, {"id": T, "agentCapabilities": ["fim"]})
     assert refused.value.status_code == 403 and "not enabled" in refused.value.detail
+
+
+@pytest.mark.parametrize("command, capability", [
+    ("restart_service", "remediation_executor"), ("quarantine_file", "remediation_executor"),
+    ("unquarantine_file", "remediation_executor"), ("restore_host", "remediation_executor"),
+    ("reboot_host", "patch_installer"), ("rollback_ransomware", "vss_manager"),
+    ("autonomous_remediation", "autonomous_response"),
+])
+def test_autonomous_ops_commands_need_the_capability_that_carries_them_out(command, capability):
+    """protects=every command the Autonomous Ops gate can dispatch is held back from a tenant whose
+    agents lack the capability; fails_when=a registry command resolves to no capability and so
+    bypasses hold_back; no_claim=that the agent implements the command (agent-side)."""
+    assert ac.instruction_capability({"type": command}) == capability
+    assert ac.instruction_capability({"instruction": command.upper()}) == capability
