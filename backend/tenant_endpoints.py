@@ -122,6 +122,14 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
     
     await mongodb.db.tenants.insert_one(tenant_doc)
 
+    # The new tenant gets an explicit Autonomous Ops level now; startup's ensure_all_tenants
+    # is the backstop, so a failure here never blocks tenant creation.
+    try:
+        from autonomous_ops import settings as autonomy_settings
+        await autonomy_settings.ensure_tenant(mongodb.db, tenant_id)
+    except Exception as exc:
+        logger.warning("autonomy settings for new tenant %s were not created: %s", tenant_id, exc)
+
     # Notify tenant admin creation
     try:
         from notification_service import get_notification_service, send_notification

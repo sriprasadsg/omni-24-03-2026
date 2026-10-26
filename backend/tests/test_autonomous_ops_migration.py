@@ -5,8 +5,11 @@ Real-Mongo cases use the throwaway database from tests/_mongo_test_db.py and ski
 server is reachable; the hook-failure cases need no database.
 """
 import importlib
+import logging
 import os
 import sys
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -132,3 +135,77 @@ def test_migration_is_discovered_by_the_runner():
     assert migration.DESCRIPTION
 
 
+
+
+# ------------------------------------------------------------------ Task 2: creation hooks
+
+def _tenant_payload():
+    import tenant_endpoints
+    return tenant_endpoints.TenantCreate(name="Hook Co", subscriptionTier="Free", maxAgents=5,
+                                         enabledFeatures=["view:overview"])
+
+
+def _super():
+    from auth_types import TokenData
+    return TokenData(username="super@omni.test", role="Super Admin", tenant_id="platform-admin",
+                     mfa_verified=True)
+
+
+async def _add_tenant(db):
+    import tenant_endpoints
+    with patch.object(tenant_endpoints, "mongodb", SimpleNamespace(db=db)):
+        return await tenant_endpoints.create_tenant(_tenant_payload(), _super())
+
+
+async def _sign_up(db):
+    import authentication_endpoints as ae
+    request = MagicMock()
+    request.client.host = "127.0.0.1"
+    data = {"companyName": "Sign Co", "name": "Sam", "email": "sam@signco.test",
+            "password": "Str0ng!Passw0rd#2026"}
+    with patch.object(ae, "get_database", lambda: db), patch.object(ae, "_audit_login", AsyncMock()):
+        return await ae.signup.__wrapped__(request, MagicMock(), data)
+
+
+@pytest.mark.asyncio
+async def test_add_tenant_writes_the_default_settings(mongo_db):
+    tenant = await _add_tenant(mongo_db)
+    doc = await mongo_db.autonomy_settings.find_one({"tenantId": tenant["id"]}, {"_id": 0})
+    assert doc is not None
+    assert (doc["level"], doc["maxLevel"], doc["shadow"]) == ("undoable_auto", "undoable_auto", True)
+
+
+@pytest.mark.asyncio
+async def test_sign_up_writes_the_default_settings(mongo_db):
+    result = await _sign_up(mongo_db)
+    doc = await mongo_db.autonomy_settings.find_one({"tenantId": result["tenant"]["id"]}, {"_id": 0})
+    assert doc is not None
+    assert (doc["level"], doc["maxLevel"], doc["shadow"]) == ("undoable_auto", "undoable_auto", True)
+
+
+@pytest.mark.asyncio
+async def test_add_tenant_survives_a_settings_failure(mongo_db, caplog):
+    with patch("autonomous_ops.settings.ensure_tenant", AsyncMock(side_effect=RuntimeError("boom"))):
+        with caplog.at_level(logging.WARNING):
+            tenant = await _add_tenant(mongo_db)
+    assert await mongo_db.tenants.find_one({"id": tenant["id"]}) is not None
+    assert any("autonomy" in r.getMessage().lower() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_sign_up_survives_a_settings_failure(mongo_db, caplog):
+    with patch("autonomous_ops.settings.ensure_tenant", AsyncMock(side_effect=RuntimeError("boom"))):
+        with caplog.at_level(logging.WARNING):
+            result = await _sign_up(mongo_db)
+    assert await mongo_db.tenants.find_one({"id": result["tenant"]["id"]}) is not None
+    assert any("autonomy" in r.getMessage().lower() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_both_handlers_call_ensure_tenant_with_the_new_tenant_id(mongo_db):
+    ensure = AsyncMock()
+    with patch("autonomous_ops.settings.ensure_tenant", ensure):
+        added = await _add_tenant(mongo_db)
+        signed = await _sign_up(mongo_db)
+    called = [c.args[1] for c in ensure.await_args_list]
+    assert added["id"] in called and signed["tenant"]["id"] in called

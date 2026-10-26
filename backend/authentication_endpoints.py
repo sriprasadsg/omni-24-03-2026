@@ -371,6 +371,14 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
             raise HTTPException(status_code=400, detail="Email already registered")
         raise
 
+    # The new tenant gets an explicit Autonomous Ops level now; startup's ensure_all_tenants
+    # is the backstop, so a failure here never blocks the sign-up.
+    try:
+        from autonomous_ops import settings as autonomy_settings
+        await autonomy_settings.ensure_tenant(db, tenant_id)
+    except Exception as exc:
+        logger.warning("autonomy settings for new tenant %s were not created: %s", tenant_id, exc)
+
     # Seed GDPR/CCPA consent record for the new user
     await db.user_consents.insert_one({
         "user_id": user_id,
