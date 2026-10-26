@@ -156,9 +156,11 @@ async def update(db, tenant_id: str, fields: Dict[str, Any], *, actor) -> None:
         {"$set": {**fields, "updatedAt": _now(), "updatedBy": _actor_name(actor)}})
 
 
-async def set_level(db, tenant_id: str, level: str, *, actor) -> Dict[str, str]:
+async def set_level(db, tenant_id: str, level: str, *, actor) -> Dict[str, Any]:
     """Change a tenant's level. Refused above its maximum level, for the Platform tenant and
-    for a value that is not a level."""
+    for a value that is not a level. Setting Undoable-auto by hand also clears a tripped circuit
+    breaker in the same update (so it can trip again) and records ``level_restored`` with the
+    person as actor; ``breakerCleared`` is then True. Suggest and Off leave the breaker in place."""
     if not _is_level(level):
         return {"status": "invalid"}
     if tenant_id == PLATFORM_TENANT_ID:
@@ -167,8 +169,24 @@ async def set_level(db, tenant_id: str, level: str, *, actor) -> Dict[str, str]:
     s = await load(db, tenant_id)
     if LEVEL_RANK[level] > LEVEL_RANK[s.max_level]:
         return {"status": "above_max"}
-    await update(db, tenant_id, {"level": level}, actor=actor)
-    return {"status": "ok"}
+    if level != "undoable_auto":
+        await update(db, tenant_id, {"level": level}, actor=actor)
+        return {"status": "ok"}
+    from pymongo import ReturnDocument
+    before = await raw(db).autonomy_settings.find_one_and_update(
+        {"tenantId": tenant_id},
+        {"$set": {"level": level, "breaker": None, "updatedAt": _now(), "updatedBy": _actor_name(actor)}},
+        projection={"_id": 0, "breaker": 1}, return_document=ReturnDocument.BEFORE)
+    if not isinstance((before or {}).get("breaker"), dict):
+        return {"status": "ok"}
+    from . import ledger, messages      # local: breaker imports this module too
+    try:
+        await ledger.record_control(db, tenant_id, "level_restored", scope="tenant",
+                                    actor=actor if isinstance(actor, dict) else {"username": _actor_name(actor)},
+                                    reason=messages.CONTROL_LABELS["level_restored"])
+    except Exception as exc:
+        logger.error("autonomous_ops: level restore for %s not recorded in the ledger: %s", tenant_id, exc)
+    return {"status": "ok", "breakerCleared": True}
 
 
 async def set_max_level(db, tenant_id: str, max_level: str, *, actor) -> Dict[str, str]:

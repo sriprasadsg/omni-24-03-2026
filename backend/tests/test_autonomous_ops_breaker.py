@@ -195,3 +195,54 @@ async def test_old_bad_rows_do_not_re_trip_after_a_restore_when_a_good_one_follo
     await _row(live, "executed", finished=NOW + timedelta(minutes=1))
     assert await breaker.evaluate(live, "t1", now=NOW + timedelta(minutes=2)) is False
     assert (await _tenant(live)).level == "undoable_auto"
+
+
+async def test_tracer_manual_undoable_auto_clears_a_tripped_breaker_and_it_can_trip_again(live, notices):
+    """WR-02: a person raising the level re-arms the breaker, with a level_restored row."""
+    await _bad(live, 3)
+    assert await breaker.evaluate(live, "t1", now=NOW) is True
+    out = await settings.set_level(live, "t1", "undoable_auto", actor=ACTOR)
+    assert out == {"status": "ok", "breakerCleared": True}
+    s = await _tenant(live)
+    assert s.level == "undoable_auto" and s.breaker is None
+    assert sorted(await _controls(live)) == ["breaker_tripped", "level_restored"]
+    restored = await live.autonomy_actions.find_one({"tenantId": "t1", "controlEvent": "level_restored"})
+    assert restored["actor"]["username"] == "carol"
+    later = NOW + timedelta(hours=1)
+    await _bad(live, 3, finished=later)
+    assert await breaker.evaluate(live, "t1", now=later + timedelta(minutes=1)) is True
+
+
+@pytest.mark.parametrize("level", ["suggest", "off"])
+async def test_lowering_the_level_keeps_the_tripped_breaker(live, notices, level):
+    await _bad(live, 3)
+    await breaker.evaluate(live, "t1", now=NOW)
+    assert await settings.set_level(live, "t1", level, actor=ACTOR) == {"status": "ok"}
+    assert (await _tenant(live)).breaker is not None
+    assert await _controls(live) == ["breaker_tripped"]
+    assert (await breaker.restore(live, "t1", actor=ACTOR))["status"] == "restored"
+
+
+async def test_undoable_auto_when_not_tripped_is_unchanged(live):
+    assert await settings.set_level(live, "t1", "undoable_auto", actor=ACTOR) == {"status": "ok"}
+    assert await _controls(live) == []
+
+
+async def test_above_max_while_tripped_changes_nothing(live, notices):
+    await _bad(live, 3)
+    await breaker.evaluate(live, "t1", now=NOW)
+    await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"maxLevel": "suggest"}})
+    assert await settings.set_level(live, "t1", "undoable_auto", actor=ACTOR) == {"status": "above_max"}
+    s = await _tenant(live)
+    assert s.level == "suggest" and s.breaker is not None
+    assert await _controls(live) == ["breaker_tripped"]
+
+
+async def test_a_failed_control_row_does_not_undo_the_level_change(live, notices):
+    await _bad(live, 3)
+    await breaker.evaluate(live, "t1", now=NOW)
+    with patch("autonomous_ops.ledger.record_control", AsyncMock(side_effect=ledger.LedgerUnavailable("down"))):
+        out = await settings.set_level(live, "t1", "undoable_auto", actor=ACTOR)
+    assert out == {"status": "ok", "breakerCleared": True}
+    s = await _tenant(live)
+    assert s.level == "undoable_auto" and s.breaker is None
