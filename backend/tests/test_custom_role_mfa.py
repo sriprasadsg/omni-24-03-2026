@@ -21,7 +21,9 @@ from tests.rbac_test_support import (
 )
 
 EMAIL = "who@mfa.test"
-BUILTIN_ADMIN_TIER = {"super_admin", "tenant_admin", "admin", "itam_admin", "platform_support", "platform_billing"}
+# D-07 (Phase 81): control:autonomous_ops is admin-tier, so the approve tier needs MFA too.
+BUILTIN_ADMIN_TIER = {"super_admin", "tenant_admin", "admin", "itam_admin", "platform_support", "platform_billing",
+                      "security_analyst", "incident_responder"}
 
 
 def _token(role, tenant="tenant-a", **claims):
@@ -38,6 +40,8 @@ def _store(extra=()):
     docs += [
         _doc("Deskadmin", "tenant-a", ["manage:rbac", "view:agents"]),
         _doc("Helpdesk", "tenant-a", ["view:agents"]),
+        _doc("Approver", "tenant-a", ["control:autonomous_ops", "view:autonomous_ops"]),
+        _doc("Auditor", "tenant-a", ["view:autonomous_ops"]),
         _doc("viewer", "tenant-a", ["manage:users"]),  # legacy document extending a built-in
     ]
     docs += list(extra)
@@ -71,7 +75,7 @@ def _mfa_refused(exc):
 def test_admin_tier_selects_exactly_the_builtin_admin_roles():
     got = {k for k in rbac_defaults.builtin_role_keys() if rbac_defaults.requires_mfa(rbac_defaults.defaults_for(k))}
     assert got == BUILTIN_ADMIN_TIER
-    for k in ("user", "analyst", "security_analyst", "incident_responder", "viewer", "itam_user", "itam_viewer"):
+    for k in ("user", "analyst", "viewer", "itam_user", "itam_viewer"):
         assert not rbac_defaults.requires_mfa(rbac_defaults.defaults_for(k)), k
 
 
@@ -95,6 +99,15 @@ async def test_custom_role_with_admin_tier_permission_is_held_to_mfa(db):
     assert _mfa_refused(exc)
 
 
+async def test_custom_role_with_control_autonomous_ops_is_held_to_mfa(db):
+    """D-07 / D-09: a custom role that can approve or undo is admin-tier; one that only reads is not."""
+    with pytest.raises(HTTPException) as exc:
+        await auth_svc.get_current_user(_token("Approver"))
+    assert _mfa_refused(exc)
+    assert (await auth_svc.get_current_user(_token("Approver", mfa_verified=True))).role == "Approver"
+    assert (await auth_svc.get_current_user(_token("Auditor"))).role == "Auditor"
+
+
 async def test_custom_admin_tier_role_with_mfa_verified_passes(db):
     user = await auth_svc.get_current_user(_token("Deskadmin", mfa_verified=True))
     assert user.role == "Deskadmin"
@@ -111,14 +124,14 @@ async def test_legacy_document_on_a_builtin_name_is_tenant_scoped(db):
     assert (await auth_svc.get_current_user(_token("viewer", tenant="tenant-b"))).role == "viewer"
 
 
-@pytest.mark.parametrize("role", ["Super Admin", "Tenant Admin", "admin", "itam_admin"])
+@pytest.mark.parametrize("role", ["Super Admin", "Tenant Admin", "admin", "itam_admin", "security_analyst", "incident_responder"])
 async def test_builtin_admin_roles_still_need_mfa(db, role):
     with pytest.raises(HTTPException) as exc:
         await auth_svc.get_current_user(_token(role))
     assert _mfa_refused(exc)
 
 
-@pytest.mark.parametrize("role", ["user", "analyst", "security_analyst", "itam_viewer"])
+@pytest.mark.parametrize("role", ["user", "analyst", "itam_viewer"])
 async def test_other_builtin_roles_still_do_not(db, role):
     assert (await auth_svc.get_current_user(_token(role, tenant="tenant-b"))).role == role
 

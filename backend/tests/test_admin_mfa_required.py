@@ -57,9 +57,19 @@ async def test_admin_session_with_mfa_is_allowed(role):
     assert (await auth_svc.get_current_user(_token(role, mfa_verified=True))).role == role
 
 
-@pytest.mark.parametrize("role", ["Viewer", "user", "analyst", "security_analyst", "itam_viewer"])
+@pytest.mark.parametrize("role", ["Viewer", "user", "analyst", "itam_viewer"])
 async def test_other_roles_do_not_need_mfa(role):
     assert (await auth_svc.get_current_user(_token(role))).role == role
+
+
+@pytest.mark.parametrize("role", ["security_analyst", "incident_responder"])
+async def test_approve_tier_roles_need_mfa(role):
+    """D-07: control:autonomous_ops is admin-tier, so approving and undoing needs a verified session."""
+    with pytest.raises(HTTPException) as exc:
+        await auth_svc.get_current_user(_token(role))
+    assert exc.value.status_code == 403
+    assert exc.value.headers["X-MFA-Required"] == "1"
+    assert (await auth_svc.get_current_user(_token(role, mfa_verified=True))).role == role
 
 
 async def test_enrollment_routes_accept_a_pending_admin_session():

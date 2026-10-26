@@ -120,6 +120,17 @@ def test_support_holds_only_view_permissions():
     assert "view:remote_access" not in d.defaults_for("platform_support")
 
 
+def test_support_reads_autonomous_ops_through_its_own_view_string():
+    """protects=D-08 / A8: Platform Support reads Autonomous Ops through view:autonomous_ops in its
+    role-table row, with no manage:/control: string; Platform Billing gets none of the strings;
+    fails_when=support gains manage:/control:autonomous_ops or billing gains view:autonomous_ops;
+    no_claim=the route guard (81-09)."""
+    support = set(d.defaults_for("platform_support"))
+    assert "view:autonomous_ops" in support
+    assert not {p for p in support if p.endswith("autonomous_ops") and not p.startswith("view:")}
+    assert not {p for p in d.defaults_for("platform_billing") if "autonomous_ops" in p}
+
+
 class _Roles:
     def __init__(self, docs):
         self.docs = docs

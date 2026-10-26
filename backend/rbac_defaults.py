@@ -169,6 +169,8 @@ SUPER_ADMIN_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
 PLATFORM_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
     "manage:pending_agents",
     "manage:tenant_license",
+    # Phase 81 D-05 / GATE-13: the platform-wide stop and clear, a tenant's maximum level and shadow flag.
+    "control:platform_autonomous_ops",
     "view:platform_alerts",
     "view:platform_cost",
     "view:tenants",
@@ -177,13 +179,16 @@ PLATFORM_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
 
 # D-14: the one admin-tier definition. A role whose effective permissions hold "*" or any of
 # these must pass MFA. Over the built-in table it selects exactly super_admin, tenant_admin
-# (and its alias admin), itam_admin, platform_support and platform_billing.
+# (and its alias admin), itam_admin, platform_support, platform_billing and, since Phase 81
+# D-07 (control:autonomous_ops), security_analyst and incident_responder.
 ADMIN_TIER_PERMISSIONS: FrozenSet[str] = frozenset({
     "manage:users",
     "manage:rbac",
     "manage:settings",
     "manage:api_keys",
     "control:remote_access",
+    # Phase 81 D-07: approving, denying, undoing and pressing a stop are admin actions.
+    "control:autonomous_ops",
 }) | PLATFORM_ONLY_PERMISSIONS
 
 
