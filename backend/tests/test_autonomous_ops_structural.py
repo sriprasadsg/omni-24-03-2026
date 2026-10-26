@@ -9,7 +9,9 @@ package / the remediation service / the playbook actions, drops a hold-back call
 non-registry or scripted action reach the queue;
 no_claim=runtime behaviour of the gate itself (see test_autonomous_ops_gate*.py) and any module
 that is not a tracked backend source file (untracked and deleted working-tree files are not
-scanned, so one user's unfinished work cannot trip a rule meant for committed code).
+scanned, so one user's unfinished work cannot trip a rule meant for committed code). A tracked
+file that does not parse is scanned textually for the stamp, not skipped; on the autonomous path
+it fails the test.
 
 Each scanner has a negative control (a synthetic source that MUST be flagged) so a test cannot
 pass vacuously.
@@ -112,7 +114,7 @@ def _backend_sources():
         full = os.path.join(_BACKEND, rel)
         if not os.path.isfile(full):          # tracked but deleted in the working tree
             continue
-        with open(full, encoding="utf-8-sig") as fh:
+        with open(full, encoding="utf-8-sig", errors="replace") as fh:
             out[rel] = fh.read()
     return out
 
@@ -156,10 +158,29 @@ def _is_stamp(value) -> bool:
             or (isinstance(value, ast.Constant) and value.value == STAMP_SOURCE))
 
 
+def _parse(src: str):
+    """The ast tree of ``src``, or None when it does not parse (SyntaxError, or null bytes)."""
+    try:
+        return ast.parse(src)
+    except (SyntaxError, ValueError):
+        return None
+
+
+_ASSIGN = r"""['"]?\]?\s*(?:[:]|(?<![=!<>])=(?!=))\s*"""
+_STAMP_TEXT = re.compile(
+    rf"triggered_by{_ASSIGN}(?:\w+\.)?STAMP_SOURCE\b"
+    rf"|triggered_by{_ASSIGN}['\"]{re.escape(STAMP_SOURCE)}['\"]"
+    r"""|['"]autonomy(?:\.[\w.]+)?['"]\s*[:\]]""")
+
+
 def names_the_autonomy_stamp(src: str) -> bool:
     """True when a dict literal sets ``triggered_by`` to the autonomy stamp or carries an
-    ``autonomy`` / ``autonomy.*`` key, or a subscript assignment sets one."""
-    for node in ast.walk(ast.parse(src)):
+    ``autonomy`` / ``autonomy.*`` key, or a subscript assignment sets one. A source that does not
+    parse is matched textually instead (never skipped, never raises)."""
+    tree = _parse(src)
+    if tree is None:
+        return bool(_STAMP_TEXT.search(src))
+    for node in ast.walk(tree):
         if isinstance(node, ast.Dict):
             for key, value in zip(node.keys, node.values):
                 if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
@@ -178,8 +199,11 @@ def names_the_autonomy_stamp(src: str) -> bool:
 
 def banned_imports(src: str):
     """The LLM modules a source imports, anywhere in it (top level or inside a function)."""
+    tree = _parse(src)
+    if tree is None:
+        return ["<unparsable>"]
     found = set()
-    for node in ast.walk(ast.parse(src)):
+    for node in ast.walk(tree):
         names = []
         if isinstance(node, ast.Import):
             names = [a.name for a in node.names]
@@ -194,7 +218,9 @@ def banned_imports(src: str):
 
 def calls_in_function(src: str, qualname: str, called: str) -> bool:
     """True when the function ``qualname`` ("name" or "Class.name") contains a call to ``called``."""
-    tree = ast.parse(src)
+    tree = _parse(src)
+    if tree is None:
+        return False
     wanted = qualname.split(".")
     scope = tree
     for part in wanted:
@@ -212,14 +238,73 @@ def calls_in_function(src: str, qualname: str, called: str) -> bool:
 
 # ------------------------------------------------------------------ the stamp
 
+def stamp_writers(sources):
+    """The sorted modules that name the autonomy stamp: parseable modules by the AST rule,
+    unparsable ones by the textual fallback."""
+    return sorted(rel for rel, src in sources.items() if names_the_autonomy_stamp(src))
+
+
+def unparsable_modules(sources):
+    return sorted(rel for rel, src in sources.items() if _parse(src) is None)
+
+
+def _on_autonomous_path(rel: str) -> bool:
+    return rel.startswith("autonomous_ops/") or rel in ("autonomous_remediation_service.py",
+                                                        "playbook_engine_actions.py")
+
+
+def autonomous_path_unparsable(sources):
+    return [rel for rel in unparsable_modules(sources) if _on_autonomous_path(rel)]
+
+
 def test_only_the_gate_writes_the_autonomy_stamp(sources):
-    named = sorted(rel for rel, src in sources.items() if names_the_autonomy_stamp(src))
+    named = stamp_writers(sources)
     allowed = {"autonomous_ops/gate.py", *STAMP_READERS}
     assert "autonomous_ops/gate.py" in named, "the gate no longer writes the stamp: the scanner is blind"
     assert sorted(set(named) - allowed) == [], f"module(s) name the autonomy stamp outside the gate: {set(named) - allowed}"
     # The readers compare the stamp; they never insert into an agent queue.
     for rel in STAMP_READERS:
         assert not inserts_agent_queue(sources[rel]), f"{rel} inserts into an agent queue"
+    assert autonomous_path_unparsable(sources) == [], \
+        f"module(s) on the autonomous path do not parse: {autonomous_path_unparsable(sources)}"
+
+
+def _gate_source():
+    with open(os.path.join(_BACKEND, "autonomous_ops", "gate.py"), encoding="utf-8-sig") as fh:
+        return fh.read()
+
+
+def test_an_unparsable_file_is_scanned_textually_not_skipped():
+    """protects=GATE-03 (T-81-64): a broken file never crashes the scan; without the stamp it is not
+    reported, with the stamp in its text it is."""
+    broken = "def broken(:\n    pass\n"
+    assert _parse(broken) is None and _parse("x = 1\x00\n") is None
+    assert not names_the_autonomy_stamp(broken)
+    assert not names_the_autonomy_stamp("def broken(:\n    doc = {'triggered_by': 'operator'}\n")
+    sources = {"autonomous_ops/gate.py": _gate_source(), "x_broken.py": broken}
+    assert stamp_writers(sources) == ["autonomous_ops/gate.py"]
+    hidden = "def broken(:\n    await db.agent_instructions.insert_one({'triggered_by': STAMP_SOURCE})\n"
+    assert stamp_writers({**sources, "x_broken.py": hidden}) == ["autonomous_ops/gate.py", "x_broken.py"]
+    quoted = f"def broken(:\n    doc = {{'triggered_by': '{STAMP_SOURCE}'}}\n"
+    assert names_the_autonomy_stamp(quoted)
+    assert names_the_autonomy_stamp("def broken(:\n    doc = {'autonomy': {'actionId': 'a'}}\n")
+    assert names_the_autonomy_stamp("def broken(:\n    q = {'autonomy.tenantId': 't'}\n")
+    assert names_the_autonomy_stamp("def broken(:\n    doc['triggered_by'] = STAMP_SOURCE\n")
+
+
+def test_a_parseable_module_keeps_the_exact_ast_rule():
+    """A word in a comment or string does not trip the AST rule (the textual fallback is only for
+    sources that do not parse)."""
+    assert not names_the_autonomy_stamp("# 'autonomy': documented\nx = 'triggered_by: STAMP_SOURCE'\n")
+
+
+def test_an_unparsable_autonomous_path_file_is_reported():
+    ok = {"autonomous_ops/gate.py": _gate_source()}
+    assert autonomous_path_unparsable(ok) == []
+    for rel in ("autonomous_ops/new_module.py", "autonomous_remediation_service.py", "playbook_engine_actions.py"):
+        assert autonomous_path_unparsable({**ok, rel: "def broken(:\n"}) == [rel]
+    assert autonomous_path_unparsable({**ok, "backend/x_broken.py": "def broken(:\n"}) == []
+    assert banned_imports("def broken(:\n") == ["<unparsable>"]
 
 
 def test_stamp_scanner_negative_control():
@@ -362,7 +447,8 @@ def test_the_findings_cover_every_vendored_playbook():
 def test_the_remediation_service_has_one_shadow_reader_and_no_override(sources):
     """protects=GATE-09 (WR-03) / T-81-63: no call in the service passes a master_shadow keyword and
     the module never reads the variable itself; settings.master_shadow is the only reader."""
-    tree = ast.parse(sources["autonomous_remediation_service.py"])
+    tree = _parse(sources["autonomous_remediation_service.py"])
+    assert tree is not None, "autonomous_remediation_service.py does not parse"
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             assert "master_shadow" not in [k.arg for k in node.keywords], f"line {node.lineno} overrides the master"
