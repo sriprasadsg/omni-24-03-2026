@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: executing
-stopped_at: Completed 81-02-PLAN.md
-last_updated: "2026-10-26T07:55:12.841Z"
+stopped_at: Completed 81-03-PLAN.md
+last_updated: "2026-10-26T08:04:42.721Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 81 execution started
-state_head: 97bf2decef17d1b4a1f367b3c9cd3a663ed5fb22
+state_head: 89c43f718fcccd33016286a29957dc410b02d1a1
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 12
-  completed_plans: 2
+  completed_plans: 3
   percent: 17
 ---
 
@@ -450,6 +450,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 81]: 81-01: GATE-04 raise is the explicit gate_class step key, never destructive (block_ip stays auto on shipped playbooks)
 - [Phase 81]: 81-01: autonomous_ops reads level/max/shadow per call (no cache); unreadable settings are Suggest, unticked tenants Off and unrecorded
 - [Phase 81]: 81-02: autonomousOps manifest entry sits after soar; tenant tick is view:autonomous_ops (+ child manage), no control switch; control:autonomous_ops is admin-tier (MFA), control:platform_autonomous_ops platform-only
+- [Phase 81]: GATE-12 premise did not hold: monitor_agent_status already slept 30 s; fixed by pinning cadence with constants/test and notifying only agents flipped in the pass
+- [Phase 81]: lock_with_renewal is the single-runner primitive for sweeps; is_duplicate_task fails closed on empty tenant; scheduled legacy remediation loop removed
 
 ## Performance Metrics
 
@@ -607,6 +609,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 77 P12 | 40min | 2 tasks | 8 files |
 | Phase 81 P01 | 12 min | 3 tasks | 10 files |
 | Phase 81 P02 | 14 min | 2 tasks | 14 files |
+| Phase 81 P03 | 14 min | 3 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -641,8 +644,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-26T07:55:12.747Z
-**Stopped at:** Completed 81-02-PLAN.md
+**Last session:** 2026-10-26T08:04:42.623Z
+**Stopped at:** Completed 81-03-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -668,7 +671,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
-Plan: 3 of 12
+Plan: 4 of 12
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 81 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
