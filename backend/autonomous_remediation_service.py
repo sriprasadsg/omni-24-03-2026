@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
+from autonomous_ops.scope import tenant_scope
 from database import get_database
 from tenant_context import set_tenant_id, reset_tenant_id
 
@@ -85,6 +86,23 @@ def _render_step_params(params: Dict[str, Any], finding: RemediationFinding) -> 
                 break
         rendered[key] = value
     return rendered
+
+
+# Parameter keys that may never reach an agent: the registry carries actions, not scripts
+# (GATE-05 / PROH-81-01), whatever a playbook step contains.
+_FORBIDDEN_PARAM_KEYS = ("script",)
+
+
+def _safe_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """The rendered step parameters without any key that would carry a script."""
+    return {k: v for k, v in (params or {}).items() if k not in _FORBIDDEN_PARAM_KEYS}
+
+
+class _Unregistered:
+    """An action name the registry does not know: kept as given so the gate refuses it."""
+
+    def __init__(self, name):
+        self.name = name if isinstance(name, str) else str(name)
 
 
 def _finding_from_request_doc(doc: Dict[str, Any]) -> "RemediationFinding":
@@ -546,12 +564,21 @@ class AutonomousRemediationService:
         return "TIMEOUT"
 
     async def remediate(self, finding: RemediationFinding) -> Dict[str, Any]:
-        """Deterministic playbook remediation (Phase 53-03/53-04, AUTO-01/03):
-        select a YAML playbook (53-01) for the finding and either dispatch it
-        immediately (no destructive step) or park it `pending_approval`
-        (AUTO-03) for an operator to approve/deny via
-        approve_remediation()/deny_remediation(). Every transition writes an
-        immutable remediation_audit record (AUTO-04)."""
+        """Deterministic playbook remediation (Phase 53-03/53-04, AUTO-01/03) decided by the
+        autonomy gate (Phase 81, GATE-03): select a YAML playbook (53-01) for the finding,
+        build one ActionRequest from it and let ``gate.decide`` choose. Nothing else is
+        written before that decision.
+
+        refuse -> {status: refused, reason}; shadow -> {status: shadow, autonomy_action_id};
+        needs_approval / suggest -> a ``pending_approval`` remediation_requests row linked to
+        the ledger card (approve/deny go through the ledger); allow_auto -> the row is
+        ``dispatching`` and the playbook runs at once. Every transition writes an immutable
+        remediation_audit record (AUTO-04)."""
+        with tenant_scope(finding.tenant_id):
+            return await self._remediate(finding)
+
+    async def _remediate(self, finding: RemediationFinding) -> Dict[str, Any]:
+        from autonomous_ops import gate, ledger, registry
         from remediation_playbook_service import load_playbooks, select_playbook
         from remediation_audit_service import write_audit
 
@@ -573,11 +600,40 @@ class AutonomousRemediationService:
         }
         await write_audit(db, tenant_id, {**base_record, "stage": "selected"})
 
-        if AUTONOMOUS_REMEDIATION_DRY_RUN:
-            await write_audit(db, tenant_id, {**base_record, "stage": "dry_run"})
-            return {"status": "dry_run", "remediation_id": remediation_id}
+        steps = playbook.get("steps") or []
+        first_params = _safe_params(_render_step_params((steps[0] if steps else {}).get("params", {}), finding))
+        request = gate.ActionRequest(
+            tenant_id=tenant_id,
+            kind="security",
+            origin="ueba" if finding.finding_type == "anomaly" else "remediation",
+            actions=[(registry.resolve(step.get("action")) or _Unregistered(step.get("action"))).name for step in steps],
+            targets=[finding.agent_id] if finding.agent_id else [],
+            params=first_params,
+            dedupe_key=f"{tenant_id}|{playbook['name']}|{finding.finding_type}|{finding.finding_id}",
+            playbook=playbook["name"],
+            # Only an explicit gate_class step key raises the class; the steps' destructive
+            # flags never decide it (GATE-04 locked split).
+            playbook_raise=registry.playbook_raises(steps),
+            reason={"ruleId": f"playbook:{playbook['name']}",
+                    "inputs": {"findingId": finding.finding_id, "findingType": finding.finding_type,
+                               "severity": finding.severity}},
+            reason_text=f"Playbook {playbook['name']} applied to {finding.finding_type} finding {finding.finding_id}.",
+            dispatcher="remediation",
+            remediation_id=remediation_id,
+        )
+        decision = await gate.decide(db, request, master_shadow=AUTONOMOUS_REMEDIATION_DRY_RUN)
 
-        is_destructive = any(step.get("destructive") for step in playbook.get("steps", []))
+        if decision.outcome == "refuse":
+            await write_audit(db, tenant_id, {**base_record, "stage": "refused", "reason": decision.reason})
+            return {"status": "refused", "reason": decision.reason, "remediation_id": remediation_id}
+        if decision.state == "shadow":
+            await write_audit(db, tenant_id, {**base_record, "stage": "shadow",
+                                              "autonomy_action_id": decision.action_id,
+                                              "would_have": decision.would_have})
+            return {"status": "shadow", "autonomy_action_id": decision.action_id, "remediation_id": remediation_id}
+
+        awaiting = decision.outcome != "allow_auto"       # needs_approval or suggest: a card
+        status = "pending_approval" if awaiting else "dispatching"
         request_doc = {
             "id": remediation_id,
             "tenantId": tenant_id,
@@ -589,24 +645,33 @@ class AutonomousRemediationService:
             "findingDetails": finding.details,
             "playbookName": playbook["name"],
             "playbook": playbook,
-            "status": "pending_approval" if is_destructive else "dispatching",
+            "status": status,
+            "autonomyActionId": decision.action_id,
             "createdAt": datetime.now(timezone.utc).isoformat(),
         }
-        await db.remediation_requests.insert_one(dict(request_doc))
+        try:
+            await db.remediation_requests.insert_one(dict(request_doc))
+        except Exception as exc:
+            logger.error("[AutonomousRemediation] request for %s not recorded: %s", remediation_id, exc)
+            await ledger.transition(db, tenant_id, decision.action_id,
+                                    ("awaiting_approval", "suggested", "dispatching"), "failed",
+                                    reasonCode="dispatch_failed")
+            return {"status": "failed", "reason": "request_not_recorded", "remediation_id": remediation_id}
 
         # Store the current state of remediation in the remediation_audit collection
         await write_audit(db, tenant_id, {
             **base_record,
             "stage": "requested",
-            "status": "pending_approval" if is_destructive else "dispatching",
+            "status": status,
             "request_doc": request_doc,
         })
 
-        if is_destructive:
+        if awaiting:
             await write_audit(db, tenant_id, {**base_record, "stage": "pending_approval"})
-            return {"status": "pending_approval", "remediation_id": remediation_id}
+            return {"status": "pending_approval", "remediation_id": remediation_id,
+                    "autonomy_action_id": decision.action_id}
 
-        return await self._dispatch_and_verify(remediation_id, finding, playbook)
+        return await self._dispatch_and_verify(remediation_id, finding, playbook, action_id=decision.action_id)
 
     async def approve_remediation(self, remediation_id: str, tenant_id: str, approver: str) -> Dict[str, Any]:
         """Operator approval of a pending_approval remediation (AUTO-03).
@@ -671,7 +736,8 @@ class AutonomousRemediationService:
     async def _release_agent_lease(self, db, agent_id: str, remediation_id: str) -> None:
         await db.remediation_inflight.delete_one({"agentId": agent_id, "remediationId": remediation_id})
 
-    async def _dispatch_and_verify(self, remediation_id: str, finding: RemediationFinding, playbook: Dict[str, Any]) -> Dict[str, Any]:
+    async def _dispatch_and_verify(self, remediation_id: str, finding: RemediationFinding, playbook: Dict[str, Any],
+                                   action_id: Optional[str] = None) -> Dict[str, Any]:
         """The actual dispatch → poll → verify → (rollback|escalate) body,
         shared by an immediately-eligible remediate() call and a later
         approve_remediation() resume. Acquires a per-agent DB lease before

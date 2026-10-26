@@ -17,12 +17,22 @@ Proves:
     pending_approval with NO confidence/severity-based bypass, even at max
     risk_score — the identical approval gate as every other finding_type
     (D-04, T-55-06).
+  - Phase 81 (81-08): remediate() is decided by the autonomy gate before
+    anything else is written. At shipped defaults an eligible tenant's
+    shadow-AI anomaly produces one simulation row and nothing is dispatched;
+    an unticked tenant produces nothing; the GATE-04 split holds on the
+    vendored path (block_ip automatic, kill_process an approval card).
 """
 import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 import ueba_service
+from autonomous_ops import ledger, protected
 from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
+from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.autonomy_support import permissive_gate, seed_agent, seed_tenant
 
 # asyncio_mode = auto (pytest.ini) — async tests below need no explicit mark.
 
@@ -217,12 +227,13 @@ def _remediation_mock_db():
 
 class TestNoApprovalGateBypass:
     """Task 3 (AUT-03, D-04): the anomaly containment path must land in
-    pending_approval — never auto-dispatched — for a destructive playbook,
-    with NO confidence/severity-based shortcut around Phase 53's approval
-    gate, even at max risk_score. is_destructive is computed purely from
-    the PLAYBOOK's steps (kill_process.yaml: destructive: true), never from
-    finding.severity/risk_score — this test proves the anomaly branch adds
-    no such shortcut (D-04 / T-55-06)."""
+    pending_approval — never auto-dispatched — for an approval-class playbook,
+    with NO confidence/severity-based shortcut around the approval gate, even
+    at max risk_score. The class comes from the registry (kill_process is an
+    approval action), never from finding.severity/risk_score — this test proves
+    the anomaly branch adds no such shortcut (D-04 / T-55-06). The gate is
+    patched to decide needs_approval (what the registry says for kill_process;
+    the real-database class below proves the real decision)."""
 
     async def test_max_risk_score_anomaly_still_pends_approval(self):
         db = _remediation_mock_db()
@@ -236,7 +247,8 @@ class TestNoApprovalGateBypass:
             details={"anomaly_rule": "shadow_ai_detected", "risk_score": 100},
         )
 
-        with patch("autonomous_remediation_service.get_database", return_value=db), \
+        with permissive_gate(outcome="needs_approval") as stack, \
+             patch("autonomous_remediation_service.get_database", return_value=db), \
              patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
              patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
             svc = AutonomousRemediationService()
@@ -244,4 +256,124 @@ class TestNoApprovalGateBypass:
 
         assert result["status"] == "pending_approval"
         db.remediation_requests.insert_one.assert_called_once()
+        inserted = db.remediation_requests.insert_one.call_args.args[0]
+        assert inserted["status"] == "pending_approval"
+        assert inserted["autonomyActionId"] in stack.ledger.rows
         db.agent_instructions.insert_one.assert_not_called()
+
+
+@pytest.fixture
+async def live(mongo_db):  # noqa: F811
+    """A real throwaway database with an eligible tenant t1 (shadow ON, the shipped default),
+    its agent a1, and a ledger with its indexes. The service reads this database."""
+    protected.cache_clear()
+    await ledger.ensure_indexes(mongo_db)
+    await seed_tenant(mongo_db, "t1")
+    await seed_agent(mongo_db, "t1", "a1")
+    with patch("autonomous_remediation_service.get_database", return_value=mongo_db), \
+         patch("soc_integration_service.push_ocsf_event", new=AsyncMock()), \
+         patch("response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=False)):
+        yield mongo_db
+
+
+def _anomaly(tenant="t1", agent="a1"):
+    return RemediationFinding(
+        finding_id=f"UEBA-{agent}-shadow_ai_detected-20260803000000", finding_type="anomaly",
+        severity="critical", tenant_id=tenant, agent_id=agent, resource_id="python.exe",
+        details={"anomaly_rule": "shadow_ai_detected", "risk_score": 100})
+
+
+def _ip_finding():
+    return RemediationFinding(
+        finding_id="scan-1", finding_type="nscan", severity="critical", tenant_id="t1", agent_id="a1",
+        resource_id="203.0.113.7", details={"type": "ip", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z"})
+
+
+class TestGatedAtShippedDefaults:
+    """GATE-03: the one live automatic caller (ueba_service._dispatch_anomaly_remediation,
+    unchanged) is decided by the gate."""
+
+    async def test_tracer_shadow_ai_anomaly_is_a_simulation_and_nothing_is_dispatched(self, live):
+        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", True):
+            await ueba_service._dispatch_anomaly_remediation("t1", "a1", "api.openai.com", "shadow_ai_detected", 100)
+
+        rows = [r async for r in live.autonomy_actions.find({"tenantId": "t1"})]
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["state"] == "shadow" and row["origin"] == "ueba" and row["dispatcher"] == "remediation"
+        assert row["wouldHave"] == "needs_approval"          # kill_process is an approval-class action
+        assert row["command"] == "kill_process" and row["targets"] == ["a1"]
+        assert await live.agent_instructions.count_documents({}) == 0
+        assert await live.remediation_requests.count_documents({}) == 0
+        stages = [a["stage"] async for a in live.remediation_audit.find({"tenantId": "t1"})]
+        assert "selected" in stages and "shadow" in stages
+
+    async def test_remediate_reports_shadow_with_the_ledger_id(self, live):
+        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", True):
+            result = await AutonomousRemediationService().remediate(_anomaly())
+        row = await live.autonomy_actions.find_one({"tenantId": "t1"})
+        assert result["status"] == "shadow" and result["autonomy_action_id"] == row["id"]
+        assert row["remediationId"] == result["remediation_id"]
+
+    async def test_tenant_shadow_flag_alone_also_simulates(self, live):
+        await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": True}})
+        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+            result = await AutonomousRemediationService().remediate(_ip_finding())
+        assert result["status"] == "shadow"
+        assert await live.agent_instructions.count_documents({}) == 0
+
+    async def test_unticked_tenant_gets_nothing_recorded(self, live):
+        await seed_tenant(live, "t2", ticked=False)
+        await seed_agent(live, "t2", "a2")
+        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", True):
+            result = await AutonomousRemediationService().remediate(_anomaly("t2", "a2"))
+        assert result["status"] == "refused" and result["reason"] == "not_enabled"
+        assert await live.autonomy_actions.count_documents({"tenantId": "t2"}) == 0
+        assert await live.remediation_requests.count_documents({}) == 0
+        assert await live.agent_instructions.count_documents({}) == 0
+
+    async def test_a_finding_with_no_host_is_refused_not_dispatched(self, live):
+        await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
+        finding = RemediationFinding(
+            finding_id="scan-2", finding_type="nscan", severity="critical", tenant_id="t1", agent_id=None,
+            resource_id="203.0.113.8", details={"type": "ip", "verdict": "Malicious"})
+        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+            result = await AutonomousRemediationService().remediate(finding)
+        assert result["status"] == "refused" and result["reason"] == "no_target"
+        assert await live.agent_instructions.count_documents({}) == 0
+
+
+class TestGate04SplitOnTheVendoredPath:
+    """GATE-04 locked split: the shipped block_ip playbook (its step carries destructive true,
+    no gate_class) is decided by the registry class auto; kill_process is an approval card."""
+
+    async def test_block_ip_playbook_is_dispatched_without_a_card(self, live):
+        await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
+        seen = AsyncMock(return_value={"status": "dispatching"})
+        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False), \
+             patch.object(AutonomousRemediationService, "_dispatch_and_verify", new=seen):
+            result = await AutonomousRemediationService().remediate(_ip_finding())
+
+        assert result["status"] == "dispatching"
+        row = await live.autonomy_actions.find_one({"tenantId": "t1"})
+        assert row["state"] == "dispatching" and row["autoDispatched"] is True
+        assert row["command"] == "block_ip" and row["params"] == {"ip_address": "203.0.113.7"}
+        req = await live.remediation_requests.find_one({"tenantId": "t1"})
+        assert req["status"] == "dispatching" and req["autonomyActionId"] == row["id"]
+        assert req["id"] == row["remediationId"]
+        seen.assert_awaited_once()
+        assert seen.await_args.kwargs.get("action_id") == row["id"]
+        assert await live.agent_instructions.count_documents({}) == 0     # the stub dispatched nothing
+
+    async def test_kill_process_playbook_still_needs_a_card(self, live):
+        await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
+        with patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
+            result = await AutonomousRemediationService().remediate(_anomaly())
+
+        assert result["status"] == "pending_approval"
+        row = await live.autonomy_actions.find_one({"tenantId": "t1"})
+        assert row["state"] == "awaiting_approval" and row["reasonCode"] == "class_approve"
+        req = await live.remediation_requests.find_one({"tenantId": "t1"})
+        assert req["status"] == "pending_approval" and req["autonomyActionId"] == row["id"]
+        assert req["id"] == row["remediationId"] == result["remediation_id"]
+        assert await live.agent_instructions.count_documents({}) == 0
