@@ -1,9 +1,9 @@
 """Every user-visible backend string for Autonomous Ops, in one module.
 
-Labels, reasons and notices are plain strings (no HTML). ACTV-08 scans this file: the feature
-is called Autonomous Ops, copy never uses the abbreviations ASI or AGI, the word Autopilot,
-the phrase fully autonomous, or an unqualified rollback (use undo / undone). The dictionary
-keys below are agent instruction identifiers, not words shown to anyone.
+Labels, reasons and notices are plain strings (no HTML). ACTV-08 scans this file against the
+rules in shared/autonomous-ops-banned-terms.json: the feature is called Autonomous Ops, and the
+terms listed there are never used (say undo / undone). The dictionary keys below are agent
+instruction identifiers, not words shown to anyone.
 """
 
 # What an action is called on screen, keyed by the registry command name.

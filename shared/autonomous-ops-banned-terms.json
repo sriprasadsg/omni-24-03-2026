@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "description": "ACTV-08. Terms the Autonomous Ops screens, labels, messages and route descriptions never use. Read by backend/tests/test_autonomous_ops_copy.py and src/__tests__/autonomousOpsCopy.test.ts; patterns are applied line by line with Python re and JavaScript RegExp, flags are 'i' (case-insensitive) or empty. A line containing unlessLineContains (any case) is exempt from that rule.",
+  "rules": [
+    { "id": "asi", "pattern": "\\bASI\\b", "flags": "" },
+    { "id": "agi", "pattern": "\\bAGI\\b", "flags": "" },
+    { "id": "autopilot", "pattern": "autopilot", "flags": "i" },
+    { "id": "fully-autonomous", "pattern": "fully[ -]autonomous", "flags": "i" },
+    { "id": "rollback", "pattern": "\\broll(?:ed|ing)?[ -]?back\\b", "flags": "i", "unlessLineContains": "where supported" }
+  ],
+  "files": [
+    "backend/autonomous_ops/messages.py",
+    "backend/autonomous_ops/views.py",
+    "backend/autonomous_ops_endpoints.py",
+    "backend/autonomous_ops_platform_endpoints.py",
+    "services/autonomousOpsApi.ts",
+    "contexts/AutonomousOpsStatusContext.tsx",
+    "components/AutonomousOpsActivity.tsx",
+    "components/AutonomousOpsActivityList.tsx",
+    "components/AutonomousOpsStatusCard.tsx",
+    "components/AutonomousOpsStopDialog.tsx",
+    "components/AutonomousOpsStopBanner.tsx"
+  ],
+  "catalogueViews": ["autonomousOps"]
+}
