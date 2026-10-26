@@ -180,8 +180,12 @@ async def _queue_exempt(db, tenant="t1", agent="a1"):
     """One undo (row undone) and one compensate (row failed) stamped instruction."""
     ids = {}
     for kind, state, command in (("undo", "undone", "unblock_ip"), ("compensate", "failed", "unblock_ip")):
-        row = await ledger.create_intent(db, {"tenantId": tenant, "kind": "security", "state": state,
-                                              "command": command, "actions": [command], "targets": [agent]})
+        row = await ledger.create_intent(db, {
+            "tenantId": tenant, "kind": "security", "state": state, "command": command, "actions": ["block_ip"],
+            "targets": [agent], "params": {"ip_address": IP},
+            "steps": [{"command": "block_ip", "params": {"ip_address": IP}}],
+            "rollback": [{"command": command, "params": {"ip_address": IP}}],
+            "undo": {"available": True, "action": command, "params": {"ip_address": IP}}})
         out = await gate.execute(db, tenant, row["id"], command=command, agent_id=agent,
                                  params={"ip_address": IP}, kind=kind)
         assert out["status"] == "queued", out
@@ -287,7 +291,8 @@ async def test_press_bulk_cancels_for_its_scope_and_returns_the_count(live):
     _, a2_task = await _queue_action(live, "t2", "a2", ip="203.0.113.8")
     exempt = await _queue_exempt(live)
     d = await gate.decide(live, _req(ip="203.0.113.9"), master_shadow=False)
-    await gate.execute_response_task(live, "t1", d.action_id, action="block_ip", agent_id="a1", params={})
+    await gate.execute_response_task(live, "t1", d.action_id, action="block_ip", agent_id="a1",
+                                     params={"ip_address": "203.0.113.9"})
 
     tenant = await stop.press(live, scope="tenant", tenant_id="t1", actor=TENANT_ACTOR)
 

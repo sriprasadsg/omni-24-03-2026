@@ -6,8 +6,10 @@ exercising their own logic once the gate sits in front of it: ``FakeLedger`` (an
 stand-in for the ledger functions) and ``permissive_gate`` (patches the gate and its stop
 reads so a request decides the way the test asks, with nothing written to a database).
 
-Plans 81-04 to 81-09 import this module and must not modify it; only 81-08 may extend it
-(81-08 added ``agent_that_completes``: a stand-in agent for the remediation tests).
+Plans 81-04 to 81-09 import this module and must not modify it; only 81-08 and 81-15 may extend
+it (81-08 added ``agent_that_completes``: a stand-in agent for the remediation tests; 81-15 made
+``permissive_gate`` record the decided steps/rollback and stub the never-touch read, because
+``gate.execute`` now binds every dispatch to the decided row).
 """
 import uuid
 from contextlib import ExitStack
@@ -86,7 +88,7 @@ def permissive_gate(outcome="allow_auto", shadow=False):
     ``shadow``), record the row in a ``FakeLedger`` (returned as ``.ledger`` on the stack), and
     report no stop and a ticked tenant. Returns an entered ``ExitStack``: use it as
     ``with permissive_gate(...) as stack:`` or call ``stack.close()`` to undo the patches."""
-    from autonomous_ops import gate, settings
+    from autonomous_ops import dispatch_check, gate, protected, settings
     fake = FakeLedger()
     states = {"allow_auto": "dispatching", "needs_approval": "awaiting_approval", "suggest": "suggested"}
 
@@ -96,7 +98,9 @@ def permissive_gate(outcome="allow_auto", shadow=False):
             "tenantId": req.tenant_id, "kind": req.kind, "origin": req.origin, "actions": list(req.actions),
             "command": req.actions[0] if req.actions else None, "targets": list(req.targets), "params": req.params,
             "state": state, "shadow": shadow, "wouldHave": outcome if shadow else None, "dedupeKey": req.dedupe_key,
-            "autoDispatched": state == "dispatching", "instructionIds": []})
+            "autoDispatched": state == "dispatching", "instructionIds": [],
+            "steps": dispatch_check.plan_of(dispatch_check.request_steps(req)),
+            "rollback": dispatch_check.plan_of(dispatch_check.request_rollback(req))})
         return gate.Decision(outcome=outcome, state=state, reason="test", action_id=row["id"], shadow=shadow,
                              would_have=outcome if shadow else None, trace=[], recorded=True)
 
@@ -110,6 +114,9 @@ def permissive_gate(outcome="allow_auto", shadow=False):
         stack.enter_context(patch.object(gate.ledger, name, getattr(fake, name)))
     stack.enter_context(patch.object(settings, "platform_stop", AsyncMock(return_value=None)))
     stack.enter_context(patch.object(settings, "load", load))
+    # A MagicMock database cannot serve the never-touch list; the real check is proven against a
+    # real database in test_autonomous_ops_dispatch_binding.py.
+    stack.enter_context(patch.object(protected, "check", AsyncMock(return_value=None)))
     return stack
 
 

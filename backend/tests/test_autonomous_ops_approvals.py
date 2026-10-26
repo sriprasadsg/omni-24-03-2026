@@ -337,7 +337,8 @@ async def test_undo_still_works_during_a_stop(live):
 
 async def test_undo_of_a_row_without_an_undo_and_of_other_states(live):
     d = await gate.decide(live, _req(action="restart_service", key="rs"), master_shadow=False)
-    await gate.execute(live, "t1", d.action_id, command="restart_service", agent_id="a1", params={})
+    out = await gate.execute(live, "t1", d.action_id, command="restart_service", agent_id="a1", params={})
+    assert out["status"] == "queued", out      # the decided step (81-15 binding)
     await ledger.transition(live, "t1", d.action_id, ("dispatching",), "executed")
     assert (await approvals.undo(live, "t1", d.action_id, actor=APPROVER))["status"] == "no_undo"
     suggested = await gate.suggest(live, _req(action="block_ip", ip="203.0.113.50", key="sg"), master_shadow=False)

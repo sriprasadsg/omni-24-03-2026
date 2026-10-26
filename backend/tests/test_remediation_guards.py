@@ -67,10 +67,24 @@ def _ip_finding(**overrides):
     return _finding(**base)
 
 
-async def _row(stack, state="dispatching"):
-    """A ledger row in the in-memory ledger for the direct _dispatch_and_verify tests."""
+async def _row(stack, finding=None, playbook=None, state="dispatching"):
+    """A ledger row in the in-memory ledger for the direct _dispatch_and_verify tests. With a
+    finding and playbook the row carries the plan the gate would have decided for it (host,
+    steps and compensation steps rendered for the finding), so each dispatch matches (81-15)."""
+    from autonomous_remediation_service import _render_step_params, _safe_params
+    from remediation_playbook_service import ACTION_MAP
+
+    def plan(items):
+        return [{"command": ACTION_MAP[i["action"]],
+                 "params": _safe_params(_render_step_params(i.get("params", {}), finding))} for i in items or []]
+
+    fields = {}
+    if finding is not None and playbook is not None:
+        steps = plan(playbook.get("steps"))
+        fields = {"targets": [finding.agent_id], "steps": steps, "rollback": plan(playbook.get("rollback")),
+                  "actions": [s["command"] for s in steps], "command": steps[0]["command"], "params": steps[0]["params"]}
     row = await stack.ledger.create_intent(None, {"tenantId": "t1", "kind": "security", "state": state,
-                                                  "instructionIds": []})
+                                                  "instructionIds": [], **fields})
     return row["id"]
 
 
@@ -237,14 +251,12 @@ class TestRollbackAndEscalation:
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
              patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
-            action_id = await _row(stack)
+            playbook = {"name": "block_ip",
+                        "steps": [{"action": "block_ip", "params": {"ip_address": "{{finding.resource_id}}"}, "destructive": True}],
+                        "rollback": [{"action": "unblock_ip", "params": {"ip_address": "{{finding.resource_id}}"}}]}
+            action_id = await _row(stack, _finding(), playbook)
             svc = AutonomousRemediationService()
-            result = await svc._dispatch_and_verify(
-                "REM-1", _finding(),
-                {"name": "block_ip", "steps": [{"action": "block_ip", "params": {"ip_address": "{{finding.resource_id}}"}, "destructive": True}],
-                 "rollback": [{"action": "unblock_ip", "params": {"ip_address": "{{finding.resource_id}}"}}]},
-                action_id=action_id,
-            )
+            result = await svc._dispatch_and_verify("REM-1", _finding(), playbook, action_id=action_id)
 
         written = [c.args[0] for c in db.agent_instructions.insert_one.call_args_list]
         assert "unblock_ip" in [d["type"] for d in written]
@@ -262,14 +274,12 @@ class TestRollbackAndEscalation:
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
              patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
-            action_id = await _row(stack)
+            playbook = {"name": "kill_process",
+                        "steps": [{"action": "kill_process", "params": {"target": "{{finding.resource_id}}"}, "destructive": True}],
+                        "rollback": []}
+            action_id = await _row(stack, finding, playbook)
             svc = AutonomousRemediationService()
-            result = await svc._dispatch_and_verify(
-                "REM-2", finding,
-                {"name": "kill_process", "steps": [{"action": "kill_process", "params": {"target": "{{finding.resource_id}}"}, "destructive": True}],
-                 "rollback": []},
-                action_id=action_id,
-            )
+            result = await svc._dispatch_and_verify("REM-2", finding, playbook, action_id=action_id)
 
         dispatched_types = [c.args[0].get("type") for c in db.agent_instructions.insert_one.call_args_list]
         assert "unblock_ip" not in dispatched_types
@@ -307,13 +317,11 @@ class TestConcurrencyCap:
         with permissive_gate("allow_auto") as stack, \
              patch("autonomous_remediation_service.get_database", return_value=db), \
              patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False):
-            action_id = await _row(stack)
+            playbook = {"name": "block_ip", "rollback": [],
+                        "steps": [{"action": "block_ip", "params": {"ip_address": "1.2.3.4"}, "destructive": True}]}
+            action_id = await _row(stack, _finding(), playbook)
             svc = AutonomousRemediationService()
-            await svc._dispatch_and_verify(
-                "REM-4", _finding(),
-                {"name": "block_ip", "steps": [{"action": "block_ip", "params": {"ip_address": "1.2.3.4"}, "destructive": True}], "rollback": []},
-                action_id=action_id,
-            )
+            await svc._dispatch_and_verify("REM-4", _finding(), playbook, action_id=action_id)
 
         db.remediation_inflight.insert_one.assert_called_once()
         db.remediation_inflight.delete_one.assert_called_once()

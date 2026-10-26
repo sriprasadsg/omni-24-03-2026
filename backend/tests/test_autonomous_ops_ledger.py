@@ -30,10 +30,10 @@ IP = "203.0.113.7"
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _req(tenant="t1", ip=IP, key=None, actions=("block_ip",)):
+def _req(tenant="t1", ip=IP, key=None, actions=("block_ip",), rollback=None):
     return gate.ActionRequest(tenant_id=tenant, kind="security", origin="test", actions=list(actions),
                               targets=["a1"], params={"ip_address": ip}, dedupe_key=key or f"{tenant}|{ip}",
-                              reason={"ruleId": "playbook:block_ip", "inputs": {}})
+                              reason={"ruleId": "playbook:block_ip", "inputs": {}}, rollback=rollback)
 
 
 def _row(tenant, state, dedupe_key=None, **kw):
@@ -56,7 +56,8 @@ async def live(mongo_db):
 
 
 async def _dispatching(db, tenant="t1", ip=IP):
-    d = await gate.decide(db, _req(tenant, ip), master_shadow=False)
+    undo = [{"action": "unblock_ip", "params": {"ip_address": ip}}]    # a decided compensation (81-15)
+    d = await gate.decide(db, _req(tenant, ip, rollback=undo), master_shadow=False)
     assert d.state == "dispatching", d
     return d.action_id
 
@@ -109,11 +110,12 @@ async def test_execute_writes_one_stamped_instruction_and_links_it(live):
 async def test_an_approved_row_becomes_dispatching_when_executed(live):
     d = await gate.decide(live, _req("t1", "203.0.113.20", actions=("isolate_host",)), master_shadow=False)
     assert d.state == "awaiting_approval"
-    refused = await gate.execute(live, "t1", d.action_id, command="isolate_host", agent_id="a1", params={})
+    decided = {"ip_address": "203.0.113.20"}     # what the row was decided with (81-15)
+    refused = await gate.execute(live, "t1", d.action_id, command="isolate_host", agent_id="a1", params=decided)
     assert refused == {"status": "refused", "reason": "not_dispatchable"}
     assert await ledger.transition(live, "t1", d.action_id, ("awaiting_approval",), "approved") is not None
     assert (await gate.execute(live, "t1", d.action_id, command="isolate_host", agent_id="a1",
-                               params={}))["status"] == "queued"
+                               params=decided))["status"] == "queued"
     assert (await ledger.get(live, "t1", d.action_id))["state"] == "dispatching"
 
 
@@ -137,21 +139,33 @@ async def test_execute_refuses_unknown_rows_other_tenants_and_bad_kinds(live):
     assert await live.agent_instructions.count_documents({}) == 0
 
 
+def _decided_row(state, ip=IP, **kw):
+    """A row created directly, carrying the plan it was 'decided' with: block_ip on ``ip``, its
+    compensation (unblock_ip) and the recorded undo."""
+    step = {"command": "block_ip", "params": {"ip_address": ip}}
+    return _row("t1", state, dedupe_key=f"k-{state}-{ip}", actions=["block_ip"], command="block_ip",
+                targets=["a1"], params={"ip_address": ip}, steps=[step],
+                rollback=[{"command": "unblock_ip", "params": {"ip_address": ip}}],
+                undo={"available": True, "action": "unblock_ip", "params": {"ip_address": ip}}, **kw)
+
+
 async def test_kinds_are_dispatched_from_their_own_states(live):
-    a = await _dispatching(live)
-    kw = dict(command="scan_ip", agent_id="a1", params={})
-    assert (await gate.execute(live, "t1", a, kind="probe", **kw))["status"] == "queued"      # dispatching
-    assert (await gate.execute(live, "t1", a, kind="undo", **kw))["reason"] == "not_dispatchable"
-    assert (await gate.execute(live, "t1", a, kind="compensate", **kw))["status"] == "queued"   # dispatching
+    a = (await ledger.create_intent(live, _decided_row("dispatching")))["id"]
+    probe = dict(command="scan_ip", agent_id="a1", params={})
+    comp = dict(command="unblock_ip", agent_id="a1", params={"ip_address": IP})
+    assert (await gate.execute(live, "t1", a, kind="probe", **probe))["status"] == "queued"      # dispatching
+    assert (await gate.execute(live, "t1", a, kind="undo", **comp))["reason"] == "not_dispatchable"
+    assert (await gate.execute(live, "t1", a, kind="compensate", **comp))["status"] == "queued"   # dispatching
     await ledger.transition(live, "t1", a, ("dispatching",), "executed")
-    assert (await gate.execute(live, "t1", a, kind="probe", **kw))["status"] == "queued"      # executed
-    assert (await gate.execute(live, "t1", a, kind="action", **kw))["reason"] == "not_dispatchable"
+    assert (await gate.execute(live, "t1", a, kind="probe", **probe))["status"] == "queued"      # executed
+    assert (await gate.execute(live, "t1", a, kind="action", **probe))["reason"] == "not_dispatchable"
     await ledger.transition(live, "t1", a, ("executed",), "undone")
-    assert (await gate.execute(live, "t1", a, kind="undo", **kw))["status"] == "queued"
-    assert (await gate.execute(live, "t1", a, kind="probe", **kw))["reason"] == "not_dispatchable"
-    b = await _dispatching(live, ip="203.0.113.21")
+    assert (await gate.execute(live, "t1", a, kind="undo", **comp))["status"] == "queued"
+    assert (await gate.execute(live, "t1", a, kind="probe", **probe))["reason"] == "not_dispatchable"
+    b = (await ledger.create_intent(live, _decided_row("dispatching", ip="203.0.113.21")))["id"]
     await ledger.transition(live, "t1", b, ("dispatching",), "failed")
-    assert (await gate.execute(live, "t1", b, kind="compensate", **kw))["status"] == "queued"
+    comp_b = dict(comp, params={"ip_address": "203.0.113.21"})
+    assert (await gate.execute(live, "t1", b, kind="compensate", **comp_b))["status"] == "queued"
     kinds = {d["autonomy"]["kind"] async for d in live.agent_instructions.find({})}
     assert kinds == {"probe", "compensate", "undo"}
 
@@ -164,7 +178,8 @@ async def test_a_stop_holds_back_actions_and_probes_but_not_undo_or_compensate(l
     await ledger.transition(live, "t1", u, ("dispatching",), "undone")
     c = await _dispatching(live, ip="203.0.113.32")
     await ledger.transition(live, "t1", c, ("dispatching",), "failed")
-    kw = dict(command="unblock_ip", agent_id="a1", params={})
+    ips = {a: "203.0.113.30", u: "203.0.113.31", c: "203.0.113.32"}
+    kw = dict(command="unblock_ip", agent_id="a1")
     patches = []
     if stop_kind == "platform":
         await seed_platform_stop(live)
@@ -175,12 +190,15 @@ async def test_a_stop_holds_back_actions_and_probes_but_not_undo_or_compensate(l
     for p in patches:
         p.start()
     try:
-        assert (await gate.execute(live, "t1", a, **kw))["reason"] == "stopped"
-        assert (await gate.execute(live, "t1", a, kind="probe", **kw))["reason"] == "stopped"
+        held = dict(command="block_ip", agent_id="a1", params={"ip_address": ips[a]})
+        assert (await gate.execute(live, "t1", a, **held))["reason"] == "stopped"
+        assert (await gate.execute(live, "t1", a, kind="probe", command="scan_ip", agent_id="a1",
+                                   params={}))["reason"] == "stopped"
         assert (await gate.execute_response_task(live, "t1", a, action="block_ip", agent_id="a1",
-                                                 params={}))["reason"] == "stopped"
-        assert (await gate.execute(live, "t1", u, kind="undo", **kw))["status"] == "queued"
-        assert (await gate.execute(live, "t1", c, kind="compensate", **kw))["status"] == "queued"
+                                                 params={"ip_address": ips[a]}))["reason"] == "stopped"
+        assert (await gate.execute(live, "t1", u, kind="undo", params={"ip_address": ips[u]}, **kw))["status"] == "queued"
+        assert (await gate.execute(live, "t1", c, kind="compensate", params={"ip_address": ips[c]},
+                                   **kw))["status"] == "queued"
     finally:
         for p in patches:
             p.stop()
@@ -191,7 +209,8 @@ async def test_an_inactive_stop_does_not_hold_anything_back(live):
     await seed_platform_stop(live, active=False)
     await seed_tenant(live, "t1", shadow=False, stop={"active": False, "scope": "tenant"})
     a = await _dispatching(live)
-    assert (await gate.execute(live, "t1", a, command="block_ip", agent_id="a1", params={}))["status"] == "queued"
+    assert (await gate.execute(live, "t1", a, command="block_ip", agent_id="a1",
+                               params={"ip_address": IP}))["status"] == "queued"
 
 
 async def test_execute_response_task_writes_one_stamped_task(live):
