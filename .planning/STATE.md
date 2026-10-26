@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: executing
-stopped_at: Completed 81-13-PLAN.md
-last_updated: "2026-10-26T18:00:50.617Z"
+stopped_at: Completed 81-14-PLAN.md
+last_updated: "2026-10-26T18:09:48.739Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 81 execution started
-state_head: 3590f2e6be3e9ed770f021f3293b373a838bdc7a
+state_head: 33dd9d8003c9c5d54a967dd4254c01369d3deec4
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 18
-  completed_plans: 13
+  completed_plans: 14
   percent: 17
 ---
 
@@ -466,6 +466,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 81]: 81-10: Resume is drawn only from the server canResume / canResumePlatform flags; permissions only decide which controls to draw, and the stop name shown is the server by value.
 - [Phase 81]: 81-10: ACTV-08 rules live in shared/autonomous-ops-banned-terms.json with an explicit file list; pytest and vitest sides hard-code the same list and fail on drift or a missing file. npm run build runs no tests, so the gate is vitest plus pytest.
 - [Phase 81]: 81-13: gate classifies and IP-checks every playbook step and compensation step via dispatch_check; the recorded steps list is the decided plan; multi-step rows offer no undo
+- [Phase 81]: 81-14: set_level to undoable_auto clears a tripped breaker in the same update and records level_restored (rather than refusing); no_result bound defaults to 1440 min
 
 ## Performance Metrics
 
@@ -634,6 +635,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 81 P09 | 17 min | 2 tasks | 11 files |
 | Phase 81 P10 | 14 min | 3 tasks | 15 files |
 | Phase 81 P13 | 20min | 2 tasks | 4 files |
+| Phase 81 P14 | 25min | 2 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -668,8 +670,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-26T18:00:49.636Z
-**Stopped at:** Completed 81-13-PLAN.md
+**Last session:** 2026-10-26T18:09:48.508Z
+**Stopped at:** Completed 81-14-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -695,7 +697,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
-Plan: 2 of 18
+Plan: 3 of 18
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 81 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
