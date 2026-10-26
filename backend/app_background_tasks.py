@@ -40,8 +40,19 @@ async def autonomous_remediation_loop():
         await asyncio.sleep(AUTONOMOUS_REMEDIATION_INTERVAL_SEC)
 
 
+# Documented cadence (GATE-12, D-24 (d)): an agent is Offline once its lastSeen is more than
+# 5 minutes old (10x a missed 30 s heartbeat), and the check itself polls every 30 seconds.
+AGENT_STATUS_POLL_SEC = 30
+AGENT_OFFLINE_AFTER = timedelta(minutes=5)
+
+
 async def monitor_agent_status():
-    """Background task to mark agents as Offline if inactive > 5 min (10× missed 30 s heartbeat)."""
+    """Background task to mark agents as Offline if inactive > AGENT_OFFLINE_AFTER.
+
+    The stale Online agents are selected first and then updated by id, so the websocket
+    event and the agent.offline notification name exactly the agents this pass flipped
+    (never agents that were already Offline).
+    """
     import websocket_manager
     from database import get_database
     from tenant_context import set_tenant_id, reset_tenant_id
@@ -49,26 +60,26 @@ async def monitor_agent_status():
     while True:
         _tenant_ctx_token = None
         try:
-            await asyncio.sleep(30)
             _tenant_ctx_token = set_tenant_id("platform-admin")
             db = get_database()
-            threshold = datetime.now(timezone.utc) - timedelta(minutes=5)
+            # Same ISO-8601 format the heartbeat writes into lastSeen (aware UTC isoformat).
+            threshold = (datetime.now(timezone.utc) - AGENT_OFFLINE_AFTER).isoformat()
 
-            result = await db.agents.update_many(
-                {
-                    "status": "Online",
-                    "lastSeen": {"$lt": threshold.isoformat()},
-                },
-                {"$set": {"status": "Offline"}},
-            )
-            if result.modified_count > 0:
+            stale = await db.agents.find(
+                {"status": "Online", "lastSeen": {"$lt": threshold}},
+                {"_id": 0, "id": 1, "tenantId": 1, "hostname": 1},
+            ).to_list(length=None)
+            stale = [a for a in stale if a.get("id")]
+
+            if stale:
+                ids = [a["id"] for a in stale]
+                result = await db.agents.update_many(
+                    {"id": {"$in": ids}, "status": "Online"},
+                    {"$set": {"status": "Offline"}},
+                )
                 logger.info("[Monitor] Marked %d stale agents as Offline", result.modified_count)
 
-                affected_agents = await db.agents.find(
-                    {"status": "Offline", "lastSeen": {"$lt": threshold.isoformat()}}
-                ).to_list(length=result.modified_count)
-
-                for agent in affected_agents:
+                for agent in stale:
                     tenant_id = agent.get("tenantId")
                     if tenant_id:
                         await websocket_manager.broadcast_agent_status_change(
@@ -80,7 +91,7 @@ async def monitor_agent_status():
 
                 from notification_manager import notification_manager
                 # Broadcast offline event per-tenant so each tenant's admins are notified
-                for agent in affected_agents:
+                for agent in stale:
                     tid = agent.get("tenantId") or "platform-admin"
                     await notification_manager.send_notification(
                         "agent.offline",
@@ -97,6 +108,9 @@ async def monitor_agent_status():
         finally:
             if _tenant_ctx_token is not None:
                 reset_tenant_id(_tenant_ctx_token)
+
+        # Sleep last so the first pass runs immediately at startup.
+        await asyncio.sleep(AGENT_STATUS_POLL_SEC)
 
 
 async def _start_xdr_correlation_scanner() -> None:
