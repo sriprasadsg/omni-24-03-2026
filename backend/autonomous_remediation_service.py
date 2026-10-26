@@ -99,6 +99,14 @@ class _Unregistered:
         self.name = name if isinstance(name, str) else str(name)
 
 
+def _gate_steps(items, finding: "RemediationFinding") -> list:
+    """The steps as the gate sees them: [{action: registry name, params: rendered}], in order."""
+    from autonomous_ops import registry
+    steps = [i if isinstance(i, dict) else {} for i in (items if isinstance(items, list) else [])]
+    return [{"action": (registry.resolve(i.get("action")) or _Unregistered(i.get("action"))).name,
+             "params": _safe_params(_render_step_params(i.get("params", {}), finding))} for i in steps]
+
+
 def _finding_from_request_doc(doc: Dict[str, Any]) -> "RemediationFinding":
     """Reconstructs the RemediationFinding a pending remediation_requests
     row was created from, so approve_remediation() can resume dispatch
@@ -437,14 +445,16 @@ class AutonomousRemediationService:
         await write_audit(db, tenant_id, {**base_record, "stage": "selected"})
 
         steps = playbook.get("steps") or []
-        first_params = _safe_params(_render_step_params((steps[0] if steps else {}).get("params", {}), finding))
+        gate_steps = _gate_steps(steps, finding)
+        gate_rollback = _gate_steps(playbook.get("rollback") or [], finding)
         request = gate.ActionRequest(
             tenant_id=tenant_id,
             kind="security",
             origin="ueba" if finding.finding_type == "anomaly" else "remediation",
-            actions=[(registry.resolve(step.get("action")) or _Unregistered(step.get("action"))).name for step in steps],
+            actions=[step["action"] for step in gate_steps],
             targets=[finding.agent_id] if finding.agent_id else [],
-            params=first_params,
+            params=gate_steps[0]["params"] if gate_steps else {},
+            steps=gate_steps, rollback=gate_rollback,       # the gate checks every step (GATE-03/08)
             dedupe_key=f"{tenant_id}|{playbook['name']}|{finding.finding_type}|{finding.finding_id}",
             playbook=playbook["name"],
             # Only an explicit gate_class step key raises the class; the steps' destructive

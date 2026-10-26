@@ -33,7 +33,7 @@ from pymongo.errors import DuplicateKeyError
 
 from . import (APPROVAL_TTL, COOLDOWN, HOST_CAP, INSTRUCTION_KINDS, OPEN_STATES, PLATFORM_TENANT_ID,
                RATE_LIMIT_PER_WINDOW, RATE_LIMIT_WINDOW, STAMP_SOURCE, STOP_EXEMPT_KINDS)
-from . import ledger, messages, notify, protected, registry, settings
+from . import dispatch_check, ledger, messages, notify, protected, registry, settings
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,8 @@ class ActionRequest:
     dispatcher: str = "instruction"
     force_suggest: bool = False
     remediation_id: Optional[str] = None
+    steps: Optional[List[Dict[str, Any]]] = None      # [{action, params}] in playbook order
+    rollback: Optional[List[Dict[str, Any]]] = None   # compensation steps, same shape
 
 
 @dataclass
@@ -97,6 +99,7 @@ class _Ctx:
     tenant: Optional[settings.TenantSettings] = None
     level: str = "off"
     specs: List[registry.ActionSpec] = field(default_factory=list)
+    rollback_specs: List[registry.ActionSpec] = field(default_factory=list)
     distinct: List[str] = field(default_factory=list)      # the request's distinct target ids
     refusal: Optional[Tuple[str, bool]] = None            # (reason code, whether a row is recorded)
     escalations: List[Tuple[str, str]] = field(default_factory=list)   # (outcome, reason code)
@@ -179,12 +182,11 @@ async def _step_level(ctx: _Ctx) -> None:
 
 
 async def _step_class(ctx: _Ctx) -> None:
-    """GATE-04: the class comes only from the registry (and an explicit playbook raise)."""
-    names = ctx.req.actions if isinstance(ctx.req.actions, list) else []
-    specs = [registry.resolve(n) for n in names]
-    if not specs or any(s is None for s in specs) or specs[0].cls not in ("auto", "approve"):
+    """GATE-04: class comes only from the registry (and a playbook raise), for every step and compensation step."""
+    ctx.specs, ctx.rollback_specs = dispatch_check.classify(ctx.req) or ([], [])
+    specs = ctx.specs
+    if not specs:
         return ctx.refuse("class", "unregistered_action")
-    ctx.specs = specs
     if any(s.cls == "approve" for s in specs):
         return ctx.escalate("class", "needs_approval", "class_approve")
     if registry.effective_class(specs[0], playbook_raise=ctx.req.playbook_raise) == "approve":
@@ -220,13 +222,10 @@ async def _step_protected_targets(ctx: _Ctx) -> None:
             code = await protected.check(ctx.db, req.tenant_id, agent=agent)
             if code:
                 return ctx.refuse("protected_targets", code)
-        params = req.params if isinstance(req.params, dict) else {}
-        for spec in ctx.specs:
-            for key in spec.ip_params:
-                if params.get(key) is not None:
-                    code = await protected.check(ctx.db, req.tenant_id, ip=params[key])
-                    if code:
-                        return ctx.refuse("protected_targets", code)
+        code = await dispatch_check.ip_refusal(
+            ctx.db, req.tenant_id, dispatch_check.spec_pairs(req, ctx.specs, ctx.rollback_specs))
+        if code:
+            return ctx.refuse("protected_targets", code)
     except Exception as exc:  # the never-touch list could not be read: do not act
         logger.error("autonomous_ops: never-touch list unreadable, refusing: %s", exc)
         return ctx.refuse("protected_targets", "protected_target")
@@ -326,7 +325,8 @@ def _display_target(spec: Optional[registry.ActionSpec], req: ActionRequest) -> 
     return req.targets[0] if req.targets else None
 
 
-def _undo_block(spec: Optional[registry.ActionSpec], params: Dict[str, Any]) -> Dict[str, Any]:
+def _undo_block(spec: Optional[registry.ActionSpec], params: Dict[str, Any], multi: bool = False) -> Dict[str, Any]:
+    spec = None if multi else spec      # a multi-step row offers no one-instruction undo
     undo_params: Dict[str, Any] = dict(params)
     if spec is not None:
         for key in spec.ip_params:
@@ -349,12 +349,14 @@ def _row(ctx: _Ctx, state: str, outcome: str, code: str) -> Dict[str, Any]:
     req = ctx.req
     spec = ctx.specs[0] if ctx.specs else None
     needs_card = state in ("awaiting_approval", "suggested")
+    pairs = dispatch_check.request_steps(req)
     return {
         "tenantId": req.tenant_id, "kind": req.kind, "origin": req.origin, "dispatcher": req.dispatcher,
         "action": req.actions[0] if req.actions else None,
         "actions": [s.name for s in ctx.specs] or list(req.actions or []),
         "command": spec.name if spec else None, "targets": list(req.targets or []),
-        "target": _display_target(spec, req), "params": dict(req.params or {}),
+        "target": _display_target(spec, req), "params": dict(pairs[0][1]) if pairs else {},
+        "steps": dispatch_check.plan_of(pairs), "rollback": dispatch_check.plan_of(dispatch_check.request_rollback(req)),
         "state": state, "level": ctx.level, "shadow": ctx.shadow is not None,
         "wouldHave": outcome if state == "shadow" else None,
         "reason": req.reason or {"ruleId": f"gate:{req.origin}", "inputs": {}},
@@ -363,7 +365,7 @@ def _row(ctx: _Ctx, state: str, outcome: str, code: str) -> Dict[str, Any]:
         "approval": {"requiredBy": code if needs_card else None,
                      "expiresAt": ctx.now + APPROVAL_TTL if needs_card else None,
                      "approver": None, "decidedAt": None},
-        "undo": _undo_block(spec, req.params or {}),
+        "undo": _undo_block(spec, req.params or {}, multi=len(pairs) > 1),
         "autoDispatched": state == "dispatching",
         "createdAt": ctx.now, "updatedAt": ctx.now,
     }
