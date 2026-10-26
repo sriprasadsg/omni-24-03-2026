@@ -5,17 +5,17 @@ milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: executing
-stopped_at: Completed 81-01-PLAN.md
-last_updated: "2026-10-26T07:41:39.356Z"
+stopped_at: Completed 81-02-PLAN.md
+last_updated: "2026-10-26T07:55:12.841Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 81 execution started
-state_head: 3b47befe1c527f5ad6a4903c004aaefdc368f4f9
+state_head: 97bf2decef17d1b4a1f367b3c9cd3a663ed5fb22
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 12
-  completed_plans: 1
-  percent: 8
+  completed_plans: 2
+  percent: 17
 ---
 
 # Project State
@@ -449,6 +449,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 77]: 77-12: Roles tab owns the server delete; App.handleDeleteRole only refetches roles; super-admin source guard flags literals on 11 phase surfaces
 - [Phase 81]: 81-01: GATE-04 raise is the explicit gate_class step key, never destructive (block_ip stays auto on shipped playbooks)
 - [Phase 81]: 81-01: autonomous_ops reads level/max/shadow per call (no cache); unreadable settings are Suggest, unticked tenants Off and unrecorded
+- [Phase 81]: 81-02: autonomousOps manifest entry sits after soar; tenant tick is view:autonomous_ops (+ child manage), no control switch; control:autonomous_ops is admin-tier (MFA), control:platform_autonomous_ops platform-only
 
 ## Performance Metrics
 
@@ -605,6 +606,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 77 P11 | 25min | 2 tasks | 9 files |
 | Phase 77 P12 | 40min | 2 tasks | 8 files |
 | Phase 81 P01 | 12 min | 3 tasks | 10 files |
+| Phase 81 P02 | 14 min | 2 tasks | 14 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -639,8 +641,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-26T07:41:39.168Z
-**Stopped at:** Completed 81-01-PLAN.md
+**Last session:** 2026-10-26T07:55:12.747Z
+**Stopped at:** Completed 81-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -666,10 +668,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
-Plan: 2 of 12
+Plan: 3 of 12
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 81 execution started
-Progress: 0/6 phases complete ([█░░░░░░░░░] 8%)
+Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
 
 ## Deferred Items
 
