@@ -78,7 +78,7 @@ async def test_who_may_press_a_stop(api):
         assert (await api.call("POST", f"{STOP_BASE}/stop", role=role)).status_code == 403, role
     for role in ("platform_support", "platform_billing"):
         assert (await api.call("POST", f"{STOP_BASE}/stop?tenantId=t1", role=role)).status_code == 403, role
-    assert (await _stop_state(api.db))["active"] is False if (await _stop_state(api.db)) else True
+    assert not ((await _stop_state(api.db)) or {}).get("active")        # none of the refused presses took effect
     no_scope = await api.call("POST", f"{STOP_BASE}/stop", role="tenant_admin", auth="api_key",
                               scopes=["view:autonomous_ops"])
     assert no_scope.status_code == 403
@@ -148,7 +148,7 @@ async def test_the_platform_organization_cannot_be_raised_above_off(api):
                            json={"level": "suggest"})).status_code == 409
     assert (await api.call("PUT", f"{PLAT}/tenants/{PLATFORM}/max-level", role="super_admin",
                            json={"maxLevel": "suggest"})).status_code == 409
-    assert await api.db.autonomy_settings.find_one({"tenantId": PLATFORM}) is None or True
+    assert await api.db.autonomy_settings.find_one({"tenantId": PLATFORM}) is None     # nothing was written for it
     assert (await api.call("PUT", f"{PLAT}/tenants/nope/max-level", role="super_admin",
                            json={"maxLevel": "off"})).status_code == 404
     assert (await api.call("PUT", f"{PLAT}/tenants/t1/max-level", role="super_admin",
@@ -436,7 +436,7 @@ def test_platform_router_matrix_on_the_mounted_app():
         groups["denied"] += [_case(path, role, method=method) for role in
                              ("tenant_admin", "security_analyst", "platform_support", "platform_billing", "analyst")]
         groups["super"].append(_case(path, "super_admin", method=method))
-        if not path.endswith("/stop") and method != "GET":
+        if not path.endswith("/stop"):
             groups["key_denied"].append(_case(path, "super_admin", method=method, auth="api_key", scopes=scope))
     groups["key_stop"] = [_case("/api/platform/autonomous-ops/stop", "super_admin", method="POST", auth="api_key",
                                 scopes=scope)]

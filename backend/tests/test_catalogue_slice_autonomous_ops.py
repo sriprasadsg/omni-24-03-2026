@@ -51,3 +51,19 @@ def test_every_tenant_route_carries_the_manifest_guard():
 def test_tenant_router_is_required():
     import router_registry
     assert "autonomous_ops_endpoints" in router_registry._REQUIRED_ROUTERS
+
+
+def test_platform_router_is_mounted_required_and_permission_checked():
+    import router_registry
+    assert "autonomous_ops_platform_endpoints" in router_registry._REQUIRED_ROUTERS
+    records = run_real_app_walk()["routes"]
+    platform = [r for r in records if r["path"].startswith("/api/platform/autonomous-ops")]
+    assert {(m, r["path"]) for r in platform for m in r["methods"]} >= {
+        ("GET", "/api/platform/autonomous-ops/status"), ("GET", "/api/platform/autonomous-ops/actions"),
+        ("POST", "/api/platform/autonomous-ops/stop"), ("POST", "/api/platform/autonomous-ops/resume"),
+        ("PUT", "/api/platform/autonomous-ops/tenants/{tenant_id}/max-level"),
+        ("PUT", "/api/platform/autonomous-ops/tenants/{tenant_id}/shadow")}
+    for record in platform:
+        assert record["auth"] == "user", record
+        assert record["known_guard"], record      # a _require_* dependency on every platform route
+        assert record["module"] == "autonomous_ops_platform_endpoints"

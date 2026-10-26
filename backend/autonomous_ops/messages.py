@@ -106,6 +106,28 @@ SIMULATION_WOULD_HAVE = {
 }
 
 
+# Short explanations the HTTP routes return with a refusal or conflict (the screen shows its own copy).
+API_DETAIL = {
+    "already_stopped": "Automatic actions are already stopped.",
+    "not_stopped": "Automatic actions are not stopped.",
+    "cannot_resume": "You do not have permission to resume this stop.",
+    "above_max": "That level is above the highest level allowed for this organization.",
+    "platform_tenant": REASON_TEXT["platform_tenant"],
+    "already_handled": "This decision was already made.",
+    "stopped": "Automatic actions are stopped, so this cannot be done right now.",
+    "expired": "This request has expired.",
+    "no_undo": "This action cannot be undone.",
+    "not_undoable": "This action is not in a state that can be undone.",
+    "not_tripped": "The level was not lowered by the circuit breaker.",
+    "not_found": "Action not found.",
+    "entry_not_found": "Never-touch entry not found.",
+    "builtin_entry": "Built-in never-touch entries cannot be removed.",
+    "entry_limit": "The never-touch list is full.",
+    "interactive": "An interactive sign-in is required for this action.",
+    "invalid_reason": "A reason is required, up to 500 characters.",
+}
+
+
 def simulation_result(text: str) -> str:
     """What a shadow-mode row says it would have done."""
     return f"Nothing was done. This is what would have happened: {str(text).rstrip('. ')}."

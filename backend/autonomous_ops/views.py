@@ -8,6 +8,7 @@ D-25 lives here: for a platform-scope stop and its control rows, a tenant viewer
 administrator" instead of the staff member's name (``display_actor``). Tenant-scope entries show the
 real name to everyone.
 """
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -21,6 +22,8 @@ from rbac_utils import has_platform_permission, is_super_admin, verify_permissio
 from . import (BUCKET_STATES, CONTROL_PERMISSION, LEVEL_RANK, MANAGE_PERMISSION, PLATFORM_CONTROL_PERMISSION,
                PLATFORM_TENANT_ID, ledger, messages, registry, settings, stop)
 from .scope import raw
+
+logger = logging.getLogger(__name__)
 
 TENANT_ID_MAX = 128
 _STATE_BUCKET = {state: bucket for bucket, states in BUCKET_STATES.items() for state in states}
@@ -52,7 +55,7 @@ def staff_tier(user) -> Optional[str]:
     return None
 
 
-async def _holds(user, permission: str) -> bool:
+async def holds(user, permission: str) -> bool:
     """The role grants it and, for an API key, the key's scopes allow it."""
     return bool(await verify_permission(user, permission)) and _rbac_service._scopes_allow(user, permission)
 
@@ -79,10 +82,23 @@ async def build_caller(user) -> Caller:
     support = rbac_defaults.platform_tier(getattr(user, "role", None)) == "support"
     return Caller(
         user=user, tier=tier, interactive=is_interactive(user), is_super=is_super_admin(getattr(user, "role", None)),
-        can_control=(not support) and await _holds(user, CONTROL_PERMISSION),
-        can_manage=(not support) and await _holds(user, MANAGE_PERMISSION),
+        can_control=(not support) and await holds(user, CONTROL_PERMISSION),
+        can_manage=(not support) and await holds(user, MANAGE_PERMISSION),
         can_platform=bool(await has_platform_permission(user, PLATFORM_CONTROL_PERMISSION))
         and _rbac_service._scopes_allow(user, PLATFORM_CONTROL_PERMISSION))
+
+
+async def actor_for(db, caller: Caller) -> Dict[str, str]:
+    """The actor dict the stop and approval services record: {username, display, tier}."""
+    username = str(getattr(caller.user, "username", None) or "unknown")
+    display = username
+    try:
+        doc = await raw(db).users.find_one({"email": username}, {"_id": 0, "name": 1})
+        if doc and doc.get("name"):
+            display = str(doc["name"])
+    except Exception as exc:                 # the name is a courtesy; the username always works
+        logger.debug("autonomous_ops: display name for %s not read: %s", username, exc)
+    return {"username": username, "display": display, "tier": "platform" if caller.tier == "owner" else "tenant"}
 
 
 def resolve_tenant(user, tenant_param: Optional[str], *, write: bool) -> str:
@@ -301,3 +317,41 @@ async def platform_status_payload(db, caller: Caller) -> Dict[str, Any]:
         "canStopPlatform": bool(caller.can_platform),
         "canResumePlatform": bool(caller.can_platform and caller.interactive and settings.stop_active(platform_doc)),
     }
+
+
+# ---------------------------------------------------------------- one row, never-touch entries
+
+async def present_one(db, tenant_id: str, action_id: str, caller: Caller) -> Optional[Dict[str, Any]]:
+    """The row as the list shows it, read fresh (after a decision changed it)."""
+    row = await ledger.get(db, tenant_id, action_id)
+    if row is None:
+        return None
+    hosts = await _host_names(db, tenant_id, [row])
+    host = hosts.get(str(row["targets"][0])) if row.get("targets") else None
+    return present_row(row, viewer_is_platform_staff=caller.staff, host=host)
+
+
+def entry_view(entry) -> Dict[str, Any]:
+    return {"id": entry.id, "scope": entry.scope, "kind": entry.kind, "value": entry.value,
+            "note": entry.note, "builtin": bool(entry.builtin)}
+
+
+_INFRASTRUCTURE_ENTRY = {"id": "builtin:platform-infrastructure", "scope": "builtin", "kind": "host",
+                         "value": "This platform's own servers and agents", "note": "built in", "builtin": True}
+
+
+def visible_entries(entries, viewer_is_platform_staff: bool) -> List[Dict[str, Any]]:
+    """The never-touch list as the viewer may read it. Built-in entries derived from this server's
+    own addresses, configuration and platform agents are shown to platform staff only; everyone else
+    sees the general ranges plus one line standing for the rest (no platform address is disclosed)."""
+    from . import protected
+    general = {e.id for e in protected._special_networks()}
+    shown, hidden = [], False
+    for entry in entries:
+        if entry.builtin and entry.id not in general and not viewer_is_platform_staff:
+            hidden = True
+            continue
+        shown.append(entry_view(entry))
+    if hidden:
+        shown.append(dict(_INFRASTRUCTURE_ENTRY))
+    return shown
