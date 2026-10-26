@@ -827,6 +827,15 @@
           "label": "Conditional Access"
         },
         {
+          "permission": "view:autonomous_ops",
+          "label": "Autonomous Ops"
+        },
+        {
+          "permission": "manage:autonomous_ops",
+          "label": "Manage Autonomous Ops",
+          "parent": "view:autonomous_ops"
+        },
+        {
           "permission": "view:swarm",
           "label": "Autonomous Swarms"
         },

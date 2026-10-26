@@ -159,6 +159,7 @@
     {"view": "notificationsRouting", "label": "Notifications & Domain Scanner", "group": "automation", "nav": true, "permission": "view:automation", "routes": ["/api/domain-scanner"]},
     {"view": "playbooks", "label": "Playbooks", "group": "automation", "nav": true, "permission": "manage:playbooks", "routes": ["/api/playbooks", "/api/ai/generate-playbook"]},
     {"view": "soar", "label": "SOAR Executions", "group": "automation", "nav": true, "permission": "manage:playbooks", "routes": ["/api/soar"]},
+    {"view": "autonomousOps", "label": "Autonomous Ops", "group": "automation", "nav": true, "permission": "view:autonomous_ops", "write": ["manage:autonomous_ops", "control:autonomous_ops"], "routes": ["/api/autonomous-ops"]},
     {"view": "jitAccess", "label": "JIT Privileged Access", "group": "automation", "nav": true, "permission": "manage:settings", "routes": ["/api/jit"]},
     {"view": "conditionalAccess", "label": "Conditional Access", "group": "automation", "nav": true, "permission": "view:conditional_access", "routes": ["/api/conditional-access"]},
     {"view": "scheduledReports", "label": "Scheduled Reports", "group": "automation", "nav": true, "permission": "view:reporting", "routes": ["/api/reports/scheduled"]},

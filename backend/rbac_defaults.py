@@ -35,11 +35,11 @@ TENANT_ADMIN_KEY = "tenant_admin"
 ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
     # Tenant administrator (alias: admin, D-01). Excludes manage:tenants (D-06) and the D-03 catalogues.
     "tenant_admin": (
-        "control:remote_access", "export:reports", "investigate:security",
+        "control:autonomous_ops", "control:remote_access", "export:reports", "investigate:security",
         "manage:active_response", "manage:advanced_hunting", "manage:agent_groups",
         "manage:agents", "manage:ai_risks", "manage:android_enterprise", "manage:api_keys",
         "manage:app_catalog", "manage:approvals", "manage:asset_intelligence", "manage:assets",
-        "manage:automation", "manage:automl", "manage:autopilot", "manage:branch_sites", "manage:compliance",
+        "manage:automation", "manage:automl", "manage:autonomous_ops", "manage:autopilot", "manage:branch_sites", "manage:compliance",
         "manage:compliance_evidence", "manage:conditional_access", "manage:config_drift",
         "manage:connectors_hub", "manage:dashboards", "manage:detection_rules",
         "manage:device_config_profiles", "manage:devsecops", "manage:experiments", "manage:fim",
@@ -54,7 +54,7 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
         "view:ai_governance", "view:analytics", "view:android_enterprise", "view:app_catalog",
         "view:approvals", "view:asset_intelligence", "view:assets", "view:attack_path",
         "view:attack_timeline", "view:audit_log", "view:automation", "view:automl",
-        "view:autopilot", "view:branch_sites", "view:chaos", "view:cloud_security",
+        "view:autonomous_ops", "view:autopilot", "view:branch_sites", "view:chaos", "view:cloud_security",
         "view:compliance", "view:conditional_access", "view:config_drift", "view:connectors_hub",
         "view:cxo_dashboard", "view:dashboard", "view:detection_rules", "view:developer_hub",
         "view:device_config_profiles", "view:devsecops", "view:dora_metrics", "view:dspm",
@@ -79,21 +79,21 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
     # Security analyst: investigation and threat-hunting access.
     "analyst": (
         "investigate:security", "view:agents", "view:assets", "view:attack_path", "view:audit_log",
-        "view:compliance", "view:dashboard", "view:devsecops", "view:dspm", "view:logs",
+        "view:autonomous_ops", "view:compliance", "view:dashboard", "view:devsecops", "view:dspm", "view:logs",
         "view:mdr", "view:profile", "view:reporting", "view:security", "view:threat_hunting",
         "view:threat_intel", "view:tracing", "view:vulnerabilities", "view:xdr",
     ),
     # Deep security investigation with case management.
     "security_analyst": (
-        "investigate:security", "manage:security_cases", "view:assets", "view:attack_path",
-        "view:audit_log", "view:compliance", "view:dashboard", "view:dspm", "view:logs",
+        "control:autonomous_ops", "investigate:security", "manage:security_cases", "view:assets",
+        "view:attack_path", "view:audit_log", "view:autonomous_ops", "view:compliance", "view:dashboard", "view:dspm", "view:logs",
         "view:mdr", "view:profile", "view:security", "view:threat_hunting", "view:threat_intel",
         "view:tracing", "view:vulnerabilities", "view:xdr",
     ),
     # Incident triage and security case management.
     "incident_responder": (
-        "investigate:security", "manage:security_cases", "view:agents", "view:assets",
-        "view:audit_log", "view:dashboard", "view:logs", "view:mdr", "view:profile",
+        "control:autonomous_ops", "investigate:security", "manage:security_cases", "view:agents",
+        "view:assets", "view:audit_log", "view:autonomous_ops", "view:dashboard", "view:logs", "view:mdr", "view:profile",
         "view:security", "view:threat_hunting", "view:xdr",
     ),
     # Read-only access to dashboards and reports.
@@ -122,7 +122,7 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
         "view:agent_capabilities", "view:agent_groups", "view:agents", "view:ai_governance",
         "view:analytics", "view:android_enterprise", "view:app_catalog", "view:asset_intelligence",
         "view:assets", "view:attack_path", "view:attack_timeline", "view:audit_log",
-        "view:automation", "view:automl", "view:autopilot", "view:branch_sites", "view:chaos",
+        "view:automation", "view:automl", "view:autonomous_ops", "view:autopilot", "view:branch_sites", "view:chaos",
         "view:cloud_security", "view:compliance", "view:conditional_access", "view:config_drift",
         "view:connectors_hub", "view:cxo_dashboard", "view:dashboard", "view:detection_rules",
         "view:developer_hub", "view:device_config_profiles", "view:devsecops", "view:dora_metrics",

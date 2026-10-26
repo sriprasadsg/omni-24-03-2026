@@ -163,6 +163,7 @@ export const SIDEBAR_PRESENTATION: Partial<Record<AppView, SidebarPresentation>>
     notificationsRouting: { icon: <BellIcon size={20} /> },
     playbooks: { icon: <BookKeyIcon size={20} /> },
     soar: { icon: <ZapIcon size={20} /> },
+    autonomousOps: { icon: <ShieldZapIcon size={20} /> },
     jitAccess: { icon: <Lock size={20} /> },
     conditionalAccess: { icon: <ShieldCheckIcon size={20} /> },
     scheduledReports: { icon: <ClipboardListIcon size={20} /> },
