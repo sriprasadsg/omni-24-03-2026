@@ -8,7 +8,10 @@ tick, per tenant in sorted tenantId order:
 2. maps rows still ``dispatching`` to the outcome of their latest instruction:
    completed / success -> ``executed``; failed / refused -> ``failed``; an instruction nobody
    picked up within ``AUTONOMOUS_OPS_STUCK_DISPATCH_MIN`` (or no instruction at all) -> ``failed``
-   with reason ``not_delivered``;
+   with reason ``not_delivered``; an instruction an agent picked up (sent, delivered or any other
+   status that is not pending / queued / a final outcome) that reports nothing within
+   ``AUTONOMOUS_OPS_NO_RESULT_MIN`` (default 1440, never shorter than the not-delivered bound)
+   -> ``failed`` with reason ``no_result``;
 3. asks the circuit breaker to look at the tenant when any of its rows changed.
 
 A failure for one tenant is logged and does not stop the others. Each tenant is processed inside
@@ -33,6 +36,7 @@ LOCK_TTL_SECONDS = 120
 LOCK_RENEW_EVERY = 30
 _DEFAULT_INTERVAL_SEC = 60
 _DEFAULT_STUCK_MIN = 30
+_DEFAULT_NO_RESULT_MIN = 1440
 
 # Instruction / response-task statuses (compared case-insensitively). The agent result endpoint
 # stores SUCCESS / FAILURE or the agent's own word upper-cased; response tasks use "executed".
@@ -57,6 +61,12 @@ def _stuck_after() -> timedelta:
     return timedelta(minutes=_env_number("AUTONOMOUS_OPS_STUCK_DISPATCH_MIN", _DEFAULT_STUCK_MIN))
 
 
+def _no_result_after() -> timedelta:
+    """How long a picked-up instruction may stay silent; never shorter than the not-delivered bound."""
+    return max(timedelta(minutes=_env_number("AUTONOMOUS_OPS_NO_RESULT_MIN", _DEFAULT_NO_RESULT_MIN)),
+               _stuck_after())
+
+
 def _now(now: Optional[datetime]) -> datetime:
     now = now or datetime.now(timezone.utc)
     return now.astimezone(timezone.utc) if now.tzinfo else now.replace(tzinfo=timezone.utc)
@@ -78,6 +88,7 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
     """Map this tenant's dispatching (and stuck approved) rows to their outcome."""
     done = {"executed": 0, "failed": 0}
     stuck_before = now - _stuck_after()
+    no_result_before = now - _no_result_after()
     rows = [r async for r in raw(db).autonomy_actions.find(
         {"tenantId": tenant_id, "state": {"$in": ["approved", "dispatching"]}}, {"_id": 0})]
     for row in sorted(rows, key=lambda r: (str(r.get("createdAt")), r.get("id", ""))):
@@ -102,6 +113,14 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
                 db, tenant_id, row["id"], ("approved", "dispatching"), "failed", reasonCode="not_delivered",
                 reasonText=messages.REASON_TEXT["not_delivered"],
                 where={"updatedAt": {"$lte": stuck_before}})
+            done["failed"] += 1 if moved else 0
+        elif (status and status not in _UNDELIVERED and isinstance(updated, datetime)
+              and updated <= no_result_before):
+            moved = await ledger.transition(
+                db, tenant_id, row["id"], ("dispatching",), "failed", reasonCode="no_result",
+                reasonText=messages.REASON_TEXT["no_result"],
+                result={"instructionId": ids[-1], "instructionStatus": status},
+                where={"updatedAt": {"$lte": no_result_before}})
             done["failed"] += 1 if moved else 0
     return done
 

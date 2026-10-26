@@ -19,7 +19,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import tenant_context
-from autonomous_ops import APPROVAL_TTL, approvals, breaker, gate, ledger, protected, reconciler
+from autonomous_ops import APPROVAL_TTL, approvals, breaker, gate, ledger, messages, protected, reconciler
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_agent, seed_platform_stop, seed_tenant
 
@@ -30,6 +30,7 @@ APPROVER = {"username": "alice", "display": "Alice", "tier": "tenant"}
 def _env(monkeypatch):
     monkeypatch.delenv("AUTONOMOUS_REMEDIATION_DRY_RUN", raising=False)
     monkeypatch.delenv("AUTONOMOUS_OPS_STUCK_DISPATCH_MIN", raising=False)
+    monkeypatch.delenv("AUTONOMOUS_OPS_NO_RESULT_MIN", raising=False)
     protected.cache_clear()
 
 
@@ -125,6 +126,94 @@ async def test_undelivered_instruction_older_than_the_limit_fails_as_not_deliver
     await _age(live, fresh, 6)
     assert (await reconciler.tick(live))["failed"] == 1
     assert await _state(live, fresh) == "failed"
+
+
+async def test_tracer_picked_up_but_silent_instruction_fails_no_result_and_frees_the_slot(live):
+    """WR-01: a sent instruction that never reports fails no_result after the bound."""
+    action, _ = await _dispatched(live, "203.0.113.30", status="sent")
+    await _age(live, action, 25 * 60)
+    assert (await reconciler.tick(live))["failed"] == 1
+    row = await ledger.get(live, "t1", action)
+    assert row["state"] == "failed" and row["reasonCode"] == "no_result"
+    assert row["reasonText"] == messages.REASON_TEXT["no_result"]
+    again = await gate.decide(live, _req(ip="203.0.113.30"), master_shadow=False)
+    assert again.state == "dispatching" and again.action_id != action
+
+
+async def test_no_result_waits_for_its_own_bound(live):
+    delivered, _ = await _dispatched(live, "203.0.113.31", status="delivered")
+    sent, _ = await _dispatched(live, "203.0.113.32", status="sent")
+    pending, _ = await _dispatched(live, "203.0.113.33")
+    await _age(live, delivered, 23 * 60)
+    await _age(live, sent, 31)
+    await _age(live, pending, 31)
+    assert (await reconciler.tick(live))["failed"] == 1
+    assert await _state(live, delivered) == "dispatching" and await _state(live, sent) == "dispatching"
+    assert (await ledger.get(live, "t1", pending))["reasonCode"] == "not_delivered"
+
+
+async def test_no_result_cutoff_is_inclusive_to_the_second(live):
+    """Edge GATE-07 adjacency."""
+    at_bound, _ = await _dispatched(live, "203.0.113.34", status="sent")
+    younger, _ = await _dispatched(live, "203.0.113.35", status="sent")
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    await live.autonomy_actions.update_one({"id": at_bound}, {"$set": {"updatedAt": now - timedelta(minutes=1440)}})
+    await live.autonomy_actions.update_one(
+        {"id": younger}, {"$set": {"updatedAt": now - timedelta(minutes=1440) + timedelta(seconds=1)}})
+    assert (await reconciler.tick(live, now=now))["failed"] == 1
+    assert await _state(live, at_bound) == "failed" and await _state(live, younger) == "dispatching"
+
+
+@pytest.mark.parametrize("status", ["in_progress", "running"])
+async def test_unrecognised_status_fails_closed_after_the_bound(live, status):
+    action, _ = await _dispatched(live, "203.0.113.36", status=status)
+    await _age(live, action, 25 * 60)
+    assert (await reconciler.tick(live))["failed"] == 1
+    assert (await ledger.get(live, "t1", action))["reasonCode"] == "no_result"
+
+
+async def test_no_result_bound_env_override_fallback_and_floor(live, monkeypatch):
+    action, _ = await _dispatched(live, "203.0.113.37", status="sent")
+    await _age(live, action, 91)
+    assert (await reconciler.tick(live))["failed"] == 0
+    monkeypatch.setenv("AUTONOMOUS_OPS_NO_RESULT_MIN", "90")
+    assert reconciler._no_result_after() == timedelta(minutes=90)
+    assert (await reconciler.tick(live))["failed"] == 1
+    for bad in ("abc", "0", "-5"):
+        monkeypatch.setenv("AUTONOMOUS_OPS_NO_RESULT_MIN", bad)
+        assert reconciler._no_result_after() == timedelta(minutes=1440)
+    monkeypatch.setenv("AUTONOMOUS_OPS_NO_RESULT_MIN", "5")
+    assert reconciler._no_result_after() == reconciler._stuck_after()
+
+
+async def test_no_result_move_does_not_overwrite_a_concurrent_agent_result(live):
+    """Edge GATE-11 adjacency: the updatedAt bound is in the compare-and-set."""
+    action, task = await _dispatched(live, "203.0.113.38", status="sent")
+    await _age(live, action, 25 * 60)
+    real = ledger.transition
+
+    async def racing(db, tenant_id, action_id, from_states, to_state, **kw):
+        if kw.get("reasonCode") == "no_result":
+            await db.autonomy_actions.update_one({"id": action_id}, {"$set": {"updatedAt": datetime.now(timezone.utc)}})
+        return await real(db, tenant_id, action_id, from_states, to_state, **kw)
+
+    with patch.object(ledger, "transition", racing):
+        assert (await reconciler.tick(live))["failed"] == 0
+    assert await _state(live, action) == "dispatching"
+
+
+async def test_three_no_result_failures_trip_the_breaker(live):
+    ids = [(await _dispatched(live, f"203.0.113.{40 + i}", status="sent"))[0] for i in range(3)]
+    for action in ids:
+        await _age(live, action, 25 * 60)
+    out = await reconciler.tick(live)
+    assert out["failed"] == 3 and out["tripped"] == 1
+    assert (await settings_load(live)).breaker is not None
+
+
+async def settings_load(db):
+    from autonomous_ops import settings
+    return await settings.load(db, "t1")
 
 
 async def test_dispatching_row_with_no_instruction_at_all_fails_once_old(live):
