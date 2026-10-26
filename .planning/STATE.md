@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: executing
-stopped_at: Completed 81-12-PLAN.md
-last_updated: "2026-10-26T09:35:24.692Z"
+stopped_at: Completed 81-08-PLAN.md
+last_updated: "2026-10-26T12:45:12.331Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 81 execution started
-state_head: cdf9510e0c16686e39cf89ce04c23616ffc4a735
+state_head: d9defb4c22381b08db2dcb7a5062738aed2e6948
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 12
-  completed_plans: 9
+  completed_plans: 10
   percent: 17
 ---
 
@@ -459,6 +459,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 81]: 81-05: can_clear lets manage holders clear only tenant stops whose stored pressedByTier is tenant; unknown origin needs Super Admin
 - [Phase 81]: 81-06: automatic playbook containment steps pass gate.decide; selectors only gate.suggest; evaluate_action confidence bypass removed (low-confidence guard kept)
 - [Phase 81]: 81-12: sign-up Autonomous Ops settings hook runs after the admin insert so a duplicate-email rollback leaves no orphan row; migration 024 delegates indexes to the owning modules
+- [Phase 81]: 81-08: block_ip playbook stays automatic and kill_process needs a card because playbook_raise comes only from an explicit gate_class step key; remediation approvals go through the ledger with a request compare-and-set; a deferral is refused, not failed, so it never counts toward the breaker
+- [Phase 81]: 81-08: GRANDFATHERED_WRITERS holds 34 tracked modules (plan estimated about 27); later phases must add a module consciously after a GATE-03 review
 
 ## Performance Metrics
 
@@ -623,6 +625,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 81 P05 | 30 min | 3 tasks | 10 files |
 | Phase 81 P06 | 20min | 2 tasks | 5 files |
 | Phase 81 P12 | 6min | 2 tasks | 4 files |
+| Phase 81 P08 | 55 min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -657,8 +660,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-26T09:35:24.588Z
-**Stopped at:** Completed 81-12-PLAN.md
+**Last session:** 2026-10-26T12:45:12.158Z
+**Stopped at:** Completed 81-08-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -684,7 +687,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
-Plan: 10 of 12
+Plan: 11 of 12
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 81 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
