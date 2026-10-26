@@ -76,7 +76,7 @@
 
 - [ ] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
 - [ ] **ACTV-02**: An operator can approve or deny pending actions and undo done actions that have an inverse, from the same screen.
-- [ ] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
+- [x] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
 - [ ] **ACTV-04**: Each tenant gets one daily digest: what ran, what was undone, and what is waiting for approval.
 - [ ] **ACTV-05**: The operator can see per-rule statistics: how often each rule fired and was approved, denied or undone.
 - [ ] **ACTV-06**: The operator can export the activity log as CSV or PDF.
@@ -196,7 +196,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | GATE-13 | Phase 81 | Pending |
 | GATE-14 | Phase 81 | Pending |
 | ACTV-01 | Phase 81 | Pending |
-| ACTV-03 | Phase 81 | Pending |
+| ACTV-03 | Phase 81 | Complete |
 | ACTV-08 | Phase 81 | Pending |
 | HEAL-01 | Phase 82 | Pending |
 | HEAL-02 | Phase 82 | Pending |

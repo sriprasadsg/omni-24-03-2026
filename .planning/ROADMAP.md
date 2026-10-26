@@ -334,7 +334,7 @@ Plans:
   4. Every decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention. An approval dispatches exactly once even if clicked twice, and an approval left pending past its expiry counts as denied. Automatic sweeps run one at a time across the deployment, and a two-tenant test shows no action or record crosses tenants. Agent online/offline status refreshes every 5 minutes as documented.
   5. An operator with the Autonomous Ops screen enabled and the matching permission opens it from the catalogue and sees actions in the states Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result; in shadow mode "would have done" entries are clearly labelled as a simulation. A copy check fails the build if Autonomous Ops screens or docs use any of the banned terms listed in ACTV-08.
 
-**Plans**: 3/12 plans executed in 5 waves (0/12 executed)
+**Plans**: 4/12 plans executed in 5 waves (0/12 executed)
 **UI hint**: yes
 **Research**: None — internal composition over code already read (standard patterns).
 **Live-only verification** (operator steps, not unit-testable): apply migration 024 and restart the backend; flip the platform stop on the live server and confirm a real agent poll holds back a queued automatic instruction without a restart; confirm agent online/offline status refreshes on the 5-minute cadence. Until Phase 83 adds a security sweep nothing automatic runs, so live Activity data is limited to gate and shadow entries — intended.
@@ -348,7 +348,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 81-11-PLAN.md — Tracer: decision core part 2 (never-touch list, host cap, rate limit, dedupe/cooldown, stops and level, both shadow layers, messages module, exhaustive enumeration) (GATE-02/03/04/08/09; D-02, D-04, D-17, D-19, D-20, D-23)
-- [ ] 81-07-PLAN.md — Read-only Autonomous Ops screen: activity list in six states plus simulation, shared status poller (ACTV-01/03; D-22)
+- [x] 81-07-PLAN.md — Read-only Autonomous Ops screen: activity list in six states plus simulation, shared status poller (ACTV-01/03; D-22)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 81-04-PLAN.md — Approvals (single-use, 24 h expiry), undo, circuit breaker, reconciler under a renewed lock, two-tenant isolation (GATE-10/11/14; D-12, D-13, D-16, D-18)
@@ -463,7 +463,7 @@ Plans:
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
-| 81. Autonomy Gate, Stop Switch & Activity Ledger | 3/12 | In Progress | - |
+| 81. Autonomy Gate, Stop Switch & Activity Ledger | 4/12 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 0/TBD | Not started | - |
 | 83. Autonomous Security Response | 0/TBD | Not started | - |
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
