@@ -14,13 +14,13 @@
 
 - [ ] **GATE-01**: Each tenant has an autonomy level (Off / Suggest / Undoable-auto) stored in the database; new tenants default to Undoable-auto and every existing tenant is given an explicit stored level by migration.
 - [ ] **GATE-02**: Only tenants whose Autonomous Ops screen a Super Admin has ticked are eligible for autonomous actions, and a tenant whose level cannot be read is treated as Suggest (fail closed).
-- [ ] **GATE-03**: Every autonomous action passes one decision function that applies, in order: platform stop, tenant eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression — and only that gate writes autonomous agent instructions (a structural test fails on any other writer).
+- [x] **GATE-03**: Every autonomous action passes one decision function that applies, in order: platform stop, tenant eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression — and only that gate writes autonomous agent instructions (a structural test fails on any other writer).
 - [x] **GATE-04**: Action classes come from a code-owned registry (auto or approval, plus the undo action): block IP, quarantine file and restart service are auto; isolate host, kill process and patch reboot need approval; a playbook's YAML may raise a class but never lower it.
 - [ ] **GATE-05**: No autonomous path dispatches an LLM-written script or an LLM-chosen action: the legacy `run_cycle` / `generate_plan` / `execute_plan` path is removed, the 0.90 confidence auto-approve bypass no longer applies to autonomous actions, and a test proves only registry-listed playbook actions reach the agent queue.
 - [ ] **GATE-06**: A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; a stop takes effect without a restart, halts new decisions, holds back autonomous instructions already queued at agent delivery, and freezes pending approvals and rollouts.
 - [x] **GATE-07**: Every autonomous decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention.
 - [ ] **GATE-08**: The platform host, its own IP addresses and the management network can never be blocked, isolated or patched autonomously, and a per-decision cap limits how many hosts one decision can touch.
-- [ ] **GATE-09**: The operator can run in shadow mode (on by default at deployment), in which the gate records what it would have done without dispatching anything.
+- [x] **GATE-09**: The operator can run in shadow mode (on by default at deployment), in which the gate records what it would have done without dispatching anything.
 - [ ] **GATE-10**: An approval dispatches exactly once even if clicked twice (atomic, single-use), and an approval left pending past its expiry counts as denied.
 - [x] **GATE-11**: Autonomous sweeps run one at a time across the deployment (lock with renewal), set the tenant explicitly on every write and reset tenant context per tenant; a two-tenant test proves no autonomous action or record crosses tenants.
 - [ ] **GATE-12**: Agent online/offline status refreshes every 5 minutes as documented, pinned by a test, and the offline notification names the agents that actually went offline, so health checks read current data. (Corrected 2026-10-25: the loop already polls every 30 s; the earlier "3600 s sleep" premise was a misread.)
@@ -183,13 +183,13 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | COST-08 | Phase 80 | Pending |
 | GATE-01 | Phase 81 | Gaps Found |
 | GATE-02 | Phase 81 | Gaps Found |
-| GATE-03 | Phase 81 | Gaps Found |
+| GATE-03 | Phase 81 | Complete |
 | GATE-04 | Phase 81 | Complete |
 | GATE-05 | Phase 81 | Gaps Found |
 | GATE-06 | Phase 81 | Gaps Found |
 | GATE-07 | Phase 81 | Complete |
 | GATE-08 | Phase 81 | Gaps Found |
-| GATE-09 | Phase 81 | Gaps Found |
+| GATE-09 | Phase 81 | Complete |
 | GATE-10 | Phase 81 | Gaps Found |
 | GATE-11 | Phase 81 | Complete |
 | GATE-12 | Phase 81 | Gaps Found |
