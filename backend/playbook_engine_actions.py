@@ -10,6 +10,67 @@ from typing import Any, Dict, Optional
 # Autonomous Ops gate; a human-started run (any other executed_by) keeps the engine's own path.
 AUTOMATIC_EXECUTORS = frozenset({"xdr-auto", "ai-selector", "fallback-selector"})
 
+# Playbook step actions that contain a host, and the registry command each one is.
+CONTAINMENT_COMMANDS = {
+    "block_ip": "block_ip", "isolate_endpoint": "isolate_host",
+    "quarantine_file": "quarantine_file", "rollback_ransomware": "rollback_ransomware",
+}
+
+
+def gate_request(command: str, *, tenant_id, origin: str, agent_id: str, target: str,
+                 task_params: Dict[str, Any], trigger: Dict[str, Any], execution_id=None,
+                 step=None, inputs: Optional[Dict[str, Any]] = None):
+    """The one place that builds the gate request for a playbook containment step (the playbook
+    fence and the two selectors share it). Dedupe is per tenant, action, agent and target, not
+    per run, so a repeated correlation does not open a second card (A-81-XDR-DEDUPE). Only an
+    explicit gate_class step key raises the class (GATE-04); the destructive flag is not read."""
+    from autonomous_ops import gate, messages, registry
+    label = messages.ACTION_LABELS.get(command, command).lower()
+    where = f"{target} on agent {agent_id}" if target != agent_id else f"agent {agent_id}"
+    prefix = "xdr" if origin == "xdr-auto" else origin
+    return gate.ActionRequest(
+        tenant_id=tenant_id, kind="security", origin=origin, actions=[command], targets=[agent_id],
+        params=dict(task_params), dedupe_key=f"{tenant_id}|xdr|{command}|{agent_id}|{target}",
+        playbook=(trigger or {}).get("pattern_id"),
+        playbook_raise=registry.playbook_raises([step]),
+        reason={"ruleId": f"{prefix}:{(trigger or {}).get('pattern_id') or 'playbook'}",
+                "inputs": {"executionId": execution_id, **(inputs or {})}},
+        reason_text=f"A playbook step asked for: {label} ({where}).",
+        dispatcher="response_task")
+
+
+def _usable(value):
+    """A step parameter that is a real value, not an unresolved $variable reference."""
+    return value if value and not (isinstance(value, str) and value.startswith("$")) else None
+
+
+def selector_request(step: Dict[str, Any], correlation: Dict[str, Any], *, tenant_id, origin: str):
+    """The gate request for the first containment step a selected playbook contains, or None
+    when the step has no host to act on (selectors only ever suggest, so this is paired with
+    ``gate.suggest``)."""
+    action = step.get("action")
+    command = CONTAINMENT_COMMANDS.get(action)
+    params = step.get("params") or {}
+    agent_id = _usable(params.get("agent_id")) or _usable(params.get("endpoint_id")) or correlation.get("agent_id")
+    if not command or not agent_id:
+        return None
+    reason = _usable(params.get("reason")) or "playbook-auto"
+    if action == "block_ip":
+        target = _usable(params.get("ip")) or correlation.get("source_ip")
+        task_params, inputs = {"ip": target, "reason": reason}, {"sourceIp": target}
+    elif action == "quarantine_file":
+        target = _usable(params.get("file_path")) or (correlation.get("process") or {}).get("path")
+        task_params, inputs = {"file_path": target, "reason": reason}, {"filePath": target}
+    elif action == "isolate_endpoint":
+        target, task_params, inputs = agent_id, {"reason": reason}, {"agentId": agent_id}
+    else:
+        target, inputs = agent_id, {"agentId": agent_id}
+        task_params = {"volume": _usable(params.get("volume")) or "C:", "reason": reason}
+    if not target:
+        return None
+    return gate_request(command, tenant_id=tenant_id, origin=origin, agent_id=agent_id, target=target,
+                        task_params=task_params, trigger=correlation, step=step, inputs=inputs)
+
 
 class PlaybookActionsMixin:
     """Mixin providing all built-in _action_* handlers."""
@@ -27,25 +88,17 @@ class PlaybookActionsMixin:
         executed_by = context.get("executed_by")
         if executed_by not in AUTOMATIC_EXECUTORS:
             return None
-        from autonomous_ops import gate, messages, registry
+        from autonomous_ops import gate, messages
 
         tenant_id = context.get("tenant_id")
         execution_id = context.get("execution_id")
         trigger = (context.get("variables") or {}).get("trigger") or {}
         label = messages.ACTION_LABELS.get(command, command).lower()
         where = f"{target} on agent {agent_id}" if target != agent_id else f"agent {agent_id}"
-        prefix = "xdr" if executed_by == "xdr-auto" else executed_by
-        req = gate.ActionRequest(
-            tenant_id=tenant_id, kind="security", origin=executed_by, actions=[command], targets=[agent_id],
-            params=dict(task_params),
-            dedupe_key=f"{tenant_id}|xdr|{command}|{agent_id}|{target}",
-            playbook=trigger.get("pattern_id"),
-            playbook_raise=registry.playbook_raises([context.get("_current_step")]),
-            reason={"ruleId": f"{prefix}:{trigger.get('pattern_id') or 'playbook'}",
-                    "inputs": {"executionId": execution_id, **inputs}},
-            reason_text=f"A playbook step asked for: {label} ({where}).",
-            dispatcher="response_task",
-        )
+        req = gate_request(
+            command, tenant_id=tenant_id, origin=executed_by, agent_id=agent_id, target=target,
+            task_params=task_params, trigger=trigger, execution_id=execution_id,
+            step=context.get("_current_step"), inputs=inputs)
         decision = await gate.decide(self.db, req)
         if decision.outcome == "refuse":
             return messages.REASON_TEXT.get(decision.reason, "The request was refused.")

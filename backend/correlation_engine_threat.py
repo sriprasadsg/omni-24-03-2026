@@ -51,7 +51,8 @@ class CorrelationEngineThreatMixin:
         """Ask the AI service to suggest the best playbook for a correlation."""
         try:
             from ai_service import IncidentAnalyzer
-            from enhanced_playbook_engine import get_playbook_engine
+            from autonomous_ops import gate
+            from playbook_engine_actions import CONTAINMENT_COMMANDS, selector_request
 
             analyzer = IncidentAnalyzer()
             await analyzer.initialize()
@@ -83,17 +84,19 @@ class CorrelationEngineThreatMixin:
                 "enabled": True,
             })
             if playbook:
-                engine = get_playbook_engine(self.db)
-                context = {"auto_approved": True, "confidence": correlation.get("confidence", 0.9)}
-                await engine.execute_playbook(
-                    playbook_id=str(playbook["_id"]),
-                    trigger_data={**correlation, **context},
-                    tenant_id=tenant_id,
-                    executed_by="ai-selector",
-                )
+                # D-21 / GATE-05: a model's choice is only ever a suggestion for a person.
+                step = next((st for st in playbook.get("steps") or []
+                             if isinstance(st, dict) and st.get("action") in CONTAINMENT_COMMANDS), None)
+                req = selector_request(step, correlation, tenant_id=tenant_id, origin="ai-selector") \
+                    if step else None
+                if req is None:
+                    logger.info("AI selected playbook '%s' (action=%s) has no host-level step to suggest "
+                                "for pattern '%s'", playbook.get("name"), action, correlation.get("pattern_id"))
+                    return
+                decision = await gate.suggest(self.db, req)
                 logger.info(
-                    "AI selected playbook '%s' (action=%s) for correlation pattern '%s'",
-                    playbook.get("name"), action, correlation.get("pattern_id"),
+                    "AI selected playbook '%s' (action=%s) for correlation pattern '%s': suggestion %s",
+                    playbook.get("name"), action, correlation.get("pattern_id"), decision.state,
                 )
         except Exception as exc:
             logger.warning("AI playbook selection failed: %s — using rule-based fallback", exc)
@@ -104,7 +107,8 @@ class CorrelationEngineThreatMixin:
     ) -> None:
         """Select the first enabled playbook matching the correlation severity when AI is unavailable."""
         try:
-            from enhanced_playbook_engine import get_playbook_engine
+            from autonomous_ops import gate
+            from playbook_engine_actions import CONTAINMENT_COMMANDS, selector_request
             severity = correlation.get("severity", "Medium")
             playbook = await self.db.playbooks.find_one({
                 "tenant_id": {"$in": [tenant_id, "platform"]},
@@ -115,16 +119,19 @@ class CorrelationEngineThreatMixin:
                 ],
             }, sort=[("priority", -1)])
             if playbook:
-                engine = get_playbook_engine(self.db)
-                await engine.execute_playbook(
-                    playbook_id=str(playbook.get("id", playbook["_id"])),
-                    trigger_data={**correlation, "auto_approved": True},
-                    tenant_id=tenant_id,
-                    executed_by="fallback-selector",
-                )
+                # D-21 / GATE-05: the rule-based choice is only ever a suggestion for a person.
+                step = next((st for st in playbook.get("steps") or []
+                             if isinstance(st, dict) and st.get("action") in CONTAINMENT_COMMANDS), None)
+                req = selector_request(step, correlation, tenant_id=tenant_id, origin="fallback-selector") \
+                    if step else None
+                if req is None:
+                    logger.info("Fallback selected playbook '%s' has no host-level step to suggest "
+                                "for pattern '%s'", playbook.get("name"), correlation.get("pattern_id"))
+                    return
+                decision = await gate.suggest(self.db, req)
                 logger.info(
-                    "Fallback selected playbook '%s' for correlation pattern '%s'",
-                    playbook.get("name"), correlation.get("pattern_id"),
+                    "Fallback selected playbook '%s' for correlation pattern '%s': suggestion %s",
+                    playbook.get("name"), correlation.get("pattern_id"), decision.state,
                 )
         except Exception as fb_exc:
             logger.error("Fallback playbook selection also failed: %s", fb_exc)

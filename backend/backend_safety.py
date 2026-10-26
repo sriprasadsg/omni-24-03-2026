@@ -20,9 +20,9 @@ FORBIDDEN_ACTIONS = frozenset([
     "uninstall_agent",
 ])
 
-# Actions that always need a human approval token *unless*
-# the caller supplies an explicit override context (e.g. auto-triggered by
-# the correlation engine with confidence >= AUTO_APPROVE_THRESHOLD).
+# Actions that always need a human approval token. No confidence score or
+# caller-supplied context lifts this (GATE-05); autonomous paths go through the
+# Autonomous Ops gate, not through this advisory table.
 APPROVAL_REQUIRED_ACTIONS = frozenset([
     "isolate_host",
     "restart_service",
@@ -43,10 +43,6 @@ SAFE_ACTIONS = frozenset([
     "send_notification",
     "kill_process",
 ])
-
-# Confidence threshold above which the system can auto-approve
-# an action that would otherwise require a human gate
-AUTO_APPROVE_CONFIDENCE_THRESHOLD = 0.90
 
 # Asset criticality levels that always require human approval regardless
 # of confidence or context
@@ -90,11 +86,13 @@ def evaluate_action(
     Parameters
     ----------
     action:             The action name (e.g. "isolate_host", "kill_process")
-    confidence:         0-1 confidence score from the decision engine
+    confidence:         0-1 confidence score from the decision engine. It can only
+                        make the result stricter (below 0.8 needs a person); it never
+                        approves anything (GATE-05).
     asset_criticality:  "critical" | "high" | "medium" | "low" | None
     blast_radius:       Number of additional assets/services affected
-    auto_approved:      True when the caller holds an explicit approval token
-                        (e.g. the correlation engine confirmed at >= 0.9 confidence)
+    auto_approved:      Accepted and ignored (GATE-05); kept so existing callers
+                        (playbook_engine_safety) keep working.
 
     Returns
     -------
@@ -134,23 +132,9 @@ def evaluate_action(
     # 4. Approval-required actions
     needs_approval = any(req in action_lc for req in APPROVAL_REQUIRED_ACTIONS)
     if needs_approval:
-        # Allow auto-approval only when confidence is very high AND asset is not critical
+        # No confidence-based bypass (GATE-05): a person approves.
         is_critical_asset = asset_criticality in HIGH_CRITICALITY_LEVELS
-        high_confidence = confidence >= AUTO_APPROVE_CONFIDENCE_THRESHOLD
 
-        if auto_approved and high_confidence and not is_critical_asset:
-            logger.info(
-                "SAFETY: auto-approving '%s' (conf=%.2f, criticality=%s)",
-                action_lc, confidence, asset_criticality,
-            )
-            return ActionRiskResult(
-                allowed=True,
-                requires_approval=False,
-                reason="Auto-approved: high confidence, non-critical asset",
-                risk_level="medium",
-            )
-
-        # Otherwise gate on human approval
         risk = "high" if is_critical_asset else "medium"
         return ActionRiskResult(
             allowed=True,

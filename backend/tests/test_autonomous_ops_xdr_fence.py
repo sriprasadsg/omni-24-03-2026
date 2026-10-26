@@ -21,6 +21,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import ledger
+from correlation_engine_threat import CorrelationEngineThreatMixin
 from enhanced_playbook_engine import PlaybookExecutionEngine
 from playbook_engine_actions import AUTOMATIC_EXECUTORS
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -204,3 +205,154 @@ async def test_a_playbook_step_with_gate_class_approve_raises_block_ip_to_an_app
     assert await mongo_db.response_tasks.count_documents({}) == 0
     rows = await _rows(mongo_db)
     assert [(r["state"], r["reasonCode"]) for r in rows] == [("awaiting_approval", "playbook_raised")]
+
+
+# ------------------------------------------------------------------ selectors and the bypass
+
+
+class _Engine(CorrelationEngineThreatMixin):
+    def __init__(self, db):
+        self.db = db
+
+
+class _Analyzer:
+    """Stands in for ai_service.IncidentAnalyzer: configured, answers with a fixed word."""
+    answer = "block"
+    is_configured = True
+
+    async def initialize(self):
+        return None
+
+    async def generate_text(self, prompt, source=None):
+        return self.answer
+
+
+@pytest.fixture
+def no_playbook_run(monkeypatch):
+    """Any attempt to run a playbook from a selector fails the test."""
+    calls = []
+
+    async def boom(self, *a, **k):
+        calls.append((a, k))
+        raise AssertionError("a selector ran a playbook")
+    monkeypatch.setattr(PlaybookExecutionEngine, "execute_playbook", boom)
+    return calls
+
+
+@pytest.fixture
+def analyzer(monkeypatch):
+    import ai_service
+    monkeypatch.setattr(ai_service, "IncidentAnalyzer", _Analyzer)
+    _Analyzer.answer = "block"
+    return _Analyzer
+
+
+CORRELATION = {"pattern_id": "p1", "pattern": "credential stuffing", "severity": "high", "type": "auth",
+               "agent_id": "a1", "source_ip": IP, "confidence": 0.99}
+
+
+async def test_ai_selector_records_a_suggestion_and_never_runs_the_playbook(mongo_db, analyzer, no_playbook_run):
+    await _setup(mongo_db)
+    await mongo_db.playbooks.insert_one({
+        "_id": "pb-b", "name": "Block", "tenant_id": "platform", "enabled": True,
+        "steps": [{"type": "action", "action": "send_notification", "params": {}},
+                  {"type": "action", "action": "block_ip", "params": {}}]})
+
+    await _Engine(mongo_db)._ai_select_playbook("t1", CORRELATION)
+
+    assert no_playbook_run == []
+    rows = await _rows(mongo_db)
+    assert len(rows) == 1
+    assert (rows[0]["origin"], rows[0]["state"], rows[0]["wouldHave"]) == ("ai-selector", "shadow", "suggest")
+    assert (rows[0]["command"], rows[0]["targets"], rows[0]["dispatcher"]) == ("block_ip", ["a1"], "response_task")
+    assert await mongo_db.response_tasks.count_documents({}) == 0
+    assert await mongo_db.playbook_executions.count_documents({}) == 0
+
+
+async def test_ai_selector_with_shadow_off_leaves_a_suggested_card_not_a_task(monkeypatch, mongo_db, analyzer,
+                                                                             no_playbook_run):
+    monkeypatch.setenv(MASTER_ENV, "false")
+    await _setup(mongo_db, shadow=False)
+    await mongo_db.playbooks.insert_one({
+        "_id": "pb-b", "name": "Block", "tenant_id": "t1", "enabled": True,
+        "steps": [{"type": "action", "action": "block_ip", "params": {}}]})
+
+    await _Engine(mongo_db)._ai_select_playbook("t1", CORRELATION)
+
+    rows = await _rows(mongo_db)
+    assert [(r["origin"], r["state"]) for r in rows] == [("ai-selector", "suggested")]
+    assert await mongo_db.response_tasks.count_documents({}) == 0 and no_playbook_run == []
+
+
+async def test_fallback_selector_records_a_suggestion_for_an_isolate_step(monkeypatch, mongo_db, no_playbook_run):
+    monkeypatch.setenv(MASTER_ENV, "false")
+    await _setup(mongo_db, shadow=False)
+    await mongo_db.playbooks.insert_one({
+        "_id": "pb-i", "id": "pb-i", "name": "Isolate", "tenant_id": "t1", "enabled": True, "priority": 5,
+        "steps": [{"type": "action", "action": "isolate_endpoint", "params": {}}]})
+
+    await _Engine(mongo_db)._fallback_select_playbook("t1", CORRELATION)
+
+    rows = await _rows(mongo_db)
+    assert [(r["origin"], r["state"], r["command"]) for r in rows] == \
+        [("fallback-selector", "suggested", "isolate_host")]
+    assert await mongo_db.response_tasks.count_documents({}) == 0 and no_playbook_run == []
+
+
+async def test_a_notification_only_playbook_records_nothing(mongo_db, analyzer, no_playbook_run):
+    await _setup(mongo_db)
+    await mongo_db.playbooks.insert_one({
+        "_id": "pb-n", "id": "pb-n", "name": "Tell", "tenant_id": "t1", "enabled": True,
+        "steps": [{"type": "action", "action": "send_notification", "params": {}}]})
+    engine = _Engine(mongo_db)
+
+    _Analyzer.answer = "notify"
+    await engine._ai_select_playbook("t1", CORRELATION)
+    await engine._fallback_select_playbook("t1", CORRELATION)
+
+    assert await mongo_db.autonomy_actions.count_documents({}) == 0 and no_playbook_run == []
+
+
+async def test_a_correlation_without_an_agent_records_nothing(mongo_db, analyzer, no_playbook_run):
+    await _setup(mongo_db)
+    await mongo_db.playbooks.insert_one({
+        "_id": "pb-b", "name": "Block", "tenant_id": "t1", "enabled": True,
+        "steps": [{"type": "action", "action": "block_ip", "params": {}}]})
+
+    await _Engine(mongo_db)._ai_select_playbook("t1", {**CORRELATION, "agent_id": None})
+
+    assert await mongo_db.autonomy_actions.count_documents({}) == 0
+
+
+async def test_an_unticked_tenant_gets_no_suggestion_from_a_selector(mongo_db, analyzer, no_playbook_run):
+    await _setup(mongo_db)
+    await seed_tenant(mongo_db, "t2", ticked=False)
+    await seed_agent(mongo_db, "t2", "a2", hostname="h2", ip="10.2.2.5")
+    await mongo_db.playbooks.insert_one({
+        "_id": "pb-b", "name": "Block", "tenant_id": "platform", "enabled": True,
+        "steps": [{"type": "action", "action": "block_ip", "params": {}}]})
+
+    await _Engine(mongo_db)._ai_select_playbook("t2", {**CORRELATION, "agent_id": "a2"})
+
+    assert await mongo_db.autonomy_actions.count_documents({}) == 0
+
+
+def test_selectors_contain_no_playbook_run_call():
+    import ast
+    tree = ast.parse(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                       "correlation_engine_threat.py")).read())
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and getattr(n.func, "attr", "") == "execute_playbook"]
+    assert calls == []
+
+
+def test_the_confidence_auto_approve_is_gone():
+    import backend_safety
+    import playbook_engine_safety  # noqa: F401  (still imports)
+    assert not hasattr(backend_safety, "AUTO_APPROVE_CONFIDENCE_THRESHOLD")
+    for action in ("isolate_host", "rollback_ransomware"):
+        risk = backend_safety.evaluate_action(action, confidence=0.99, auto_approved=True,
+                                              asset_criticality=None, blast_radius=0)
+        assert risk.allowed is True and risk.requires_approval is True
+    safe = backend_safety.evaluate_action("block_ip", confidence=0.99, auto_approved=True,
+                                          asset_criticality=None, blast_radius=0)
+    assert safe.requires_approval is False
