@@ -76,6 +76,7 @@ REASON_TEXT = {
     "not_delivered": "The host did not pick the action up in time, so it was marked as failed.",
     "agent_failed": "The host reported that the action failed.",
     "no_result": "The host picked the action up but never reported a result, so it was marked as failed.",
+    "rollback_incomplete": "The check afterwards still found the problem, and putting it back was not confirmed by the host.",
     "agent_busy": "The host is busy with another remediation, so nothing was run.",
     "verify_failed": "The check afterwards still found the problem.",
 }

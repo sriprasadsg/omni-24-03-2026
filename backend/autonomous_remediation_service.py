@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
-from autonomous_ops import approvals
+from autonomous_ops import approvals, messages
 from autonomous_ops.scope import raw, tenant_scope
 from database import get_database
 from tenant_context import set_tenant_id, reset_tenant_id
@@ -668,6 +668,7 @@ class AutonomousRemediationService:
                     await self._mark(db, tenant_id, action_id, ("approved", "dispatching", "executed"), "failed",
                                      reasonCode="dispatch_failed",
                                      reasonText="The action was not confirmed by the host, so it is treated as failed.")
+                    await self._evaluate_breaker(db, tenant_id)
                     return {"status": "unverified", "remediation_id": remediation_id, "steps_dispatched": steps_dispatched}
 
             await write_audit(db, tenant_id, {**base_record, "stage": "dispatched", "steps_dispatched": steps_dispatched})
@@ -693,29 +694,27 @@ class AutonomousRemediationService:
                 rollback_steps = playbook.get("rollback") or []
                 if rollback_steps:
                     rollback_dispatched = []
-                    for step in rollback_steps:
+                    for step in rollback_steps:     # every step is attempted: put back as much as possible
                         rollback_dispatched.append(await self._dispatch_step(finding, step, action_id, "compensate"))
+                    all_ok = all(r["status"] == "SUCCESS" for r in rollback_dispatched)
                     await write_audit(db, tenant_id, {
                         **base_record, "stage": "rollback_dispatched", "rollback_steps": rollback_dispatched,
+                        "complete": all_ok,
                     })
-                    await self._mark(db, tenant_id, action_id, ("failed",), "rolled_back")
-                    result["rollback_dispatched"] = True
+                    if all_ok:                      # Undone only when the host confirmed every step
+                        await self._mark(db, tenant_id, action_id, ("failed",), "rolled_back")
+                        result["rollback_dispatched"] = True
+                    else:
+                        await self._mark(db, tenant_id, action_id, ("failed",), "failed",
+                                         reasonCode="rollback_incomplete",
+                                         reasonText=messages.REASON_TEXT["rollback_incomplete"])
+                        result["rollback_dispatched"] = False
+                        await self._escalate(db, base_record, finding, playbook, result,
+                                             "failed verification and putting it back was not confirmed by the host")
                 else:
-                    await db.alerts.insert_one({
-                        "alert_id": f"ESC-{remediation_id}",
-                        "type": "REMEDIATION_ESCALATION",
-                        "severity": "critical",
-                        "status": "open",
-                        "agent_id": finding.agent_id,
-                        "tenantId": tenant_id,
-                        "message": (
-                            f"Irreversible remediation '{playbook['name']}' for finding {finding.finding_id} "
-                            "failed verification and has no rollback — human review required."
-                        ),
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    })
-                    await write_audit(db, tenant_id, {**base_record, "stage": "escalated"})
-                    result["escalated"] = True
+                    await self._escalate(db, base_record, finding, playbook, result,
+                                         "failed verification and has no rollback")
+                await self._evaluate_breaker(db, tenant_id)
 
             await db.remediation_requests.update_one(
                 {"id": remediation_id, "tenantId": tenant_id}, {"$set": {"status": verification_result}}
@@ -723,6 +722,29 @@ class AutonomousRemediationService:
             return result
         finally:
             await self._release_agent_lease(db, agent_id, remediation_id)
+
+    async def _escalate(self, db, base_record: Dict[str, Any], finding: RemediationFinding,
+                        playbook: Dict[str, Any], result: Dict[str, Any], what: str) -> None:
+        """Human-review alert plus the ``escalated`` audit stage; marks ``result`` escalated."""
+        from remediation_audit_service import write_audit
+        await db.alerts.insert_one({
+            "alert_id": f"ESC-{base_record['remediation_id']}", "type": "REMEDIATION_ESCALATION",
+            "severity": "critical", "status": "open", "agent_id": finding.agent_id, "tenantId": finding.tenant_id,
+            "message": (f"Remediation '{playbook['name']}' for finding {finding.finding_id} {what} "
+                        "— human review required."),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        await write_audit(db, finding.tenant_id, {**base_record, "stage": "escalated"})
+        result["escalated"] = True
+
+    async def _evaluate_breaker(self, db, tenant_id: str) -> None:
+        """Let the circuit breaker see a bad automatic outcome now (it counts only auto-dispatched
+        rows, so a person-approved outcome never trips it). Never raises into the remediation."""
+        from autonomous_ops import breaker
+        try:
+            await breaker.evaluate(db, tenant_id)
+        except Exception as exc:
+            logger.error("[AutonomousRemediation] breaker evaluation for %s failed: %s", tenant_id, exc)
 
     async def _dispatch_step(self, finding: RemediationFinding, step: Dict[str, Any],
                              action_id: Optional[str] = None, kind: str = "action") -> Dict[str, Any]:

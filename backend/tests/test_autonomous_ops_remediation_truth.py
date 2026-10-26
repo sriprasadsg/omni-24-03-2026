@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from autonomous_ops import ledger, protected, settings, views
+from autonomous_ops import ledger, messages, protected, settings, views
 from autonomous_ops.scope import raw
 from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
 from remediation_playbook_service import (_belongs, load_default_playbooks, load_playbooks,
@@ -105,3 +105,169 @@ async def test_remediate_of_a_tenant_b_anomaly_never_uses_tenant_a_playbook(mong
     steps = rows[0]["steps"]
     assert len(steps) == 1 and "kill_process" in str(steps[0])
     assert "203.0.113.5" not in str(rows[0])
+
+
+# ------------------------------------------------------------------ truthful undo (ACTV-01, GATE-07)
+
+OP_BLOCK_TWO_UNDOS = {
+    "name": "block_ip", "finding_class": "nscan", "source": "operator", "tenantId": "t1",
+    "steps": [{"action": "block_ip", "params": {"ip_address": "{{finding.resource_id}}"}, "destructive": True}],
+    "rollback": [{"action": "unblock_ip", "params": {"ip_address": "{{finding.resource_id}}"}},
+                 {"action": "unblock_ip", "params": {"ip_address": "{{finding.resource_id}}"}}]}
+
+
+def _ip(n=1):
+    return RemediationFinding(
+        finding_id=f"f-ip-{n}", finding_type="nscan", severity="critical", tenant_id="t1", agent_id="a1",
+        resource_id=f"203.0.113.{6 + n}", details={"type": "ip", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z"})
+
+
+def stand_in_agent(compensate=("SUCCESS",)):
+    """A local stand-in agent: actions and probes complete with SUCCESS and the re-scan still reads
+    Malicious (so the check fails); the n-th compensate instruction answers ``compensate[n]``
+    (the last entry repeats)."""
+    from autonomous_ops.scope import raw as _raw
+    seen = {"n": 0}
+
+    async def poll(self, db, task_id, timeout_sec, interval_sec, tenant_id=None):
+        handle = _raw(db)
+        doc = await handle.agent_instructions.find_one({"id": task_id})
+        if (doc.get("autonomy") or {}).get("kind") == "compensate":
+            answer = compensate[min(seen["n"], len(compensate) - 1)]
+            seen["n"] += 1
+            if answer != "SUCCESS":
+                return answer
+        await handle.agent_instructions.update_one({"id": task_id}, {"$set": {"status": "SUCCESS"}})
+        if str(doc.get("type", "")).startswith("scan_"):
+            params = doc.get("payload") or {}
+            await handle.security_scan_results.insert_one({
+                "tenantId": doc.get("tenantId"), "target": params.get("path") or params.get("target"),
+                "verdict": "Malicious",
+                "created_at": (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()})
+        return "SUCCESS"
+
+    return patch.object(AutonomousRemediationService, "_poll_task_status", poll)
+
+
+@pytest.fixture
+async def live(mongo_db):  # noqa: F811
+    protected.cache_clear()
+    await ledger.ensure_indexes(mongo_db)
+    await seed_tenant(mongo_db, "t1", shadow=False)
+    await seed_agent(mongo_db, "t1", "a1")
+    with patch("autonomous_remediation_service.get_database", return_value=mongo_db), \
+         patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
+         patch("autonomous_remediation_service.AUTONOMOUS_REMEDIATION_DRY_RUN", False, create=True), \
+         patch("soc_integration_service.push_ocsf_event", new=AsyncMock()):
+        yield mongo_db
+
+
+async def _row_of(live, n=1):
+    return await raw(live).autonomy_actions.find_one({"tenantId": "t1", "kind": "security",
+                                                      "targets": ["a1"], "dedupeKey": {"$regex": f"f-ip-{n}$"}})
+
+
+class TestRolledBackMeansEveryStepWasConfirmed:
+    @pytest.mark.parametrize("answer", ["TIMEOUT", "FAILURE"])
+    async def test_a_compensation_that_did_not_finish_is_failed_rollback_incomplete(self, live, answer):
+        with stand_in_agent((answer,)):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["status"] == "failed" and out["rollback_dispatched"] is False and out["escalated"] is True
+        row = await _row_of(live)
+        assert row["state"] == "failed" and row["reasonCode"] == "rollback_incomplete"
+        assert row["reasonText"] == messages.REASON_TEXT["rollback_incomplete"]
+        assert views.bucket_of(row) == "failed"
+        assert messages.STATE_RESULT[row["state"]] == "The action did not finish."
+        alerts = [a async for a in live.alerts.find({"type": "REMEDIATION_ESCALATION"})]
+        assert len(alerts) == 1 and alerts[0]["tenantId"] == "t1"
+        stages = {a["stage"]: a async for a in live.remediation_audit.find({})}
+        assert stages["rollback_dispatched"]["complete"] is False and "escalated" in stages
+
+    async def test_a_refused_compensation_is_failed_rollback_incomplete(self, live):
+        from autonomous_ops import gate
+        real = gate.execute
+
+        async def execute(db, tenant_id, action_id, **kw):
+            if kw.get("kind") == "compensate":
+                return {"status": "refused", "reason": "stopped"}
+            return await real(db, tenant_id, action_id, **kw)
+
+        with stand_in_agent(), patch.object(gate, "execute", execute):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["status"] == "failed" and out["rollback_dispatched"] is False and out["escalated"] is True
+        row = await _row_of(live)
+        assert row["state"] == "failed" and row["reasonCode"] == "rollback_incomplete"
+
+    async def test_every_step_confirmed_is_rolled_back_without_an_alert(self, live):
+        with stand_in_agent(("SUCCESS",)):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["rollback_dispatched"] is True and "escalated" not in out
+        row = await _row_of(live)
+        assert row["state"] == "rolled_back" and views.bucket_of(row) != "failed"
+        assert messages.STATE_RESULT[row["state"]] == "Undone."
+        assert await live.alerts.count_documents({}) == 0
+        audit = await live.remediation_audit.find_one({"stage": "rollback_dispatched"})
+        assert audit["complete"] is True
+
+    async def test_one_failed_step_is_enough_and_every_step_is_attempted(self, live):
+        await live.remediation_playbooks.insert_one(dict(OP_BLOCK_TWO_UNDOS, id="op-t1"))
+        with stand_in_agent(("SUCCESS", "TIMEOUT")):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["status"] == "failed" and out["rollback_dispatched"] is False
+        compensates = [d async for d in live.agent_instructions.find({"autonomy.kind": "compensate"})]
+        assert len(compensates) == 2                                 # the second was tried after the first
+        audit = await live.remediation_audit.find_one({"stage": "rollback_dispatched"})
+        assert [r["status"] for r in audit["rollback_steps"]] == ["SUCCESS", "TIMEOUT"]
+        assert (await _row_of(live))["reasonCode"] == "rollback_incomplete"
+
+    async def test_no_rollback_still_escalates_as_verify_failed(self, live):
+        finding = RemediationFinding(
+            finding_id="f-ip-9", finding_type="nscan", severity="critical", tenant_id="t1", agent_id="a1",
+            resource_id="/tmp/evil.exe", details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z"})
+        svc = AutonomousRemediationService()
+        pending = await svc.remediate(finding)                       # kill_process: needs approval
+        assert pending["status"] == "pending_approval"
+        with stand_in_agent():
+            out = await svc.approve_remediation(pending["remediation_id"], "t1",
+                                                {"username": "alice", "display": "Alice", "tier": "tenant"})
+        assert out["status"] == "failed" and out["escalated"] is True
+        row = await _row_of(live, 9)
+        assert row["state"] == "failed" and row["reasonCode"] == "verify_failed"
+
+    async def test_the_failed_transition_comes_before_the_rollback_incomplete_one(self, live):
+        with stand_in_agent(("TIMEOUT",)):
+            await AutonomousRemediationService().remediate(_ip())
+        row = await _row_of(live)
+        events = [e async for e in live.audit_logs.find({"resourceId": row["id"]}).sort("seq", 1)]
+        codes = [(e["action"], (e.get("details") or {}).get("reasonCode", e.get("reasonCode"))) for e in events]
+        failed = [c for c in codes if c[0] == "autonomous_ops.failed"]
+        assert [c[1] for c in failed] == ["verify_failed", "rollback_incomplete"], codes
+
+
+class TestTheBreakerSeesRemediationOutcomes:
+    async def test_three_incomplete_rollbacks_in_a_row_trip_the_breaker(self, live):
+        with stand_in_agent(("TIMEOUT",)):
+            for n in (1, 2, 3):
+                await AutonomousRemediationService().remediate(_ip(n))
+        s = await settings.load(live, "t1")
+        assert s.level == "suggest" and s.breaker is not None
+
+    async def test_a_breaker_that_raises_does_not_change_the_result(self, live):
+        from autonomous_ops import breaker
+        with stand_in_agent(("TIMEOUT",)), patch.object(breaker, "evaluate", AsyncMock(side_effect=RuntimeError("x"))):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["status"] == "failed" and out["rollback_dispatched"] is False and out["escalated"] is True
+        assert (await _row_of(live))["reasonCode"] == "rollback_incomplete"
+
+    async def test_a_dispatch_that_was_not_confirmed_is_also_evaluated(self, live):
+        from autonomous_ops import breaker
+        with stand_in_agent(), patch.object(AutonomousRemediationService, "_dispatch_step",
+                                            AsyncMock(return_value={"action": "block_ip", "status": "TIMEOUT"})), \
+             patch.object(breaker, "evaluate", AsyncMock(return_value=False)) as evaluate:
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["status"] == "unverified"
+        evaluate.assert_awaited_once()
+
+
+async def test_rollback_incomplete_text_exists():
+    assert messages.REASON_TEXT["rollback_incomplete"]
