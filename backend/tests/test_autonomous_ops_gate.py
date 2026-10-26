@@ -11,18 +11,20 @@ instruction is written in shadow mode or without a ledger row, or the audit chai
 no_claim=the remaining GATE-03 steps (stop, level, never-touch, caps, dedupe), which
 test_autonomous_ops_gate_order.py (plan 81-11) enumerates.
 """
+import contextlib
+import itertools
 import os
 import sys
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import audit_ledger
-from autonomous_ops import gate, ledger
+from autonomous_ops import gate, ledger, protected, registry, settings
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.autonomy_support import seed_agent, seed_tenant
+from tests.autonomy_support import seed_agent, seed_platform_stop, seed_tenant
 
 IP = "203.0.113.7"
 
@@ -219,3 +221,178 @@ def test_messages_cover_every_reason_code_and_every_registry_command():
              *messages.REASON_TEXT.values(), *[t for pair in messages.NOTICES.values() for t in pair]]
     banned = re.compile(r"\b(ASI|AGI)\b|autopilot|fully[ -]autonomous|roll(ed|ing)?[ -]?back", re.IGNORECASE)
     assert [t for t in texts if banned.search(t)] == []
+
+
+# ---------------------------------------------------------------- plan 81-11, Task 2: the enumeration
+
+_RANK = {"allow_auto": 0, "needs_approval": 1, "suggest": 2}
+_STATE = {"allow_auto": "dispatching", "needs_approval": "awaiting_approval", "suggest": "suggested"}
+_UNRECORDED = {"no_tenant", "platform_tenant", "not_enabled", "level_off", "duplicate",
+               "suppressed_by_undo", "ledger_unavailable"}
+
+
+def _oracle(pstop, elig, tstop, level, cls, prot, nt, shadow):
+    """The expected (outcome, state, reason, recorded), written from the GATE-03 table and
+    deliberately not sharing code with gate.py. shadow is master | tenant | off."""
+    platform, unreadable = elig == "platform", elig in ("settings_bad", "features_bad")
+    eff = "off" if elig in ("platform", "unticked") else "suggest" if unreadable else level
+    # a tenant whose tenant document cannot be read has no settings: shadow on, stop not seen
+    tenant_shadow = True if elig == "features_bad" else shadow == "tenant"
+    stopped = tstop and elig != "features_bad"
+
+    def refuse(code):
+        return "refuse", "refused", code, code not in _UNRECORDED and eff != "off"
+
+    if pstop != "off":
+        return refuse("platform_stop")
+    if platform:
+        return refuse("platform_tenant")
+    if elig == "unticked":
+        return refuse("not_enabled")
+    if stopped:
+        return refuse("tenant_stop")
+    if eff == "off":
+        return refuse("level_off")
+    soft = [("suggest", "settings_unreadable")] if unreadable else []
+    soft += [("suggest", "level_suggest")] if eff == "suggest" else []
+    soft += {"approve": [("needs_approval", "class_approve")],
+             "raised": [("needs_approval", "playbook_raised")]}.get(cls, [])
+    if nt == 0:
+        return refuse("no_target")
+    if prot:
+        return refuse("protected_target")
+    soft += [("needs_approval", "blast_radius")] if nt == 2 else []
+    best = ("allow_auto", "class_auto")
+    for outcome, code in soft:
+        if _RANK[outcome] > _RANK[best[0]]:
+            best = (outcome, code)
+    state = "shadow" if shadow == "master" or tenant_shadow else _STATE[best[0]]
+    return best[0], state, best[1], True
+
+
+_DESTRUCTIVE_ONLY = [{"action": "block_ip", "params": {"ip_address": "x"}, "destructive": True}]
+_RAISED = [{"action": "block_ip", "params": {"ip_address": "x"}, "gate_class": "approve"}]
+_CLASSES = {  # name -> (action, steps the playbook would carry)
+    "auto": ("block_ip", [{"action": "block_ip"}]), "approve": ("isolate_host", None),
+    "raised": ("block_ip", _RAISED), "destructive": ("block_ip", _DESTRUCTIVE_ONLY)}
+
+
+class _Tenants:
+    async def find_one(self, *_a, **_k):
+        raise RuntimeError("tenants collection unavailable")
+
+
+class _FlakyDb:
+    """The real database, except that the tenant document cannot be read."""
+
+    def __init__(self, db):
+        self._db, self.tenants = db, _Tenants()
+
+    def __getattr__(self, name):
+        return getattr(self._db, name)
+
+    def __getitem__(self, name):
+        return self._db[name]
+
+
+async def _seed_world(db):
+    """4 eligibility kinds x 3 levels x 2 stop x 2 shadow-flag tenants, each with three agents:
+    a1, a2 (unprotected) and pa (recorded address 127.0.0.1, which is never touched)."""
+    n = itertools.count(1)
+    for kind, level, stop, tflag in itertools.product(("ticked", "unticked", "settings_bad", "features_bad"),
+                                                      ("off", "suggest", "undoable_auto"), (False, True),
+                                                      (False, True)):
+        name = f"e-{kind}-{level}-{int(stop)}-{int(tflag)}"
+        await seed_tenant(db, name, level=level, shadow=tflag, ticked=kind != "unticked",
+                          stop={"active": True, "scope": "tenant"} if stop else None)
+        if kind == "settings_bad":
+            await db.autonomy_settings.update_one({"tenantId": name}, {"$set": {"level": "bogus"}})
+        for agent, ip in (("a1", f"198.51.100.{next(n)}"), ("a2", f"198.51.100.{next(n)}"), ("pa", "127.0.0.1")):
+            await seed_agent(db, name, f"{name}-{agent}", ip=ip)
+    await seed_agent(db, "platform-admin", "platform-admin-a1", ip="198.51.100.250")
+
+
+def _enum_request(tenant, cls, prot, nt, key):
+    action, steps = _CLASSES[cls]
+    targets = [f"{tenant}-pa" if prot else f"{tenant}-a1", f"{tenant}-a2"][:nt]
+    params = {"ip_address": "127.0.0.1" if prot else IP} if action == "block_ip" else {}
+    return gate.ActionRequest(tenant_id=tenant, kind="security", origin="enum", actions=[action], targets=targets,
+                              params=params, dedupe_key=key,
+                              playbook_raise=registry.playbook_raises(steps) if steps else False)
+
+
+async def test_every_combination_of_inputs_matches_the_oracle(mongo_db):
+    """protects=GATE-02/03/04/08/09, D-17, D-23: platform stop x eligibility x tenant stop x
+    level x class x protected x targets x shadow equals the independent oracle; no combination
+    writes an instruction; an Off tenant leaves no row; the destructive-only class equals plain
+    auto; the master flag only turns a dispatching outcome into a simulation."""
+    await ledger.ensure_indexes(mongo_db)
+    await protected.ensure_indexes(mongo_db)
+    protected.cache_clear()
+    await _seed_world(mongo_db)
+    flaky, seen, checked = _FlakyDb(mongo_db), {}, 0
+    for pstop in ("off", "on", "unreadable"):
+        await mongo_db.system_settings.delete_many({})
+        if pstop == "on":
+            await seed_platform_stop(mongo_db)
+        with patch.object(settings, "platform_stop", AsyncMock(side_effect=RuntimeError("down"))) \
+                if pstop == "unreadable" else contextlib.nullcontext():
+            for elig, tstop, level, cls, prot, nt, shadow in itertools.product(
+                    ("ticked", "unticked", "settings_bad", "features_bad", "platform"), (False, True),
+                    ("off", "suggest", "undoable_auto"), tuple(_CLASSES), (False, True), (0, 1, 2),
+                    ("master", "tenant", "off")):
+                tflag = shadow == "tenant"
+                tenant = ("platform-admin" if elig == "platform"
+                          else f"e-{'ticked' if elig == 'features_bad' else elig}-{level}-{int(tstop)}-{int(tflag)}")
+                if elig == "platform":
+                    await seed_tenant(mongo_db, tenant, level=level, shadow=tflag,
+                                      stop={"active": True, "scope": "tenant"} if tstop else None)
+                req = _enum_request(tenant, cls, prot, nt, f"k{checked}")
+                d = await gate.decide(flaky if elig == "features_bad" else mongo_db, req,
+                                      master_shadow=shadow == "master")
+                want = _oracle(pstop, elig, tstop, level, cls, prot, nt, shadow)
+                got = (d.outcome, d.state, d.reason, d.recorded)
+                assert got == want, (pstop, elig, tstop, level, cls, prot, nt, shadow)
+                rows = await mongo_db.autonomy_actions.find({}, {"state": 1}).to_list(5)
+                assert len(rows) == (1 if want[3] else 0), (pstop, elig, tstop, level, cls, prot, nt, shadow)
+                if rows:
+                    await mongo_db.autonomy_actions.delete_many({})
+                assert await mongo_db.agent_instructions.estimated_document_count() == 0
+                assert await mongo_db.response_tasks.estimated_document_count() == 0
+                seen[(pstop, elig, tstop, level, cls, prot, nt, shadow)] = got
+                checked += 1
+    assert checked == 3 * 5 * 2 * 3 * 4 * 2 * 3 * 3 and checked >= 1000
+    assert await mongo_db.audit_logs.count_documents({"tenantId": {"$regex": "^e-unticked-|^platform-admin$"}}) == 0
+    assert {v[0] for v in seen.values()} == {"refuse", "suggest", "needs_approval", "allow_auto"}
+    assert {v[1] for v in seen.values()} == {"refused", "shadow", "suggested", "awaiting_approval", "dispatching"}
+    for key, got in seen.items():
+        if key[4] == "destructive":
+            assert got == seen[key[:4] + ("auto",) + key[5:]], key
+        if key[7] == "master" and got[0] != "refuse":
+            peer = seen[key[:7] + ("off",)]
+            assert (got[0], got[2]) == (peer[0], peer[2]) and got[1] == "shadow", key
+
+
+async def test_vendored_block_ip_playbook_stays_automatic_through_decide(mongo_db):
+    """protects=GATE-04 / GATE-03: a request built from the shipped block_ip playbook (whose
+    step carries destructive true) for an eligible tenant at undoable_auto, both shadow layers
+    off, one unprotected target is allow_auto and dispatching; a gate_class approve step on the
+    same playbook makes it needs_approval playbook_raised."""
+    from remediation_playbook_service import load_default_playbooks
+    await ledger.ensure_indexes(mongo_db)
+    await seed_tenant(mongo_db, "t1", shadow=False)
+    await seed_agent(mongo_db, "t1", "a1", ip="198.51.100.11")
+    playbook = next(p for p in load_default_playbooks() if p["name"] == "block_ip")
+    assert playbook["steps"][0].get("destructive") is True
+    request = gate.ActionRequest(tenant_id="t1", kind="security", origin="playbook", actions=["block_ip"],
+                                 targets=["a1"], params={"ip_address": IP}, dedupe_key="t1|vendored",
+                                 playbook="block_ip", playbook_raise=registry.playbook_raises(playbook["steps"]))
+    d = await gate.decide(mongo_db, request, master_shadow=False)
+    assert (d.outcome, d.state, d.reason) == ("allow_auto", "dispatching", "class_auto")
+    assert (await ledger.get(mongo_db, "t1", d.action_id))["autoDispatched"] is True
+
+    steps = [dict(playbook["steps"][0], gate_class="approve")]
+    raised = gate.ActionRequest(**{**request.__dict__, "dedupe_key": "t1|vendored-raised",
+                                   "playbook_raise": registry.playbook_raises(steps)})
+    d = await gate.decide(mongo_db, raised, master_shadow=False)
+    assert (d.outcome, d.state, d.reason) == ("needs_approval", "awaiting_approval", "playbook_raised")
