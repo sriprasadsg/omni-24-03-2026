@@ -2,8 +2,8 @@ import React, { useCallback, useState } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { resolveAutonomousOpsScope, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { platformTier } from '../utils/permissions';
-import { AutonomousOpsActivityList } from './AutonomousOpsActivityList';
-import { EyeIcon, RefreshCwIcon } from './icons';
+import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
+import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
 interface AutonomousOpsActivityProps {
     /** viewingTenantId: the organization platform staff entered from Tenants, else null. */
@@ -18,7 +18,7 @@ const OUTLINE_CHIP =
     'inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs font-semibold text-gray-700 dark:text-gray-200 break-words';
 
 /** Autonomous Ops (ACTV-01, ACTV-03): the read-only record of every decision. Phase 83 adds row actions. */
-export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ tenantId = null }) => {
+export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ tenantId = null, onGoToTenants }) => {
     const { currentUser } = useUser();
     const { status, refresh } = useAutonomousOpsStatus();
     const [refreshing, setRefreshing] = useState(false);
@@ -54,23 +54,38 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                             Read-only
                         </span>
                     )}
-                    <button type="button" className={SECONDARY_BUTTON} onClick={onRefresh} disabled={refreshing}>
-                        <RefreshCwIcon size={16} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
-                        {refreshing ? 'Refreshing...' : 'Refresh'}
-                    </button>
+                    {scope.kind !== 'none' && (
+                        <button type="button" className={SECONDARY_BUTTON} onClick={onRefresh} disabled={refreshing}>
+                            <RefreshCwIcon size={16} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
+                            {refreshing ? 'Refreshing...' : 'Refresh'}
+                        </button>
+                    )}
                 </div>
             </div>
 
-            <div data-slot="autonomous-ops-status" />
-
-            {scope.kind !== 'none' && (
-                <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                        <h2 id="autonomous-ops-activity-title" className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Activity</h2>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Newest first</span>
-                    </div>
-                    <AutonomousOpsActivityList scope={scope} refreshSignal={refreshSignal} />
-                </section>
+            {scope.kind === 'none' ? (
+                <div className="card overflow-hidden">
+                    <EmptyStateCard icon={ShieldLockIcon} heading="Select an organization" headingLevel="h2">
+                        <p className="max-w-prose break-words text-sm text-gray-600 dark:text-gray-400">
+                            Choose an organization in Tenants to see its Autonomous Ops activity. This view is read-only.
+                        </p>
+                        {onGoToTenants && (
+                            <button type="button" className={SECONDARY_BUTTON} onClick={onGoToTenants}>Go to Tenants</button>
+                        )}
+                    </EmptyStateCard>
+                </div>
+            ) : (
+                <>
+                    {/* 81-10 mounts the status card here */}
+                    <div data-slot="autonomous-ops-status" />
+                    <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <h2 id="autonomous-ops-activity-title" className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Activity</h2>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Newest first</span>
+                        </div>
+                        <AutonomousOpsActivityList scope={scope} refreshSignal={refreshSignal} />
+                    </section>
+                </>
             )}
         </div>
     );
