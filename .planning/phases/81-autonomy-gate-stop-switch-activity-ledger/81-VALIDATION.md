@@ -64,6 +64,12 @@ created: "2026-10-25"
 | 81-10-T2, 81-09-T2 | 81-10, 81-09 | 4, 5 | D-25 | — | Super Admin Stop all / Resume all organizations controls render only for `control:platform_autonomous_ops`; resume needs a typed reason | component + real-app probe | `npx vitest run src/__tests__/AutonomousOpsStatusCard.test.tsx src/__tests__/AutonomousOpsStatusCardStates.test.tsx` ; `pytest backend/tests/test_autonomous_ops_endpoints_writes.py` | ✅ | ✅ green |
 | 81-09-T1 | 81-09 | 4 | D-25 | — | Platform-scope stop returns `by = "Platform administrator"` to tenant viewers and the real name to platform staff | real-app probe | `pytest backend/tests/test_autonomous_ops_endpoints.py` (11) | ✅ | ✅ green |
 | 81-03-T3 | 81-03 | 1 | Folded todo | — | Rust integration suite green; todo moved to completed | cargo | `cd agent-install/omni-agent-rs && PATH=$HOME/.cargo/bin:$PATH cargo test --offline --test integration` (21) | ✅ | ✅ green |
+| 81-13-T1, 81-13-T2 | 81-13 | 5 | GATE-03 / GATE-08 (gap 1, decide time) | — | Every playbook step and compensation step is IP-checked with its own params and class-checked (main auto/approve, compensation undo_only); a protected IP in the first, middle, last or rollback step refuses the whole action; the row records the full steps/rollback plan | real-Mongo | `pytest backend/tests/test_autonomous_ops_dispatch_binding.py` (43) | ✅ | ✅ green |
+| 81-14-T1, 81-14-T2 | 81-14 | 5 | GATE-07 / GATE-11 / GATE-14 (WR-01, WR-02) | — | A sent/delivered row that never reports fails `no_result` after AUTONOMOUS_OPS_NO_RESULT_MIN (CAS-guarded); setting Undoable-auto by hand clears a tripped breaker in the same update and records `level_restored` | real-Mongo | `pytest backend/tests/test_autonomous_ops_reconciler.py backend/tests/test_autonomous_ops_breaker.py` (30 + 21) | ✅ | ✅ green |
+| 81-15-T1, 81-15-T2 | 81-15 | 6 | GATE-03 / GATE-08 / GATE-10 (gap 1, dispatch time) | — | `gate.execute`/`execute_response_task` refuse unregistered commands, foreign agents, undecided command/params and never-touch targets at dispatch (`dispatch_check.bind`); an altered second step is refused | real-Mongo | `pytest backend/tests/test_autonomous_ops_dispatch_binding.py backend/tests/test_autonomous_ops_ledger.py backend/tests/test_autonomous_ops_stop.py` | ✅ | ✅ green |
+| 81-16-T1, 81-16-T2 | 81-16 | 6 | GATE-07 / GATE-08 / GATE-11 / GATE-14 / ACTV-01 (gap 1 aggravator, gap 2) | — | Playbook selection is tenant-scoped (vendored + the finding's own tenant); `rolled_back` only when every compensation step returned SUCCESS, else `failed`/`rollback_incomplete` + escalation alert; breaker evaluated after remediation outcomes | real-Mongo | `pytest backend/tests/test_autonomous_ops_remediation_truth.py` (20) | ✅ | ✅ green |
+| 81-17-T1..T3 | 81-17 | 7 | GATE-09 / GATE-03 (WR-03, scan robustness) | — | Shadow master off only for 0/false/no/off; remediation reads it live through the gate; the stamp scan survives an unparsable tracked file (fails if one is on the autonomous path) | unit + real-Mongo + structural | `pytest backend/tests/test_autonomous_ops_gate.py backend/tests/test_autonomous_ops_structural.py` (28 + 26) | ✅ | ✅ green |
+| 81-18-T1, 81-18-T2 | 81-18 | 8 | GATE-08 / GATE-10 / ACTV-01 (gap 1, approval time) | — | Approve re-checks every recorded step and compensation step against the current never-touch list (fail closed); a multi-step row returns `no_undo` | real-Mongo | `pytest backend/tests/test_autonomous_ops_dispatch_binding.py backend/tests/test_autonomous_ops_approvals.py` (43 + 29) | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -111,3 +117,12 @@ created: "2026-10-25"
 | Gaps found | 0 |
 | Resolved | 0 |
 | Escalated | 0 |
+
+## Validation Audit 2026-10-26
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+| Gap-round rows added | 6 |
