@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: executing
-stopped_at: Completed 81-11-PLAN.md
-last_updated: "2026-10-26T08:41:20.744Z"
+stopped_at: Completed 81-04-PLAN.md
+last_updated: "2026-10-26T09:01:53.732Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 81 execution started
-state_head: 1b4b24574adb2039b76ea6b0d1ef916aeadacfff
+state_head: afb65926c873722b4ca4a94c7a0deba725950359
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 12
-  completed_plans: 5
+  completed_plans: 6
   percent: 17
 ---
 
@@ -454,6 +454,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 81]: lock_with_renewal is the single-runner primitive for sweeps; is_duplicate_task fails closed on empty tenant; scheduled legacy remediation loop removed
 - [Phase 81]: 81-07: scope resolver shared by poller and screen; client re-applies bucket rule and simulation wording so PROH-81-06 does not rest on the server alone
 - [Phase 81]: 81-11: unreadable platform stop, agent read, never-touch list and rate-limit count all fail closed; Off-tenant refusals and duplicate/suppressed/ledger_unavailable are never recorded
+- [Phase 81]: 81-04: breaker trip/restore are conditional updates (one trip, one notice under races); breaker only trips tenants stored at undoable_auto; approve is frozen during a stop but expiry and undo are not
 
 ## Performance Metrics
 
@@ -614,6 +615,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 81 P03 | 14 min | 3 tasks | 9 files |
 | Phase 81 P07 | 10 min | 2 tasks | 6 files |
 | Phase 81 P11 | 33 min | 2 tasks | 7 files |
+| Phase 81 P04 | 19min | 3 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -648,8 +650,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-26T08:41:20.601Z
-**Stopped at:** Completed 81-11-PLAN.md
+**Last session:** 2026-10-26T09:01:53.622Z
+**Stopped at:** Completed 81-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -675,7 +677,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
-Plan: 6 of 12
+Plan: 7 of 12
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 81 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
