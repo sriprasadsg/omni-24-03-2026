@@ -71,6 +71,10 @@ REASON_TEXT = {
     "duplicate": "The same action is already open or was simulated within the last 24 hours.",
     "suppressed_by_undo": "A person undid this same action within the last 24 hours, so it is not repeated.",
     "ledger_unavailable": "The decision could not be recorded, so nothing was done.",
+    # After a decision: what happened when the action was sent (approvals and the reconciler).
+    "dispatch_failed": "The action could not be sent to the host, so nothing was done.",
+    "not_delivered": "The host did not pick the action up in time, so it was marked as failed.",
+    "agent_failed": "The host reported that the action failed.",
 }
 
 

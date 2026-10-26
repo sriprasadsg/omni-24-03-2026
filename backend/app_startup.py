@@ -242,6 +242,14 @@ async def seed_database():
         logger.error("[Seed] Schema migrations failed: %s", e)
 
     try:
+        # Backstop for GATE-01: every tenant gets an Autonomous Ops settings document
+        # (migration 024 is the primary writer; this is idempotent).
+        from autonomous_ops import settings as _autonomous_ops_settings
+        await _autonomous_ops_settings.ensure_all_tenants(db._db)
+    except Exception as e:
+        logger.warning("[Seed] Autonomous Ops settings backstop failed: %s", e)
+
+    try:
         raw_users = db._db.users
 
         super_admin = await raw_users.find_one({"email": "super@omni.ai"})
@@ -493,6 +501,12 @@ async def run_startup_services() -> None:
             await asyncio.sleep(60)
 
     asyncio.create_task(_approval_timeout_loop())
+
+    # Autonomous Ops (Phase 81): expires approval cards and follows dispatched actions. One runner
+    # at a time (renewed Mongo lock); keeps running while a stop is on.
+    from autonomous_ops.reconciler import reconciler_loop as _autonomous_ops_reconciler_loop
+    asyncio.create_task(_safe_bg_task(_autonomous_ops_reconciler_loop(), "autonomous_ops_reconciler"),
+                        name="autonomous_ops_reconciler")
 
     from app_background_tasks import (
         monitor_agent_status,
