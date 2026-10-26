@@ -112,6 +112,22 @@ async def ip_refusal(db, tenant_id: str, pairs) -> Optional[str]:
     return None
 
 
+# ---------------------------------------------------------------- approval-time re-check (81-18)
+
+def row_pairs(row) -> List[Tuple[Any, Dict[str, Any]]]:
+    """(spec, own params) for every recorded step of a ledger row, then every recorded
+    compensation step. A row written before the plan was recorded (no ``steps`` list) yields one
+    pair per name in ``actions`` (else its ``command``) with the row's params. Pure: no reads."""
+    if isinstance(row.get("steps"), list):
+        items = row["steps"] + (row["rollback"] if isinstance(row.get("rollback"), list) else [])
+        return [(registry.resolve(i.get("command")), i.get("params") if isinstance(i.get("params"), dict) else {})
+                if isinstance(i, dict) else (None, {}) for i in items]
+    names = row.get("actions") if isinstance(row.get("actions"), list) and row["actions"] else [row.get("command")]
+    params = row.get("params") if isinstance(row.get("params"), dict) else {}
+    return [(registry.resolve(n), params) for n in names]
+
+
+
 # ---------------------------------------------------------------- dispatch-time binding (81-15)
 
 _KIND_CLASSES = {"action": ("auto", "approve"), "compensate": ("undo_only",), "undo": ("undo_only",),

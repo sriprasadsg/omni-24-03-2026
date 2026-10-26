@@ -1,7 +1,7 @@
 """Decide-time half of Gap 1 (81-VERIFICATION, CR-01): the gate checks EVERY step and EVERY
 compensation step of a playbook, each with its own parameters, and records the decided plan.
 
-proves=GATE-03 GATE-04 GATE-08 GATE-10 ACTV-01 (plans 81-13, 81-15)
+proves=GATE-03 GATE-04 GATE-08 GATE-10 ACTV-01 (plans 81-13, 81-15, 81-18)
 fails_when=a later step or a compensation step aimed at a never-touch address is accepted, a
 step that is not a registered auto/approve command (or a compensation step that is not
 undo_only) reaches a recorded decision, the decided row loses its steps/rollback, or a
@@ -10,11 +10,12 @@ multi-step row offers a one-instruction undo.
 Real throwaway Mongo (tests/_mongo_test_db.py); nothing here reaches a live system.
 """
 import os
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from autonomous_ops import gate, ledger, protected
+from autonomous_ops import approvals, dispatch_check, gate, ledger, protected
 from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import agent_that_completes, seed_agent, seed_platform_stop, seed_tenant
@@ -45,12 +46,12 @@ async def live(mongo_db):  # noqa: F811
         yield mongo_db
 
 
-def _request(steps, rollback=None, *, key="k1", playbook_raise=False, actions=None):
+def _request(steps, rollback=None, *, key="k1", playbook_raise=False, actions=None, dispatcher="remediation"):
     return gate.ActionRequest(
         tenant_id="t1", kind="security", origin="remediation",
         actions=actions if actions is not None else [s.get("action") if isinstance(s, dict) else s for s in steps],
         targets=["a1"], params=(steps[0].get("params", {}) if steps and isinstance(steps[0], dict) else {}),
-        dedupe_key=f"t1|{key}", dispatcher="remediation", playbook_raise=playbook_raise,
+        dedupe_key=f"t1|{key}", dispatcher=dispatcher, playbook_raise=playbook_raise,
         steps=steps, rollback=rollback)
 
 
@@ -360,3 +361,83 @@ async def test_an_altered_step_through_the_service_is_refused_and_the_row_fails(
     assert (await ledger.get(live, "t1", decision.action_id))["state"] == "failed"
     sent = [d["payload"] async for d in live.agent_instructions.find({"type": "block_ip"})]
     assert sent == [{"ip_address": GOOD_1}]
+
+
+# ------------------------------------------------------------ 81-18: approval-time re-check and undo
+
+APPROVER = {"username": "alice", "display": "Alice", "tier": "tenant"}
+LATE = "203.0.113.9"
+_ISOLATE = {"action": "isolate_host", "params": {}}
+
+
+async def _card_of(db, steps, rollback=None, key="card"):
+    decision = await _decide(db, steps, rollback, key=key, dispatcher="instruction")
+    assert decision.outcome == "needs_approval", decision
+    return decision.action_id
+
+
+async def _late_entry(db, ip=LATE):
+    await protected.add_entry(db, scope="tenant", tenant_id="t1", kind="ip", value=ip, actor="admin")
+
+
+async def _assert_refused_protected(db, aid):
+    out = await approvals.approve(db, "t1", aid, approver=APPROVER)
+    assert out == {"status": "refused", "reason": "protected_target"}, out
+    row = await ledger.get(db, "t1", aid)
+    assert row["state"] == "refused" and row["reasonCode"] == "protected_target"
+    assert await db.agent_instructions.count_documents({}) == 0
+
+
+async def test_approve_rechecks_every_recorded_step(live):
+    aid = await _card_of(live, [_ISOLATE, _block(LATE)])
+    await _late_entry(live)
+    await _assert_refused_protected(live, aid)
+
+
+async def test_approve_still_dispatches_a_benign_multi_step_card(live):
+    aid = await _card_of(live, [_ISOLATE, _block(LATE)])
+    out = await approvals.approve(live, "t1", aid, approver=APPROVER)
+    assert out["status"] == "dispatched", out
+    assert await live.agent_instructions.count_documents({}) == 1
+
+
+async def test_approve_rechecks_the_last_of_three_steps(live):
+    aid = await _card_of(live, [_ISOLATE, _block(GOOD_2), _block(LATE)])
+    await _late_entry(live)
+    await _assert_refused_protected(live, aid)
+
+
+async def test_approve_rechecks_a_compensation_step(live):
+    aid = await _card_of(live, [_ISOLATE, _block(GOOD_2)], rollback=[_unblock(LATE)])
+    await _late_entry(live)
+    await _assert_refused_protected(live, aid)
+
+
+async def test_an_unreadable_never_touch_list_refuses_the_approval(live):
+    aid = await _card_of(live, [_ISOLATE, _block(LATE)])
+    with patch("autonomous_ops.protected.check", new=AsyncMock(side_effect=RuntimeError("down"))):
+        await _assert_refused_protected(live, aid)
+
+
+async def test_a_legacy_row_without_steps_is_rechecked_from_command_and_params(live):
+    row = await ledger.create_intent(live, {
+        "tenantId": "t1", "kind": "security", "origin": "test", "state": "awaiting_approval",
+        "actions": ["block_ip"], "command": "block_ip", "targets": ["a1"], "params": {"ip_address": LATE},
+        "dispatcher": "instruction", "approval": {"expiresAt": datetime.now(timezone.utc) + timedelta(hours=1)}})
+    await _late_entry(live)
+    await _assert_refused_protected(live, row["id"])
+
+
+def test_row_pairs_covers_steps_then_rollback_and_the_legacy_shape():
+    pairs = dispatch_check.row_pairs({
+        "steps": [{"command": "isolate_host", "params": {}}, {"command": "block_ip", "params": {"ip_address": GOOD_1}}],
+        "rollback": [{"command": "unblock_ip", "params": {"ip_address": GOOD_2}}, "junk"]})
+    assert [(s.name if s else None, p) for s, p in pairs] == [
+        ("isolate_host", {}), ("block_ip", {"ip_address": GOOD_1}), ("unblock_ip", {"ip_address": GOOD_2}), (None, {})]
+    legacy = dispatch_check.row_pairs({"command": "block_ip", "params": {"ip_address": GOOD_1}})
+    assert [(s.name, p) for s, p in legacy] == [("block_ip", {"ip_address": GOOD_1})]
+    multi = dispatch_check.row_pairs({"actions": ["block_ip", "block_ip"], "command": "block_ip",
+                                      "params": {"ip_address": GOOD_1}})
+    assert len(multi) == 2 and all(p == {"ip_address": GOOD_1} for _, p in multi)
+    assert dispatch_check.row_pairs({"steps": [{"command": "block_ip"}], "rollback": "x"})[0][1] == {}
+

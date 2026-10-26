@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from . import APPROVAL_TTL, PLATFORM_TENANT_ID, ledger, messages, protected, registry, settings
-from . import breaker, gate
+from . import breaker, dispatch_check, gate
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -99,13 +99,9 @@ async def _revalidate(db, row: Dict[str, Any]) -> Optional[str]:
             code = await protected.check(db, tenant_id, agent=agent)
             if code:
                 return code
-        spec = registry.resolve(row.get("command"))
-        params = row.get("params") if isinstance(row.get("params"), dict) else {}
-        for key in (spec.ip_params if spec else ()):
-            if params.get(key) is not None:
-                code = await protected.check(db, tenant_id, ip=params[key])
-                if code:
-                    return code
+        code = await dispatch_check.ip_refusal(db, tenant_id, dispatch_check.row_pairs(row))
+        if code:
+            return code        # every recorded step and compensation step, each with its own params
     except Exception as exc:
         logger.error("autonomous_ops: approval re-check of the target failed, refusing: %s", exc)
         return "protected_target"
