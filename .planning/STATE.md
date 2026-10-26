@@ -4,18 +4,18 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
-status: planning
-stopped_at: Phase 81 UI-SPEC approved
-last_updated: "2026-10-25T21:53:46.669Z"
-last_activity: 2026-10-25
-last_activity_desc: v4.3 roadmap created
-state_head: 55e6540461093970070cb900e595498f70441755
+status: executing
+stopped_at: Completed 81-01-PLAN.md
+last_updated: "2026-10-26T07:41:39.356Z"
+last_activity: 2026-10-26
+last_activity_desc: Phase 81 execution started
+state_head: 3b47befe1c527f5ad6a4903c004aaefdc368f4f9
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 12
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 8
 ---
 
 # Project State
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 81 — Autonomy Gate, Stop Switch & Activity Ledger (milestone v4.3 Autonomous Ops; v4.2 paused)
+**Current focus:** Phase 81 — Autonomy Gate, Stop Switch & Activity Ledger
 
 ## Current Phase
 
@@ -447,6 +447,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 77]: 77-10: tenant isolation of role edits and role route guards pinned by tests; full backend 4043 passed / 47 skipped
 - [Phase 77]: 77-11: role editor submits the visibly checked set (effective selection plus locked rows); submit blocked until the permission catalogue loads
 - [Phase 77]: 77-12: Roles tab owns the server delete; App.handleDeleteRole only refetches roles; super-admin source guard flags literals on 11 phase surfaces
+- [Phase 81]: 81-01: GATE-04 raise is the explicit gate_class step key, never destructive (block_ip stays auto on shipped playbooks)
+- [Phase 81]: 81-01: autonomous_ops reads level/max/shadow per call (no cache); unreadable settings are Suggest, unticked tenants Off and unrecorded
 
 ## Performance Metrics
 
@@ -602,6 +604,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 77 P10 | 25min | 2 tasks | 2 files |
 | Phase 77 P11 | 25min | 2 tasks | 9 files |
 | Phase 77 P12 | 40min | 2 tasks | 8 files |
+| Phase 81 P01 | 12 min | 3 tasks | 10 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -636,9 +639,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-25T17:31:54.434Z
-**Stopped at:** Phase 81 UI-SPEC approved
-**Resume file:** .planning/phases/81-autonomy-gate-stop-switch-activity-ledger/81-UI-SPEC.md
+**Last session:** 2026-10-26T07:41:39.168Z
+**Stopped at:** Completed 81-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -662,11 +665,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — READY TO EXECUTE
-Plan: —
-Status: Planning — roadmap created, 55/55 requirements mapped to Phases 81–86
-Last activity: 2026-10-25 — v4.3 roadmap created
-Progress: 0/6 phases complete ([░░░░░░░░░░] 0%)
+Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
+Plan: 2 of 12
+Status: Ready to execute
+Last activity: 2026-10-26 — Phase 81 execution started
+Progress: 0/6 phases complete ([█░░░░░░░░░] 8%)
 
 ## Deferred Items
 
