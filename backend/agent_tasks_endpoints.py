@@ -14,6 +14,7 @@ from tickets_service import tickets_service
 import logging
 from auth_roles import platform_scope_roles
 import agent_capabilities
+from autonomous_ops import delivery
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_tasks_endpoints")
@@ -45,6 +46,8 @@ async def get_agent_instructions(
     instructions = await db.agent_instructions.find(query).to_list(length=10)
     # An instruction needing a capability the tenant's agents lack is refused, never sent.
     instructions = await agent_capabilities.hold_back(db, tenant_id, instructions)
+    # A queued autonomous instruction is held back while a stop is on (GATE-06, D-12).
+    instructions = await delivery.hold_back_autonomous(db, tenant_id, instructions)
 
     if instructions:
         ids = [i["_id"] for i in instructions]
