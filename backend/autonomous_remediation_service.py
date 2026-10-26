@@ -1,7 +1,13 @@
 """
-Autonomous Remediation Service
-Orchestrates continuous detection → planning → execution → verification
-for vulnerabilities, CSPM findings, XDR alerts, and compliance failures.
+Autonomous Remediation Service (deterministic playbooks through Autonomous Ops)
+
+Turns a finding into a vendored/operator YAML playbook (remediation_playbook_service, no LLM),
+asks the autonomy gate (autonomous_ops.gate, GATE-03) what to do, and then either records a
+simulation, parks an approval card, or dispatches the playbook's steps. Every step, verify
+re-scan and compensation is written by ``gate.execute`` as a stamped registry command; this
+module writes no agent instruction itself (GATE-05). Approvals and denials go through the
+ledger (autonomous_ops.approvals) and the "remediation" dispatcher registered at the foot of
+this module. The earlier LLM path (plan generation, scripts, scheduled cycle) no longer exists.
 """
 import asyncio
 import logging
@@ -11,7 +17,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
-from autonomous_ops.scope import tenant_scope
+from autonomous_ops import approvals
+from autonomous_ops.scope import raw, tenant_scope
 from database import get_database
 from tenant_context import set_tenant_id, reset_tenant_id
 
@@ -19,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 AUTONOMOUS_REMEDIATION_DRY_RUN = os.getenv("AUTONOMOUS_REMEDIATION_DRY_RUN", "true").lower() in ("1", "true", "yes")
-AUTONOMOUS_REMEDIATION_INTERVAL_SEC = int(os.getenv("AUTONOMOUS_REMEDIATION_INTERVAL_SEC", "300"))
 MAX_AUTO_SEVERITY = os.getenv("MAX_AUTO_SEVERITY", "medium").lower()
 
 # Bounded polling for the 53-03 playbook loop: how long to wait for the
@@ -52,18 +58,6 @@ class RemediationFinding:
     details: Dict[str, Any]
     matched_policy: Optional[Dict] = None
     raw_doc: Optional[Dict] = None
-
-
-@dataclass
-class RemediationPlan:
-    """Generated remediation plan for a finding."""
-    finding: RemediationFinding
-    action: str  # e.g., "run_patch_script", "kill_process", "update_security_group"
-    script: str
-    params: Dict[str, Any]
-    requires_approval: bool
-    source_service: str  # "remediation_service", "ai_remediation", "cloud_remediation", "agentic"
-    model_provenance: Optional[str] = None
 
 
 def _render_step_params(params: Dict[str, Any], finding: RemediationFinding) -> Dict[str, Any]:
@@ -121,30 +115,13 @@ def _finding_from_request_doc(doc: Dict[str, Any]) -> "RemediationFinding":
 
 
 class AutonomousRemediationService:
-    """Main orchestrator for autonomous remediation loop."""
-
-    def __init__(self):
-        self._initialized = False
-
-    async def _ensure_initialized(self):
-        """Lazy-load heavy imports."""
-        if not self._initialized:
-            # These will be imported on first use to avoid circular imports
-            self._initialized = True
+    """Deterministic playbook remediation decided by the autonomy gate."""
 
     def _severity_within_ceiling(self, severity: str) -> bool:
         """Check if finding severity is within the auto-execute ceiling."""
         finding_level = SEVERITY_ORDER.get(severity.lower(), 4)
         ceiling_level = SEVERITY_ORDER.get(MAX_AUTO_SEVERITY.lower(), 2)
         return finding_level <= ceiling_level
-
-    async def _is_tenant_enabled(self, tenant_id: str, db) -> bool:
-        """Check if autonomous remediation is enabled for this tenant."""
-        tenant = await db.tenants.find_one({"id": tenant_id}, {"enabledFeatures": 1})
-        if not tenant:
-            return False
-        features = tenant.get("enabledFeatures", [])
-        return "autonomousRemediation" in features or "autonomous_remediation" in features
 
     async def scan_for_remediable_findings(self, tenant_id: str) -> List[RemediationFinding]:
         """
@@ -402,160 +379,19 @@ class AutonomousRemediationService:
         logger.info("[AutonomousRemediation] Tenant %s: found %d remediable findings", tenant_id, len(findings))
         return findings
 
-    async def generate_plan(self, finding: RemediationFinding) -> Optional[RemediationPlan]:
-        """Generate a remediation plan using the appropriate service."""
-        try:
-            await self._ensure_initialized()
-
-            if finding.finding_type == "vulnerability":
-                from remediation_service import RemediationService
-                cve_id = finding.details.get("cveId") or finding.details.get("cve_id") or "UNKNOWN"
-                asset_id = finding.resource_id or "unknown"
-                request = await RemediationService.generate_fix_proposal(
-                    tenant_id=finding.tenant_id,
-                    asset_id=asset_id,
-                    vulnerability_id=finding.finding_id,
-                    cve_id=cve_id,
-                )
-                return RemediationPlan(
-                    finding=finding,
-                    action="run_remediation_script",
-                    script=request.scriptContent,
-                    params={"script_type": "powershell" if "powershell" in request.scriptContent.lower() else "bash"},
-                    requires_approval=not AUTONOMOUS_REMEDIATION_DRY_RUN,
-                    source_service="remediation_service",
-                )
-
-            elif finding.finding_type == "cspm":
-                from ai_remediation_service import ai_remediation_service
-                result = await ai_remediation_service.generate_cspm_remediation(finding.details)
-                remediation_text = result.get("remediation", "")
-                return RemediationPlan(
-                    finding=finding,
-                    action="apply_cloud_remediation",
-                    script=remediation_text,
-                    params={"provider": finding.details.get("provider")},
-                    requires_approval=not AUTONOMOUS_REMEDIATION_DRY_RUN,
-                    source_service="ai_remediation",
-                    model_provenance="primary",
-                )
-
-            elif finding.finding_type == "alert":
-                # Use AgenticService for autonomous tool selection
-                from agentic_service import get_agentic_service
-                try:
-                    agentic = get_agentic_service()
-                    security_context = {
-                        "agent_id": finding.agent_id,
-                        "alert": finding.details,
-                        "findings": [finding.details],
-                    }
-                    decision = await agentic.run(finding.agent_id or "unknown", security_context)
-                    return RemediationPlan(
-                        finding=finding,
-                        action=decision.get("tool_name", "unknown"),
-                        script="",  # Agentic service queues instruction directly
-                        params=decision.get("tool_input", {}),
-                        requires_approval=not AUTONOMOUS_REMEDIATION_DRY_RUN,
-                        source_service="agentic",
-                        model_provenance=decision.get("source"),
-                    )
-                except Exception as e:
-                    logger.warning("[AutonomousRemediation] Agentic decision failed: %s", e)
-                    return None
-
-            elif finding.finding_type == "compliance":
-                from ai_remediation_service import ai_remediation_service
-                result = await ai_remediation_service.generate_cspm_remediation(finding.details)
-                remediation_text = result.get("remediation", "")
-                return RemediationPlan(
-                    finding=finding,
-                    action="apply_compliance_remediation",
-                    script=remediation_text,
-                    params={"control_id": finding.details.get("controlId")},
-                    requires_approval=not AUTONOMOUS_REMEDIATION_DRY_RUN,
-                    source_service="ai_remediation",
-                    model_provenance="primary",
-                )
-
-        except Exception as e:
-            logger.error("[AutonomousRemediation] Plan generation failed for %s: %s", finding.finding_id, e)
-            return None
-
-        return None
-
-    async def execute_plan(self, plan: RemediationPlan) -> Dict[str, Any]:
-        """Execute the remediation plan. Returns execution result."""
-        if AUTONOMOUS_REMEDIATION_DRY_RUN:
-            logger.info("[AutonomousRemediation] DRY RUN - would execute: %s for %s",
-                        plan.action, plan.finding.finding_id)
-            return {"status": "dry_run", "action": plan.action, "finding_id": plan.finding.finding_id}
-
-        try:
-            # Dispatch via agent_instructions queue (existing pattern)
-            db = get_database()
-
-            task_id = f"AUTO-{plan.finding.finding_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
-
-            # Build instruction for agent. "id" is what report_instruction_result
-            # matches on to update status — without it, an inserted doc can never
-            # be found again by task_id, so status/verify polling would hang
-            # forever. "parameters" mirrors "payload" since agent dispatch arms
-            # are split between reading one or the other.
-            _step_payload = {
-                **plan.params,
-                "script": plan.script,
-                "finding_id": plan.finding.finding_id,
-                "finding_type": plan.finding.finding_type,
-            }
-            instruction = {
-                "id": task_id,
-                "type": plan.action,
-                "agent_id": plan.finding.agent_id or "auto",
-                "payload": _step_payload,
-                "parameters": _step_payload,
-                "status": "pending",
-                "triggered_by": "autonomous_remediation",
-                "triggered_by_finding": plan.finding.finding_id,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-
-            # Check dedup using ResponseOrchestrator
-            from response_orchestrator import ResponseOrchestrator
-            orchestrator = ResponseOrchestrator()
-            is_dup = await orchestrator.is_duplicate_task(
-                agent_id=plan.finding.agent_id or "auto",
-                action=plan.action,
-                dedup_window_minutes=5,
-                tenant_id=plan.finding.tenant_id,
-                alert_type=plan.finding.finding_type,
-            )
-            if is_dup:
-                logger.info("[AutonomousRemediation] Duplicate action skipped: %s", plan.action)
-                return {"status": "skipped_duplicate", "action": plan.action}
-
-            # Insert into agent_instructions
-            await db.agent_instructions.insert_one(instruction)
-
-            # Log decision to agent_ai_decisions
-            await self._log_decision(plan, "executed", task_id)
-
-            logger.info("[AutonomousRemediation] Executed %s for finding %s (task %s)",
-                        plan.action, plan.finding.finding_id, task_id)
-            return {"status": "queued", "task_id": task_id, "action": plan.action}
-
-        except Exception as e:
-            logger.error("[AutonomousRemediation] Execution failed: %s", e)
-            await self._log_decision(plan, f"failed: {e}", None)
-            return {"status": "failed", "error": str(e)}
-
-    async def _poll_task_status(self, db, task_id: str, timeout_sec: int, interval_sec: int) -> str:
+    async def _poll_task_status(self, db, task_id: str, timeout_sec: int, interval_sec: int,
+                                tenant_id: Optional[str] = None) -> str:
         """Polls agent_instructions.status (written by POST .../instructions/result)
         for a terminal state. Returns SUCCESS/FAILURE, or TIMEOUT if the bound
-        is exceeded — a timeout is never treated as success."""
+        is exceeded — a timeout is never treated as success. With ``tenant_id`` the
+        read is on the raw handle and filtered by tenant explicitly."""
+        flt: Dict[str, Any] = {"id": task_id}
+        coll = raw(db).agent_instructions if tenant_id else db.agent_instructions
+        if tenant_id:
+            flt["tenantId"] = tenant_id
         elapsed = 0
         while elapsed <= timeout_sec:
-            doc = await db.agent_instructions.find_one({"id": task_id})
+            doc = await coll.find_one(flt)
             status = (doc or {}).get("status")
             if status in ("SUCCESS", "FAILURE"):
                 return status
@@ -673,46 +509,76 @@ class AutonomousRemediationService:
 
         return await self._dispatch_and_verify(remediation_id, finding, playbook, action_id=decision.action_id)
 
-    async def approve_remediation(self, remediation_id: str, tenant_id: str, approver: str) -> Dict[str, Any]:
-        """Operator approval of a pending_approval remediation (AUTO-03).
-        Resumes dispatch through the exact same _dispatch_and_verify path
-        as a non-destructive playbook — approval only removes the gate, it
-        never skips concurrency/rollback/audit."""
+    async def approve_remediation(self, remediation_id: str, tenant_id: str, approver) -> Dict[str, Any]:
+        """Operator approval of a pending remediation card (AUTO-03, GATE-10). Delegates to
+        ``approvals.approve`` through the ledger row the request is linked to
+        (``autonomyActionId``): one compare-and-set decides the winner, a second click gets
+        ``already_handled``. The dispatch itself is ``dispatch_approved_remediation``."""
+        from autonomous_ops import approvals
+
+        db = get_database()
+        with tenant_scope(tenant_id):
+            req = await db.remediation_requests.find_one({"id": remediation_id, "tenantId": tenant_id})
+            if not req:
+                return {"status": "not_found", "remediation_id": remediation_id}
+            action_id = req.get("autonomyActionId")
+            if not action_id:
+                return {"status": "refused", "reason": "legacy_request", "remediation_id": remediation_id}
+            out = await approvals.approve(db, tenant_id, action_id, approver=_actor(approver))
+        if out.get("status") == "dispatched" and isinstance(out.get("dispatch"), dict):
+            return {"remediation_id": remediation_id, **out["dispatch"]}
+        return {**{k: v for k, v in out.items() if k != "dispatch"}, "remediation_id": remediation_id}
+
+    async def deny_remediation(self, remediation_id: str, tenant_id: str, approver, reason: str = "") -> Dict[str, Any]:
+        """Operator denial of a pending remediation card — cancels it without ever
+        dispatching (``approvals.deny`` on the linked ledger row) and records the denial as a
+        new (append-only) audit override record."""
+        from autonomous_ops import approvals
         from remediation_audit_service import write_audit
 
         db = get_database()
-        req = await db.remediation_requests.find_one({"id": remediation_id, "tenantId": tenant_id})
-        if not req or req.get("status") != "pending_approval":
-            return {"status": "not_found", "remediation_id": remediation_id}
-
-        await write_audit(db, tenant_id, {
-            "remediation_id": remediation_id, "stage": "override_approved", "approver": approver,
-        })
-        await db.remediation_requests.update_one(
-            {"id": remediation_id, "tenantId": tenant_id}, {"$set": {"status": "dispatching"}}
-        )
-
-        finding = _finding_from_request_doc(req)
-        return await self._dispatch_and_verify(remediation_id, finding, req["playbook"])
-
-    async def deny_remediation(self, remediation_id: str, tenant_id: str, approver: str, reason: str = "") -> Dict[str, Any]:
-        """Operator denial of a pending_approval remediation — cancels it
-        without ever dispatching, and records the denial as a new
-        (append-only) audit override record."""
-        from remediation_audit_service import write_audit
-
-        db = get_database()
-        req = await db.remediation_requests.find_one({"id": remediation_id, "tenantId": tenant_id})
-        if not req or req.get("status") != "pending_approval":
-            return {"status": "not_found", "remediation_id": remediation_id}
-
-        await db.remediation_requests.update_one(
-            {"id": remediation_id, "tenantId": tenant_id}, {"$set": {"status": "denied"}}
-        )
-        await write_audit(db, tenant_id, {
-            "remediation_id": remediation_id, "stage": "override_denied", "approver": approver, "reason": reason,
-        })
+        with tenant_scope(tenant_id):
+            req = await db.remediation_requests.find_one({"id": remediation_id, "tenantId": tenant_id})
+            if not req:
+                return {"status": "not_found", "remediation_id": remediation_id}
+            action_id = req.get("autonomyActionId")
+            if not action_id:
+                return {"status": "refused", "reason": "legacy_request", "remediation_id": remediation_id}
+            out = await approvals.deny(db, tenant_id, action_id, approver=_actor(approver), reason=reason or "")
+            if out.get("status") != "denied":
+                return {**out, "remediation_id": remediation_id}
+            await db.remediation_requests.update_one(
+                {"id": remediation_id, "tenantId": tenant_id, "status": "pending_approval"},
+                {"$set": {"status": "denied"}})
+            await write_audit(db, tenant_id, {
+                "remediation_id": remediation_id, "stage": "override_denied",
+                "approver": _actor(approver)["username"], "reason": reason,
+            })
         return {"status": "denied", "remediation_id": remediation_id}
+
+    async def dispatch_approved_remediation(self, db, row: Dict[str, Any], approver: Dict[str, Any]) -> Dict[str, Any]:
+        """The "remediation" dispatcher registered with ``approvals.register_dispatcher``.
+        Called with the ledger row already ``approved``. Compare-and-sets the request from
+        ``pending_approval`` to ``dispatching`` (a double click, or a request already denied,
+        dispatches nothing) and then runs the same ``_dispatch_and_verify`` as an automatic
+        playbook: approval only removes the gate, never the lease, compensation or audit."""
+        from remediation_audit_service import write_audit
+        from pymongo import ReturnDocument
+
+        tenant_id = row["tenantId"]
+        remediation_id = row.get("remediationId")
+        with tenant_scope(tenant_id):
+            req = await db.remediation_requests.find_one_and_update(
+                {"id": remediation_id, "tenantId": tenant_id, "status": "pending_approval"},
+                {"$set": {"status": "dispatching"}}, return_document=ReturnDocument.AFTER)
+            if not req:
+                return {"status": "refused", "reason": "request_not_pending"}
+            await write_audit(db, tenant_id, {
+                "remediation_id": remediation_id, "stage": "override_approved",
+                "approver": (approver or {}).get("username"),
+            })
+            finding = _finding_from_request_doc(req)
+            return await self._dispatch_and_verify(remediation_id, finding, req["playbook"], action_id=row["id"])
 
     async def _acquire_agent_lease(self, db, agent_id: str, remediation_id: str) -> bool:
         """DB-backed concurrency lease (AUTO-03) — a `remediation_inflight`
@@ -736,13 +602,24 @@ class AutonomousRemediationService:
     async def _release_agent_lease(self, db, agent_id: str, remediation_id: str) -> None:
         await db.remediation_inflight.delete_one({"agentId": agent_id, "remediationId": remediation_id})
 
+    async def _mark(self, db, tenant_id: str, action_id: Optional[str], from_states, to_state: str, **fields) -> None:
+        """Move the ledger row (GATE-07). Never raises into the remediation, and a lost
+        compare-and-set (the reconciler got there first) is not an error."""
+        if not action_id:
+            return
+        from autonomous_ops import ledger
+        try:
+            await ledger.transition(db, tenant_id, action_id, from_states, to_state, **fields)
+        except Exception as exc:
+            logger.error("[AutonomousRemediation] ledger row %s not moved to %s: %s", action_id, to_state, exc)
+
     async def _dispatch_and_verify(self, remediation_id: str, finding: RemediationFinding, playbook: Dict[str, Any],
                                    action_id: Optional[str] = None) -> Dict[str, Any]:
-        """The actual dispatch → poll → verify → (rollback|escalate) body,
-        shared by an immediately-eligible remediate() call and a later
-        approve_remediation() resume. Acquires a per-agent DB lease before
-        ever touching agent_instructions and always releases it, even on
-        an early return."""
+        """The actual dispatch → poll → verify → (compensate|escalate) body, shared by an
+        immediately-allowed remediate() call and an approved card. ``action_id`` is the
+        ledger row (gate.decide); every step is written by gate.execute against it and the
+        row moves to executed, verified, failed or rolled_back at the audit points below.
+        Acquires a per-agent DB lease before dispatching and always releases it."""
         from remediation_audit_service import write_audit
 
         db = get_database()
@@ -761,12 +638,15 @@ class AutonomousRemediationService:
             await db.remediation_requests.update_one(
                 {"id": remediation_id, "tenantId": tenant_id}, {"$set": {"status": "deferred"}}
             )
+            await self._mark(db, tenant_id, action_id, ("approved", "dispatching"), "refused",
+                             reasonCode="agent_busy",
+                             reasonText="The host is busy with another remediation, so nothing was run.")
             return {"status": "deferred", "remediation_id": remediation_id}
 
         try:
             steps_dispatched: List[Dict[str, Any]] = []
             for step in playbook.get("steps", []):
-                dispatch_status = await self._dispatch_step(finding, step)
+                dispatch_status = await self._dispatch_step(finding, step, action_id, "action")
                 steps_dispatched.append(dispatch_status)
                 if dispatch_status["status"] != "SUCCESS":
                     await write_audit(db, tenant_id, {
@@ -775,11 +655,16 @@ class AutonomousRemediationService:
                     await db.remediation_requests.update_one(
                         {"id": remediation_id, "tenantId": tenant_id}, {"$set": {"status": "unverified"}}
                     )
+                    await self._mark(db, tenant_id, action_id, ("approved", "dispatching", "executed"), "failed",
+                                     reasonCode="dispatch_failed",
+                                     reasonText="The action was not confirmed by the host, so it is treated as failed.")
                     return {"status": "unverified", "remediation_id": remediation_id, "steps_dispatched": steps_dispatched}
 
             await write_audit(db, tenant_id, {**base_record, "stage": "dispatched", "steps_dispatched": steps_dispatched})
+            await self._mark(db, tenant_id, action_id, ("dispatching",), "executed",
+                             result={"stepsDispatched": len(steps_dispatched)})
 
-            verification_result = await self._verify_finding_resolved(finding)
+            verification_result = await self._verify_finding_resolved(finding, action_id)
             await write_audit(db, tenant_id, {
                 **base_record, "stage": "verified", "steps_dispatched": steps_dispatched,
                 "verification_result": verification_result,
@@ -789,15 +674,21 @@ class AutonomousRemediationService:
                 "status": verification_result, "remediation_id": remediation_id, "steps_dispatched": steps_dispatched,
             }
 
-            if verification_result == "failed":
+            if verification_result == "resolved":
+                await self._mark(db, tenant_id, action_id, ("executed",), "verified")
+            elif verification_result == "failed":
+                await self._mark(db, tenant_id, action_id, ("executed", "dispatching"), "failed",
+                                 reasonCode="verify_failed",
+                                 reasonText="The check afterwards still found the problem.")
                 rollback_steps = playbook.get("rollback") or []
                 if rollback_steps:
                     rollback_dispatched = []
                     for step in rollback_steps:
-                        rollback_dispatched.append(await self._dispatch_step(finding, step))
+                        rollback_dispatched.append(await self._dispatch_step(finding, step, action_id, "compensate"))
                     await write_audit(db, tenant_id, {
                         **base_record, "stage": "rollback_dispatched", "rollback_steps": rollback_dispatched,
                     })
+                    await self._mark(db, tenant_id, action_id, ("failed",), "rolled_back")
                     result["rollback_dispatched"] = True
                 else:
                     await db.alerts.insert_one({
@@ -823,29 +714,32 @@ class AutonomousRemediationService:
         finally:
             await self._release_agent_lease(db, agent_id, remediation_id)
 
-    async def _dispatch_step(self, finding: RemediationFinding, step: Dict[str, Any]) -> Dict[str, Any]:
-        """Dispatches one playbook step via the shared execute_plan path and
-        polls it to a grounded terminal state (never a second dispatch
-        channel)."""
+    async def _dispatch_step(self, finding: RemediationFinding, step: Dict[str, Any],
+                             action_id: Optional[str] = None, kind: str = "action") -> Dict[str, Any]:
+        """Dispatches one playbook step through ``gate.execute`` (kind action, or compensate
+        for a verify-failure undo step) and polls it to a grounded terminal state. The gate
+        is the only writer: it refuses unless the ledger row allows this kind of instruction
+        (and, for an action, no stop is on)."""
+        from autonomous_ops import gate
         from remediation_playbook_service import ACTION_MAP
 
         action = step["action"]
+        if not action_id:
+            return {"action": action, "status": "refused", "reason": "no_ledger_row"}
         command = ACTION_MAP[action]
-        params = _render_step_params(step.get("params", {}), finding)
-        step_plan = RemediationPlan(
-            finding=finding, action=command, script="", params=params,
-            requires_approval=False, source_service="remediation_playbook",
-        )
-        dispatch = await self.execute_plan(step_plan)
+        params = _safe_params(_render_step_params(step.get("params", {}), finding))
+        db = get_database()
+        dispatch = await gate.execute(db, finding.tenant_id, action_id, command=command,
+                                      agent_id=finding.agent_id or "auto", params=params, kind=kind)
         task_id = dispatch.get("task_id")
         if dispatch.get("status") != "queued" or not task_id:
-            return {"action": action, "status": dispatch.get("status") or "FAILURE"}
+            return {"action": action, "status": "refused", "reason": dispatch.get("reason")}
 
-        db = get_database()
-        status = await self._poll_task_status(db, task_id, STEP_POLL_TIMEOUT_SEC, STEP_POLL_INTERVAL_SEC)
+        status = await self._poll_task_status(db, task_id, STEP_POLL_TIMEOUT_SEC, STEP_POLL_INTERVAL_SEC,
+                                              tenant_id=finding.tenant_id)
         return {"action": action, "task_id": task_id, "status": status}
 
-    async def _verify_finding_resolved(self, finding: RemediationFinding) -> str:
+    async def _verify_finding_resolved(self, finding: RemediationFinding, action_id: Optional[str] = None) -> str:
         """Grounded, bounded re-check of the finding's own current state.
         Returns 'resolved' ONLY on a definite clear; a timeout, an
         unrecognized finding type, or an ambiguous result returns
@@ -859,7 +753,7 @@ class AutonomousRemediationService:
             if finding.finding_type == "fim":
                 return await self._verify_fim_resolved(db, finding)
             if finding.finding_type == "nscan":
-                return await self._check_nscan_resolved(db, finding)
+                return await self._check_nscan_resolved(db, finding, action_id)
             return "unverified"
         except Exception as e:
             logger.warning("[AutonomousRemediation] Verify failed for %s: %s", finding.finding_id, e)
@@ -927,25 +821,28 @@ class AutonomousRemediationService:
             elapsed += VERIFY_POLL_INTERVAL_SEC if VERIFY_POLL_INTERVAL_SEC > 0 else 1
         return "failed" if last_change_type == "Changed" else "unverified"
 
-    async def _check_nscan_resolved(self, db, finding: RemediationFinding) -> str:
+    async def _check_nscan_resolved(self, db, finding: RemediationFinding, action_id: Optional[str] = None) -> str:
         """A killed process/blocked IP has no periodic re-check like
         vuln/fim do — the only grounded re-check available is to dispatch a
-        fresh scan against the same target and read its verdict, reusing
-        the existing scan dispatch path (never a second dispatch channel)."""
+        fresh scan against the same target and read its verdict. The re-scan is a
+        ``probe`` written by gate.execute (never a second dispatch channel); with no
+        ledger row there is nothing to probe against and the result is unverified."""
+        from autonomous_ops import gate
+
+        if not action_id:
+            return "unverified"
         scan_type = (finding.details or {}).get("type") or "file"
         param_key = "path" if scan_type == "file" else "target"
-        rescan_plan = RemediationPlan(
-            finding=finding, action=f"scan_{scan_type}", script="",
-            params={param_key: finding.resource_id},
-            requires_approval=False, source_service="remediation_playbook",
-        )
         dispatch_ts = datetime.now(timezone.utc).isoformat()
-        dispatch = await self.execute_plan(rescan_plan)
+        dispatch = await gate.execute(get_database(), finding.tenant_id, action_id, command=f"scan_{scan_type}",
+                                      agent_id=finding.agent_id or "auto",
+                                      params={param_key: finding.resource_id}, kind="probe")
         task_id = dispatch.get("task_id")
         if dispatch.get("status") != "queued" or not task_id:
             return "unverified"
 
-        status = await self._poll_task_status(db, task_id, VERIFY_TIMEOUT_SEC, VERIFY_POLL_INTERVAL_SEC)
+        status = await self._poll_task_status(db, task_id, VERIFY_TIMEOUT_SEC, VERIFY_POLL_INTERVAL_SEC,
+                                              tenant_id=finding.tenant_id)
         if status != "SUCCESS":
             return "unverified"
 
@@ -957,158 +854,18 @@ class AutonomousRemediationService:
             return "unverified"
         return "failed" if fresh.get("verdict") == "Malicious" else "resolved"
 
-    async def verify_remediation(self, finding: RemediationFinding, plan: RemediationPlan, result: Dict) -> bool:
-        """Verify the remediation was effective. Returns True if fixed."""
-        if AUTONOMOUS_REMEDIATION_DRY_RUN:
-            return True  # In dry-run, assume success
 
-        try:
-            await asyncio.sleep(30)  # Wait for agent to execute
+def _actor(approver) -> Dict[str, Any]:
+    """The approver as the ledger records it: a dict already, or a bare user id/email."""
+    if isinstance(approver, dict):
+        return approver
+    name = str(approver or "unknown")
+    return {"username": name, "display": name, "tier": "tenant"}
 
-            db = get_database()
-            _tctx = set_tenant_id(finding.tenant_id)
 
-            if finding.finding_type == "vulnerability":
-                # Re-scan: check if vulnerability status changed
-                vuln = await db.vulnerabilities.find_one({"id": finding.finding_id})
-                if vuln and vuln.get("status") in ("patched", "resolved", "closed"):
-                    return True
+async def _remediation_dispatcher(db, row: Dict[str, Any], approver: Dict[str, Any]) -> Dict[str, Any]:
+    return await AutonomousRemediationService().dispatch_approved_remediation(db, row, approver)
 
-            elif finding.finding_type == "cspm":
-                # Re-run CSPM check or check finding status
-                cspm = await db.cspm_findings.find_one({"id": finding.finding_id})
-                if cspm and cspm.get("status") == "resolved":
-                    return True
 
-            elif finding.finding_type == "alert":
-                # Check if alert was closed
-                alert = await db.alerts.find_one({"alert_id": finding.finding_id})
-                if alert and alert.get("status") in ("closed", "resolved"):
-                    return True
-
-            elif finding.finding_type == "compliance":
-                # Re-evaluate control
-                control = await db.asset_compliance.find_one({"id": finding.finding_id})
-                if control and control.get("status") == "pass":
-                    return True
-
-            return False
-
-        except Exception as e:
-            logger.warning("[AutonomousRemediation] Verification failed: %s", e)
-            return False
-        finally:
-            reset_tenant_id(_tctx)
-
-    async def _log_decision(self, plan: RemediationPlan, outcome: str, task_id: Optional[str]) -> None:
-        """Log autonomous decision to agent_ai_decisions for audit trail."""
-        try:
-            from ai_orchestration.decision_log import log_ai_decision
-
-            db = get_database()
-            await log_ai_decision(
-                db,
-                surface="autonomous_remediation",
-                outcome=outcome,
-                prompt_version="AUTO-REMEDIATION-v1",
-                model_provenance=plan.model_provenance or "autonomous",
-                citation_validation="n/a",
-                ref={
-                    "finding_id": plan.finding.finding_id,
-                    "finding_type": plan.finding.finding_type,
-                    "action": plan.action,
-                    "task_id": task_id,
-                    "dry_run": AUTONOMOUS_REMEDIATION_DRY_RUN,
-                },
-            )
-        except Exception as e:
-            logger.debug("[AutonomousRemediation] Decision log failed: %s", e)
-
-    async def run_cycle(self, tenant_id: str) -> Dict[str, Any]:
-        """Run one autonomous remediation cycle for a tenant."""
-        start = datetime.now(timezone.utc)
-        stats = {
-            "tenant_id": tenant_id,
-            "scanned": 0,
-            "planned": 0,
-            "executed": 0,
-            "verified": 0,
-            "failed": 0,
-            "skipped": 0,
-            "errors": [],
-        }
-
-        try:
-            db = get_database()
-            if not await self._is_tenant_enabled(tenant_id, db):
-                return {**stats, "status": "disabled"}
-
-            findings = await self.scan_for_remediable_findings(tenant_id)
-            stats["scanned"] = len(findings)
-
-            for finding in findings:
-                # Check dedup again before planning
-                from response_orchestrator import ResponseOrchestrator
-                orchestrator = ResponseOrchestrator()
-                is_dup = await orchestrator.is_duplicate_task(
-                    agent_id=finding.agent_id or "auto",
-                    action="auto_remediate",
-                    dedup_window_minutes=5,
-                    tenant_id=tenant_id,
-                    alert_type=finding.finding_type,
-                )
-                if is_dup:
-                    stats["skipped"] += 1
-                    continue
-
-                plan = await self.generate_plan(finding)
-                if not plan:
-                    stats["failed"] += 1
-                    stats["errors"].append(f"No plan for {finding.finding_id}")
-                    continue
-
-                stats["planned"] += 1
-
-                result = await self.execute_plan(plan)
-                if result.get("status") in ("queued", "dry_run"):
-                    stats["executed"] += 1
-
-                    # Verify
-                    verified = await self.verify_remediation(finding, plan, result)
-                    if verified:
-                        stats["verified"] += 1
-                    else:
-                        # Create ticket for failed verification
-                        await self._create_failure_ticket(finding, plan, result)
-                else:
-                    stats["failed"] += 1
-                    stats["errors"].append(f"Execute failed: {result.get('error', 'unknown')}")
-
-        except Exception as e:
-            logger.error("[AutonomousRemediation] Cycle error for tenant %s: %s", tenant_id, e)
-            stats["errors"].append(str(e))
-
-        stats["duration_sec"] = (datetime.now(timezone.utc) - start).total_seconds()
-        logger.info("[AutonomousRemediation] Cycle complete: %s", stats)
-        return stats
-
-    async def _create_failure_ticket(self, finding: RemediationFinding, plan: RemediationPlan, result: Dict):
-        """Create a remediation ticket when verification fails."""
-        try:
-            from ticketing_bridge import start_close_loop_scheduler
-
-            db = get_database()
-            await db.remediation_tickets.insert_one({
-                "ticket_id": f"AUTO-FAIL-{finding.finding_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
-                "tenantId": finding.tenant_id,
-                "finding_id": finding.finding_id,
-                "finding_type": finding.finding_type,
-                "action_attempted": plan.action,
-                "execution_result": result,
-                "status": "open",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "source": "autonomous_remediation",
-            })
-            logger.warning("[AutonomousRemediation] Created failure ticket for %s", finding.finding_id)
-        except Exception as e:
-            logger.error("[AutonomousRemediation] Failed to create ticket: %s", e)
+# The ledger dispatches an approved "remediation" card through this module (GATE-10).
+approvals.register_dispatcher("remediation", _remediation_dispatcher)

@@ -75,6 +75,8 @@ REASON_TEXT = {
     "dispatch_failed": "The action could not be sent to the host, so nothing was done.",
     "not_delivered": "The host did not pick the action up in time, so it was marked as failed.",
     "agent_failed": "The host reported that the action failed.",
+    "agent_busy": "The host is busy with another remediation, so nothing was run.",
+    "verify_failed": "The check afterwards still found the problem.",
 }
 
 

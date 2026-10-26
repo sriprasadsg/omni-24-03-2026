@@ -6,11 +6,12 @@ exercising their own logic once the gate sits in front of it: ``FakeLedger`` (an
 stand-in for the ledger functions) and ``permissive_gate`` (patches the gate and its stop
 reads so a request decides the way the test asks, with nothing written to a database).
 
-Plans 81-04 to 81-09 import this module and must not modify it; only 81-08 may extend it.
+Plans 81-04 to 81-09 import this module and must not modify it; only 81-08 may extend it
+(81-08 added ``agent_that_completes``: a stand-in agent for the remediation tests).
 """
 import uuid
 from contextlib import ExitStack
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 from autonomous_ops import PLATFORM_TENANT_ID, SCREEN_PERMISSION, TERMINAL_STATES
@@ -110,3 +111,27 @@ def permissive_gate(outcome="allow_auto", shadow=False):
     stack.enter_context(patch.object(settings, "platform_stop", AsyncMock(return_value=None)))
     stack.enter_context(patch.object(settings, "load", load))
     return stack
+
+
+def agent_that_completes(verdict="Clean"):
+    """Patch ``AutonomousRemediationService._poll_task_status`` so the "agent" completes every
+    instruction the moment it is polled: the instruction's status becomes SUCCESS and, for a
+    scan_* probe, a fresh security_scan_results row with ``verdict`` appears (what a real agent
+    reports). Reads and writes the real (throwaway) database the instruction was written to,
+    so nothing here reaches a live system. Use as a context manager."""
+    from unittest.mock import patch
+    from autonomous_ops.scope import raw
+    from autonomous_remediation_service import AutonomousRemediationService
+
+    async def poll(self, db, task_id, timeout_sec, interval_sec, tenant_id=None):
+        handle = raw(db)
+        doc = await handle.agent_instructions.find_one({"id": task_id})
+        await handle.agent_instructions.update_one({"id": task_id}, {"$set": {"status": "SUCCESS"}})
+        if doc and str(doc.get("type", "")).startswith("scan_"):
+            params = doc.get("payload") or {}
+            await handle.security_scan_results.insert_one({
+                "tenantId": doc.get("tenantId"), "target": params.get("path") or params.get("target"),
+                "verdict": verdict, "created_at": (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()})
+        return "SUCCESS"
+
+    return patch.object(AutonomousRemediationService, "_poll_task_status", poll)
