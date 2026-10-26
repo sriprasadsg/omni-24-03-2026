@@ -1,6 +1,7 @@
 import { UserContext } from './contexts/UserContext';
 import { TimeZoneProvider } from './contexts/TimeZoneContext';
 import { FeaturesProvider } from './contexts/FeaturesContext';
+import { AutonomousOpsStatusProvider } from './contexts/AutonomousOpsStatusContext';
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 
 // Suppress console.log in production builds
@@ -53,6 +54,7 @@ const AuditLogDashboard = lazy(() => import('./components/AuditLogDashboard').th
 const AuditProgramDashboard = lazy(() => import('./components/AuditProgramDashboard').then(m => ({ default: m.default })));
 const AutomationPoliciesDashboard = lazy(() => import('./components/AutomationPoliciesDashboard').then(m => ({ default: m.AutomationPoliciesDashboard })));
 const AutoMLDashboard = lazy(() => import('./components/AutoMLDashboard').then(m => ({ default: m.AutoMLDashboard })));
+const AutonomousOpsActivity = lazy(() => import('./components/AutonomousOpsActivity').then(m => ({ default: m.AutonomousOpsActivity })));
 const ChaosEngineeringDashboard = lazy(() => import('./components/ChaosEngineeringDashboard').then(m => ({ default: m.ChaosEngineeringDashboard })));
 const CloudAccountsDashboard = lazy(() => import('./components/CloudAccountsDashboard').then(m => ({ default: m.CloudAccountsDashboard })));
 const CloudChecksScanner = lazy(() => import('./components/CloudChecksScanner').then(m => ({ default: m.default })));
@@ -1726,6 +1728,7 @@ const App: React.FC = () => {
       case 'pentest': return <ErrorBoundary name="PentestDashboard"><PentestDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
       case 'playbooks': return <ErrorBoundary name="PlaybookBuilder"><PlaybookBuilder /></ErrorBoundary>;
       case 'soar': return <ErrorBoundary name="SOARDashboard"><SOARDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
+      case 'autonomousOps': return <ErrorBoundary name="AutonomousOpsActivity"><Suspense fallback={<SkeletonDashboard />}><AutonomousOpsActivity tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} /></Suspense></ErrorBoundary>;
       case 'threatIntelligence': return (
         <ErrorBoundary name="ThreatIntelligence">
           <div className="space-y-6">
@@ -1949,6 +1952,7 @@ const App: React.FC = () => {
                 onBackToTenants={() => setViewingTenantId(null)}
                 branding={brandingConfig}
               />
+              <AutonomousOpsStatusProvider tenantId={viewingTenantId} enabled={hasPermission('view:autonomous_ops')}>
               <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-hidden">
                 <Header
                   allUsers={users}
@@ -1969,6 +1973,7 @@ const App: React.FC = () => {
                   </ErrorBoundary>
                 </main>
               </div>
+              </AutonomousOpsStatusProvider>
             </div>
             )}
           </ErrorBoundary>

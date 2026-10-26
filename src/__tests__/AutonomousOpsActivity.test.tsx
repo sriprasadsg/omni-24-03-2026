@@ -84,7 +84,7 @@ function routeFetch(handlers: { status?: Handler; actions?: Handler; platformSta
 }
 
 const urlsOf = (suffix: string) =>
-  mockAuthFetch.mock.calls.map(c => c[0] as string).filter(u => u.split('?')[0].endsWith(suffix));
+  mockAuthFetch.mock.calls.map(c => c[0] as string).filter(u => u.split('?')[0] === `/api${suffix}`);
 
 function user(role: string) {
   return {
