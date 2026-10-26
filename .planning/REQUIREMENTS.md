@@ -12,20 +12,20 @@
 
 ### 1. Autonomy Policy & Safety Core
 
-- [x] **GATE-01**: Each tenant has an autonomy level (Off / Suggest / Undoable-auto) stored in the database; new tenants default to Undoable-auto and every existing tenant is given an explicit stored level by migration.
-- [x] **GATE-02**: Only tenants whose Autonomous Ops screen a Super Admin has ticked are eligible for autonomous actions, and a tenant whose level cannot be read is treated as Suggest (fail closed).
-- [x] **GATE-03**: Every autonomous action passes one decision function that applies, in order: platform stop, tenant eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression — and only that gate writes autonomous agent instructions (a structural test fails on any other writer).
-- [x] **GATE-04**: Action classes come from a code-owned registry (auto or approval, plus the undo action): block IP, quarantine file and restart service are auto; isolate host, kill process and patch reboot need approval; a playbook's YAML may raise a class but never lower it.
-- [x] **GATE-05**: No autonomous path dispatches an LLM-written script or an LLM-chosen action: the legacy `run_cycle` / `generate_plan` / `execute_plan` path is removed, the 0.90 confidence auto-approve bypass no longer applies to autonomous actions, and a test proves only registry-listed playbook actions reach the agent queue.
-- [x] **GATE-06**: A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; a stop takes effect without a restart, halts new decisions, holds back autonomous instructions already queued at agent delivery, and freezes pending approvals and rollouts.
-- [x] **GATE-07**: Every autonomous decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention.
-- [x] **GATE-08**: The platform host, its own IP addresses and the management network can never be blocked, isolated or patched autonomously, and a per-decision cap limits how many hosts one decision can touch.
-- [x] **GATE-09**: The operator can run in shadow mode (on by default at deployment), in which the gate records what it would have done without dispatching anything.
-- [x] **GATE-10**: An approval dispatches exactly once even if clicked twice (atomic, single-use), and an approval left pending past its expiry counts as denied.
-- [x] **GATE-11**: Autonomous sweeps run one at a time across the deployment (lock with renewal), set the tenant explicitly on every write and reset tenant context per tenant; a two-tenant test proves no autonomous action or record crosses tenants.
-- [x] **GATE-12**: Agent online/offline status refreshes every 5 minutes as documented, pinned by a test, and the offline notification names the agents that actually went offline, so health checks read current data. (Corrected 2026-10-25: the loop already polls every 30 s; the earlier "3600 s sleep" premise was a misread.)
-- [x] **GATE-13**: Changing a tenant's level, approving or undoing actions, and flipping the platform stop are separate permissions; a Super Admin sets the highest level a tenant may use and tenant admins can choose only at or below it.
-- [x] **GATE-14**: When several autonomous actions in a row for a tenant are undone or fail, that tenant drops to Suggest automatically and the on-call channel is told (circuit breaker).
+- [ ] **GATE-01**: Each tenant has an autonomy level (Off / Suggest / Undoable-auto) stored in the database; new tenants default to Undoable-auto and every existing tenant is given an explicit stored level by migration.
+- [ ] **GATE-02**: Only tenants whose Autonomous Ops screen a Super Admin has ticked are eligible for autonomous actions, and a tenant whose level cannot be read is treated as Suggest (fail closed).
+- [ ] **GATE-03**: Every autonomous action passes one decision function that applies, in order: platform stop, tenant eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression — and only that gate writes autonomous agent instructions (a structural test fails on any other writer).
+- [ ] **GATE-04**: Action classes come from a code-owned registry (auto or approval, plus the undo action): block IP, quarantine file and restart service are auto; isolate host, kill process and patch reboot need approval; a playbook's YAML may raise a class but never lower it.
+- [ ] **GATE-05**: No autonomous path dispatches an LLM-written script or an LLM-chosen action: the legacy `run_cycle` / `generate_plan` / `execute_plan` path is removed, the 0.90 confidence auto-approve bypass no longer applies to autonomous actions, and a test proves only registry-listed playbook actions reach the agent queue.
+- [ ] **GATE-06**: A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; a stop takes effect without a restart, halts new decisions, holds back autonomous instructions already queued at agent delivery, and freezes pending approvals and rollouts.
+- [ ] **GATE-07**: Every autonomous decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention.
+- [ ] **GATE-08**: The platform host, its own IP addresses and the management network can never be blocked, isolated or patched autonomously, and a per-decision cap limits how many hosts one decision can touch.
+- [ ] **GATE-09**: The operator can run in shadow mode (on by default at deployment), in which the gate records what it would have done without dispatching anything.
+- [ ] **GATE-10**: An approval dispatches exactly once even if clicked twice (atomic, single-use), and an approval left pending past its expiry counts as denied.
+- [ ] **GATE-11**: Autonomous sweeps run one at a time across the deployment (lock with renewal), set the tenant explicitly on every write and reset tenant context per tenant; a two-tenant test proves no autonomous action or record crosses tenants.
+- [ ] **GATE-12**: Agent online/offline status refreshes every 5 minutes as documented, pinned by a test, and the offline notification names the agents that actually went offline, so health checks read current data. (Corrected 2026-10-25: the loop already polls every 30 s; the earlier "3600 s sleep" premise was a misread.)
+- [ ] **GATE-13**: Changing a tenant's level, approving or undoing actions, and flipping the platform stop are separate permissions; a Super Admin sets the highest level a tenant may use and tenant admins can choose only at or below it.
+- [ ] **GATE-14**: When several autonomous actions in a row for a tenant are undone or fail, that tenant drops to Suggest automatically and the on-call channel is told (circuit breaker).
 
 ### 2. Security Response
 
@@ -74,14 +74,14 @@
 
 ### 6. Activity View
 
-- [x] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
+- [ ] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
 - [ ] **ACTV-02**: An operator can approve or deny pending actions and undo done actions that have an inverse, from the same screen.
-- [x] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
+- [ ] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
 - [ ] **ACTV-04**: Each tenant gets one daily digest: what ran, what was undone, and what is waiting for approval.
 - [ ] **ACTV-05**: The operator can see per-rule statistics: how often each rule fired and was approved, denied or undone.
 - [ ] **ACTV-06**: The operator can export the activity log as CSV or PDF.
 - [ ] **ACTV-07**: The screen shows an estimate of operator time saved, labelled as an estimate.
-- [x] **ACTV-08**: A copy check fails the build if Autonomous Ops screens or docs use "ASI", "Autopilot", "fully autonomous" or an unqualified "rollback".
+- [ ] **ACTV-08**: A copy check fails the build if Autonomous Ops screens or docs use "ASI", "Autopilot", "fully autonomous" or an unqualified "rollback".
 
 ## v2 Requirements (v4.3 deferred)
 
@@ -181,23 +181,23 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | COST-06 | Phase 78 | Pending |
 | COST-07 | Phase 78 | Pending |
 | COST-08 | Phase 80 | Pending |
-| GATE-01 | Phase 81 | Complete |
-| GATE-02 | Phase 81 | Complete |
-| GATE-03 | Phase 81 | Complete |
-| GATE-04 | Phase 81 | Complete |
-| GATE-05 | Phase 81 | Complete |
-| GATE-06 | Phase 81 | Complete |
-| GATE-07 | Phase 81 | Complete |
-| GATE-08 | Phase 81 | Complete |
-| GATE-09 | Phase 81 | Complete |
-| GATE-10 | Phase 81 | Complete |
-| GATE-11 | Phase 81 | Complete |
-| GATE-12 | Phase 81 | Complete |
-| GATE-13 | Phase 81 | Complete |
-| GATE-14 | Phase 81 | Complete |
-| ACTV-01 | Phase 81 | Complete |
-| ACTV-03 | Phase 81 | Complete |
-| ACTV-08 | Phase 81 | Complete |
+| GATE-01 | Phase 81 | Gaps Found |
+| GATE-02 | Phase 81 | Gaps Found |
+| GATE-03 | Phase 81 | Gaps Found |
+| GATE-04 | Phase 81 | Gaps Found |
+| GATE-05 | Phase 81 | Gaps Found |
+| GATE-06 | Phase 81 | Gaps Found |
+| GATE-07 | Phase 81 | Gaps Found |
+| GATE-08 | Phase 81 | Gaps Found |
+| GATE-09 | Phase 81 | Gaps Found |
+| GATE-10 | Phase 81 | Gaps Found |
+| GATE-11 | Phase 81 | Gaps Found |
+| GATE-12 | Phase 81 | Gaps Found |
+| GATE-13 | Phase 81 | Gaps Found |
+| GATE-14 | Phase 81 | Gaps Found |
+| ACTV-01 | Phase 81 | Gaps Found |
+| ACTV-03 | Phase 81 | Gaps Found |
+| ACTV-08 | Phase 81 | Gaps Found |
 | HEAL-01 | Phase 82 | Pending |
 | HEAL-02 | Phase 82 | Pending |
 | HEAL-03 | Phase 82 | Pending |
