@@ -441,3 +441,31 @@ def test_row_pairs_covers_steps_then_rollback_and_the_legacy_shape():
     assert len(multi) == 2 and all(p == {"ip_address": GOOD_1} for _, p in multi)
     assert dispatch_check.row_pairs({"steps": [{"command": "block_ip"}], "rollback": "x"})[0][1] == {}
 
+
+def test_step_count():
+    assert dispatch_check.step_count({"steps": [{}, {}, {}]}) == 3
+    assert dispatch_check.step_count({"command": "block_ip"}) == 1
+    assert dispatch_check.step_count({}) == 0
+
+
+async def _executed(db, steps, key):
+    decision = await _decide(db, steps, key=key)
+    assert decision.state == "dispatching", decision
+    assert await ledger.transition(db, "t1", decision.action_id, ("dispatching",), "executed")
+    return decision.action_id
+
+
+async def test_a_multi_step_executed_row_cannot_be_undone_by_one_instruction(live):
+    aid = await _executed(live, [_block(GOOD_1), _block(GOOD_2)], "multi")
+    out = await approvals.undo(live, "t1", aid, actor=APPROVER)
+    assert out == {"status": "no_undo"}
+    assert (await ledger.get(live, "t1", aid))["state"] == "executed"
+    assert await live.agent_instructions.count_documents({}) == 0
+
+
+async def test_a_single_step_executed_row_still_undoes(live):
+    aid = await _executed(live, [_block(GOOD_1)], "single")
+    out = await approvals.undo(live, "t1", aid, actor=APPROVER)
+    assert out["status"] == "undone"
+    sent = [d["payload"] async for d in live.agent_instructions.find({"type": "unblock_ip"})]
+    assert sent == [{"ip_address": GOOD_1}]

@@ -127,6 +127,13 @@ def row_pairs(row) -> List[Tuple[Any, Dict[str, Any]]]:
     return [(registry.resolve(n), params) for n in names]
 
 
+def step_count(row) -> int:
+    """How many steps the row was decided with: the recorded steps, else 1 when it has a
+    command, else 0."""
+    if isinstance(row.get("steps"), list):
+        return len(row["steps"])
+    return 1 if row.get("command") else 0
+
 
 # ---------------------------------------------------------------- dispatch-time binding (81-15)
 

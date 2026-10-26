@@ -209,6 +209,8 @@ async def undo(db, tenant_id: str, action_id: str, *, actor: Dict[str, Any]) -> 
         return {"status": "already_handled"}
     if row.get("state") not in _UNDOABLE:
         return {"status": "refused", "reason": "not_undoable"}
+    if dispatch_check.step_count(row) > 1:      # one instruction cannot put back every step (ACTV-01)
+        return {"status": "no_undo"}
     spec = registry.resolve(row.get("command"))
     if spec is None or not spec.undo:
         return {"status": "no_undo"}
