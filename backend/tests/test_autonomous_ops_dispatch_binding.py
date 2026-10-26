@@ -1,7 +1,7 @@
 """Decide-time half of Gap 1 (81-VERIFICATION, CR-01): the gate checks EVERY step and EVERY
 compensation step of a playbook, each with its own parameters, and records the decided plan.
 
-proves=GATE-03 GATE-04 GATE-08 GATE-10 ACTV-01 (plan 81-13)
+proves=GATE-03 GATE-04 GATE-08 GATE-10 ACTV-01 (plans 81-13, 81-15)
 fails_when=a later step or a compensation step aimed at a never-touch address is accepted, a
 step that is not a registered auto/approve command (or a compensation step that is not
 undo_only) reaches a recorded decision, the decided row loses its steps/rollback, or a
@@ -17,7 +17,7 @@ import pytest
 from autonomous_ops import gate, ledger, protected
 from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.autonomy_support import agent_that_completes, seed_agent, seed_tenant
+from tests.autonomy_support import agent_that_completes, seed_agent, seed_platform_stop, seed_tenant
 
 BAD = "127.0.0.1"          # on the platform never-touch list
 GOOD_1, GOOD_2 = "203.0.113.7", "203.0.113.8"
@@ -213,3 +213,150 @@ async def test_the_first_refusing_step_decides_the_recorded_reason(live):
     assert decision.reason == "invalid_target"
     decision = await _decide(live, [_block(BAD), _block("999.1.1.1")], key="k2")
     assert decision.reason == "protected_target"
+
+
+# ------------------------------------------------------------ 81-15: execute-time binding
+
+async def _exec(db, aid, command="block_ip", agent="a1", params=None, kind="action"):
+    return await gate.execute(db, "t1", aid, command=command, agent_id=agent,
+                              params={"ip_address": GOOD_2} if params is None else params, kind=kind)
+
+
+async def _decided_two(db):
+    decision = await _decide(db, [_block(GOOD_1), _block(GOOD_2)])
+    assert decision.state == "dispatching", decision
+    return decision.action_id
+
+
+async def test_execute_binds_command_agent_and_params_to_the_decided_steps(live):
+    await seed_tenant(live, "t2", shadow=False)
+    await seed_agent(live, "t2", "a2")
+    aid = await _decided_two(live)
+    cases = [
+        (dict(params={"ip_address": "203.0.113.9"}), "step_mismatch"),
+        (dict(params={"ip_address": BAD}), "step_mismatch"),
+        (dict(agent="a2"), "target_mismatch"),
+        (dict(command="restart_service", params={}), "step_mismatch"),
+        (dict(command="format_disk", params={}), "unregistered_action"),
+        (dict(command="scan_ip", params={"target": "x"}), "step_mismatch"),
+    ]
+    for kwargs, reason in cases:
+        assert await _exec(live, aid, **kwargs) == {"status": "refused", "reason": reason}, kwargs
+    assert await live.agent_instructions.count_documents({}) == 0
+    assert (await _exec(live, aid))["status"] == "queued"
+    assert (await _exec(live, aid, params={"ip_address": GOOD_1}))["status"] == "queued"
+    assert await live.agent_instructions.count_documents({"triggered_by": "autonomous_ops"}) == 2
+
+
+async def test_two_identical_decided_steps_may_each_be_dispatched(live):
+    aid = (await _decide(live, [_block(GOOD_1), _block(GOOD_1)])).action_id
+    assert (await _exec(live, aid, params={"ip_address": GOOD_1}))["status"] == "queued"
+    assert (await _exec(live, aid, params={"ip_address": GOOD_1}))["status"] == "queued"
+
+
+async def test_params_compare_by_canonical_json_and_a_changed_representation_is_refused(live):
+    from autonomous_ops import dispatch_check
+    assert dispatch_check.same_params({"a": 1, "b": 2}, {"b": 2, "a": 1}) is True
+    assert dispatch_check.same_params(None, {}) is True
+    assert dispatch_check.same_params({"port": 5}, {"port": "5"}) is False
+    aid = (await _decide(live, [{"action": "restart_service", "params": {"port": 5}}])).action_id
+    assert (await _exec(live, aid, command="restart_service", params={"port": "5"}))["reason"] == "step_mismatch"
+    assert (await _exec(live, aid, command="restart_service", params={"port": 5}))["status"] == "queued"
+
+
+async def test_a_never_touch_entry_added_after_the_decision_refuses_the_dispatch(live):
+    aid = await _decided_two(live)
+    await protected.add_entry(live, scope="tenant", tenant_id="t1", kind="ip", value=GOOD_2, actor="admin")
+    assert await _exec(live, aid) == {"status": "refused", "reason": "protected_target"}
+    assert (await _exec(live, aid, params={"ip_address": GOOD_1}))["status"] == "queued"
+    assert await live.agent_instructions.count_documents({"payload.ip_address": GOOD_2}) == 0
+
+
+async def test_an_unreadable_never_touch_list_refuses_the_dispatch(live):
+    aid = await _decided_two(live)
+    with patch("autonomous_ops.protected.check", new=AsyncMock(side_effect=RuntimeError("down"))):
+        assert await _exec(live, aid) == {"status": "refused", "reason": "protected_target"}
+    assert await live.agent_instructions.count_documents({}) == 0
+
+
+async def test_an_unparsable_decided_ip_is_invalid_target_at_dispatch(live):
+    row = await ledger.create_intent(live, {
+        "tenantId": "t1", "kind": "security", "origin": "remediation", "state": "dispatching",
+        "actions": ["block_ip"], "command": "block_ip", "targets": ["a1"], "params": {"ip_address": "999.1.1.1"},
+        "steps": [{"command": "block_ip", "params": {"ip_address": "999.1.1.1"}}], "rollback": []})
+    assert await _exec(live, row["id"], params={"ip_address": "999.1.1.1"}) == {
+        "status": "refused", "reason": "invalid_target"}
+
+
+async def test_compensate_needs_a_decided_undo_only_step(live):
+    aid = (await _decide(live, [_block(GOOD_1)], rollback=[_unblock(GOOD_1)])).action_id
+    ok = dict(command="unblock_ip", kind="compensate")
+    assert (await _exec(live, aid, params={"ip_address": GOOD_1}, **ok))["status"] == "queued"
+    assert (await _exec(live, aid, params={"ip_address": "203.0.113.99"}, **ok))["reason"] == "step_mismatch"
+    assert (await _exec(live, aid, command="block_ip", params={"ip_address": GOOD_1},
+                        kind="compensate"))["reason"] == "step_mismatch"
+    bare = (await _decide(live, [_block(GOOD_2)], rollback=[], key="k2")).action_id
+    assert (await _exec(live, bare, params={"ip_address": GOOD_2}, **ok))["reason"] == "step_mismatch"
+
+
+async def test_probe_is_any_probe_command_with_the_agent_bound(live):
+    aid = await _decided_two(live)
+    assert (await _exec(live, aid, command="scan_ip", params={"target": "x"}, kind="probe"))["status"] == "queued"
+    assert (await _exec(live, aid, command="block_ip", params={"ip_address": GOOD_1},
+                        kind="probe"))["reason"] == "step_mismatch"
+    assert (await _exec(live, aid, command="scan_ip", agent="nope", params={}, kind="probe"))["reason"] == "target_mismatch"
+
+
+async def test_undo_is_bound_to_the_recorded_undo_action_and_params(live):
+    aid = (await _decide(live, [_block(GOOD_1)])).action_id
+    await ledger.transition(live, "t1", aid, ("dispatching",), "undone")
+    assert (await _exec(live, aid, command="restart_service", params={}, kind="undo"))["reason"] == "step_mismatch"
+    assert (await _exec(live, aid, command="unblock_ip", params={"ip_address": GOOD_2},
+                        kind="undo"))["reason"] == "step_mismatch"
+    assert (await _exec(live, aid, command="unblock_ip", params={"ip_address": GOOD_1},
+                        kind="undo"))["status"] == "queued"
+
+
+async def test_refusal_order_stop_and_state_come_before_the_binding(live):
+    aid = await _decided_two(live)
+    await seed_platform_stop(live)
+    assert (await _exec(live, aid, params={"ip_address": BAD}))["reason"] == "stopped"
+    waiting = (await _decide(live, [{"action": "isolate_host", "params": {}}], key="k3")).action_id
+    assert (await _exec(live, waiting, command="restart_service", params={}))["reason"] == "not_dispatchable"
+    assert (await _exec(live, waiting, command="restart_service", params={}, kind="bogus"))["reason"] == "invalid_kind"
+    assert (await _exec(live, "AO-none"))["reason"] == "not_found"
+
+
+async def test_a_refused_binding_leaves_an_approved_row_approved(live):
+    aid = (await _decide(live, [{"action": "isolate_host", "params": {}}])).action_id
+    assert await ledger.transition(live, "t1", aid, ("awaiting_approval",), "approved")
+    assert (await _exec(live, aid, command="kill_process", params={}))["reason"] == "step_mismatch"
+    assert (await ledger.get(live, "t1", aid))["state"] == "approved"
+    assert (await _exec(live, aid, command="isolate_host", params={}))["status"] == "queued"
+    assert (await ledger.get(live, "t1", aid))["state"] == "dispatching"
+
+
+async def test_the_response_task_writer_binds_too(live):
+    aid = (await _decide(live, [_block(GOOD_1)])).action_id
+    args = dict(agent_id="a1", playbook_execution_id=None)
+    bad = await gate.execute_response_task(live, "t1", aid, action="block_ip", params={}, **args)
+    assert bad == {"status": "refused", "reason": "step_mismatch"}
+    ok = await gate.execute_response_task(live, "t1", aid, action="block_ip", params={"ip_address": GOOD_1}, **args)
+    assert ok["status"] == "queued" and await live.response_tasks.count_documents({}) == 1
+
+
+async def test_an_altered_step_through_the_service_is_refused_and_the_row_fails(live):
+    """CR-01 end to end: the stored playbook is changed between decision and dispatch."""
+    await _operator_playbook(live, [{"action": "block_ip", "params": {"ip_address": "{{finding.resource_id}}"}},
+                                    {"action": "block_ip", "params": {"ip_address": GOOD_2}}])
+    finding = _finding("f-9")
+    decision = await _decide(live, [_block(GOOD_1), _block(GOOD_2)], key="svc")
+    altered = {"name": "block_ip", "rollback": [], "steps": [
+        {"action": "block_ip", "params": {"ip_address": GOOD_1}}, {"action": "block_ip", "params": {"ip_address": BAD}}]}
+    with agent_that_completes("Clean"):
+        result = await AutonomousRemediationService()._dispatch_and_verify("R-1", finding, altered, decision.action_id)
+    assert result["status"] == "unverified"
+    assert [s["status"] for s in result["steps_dispatched"]] == ["SUCCESS", "refused"]
+    assert (await ledger.get(live, "t1", decision.action_id))["state"] == "failed"
+    sent = [d["payload"] async for d in live.agent_instructions.find({"type": "block_ip"})]
+    assert sent == [{"ip_address": GOOD_1}]

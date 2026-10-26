@@ -17,8 +17,8 @@ Every recorded decision is inserted into ``autonomy_actions`` before anything is
 if that insert fails the decision is refused ``ledger_unavailable`` (GATE-07). Shadow mode
 (deployment master or the tenant's own flag, D-02) records "would have" and writes nothing
 to an agent. ``execute`` and ``execute_response_task`` are the ONLY places in the repository
-that write the autonomy stamp (``triggered_by`` autonomous_ops); each re-reads the ledger row
-and refuses unless the row is in a dispatchable state for the kind of instruction.
+that write the autonomy stamp (``triggered_by`` autonomous_ops); each re-reads the ledger row,
+refuses unless it is dispatchable for the kind, and binds the dispatch to what was decided.
 
 Raw Mongo handle with an explicit tenantId everywhere; the ambient tenant ContextVar is never
 used. No LLM client is imported or called anywhere in this package.
@@ -425,8 +425,8 @@ async def _stopped(db, tenant_id: str) -> bool:
     return (not s.readable) or settings.stop_active(s.stop)
 
 
-async def _authorise(db, tenant_id: str, action_id: str, kind: str):
-    """(row, None) when this kind of instruction may be written for the row, else (None, reason)."""
+async def _authorise(db, tenant_id: str, action_id: str, kind: str, *, command=None, agent_id=None, params=None):
+    """(row, None) when this dispatch may be written for the row, else (None, reason)."""
     if kind not in INSTRUCTION_KINDS:
         return None, "invalid_kind"
     row = await ledger.get(db, tenant_id, action_id)
@@ -436,6 +436,8 @@ async def _authorise(db, tenant_id: str, action_id: str, kind: str):
         return None, "not_dispatchable"
     if kind not in STOP_EXEMPT_KINDS and await _stopped(db, tenant_id):
         return None, "stopped"
+    if reason := await dispatch_check.bind(db, tenant_id, row, command=command, agent_id=agent_id, params=params, kind=kind):
+        return None, reason
     if kind == "action" and row["state"] == "approved":
         row = await ledger.transition(db, tenant_id, action_id, ("approved",), "dispatching")
         if row is None:
@@ -456,8 +458,8 @@ async def execute(db, tenant_id: str, action_id: str, *, command: str, agent_id:
                   params: Dict[str, Any], kind: str = "action") -> Dict[str, Any]:
     """Write one stamped agent instruction for a ledger row. This and ``execute_response_task``
     are the only functions in the repository that write the autonomy stamp. Refused unless the
-    row is in a dispatchable state for ``kind`` and (except undo/compensate, D-12) no stop is on."""
-    row, reason = await _authorise(db, tenant_id, action_id, kind)
+    row is dispatchable for ``kind``, no stop is on (undo/compensate exempt, D-12) and ``bind`` passes."""
+    row, reason = await _authorise(db, tenant_id, action_id, kind, command=command, agent_id=agent_id, params=params)
     if row is None:
         return {"status": "refused", "reason": reason}
     task_id = uuid.uuid4().hex
@@ -479,7 +481,7 @@ async def execute_response_task(db, tenant_id: str, action_id: str, *, action: s
                                 playbook_execution_id: Optional[str] = None) -> Dict[str, Any]:
     """Write one stamped response task (the third delivery queue) for a ledger row, under the
     same state and stop rules as ``execute`` for kind "action"."""
-    row, reason = await _authorise(db, tenant_id, action_id, "action")
+    row, reason = await _authorise(db, tenant_id, action_id, "action", command=action, agent_id=agent_id, params=params)
     if row is None:
         return {"status": "refused", "reason": reason}
     now = datetime.now(timezone.utc)

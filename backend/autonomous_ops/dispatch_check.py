@@ -9,9 +9,14 @@ A request carries its plan as ``steps`` / ``rollback`` (lists of ``{"action", "p
 A request without ``steps`` is the single-params form: the steps are derived from ``actions``
 plus the shared ``params``, so there is one internal source.
 
+At dispatch, ``bind`` ties each instruction the gate writes to the decided row (GATE-03 / GATE-08
+/ GATE-10): a registered command of the right class, an agent the row was decided for, one of
+the decided (command, params) steps, and a never-touch re-check of the IP parameters.
+
 Raw Mongo handle and an explicit tenant only. Pure reads: nothing here writes, names the
 autonomy stamp, or touches an LLM.
 """
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import protected, registry
@@ -104,4 +109,66 @@ async def ip_refusal(db, tenant_id: str, pairs) -> Optional[str]:
                 code = await protected.check(db, tenant_id, ip=params[key])
                 if code:
                     return code
+    return None
+
+
+# ---------------------------------------------------------------- dispatch-time binding (81-15)
+
+_KIND_CLASSES = {"action": ("auto", "approve"), "compensate": ("undo_only",), "undo": ("undo_only",),
+                 "probe": ("probe",)}
+
+
+def same_params(a, b) -> bool:
+    """True when both parameter dicts have the same canonical JSON (sorted keys, ``default=str``).
+    A value whose representation differs (int 5 versus "5") is not the same: fail closed."""
+    try:
+        return (json.dumps(a or {}, sort_keys=True, default=str)
+                == json.dumps(b or {}, sort_keys=True, default=str))
+    except (TypeError, ValueError):
+        return False
+
+
+def _items(value) -> List[Dict[str, Any]]:
+    return [i for i in value if isinstance(i, dict)] if isinstance(value, list) else []
+
+
+def decided_steps(row, kind: str) -> Optional[List[Dict[str, Any]]]:
+    """The ``{command, params}`` steps the row was decided with for this kind of instruction;
+    None for a probe (any probe command). action: the recorded steps, else the row's actions
+    with its params. compensate: the recorded rollback. undo: the recorded undo action."""
+    if kind == "probe":
+        return None
+    if kind == "compensate":
+        return _items(row.get("rollback"))
+    if kind == "undo":
+        undo = row.get("undo") if isinstance(row.get("undo"), dict) else {}
+        return [{"command": undo["action"], "params": undo.get("params") or {}}] if undo.get("action") else []
+    if isinstance(row.get("steps"), list):
+        return _items(row["steps"])
+    names = row.get("actions") if isinstance(row.get("actions"), list) else [row.get("command")]
+    return [{"command": n, "params": row.get("params") or {}} for n in names]
+
+
+async def bind(db, tenant_id: str, row, *, command, agent_id, params, kind: str) -> Optional[str]:
+    """None when this dispatch is exactly what the row decided, else the refusal code:
+    ``unregistered_action``, ``target_mismatch``, ``step_mismatch``, or (auto / approve
+    commands only, checked now against the current list) ``protected_target`` /
+    ``invalid_target``. An unreadable never-touch list refuses ``protected_target``."""
+    spec = registry.resolve(command)
+    if spec is None:
+        return "unregistered_action"
+    targets = row.get("targets")
+    if not isinstance(targets, list) or agent_id not in targets:
+        return "target_mismatch"
+    if spec.cls not in _KIND_CLASSES.get(kind, ()):
+        return "step_mismatch"
+    steps = decided_steps(row, kind)
+    if steps is not None and not any(
+            registry.resolve(s.get("command")) is spec and same_params(s.get("params"), params) for s in steps):
+        return "step_mismatch"
+    if spec.cls in ("auto", "approve"):
+        try:
+            return await ip_refusal(db, tenant_id, [(spec, params)])
+        except Exception:
+            return "protected_target"
     return None
