@@ -8,8 +8,8 @@ the right bucket; a tenant without the Autonomous Ops screen tick is Off and lea
 no audit event; a ledger that cannot be written refuses the decision and dispatches nothing;
 fails_when=a decision is returned without a row, an unticked tenant leaves a trace, an
 instruction is written in shadow mode or without a ledger row, or the audit chain breaks;
-no_claim=the remaining GATE-03 steps (stop, level, never-touch, caps, dedupe), which plan
-81-11 adds and enumerates.
+no_claim=the remaining GATE-03 steps (stop, level, never-touch, caps, dedupe), which
+test_autonomous_ops_gate_order.py (plan 81-11) enumerates.
 """
 import os
 import sys
@@ -99,6 +99,7 @@ async def test_class_step_escalates_approve_actions_and_refuses_unregistered(mon
     name outside the registry, an undo-only name or a probe is refused unregistered_action."""
     await ledger.ensure_indexes(mongo_db)
     await seed_tenant(mongo_db, "t1", shadow=False)
+    await seed_agent(mongo_db, "t1", "a1", ip="198.51.100.11")
     mongo_db_shadow_off = {"master_shadow": False}
 
     iso = gate.ActionRequest(tenant_id="t1", kind="security", origin="test", actions=["isolate_host"],
@@ -133,6 +134,7 @@ async def test_a_ledger_that_cannot_be_written_refuses_the_decision(mongo_db):
     """protects=GATE-07: when the insert raises, decide refuses ledger_unavailable and no
     instruction or response task is written."""
     await seed_tenant(mongo_db, "t1", shadow=False)
+    await seed_agent(mongo_db, "t1", "a1", ip="198.51.100.11")
 
     class _Broken:
         async def insert_one(self, *_a, **_k):
@@ -144,3 +146,76 @@ async def test_a_ledger_that_cannot_be_written_refuses_the_decision(mongo_db):
     assert (decision.outcome, decision.reason, decision.recorded) == ("refuse", "ledger_unavailable", False)
     assert await mongo_db.agent_instructions.count_documents({}) == 0
     assert await mongo_db.response_tasks.count_documents({}) == 0
+
+
+# ---------------------------------------------------------------- plan 81-11, Task 1 (tracer)
+
+def _own_address() -> str:
+    """An address of one of this host's own interfaces, as the never-touch list sees it."""
+    import socket
+
+    import psutil
+    for addrs in psutil.net_if_addrs().values():
+        for item in addrs:
+            if item.family == socket.AF_INET and not item.address.startswith("127."):
+                return item.address
+    return "127.0.0.1"
+
+
+async def test_tracer_own_address_is_refused_protected_target_at_every_level(mongo_db):
+    """Tracer. protects=GATE-08 / PROH-81-03: a block_ip aimed at the backend's own address is
+    refused protected_target through gate.decide, recorded with the plain-words reason, even at
+    Suggest, and writes no instruction."""
+    from autonomous_ops import messages
+    await ledger.ensure_indexes(mongo_db)
+    own = _own_address()
+    for tenant, level in (("t1", "undoable_auto"), ("t2", "suggest")):
+        await seed_tenant(mongo_db, tenant, level=level, shadow=False)
+        await seed_agent(mongo_db, tenant, f"{tenant}-a1", ip="198.51.100.11" if tenant == "t1" else "198.51.100.12")
+        d = await gate.decide(mongo_db, _block_ip(tenant, agent_id=f"{tenant}-a1", ip=own), master_shadow=False)
+        assert (d.outcome, d.state, d.reason, d.recorded) == ("refuse", "refused", "protected_target", True), tenant
+        rows = await mongo_db.autonomy_actions.find({"tenantId": tenant}).to_list(5)
+        assert len(rows) == 1 and rows[0]["state"] == "refused" and rows[0]["reasonCode"] == "protected_target"
+        assert rows[0]["reasonText"] == messages.REASON_TEXT["protected_target"]
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
+    assert await mongo_db.response_tasks.count_documents({}) == 0
+
+
+async def test_platform_agent_address_other_tenant_target_and_empty_targets_are_refused(mongo_db):
+    """protects=GATE-08 / D-17: a block_ip for the address of a platform-admin agent is
+    protected_target; a target agent of another tenant (or none) is cross_tenant_target; an
+    empty target list is no_target."""
+    await ledger.ensure_indexes(mongo_db)
+    await seed_tenant(mongo_db, "t1", shadow=False)
+    await seed_agent(mongo_db, "t1", "a1", ip="198.51.100.11")
+    await seed_agent(mongo_db, "t9", "b1", ip="198.51.100.19")
+    await seed_agent(mongo_db, "platform-admin", "pa1", ip="198.51.100.77")
+    kw = {"master_shadow": False}
+
+    d = await gate.decide(mongo_db, _block_ip("t1", ip="198.51.100.77"), **kw)
+    assert (d.outcome, d.reason) == ("refuse", "protected_target")
+    for target in ("b1", "pa1", "ghost"):
+        d = await gate.decide(mongo_db, _block_ip("t1", agent_id=target), **kw)
+        assert (d.outcome, d.reason) == ("refuse", "cross_tenant_target"), target
+    empty = _block_ip("t1")
+    empty.targets = []
+    d = await gate.decide(mongo_db, empty, **kw)
+    assert (d.outcome, d.reason) == ("refuse", "no_target")
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
+
+
+def test_messages_cover_every_reason_code_and_every_registry_command():
+    """protects=ACTV-01 / ACTV-08: every code decide can record has plain words, every command
+    has a label, and no user-visible text uses a banned term."""
+    import re
+
+    from autonomous_ops import messages, registry
+    assert set(messages.REASON_TEXT) >= set(gate.REASON_CODES)
+    assert set(messages.ACTION_LABELS) >= set(registry.commands())
+    assert messages.PLATFORM_ADMIN_DISPLAY == "Platform administrator"
+    assert messages.simulation_result("block 203.0.113.7") == \
+        "Nothing was done. This is what would have happened: block 203.0.113.7."
+    texts = [*messages.ACTION_LABELS.values(), *messages.CLASS_LINES.values(), *messages.CONTROL_LABELS.values(),
+             *messages.REASON_TEXT.values(), *[t for pair in messages.NOTICES.values() for t in pair]]
+    banned = re.compile(r"\b(ASI|AGI)\b|autopilot|fully[ -]autonomous|roll(ed|ing)?[ -]?back", re.IGNORECASE)
+    assert [t for t in texts if banned.search(t)] == []
