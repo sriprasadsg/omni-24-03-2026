@@ -227,7 +227,7 @@ for case in json.loads(sys.argv[1]):
     td = TokenData(username="probe@example.com", role=case["role"], tenant_id=case["tenant_id"],
                    scopes=case.get("scopes"), auth_source="api_key" if api_key else "session")
     app.dependency_overrides.clear()
-    if api_key:
+    if api_key or mode == "session_capable":
         target = api_key_auth.get_current_user_or_api_key
     elif mode == "agent_capable":
         target = auth.get_current_user_or_agent
@@ -245,7 +245,10 @@ def probe_real_app(cases: List[Dict[str, Any]]) -> List[int]:
 
     Case keys: method, path, role, tenant_id, scopes (optional), auth ("session", "api_key" or
     "agent_capable": the case's TokenData replaces get_current_user_or_agent only, for routes that
-    authenticate people and endpoint agents through it; role "agent" is then the agent identity),
+    authenticate people and endpoint agents through it; role "agent" is then the agent identity;
+    "session_capable": the case's TokenData, built with auth_source "session", replaces
+    get_current_user_or_api_key only, for routes that accept a session or an API key through it,
+    such as Autonomous Ops; "api_key" overrides the same dependency with auth_source "api_key"),
     tenant_features (optional: the tenant's feature-switch list, spec C6; default every feature on).
     """
     raw = subprocess.run([sys.executable, "-c", _PROBE, json.dumps(cases)], cwd=BACKEND_DIR,

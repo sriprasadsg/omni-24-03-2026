@@ -24,6 +24,7 @@ from fastapi import FastAPI
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import autonomous_ops_endpoints as endpoints
+import rbac_utils
 from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
 from autonomous_ops import ledger, messages, protected
@@ -38,7 +39,7 @@ NOW = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)   # long before any ro
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
-    monkeypatch.delenv("AUTONOMOUS_REMEDIATION_DRY_RUN", raising=False)
+    monkeypatch.setenv("AUTONOMOUS_REMEDIATION_DRY_RUN", "false")     # the deployment master is off
     protected.cache_clear()
 
 
@@ -49,6 +50,7 @@ class Api:
         self.db = db
         self.user = None
         monkeypatch.setattr(endpoints, "get_database", lambda: db)
+        monkeypatch.setattr(rbac_utils, "get_database", lambda: db)     # role documents for the permission checks
         self.app = FastAPI()
         self.app.include_router(endpoints.router,
                                 dependencies=mount_dependencies("autonomous_ops_endpoints", "router"))
@@ -297,23 +299,30 @@ def _case(path, role, *, method="GET", auth="session_capable", tenant=None, scop
     return case
 
 
+def _probe(groups):
+    """One interpreter for every case: ``groups`` maps a name to its cases; returns name -> statuses."""
+    flat = [case for cases in groups.values() for case in cases]
+    codes = iter(probe_real_app(flat))
+    return {name: [next(codes) for _ in cases] for name, cases in groups.items()}
+
+
 def test_read_routes_are_open_to_exactly_the_roles_d06_names():
     """protects=GATE-13 read side on the full app; fails_when=viewer, user, itam_admin or platform
     billing reach the screen, or an approver role does not."""
-    reads = ["/api/autonomous-ops/status", "/api/autonomous-ops/actions"]
     allowed_roles = ("analyst", "security_analyst", "incident_responder", "tenant_admin")
-    for path in reads:
-        got = probe_real_app([_case(path, role) for role in allowed_roles])
-        assert all(code in (200, 503) for code in got), (path, dict(zip(allowed_roles, got)))
-        staff = probe_real_app([_case(path + "?tenantId=t1", "super_admin"),
-                                _case(path + "?tenantId=t1", "platform_support")])
-        assert all(code in (200, 503) for code in staff), (path, staff)
-        key = probe_real_app([_case(path, "tenant_admin", auth="api_key", scopes=["view:autonomous_ops"])])
-        assert key[0] in (200, 503), (path, key)
-        denied_roles = ("viewer", "user", "itam_admin", "platform_billing")
-        denied = probe_real_app([_case(path, role) for role in denied_roles])
-        assert denied == [403] * len(denied_roles), (path, dict(zip(denied_roles, denied)))
-        off = probe_real_app([_case(path, "tenant_admin", features=["view:overview"])])
-        assert off == [403], path
-        wrong_scope = probe_real_app([_case(path, "tenant_admin", auth="api_key", scopes=["view:agents"])])
-        assert wrong_scope == [403], path
+    denied_roles = ("viewer", "user", "itam_admin", "platform_billing")
+    groups = {}
+    for path in ("/api/autonomous-ops/status", "/api/autonomous-ops/actions"):
+        groups[path, "allowed"] = [_case(path, role) for role in allowed_roles]
+        groups[path, "staff"] = [_case(path + "?tenantId=t1", "super_admin"),
+                                 _case(path + "?tenantId=t1", "platform_support")]
+        groups[path, "key"] = [_case(path, "tenant_admin", auth="api_key", scopes=["view:autonomous_ops"])]
+        groups[path, "denied"] = [_case(path, role) for role in denied_roles]
+        groups[path, "off"] = [_case(path, "tenant_admin", features=["view:overview"])]
+        groups[path, "wrong_scope"] = [_case(path, "tenant_admin", auth="api_key", scopes=["view:agents"])]
+    got = _probe(groups)
+    for (path, kind), codes in got.items():
+        if kind in ("allowed", "staff", "key"):
+            assert all(code in (200, 503) for code in codes), (path, kind, codes)
+        else:
+            assert codes == [403] * len(codes), (path, kind, codes)

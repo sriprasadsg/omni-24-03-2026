@@ -47,6 +47,9 @@ _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     # all. That's worse than any single feature being down and should
     # never be silently tolerated at startup.
     "authentication_endpoints",
+    # Phase 81 (T-81-41): the Autonomous Ops stop routes. A broken import here would leave the
+    # app up with no way to press or clear a stop, so startup must fail instead.
+    "autonomous_ops_endpoints",
 })
 
 
@@ -333,6 +336,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "dora_endpoints",             "router")
     _load(app, "insights_endpoints",         "router")
     _load(app, "compliance_report_endpoints","router")
+    _load(app, "autonomous_ops_endpoints",   "router")  # Phase 81: Autonomous Ops tenant routes
 
     # ── Optional / Feature Routers (non-fatal if missing) ────────────────────
     _OPTIONAL: list[tuple[str, dict]] = [

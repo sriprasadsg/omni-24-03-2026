@@ -80,6 +80,32 @@ REASON_TEXT = {
 }
 
 
+# The Result column in plain words, keyed by ledger state (a simulation uses SIMULATION_WOULD_HAVE).
+STATE_RESULT = {
+    "suggested": "Waiting for a person to decide.",
+    "awaiting_approval": "Waiting for a person to approve.",
+    "approved": "Approved. Waiting for the host to pick it up.",
+    "dispatching": "Sent to the host. Waiting for the result.",
+    "executed": "Done.",
+    "verified": "Done and checked afterwards.",
+    "undone": "Undone.",
+    "rolled_back": "Undone.",
+    "failed": "The action did not finish.",
+    "refused": "Nothing was done.",
+    "denied": "Denied. Nothing was done.",
+    "expired": "No one decided in time. Nothing was done.",
+    "cancelled_by_stop": "Cancelled by the stop. Nothing was done.",
+}
+
+# What a simulated decision would have done, keyed by the outcome the gate reached.
+SIMULATION_WOULD_HAVE = {
+    "allow_auto": "{action}{host} would have run automatically",
+    "needs_approval": "{action}{host} would have waited for a person to approve it",
+    "suggest": "{action}{host} would have been suggested to a person",
+    "other": "{action}{host} would have been handled by Autonomous Ops",
+}
+
+
 def simulation_result(text: str) -> str:
     """What a shadow-mode row says it would have done."""
     return f"Nothing was done. This is what would have happened: {str(text).rstrip('. ')}."
