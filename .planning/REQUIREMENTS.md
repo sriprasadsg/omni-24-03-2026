@@ -12,7 +12,7 @@
 
 ### 1. Autonomy Policy & Safety Core
 
-- [ ] **GATE-01**: Each tenant has an autonomy level (Off / Suggest / Undoable-auto) stored in the database; new tenants default to Undoable-auto and every existing tenant is given an explicit stored level by migration.
+- [x] **GATE-01**: Each tenant has an autonomy level (Off / Suggest / Undoable-auto) stored in the database; new tenants default to Undoable-auto and every existing tenant is given an explicit stored level by migration.
 - [x] **GATE-02**: Only tenants whose Autonomous Ops screen a Super Admin has ticked are eligible for autonomous actions, and a tenant whose level cannot be read is treated as Suggest (fail closed).
 - [ ] **GATE-03**: Every autonomous action passes one decision function that applies, in order: platform stop, tenant eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression — and only that gate writes autonomous agent instructions (a structural test fails on any other writer).
 - [ ] **GATE-04**: Action classes come from a code-owned registry (auto or approval, plus the undo action): block IP, quarantine file and restart service are auto; isolate host, kill process and patch reboot need approval; a playbook's YAML may raise a class but never lower it.
@@ -181,7 +181,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | COST-06 | Phase 78 | Pending |
 | COST-07 | Phase 78 | Pending |
 | COST-08 | Phase 80 | Pending |
-| GATE-01 | Phase 81 | Pending |
+| GATE-01 | Phase 81 | Complete |
 | GATE-02 | Phase 81 | Complete |
 | GATE-03 | Phase 81 | Pending |
 | GATE-04 | Phase 81 | Pending |
