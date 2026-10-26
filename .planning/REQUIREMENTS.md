@@ -17,7 +17,7 @@
 - [x] **GATE-03**: Every autonomous action passes one decision function that applies, in order: platform stop, tenant eligibility, tenant stop, level, action class, protected targets, blast-radius cap, cooldown and suppression — and only that gate writes autonomous agent instructions (a structural test fails on any other writer).
 - [x] **GATE-04**: Action classes come from a code-owned registry (auto or approval, plus the undo action): block IP, quarantine file and restart service are auto; isolate host, kill process and patch reboot need approval; a playbook's YAML may raise a class but never lower it.
 - [x] **GATE-05**: No autonomous path dispatches an LLM-written script or an LLM-chosen action: the legacy `run_cycle` / `generate_plan` / `execute_plan` path is removed, the 0.90 confidence auto-approve bypass no longer applies to autonomous actions, and a test proves only registry-listed playbook actions reach the agent queue.
-- [ ] **GATE-06**: A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; a stop takes effect without a restart, halts new decisions, holds back autonomous instructions already queued at agent delivery, and freezes pending approvals and rollouts.
+- [x] **GATE-06**: A Super Admin can flip a platform-wide stop and a tenant admin a per-tenant stop; a stop takes effect without a restart, halts new decisions, holds back autonomous instructions already queued at agent delivery, and freezes pending approvals and rollouts.
 - [x] **GATE-07**: Every autonomous decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention.
 - [x] **GATE-08**: The platform host, its own IP addresses and the management network can never be blocked, isolated or patched autonomously, and a per-decision cap limits how many hosts one decision can touch.
 - [x] **GATE-09**: The operator can run in shadow mode (on by default at deployment), in which the gate records what it would have done without dispatching anything.
@@ -74,14 +74,14 @@
 
 ### 6. Activity View
 
-- [ ] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
+- [x] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
 - [ ] **ACTV-02**: An operator can approve or deny pending actions and undo done actions that have an inverse, from the same screen.
 - [x] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
 - [ ] **ACTV-04**: Each tenant gets one daily digest: what ran, what was undone, and what is waiting for approval.
 - [ ] **ACTV-05**: The operator can see per-rule statistics: how often each rule fired and was approved, denied or undone.
 - [ ] **ACTV-06**: The operator can export the activity log as CSV or PDF.
 - [ ] **ACTV-07**: The screen shows an estimate of operator time saved, labelled as an estimate.
-- [ ] **ACTV-08**: A copy check fails the build if Autonomous Ops screens or docs use "ASI", "Autopilot", "fully autonomous" or an unqualified "rollback".
+- [x] **ACTV-08**: A copy check fails the build if Autonomous Ops screens or docs use "ASI", "Autopilot", "fully autonomous" or an unqualified "rollback".
 
 ## v2 Requirements (v4.3 deferred)
 
@@ -186,7 +186,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | GATE-03 | Phase 81 | Complete |
 | GATE-04 | Phase 81 | Complete |
 | GATE-05 | Phase 81 | Complete |
-| GATE-06 | Phase 81 | Pending |
+| GATE-06 | Phase 81 | Complete |
 | GATE-07 | Phase 81 | Complete |
 | GATE-08 | Phase 81 | Complete |
 | GATE-09 | Phase 81 | Complete |
@@ -195,9 +195,9 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | GATE-12 | Phase 81 | Complete |
 | GATE-13 | Phase 81 | Complete |
 | GATE-14 | Phase 81 | Complete |
-| ACTV-01 | Phase 81 | Pending |
+| ACTV-01 | Phase 81 | Complete |
 | ACTV-03 | Phase 81 | Complete |
-| ACTV-08 | Phase 81 | Pending |
+| ACTV-08 | Phase 81 | Complete |
 | HEAL-01 | Phase 82 | Pending |
 | HEAL-02 | Phase 82 | Pending |
 | HEAL-03 | Phase 82 | Pending |
