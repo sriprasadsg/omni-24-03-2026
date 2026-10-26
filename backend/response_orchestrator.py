@@ -242,11 +242,17 @@ class ResponseOrchestrator:
         and the incident level (same tenant+alert_type+action) to prevent multiple
         agents from responding to the same incident.
         """
+        # GATE-11: never compare across tenants. No tenant means we cannot prove the task is
+        # not a duplicate, so fail closed and let the caller skip it.
+        if not tenant_id:
+            return True
+
         db = get_database()
         since = (datetime.now(timezone.utc) - timedelta(minutes=dedup_window_minutes)).isoformat()
 
         # Per-agent dedup
         agent_dup = await db.response_tasks.find_one({
+            "tenantId": tenant_id,
             "agent_id": agent_id,
             "action": action,
             "status": {"$in": ["queued", "executed"]},
@@ -256,8 +262,9 @@ class ResponseOrchestrator:
             return True
 
         # Cross-agent dedup: same incident type in the same tenant
-        if tenant_id and alert_type:
+        if alert_type:
             incident_dup = await db.response_tasks.find_one({
+                "tenantId": tenant_id,
                 "alert_type": alert_type,
                 "action": action,
                 "status": {"$in": ["queued", "executed"]},
