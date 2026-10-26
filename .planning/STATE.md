@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 81
 current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
 status: executing
-stopped_at: Completed 81-05-PLAN.md
-last_updated: "2026-10-26T09:12:44.598Z"
+stopped_at: Completed 81-06-PLAN.md
+last_updated: "2026-10-26T09:30:50.025Z"
 last_activity: 2026-10-26
 last_activity_desc: Phase 81 execution started
-state_head: c8921839b791be0fb082bd7ff6da2d2c26a1f352
+state_head: fb93c117f9dc26664af965eeed7126163ea9c051
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 12
-  completed_plans: 7
+  completed_plans: 8
   percent: 17
 ---
 
@@ -457,6 +457,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 81]: 81-04: breaker trip/restore are conditional updates (one trip, one notice under races); breaker only trips tenants stored at undoable_auto; approve is frozen during a stop but expiry and undo are not
 - [Phase 81]: 81-05: stop-withheld stamped action/probe becomes terminal cancelled_by_stop; unreadable stop/ledger withholds but leaves pending (fail closed)
 - [Phase 81]: 81-05: can_clear lets manage holders clear only tenant stops whose stored pressedByTier is tenant; unknown origin needs Super Admin
+- [Phase 81]: 81-06: automatic playbook containment steps pass gate.decide; selectors only gate.suggest; evaluate_action confidence bypass removed (low-confidence guard kept)
 
 ## Performance Metrics
 
@@ -619,6 +620,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 81 P11 | 33 min | 2 tasks | 7 files |
 | Phase 81 P04 | 19min | 3 tasks | 9 files |
 | Phase 81 P05 | 30 min | 3 tasks | 10 files |
+| Phase 81 P06 | 20min | 2 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -653,8 +655,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-26T09:12:44.495Z
-**Stopped at:** Completed 81-05-PLAN.md
+**Last session:** 2026-10-26T09:30:49.917Z
+**Stopped at:** Completed 81-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -680,7 +682,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 81 (Autonomy Gate, Stop Switch & Activity Ledger) — EXECUTING
-Plan: 8 of 12
+Plan: 9 of 12
 Status: Ready to execute
 Last activity: 2026-10-26 — Phase 81 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
