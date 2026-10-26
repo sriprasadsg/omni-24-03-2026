@@ -429,7 +429,7 @@ class AutonomousRemediationService:
         db = get_database()
         tenant_id = finding.tenant_id
 
-        playbooks = await load_playbooks(db)
+        playbooks = await load_playbooks(db, tenant_id)
         playbook = select_playbook(finding, playbooks)
         if not playbook:
             return {"status": "no_playbook", "finding_id": finding.finding_id}

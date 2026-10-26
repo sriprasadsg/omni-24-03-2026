@@ -8,6 +8,10 @@ lookups. Operators can extend the vendored set via the dedicated
 which is distinct from the LLM-driven `playbooks` store
 (enhanced_playbook_endpoints.py) — the engine (53-03) only ever executes
 playbooks from this deterministic store.
+
+Selection is tenant-scoped (Phase 81, GATE-08/GATE-11): a finding sees only the vendored
+defaults (no tenantId) and the playbooks of its own tenant, so one tenant's operator-authored
+steps are never run for another tenant.
 """
 import logging
 import os
@@ -89,6 +93,16 @@ def _finding_attr(finding: Any, name: str, default=None):
     return getattr(finding, name, default)
 
 
+def _belongs(playbook: Dict[str, Any], tenant_id: Any) -> bool:
+    """True when ``playbook`` may be used for a finding of ``tenant_id``: an untenanted vendored
+    default, or a playbook stamped with that same (non-empty) tenant id. Anything else, including
+    a document with no tenant id that is not vendored, is another tenant's or unowned."""
+    owner = playbook.get("tenantId")
+    if not owner:
+        return playbook.get("source") == "vendored"
+    return isinstance(tenant_id, str) and bool(tenant_id) and owner == tenant_id
+
+
 def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
     """Deterministically maps a finding to the playbook that remediates its
     class. `playbooks` defaults to the vendored set (hermetic); the engine
@@ -106,7 +120,8 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
     """
     if playbooks is None:
         playbooks = load_default_playbooks()
-    by_name = {p["name"]: p for p in playbooks}
+    tenant_id = _finding_attr(finding, "tenant_id")
+    by_name = {p["name"]: p for p in playbooks if _belongs(p, tenant_id)}
 
     finding_type = _finding_attr(finding, "finding_type")
     details = _finding_attr(finding, "details", {}) or {}
@@ -154,10 +169,14 @@ async def sync_default_playbooks_to_db(db) -> int:
     return count
 
 
-async def load_playbooks(db) -> List[Dict[str, Any]]:
-    """Returns the full merged set (vendored defaults + operator-authored)
-    from the `remediation_playbooks` collection, seeding defaults on first
-    call."""
+async def load_playbooks(db, tenant_id) -> List[Dict[str, Any]]:
+    """Returns the vendored defaults (read from disk) followed by the operator-authored
+    playbooks of ``tenant_id`` only, seeding the defaults into the collection on first call.
+    A later document of the same name overrides an earlier one for that tenant. A missing or
+    non-string tenant id gets the vendored defaults alone."""
     await sync_default_playbooks_to_db(db)
-    docs = await db.remediation_playbooks.find({}, {"_id": 0}).to_list(length=200)
-    return docs
+    playbooks = load_default_playbooks()
+    if isinstance(tenant_id, str) and tenant_id:
+        docs = await db.remediation_playbooks.find({"tenantId": tenant_id}, {"_id": 0}).to_list(length=200)
+        playbooks.extend(docs)
+    return playbooks
