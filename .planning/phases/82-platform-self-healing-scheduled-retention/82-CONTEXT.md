@@ -63,6 +63,10 @@ Requirements: HEAL-01..08 (8). Depends on Phase 81 (stop switch, ledger, platfor
 - **D-23:** Watchdog events (checks that changed state, restarts, warnings, pages, test results) appear in the Activity view **at platform scope, Super Admin only**. They must not leak into tenant views (Phase 81's tenant query already includes platform-scope **stop control** rows for tenant viewers — watchdog events must not ride that path).
 - **D-24:** **Before the watchdog is installed:** the panel shows **"Watchdog not installed"** with a link to the install checklist. The dead-man's switch (D-05) **arms only after the first heartbeat ever arrives**, so nothing alarms about a watchdog that was never installed. Disk and certificate checks wait for the watchdog (the backend does not run them meanwhile).
 
+### UI-phase amendments (user-decided 2026-10-27, during /gsd-ui-phase 82)
+- **D-25:** The tenant retention screen that edits per-tenant periods is `components/RetentionPolicyDashboard.tsx` (over `/api/retention/policies`); `RetentionPoliciesDashboard.tsx` named in canonical refs is a different screen (`/api/retention-tiers`). On that screen the **audit-logs card keeps its row but loses its Edit button** and shows the note "Audit logs are kept by the audit ledger's own schedule, not by this cleanup." (follows from D-16).
+- **D-26:** The **manual "Run cleanup now"** (`POST /api/retention/run`) **honours the same count-only gate** as the nightly job: data types still waiting for confirmation (first run, or a shortened period per D-19) are only counted until a Super Admin confirms; everything already confirmed is deleted as usual. One rule everywhere, so the review cannot be bypassed with Run now. Extends D-16.
+
 ### Claude's Discretion
 - Which warnings page versus only appear in the panel/Activity (suggested default: every threshold crossing is one deduplicated on-call message, PagerDuty severity rising from info to critical — e.g. 30-day cert and 80% disk as info, 1-day cert, 95% disk and 1-day forecast as critical).
 - Exact rule for "no working channel" (suggested: no channel configured, or the last test/delivery failed).
