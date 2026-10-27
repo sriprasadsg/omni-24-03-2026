@@ -1,0 +1,18 @@
+# Install as /etc/omni-watchdog/watchdog.conf (root:omni-watchdog 0640). Not secret. Every key is
+# optional; the commented value is the default used when the key (or this file) is absent.
+[watchdog]
+# Where the backend listens; only http(s) URLs are accepted.
+# backend_url = http://127.0.0.1:5000
+# Bearer token for POST /api/internal/watchdog/sync (also delivered to the backend by the drop-in).
+# ingest_token_path = /etc/omni-watchdog/ingest.token
+# On-call channel settings (see oncall.env.example).
+# oncall_env_path = /etc/omni-watchdog/oncall.env
+# Creating this file stops all automatic restarts (the emergency stop).
+# stop_file = /etc/omni-watchdog/STOP
+# Certificates to watch besides /etc/nginx/ssl/omni.crt, comma separated.
+# extra_certs =
+# Paths whose filesystem usage is watched, comma separated.
+# disk_paths = /, /var/lib/mongodb
+# Set to true only on servers where Ollama is expected to run (the watchdog never starts an
+# Ollama that is not expected).
+# ollama_expected = false

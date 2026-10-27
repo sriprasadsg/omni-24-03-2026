@@ -1,0 +1,32 @@
+// Omni-Agent AI platform watchdog: the only privilege the omni-watchdog user has (Phase 82, D-12).
+//
+// Install as /etc/polkit-1/rules.d/49-omni-watchdog.rules (root:root 0644). polkit reloads rules
+// on change. Rules run on Duktape, which is ECMAScript 5: no let, const, arrow functions or
+// template strings. A syntax error or a TypeError makes polkit deny silently, so the details
+// are type-checked before use.
+//
+// YES  : subject omni-watchdog, action org.freedesktop.systemd1.manage-units, unit in UNITS,
+//        verb in VERBS.
+// NO   : every other org.freedesktop.systemd1.* action or detail for that user (stop, other
+//        units, missing details, manage-unit-files, ...).
+// NOT_HANDLED : any other user, any other action.
+//
+// To allow Ollama restarts on a server where Ollama is expected, add "ollama.service" to
+// UNITS (see INSTALL.md, "Ollama").
+polkit.addRule(function(action, subject) {
+    var UNITS = ["mongod.service", "omni-backend.service", "nginx.service"];
+    var VERBS = ["restart", "start", "reset-failed"];
+    if (subject.user !== "omni-watchdog") { return polkit.Result.NOT_HANDLED; }
+    if (typeof action.id !== "string" || action.id.indexOf("org.freedesktop.systemd1.") !== 0) {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (action.id === "org.freedesktop.systemd1.manage-units") {
+        var unit = action.lookup("unit");
+        var verb = action.lookup("verb");
+        if (typeof unit === "string" && typeof verb === "string" &&
+            UNITS.indexOf(unit) !== -1 && VERBS.indexOf(verb) !== -1) {
+            return polkit.Result.YES;
+        }
+    }
+    return polkit.Result.NO;
+});
