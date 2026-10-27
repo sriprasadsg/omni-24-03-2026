@@ -189,3 +189,73 @@ def test_oncall_example_parses_to_no_channel_and_holds_no_secret():
             keys[key.strip()] = value.strip()
     assert set(keys) == {"ONCALL_TYPE", "PAGERDUTY_ROUTING_KEY", "WEBHOOK_URL", "WEBHOOK_FORMAT", "HEARTBEAT_URL"}
     assert all(value == "" for value in keys.values())
+
+
+# ---------------------------------------------------------------- Task 3: INSTALL.md and "the app installs nothing"
+
+INSTALL = os.path.join(WATCHDOG, "INSTALL.md")
+START_ALL = os.path.join(ROOT, "start-all-services.sh")
+PHASE_82_BACKEND_MODULES = (
+    "backend/watchdog_ingest_endpoints.py",
+    "backend/autonomous_ops/selfheal.py",
+    "backend/autonomous_ops/oncall.py",
+    "backend/autonomous_ops/health_messages.py",
+    "backend/retention_gate.py",
+    "backend/retention_job.py",
+    "backend/autonomous_ops_retention_endpoints.py",
+)
+
+
+def _shipped_files():
+    """Paths (relative to deploy/omni-watchdog) of every file the operator installs, by category."""
+    found = []
+    for sub in ("systemd", "polkit", "etc"):
+        for dirpath, _dirs, files in os.walk(os.path.join(WATCHDOG, sub)):
+            found.extend(os.path.join(dirpath, name) for name in files)
+    return sorted(found)
+
+
+def test_install_checklist_names_every_shipped_file_with_its_destination():
+    text = _text(INSTALL)
+    shipped = _shipped_files()
+    assert len(shipped) == 8
+    for path in shipped:
+        assert os.path.basename(path) in text, "INSTALL.md does not mention %s" % os.path.basename(path)
+    for destination in ("/usr/local/lib/omni-watchdog", "/etc/omni-watchdog", "/etc/polkit-1/rules.d",
+                        "/etc/systemd/system", "/var/lib/omni-watchdog"):
+        assert destination in text, destination
+    assert "omni-watchdog.py" in text and "omni_watchdog" in text
+
+
+def test_install_checklist_covers_the_safety_steps():
+    text = _text(INSTALL)
+    for needle in ("run-on-ubuntu.sh", "pkcheck", "systemctl cat mongod", "kernel-rseq-check.conf",
+                   "HEARTBEAT_URL", "STOP", "ollama.service", "retention", "root:omni-watchdog",
+                   "0750", "0640", "secrets.token_hex", "ingest.token"):
+        assert needle in text, needle
+    assert text.count("pkcheck") >= 2
+    assert "nginx.service" in text and "ssh.service" in text
+    lowered = text.lower()
+    assert "never run" in lowered and "run-on-ubuntu.sh" in lowered
+    # The first retention count gates the daily telemetry purge (D-15).
+    assert "confirm" in lowered and "d-15" in lowered
+
+
+def test_start_all_services_does_not_know_about_the_watchdog():
+    text = _text(START_ALL)
+    assert "omni-watchdog" not in text
+    assert "polkit" not in text
+
+
+@pytest.mark.parametrize("relative", PHASE_82_BACKEND_MODULES)
+def test_phase_82_backend_modules_install_nothing(relative):
+    import re
+    path = os.path.join(ROOT, *relative.split("/"))
+    if not os.path.isfile(path):
+        pytest.skip("%s is not created yet (a later Phase 82 plan creates it)" % relative)
+    text = _text(path)
+    assert "systemctl" not in text
+    assert not re.search(r"^\s*(import\s+subprocess|from\s+subprocess\s+import)", text, re.MULTILINE)
+    assert "os.system" not in text
+    assert not re.search(r"open\(\s*['\"]/etc/[^)]*['\"][wax]\+?['\"]?", text)
+    assert not re.search(r"open\(\s*['\"]/etc/[^)]*,\s*['\"][wax]", text)
