@@ -383,14 +383,14 @@ Plans:
   4. Data retention runs on a schedule per tenant in bounded batches and never touches audit logs, the audit ledger or decision records; its first run is a dry-run count the operator confirms before anything is deleted.
   5. Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope, and the repo ships the watchdog unit files, service drop-ins and an install checklist — the app itself installs nothing on the live server.
 
-**Plans**: 3/14 plans executed in 6 waves
+**Plans**: 4/14 plans executed in 6 waves
 
 Plans:
 **Wave 1**
 - [x] 82-01-PLAN.md — Wave 1: Tracer: token-authenticated watchdog sync stores heartbeat and turns events into platform-health ledger rows; leak guard keeps them out of tenant and Platform Support views; migration 025
 - [x] 82-02-PLAN.md — Wave 1: Tracer: stdlib-only watchdog package checks MongoDB, backend, nginx, Ollama-expected-state, debounces, spools offline and syncs with the three-source stop
 - [x] 82-06-PLAN.md — Wave 1: Tracer: oneshot unit and timer pass systemd-analyze; harness-proven polkit rule, non-clobbering drop-ins, example configs, INSTALL.md; app installs nothing
-- [ ] 82-09-PLAN.md — Wave 1: Tracer: first nightly retention run only counts; gate per tenant and type, bounded batches, 02:00 UTC catch-up under lock; telemetry loop folded in; migration 027
+- [x] 82-09-PLAN.md — Wave 1: Tracer: first nightly retention run only counts; gate per tenant and type, bounded batches, 02:00 UTC catch-up under lock; telemetry loop folded in; migration 027
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 82-03-PLAN.md — Wave 2: Tracer: watchdog restarts a down mongod; budget 3 per 30 min with 1/2/4 min waits, gave-up incident once, re-arm after 1 h, MongoDB before backend, stop pauses restarts
@@ -500,7 +500,7 @@ Plans:
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
-| 82. Platform Self-Healing & Scheduled Retention | 3/14 | In Progress | - |
+| 82. Platform Self-Healing & Scheduled Retention | 4/14 | In Progress | - |
 | 83. Autonomous Security Response | 0/TBD | Not started | - |
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
