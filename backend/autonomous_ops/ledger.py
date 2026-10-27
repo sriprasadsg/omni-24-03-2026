@@ -14,7 +14,7 @@ records are outside generic retention (see ``PROTECTED_COLLECTIONS``).
 import base64
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, Optional
 
 from pymongo import ReturnDocument
@@ -22,12 +22,14 @@ from pymongo.errors import DuplicateKeyError
 
 import audit_ledger
 
-from . import BUCKET_STATES, OPEN_STATES, TERMINAL_STATES
+from . import BUCKET_STATES, OPEN_STATES, PLATFORM_TENANT_ID, TERMINAL_STATES, health_messages
 from .scope import raw
 
 logger = logging.getLogger(__name__)
 
 _MAX_PAGE = 200
+_HEALTH_MAX_FUTURE = timedelta(seconds=60)      # a platform-health row is never dated further ahead than this
+_HEALTH_MAX_PAST = timedelta(days=7)            # nor further back (a replayed spool keeps its order)
 _DENIED = ("refused", "denied", "expired", "cancelled_by_stop")
 
 
@@ -152,6 +154,39 @@ async def record_control(db, tenant_id: str, event: str, *, scope: str, actor: D
         raise LedgerUnavailable(f"control event could not be recorded: {exc}") from exc
     doc.pop("_id", None)
     await _mirror(db, tenant_id, event, doc, actor)
+    return doc
+
+
+def _clamp_at(at, now: datetime) -> datetime:
+    at = _aware(at) if isinstance(at, datetime) else now
+    return max(now - _HEALTH_MAX_PAST, min(now + _HEALTH_MAX_FUTURE, at))
+
+
+async def record_platform_health(db, event_id: str, kind: str, params: Optional[Dict[str, Any]], *,
+                                 at: Optional[datetime], host: Optional[str],
+                                 actor: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """A watchdog (or backend) health event as a ``platform_health`` row at platform scope (HEAL-07).
+    The row id is ``PH-<event id>``: a second insert of the same event is a duplicate key and returns
+    None (already ingested, nothing mirrored again). Never kind ``control``: that shape is what the
+    tenant query includes. Any other insert error raises ``LedgerUnavailable``. The row time is the
+    event time clamped to at most 60 s ahead and 7 days back."""
+    params = dict(params or {})
+    now = _now()
+    created = _clamp_at(at, now)
+    rule_id = health_messages.render(kind, params, host)["ruleId"]
+    doc = {"id": "PH-" + event_id, "tenantId": PLATFORM_TENANT_ID, "kind": "platform_health", "state": "recorded",
+           "healthEvent": kind, "healthParams": params, "healthChip": health_messages.chip_for(kind, params),
+           "host": host, "target": params.get("target"), "actor": dict(actor) if actor else None,
+           "reason": {"ruleId": rule_id, "inputs": {}}, "origin": "operator" if actor else "watchdog",
+           "createdAt": created, "updatedAt": created, "finishedAt": created}
+    try:
+        await _actions(db).insert_one(doc)
+    except DuplicateKeyError:
+        return None
+    except Exception as exc:
+        raise LedgerUnavailable(f"platform health event could not be recorded: {exc}") from exc
+    doc.pop("_id", None)
+    await _mirror(db, PLATFORM_TENANT_ID, "platform_health." + kind, doc, actor)
     return doc
 
 
