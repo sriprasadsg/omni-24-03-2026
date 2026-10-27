@@ -383,7 +383,23 @@ Plans:
   4. Data retention runs on a schedule per tenant in bounded batches and never touches audit logs, the audit ledger or decision records; its first run is a dry-run count the operator confirms before anything is deleted.
   5. Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope, and the repo ships the watchdog unit files, service drop-ins and an install checklist — the app itself installs nothing on the live server.
 
-**Plans**: TBD
+**Plans**: 14 plans in 6 waves
+
+Plans:
+- [ ] 82-01-PLAN.md — Wave 1: Tracer: token-authenticated watchdog sync stores heartbeat and turns events into platform-health ledger rows; leak guard keeps them out of tenant and Platform Support views; migration 025
+- [ ] 82-02-PLAN.md — Wave 1: Tracer: stdlib-only watchdog package checks MongoDB, backend, nginx, Ollama-expected-state, debounces, spools offline and syncs with the three-source stop
+- [ ] 82-06-PLAN.md — Wave 1: Tracer: oneshot unit and timer pass systemd-analyze; harness-proven polkit rule, non-clobbering drop-ins, example configs, INSTALL.md; app installs nothing
+- [ ] 82-09-PLAN.md — Wave 1: Tracer: first nightly retention run only counts; gate per tenant and type, bounded batches, 02:00 UTC catch-up under lock; telemetry loop folded in; migration 027
+- [ ] 82-03-PLAN.md — Wave 2: Tracer: watchdog restarts a down mongod; budget 3 per 30 min with 1/2/4 min waits, gave-up incident once, re-arm after 1 h, MongoDB before backend, stop pauses restarts
+- [ ] 82-07-PLAN.md — Wave 2: Tracer: notify() queues on-call messages the watchdog drains; Send test alert request/result loop; watchdog-state function; migration 026
+- [ ] 82-10-PLAN.md — Wave 2: Tracer: Super Admin reviews and confirms retention counts (stale-proof token); manual run honours the gate; audit logs never deleted; next run time; Activity rows
+- [ ] 82-04-PLAN.md — Wave 3: Tracer: certificate 30/14/7/1-day, disk 80/90/95 percent and 7-day forecast ladders as deduplicated incidents; never renews or deletes
+- [ ] 82-08-PLAN.md — Wave 3: Tracer: health summary on the shared status poller, full GET /health document, dead-man in-app alarm once per silence episode
+- [ ] 82-05-PLAN.md — Wave 4: Tracer: watchdog pages PagerDuty/webhook once per incident with grouping and resolve, delivers outbox and test alerts, pings the external heartbeat; end-to-end contract test
+- [ ] 82-11-PLAN.md — Wave 4: Tracer: Super Admin health banners (watchdog silent, no working channel) in any scope; typed API surface and shared health chips
+- [ ] 82-12-PLAN.md — Wave 5: Tracer: Platform health section with watchdog and services, certificate, disk and on-call cards and Send test alert
+- [ ] 82-14-PLAN.md — Wave 5: Tracer: platform-health rows and filter pill in platform Activity only; tenant Retention Policy notices (D-16/D-19/D-25/D-26)
+- [ ] 82-13-PLAN.md — Wave 6: Tracer: retention review card and Confirm deletion dialog with the stale-count guard
 **UI hint**: yes
 **Research**: Light — polkit/sudoers scoping for the watchdog and its MongoDB authentication path (MongoDB auth is still an open readiness item).
 **Live-only verification** (operator steps): install the watchdog units, drop-ins and any scoped sudoers/polkit rule (never `run-on-ubuntu.sh`); stop and start MongoDB and the backend for real; alert delivery to the real on-call channel; confirm the first retention dry-run count before any live run.
