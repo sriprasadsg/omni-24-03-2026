@@ -4,9 +4,12 @@ All timestamps in state are epoch seconds (never local-time strings). ``state.js
 the state directory, which only the watchdog user may write, so the backend user cannot edit it
 and reset a restart budget.
 """
+import contextlib
+import fcntl
 import json
 import os
 import secrets
+import time
 
 STATE_VERSION = 1
 
@@ -24,20 +27,46 @@ def empty_state():
     return {"v": STATE_VERSION, "services": {}, "stopCache": None, "spoolDropped": 0}
 
 
-def load_state(path):
-    """The saved state, or an empty one when the file is missing or unusable."""
+def load_state(path, now=None):
+    """The saved state, or an empty one when the file is missing.
+
+    A file that does not parse is renamed ``state.json.bad-<epoch>`` and the run continues from an empty
+    state carrying ``_reset: True`` (the caller emits one state_reset event and drops the flag)."""
     try:
         with open(path, "r", encoding="utf-8") as handle:
             data = json.load(handle)
+    except FileNotFoundError:
+        return empty_state()
     except (OSError, ValueError):
-        return empty_state()
+        data = None
     if not isinstance(data, dict):
-        return empty_state()
+        try:
+            os.replace(path, "%s.bad-%d" % (path, int(time.time() if now is None else now)))
+        except OSError:
+            pass
+        state = empty_state()
+        state["_reset"] = True
+        return state
     state = empty_state()
     state.update(data)
     if not isinstance(state.get("services"), dict):
         state["services"] = {}
     return state
+
+
+@contextlib.contextmanager
+def run_lock(path):
+    """Yield True when this process holds the exclusive run lock, False when another run has it."""
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            yield False
+            return
+        yield True
+    finally:
+        os.close(fd)        # closing the descriptor releases the lock
 
 
 def save_state(path, state):

@@ -1,7 +1,7 @@
 """Omni-Agent AI platform watchdog (Phase 82).
 
 Standard library only: this package must keep running when the backend's virtualenv, the backend
-or MongoDB is broken, so it imports nothing from backend/ and nothing that needs pip.
+or MongoDB is broken, so it imports no backend code and nothing that needs pip.
 
 One run (``run.run_once``) checks MongoDB, the backend, nginx and Ollama's expected state,
 debounces failures, and reports to the backend through ``POST /api/internal/watchdog/sync``

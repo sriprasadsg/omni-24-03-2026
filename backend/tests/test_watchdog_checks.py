@@ -226,3 +226,146 @@ def test_no_shell_true_anywhere_in_the_watchdog():
             if name.endswith(".py"):
                 text = open(os.path.join(folder, name), encoding="utf-8").read()
                 assert "shell=True" not in text.replace("shell=False", "")
+
+
+# --- configuration, crash-safe state, run lock, stdlib-only (task 3) -------------------------------
+
+import ast  # noqa: E402
+import fcntl  # noqa: E402
+
+from omni_watchdog import config as config_mod, state as state_mod  # noqa: E402
+
+
+def test_load_config_without_a_file_returns_the_defaults(tmp_path):
+    cfg = config_mod.load_config(str(tmp_path / "missing.conf"))
+    assert cfg["backend_url"] == "http://127.0.0.1:5000" and cfg["ollama_expected"] is False
+    assert cfg["certs"] == ["/etc/nginx/ssl/omni.crt"] and cfg["disk_paths"] == ["/", "/var/lib/mongodb"]
+    cfg["certs"].append("/x")                                   # callers cannot corrupt the shared defaults
+    assert wd.DEFAULTS["certs"] == ["/etc/nginx/ssl/omni.crt"]
+
+
+def test_load_config_reads_the_watchdog_section_and_ignores_unknown_keys(tmp_path):
+    conf = tmp_path / "watchdog.conf"
+    conf.write_text("[watchdog]\nextra_certs = /a.crt, /b.crt\nollama_expected = true\nbogus = 1\n"
+                    "disk_paths = /, /data\nbackend_url = http://127.0.0.1:5001/\n")
+    cfg = config_mod.load_config(str(conf))
+    assert cfg["extra_certs"] == ["/a.crt", "/b.crt"]
+    assert cfg["certs"] == ["/etc/nginx/ssl/omni.crt", "/a.crt", "/b.crt"]
+    assert cfg["ollama_expected"] is True and cfg["disk_paths"] == ["/", "/data"]
+    assert cfg["backend_url"] == "http://127.0.0.1:5001" and "bogus" not in cfg
+
+
+def test_load_config_non_boolean_or_bad_values_fall_back(tmp_path):
+    conf = tmp_path / "watchdog.conf"
+    conf.write_text("[watchdog]\nollama_expected = maybe\nbackend_url = file:///etc/passwd\n")
+    cfg = config_mod.load_config(str(conf))
+    assert cfg["ollama_expected"] is False and cfg["backend_url"] == "http://127.0.0.1:5000"
+    conf.write_text("this is not an ini file\n")
+    assert config_mod.load_config(str(conf))["ollama_expected"] is False
+
+
+def test_load_oncall_parses_key_value_lines_and_hides_secrets_from_repr(tmp_path):
+    env = tmp_path / "oncall.env"
+    env.write_text("# comment\n\nONCALL_TYPE=pagerduty\nPAGERDUTY_ROUTING_KEY=RK-SECRET-123\n"
+                   "WEBHOOK_URL=https://hooks.example/SECRET-PATH\nWEBHOOK_FORMAT=slack\n"
+                   "HEARTBEAT_URL=\"https://beat.example/SECRET-BEAT\"\n")
+    oncall = config_mod.load_oncall(str(env))
+    assert (oncall.type, oncall.routing_key, oncall.webhook_format) == ("pagerduty", "RK-SECRET-123", "slack")
+    assert oncall.heartbeat_url == "https://beat.example/SECRET-BEAT"
+    for text in (repr(oncall), str(oncall), "%s" % oncall):
+        assert "SECRET" not in text and "pagerduty" in text
+
+
+def test_load_oncall_missing_or_invalid_means_none(tmp_path):
+    assert config_mod.load_oncall(str(tmp_path / "nope")).type == "none"
+    env = tmp_path / "oncall.env"
+    env.write_text("ONCALL_TYPE=carrier-pigeon\nWEBHOOK_FORMAT=xml\n")
+    oncall = config_mod.load_oncall(str(env))
+    assert oncall.type == "none" and oncall.webhook_format == "json"
+    assert config_mod.read_token(str(tmp_path / "nope")) == ""
+
+
+def test_a_crash_between_the_temp_write_and_the_replace_keeps_the_old_state(tmp_path, monkeypatch):
+    path = str(tmp_path / "state.json")
+    state_mod.save_state(path, {"v": 1, "services": {"mongod": {"state": "down"}}})
+
+    def boom(src, dst):
+        raise RuntimeError("simulated crash")
+
+    monkeypatch.setattr(state_mod.os, "replace", boom)
+    with pytest.raises(RuntimeError):
+        state_mod.save_state(path, {"v": 1, "services": {"mongod": {"state": "healthy"}}})
+    monkeypatch.undo()
+    assert json.load(open(path))["services"]["mongod"]["state"] == "down"
+    assert not os.path.exists(path + ".tmp")
+
+
+def test_corrupt_state_is_quarantined_and_one_state_reset_event_is_emitted(tmp_path, fake_mongo_server, fake_tls_server):
+    (tmp_path / "state.json").write_text("{not json")
+    cfg = _config(tmp_path, fake_mongo_server.start("ok"), fake_tls_server.start("http"))
+    http, clock = _backend(), FakeClock()
+    run_mod.run_once(cfg, str(tmp_path), run=FakeRun(), http=http, now=clock)
+    bad = [n for n in os.listdir(tmp_path) if n.startswith("state.json.bad-")]
+    assert bad == ["state.json.bad-%d" % int(clock())]
+    assert [e["kind"] for e in http.posted(SYNC)[0]["events"]] == ["state_reset"]
+    clock.advance(60)
+    run_mod.run_once(cfg, str(tmp_path), run=FakeRun(), http=http, now=clock)
+    assert http.posted(SYNC)[1]["events"] == []                 # exactly one, and only once
+    assert json.load(open(tmp_path / "state.json"))["services"]["mongod"]["state"] == "healthy"
+
+
+def test_a_second_concurrent_run_exits_at_once_on_the_lock(tmp_path):
+    http, run = _backend(), FakeRun()
+    fd = os.open(str(tmp_path / "state.lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        summary = run_mod.run_once(_config(tmp_path, free_port(), free_port()), str(tmp_path),
+                                   run=run, http=http, now=FakeClock())
+    finally:
+        os.close(fd)
+    assert summary == {"skipped": "locked"}
+    assert run.calls == [] and http.requests == []
+
+
+def test_the_lock_is_released_after_a_run(tmp_path):
+    cfg = _config(tmp_path, free_port(), free_port())
+    for _ in range(2):
+        assert "skipped" not in run_mod.run_once(cfg, str(tmp_path), run=FakeRun(), http=_backend(), now=FakeClock())
+
+
+def _watchdog_sources():
+    for folder, _dirs, files in os.walk(WATCHDOG_DIR):
+        for name in sorted(files):
+            if name.endswith(".py"):
+                path = os.path.join(folder, name)
+                yield path, ast.parse(open(path, encoding="utf-8").read())
+
+
+def test_every_module_imports_only_the_standard_library_and_its_own_package():
+    seen = 0
+    for path, tree in _watchdog_sources():
+        seen += 1
+        for node in ast.walk(tree):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                names = [node.module.split(".")[0]]
+            for top in names:
+                assert top in sys.stdlib_module_names or top == "omni_watchdog", "%s imports %s" % (path, top)
+    assert seen >= 8
+
+
+def test_mongodb_is_only_ever_contacted_by_the_ping():
+    for path, tree in _watchdog_sources():
+        for fn in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]:
+            calls = {c.func.attr for c in ast.walk(fn) if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)}
+            if "create_connection" in calls or "connect" in calls:
+                assert os.path.basename(path) == "checks.py" and fn.name in ("mongo_ping", "nginx_probe"), (path, fn.name)
+        text = open(path, encoding="utf-8").read()
+        assert "pymongo" not in text and "motor" not in text
+
+
+def test_every_module_stays_under_500_lines():
+    for path, _tree in _watchdog_sources():
+        assert len(open(path, encoding="utf-8").read().splitlines()) < 500, path

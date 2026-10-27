@@ -18,7 +18,7 @@ import time
 import urllib.error
 import urllib.request
 
-from . import DEFAULTS, SERVICE_ORDER, checks, services, state as state_mod, sync
+from . import DEFAULTS, SERVICE_ORDER, checks, config as config_mod, services, state as state_mod, sync
 
 CHILD_ENV = {"PATH": "/usr/bin:/bin", "LC_ALL": "C"}
 
@@ -47,27 +47,29 @@ def real_http(method, url, headers, body, timeout):
         return err.code, err.read(sync.MAX_RESPONSE)
 
 
-def _read_token(path):
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            return handle.read().strip()
-    except OSError:
-        return ""
-
-
 def _host(cfg):
     return (cfg.get("host") or socket.gethostname() or "omni")[:128]
 
 
 def run_once(config, state_dir, *, run, http, now):
-    """Check every service, update the state, send one sync. Returns a summary dict."""
-    cfg = {**DEFAULTS, **(config or {})}
+    """Check every service, update the state, send one sync. Returns a summary dict.
+
+    A second concurrent run returns ``{"skipped": "locked"}`` at once, without checking or posting."""
+    os.makedirs(state_dir, mode=0o700, exist_ok=True)
+    with state_mod.run_lock(os.path.join(state_dir, "state.lock")) as acquired:
+        if not acquired:
+            return {"skipped": "locked"}
+        return _run_locked({**DEFAULTS, **(config or {})}, state_dir, run=run, http=http, now=now)
+
+
+def _run_locked(cfg, state_dir, *, run, http, now):
     t = now()
     path = state_mod.state_path(state_dir)
-    state = state_mod.load_state(path)
+    state = state_mod.load_state(path, now=t)
+    reset = bool(state.pop("_reset", False))
 
     results = checks.check_all(run, http, cfg)
-    events = []
+    events = [services.make_event("state_reset", "warning", None, t)] if reset else []
     for sid, ok, detail in results:
         new, produced = services.observe(state["services"].get(sid), ok, detail, t, target=sid)
         state["services"][sid] = new
@@ -82,9 +84,10 @@ def run_once(config, state_dir, *, run, http, now):
     # New events reach the spool (fsynced) before any send, so an outage cannot lose them.
     state["spoolDropped"] = int(state.get("spoolDropped") or 0) + spool.append(events)
 
-    oncall = {"type": "none", "heartbeatConfigured": False, "last": None}
+    channel = config_mod.load_oncall(cfg["oncall_env_path"])
+    oncall = {"type": channel.type, "heartbeatConfigured": bool(channel.heartbeat_url), "last": state.get("oncallLast")}
     body = sync.build_body(_host(cfg), state["services"], [], [], oncall, stop, [], [], sent_at=t)
-    token = _read_token(cfg["ingest_token_path"])
+    token = config_mod.read_token(cfg["ingest_token_path"])
     synced, response = sync.sync_cycle(http, cfg, token, body, spool, state) if token else (False, None)
     if synced:
         sync.resolve_stop(cfg["stop_file"], response, state, now=t)     # refresh the cache for the next run
@@ -101,7 +104,7 @@ def main(argv=None):
     parser.add_argument("--once", action="store_true", help="run one check pass (the default; accepted for clarity)")
     args = parser.parse_args(argv)
     try:
-        run_once(dict(DEFAULTS), args.state_dir, run=real_run, http=real_http, now=time.time)
+        run_once(config_mod.load_config(args.config), args.state_dir, run=real_run, http=real_http, now=time.time)
     except Exception as exc:  # never print headers or URLs: the class name is enough to find it in the journal
         print("omni-watchdog: run failed: %s" % type(exc).__name__, file=sys.stderr)
         return 1
