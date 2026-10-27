@@ -1,0 +1,24 @@
+[Unit]
+Description=Omni-Agent AI platform watchdog (one check run)
+
+[Service]
+# One check run per start. A runtime cap is ignored for Type=oneshot, so TimeoutStartSec= ends a hung run.
+# A tick that arrives while the previous run is still activating does not start a second copy, and
+# a manual run beside the timer's run exits at once on the state.lock flock.
+Type=oneshot
+User=omni-watchdog
+Group=omni-watchdog
+ExecStart=/usr/bin/python3 -I /usr/local/lib/omni-watchdog/omni-watchdog.py
+TimeoutStartSec=45
+# State (state.json, the event spool, state.lock) lives in /var/lib/omni-watchdog, owned by this
+# user only, so the backend cannot edit it. /etc/omni-watchdog is created by INSTALL.md as
+# root:omni-watchdog 0750 (not managed by systemd, which would reset its owner and mode).
+StateDirectory=omni-watchdog
+StateDirectoryMode=0750
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0077
