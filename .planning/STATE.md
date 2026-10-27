@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
 status: executing
-stopped_at: Completed 82-01-PLAN.md
-last_updated: "2026-10-27T07:38:57.941Z"
+stopped_at: Completed 82-02-PLAN.md
+last_updated: "2026-10-27T08:21:40.295Z"
 last_activity: 2026-10-27
 last_activity_desc: Phase 82 execution resumed (wave continue)
-state_head: 1500784530cd7f0353f9249de56a2d7181acea00
+state_head: 27fa15bdf8bb3d798b5d02fc9dec4c5c4504cbf6
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 32
-  completed_plans: 19
+  completed_plans: 20
   percent: 17
 ---
 
@@ -473,6 +473,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 81]: 81-18: approval re-checks every recorded step and compensation step (dispatch_check.row_pairs + ip_refusal); approvals.undo returns no_undo for rows decided with more than one step
 - [Phase 82]: 82-01: watchdog sync access order is 403 (non-loopback/proxy header), 503 (no credential), 401 (bad bearer); unreadable platform stop is reported active (fail closed)
 - [Phase 82]: 82-01: platform_health rows excluded from every tenant query by default (include_platform_health opt-in on the platform route only); rung scale cert 1-4, disk 1-3, forecast 1-3
+- [Phase 82]: 82-02: a 200 sync clears every sent event except those the backend neither accepted nor dropped; those retry and are abandoned after 3 hand-overs
+- [Phase 82]: 82-02: watchdog loopback probe targets (mongo/nginx host+port, ollama_url) are DEFAULTS keys not readable from watchdog.conf, so tests use fake servers
 
 ## Performance Metrics
 
@@ -647,6 +649,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 81 P17 | 35min | 3 tasks | 7 files |
 | Phase 81 P18 | 12 min | 2 tasks | 3 files |
 | Phase 82 P01 | 17 min | 3 tasks | 15 files |
+| Phase 82 P02 | 37min | 3 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -681,8 +684,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-27T07:38:57.758Z
-**Stopped at:** Completed 82-01-PLAN.md
+**Last session:** 2026-10-27T08:21:40.133Z
+**Stopped at:** Completed 82-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -708,7 +711,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
-Plan: 2 of 14
+Plan: 3 of 14
 Status: Ready to execute
 Last activity: 2026-10-27 — Phase 82 execution resumed (wave continue)
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
