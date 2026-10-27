@@ -9,7 +9,8 @@ import asyncio
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
 from bson import ObjectId
@@ -21,6 +22,13 @@ from retention_gate import RetentionType
 logger = logging.getLogger(__name__)
 
 COUNT_MAX_TIME_MS = 30000
+
+LOCK_NAME = "retention_job"
+LOCK_TTL_SECONDS = 120
+LOCK_RENEW_EVERY = 30
+WAKE_EVERY = 300                # seconds between checks of the schedule (D-17)
+STARTUP_DELAY = 120             # let the backend settle before the first check
+SCHEDULE_HOUR_UTC = 2           # before the 02:30 backup (Pitfall 13)
 
 _sleep = asyncio.sleep          # indirection so tests can observe and speed up the pauses
 
@@ -166,3 +174,80 @@ async def run_all(db, *, now: Optional[datetime] = None, lost: Optional[Callable
     summary["finishedAt"] = datetime.now(timezone.utc)
     await rdb[gate.RUNS].insert_one(dict(summary))
     return summary
+
+
+# ----------------------------------------------------------------------------- schedule and lock
+
+def next_scheduled(now: datetime) -> datetime:
+    """The next 02:00 UTC strictly after ``now`` (a naive ``now`` is read as UTC)."""
+    now = gate.aware(now).astimezone(timezone.utc)
+    today = now.replace(hour=SCHEDULE_HOUR_UTC, minute=0, second=0, microsecond=0)
+    return today if now < today else today + timedelta(days=1)
+
+
+def due(now: datetime, last_scheduled_date: Optional[date]) -> bool:
+    """True from today's 02:00 UTC on while no scheduled run is recorded for today (catch-up)."""
+    now = gate.aware(now).astimezone(timezone.utc)
+    if now < now.replace(hour=SCHEDULE_HOUR_UTC, minute=0, second=0, microsecond=0):
+        return False
+    return last_scheduled_date is None or last_scheduled_date < now.date()
+
+
+async def last_scheduled_date(db) -> Optional[date]:
+    doc = await raw(db)[gate.RUNS].find_one({"trigger": "scheduled"}, {"startedAt": 1},
+                                            sort=[("startedAt", -1)])
+    started = gate.aware(doc.get("startedAt")) if doc else None
+    return started.astimezone(timezone.utc).date() if started else None
+
+
+async def run_once(db, *, now: Optional[datetime] = None) -> Optional[Dict]:
+    """The scheduled run under the single-runner lock; None when another backend holds the lock
+    or today's scheduled run has already happened. Retention is not an autonomous action, so the
+    platform stop does not pause it."""
+    import distributed_lock
+    now = now or datetime.now(timezone.utc)
+    lock_db = SimpleNamespace(_db=raw(db))                  # distributed_lock reads db._db
+    async with distributed_lock.lock_with_renewal(lock_db, LOCK_NAME, ttl_seconds=LOCK_TTL_SECONDS,
+                                                  renew_every=LOCK_RENEW_EVERY) as handle:
+        if not handle.acquired:
+            return None
+        if not due(now, await last_scheduled_date(db)):
+            return None
+        return await run_all(db, now=now, lost=lambda: handle.lost, trigger="scheduled")
+
+
+async def run_manual(db, tenant_id: str, *, now: Optional[datetime] = None) -> Optional[Dict]:
+    """One tenant now (POST /api/retention/run, plan 82-10): the same gate and batches, trigger
+    "manual". Takes the same lock; None when a run is in progress. Does not count as the day's
+    scheduled run."""
+    import distributed_lock
+    now = now or datetime.now(timezone.utc)
+    lock_db = SimpleNamespace(_db=raw(db))
+    async with distributed_lock.lock_with_renewal(lock_db, LOCK_NAME, ttl_seconds=LOCK_TTL_SECONDS,
+                                                  renew_every=LOCK_RENEW_EVERY) as handle:
+        if not handle.acquired:
+            return None
+        result = await run_tenant(db, tenant_id, now=now, lost=lambda: handle.lost,
+                                  deadline=time.monotonic() + RUN_MAX_MINUTES * 60, trigger="manual")
+        summary = {"startedAt": now, "finishedAt": datetime.now(timezone.utc), "trigger": "manual",
+                   "tenantId": tenant_id, "counted": result["counted"], "deleted": result["deleted"],
+                   "tenants": 1, "stoppedEarly": result["stoppedEarly"]}
+        await raw(db)[gate.RUNS].insert_one(dict(summary))
+        return summary
+
+
+async def retention_loop() -> None:
+    """Wake every WAKE_EVERY seconds and run the scheduled job when it is due."""
+    from database import get_database
+    await asyncio.sleep(STARTUP_DELAY)
+    while True:
+        try:
+            summary = await run_once(get_database())
+            if summary:
+                logger.info("retention: scheduled run counted %d and deleted %d record(s) for %d tenant(s)",
+                            summary["counted"], summary["deleted"], summary["tenants"])
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("retention: scheduled run failed: %s", exc)
+        await asyncio.sleep(WAKE_EVERY)

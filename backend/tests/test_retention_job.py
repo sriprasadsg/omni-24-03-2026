@@ -350,3 +350,115 @@ async def test_boundary_a_record_exactly_retention_days_old_is_kept(mongo_db):
     for type_id, days in (("agent_metrics", 30), ("notifications", 30), ("agent_uptime_rollups", 90),
                           ("agent_location_history", 365)):
         assert await job.count_type(mongo_db, gate.BY_ID[type_id], "t1", days, NOW) == 1, type_id
+
+
+# ------------------------------------------------------------------ Task 3: schedule, lock, wiring
+
+def _utc(*args):
+    return datetime(*args, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("now,expected", [
+    (_utc(2026, 10, 27, 1, 59, 59), _utc(2026, 10, 27, 2, 0, 0)),
+    (_utc(2026, 10, 27, 2, 0, 0), _utc(2026, 10, 28, 2, 0, 0)),
+    (_utc(2026, 10, 27, 23, 0, 0), _utc(2026, 10, 28, 2, 0, 0)),
+    (_utc(2026, 12, 31, 23, 0, 0), _utc(2027, 1, 1, 2, 0, 0)),
+    (datetime(2026, 10, 27, 0, 30), _utc(2026, 10, 27, 2, 0, 0)),             # naive means UTC
+])
+def test_next_scheduled_is_the_next_0200_utc_strictly_after_now(now, expected):
+    assert job.next_scheduled(now) == expected
+
+
+@pytest.mark.parametrize("now,last,expected", [
+    (_utc(2026, 10, 27, 2, 0), None, True),
+    (_utc(2026, 10, 27, 1, 59), None, False),
+    (_utc(2026, 10, 27, 9, 0), None, True),                                    # catch-up after an outage
+    (_utc(2026, 10, 27, 9, 0), datetime(2026, 10, 27).date(), False),
+    (_utc(2026, 10, 27, 9, 0), datetime(2026, 10, 26).date(), True),
+    (_utc(2026, 10, 27, 1, 0), datetime(2026, 10, 26).date(), False),
+])
+def test_due(now, last, expected):
+    assert job.due(now, last) is expected
+
+
+@pytest.mark.asyncio
+async def test_run_once_runs_once_per_day_under_the_lock(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    first = await job.run_once(mongo_db, now=_utc(2026, 10, 27, 2, 5))
+    assert first is not None and first["trigger"] == "scheduled" and first["tenants"] == 1
+    assert await job.run_once(mongo_db, now=_utc(2026, 10, 27, 9, 0)) is None
+    assert await mongo_db.retention_job_runs.count_documents({}) == 1
+    nxt = await job.run_once(mongo_db, now=_utc(2026, 10, 28, 3, 0))
+    assert nxt is not None and await mongo_db.retention_job_runs.count_documents({}) == 2
+
+
+@pytest.mark.asyncio
+async def test_run_once_before_0200_does_nothing(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    assert await job.run_once(mongo_db, now=_utc(2026, 10, 27, 1, 59)) is None
+    assert await mongo_db.retention_job_runs.count_documents({}) == 0
+
+
+@pytest.mark.asyncio
+async def test_a_second_runner_returns_none_while_the_lock_is_held(mongo_db, pauses):
+    from types import SimpleNamespace
+    import distributed_lock
+    await seed_tenant(mongo_db, "t1")
+    token = await distributed_lock.acquire_lock(SimpleNamespace(_db=mongo_db), job.LOCK_NAME, 120)
+    assert token is not None
+    assert await job.run_once(mongo_db, now=_utc(2026, 10, 27, 9, 0)) is None
+    assert await job.run_manual(mongo_db, "t1", now=_utc(2026, 10, 27, 9, 0)) is None
+    assert await mongo_db.retention_job_runs.count_documents({}) == 0
+    await distributed_lock.release_lock(SimpleNamespace(_db=mongo_db), job.LOCK_NAME, token)
+    assert await job.run_once(mongo_db, now=_utc(2026, 10, 27, 9, 0)) is not None
+
+
+@pytest.mark.asyncio
+async def test_a_manual_run_does_not_count_as_the_days_scheduled_run(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await seed_tenant(mongo_db, "t2")
+    manual = await job.run_manual(mongo_db, "t1", now=_utc(2026, 10, 27, 9, 0))
+    assert manual["trigger"] == "manual" and manual["tenants"] == 1 and manual["tenantId"] == "t1"
+    assert await mongo_db.retention_gate.count_documents({"tenantId": "t2"}) == 0       # only t1 was touched
+    scheduled = await job.run_once(mongo_db, now=_utc(2026, 10, 27, 9, 30))
+    assert scheduled is not None and scheduled["tenants"] == 2
+
+
+@pytest.mark.asyncio
+async def test_the_platform_stop_does_not_pause_retention(mongo_db, pauses):
+    from tests.autonomy_support import seed_platform_stop
+    await seed_tenant(mongo_db, "t1")
+    await seed_platform_stop(mongo_db, active=True)
+    assert await job.run_once(mongo_db, now=_utc(2026, 10, 27, 9, 0)) is not None
+
+
+@pytest.mark.asyncio
+async def test_retention_loop_survives_a_failed_pass_and_stops_on_cancel(monkeypatch):
+    import asyncio
+    import types
+    monkeypatch.setitem(sys.modules, "database", types.SimpleNamespace(get_database=lambda: object()))
+    calls = {"n": 0}
+
+    async def flaky(db, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom")
+        raise asyncio.CancelledError()
+
+    async def no_sleep(seconds):
+        return None
+
+    monkeypatch.setattr(job, "run_once", flaky)
+    monkeypatch.setattr(job.asyncio, "sleep", no_sleep)
+    with pytest.raises(asyncio.CancelledError):
+        await job.retention_loop()
+    assert calls["n"] == 2
+    assert job.WAKE_EVERY == 300 and job.LOCK_NAME == "retention_job"
+
+
+def test_the_telemetry_loop_is_gone_and_retention_loop_is_registered():
+    here = os.path.join(os.path.dirname(__file__), "..")
+    for name in ("app_background_tasks.py", "app_startup.py"):
+        assert "agent_telemetry_retention_loop" not in open(os.path.join(here, name), encoding="utf-8").read()
+    startup = open(os.path.join(here, "app_startup.py"), encoding="utf-8").read()
+    assert "retention_loop" in startup and '"retention_job"' in startup

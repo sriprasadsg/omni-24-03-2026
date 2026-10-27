@@ -508,6 +508,11 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(_autonomous_ops_reconciler_loop(), "autonomous_ops_reconciler"),
                         name="autonomous_ops_reconciler")
 
+    # Scheduled retention (Phase 82, HEAL-06): replaces the separate agent-telemetry purge. Counts first,
+    # deletes only what a Super Admin confirmed, 02:00 UTC with catch-up, one runner at a time.
+    from retention_job import retention_loop as _retention_loop
+    asyncio.create_task(_safe_bg_task(_retention_loop(), "retention_job"), name="retention_job")
+
     from app_background_tasks import (
         monitor_agent_status,
         compliance_evidence_sweep_loop, snapshot_compliance_scores_loop,
