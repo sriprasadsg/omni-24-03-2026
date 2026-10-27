@@ -20,7 +20,7 @@ from rbac_service import rbac_service as _rbac_service
 from rbac_utils import has_platform_permission, is_super_admin, verify_permission
 
 from . import (BUCKET_STATES, CONTROL_PERMISSION, LEVEL_RANK, MANAGE_PERMISSION, PLATFORM_CONTROL_PERMISSION,
-               PLATFORM_TENANT_ID, ledger, messages, registry, settings, stop)
+               PLATFORM_TENANT_ID, health_messages, ledger, messages, registry, settings, stop)
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -159,7 +159,10 @@ def stop_view(doc: Optional[Dict[str, Any]], viewer_is_platform_staff: bool) -> 
 
 
 def bucket_of(row: Dict[str, Any]) -> str:
-    """The one Activity bucket a row belongs to; control rows have their own."""
+    """The one Activity bucket a row belongs to; control rows and platform-health rows have their own.
+    A platform-health row is decided before any state lookup, so it can never read as refused."""
+    if row.get("kind") == "platform_health":
+        return "platform_health"
     if row.get("kind") == "control":
         return "control"
     return _STATE_BUCKET.get(row.get("state"), "refused")      # an unknown state never reads as done
@@ -201,6 +204,8 @@ def _result_text(row: Dict[str, Any], label: str, host: Optional[str]) -> Option
 
 def present_row(row: Dict[str, Any], *, viewer_is_platform_staff: bool, host: Optional[str] = None) -> Dict[str, Any]:
     """One ledger row as the Activity list shows it."""
+    if row.get("kind") == "platform_health":
+        return _present_health_row(row)
     control = row.get("kind") == "control"
     targets = row.get("targets") or []
     target = row.get("target")
@@ -222,6 +227,23 @@ def present_row(row: Dict[str, Any], *, viewer_is_platform_staff: bool, host: Op
         "resultText": _result_text(row, label, host),
         "controlEvent": row.get("controlEvent") if control else None,
         "by": display_actor(row.get("actor"), row.get("scope"), viewer_is_platform_staff) if control else None,
+        "healthChip": None,
+        "source": None,
+    }
+
+
+def _present_health_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """A platform-health row: every word comes from ``health_messages`` (HEAL-07)."""
+    event = row.get("healthEvent")
+    params = row.get("healthParams") if isinstance(row.get("healthParams"), dict) else {}
+    created = row.get("createdAt")
+    words = health_messages.render(event, params, row.get("host"), created if isinstance(created, datetime) else None)
+    return {
+        "id": row.get("id"), "bucket": "platform_health", "state": row.get("state"), "createdAt": _iso(created),
+        "actionLabel": words["actionLabel"], "classLine": None, "reasonText": words["reasonText"],
+        "ruleId": words["ruleId"], "host": words["host"], "target": words["target"],
+        "resultText": words["resultText"], "controlEvent": None, "by": None,
+        "healthChip": row.get("healthChip") or health_messages.chip_for(event, params), "source": words["source"],
     }
 
 
@@ -234,17 +256,28 @@ async def _host_names(db, tenant_id: str, rows: List[Dict[str, Any]]) -> Dict[st
 
 
 async def list_page(db, tenant_id: str, *, bucket: str, limit: int, cursor: Optional[str],
-                    viewer_is_platform_staff: bool) -> Dict[str, Any]:
+                    viewer_is_platform_staff: bool, include_platform_health: bool = False) -> Dict[str, Any]:
     """A page of the tenant's activity, newest first (createdAt then id, both descending). A real
     tenant's list also carries the platform-scope control rows (stop pressed or cleared for every
-    organization). Counts and the total are added to the first page only."""
+    organization). Counts and the total are added to the first page only.
+
+    Platform-health rows (watchdog events) are excluded for every tenant id, the platform tenant
+    included, unless ``include_platform_health`` is True; only the Super Admin's platform route
+    sets it (D-23, PROH-82-06)."""
+    include_health = include_platform_health and tenant_id == PLATFORM_TENANT_ID
     own: Dict[str, Any] = {"tenantId": tenant_id}
     if tenant_id != PLATFORM_TENANT_ID:
         scope: Dict[str, Any] = {"$or": [own, {"tenantId": PLATFORM_TENANT_ID, "kind": "control", "scope": "platform"}]}
     else:
         scope = own
+    if not include_health:
+        scope = {"$and": [scope, {"kind": {"$ne": "platform_health"}}]}
     flt: Dict[str, Any] = dict(scope)
-    if bucket != "all":
+    if bucket == "platform_health":
+        if not include_health:
+            raise ValueError(f"unknown bucket {bucket!r}")
+        flt = {"tenantId": PLATFORM_TENANT_ID, "kind": "platform_health"}
+    elif bucket != "all":
         if bucket not in BUCKET_STATES:
             raise ValueError(f"unknown bucket {bucket!r}")
         flt = {"$and": [scope, {"state": {"$in": list(BUCKET_STATES[bucket])}}]}
@@ -264,6 +297,9 @@ async def list_page(db, tenant_id: str, *, bucket: str, limit: int, cursor: Opti
     }
     if not cursor:
         out["counts"] = await ledger.counts(db, tenant_id)
+        if include_health:
+            out["counts"]["platform_health"] = await raw(db).autonomy_actions.count_documents(
+                {"tenantId": PLATFORM_TENANT_ID, "kind": "platform_health"})
         out["total"] = await raw(db).autonomy_actions.count_documents(flt)
     return out
 

@@ -20,7 +20,7 @@ from api_key_auth import get_current_user_or_api_key
 from autonomous_ops import (PLATFORM_CONTROL_PERMISSION, PLATFORM_TENANT_ID, ledger, messages, protected, settings,
                             views)
 from autonomous_ops_endpoints import (
-    Bucket, NeverTouchBody, ResumeBody, StopBody, _forbidden, _require_interactive_session, _unavailable,
+    NeverTouchBody, ResumeBody, StopBody, _forbidden, _require_interactive_session, _unavailable,
     clear_stop, press_stop,
 )
 from database import get_database
@@ -30,6 +30,10 @@ from rbac_utils import has_platform_permission
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/platform/autonomous-ops", tags=["Autonomous Ops (platform)"])
+
+# The platform list also filters on the watchdog's platform-health rows; the tenant router's Bucket never does.
+PlatformBucket = Literal["all", "pending", "done", "undone", "failed", "refused", "suggested", "simulation",
+                         "platform_health"]
 
 
 async def _require_platform_autonomy_control(user=Depends(get_current_user_or_api_key)):
@@ -75,13 +79,14 @@ async def get_platform_status(
 
 @router.get("/actions", summary="Platform-wide Autonomous Ops activity")
 async def get_platform_actions(
-    bucket: Bucket = Query("all"),
+    bucket: PlatformBucket = Query("all"),
     limit: int = Query(25, ge=1, le=100),
     cursor: Optional[str] = Query(None, max_length=512),
     user=Depends(_require_platform_autonomy_control),
     _session=Depends(_require_interactive_session),
 ):
-    """Platform-wide stop and resume events, newest first, one page at a time."""
+    """Platform-wide stop and resume events and the watchdog's platform-health events, newest first, one
+    page at a time."""
     if cursor:
         try:
             ledger._decode_cursor(cursor)
@@ -89,7 +94,7 @@ async def get_platform_actions(
             raise HTTPException(status_code=422, detail="cursor is not valid") from exc
     try:
         return await views.list_page(get_database(), PLATFORM_TENANT_ID, bucket=bucket, limit=limit, cursor=cursor,
-                                     viewer_is_platform_staff=True)
+                                     viewer_is_platform_staff=True, include_platform_health=True)
     except HTTPException:
         raise
     except Exception as exc:
