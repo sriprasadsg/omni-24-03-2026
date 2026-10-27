@@ -23,8 +23,10 @@ import retention_job as job
 NOW = datetime(2026, 10, 27, 9, 0, 0, tzinfo=timezone.utc)
 
 
-def oid(days_ago, *, now=NOW, seconds=0):
-    return ObjectId.from_datetime(now - timedelta(days=days_ago, seconds=seconds))
+def oid(days_ago, seconds=0, *, now=NOW):
+    """A unique ObjectId created ``days_ago`` days (plus ``seconds``) before ``now``."""
+    stamp = ObjectId.from_datetime(now - timedelta(days=days_ago, seconds=seconds)).binary[:4]
+    return ObjectId(stamp + os.urandom(8))
 
 
 async def _seed_metrics(db, tenant_id, *, old=3, new=2, field="tenant_id", collection="agent_metrics"):
@@ -84,3 +86,267 @@ def test_module_boundary_keeps_retention_service_out():
             names = [a.name for a in node.names] if isinstance(node, ast.Import) else \
                 [node.module or ""] if isinstance(node, ast.ImportFrom) else []
             assert not any("retention_service" in n for n in names), name
+
+
+# ------------------------------------------------------------------ Task 2: gate, confirmation, bounded deletes
+
+class _SpyColl:
+    def __init__(self, coll, log):
+        self._c, self._log = coll, log
+
+    def __getattr__(self, name):
+        return getattr(self._c, name)
+
+    async def delete_many(self, flt, *args, **kwargs):
+        self._log.append((self._c.name, len(flt["_id"]["$in"])))
+        return await self._c.delete_many(flt, *args, **kwargs)
+
+
+class _SpyDb:
+    """A raw database whose delete_many calls are recorded as (collection, batch size)."""
+
+    def __init__(self, db):
+        self._db, self.log = db, []
+
+    def __getitem__(self, name):
+        return _SpyColl(self._db[name], self.log)
+
+    def __getattr__(self, name):
+        return self[name]
+
+
+async def _confirm_all(db, now=NOW):
+    rows = await gate.review_rows(db)
+    return await gate.confirm(db, gate.review_token(rows), "Super Admin", now)
+
+
+@pytest.fixture
+def pauses(monkeypatch):
+    calls = []
+
+    async def fake_sleep(seconds):
+        calls.append(seconds)
+
+    monkeypatch.setattr(job, "_sleep", fake_sleep)
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_confirmed_run_deletes_only_old_records_and_keeps_new_ones(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await _seed_metrics(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+    assert await mongo_db.agent_metrics.count_documents({}) == 5          # confirming deletes nothing
+
+    summary = await job.run_all(mongo_db, now=NOW + timedelta(minutes=1))
+
+    assert summary["deleted"] == 3 and summary["counted"] == 0
+    left = [d["n"] async for d in mongo_db.agent_metrics.find({}).sort("n", 1)]
+    assert left == [100, 101]
+    row = await mongo_db.retention_gate.find_one({"tenantId": "t1", "type": "agent_metrics"})
+    assert row["confirmedDays"] == 30
+
+
+@pytest.mark.asyncio
+async def test_batches_of_500_500_200_with_a_pause_between_them(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await mongo_db.agent_metrics.insert_many(
+        [{"_id": oid(40, i), "tenant_id": "t1"} for i in range(1200)]
+        + [{"_id": oid(1, i), "tenant_id": "t1"} for i in range(7)])
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+
+    spy = _SpyDb(mongo_db)
+    summary = await job.run_all(spy, now=NOW + timedelta(minutes=1))
+
+    assert [n for coll, n in spy.log if coll == "agent_metrics"] == [500, 500, 200]
+    assert pauses == [job.PAUSE_SECONDS, job.PAUSE_SECONDS]
+    assert job.BATCH_SIZE == 500 and job.PAUSE_SECONDS == 0.5 and job.RUN_MAX_MINUTES == 60
+    assert summary["deleted"] == 1200 and await mongo_db.agent_metrics.count_documents({}) == 7
+
+
+@pytest.mark.asyncio
+async def test_batch_size_and_pause_are_configurable(mongo_db, pauses, monkeypatch):
+    monkeypatch.setattr(job, "BATCH_SIZE", 2)
+    monkeypatch.setattr(job, "PAUSE_SECONDS", 0.01)
+    await seed_tenant(mongo_db, "t1")
+    await _seed_metrics(mongo_db, "t1", old=5, new=0)
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+    spy = _SpyDb(mongo_db)
+    await job.run_all(spy, now=NOW + timedelta(minutes=1))
+    assert [n for coll, n in spy.log if coll == "agent_metrics"] == [2, 2, 1]
+    assert pauses == [0.01, 0.01]
+
+
+def test_environment_overrides_fall_back_on_bad_values(monkeypatch):
+    monkeypatch.setenv("RETENTION_BATCH_SIZE", "250")
+    monkeypatch.setenv("RETENTION_BATCH_PAUSE_SECONDS", "nope")
+    monkeypatch.setenv("RETENTION_RUN_MAX_MINUTES", "-3")
+    assert job._env_number("RETENTION_BATCH_SIZE", 500, int) == 250
+    assert job._env_number("RETENTION_BATCH_PAUSE_SECONDS", 0.5, float) == 0.5
+    assert job._env_number("RETENTION_RUN_MAX_MINUTES", 60, int) == 60
+
+
+@pytest.mark.asyncio
+async def test_a_lost_lock_after_the_first_batch_stops_the_run(mongo_db, monkeypatch):
+    monkeypatch.setattr(job, "BATCH_SIZE", 2)
+    state = {"lost": False}
+
+    async def losing_sleep(seconds):
+        state["lost"] = True
+
+    monkeypatch.setattr(job, "_sleep", losing_sleep)
+    await seed_tenant(mongo_db, "t1")
+    await _seed_metrics(mongo_db, "t1", old=5, new=1)
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+
+    summary = await job.run_all(mongo_db, now=NOW + timedelta(minutes=1), lost=lambda: state["lost"])
+
+    assert summary["stoppedEarly"] is True and summary["deleted"] == 2
+    assert await mongo_db.agent_metrics.count_documents({}) == 4
+    run = await mongo_db.retention_job_runs.find_one({}, sort=[("startedAt", -1)])
+    assert run["stoppedEarly"] is True
+
+
+@pytest.mark.asyncio
+async def test_the_wall_clock_cap_stops_the_run_and_records_it(mongo_db, pauses, monkeypatch):
+    await seed_tenant(mongo_db, "t1")
+    await _seed_metrics(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+    result = await job.delete_type(mongo_db, gate.BY_ID["agent_metrics"], "t1", 30, NOW,
+                                   deadline=job.time.monotonic() - 1)
+    assert result == {"deleted": 0, "stoppedEarly": True}
+    monkeypatch.setattr(job, "RUN_MAX_MINUTES", 0.0000001)                # deadline passes at once
+    summary = await job.run_all(mongo_db, now=NOW + timedelta(minutes=1))
+    assert summary["stoppedEarly"] is True and summary["deleted"] == 0
+    assert await mongo_db.agent_metrics.count_documents({}) == 5
+
+
+@pytest.mark.asyncio
+async def test_audit_and_decision_records_are_untouched_by_a_confirmed_run(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    old_iso = (NOW - timedelta(days=4000)).isoformat()
+    old_date = NOW - timedelta(days=4000)
+    for name in sorted(gate.NEVER_DELETED):
+        await mongo_db[name].insert_many([
+            {"_id": oid(4000, i), "tenantId": "t1", "tenant_id": "t1", "timestamp": old_iso,
+             "sent_at": old_iso, "at": old_date} for i in range(3)])
+    await _seed_metrics(mongo_db, "t1")
+    before = {name: await mongo_db[name].count_documents({}) for name in gate.NEVER_DELETED}
+    assert all(n >= 3 for n in before.values())
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+    summary = await job.run_all(mongo_db, now=NOW + timedelta(minutes=1))
+    assert summary["deleted"] == 3
+    for name in gate.NEVER_DELETED:
+        assert await mongo_db[name].count_documents({}) == before[name], name
+
+
+@pytest.mark.asyncio
+async def test_delete_type_refuses_a_protected_collection(mongo_db):
+    bad = gate.RetentionType("x", "audit_logs", "tenantId", "iso", "timestamp", 30, "X")
+    with pytest.raises(RuntimeError):
+        await job.delete_type(mongo_db, bad, "t1", 30, NOW)
+
+
+@pytest.mark.asyncio
+async def test_uptime_rollups_use_tenant_id_and_never_cross_tenants(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await seed_tenant(mongo_db, "t2")
+    old = NOW - timedelta(days=200)
+    await mongo_db.agent_uptime_rollups.insert_many([
+        {"tenant_id": "t1", "timestamp": old, "k": "t1-old"},
+        {"tenant_id": "t1", "timestamp": NOW - timedelta(days=1), "k": "t1-new"},
+        {"tenant_id": "t2", "timestamp": old, "k": "t2-old"},
+        {"tenantId": "t1", "timestamp": old, "k": "wrong-field"},          # not the stored tenant field
+    ])
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+
+    await job.run_tenant(mongo_db, "t1", now=NOW + timedelta(minutes=1))
+
+    keys = {d["k"] async for d in mongo_db.agent_uptime_rollups.find({})}
+    assert keys == {"t1-new", "t2-old", "wrong-field"}
+
+
+@pytest.mark.asyncio
+async def test_a_shortened_period_sends_only_that_tenant_and_type_back_to_counting(mongo_db, pauses):
+    for tid in ("t1", "t2"):
+        await seed_tenant(mongo_db, tid)
+        await _seed_metrics(mongo_db, tid)
+        await mongo_db.logs.insert_many([{"_id": oid(40, i), "tenantId": tid} for i in range(2)])
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+    await mongo_db.agent_metrics.insert_many([{"_id": oid(25, i), "tenant_id": "t1"} for i in range(4)])
+    await mongo_db.retention_policies.insert_one(
+        {"tenantId": "t1", "collection": "agent_metrics", "retention_days": 20})
+
+    summary = await job.run_all(mongo_db, now=NOW + timedelta(minutes=1))
+
+    # t1/agent_metrics only counts (3 at 40 days + 4 at 25 days are older than 20): nothing deleted
+    assert await mongo_db.agent_metrics.count_documents({"tenant_id": "t1"}) == 9
+    assert await mongo_db.agent_metrics.count_documents({"tenant_id": "t2"}) == 2      # t2 deleted its 3
+    assert await mongo_db.logs.count_documents({}) == 0                                # both tenants' logs
+    count = await mongo_db.retention_counts.find_one({"tenantId": "t1", "type": "agent_metrics"})
+    assert (count["days"], count["count"]) == (20, 7)
+    assert summary["counted"] == 7 and summary["deleted"] == 3 + 4
+
+
+@pytest.mark.asyncio
+async def test_a_lengthened_period_is_adopted_without_review(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await mongo_db.agent_metrics.insert_many(
+        [{"_id": oid(40, 0), "tenant_id": "t1", "n": 1}, {"_id": oid(70, 0), "tenant_id": "t1", "n": 2}])
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+    await mongo_db.retention_policies.insert_one(
+        {"tenantId": "t1", "collection": "agent_metrics", "retention_days": 60})
+
+    await job.run_all(mongo_db, now=NOW + timedelta(minutes=1))
+
+    assert [d["n"] async for d in mongo_db.agent_metrics.find({})] == [1]              # 70 days gone, 40 kept
+    row = await mongo_db.retention_gate.find_one({"tenantId": "t1", "type": "agent_metrics"})
+    assert row["confirmedDays"] == 60
+    assert await gate.review_rows(mongo_db) == []
+    await mongo_db.retention_policies.update_one({"tenantId": "t1"}, {"$set": {"retention_days": 45}})
+    rows = await gate.review_rows(mongo_db)
+    assert [(r["type"], r["previousDays"], r["days"], r["reason"]) for r in rows] == \
+        [("agent_metrics", 60, 45, "shortened")]
+
+
+@pytest.mark.asyncio
+async def test_a_tenant_first_seen_after_the_confirmation_is_adopted_and_deletes(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm_all(mongo_db)
+    await seed_tenant(mongo_db, "t-new")
+    await _seed_metrics(mongo_db, "t-new")
+
+    await job.run_all(mongo_db, now=NOW + timedelta(days=1))
+
+    assert await mongo_db.agent_metrics.count_documents({"tenant_id": "t-new"}) == 2
+    assert await gate.review_rows(mongo_db) == []
+
+
+@pytest.mark.asyncio
+async def test_boundary_a_record_exactly_retention_days_old_is_kept(mongo_db):
+    cutoff = NOW - timedelta(days=30)
+    await mongo_db.agent_metrics.insert_many([
+        {"_id": ObjectId.from_datetime(cutoff), "tenant_id": "t1"},                       # exactly 30 days
+        {"_id": ObjectId.from_datetime(cutoff - timedelta(seconds=1)), "tenant_id": "t1"}])
+    await mongo_db.notifications.insert_many([
+        {"tenantId": "t1", "sent_at": cutoff.isoformat()},
+        {"tenantId": "t1", "sent_at": (cutoff - timedelta(seconds=1)).isoformat()}])
+    await mongo_db.agent_uptime_rollups.insert_many([
+        {"tenant_id": "t1", "timestamp": NOW - timedelta(days=90)},
+        {"tenant_id": "t1", "timestamp": NOW - timedelta(days=90, seconds=1)}])
+    await mongo_db.agent_location_history.insert_many([
+        {"tenantId": "t1", "timestamp": NOW - timedelta(days=365)},
+        {"tenantId": "t1", "timestamp": NOW - timedelta(days=365, seconds=1)}])
+    for type_id, days in (("agent_metrics", 30), ("notifications", 30), ("agent_uptime_rollups", 90),
+                          ("agent_location_history", 365)):
+        assert await job.count_type(mongo_db, gate.BY_ID[type_id], "t1", days, NOW) == 1, type_id
