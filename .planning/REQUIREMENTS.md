@@ -60,7 +60,7 @@
 - [ ] **HEAL-05**: On-call alerts go to a configured webhook or PagerDuty with deduplication; the operator can send a test alert, sees a banner when no working channel is configured, and is alerted when the watchdog itself stops reporting.
 - [ ] **HEAL-06**: Data retention runs on a schedule per tenant in bounded batches, never touches audit logs, the audit ledger or decision records, and its first run is a dry-run count the operator confirms.
 - [ ] **HEAL-07**: Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope.
-- [ ] **HEAL-08**: The repo ships the watchdog unit files, service drop-ins and an install checklist; installing them on the live server stays the operator's step.
+- [x] **HEAL-08**: The repo ships the watchdog unit files, service drop-ins and an install checklist; installing them on the live server stays the operator's step.
 
 ### 5. Service Desk
 
@@ -205,7 +205,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | HEAL-05 | Phase 82 | Pending |
 | HEAL-06 | Phase 82 | Pending |
 | HEAL-07 | Phase 82 | Pending |
-| HEAL-08 | Phase 82 | Pending |
+| HEAL-08 | Phase 82 | Complete |
 | RESP-01 | Phase 83 | Pending |
 | RESP-02 | Phase 83 | Pending |
 | RESP-03 | Phase 83 | Pending |

@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
 status: executing
-stopped_at: Completed 82-02-PLAN.md
-last_updated: "2026-10-27T08:21:40.295Z"
+stopped_at: Completed 82-06-PLAN.md
+last_updated: "2026-10-27T08:28:30.586Z"
 last_activity: 2026-10-27
 last_activity_desc: Phase 82 execution resumed (wave continue)
-state_head: 27fa15bdf8bb3d798b5d02fc9dec4c5c4504cbf6
+state_head: 603f951533af0b8f294001c242862106c95c087b
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 32
-  completed_plans: 20
+  completed_plans: 21
   percent: 17
 ---
 
@@ -475,6 +475,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-01: platform_health rows excluded from every tenant query by default (include_platform_health opt-in on the platform route only); rung scale cert 1-4, disk 1-3, forecast 1-3
 - [Phase 82]: 82-02: a 200 sync clears every sent event except those the backend neither accepted nor dropped; those retry and are abandoned after 3 hand-overs
 - [Phase 82]: 82-02: watchdog loopback probe targets (mongo/nginx host+port, ollama_url) are DEFAULTS keys not readable from watchdog.conf, so tests use fake servers
+- [Phase 82]: 82-06: watchdog unit has no ConfigurationDirectory=; INSTALL.md owns /etc/omni-watchdog (root:omni-watchdog 0750); polkit rule omits ollama.service by default
 
 ## Performance Metrics
 
@@ -650,6 +651,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 81 P18 | 12 min | 2 tasks | 3 files |
 | Phase 82 P01 | 17 min | 3 tasks | 15 files |
 | Phase 82 P02 | 37min | 3 tasks | 11 files |
+| Phase 82 P06 | 5 min | 3 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -684,8 +686,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-27T08:21:40.133Z
-**Stopped at:** Completed 82-02-PLAN.md
+**Last session:** 2026-10-27T08:28:30.311Z
+**Stopped at:** Completed 82-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -711,7 +713,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
-Plan: 3 of 14
+Plan: 4 of 14
 Status: Ready to execute
 Last activity: 2026-10-27 — Phase 82 execution resumed (wave continue)
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
