@@ -36,8 +36,7 @@ def _config(tmp_path, mongo_port, nginx_port, **extra):
 def _backend(ok=True):
     http = FakeHttp()
     http.set("GET", READY, (200, {"status": "ready"}) if ok else (503, {"demo_mode": True}))
-    http.set("POST", SYNC, (200, {"stop": {"active": False, "scope": None, "pressedAt": None},
-                                   "acceptedEventIds": [], "droppedEvents": 0, "outbox": [], "testRequest": None}))
+    http.set("POST", SYNC, FakeHttp.accept_all)
     return http
 
 
@@ -192,7 +191,7 @@ def test_events_in_one_run_keep_the_service_order(tmp_path):
     cfg = _config(tmp_path, free_port(), free_port())
     http, run, clock = FakeHttp(), FakeRun(), FakeClock()
     http.set("GET", READY, (503, {"demo_mode": True}))
-    http.set("POST", SYNC, (200, {"acceptedEventIds": []}))
+    http.set("POST", SYNC, FakeHttp.accept_all)
     run_mod.run_once(cfg, str(tmp_path), run=run, http=http, now=clock)
     clock.advance(60)
     run_mod.run_once(cfg, str(tmp_path), run=run, http=http, now=clock)

@@ -57,3 +57,104 @@ def save_state(path, state):
         except OSError:
             pass
         raise
+
+
+SPOOL_MAX_LINES = 2000
+MAX_TRIES = 3      # hand-overs the backend neither accepted nor dropped before an event is abandoned
+
+
+class Spool:
+    """Events waiting to reach the backend: one JSON object per line in ``spool.ndjson``.
+
+    Every event is appended (flush + fsync) before a send is attempted and leaves the spool only
+    when the backend acknowledges it, so an outage loses nothing until the 2,000-line cap, which
+    drops the oldest lines first. Order is file order: older events are always re-sent first."""
+
+    def __init__(self, path, max_lines=SPOOL_MAX_LINES):
+        self.path = path
+        self.max_lines = max_lines
+
+    def _lines(self):
+        try:
+            with open(self.path, "r", encoding="utf-8") as handle:
+                return [line for line in handle.read().split("\n") if line.strip()]
+        except OSError:
+            return []
+
+    def _rewrite(self, lines):
+        tmp = self.path + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write("".join(line + "\n" for line in lines))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, self.path)
+
+    def __len__(self):
+        return len(self._lines())
+
+    def append(self, events):
+        """Append events; returns how many of the oldest lines the cap dropped."""
+        if not events:
+            return 0
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            for event in events:
+                handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        lines = self._lines()
+        excess = len(lines) - self.max_lines
+        if excess > 0:
+            self._rewrite(lines[excess:])
+            return excess
+        return 0
+
+    def read(self, limit):
+        """Up to ``limit`` events in file order; unreadable lines are skipped."""
+        events = []
+        for line in self._lines():
+            try:
+                item = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(item, dict) and isinstance(item.get("id"), str):
+                events.append(item)
+                if len(events) >= limit:
+                    break
+        return events
+
+    def remove(self, ids):
+        """Drop the events with these ids (and any unreadable line) by rewriting through a temp file."""
+        ids = set(ids)
+        if not ids:
+            return
+        keep = []
+        for line in self._lines():
+            try:
+                item = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(item, dict) and item.get("id") not in ids:
+                keep.append(line)
+        self._rewrite(keep)
+
+    def bump_tries(self, ids):
+        """Count one more failed hand-over for these ids; returns the ids that reached MAX_TRIES."""
+        ids, exhausted, keep = set(ids), [], []
+        for line in self._lines():
+            try:
+                item = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(item, dict) and item.get("id") in ids:
+                item["tries"] = int(item.get("tries") or 0) + 1
+                if item["tries"] >= MAX_TRIES:
+                    exhausted.append(item["id"])
+                    continue
+                line = json.dumps(item, separators=(",", ":"))
+            if isinstance(item, dict):
+                keep.append(line)
+        self._rewrite(keep)
+        return exhausted
+

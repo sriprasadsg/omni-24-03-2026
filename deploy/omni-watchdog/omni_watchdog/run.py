@@ -73,15 +73,25 @@ def run_once(config, state_dir, *, run, http, now):
         state["services"][sid] = new
         events.extend(produced)
 
-    stop = {"effective": False, "source": "none"}
+    spool = state_mod.Spool(os.path.join(state_dir, "spool.ndjson"))
+    # The stop used for this run: the STOP file, else the value cached from the last good sync (D-11).
+    # A stop pressed less than a minute before a backend crash can be missed once (82-RESEARCH Open Question 5).
+    stop_on, stop_source = sync.resolve_stop(cfg["stop_file"], None, state)
+    stop = {"effective": stop_on, "source": stop_source}
+
+    # New events reach the spool (fsynced) before any send, so an outage cannot lose them.
+    state["spoolDropped"] = int(state.get("spoolDropped") or 0) + spool.append(events)
+
     oncall = {"type": "none", "heartbeatConfigured": False, "last": None}
-    body = sync.build_body(_host(cfg), state["services"], [], [], oncall, stop, events, [], sent_at=t)
+    body = sync.build_body(_host(cfg), state["services"], [], [], oncall, stop, [], [], sent_at=t)
     token = _read_token(cfg["ingest_token_path"])
-    synced, response = sync.post_sync(http, cfg["backend_url"], token, body)
+    synced, response = sync.sync_cycle(http, cfg, token, body, spool, state) if token else (False, None)
+    if synced:
+        sync.resolve_stop(cfg["stop_file"], response, state, now=t)     # refresh the cache for the next run
 
     state_mod.save_state(path, state)
-    return {"synced": synced, "response": response, "events": events,
-            "services": {sid: state["services"][sid]["state"] for sid in SERVICE_ORDER}}
+    return {"synced": synced, "response": response, "events": events, "stop": stop,
+            "spooled": len(spool), "services": {sid: state["services"][sid]["state"] for sid in SERVICE_ORDER}}
 
 
 def main(argv=None):

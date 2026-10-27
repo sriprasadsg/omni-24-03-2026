@@ -93,6 +93,8 @@ class FakeHttp:
         if not queue:
             raise ConnectionRefusedError("no route for %s %s" % (method, path))
         item = queue.pop(0) if len(queue) > 1 else queue[0]
+        if callable(item):
+            item = item(self.requests[-1])
         if isinstance(item, BaseException):
             raise item
         status, payload = item
@@ -103,6 +105,14 @@ class FakeHttp:
         else:
             data = json.dumps(payload).encode()
         return status, data
+
+    @staticmethod
+    def accept_all(request):
+        """A scripted response that acknowledges every event of the request, like the real backend."""
+        sent = json.loads(request["body"])
+        return 200, {"stop": {"active": False, "scope": None, "pressedAt": None},
+                     "acceptedEventIds": [e["id"] for e in sent.get("events", [])], "droppedEvents": 0,
+                     "outbox": [], "testRequest": None}
 
     def posted(self, path):
         """Parsed JSON bodies of every POST to ``path``."""

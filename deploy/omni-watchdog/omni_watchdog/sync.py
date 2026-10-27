@@ -5,6 +5,7 @@ comes from the configured ingest.token file and is never logged. Every sync, suc
 is a single attempt per run; failures are handled by the spool (events stay until acknowledged).
 """
 import json
+import os
 
 from . import CONTRACT_VERSION, SERVICE_ORDER
 from .services import iso
@@ -13,6 +14,7 @@ SYNC_PATH = "/api/internal/watchdog/sync"
 RESULTS_PATH = "/api/internal/watchdog/results"
 HTTP_TIMEOUT = 10
 MAX_RESPONSE = 256 * 1024
+MAX_EVENTS_PER_SYNC = 50
 
 
 def service_block(service_state):
@@ -75,3 +77,54 @@ def post_sync(http, base_url, token, body):
 def post_results(http, base_url, token, body):
     """(ok, response dict or None) for ``POST /results`` (delivered outbox ids, test result)."""
     return _post(http, base_url.rstrip("/") + RESULTS_PATH, token, body)
+
+
+def resolve_stop(stop_file, last_sync_response, state, now=None):
+    """The effective automatic-actions stop and where it came from (D-11): (active, source).
+
+    A STOP file wins (``file``); else the stop returned by a successful sync (``database``), which is
+    also cached in ``state["stopCache"]``; else, with the backend unreachable, the cached value
+    (``cache``); with nothing at all the stop is off (``none``)."""
+    stop = last_sync_response.get("stop") if isinstance(last_sync_response, dict) else None
+    from_database = isinstance(stop, dict) and isinstance(stop.get("active"), bool)
+    if from_database:
+        state["stopCache"] = {"active": stop["active"], "pressedAt": stop.get("pressedAt") if stop["active"] else None,
+                              "at": now}
+    if stop_file and os.path.exists(stop_file):
+        return True, "file"
+    if from_database:
+        return stop["active"], "database"
+    cache = state.get("stopCache")
+    if isinstance(cache, dict) and isinstance(cache.get("active"), bool):
+        return cache["active"], "cache"
+    return False, "none"
+
+
+def sync_cycle(http, config, token, body, spool, state):
+    """Send the oldest spooled events (at most 50) with ``body`` and clear what the backend took.
+
+    ``body`` is the sync body without events. On a 200, every sent id leaves the spool except events
+    the response neither accepted nor dropped (the backend could not record them): those stay for a
+    re-send, and are abandoned after MAX_TRIES hand-overs. Returns (ok, response or None)."""
+    batch = spool.read(MAX_EVENTS_PER_SYNC)
+    sent = dict(body)
+    sent["events"] = [{k: v for k, v in e.items() if k != "tries"} for e in batch]
+    ok, response = post_sync(http, config["backend_url"], token, sent)
+    if not ok:
+        return False, None
+    ids = [e["id"] for e in batch]
+    accepted = response.get("acceptedEventIds")
+    if not isinstance(accepted, list):
+        spool.remove(ids)                       # an answer that does not list ids: everything was handled
+        return True, response
+    accepted = {i for i in accepted if isinstance(i, str)}
+    left = [i for i in ids if i not in accepted]
+    dropped = response.get("droppedEvents")
+    dropped = dropped if isinstance(dropped, int) and not isinstance(dropped, bool) else 0
+    if dropped >= len(left):
+        spool.remove(ids)                       # whatever was not accepted was refused for good
+    else:
+        spool.remove(accepted)
+        abandoned = spool.bump_tries(left)
+        state["spoolAbandoned"] = int(state.get("spoolAbandoned") or 0) + len(abandoned)
+    return True, response
