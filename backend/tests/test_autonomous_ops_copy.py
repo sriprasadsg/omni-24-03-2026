@@ -21,8 +21,11 @@ RULES_PATH = os.path.join(REPO_ROOT, "shared", "autonomous-ops-banned-terms.json
 EXPECTED_FILES = [
     "backend/autonomous_ops/messages.py",
     "backend/autonomous_ops/views.py",
+    "backend/autonomous_ops/health_messages.py",
+    "backend/autonomous_ops/selfheal.py",
     "backend/autonomous_ops_endpoints.py",
     "backend/autonomous_ops_platform_endpoints.py",
+    "backend/watchdog_ingest_endpoints.py",
     "services/autonomousOpsApi.ts",
     "contexts/AutonomousOpsStatusContext.tsx",
     "components/AutonomousOpsActivity.tsx",

@@ -47,6 +47,8 @@ REVIEWED_UNAUTHENTICATED = frozenset({
     ("GET", "/api/saas/callback/{provider}"),
     ("GET", "/api/graphql"), ("POST", "/api/graphql"), ("WS", "/api/graphql"),
     ("WS", "/api/stream/live"),
+    # Watchdog bearer token, loopback only, proxy headers refused (Phase 82)
+    ("POST", "/api/internal/watchdog/sync"), ("POST", "/api/internal/watchdog/results"),
     # Public content
     ("POST", "/api/cookie-consent/record"), ("GET", "/api/cookie-consent/session/{tenant_id}/{session_id}"),
     ("GET", "/api/public/trust/{slug}"), ("POST", "/api/public/trust/{slug}/requests"),

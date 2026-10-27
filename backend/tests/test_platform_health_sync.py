@@ -152,3 +152,84 @@ def test_chip_and_rule_tables_cover_every_kind():
     assert health_messages.chip_for("cert_warning", {"rung": 1}) == "notice"
     assert health_messages.chip_for("disk_forecast", {"rung": 3}) == "critical"
     assert health_messages.render("service_down", {}, None)["target"] is None   # missing values render as a dash in the UI
+
+
+# ------------------------------------------------------------------ Task 3: auth, caps, closed vocabulary
+
+async def test_no_credential_answers_503(wd):
+    (wd.cred_dir / "omni-watchdog-token").unlink()
+    assert (await wd.post()).status_code == 503
+
+
+async def test_missing_credentials_directory_answers_503(wd, monkeypatch):
+    monkeypatch.delenv("CREDENTIALS_DIRECTORY")
+    assert (await wd.post()).status_code == 503
+
+
+async def test_wrong_or_missing_bearer_answers_401(wd):
+    assert (await wd.post(token="nope")).status_code == 401
+    assert (await wd.post(token=None)).status_code == 401
+    assert (await wd.post(token=TOKEN + "x")).status_code == 401
+    assert await _rows(wd.db) == []
+
+
+@pytest.mark.parametrize("header", ["X-Forwarded-For", "X-Real-IP", "Forwarded"])
+async def test_proxy_headers_answer_403_even_with_the_right_token(wd, header):
+    assert (await wd.post(headers={header: "203.0.113.9"})).status_code == 403
+
+
+async def test_non_loopback_client_answers_403(wd):
+    assert (await wd.post(client=("10.0.0.7", 40000))).status_code == 403
+    assert (await wd.post(client=("::1", 40000))).status_code == 200
+
+
+async def test_51_events_answer_422(wd):
+    res = await wd.post(body=_body([_event() for _ in range(51)]))
+    assert res.status_code == 422
+    assert (await wd.post(body=_body([_event() for _ in range(50)]))).status_code == 200
+
+
+async def test_body_over_256_kb_answers_413(wd):
+    big = _body(services={"x": {"detail": "a" * 270_000}})
+    assert (await wd.post(body=big)).status_code == 413
+
+
+async def test_unknown_and_backend_only_kinds_are_dropped_and_counted(wd):
+    good, made_up, forged, silent = _event(), _event("made_up"), _event("retention_confirmed"), _event("watchdog_silent")
+    res = await wd.post(body=_body([good, made_up, forged, silent]))
+    assert res.status_code == 200
+    assert res.json()["droppedEvents"] == 3 and res.json()["acceptedEventIds"] == [good["id"]]
+    assert [r["healthEvent"] for r in await _rows(wd.db)] == ["service_down"]
+
+
+async def test_error_strings_are_capped_at_300_characters_and_unknown_params_dropped(wd):
+    event = _event("restart", params={"error": "e" * 1000, "attempt": 1, "ok": False, "evil": "<script>",
+                                      "nested": {"a": 1}})
+    await wd.post(body=_body([event]))
+    row = (await _rows(wd.db))[0]
+    assert len(row["healthParams"]["error"]) == 300
+    assert set(row["healthParams"]) <= set(selfheal.PARAM_KEYS)
+    assert "evil" not in row["healthParams"] and "nested" not in row["healthParams"]
+
+
+async def test_event_time_is_clamped_so_a_replayed_spool_keeps_its_order(wd):
+    now = datetime.now(timezone.utc)
+    old = _event(at=(now - timedelta(days=30)).isoformat())
+    future = _event(at=(now + timedelta(days=3)).isoformat())
+    bad = _event(at="not a time")
+    await wd.post(body=_body([old, future, bad]))
+    by_id = {r["id"]: r for r in await _rows(wd.db)}
+    created_old = by_id["PH-" + old["id"]]["createdAt"].replace(tzinfo=timezone.utc)
+    created_future = by_id["PH-" + future["id"]]["createdAt"].replace(tzinfo=timezone.utc)
+    assert now - timedelta(days=7, minutes=1) <= created_old <= now - timedelta(days=6, hours=23)
+    assert created_future <= datetime.now(timezone.utc) + timedelta(seconds=61)
+    assert ("PH-" + bad["id"]) in by_id                                  # a bad time falls back to receipt time
+
+
+async def test_results_route_needs_the_token_and_answers_ok(wd):
+    body = {"v": 1, "delivered": [], "testResult": None}
+    res = await wd.post("/api/internal/watchdog/results", body)
+    assert res.status_code == 200 and res.json() == {"ok": True}
+    assert (await wd.post("/api/internal/watchdog/results", body, token="nope")).status_code == 401
+    assert (await wd.post("/api/internal/watchdog/results", body, headers={"X-Real-IP": "1.2.3.4"})
+            ).status_code == 403
