@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
 status: executing
-stopped_at: Completed 82-03-PLAN.md
-last_updated: "2026-10-30T18:18:23.527Z"
+stopped_at: Completed 82-07-PLAN.md
+last_updated: "2026-10-30T18:37:19.152Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 82 execution started
-state_head: 889faa6c16e3accbc79fcbb2d6dad49137adcdd4
+state_head: 138b3b77029966cff5ae17e0fd6c5b0c2b377446
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 32
-  completed_plans: 23
+  completed_plans: 24
   percent: 17
 ---
 
@@ -480,6 +480,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-03: gave_up is a sticky gaveUp flag, not read from the 30-minute window; a given-up service is restarted again only after 3,600 s healthy
 - [Phase 82]: 82-03: one shared polling allowance POLL_BUDGET=30 s per watchdog run so restarts fit TimeoutStartSec=45; an uncovered restart is recorded as issued and judged next run
 - [Phase 82]: 82-03: incident store state[incidents] keyed svc:<id> with kinds service_gave_up and service_down; shape {key,severity,kind,target,params,openedAt,pageKey,sent,clearedAt}
+- [Phase 82]: 82-07: one pending test-alert request enforced by a partial unique index; unanswered requests close as failed after 10 minutes
+- [Phase 82]: 82-07: oncall.enqueue drops credential-like metadata keys; delivered entries (ok or not) mark an outbox message once
 
 ## Performance Metrics
 
@@ -658,6 +660,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P06 | 5 min | 3 tasks | 11 files |
 | Phase 82 P09 | 35 min | 3 tasks | 7 files |
 | Phase 82 P03 | 40 min | 3 tasks | 10 files |
+| Phase 82 P07 | 42 min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -692,8 +695,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-30T18:18:23.350Z
-**Stopped at:** Completed 82-03-PLAN.md
+**Last session:** 2026-10-30T18:37:18.848Z
+**Stopped at:** Completed 82-07-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -719,7 +722,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
-Plan: 6 of 14
+Plan: 7 of 14
 Status: Ready to execute
 Last activity: 2026-10-30 — Phase 82 execution resumed at 82-03 after the weekly usage limit
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
