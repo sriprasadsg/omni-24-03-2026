@@ -236,14 +236,16 @@ async def test_audit_and_decision_records_are_untouched_by_a_confirmed_run(mongo
             {"_id": oid(4000, i), "tenantId": "t1", "tenant_id": "t1", "timestamp": old_iso,
              "sent_at": old_iso, "at": old_date} for i in range(3)])
     await _seed_metrics(mongo_db, "t1")
-    before = {name: await mongo_db[name].count_documents({}) for name in gate.NEVER_DELETED}
-    assert all(n >= 3 for n in before.values())
+    before = {name: {d["_id"] async for d in mongo_db[name].find({}, {"_id": 1})} for name in gate.NEVER_DELETED}
+    assert all(len(ids) >= 3 for ids in before.values())
     await job.run_all(mongo_db, now=NOW)
     await _confirm_all(mongo_db)
     summary = await job.run_all(mongo_db, now=NOW + timedelta(minutes=1))
     assert summary["deleted"] == 3
+    # a scheduled run may add its own Activity and audit rows (82-10); it never removes an existing one
     for name in gate.NEVER_DELETED:
-        assert await mongo_db[name].count_documents({}) == before[name], name
+        after = {d["_id"] async for d in mongo_db[name].find({}, {"_id": 1})}
+        assert before[name] <= after, name
 
 
 @pytest.mark.asyncio

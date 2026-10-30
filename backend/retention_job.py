@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os
 import time
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Callable, Dict, Optional
@@ -70,7 +71,7 @@ async def count_type(db, rtype: RetentionType, tenant_id: str, days: int, now: d
         cutoff_filter(rtype, tenant_id, days, now), maxTimeMS=COUNT_MAX_TIME_MS)
 
 
-async def _record_count(db, tenant_id: str, rtype: RetentionType, days: int, now: datetime) -> Optional[int]:
+async def _record_count(db, tenant_id: str, rtype: RetentionType, days: int, now: datetime):
     """Count one (tenant, type); a failure is stored on that row and never raised."""
     try:
         count, error = await count_type(db, rtype, tenant_id, days, now), None
@@ -81,7 +82,7 @@ async def _record_count(db, tenant_id: str, rtype: RetentionType, days: int, now
         {"tenantId": tenant_id, "type": rtype.id},
         {"$set": {"tenantId": tenant_id, "type": rtype.id, "days": days, "count": count,
                   "countedAt": now, "error": error}}, upsert=True)
-    return count
+    return count, error
 
 
 async def delete_type(db, rtype: RetentionType, tenant_id: str, days: int, now: datetime, *,
@@ -145,9 +146,11 @@ async def run_tenant(db, tenant_id: str, *, now: datetime, lost: Optional[Callab
                 logger.info("retention: %s/%s deleted %d record(s) older than %d day(s)",
                             tenant_id, rtype.id, result["deleted"], days)
         else:
-            count = await _record_count(db, tenant_id, rtype, days, now)
+            count, error = await _record_count(db, tenant_id, rtype, days, now)
             summary["counted"] += count or 0
             summary["types"][rtype.id] = {"state": state, "days": days, "count": count}
+            if error:
+                summary["types"][rtype.id]["error"] = error
     return summary
 
 
@@ -159,6 +162,7 @@ async def run_all(db, *, now: Optional[datetime] = None, lost: Optional[Callable
     deadline = time.monotonic() + RUN_MAX_MINUTES * 60
     summary = {"startedAt": now, "trigger": trigger, "counted": 0, "deleted": 0, "tenants": 0,
                "stoppedEarly": False}
+    errors: list = []
     async for tenant in rdb.tenants.find({}, {"_id": 0, "id": 1}).sort("id", 1):
         tenant_id = tenant.get("id")
         if not tenant_id:
@@ -171,9 +175,27 @@ async def run_all(db, *, now: Optional[datetime] = None, lost: Optional[Callable
         summary["counted"] += result["counted"]
         summary["deleted"] += result["deleted"]
         summary["stoppedEarly"] = summary["stoppedEarly"] or result["stoppedEarly"]
+        errors.extend(info["error"] for info in result["types"].values() if info.get("error"))
     summary["finishedAt"] = datetime.now(timezone.utc)
     await rdb[gate.RUNS].insert_one(dict(summary))
+    if trigger == "scheduled":
+        await _record_run_activity(db, summary, errors)
     return summary
+
+
+async def _record_run_activity(db, summary: Dict, errors: list) -> None:
+    """One retention_run platform-health row per scheduled run (HEAL-07, H16): mode counted when it
+    deleted nothing, else deleted. A ledger failure never fails the run."""
+    deleted = summary["deleted"]
+    params = {"mode": "deleted" if deleted else "counted",
+              "records": deleted if deleted else summary["counted"], "tenants": summary["tenants"],
+              "ok": not errors, "error": errors[0] if errors else None}
+    try:
+        from autonomous_ops import ledger
+        await ledger.record_platform_health(db, uuid.uuid4().hex, "retention_run", params,
+                                            at=summary["finishedAt"], host=None)
+    except Exception as exc:
+        logger.warning("retention: the run could not be recorded in Activity: %s", exc)
 
 
 # ----------------------------------------------------------------------------- schedule and lock
