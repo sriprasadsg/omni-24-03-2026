@@ -4,6 +4,7 @@ import {
     fetchAutonomousOpsActions, fetchPlatformAutonomousOpsActions,
 } from '../services/autonomousOpsApi';
 import { STATUS_POLL_MS, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
+import { HealthChip } from './AutonomousOpsHealthChips';
 import {
     AlertTriangleIcon, CheckCircleIcon, ClockIcon, FlaskConicalIcon, HistoryIcon, InfoIcon, PauseCircleIcon,
     PlayCircleIcon, RefreshCcwIcon, ShieldLockIcon, XCircleIcon,
@@ -33,11 +34,16 @@ const STOPPING_EVENTS = new Set(['stop_pressed', 'platform_stop_pressed', 'break
 
 function chipKeyFor(row: AutonomousOpsRow): ChipKey {
     if (row.bucket === 'control') return row.controlEvent && STOPPING_EVENTS.has(row.controlEvent) ? 'stop' : 'resume';
-    // Platform-health rows get their own chips from AutonomousOpsHealthChips in the Phase 82 Activity plan;
-    // until then they read as the neutral informational chip rather than as a state they are not.
-    if (row.bucket === 'platform_health') return 'suggested';
-    return row.bucket;
+    // platform_health rows never reach here: RowChip renders them with HealthChip.
+    return row.bucket as ChipKey;
 }
+
+/** The State chip of a row: the Phase 82 health vocabulary for watchdog rows, the Phase 81 chips for the rest. */
+const RowChip: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => (
+    row.bucket === 'platform_health'
+        ? <HealthChip kind={row.healthChip ?? 'unknown'} />
+        : <StateChip chip={chipKeyFor(row)} />
+);
 
 export const StateChip: React.FC<{ chip: ChipKey }> = ({ chip }) => {
     const { label, Icon, classes } = CHIPS[chip];
@@ -89,12 +95,15 @@ const WhenLine: React.FC<{ row: AutonomousOpsRow; className?: string }> = ({ row
     );
 };
 
-const WhatRan: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => (
-    <>
-        <div className="text-sm font-semibold text-gray-900 dark:text-white break-words">{row.actionLabel}</div>
-        {row.classLine && <div className="text-xs text-gray-500 dark:text-gray-400">{row.classLine}</div>}
-    </>
-);
+const WhatRan: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => {
+    const under = row.bucket === 'platform_health' ? row.source : row.classLine;
+    return (
+        <>
+            <div className="text-sm font-semibold text-gray-900 dark:text-white break-words">{row.actionLabel}</div>
+            {under && <div className="text-xs text-gray-500 dark:text-gray-400 break-words">{under}</div>}
+        </>
+    );
+};
 
 const Why: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => (
     <>
@@ -137,7 +146,7 @@ const ActivityTable: React.FC<{ rows: AutonomousOpsRow[] }> = ({ rows }) => (
                     <tr key={row.id}>
                         <td className={`px-4 py-4 align-top ${row.bucket === 'simulation' ? SIM_RULE : ''}`}>
                             <div className="flex flex-col items-start gap-2">
-                                <StateChip chip={chipKeyFor(row)} />
+                                <RowChip row={row} />
                                 <WhenLine row={row} />
                             </div>
                         </td>
@@ -157,7 +166,7 @@ const ActivityCards: React.FC<{ rows: AutonomousOpsRow[] }> = ({ rows }) => (
         {rows.map(row => (
             <li key={row.id} className={`p-4 flex flex-col gap-2 ${row.bucket === 'simulation' ? SIM_RULE : ''}`}>
                 <div className="flex items-center justify-between gap-2">
-                    <StateChip chip={chipKeyFor(row)} />
+                    <RowChip row={row} />
                     <WhenLine row={row} />
                 </div>
                 <div><WhatRan row={row} /></div>
@@ -336,10 +345,11 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
             });
     };
 
-    // A simulation or control row is shown only where the contract allows it, whatever the server sent.
+    // A simulation, control or platform-health row is shown only where the contract allows it, whatever the
+    // server sent: platform-health rows never leave the platform scope (D-23, H11, T-82-44).
     const visible = useMemo(
-        () => rows.filter(r => bucket === 'all' || r.bucket === bucket),
-        [rows, bucket],
+        () => rows.filter(r => (platform || r.bucket !== 'platform_health') && (bucket === 'all' || r.bucket === bucket)),
+        [rows, bucket, platform],
     );
     const filter = FILTERS.find(f => f.key === bucket) ?? FILTERS[0];
     const shown = visible.length;

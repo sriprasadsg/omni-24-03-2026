@@ -145,7 +145,8 @@ describe('Platform-health rows in the Activity list (tracer)', () => {
     render(superList());
     await waitFor(() => expect(screen.getAllByText('Event healthy').length).toBe(2));
     for (const [, label] of chips) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-    expect(screen.queryByText('Suggested')).toBeNull();
+    // the Suggested filter pill exists; no row wears the Suggested chip
+    expect(screen.queryAllByText('Suggested').filter(el => !el.closest('button'))).toEqual([]);
   });
 
   it('tenant scope: a platform_health row the server sent anyway is not rendered', async () => {
