@@ -2,13 +2,27 @@ import React from 'react';
 import { useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { useUser } from '../contexts/UserContext';
 import type { PlatformHealthSummary } from '../services/autonomousOpsApi';
-import { AlertOctagonIcon } from './icons';
+import { AlertOctagonIcon, AlertTriangleIcon } from './icons';
 
 /** "14:02": a clock time on the viewer's own 24-hour clock (the same format family as formatStopDate). */
 export function formatClock(iso: string | null | undefined): string {
     const at = iso ? new Date(iso) : null;
     if (!at || Number.isNaN(at.getTime())) return 'an unknown time';
     return at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+let focusRequested = false;
+
+/** A banner's View details asks the Platform health section to take focus when it appears (read once, on mount). */
+export function requestPlatformHealthFocus(): void {
+    focusRequested = true;
+}
+
+/** True once after requestPlatformHealthFocus; the section calls it on mount and moves focus to its heading. */
+export function consumePlatformHealthFocus(): boolean {
+    const was = focusRequested;
+    focusRequested = false;
+    return was;
 }
 
 interface HealthBannersProps {
@@ -30,6 +44,8 @@ interface BannerShellProps extends HealthBannersProps {
 
 const RED = 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/25 dark:bg-red-400/10 dark:text-red-300';
 const RED_LINK = 'text-red-800 dark:text-red-200';
+const AMBER = 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200';
+const AMBER_LINK = 'text-amber-900 dark:text-amber-100';
 
 const BannerShell: React.FC<BannerShellProps> = ({
     role, title, detail, classes, linkClasses, Icon, currentView, inPlatformScope, onViewPlatformHealth,
@@ -43,7 +59,7 @@ const BannerShell: React.FC<BannerShellProps> = ({
         {!(currentView === 'autonomousOps' && inPlatformScope) && (
             <button
                 type="button"
-                onClick={onViewPlatformHealth}
+                onClick={() => { requestPlatformHealthFocus(); onViewPlatformHealth(); }}
                 className={`basis-full text-left text-sm font-semibold underline underline-offset-2 sm:basis-auto ${linkClasses}`}
             >
                 View details
@@ -67,7 +83,25 @@ function SilentBanner(props: HealthBannersProps & { health: PlatformHealthSummar
     );
 }
 
-export type HealthBannerKind = 'silent';
+export type HealthBannerKind = 'silent' | 'channel_none' | 'channel_failing';
+
+function ChannelBanner(props: HealthBannersProps & { health: PlatformHealthSummary; failing: boolean }) {
+    const { health, failing, ...shell } = props;
+    const detail = failing
+        ? `The last alert couldn't be delivered: ${health.channelError || 'no reason was given'}. Nobody will be paged until a test alert succeeds.`
+        : 'Nobody will be paged if a service fails. Set up a channel on the server, then send a test alert.';
+    return (
+        <BannerShell
+            {...shell}
+            role="status"
+            title="No working on-call channel."
+            detail={detail}
+            classes={AMBER}
+            linkClasses={AMBER_LINK}
+            Icon={AlertTriangleIcon}
+        />
+    );
+}
 
 /**
  * Which health banner the viewer sees, if any. Gated on control:platform_autonomous_ops and on the first
@@ -79,6 +113,9 @@ export function useHealthBannerKind(): { kind: HealthBannerKind | null; health: 
     const health = platformStatus?.health ?? null;
     if (!hasPermission('control:platform_autonomous_ops') || !health) return { kind: null, health: null };
     if (health.watchdog === 'silent') return { kind: 'silent', health };
+    if (health.watchdog !== 'running') return { kind: null, health }; // not installed: nothing is armed yet (D-24)
+    if (health.channel === 'none') return { kind: 'channel_none', health };
+    if (health.channel === 'failing') return { kind: 'channel_failing', health };
     return { kind: null, health };
 }
 
@@ -90,7 +127,10 @@ export function useHealthBannerKind(): { kind: HealthBannerKind | null; health: 
  */
 export const AutonomousOpsHealthBanners: React.FC<HealthBannersProps> = (props) => {
     const { kind, health } = useHealthBannerKind();
-    if (kind === 'silent' && health) return <SilentBanner {...props} health={health} />;
+    if (!health) return null;
+    if (kind === 'silent') return <SilentBanner {...props} health={health} />;
+    if (kind === 'channel_none') return <ChannelBanner {...props} health={health} failing={false} />;
+    if (kind === 'channel_failing') return <ChannelBanner {...props} health={health} failing />;
     return null;
 };
 

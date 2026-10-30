@@ -1955,7 +1955,12 @@ const App: React.FC = () => {
               />
               <AutonomousOpsStatusProvider tenantId={viewingTenantId} enabled={hasPermission('view:autonomous_ops')}>
               <div className="flex-1 flex flex-col gap-3 min-w-0 overflow-hidden">
-                <AutonomousOpsStopBanner currentView={currentView} onViewDetails={() => handleSetCurrentView('autonomousOps')} />
+                <AutonomousOpsStopBanner
+                  currentView={currentView}
+                  onViewDetails={() => handleSetCurrentView('autonomousOps')}
+                  inPlatformScope={viewingTenantId === null}
+                  onViewPlatformHealth={() => { setViewingTenantId(null); handleSetCurrentView('autonomousOps'); }}
+                />
                 <Header
                   allUsers={users}
                   onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
