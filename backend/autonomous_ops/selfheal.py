@@ -223,6 +223,14 @@ async def sync_response(db, accepted: List[str], dropped: int) -> Dict[str, Any]
 _URL = re.compile(r"https?://\S+", re.IGNORECASE)
 _OLDEST = datetime.min.replace(tzinfo=timezone.utc)
 _CHANNEL_TYPES = ("none", "pagerduty", "webhook")
+_STOP_SOURCES = ("file", "database", "cache", "none")
+_CHANNEL_STATUS = {"working": "working", "failing": "not_working", "untested": "not_tested", "none": "not_set_up"}
+
+INSTALL_CHECKLIST_PATH = "deploy/omni-watchdog/INSTALL.md"
+CADENCE_SECONDS = 60
+# The four services in the order the watchdog restarts them (MongoDB first): id -> (display name, unit).
+SERVICE_NAMES = {"mongod": ("MongoDB", "mongod"), "omni-backend": ("Backend", "omni-backend"),
+                 "nginx": ("nginx", "nginx"), "ollama": ("Ollama", "ollama")}
 
 
 def _safe_error(value: Any) -> Optional[str]:
@@ -282,3 +290,81 @@ async def health_summary(db, now: Optional[datetime] = None) -> Dict[str, Any]:
     return {"watchdog": state, "lastSeenAt": seen.isoformat() if seen else None,
             "channel": channel["channel"] if channel else None,
             "channelError": channel["error"] if channel and channel["channel"] == "failing" else None}
+
+
+def _num(value: Any) -> Optional[float]:
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) and value == value else None
+
+
+def _str(value: Any, limit: int = MAX_TEXT) -> Optional[str]:
+    return clean_text(value, limit) if isinstance(value, str) else None
+
+
+def _stamp(value: Any) -> Optional[str]:
+    parsed = _utc(value) if value is not None else None
+    return parsed.isoformat() if parsed else None
+
+
+def _items(value: Any) -> List[Dict[str, Any]]:
+    return [v for v in value if isinstance(v, dict)] if isinstance(value, list) else []
+
+
+def _service(sid: str, entry: Any, stale: bool) -> Dict[str, Any]:
+    e = entry if isinstance(entry, dict) else {}
+    state = _str(e.get("state"), 32)
+    name, unit = SERVICE_NAMES[sid]
+    return {"id": sid, "name": name, "unit": unit, "state": state, "since": _str(e.get("since"), 64),
+            "failedChecks": _num(e.get("failedChecks")), "restartsInWindow": _num(e.get("restartsInWindow")),
+            "nextRestartAt": _str(e.get("nextRestartAt"), 64), "budgetReturnsAt": _str(e.get("budgetReturnsAt"), 64),
+            "pagedAt": _str(e.get("pagedAt"), 64), "waitingOn": _str(e.get("waitingOn"), 32),
+            "detail": _str(e.get("detail")), "stale": stale or state is None}
+
+
+def _cert(entry: Dict[str, Any], stale: bool) -> Dict[str, Any]:
+    return {"path": _str(entry.get("path")), "notAfter": _str(entry.get("notAfter"), 64), "daysLeft": _num(entry.get("daysLeft")),
+            "rung": _num(entry.get("rung")), "pinned": entry.get("pinned") is True, "error": _str(entry.get("error"), 64),
+            "stale": stale}
+
+
+def _disk(entry: Dict[str, Any], stale: bool) -> Dict[str, Any]:
+    forecast = entry.get("forecast")
+    forecast = forecast if isinstance(forecast, dict) else {}
+    paths = entry.get("paths")
+    return {"mount": _str(entry.get("mount")), "paths": [_str(p) for p in paths if isinstance(p, str)] if isinstance(paths, list) else [],
+            "usedPct": _num(entry.get("usedPct")), "freeBytes": _num(entry.get("freeBytes")),
+            "totalBytes": _num(entry.get("totalBytes")), "rung": _num(entry.get("rung")),
+            "forecast": {"state": _str(forecast.get("state"), 32), "days": _num(forecast.get("days")),
+                         "rung": _num(forecast.get("rung"))}, "stale": stale}
+
+
+async def health_document(db, now: Optional[datetime] = None) -> Dict[str, Any]:
+    """GET /health (D-20, D-24). Everything below comes from the watchdog's latest snapshot, copied field by
+    field: the backend reads no certificate and measures no disk. While the watchdog is silent, or before it
+    ever reported, each entry carries ``stale`` true and its last known values (or null)."""
+    from . import oncall
+    now = now or datetime.now(timezone.utc)
+    heartbeat = await get_heartbeat(db)
+    state = watchdog_state(heartbeat, now, PROCESS_STARTED_AT)
+    snap = await _coll(db).find_one({"_id": SNAPSHOT_ID}) or {}
+    stale = state != "running"
+    blocks = snap.get("services") if isinstance(snap.get("services"), dict) else {}
+    certs = [_cert(c, stale) for c in _items(snap.get("certs"))]
+    certs.sort(key=lambda c: (c["daysLeft"] is not None, c["daysLeft"] or 0, c["path"] or ""))    # unreadable first
+    block = snap.get("oncall") if isinstance(snap.get("oncall"), dict) else {}
+    channel = await channel_status(db, snap) if snap else {"channel": "none", "error": None, "last": None}
+    stop = snap.get("stop") if isinstance(snap.get("stop"), dict) else {}
+    return {
+        "updatedAt": _stamp(snap.get("receivedAt")), "host": _str((heartbeat or {}).get("host"), MAX_HOST),
+        "watchdog": {"state": state, "lastSeenAt": _stamp((heartbeat or {}).get("lastSeenAt")),
+                     "firstSeenAt": _stamp((heartbeat or {}).get("firstSeenAt")), "cadenceSeconds": CADENCE_SECONDS,
+                     "silentAfterSeconds": SILENT_AFTER},
+        "installChecklist": {"path": INSTALL_CHECKLIST_PATH, "url": None},
+        "stop": {"effective": stop.get("effective") is True,
+                 "source": stop.get("source") if stop.get("source") in _STOP_SOURCES else "none"},
+        "services": [_service(sid, blocks.get(sid), stale) for sid in SERVICE_NAMES],
+        "certs": certs, "disks": [_disk(d, stale) for d in _items(snap.get("disks"))],
+        "oncall": {"type": block.get("type") if block.get("type") in _CHANNEL_TYPES else None,
+                   "heartbeatConfigured": block.get("heartbeatConfigured") is True,
+                   "status": _CHANNEL_STATUS[channel["channel"]], "last": channel["last"]},
+        "testAlert": await oncall.test_view(db),
+    }

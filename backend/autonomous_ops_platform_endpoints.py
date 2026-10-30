@@ -123,6 +123,23 @@ async def post_platform_stop(
         raise _unavailable(exc) from exc
 
 
+@router.get("/health", summary="Platform self-healing health")
+async def get_platform_health(
+    user=Depends(_require_platform_autonomy_control),
+    _session=Depends(_require_interactive_session),
+):
+    """What the watchdog last reported: the four services, certificate expiry, disk use and its forecast, the
+    on-call channel (type and state only, never a key or URL) and the latest test alert. Values are the
+    watchdog's own; each entry has ``stale`` true while the watchdog is silent or has never reported. Super
+    Admin only, interactive session."""
+    try:
+        return await selfheal.health_document(get_database(), datetime.now(timezone.utc))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
 @router.post("/health/test-alert", summary="Ask the watchdog to send a test alert")
 async def post_health_test_alert(
     user=Depends(_require_platform_autonomy_control),
