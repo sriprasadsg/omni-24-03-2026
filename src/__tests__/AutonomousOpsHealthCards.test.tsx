@@ -17,7 +17,7 @@ import { AutonomousOpsPlatformHealth } from '../../components/AutonomousOpsPlatf
 import { CertificatesCard, DiskCard, OnCallCard } from '../../components/AutonomousOpsHealthCards';
 import {
   mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, cert, disk, testAlert, gb, clock, AT_1402,
-  healthCalls, testAlertCalls, retentionReview,
+  healthCalls, testAlertCalls, retentionReview, REVIEW_PATH,
 } from './_platformHealthHarness';
 
 const CHECKLIST = { path: 'deploy/omni-watchdog/INSTALL.md', url: null };
@@ -262,6 +262,7 @@ function serve(initial: Record<string, unknown>, post: () => Response | Promise<
     const path = url.split('?')[0];
     if (path === TEST_ALERT && init.method === 'POST') return post();
     if (path === HEALTH) return jsonRes(state.doc);
+    if (path === REVIEW_PATH) return jsonRes(retentionReview()); // the retention card has its own fetch (82-13)
     throw new Error(`unexpected request ${url}`);
   });
   return state;
