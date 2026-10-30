@@ -49,7 +49,10 @@ interface ProviderProps {
 
 /** The one status poller shared by the Autonomous Ops screen and the app-wide stop banner. */
 export const AutonomousOpsStatusProvider: React.FC<ProviderProps> = ({ tenantId = null, enabled, children }) => {
-    const { currentUser } = useUser();
+    const { currentUser, hasPermission } = useUser();
+    // Platform health (Phase 82): a holder of the platform permission also reads the platform status
+    // while inside a tenant, so the health banners follow the Super Admin everywhere. Never inferred from a role name.
+    const holdsPlatformControl = hasPermission('control:platform_autonomous_ops');
     const scope = useMemo(
         () => resolveAutonomousOpsScope(currentUser?.role, tenantId),
         [currentUser?.role, tenantId],
@@ -71,9 +74,14 @@ export const AutonomousOpsStatusProvider: React.FC<ProviderProps> = ({ tenantId 
                 if (mine !== generation.current) return;
                 setPlatformStatus(next);
             } else {
+                const platformNext = holdsPlatformControl
+                    ? fetchPlatformAutonomousOpsStatus().catch(() => null) // a failed side read keeps the last known health
+                    : null;
                 const next = await fetchAutonomousOpsStatus(scope.tenantId);
+                const side = platformNext ? await platformNext : null;
                 if (mine !== generation.current) return;
                 setStatus(next);
+                if (side) setPlatformStatus(side);
             }
             setError(false);
         } catch {
@@ -82,7 +90,7 @@ export const AutonomousOpsStatusProvider: React.FC<ProviderProps> = ({ tenantId 
         } finally {
             if (mine === generation.current) setLoading(false);
         }
-    }, [enabled, scope]);
+    }, [enabled, scope, holdsPlatformControl]);
 
     useEffect(() => {
         generation.current += 1; // answers for the previous scope are dropped

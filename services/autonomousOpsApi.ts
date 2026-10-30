@@ -2,7 +2,7 @@ import { API_BASE, authFetch } from './apiService';
 
 /** Which slice of the activity list to request. `simulation` and `all` are not states. */
 export type AutonomousOpsBucket =
-    | 'all' | 'pending' | 'done' | 'undone' | 'failed' | 'refused' | 'suggested' | 'simulation';
+    | 'all' | 'pending' | 'done' | 'undone' | 'failed' | 'refused' | 'suggested' | 'simulation' | 'platform_health';
 
 /** The bucket a row belongs to. `control` rows (stop and resume events) appear under All only. */
 export type AutonomousOpsRowBucket = Exclude<AutonomousOpsBucket, 'all'> | 'control';
@@ -25,11 +25,19 @@ export interface AutonomousOpsRow {
     target: string | null;
     resultText: string | null;
     controlEvent: AutonomousOpsControlEvent | null;
+    /** Platform-health rows only (Phase 82): the Activity chip and where the event came from. */
+    healthChip?: AutonomousOpsHealthRowChip | null;
+    source?: string | null;
 }
+
+/** The Activity chip of a platform-health row, chosen by the server. */
+export type AutonomousOpsHealthRowChip = 'healthy' | 'notice' | 'warning' | 'critical' | 'paged' | 'skipped';
 
 export interface AutonomousOpsCounts {
     pending: number; done: number; undone: number; failed: number;
     refused: number; suggested: number; simulation: number;
+    /** Present only on the Super Admin's platform route. */
+    platform_health?: number;
 }
 
 export interface AutonomousOpsActionsPage {
@@ -72,6 +80,145 @@ export interface PlatformAutonomousOpsStatus {
     tenantStopsCount: number;
     canStopPlatform: boolean;
     canResumePlatform: boolean;
+    /** What the watchdog reports; null when the server could not compute it. */
+    health?: PlatformHealthSummary | null;
+}
+
+export type WatchdogState = 'not_installed' | 'running' | 'silent';
+
+/** `none`: no channel configured. `failing`: the last test or delivery failed. `untested`: configured, never delivered. */
+export type OnCallChannelStatus = 'working' | 'untested' | 'none' | 'failing';
+
+/** The compact health summary carried on the shared status poller (82-08). */
+export interface PlatformHealthSummary {
+    watchdog: WatchdogState;
+    lastSeenAt: string | null;
+    /** Null while the watchdog is not installed. */
+    channel: OnCallChannelStatus | null;
+    /** Text only when the channel is failing; URLs already replaced by the server, 300 characters at most. */
+    channelError: string | null;
+}
+
+export type ServiceId = 'mongod' | 'omni-backend' | 'nginx' | 'ollama';
+export type ServiceState =
+    | 'healthy' | 'checking' | 'down' | 'restarting' | 'gave_up' | 'expected_off' | 'unexpected_running';
+
+export interface PlatformHealthService {
+    id: ServiceId | string;
+    name: string;
+    unit: string;
+    state: ServiceState | null;
+    since: string | null;
+    failedChecks: number | null;
+    restartsInWindow: number | null;
+    nextRestartAt: string | null;
+    budgetReturnsAt: string | null;
+    pagedAt: string | null;
+    waitingOn: string | null;
+    detail: string | null;
+    stale: boolean;
+}
+
+export interface PlatformHealthCert {
+    path: string | null;
+    notAfter: string | null;
+    daysLeft: number | null;
+    rung: number | null;
+    pinned: boolean;
+    error: string | null;
+    stale: boolean;
+}
+
+export interface PlatformHealthDisk {
+    mount: string;
+    paths: string[];
+    usedPct: number | null;
+    freeBytes: number | null;
+    totalBytes: number | null;
+    rung: number | null;
+    forecast: { state: string; days: number | null; rung: number | null } | null;
+    stale: boolean;
+}
+
+export interface PlatformHealthOnCall {
+    type: 'none' | 'pagerduty' | 'webhook' | null;
+    heartbeatConfigured: boolean;
+    status: 'working' | 'not_working' | 'not_tested' | 'not_set_up';
+    last: { at: string; ok: boolean; error: string | null } | null;
+}
+
+export interface PlatformHealthTestAlert {
+    id: string;
+    requestedAt: string | null;
+    requestedBy: string | null;
+    state: 'pending' | 'delivered' | 'failed';
+    sentAt: string | null;
+    error: string | null;
+}
+
+/** GET /api/platform/autonomous-ops/health (82-08). Every value the watchdog could not read is null. */
+export interface PlatformHealthDocument {
+    updatedAt: string | null;
+    host: string | null;
+    watchdog: {
+        state: WatchdogState;
+        lastSeenAt: string | null;
+        firstSeenAt: string | null;
+        cadenceSeconds: number;
+        silentAfterSeconds: number;
+    };
+    installChecklist: { path: string; url: string | null };
+    stop: { effective: boolean; source: 'file' | 'database' | 'cache' | 'none' };
+    services: PlatformHealthService[];
+    certs: PlatformHealthCert[];
+    disks: PlatformHealthDisk[];
+    oncall: PlatformHealthOnCall;
+    testAlert: PlatformHealthTestAlert | null;
+}
+
+/** One organization and retention type waiting for a Super Admin (82-10). */
+export interface RetentionReviewItem {
+    tenantId: string;
+    tenantName: string;
+    type: string;
+    label: string;
+    collection: string;
+    days: number;
+    previousDays: number | null;
+    /** Null when there is no usable count (see countError). */
+    count: number | null;
+    countError: string | null;
+    countedAt: string | null;
+    reason: 'first_run' | 'shortened';
+}
+
+export interface RetentionLastRun {
+    at: string | null;
+    trigger: string | null;
+    counted: number;
+    deleted: number;
+    tenants: number;
+    error: string | null;
+    stoppedEarly: boolean;
+}
+
+/** GET /api/platform/autonomous-ops/retention/review?offset=&limit=25 (82-10). */
+export interface RetentionReview {
+    mode: 'running' | 'counting_only' | 'deleting_nightly';
+    notCountedYet: boolean;
+    nextRun: string;
+    lastRun: RetentionLastRun | null;
+    countedAt: string | null;
+    reviewToken: string;
+    totals: { records: number; tenants: number; rows: number; uncountable: number };
+    items: RetentionReviewItem[];
+    total: number;
+    nextOffset: number | null;
+}
+
+/** POST /api/platform/autonomous-ops/retention/confirm. */
+export interface ConfirmRetentionResult {
+    confirmed: { rows: number; records: number; tenants: number };
 }
 
 export interface ActionsQuery {
@@ -180,4 +327,31 @@ export async function pressPlatformStop({ reason }: Pick<StopRequest, 'reason'>)
 /** POST /api/platform/autonomous-ops/resume (Super Admin) */
 export async function resumePlatformStop({ reason }: Pick<StopRequest, 'reason'>): Promise<PlatformAutonomousOpsStatus> {
     return await postStop(`${API_BASE}/platform/autonomous-ops/resume`, reason) as PlatformAutonomousOpsStatus;
+}
+
+/** GET /api/platform/autonomous-ops/health (Super Admin) */
+export function fetchPlatformHealth(): Promise<PlatformHealthDocument> {
+    return getJson(`${API_BASE}/platform/autonomous-ops/health`);
+}
+
+/** POST /api/platform/autonomous-ops/health/test-alert: asks the watchdog to send one test message. */
+export async function requestTestAlert(): Promise<{ testAlert: PlatformHealthTestAlert }> {
+    const res = await authFetch(`${API_BASE}/platform/autonomous-ops/health/test-alert`, { method: 'POST', body: JSON.stringify({}) });
+    if (!res.ok) throw await failure(res);
+    return res.json();
+}
+
+/** GET /api/platform/autonomous-ops/retention/review?offset=&limit=25 */
+export function fetchRetentionReview(offset = 0): Promise<RetentionReview> {
+    const params = new URLSearchParams({ offset: String(offset), limit: '25' });
+    return getJson(`${API_BASE}/platform/autonomous-ops/retention/review?${params.toString()}`);
+}
+
+/** POST /api/platform/autonomous-ops/retention/confirm: 409 when the counts changed, 403 for anyone but a platform administrator. */
+export async function confirmRetention(reviewToken: string): Promise<ConfirmRetentionResult> {
+    const res = await authFetch(`${API_BASE}/platform/autonomous-ops/retention/confirm`, {
+        method: 'POST', body: JSON.stringify({ reviewToken }),
+    });
+    if (!res.ok) throw await failure(res);
+    return res.json();
 }

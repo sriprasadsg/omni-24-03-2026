@@ -2,6 +2,7 @@ import React from 'react';
 import { useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import type { StopView } from '../services/autonomousOpsApi';
 import { AlertOctagonIcon } from './icons';
+import { AutonomousOpsHealthBanners, useHealthBannerKind } from './AutonomousOpsHealthBanners';
 
 /** "Oct 25, 2026, 14:32": the one date format used for a stop in the banner, card and dialogs. */
 export function formatStopDate(iso: string): string {
@@ -27,6 +28,13 @@ interface BannerProps {
     /** The current AppView; the View details button is hidden on the Autonomous Ops screen itself. */
     currentView: string;
     onViewDetails: () => void;
+}
+
+interface StopBannerProps extends BannerProps {
+    /** True when no organization is selected. Phase 82: lets the health banner decide where View details goes. */
+    inPlatformScope?: boolean;
+    /** Opens the Autonomous Ops screen in platform scope (the shell clears the selected organization). */
+    onViewPlatformHealth?: () => void;
 }
 
 interface OneBannerProps extends BannerProps {
@@ -65,11 +73,14 @@ const OneBanner: React.FC<OneBannerProps> = ({ title, stop, currentView, onViewD
  * nothing. It has no dismiss control: a stop never clears itself, so hiding it would misstate the
  * system (PROH-81-14). A failed poll keeps the last state; the banner never shows its own error.
  */
-export const AutonomousOpsStopBanner: React.FC<BannerProps> = ({ currentView, onViewDetails }) => {
+export const AutonomousOpsStopBanner: React.FC<StopBannerProps> = ({
+    currentView, onViewDetails, inPlatformScope = false, onViewPlatformHealth = onViewDetails,
+}) => {
     const { status, platformStatus } = useAutonomousOpsStatus();
     const platformStop = status?.stop.platform ?? platformStatus?.stop.platform ?? null;
     const tenantStop = status?.stop.tenant ?? null;
-    if (!platformStop && !tenantStop) return null;
+    const { kind: healthKind } = useHealthBannerKind();
+    if (!platformStop && !tenantStop && !healthKind) return null;
 
     return (
         <div className="flex shrink-0 flex-col gap-2">
@@ -89,6 +100,11 @@ export const AutonomousOpsStopBanner: React.FC<BannerProps> = ({ currentView, on
                     onViewDetails={onViewDetails}
                 />
             )}
+            <AutonomousOpsHealthBanners
+                currentView={currentView}
+                inPlatformScope={inPlatformScope}
+                onViewPlatformHealth={onViewPlatformHealth}
+            />
         </div>
     );
 };
