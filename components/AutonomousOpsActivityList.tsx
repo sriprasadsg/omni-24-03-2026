@@ -33,6 +33,9 @@ const STOPPING_EVENTS = new Set(['stop_pressed', 'platform_stop_pressed', 'break
 
 function chipKeyFor(row: AutonomousOpsRow): ChipKey {
     if (row.bucket === 'control') return row.controlEvent && STOPPING_EVENTS.has(row.controlEvent) ? 'stop' : 'resume';
+    // Platform-health rows get their own chips from AutonomousOpsHealthChips in the Phase 82 Activity plan;
+    // until then they read as the neutral informational chip rather than as a state they are not.
+    if (row.bucket === 'platform_health') return 'suggested';
     return row.bucket;
 }
 
