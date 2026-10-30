@@ -93,3 +93,36 @@ export const healthCalls = () =>
   mockAuthFetch.mock.calls.filter(c => (c[0] as string).split('?')[0] === '/api/platform/autonomous-ops/health');
 export const testAlertCalls = () =>
   mockAuthFetch.mock.calls.filter(c => (c[0] as string).split('?')[0] === '/api/platform/autonomous-ops/health/test-alert');
+
+// ── retention review (82-13) ─────────────────────────────────────────────────
+
+export const REVIEW_PATH = '/api/platform/autonomous-ops/retention/review';
+export const CONFIRM_PATH = '/api/platform/autonomous-ops/retention/confirm';
+
+export function retentionItem(over: Record<string, unknown> = {}) {
+  return {
+    tenantId: 't1', tenantName: 'Acme Corp', type: 'agent_metrics', label: 'Agent metrics', collection: 'agent_metrics',
+    days: 30, previousDays: null, count: 3, countError: null, countedAt: minutesAgo(10), reason: 'first_run', ...over,
+  };
+}
+
+/** GET .../retention/review as 82-10 answers it; `items` default to two first-run rows (4 records, 2 organizations). */
+export function retentionReview(over: Record<string, unknown> = {}) {
+  const items = (over.items as unknown[] | undefined) ?? [
+    retentionItem(),
+    retentionItem({ tenantId: 't2', tenantName: 'Beta Ltd', type: 'logs', label: 'Logs', collection: 'logs', days: 90, count: 1 }),
+  ];
+  return {
+    mode: 'counting_only', notCountedYet: false, nextRun: '2026-10-31T02:00:00+00:00',
+    lastRun: { at: minutesAgo(600), trigger: 'scheduled', counted: 4, deleted: 0, tenants: 2, error: null, stoppedEarly: false },
+    countedAt: minutesAgo(10), reviewToken: 'abc',
+    totals: { records: 4, tenants: 2, rows: items.length, uncountable: 0 },
+    items, total: items.length, nextOffset: null,
+    ...over,
+  };
+}
+
+export const reviewCalls = () =>
+  mockAuthFetch.mock.calls.filter(c => (c[0] as string).split('?')[0] === REVIEW_PATH);
+export const confirmCalls = () =>
+  mockAuthFetch.mock.calls.filter(c => (c[0] as string).split('?')[0] === CONFIRM_PATH);
