@@ -37,6 +37,7 @@ WINDOW = 1800               # 30 minutes
 REARM_AFTER = 3600          # healthy for this long gives the budget back (D-08)
 POLL_EVERY = 2              # seconds between health polls after a restart
 POLL_FOR = 20               # give up polling one service after this long
+POLL_BUDGET = 30            # all restarts of one run together may take this long (TimeoutStartSec is 45)
 SLACK = 5                   # a run up to this early still counts as "the wait is over" (timer jitter)
 ERROR_CAP = 300
 RESTART_TIMEOUT = 15
@@ -110,7 +111,7 @@ class _Run:
     def allowance(self):
         """Seconds of polling still allowed in this run: one POLL_FOR at most, and the whole run
         (restart commands and polling of every service) never beyond POLL_BUDGET."""
-        return POLL_FOR
+        return max(0.0, min(POLL_FOR, POLL_BUDGET - (self.clock() - self.started)))
 
     def save(self):
         if self.persist is not None:
@@ -136,12 +137,14 @@ def decide(state, health, stop, now, config, *, run, clock, sleep, recheck, pers
     reaches the spool; a restart the allowance cannot cover is recorded as issued and judged next run.
     """
     ctx = _Run(state, stop, now, run, clock, sleep, recheck, persist)
+    mongo_ok = bool(health["mongod"][0]) if "mongod" in health else True
     events = []
     for sid in managed_ids(config):
         svc = state["services"].get(sid)
         if svc is None or sid not in health:
             continue
-        events.extend(_step(ctx, sid, svc, bool(health[sid][0]), False))
+        blocked = sid == "omni-backend" and not mongo_ok
+        events.extend(_step(ctx, sid, svc, bool(health[sid][0]), blocked))
     return events
 
 
@@ -225,6 +228,15 @@ def _down(ctx, sid, svc):
         if _open_incident(ctx.state, sid, KIND_GAVE_UP, now):
             svc["pagedAt"] = now
         ctx.save()
+        return events
+    if ctx.stop.get("effective"):            # D-11: checks, events and incidents go on; restarts do not
+        svc["nextRestartAt"] = None
+        if not svc.get("skipped"):
+            svc["skipped"] = True
+            events.append(make_event("restart_skipped", "warning", sid, now))
+        if _open_incident(ctx.state, sid, KIND_DOWN, now):
+            svc["pagedAt"] = now
+            ctx.save()
         return events
     return _restart(ctx, sid, svc)
 
