@@ -1,8 +1,8 @@
 import React from 'react';
 import { formatClock } from './AutonomousOpsHealthBanners';
 import {
-    AlertOctagonIcon, AlertTriangleIcon, BellIcon, CheckCircleIcon, ClockIcon, HeartPulseIcon, InfoIcon,
-    LockIcon, PauseCircleIcon, RefreshCwIcon, XCircleIcon,
+    AlertOctagonIcon, AlertTriangleIcon, BellIcon, CheckCircleIcon, ClockIcon, ExternalLinkIcon, HeartPulseIcon,
+    InfoIcon, LockIcon, PauseCircleIcon, RefreshCwIcon, XCircleIcon,
 } from './icons';
 
 /** Every chip of the Phase 82 health vocabulary (82-UI-SPEC, New chips). */
@@ -92,3 +92,54 @@ export const HealthCell: React.FC<{ label: string; value: React.ReactNode; help?
         {help && <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{help}</p>}
     </div>
 );
+
+const NOTICE_TONES = {
+    amber: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200',
+    blue: 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200',
+    red: 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/25 dark:bg-red-400/10 dark:text-red-300',
+};
+
+/** A tinted block with a 16px icon: the stop, not-installed, silent and error blocks of the Platform health section. */
+export const HealthNotice: React.FC<{
+    tone: keyof typeof NOTICE_TONES; icon?: React.FC<any>; role?: 'alert' | 'status'; children: React.ReactNode;
+}> = ({ tone, icon, role, children }) => {
+    const Icon = icon ?? (tone === 'blue' ? InfoIcon : AlertTriangleIcon);
+    return (
+        <div role={role} className={`flex items-start gap-2 break-words rounded-lg border p-4 text-sm ${NOTICE_TONES[tone]}`}>
+            <Icon size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">{children}</div>
+        </div>
+    );
+};
+
+/** A link target is used only when it is https or points at this origin; anything else is shown as text (T-82-40). */
+function safeHref(url: string | null | undefined): string | null {
+    if (!url) return null;
+    try {
+        const parsed = new URL(url, window.location.origin);
+        return parsed.protocol === 'https:' || parsed.origin === window.location.origin ? url : null;
+    } catch {
+        return null;
+    }
+}
+
+/** "View install checklist": a new-tab link when the server gives a safe url, else the label and the repo path as text (D-24, H8). */
+export const InstallChecklistLink: React.FC<{ checklist: { path: string; url: string | null } | null | undefined }> = ({ checklist }) => {
+    if (!checklist) return null;
+    const href = safeHref(checklist.url);
+    if (href) {
+        return (
+            <a href={href} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-semibold underline underline-offset-2">
+                View install checklist
+                <ExternalLinkIcon size={12} aria-hidden="true" />
+            </a>
+        );
+    }
+    return (
+        <span className="inline-flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
+            <span>View install checklist</span>
+            <span className="break-all font-mono text-xs font-normal">{checklist.path}</span>
+        </span>
+    );
+};
