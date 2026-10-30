@@ -117,7 +117,9 @@ const Target: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => {
     return (
         <>
             {row.host && <div className="text-sm font-semibold text-gray-900 dark:text-white break-words">{row.host}</div>}
-            {row.target && <div className="font-mono text-xs text-gray-500 dark:text-gray-400 break-all">{row.target}</div>}
+            {row.target
+                ? <div className="font-mono text-xs text-gray-500 dark:text-gray-400 break-all">{row.target}</div>
+                : row.bucket === 'platform_health' && <div className="text-xs text-gray-500 dark:text-gray-400">{Dash}</div>}
         </>
     );
 };
@@ -223,6 +225,10 @@ const FILTERS: { key: AutonomousOpsBucket; label: string; empty: string }[] = [
     { key: 'suggested', label: 'Suggested', empty: 'No suggested actions.' },
     { key: 'simulation', label: 'Simulation', empty: 'No simulated actions.' },
 ];
+/** Appended after Simulation in platform scope only (D-23). */
+const PLATFORM_HEALTH_FILTER: (typeof FILTERS)[number] = {
+    key: 'platform_health', label: 'Platform health', empty: 'No platform health events.',
+};
 
 const PILL_BASE = 'min-h-8 px-3 text-xs font-semibold rounded-full border';
 const PILL_IDLE = 'border-gray-300 text-gray-700 dark:border-white/10 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/[0.06]';
@@ -250,11 +256,13 @@ export interface ActivityListProps {
 }
 
 export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, refreshSignal = 0 }) => {
-    const { status } = useAutonomousOpsStatus();
+    const { status, platformStatus } = useAutonomousOpsStatus();
     const platform = scope.kind === 'platform';
     const tenantId = scope.kind === 'tenant' ? scope.tenantId : null;
 
-    const [bucket, setBucket] = useState<AutonomousOpsBucket>('all');
+    const [picked, setBucket] = useState<AutonomousOpsBucket>('all');
+    // The Platform health filter exists in platform scope only; elsewhere a leftover pick reads as All.
+    const bucket: AutonomousOpsBucket = !platform && picked === 'platform_health' ? 'all' : picked;
     const [rows, setRows] = useState<AutonomousOpsRow[]>([]);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     const [counts, setCounts] = useState<AutonomousOpsCounts | null>(null);
@@ -351,7 +359,9 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
         () => rows.filter(r => (platform || r.bucket !== 'platform_health') && (bucket === 'all' || r.bucket === bucket)),
         [rows, bucket, platform],
     );
-    const filter = FILTERS.find(f => f.key === bucket) ?? FILTERS[0];
+    const filters = platform ? [...FILTERS, PLATFORM_HEALTH_FILTER] : FILTERS;
+    const filter = filters.find(f => f.key === bucket) ?? FILTERS[0];
+    const watchdogNotInstalled = platformStatus?.health?.watchdog === 'not_installed';
     const shown = visible.length;
     const footer = total !== null && total > shown
         ? `Showing ${shown} of ${total} actions`
@@ -360,7 +370,7 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
     return (
         <>
             <div role="group" aria-label="Filter activity by state" className="flex flex-wrap gap-2">
-                {FILTERS.map(f => {
+                {filters.map(f => {
                     const count = counts && f.key !== 'all' ? counts[f.key] : undefined;
                     return (
                         <button
@@ -394,6 +404,10 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
                     bucket === 'all' ? (
                         <EmptyStateCard icon={HistoryIcon} heading="No activity yet">
                             <p className={BODY_COPY}>{emptyBody(platform, !!status?.shadow.effective)}</p>
+                        </EmptyStateCard>
+                    ) : bucket === 'platform_health' && watchdogNotInstalled ? (
+                        <EmptyStateCard icon={HistoryIcon} heading="No platform health events yet.">
+                            <p className={BODY_COPY}>Events appear here once the watchdog is installed and reporting.</p>
                         </EmptyStateCard>
                     ) : (
                         <EmptyStateCard icon={HistoryIcon} heading={filter.empty}>
