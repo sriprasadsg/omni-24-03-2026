@@ -5,6 +5,10 @@ interface Policy {
   collection: string;
   retention_days: number;
   description: string;
+  /** Phase 82: the caller's own tenant only; waiting means the nightly and manual runs only count this type. */
+  gate?: { waiting: boolean; reason?: string | null };
+  managedBy?: string;
+  editable?: boolean;
 }
 
 interface CleanupResult {
@@ -19,6 +23,7 @@ export default function RetentionPolicyDashboard() {
   const [lastResult, setLastResult] = useState<CleanupResult | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [editDays, setEditDays] = useState<number>(90);
+  const [shortened, setShortened] = useState<string | null>(null);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -37,7 +42,7 @@ export default function RetentionPolicyDashboard() {
   }
 
   async function runCleanup() {
-    if (!confirm('Run data retention cleanup now? This will permanently delete data older than each policy threshold.')) return;
+    if (!confirm("Run data retention cleanup now? This permanently deletes data older than each policy threshold, except data types still waiting for a platform administrator's confirmation, which are only counted. Audit logs are not affected.")) return;
     setRunning(true);
     try {
       const r = await authFetch('/api/retention/run', { method: 'POST' });
@@ -48,11 +53,20 @@ export default function RetentionPolicyDashboard() {
   }
 
   async function savePolicy(collection: string) {
-    await authFetch(`/api/retention/policies/${collection}`, {
+    const previous = policies.find(p => p.collection === collection)?.retention_days;
+    setShortened(null);
+    const res = await authFetch(`/api/retention/policies/${collection}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ retention_days: editDays }),
     });
+    // D-19: only a shorter period that the server holds for confirmation gets the notice; lengthening gets none.
+    try {
+      const saved = res.ok ? await res.json() : null;
+      if (saved?.countOnlyUntilConfirmed === true && typeof previous === 'number' && editDays < previous) {
+        setShortened(collection);
+      }
+    } catch { /* an unreadable answer shows no notice */ }
     setEditing(null);
     loadAll();
   }
@@ -153,14 +167,33 @@ export default function RetentionPolicyDashboard() {
                       </span>
                       <span className="text-gray-600 dark:text-gray-400 text-sm ml-1">days</span>
                     </div>
-                    <button onClick={() => { setEditing(policy.collection); setEditDays(policy.retention_days); }}
-                      className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 px-3 py-1.5 rounded text-xs">
-                      Edit
-                    </button>
+                    {policy.editable !== false && policy.collection !== 'audit_logs' && (
+                      <button onClick={() => { setEditing(policy.collection); setEditDays(policy.retention_days); setShortened(null); }}
+                        className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 px-3 py-1.5 rounded text-xs">
+                        Edit
+                      </button>
+                    )}
                   </>
                 )}
               </div>
             </div>
+            {policy.collection === 'audit_logs' && (
+              <p className="mt-3 text-xs text-gray-600 dark:text-gray-400 break-words">
+                Audit logs are kept by the audit ledger's own schedule, not by this cleanup.
+              </p>
+            )}
+            {policy.gate?.waiting && (
+              <p className="mt-3 text-xs text-gray-600 dark:text-gray-400 break-words">
+                Waiting for a platform administrator to confirm before old records are deleted. Until then, the nightly run and Run Cleanup Now only count them.
+              </p>
+            )}
+            {shortened === policy.collection && (
+              <div className="mt-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-3">
+                <p className="text-yellow-800 dark:text-yellow-300 text-sm break-words">
+                  Saved. Because this shortens the period, the next cleanup run, nightly or manual, only counts what would be deleted. A platform administrator confirms before anything is removed.
+                </p>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -171,7 +204,7 @@ export default function RetentionPolicyDashboard() {
           <li>Audit logs must be retained for at least 90 days per SOC 2 requirements</li>
           <li>Security events retention of 365+ days recommended for forensic investigations</li>
           <li>GDPR Article 5(1)(e) requires data not be kept longer than necessary</li>
-          <li>Cleanup runs automatically daily at 3:00 AM UTC</li>
+          <li>Cleanup runs automatically every night at 02:00 UTC.</li>
         </ul>
       </div>
     </div>
