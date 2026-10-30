@@ -4,7 +4,7 @@ import { AlertTriangleIcon, TrashIcon } from './icons';
 import { SECONDARY_BUTTON } from './AutonomousOpsHealthCards';
 import { formatClock } from './AutonomousOpsHealthBanners';
 import { confirmRetention } from '../services/autonomousOpsApi';
-import type { RetentionReview } from '../services/autonomousOpsApi';
+import type { AutonomousOpsApiError, RetentionReview } from '../services/autonomousOpsApi';
 import { showToast } from '../utils/toast';
 
 const CONFIRM_BUTTON =
@@ -12,6 +12,9 @@ const CONFIRM_BUTTON =
 
 /** What the Super Admin saw when the dialog opened: the token confirms exactly these counts, never a later poll. */
 export type RetentionReviewSnapshot = Pick<RetentionReview, 'reviewToken' | 'totals' | 'countedAt'>;
+
+/** A server message without its closing full stop, so it reads inside "...: {message}. Try again." */
+const plain = (message: string) => message.trim().replace(/[.\s]+$/, '');
 
 export const plural = (n: number, one: string, many: string) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
@@ -28,11 +31,13 @@ const Inner: React.FC<{ review: RetentionReviewSnapshot; onClose: () => void; on
     const [checked, setChecked] = useState(false);
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [stale, setStale] = useState(false);
     const inFlight = useRef(false);
 
     const { totals } = review;
     const summary = `${plural(totals.records, 'record', 'records')} across ${plural(totals.tenants, 'organization', 'organizations')}`
         + (review.countedAt ? `, counted ${formatClock(review.countedAt)}.` : '.');
+    const uncountable = totals.uncountable;
 
     const submit = async () => {
         if (inFlight.current || !checked) return;
@@ -43,8 +48,21 @@ const Inner: React.FC<{ review: RetentionReviewSnapshot; onClose: () => void; on
             await confirmRetention(review.reviewToken);
             showToast('Retention confirmed. Old records will be deleted from the next nightly run.', 'success');
             onConfirmed();
-        } catch {
-            setError("Couldn't confirm deletion. Check your connection and try again.");
+        } catch (e) {
+            const err = e as Partial<AutonomousOpsApiError>;
+            if (err.status === 409) {
+                // The nightly job recounted since this review loaded: the token no longer matches what was reviewed.
+                setStale(true);
+                setChecked(false);
+            } else if (err.status === 403) {
+                showToast('Only a platform administrator can confirm deletion.', 'error');
+                onConfirmed();
+            } else {
+                const message = err.detail ? plain(err.detail) : '';
+                setError(message
+                    ? `Couldn't confirm deletion: ${message}. Try again.`
+                    : "Couldn't confirm deletion. Check your connection and try again.");
+            }
         } finally {
             inFlight.current = false;
             setPending(false);
@@ -62,10 +80,14 @@ const Inner: React.FC<{ review: RetentionReviewSnapshot; onClose: () => void; on
             footer={(
                 <>
                     <button type="button" className={SECONDARY_BUTTON} onClick={onClose}>Keep waiting</button>
-                    <button type="button" className={CONFIRM_BUTTON} onClick={submit} disabled={pending || !checked}>
-                        <TrashIcon size={16} aria-hidden="true" />
-                        {pending ? 'Confirming...' : 'Confirm deletion'}
-                    </button>
+                    {stale ? (
+                        <button type="button" className={SECONDARY_BUTTON} onClick={onConfirmed}>Reload review</button>
+                    ) : (
+                        <button type="button" className={CONFIRM_BUTTON} onClick={submit} disabled={pending || !checked}>
+                            <TrashIcon size={16} aria-hidden="true" />
+                            {pending ? 'Confirming...' : 'Confirm deletion'}
+                        </button>
+                    )}
                 </>
             )}
         >
@@ -76,6 +98,7 @@ const Inner: React.FC<{ review: RetentionReviewSnapshot; onClose: () => void; on
                         checked={checked}
                         onChange={e => setChecked(e.target.checked)}
                         aria-required="true"
+                        disabled={stale}
                         className="mt-0.5 h-4 w-4 shrink-0"
                     />
                     <span className="min-w-0 break-words">I have reviewed the counts for every organization listed.</span>
@@ -85,10 +108,19 @@ const Inner: React.FC<{ review: RetentionReviewSnapshot; onClose: () => void; on
                 </p>
                 <div className="break-words rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
                     <p>{summary}</p>
+                    {uncountable > 0 && (
+                        <p>{`${plural(uncountable, 'row', 'rows')} could not be counted and ${uncountable === 1 ? 'stays' : 'stay'} waiting.`}</p>
+                    )}
                 </div>
                 <p className="break-words text-xs text-gray-500 dark:text-gray-400">
                     Audit logs, the audit ledger, decision records and compliance evidence are never deleted.
                 </p>
+                {stale && (
+                    <div role="alert" className="flex items-start gap-2 break-words rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                        <AlertTriangleIcon size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+                        <span className="min-w-0">The counts changed since you opened this review. Reload the review and check the new counts before confirming.</span>
+                    </div>
+                )}
                 {error && (
                     <div role="alert" className="flex items-start gap-2 break-words rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
                         <AlertTriangleIcon size={16} aria-hidden="true" className="mt-0.5 shrink-0" />

@@ -27,7 +27,9 @@
     "components/AutonomousOpsHealthBanners.tsx",
     "components/AutonomousOpsHealthChips.tsx",
     "components/AutonomousOpsPlatformHealth.tsx",
-    "components/AutonomousOpsHealthCards.tsx"
+    "components/AutonomousOpsHealthCards.tsx",
+    "components/AutonomousOpsRetentionReview.tsx",
+    "components/AutonomousOpsRetentionConfirmDialog.tsx"
   ],
   "catalogueViews": ["autonomousOps"]
 }

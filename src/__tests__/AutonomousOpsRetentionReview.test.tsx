@@ -20,6 +20,7 @@ import {
   mockAuthFetch, jsonRes, retentionReview, retentionItem, reviewCalls, confirmCalls, REVIEW_PATH,
   notInstalledDoc, minutesAgo, withUser, routeRetention, SUPER_PERMISSIONS,
 } from './_platformHealthHarness';
+import type { RetentionHandler } from './_platformHealthHarness';
 
 const mockToast = showToast as unknown as ReturnType<typeof vi.fn>;
 
@@ -55,7 +56,7 @@ describe('Retention card (tracer)', () => {
 
   it('confirms once: focus lands on the review checkbox, the button waits for it, a double click sends one POST with the review token, then toast and refetch', async () => {
     let finish: (r: Response) => void = () => {};
-    const confirm = vi.fn<Handler>(() => new Promise<Response>(resolve => { finish = resolve; }));
+    const confirm = vi.fn<RetentionHandler>(() => new Promise<Response>(resolve => { finish = resolve; }));
     route({ confirm });
     renderCard();
     await ready();
