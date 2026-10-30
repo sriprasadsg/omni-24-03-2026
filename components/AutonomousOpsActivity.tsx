@@ -3,6 +3,7 @@ import { useUser } from '../contexts/UserContext';
 import { resolveAutonomousOpsScope, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { platformTier } from '../utils/permissions';
 import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
+import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
 import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
 import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
@@ -20,7 +21,7 @@ const OUTLINE_CHIP =
 
 /** Autonomous Ops (ACTV-01, ACTV-03): the read-only record of every decision. Phase 83 adds row actions. */
 export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ tenantId = null, onGoToTenants }) => {
-    const { currentUser } = useUser();
+    const { currentUser, hasPermission } = useUser();
     const { status, refresh } = useAutonomousOpsStatus();
     const [refreshing, setRefreshing] = useState(false);
     const [refreshSignal, setRefreshSignal] = useState(0);
@@ -80,6 +81,9 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                     <div data-slot="autonomous-ops-status">
                         <AutonomousOpsStatusCard tenantId={tenantId} />
                     </div>
+                    {scope.kind === 'platform' && hasPermission('control:platform_autonomous_ops') && (
+                        <AutonomousOpsPlatformHealth refreshSignal={refreshSignal} />
+                    )}
                     <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
                         <div className="flex flex-wrap items-center justify-between gap-4">
                             <h2 id="autonomous-ops-activity-title" className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Activity</h2>

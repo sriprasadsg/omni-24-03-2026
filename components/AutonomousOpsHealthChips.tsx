@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatClock } from './AutonomousOpsHealthBanners';
 import {
     AlertOctagonIcon, AlertTriangleIcon, BellIcon, CheckCircleIcon, ClockIcon, HeartPulseIcon, InfoIcon,
     LockIcon, PauseCircleIcon, RefreshCwIcon, XCircleIcon,
@@ -48,13 +49,17 @@ const CHIPS: Record<HealthChipKind, { label: string; Icon: React.FC<any>; classe
     skipped: { label: 'Skipped', Icon: PauseCircleIcon, classes: OUTLINE },
 };
 
-/** One health chip: an icon (decorative) and the visible text, so meaning never rests on colour alone. */
-export const HealthChip: React.FC<{ kind: HealthChipKind }> = ({ kind }) => {
-    const { label, Icon, classes } = CHIPS[kind];
+/**
+ * One health chip: an icon (decorative) and the visible text, so meaning never rests on colour alone.
+ * `label` overrides the text for the one chip that wears another chip's tone (a service running where it
+ * is not expected reads "Running" in the Notice tone).
+ */
+export const HealthChip: React.FC<{ kind: HealthChipKind; label?: string }> = ({ kind, label }) => {
+    const { label: defaultLabel, Icon, classes } = CHIPS[kind];
     return (
         <span className={`${CHIP_BASE} ${classes}`}>
             <Icon size={12} aria-hidden="true" />
-            {label}
+            {label ?? defaultLabel}
         </span>
     );
 };
@@ -70,3 +75,20 @@ export function ladderChip(rung: number | null | undefined): HealthChipKind {
     if (rung >= 1) return 'notice';
     return 'ok';
 }
+
+/** "14:02", or an em dash when the watchdog did not send the time (a missing field always reads as a dash). */
+export function clockOrDash(iso: string | null | undefined): string {
+    return iso && !Number.isNaN(new Date(iso).getTime()) ? formatClock(iso) : '—';
+}
+
+/** Placeholder block for the first load of the Platform health section. */
+export const HEALTH_SKELETON = 'animate-pulse rounded-lg bg-gray-200 dark:bg-white/10';
+
+/** The 81 readout cell: label, value, and an optional helper line that wraps. */
+export const HealthCell: React.FC<{ label: string; value: React.ReactNode; help?: React.ReactNode }> = ({ label, value, help }) => (
+    <div className="min-w-0">
+        <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
+        <dd className="mt-1 break-words text-sm font-semibold text-gray-900 dark:text-white">{value}</dd>
+        {help && <p className="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">{help}</p>}
+    </div>
+);
