@@ -134,4 +134,6 @@ class Rig:
 
 @pytest.fixture
 def rig(tmp_path, monkeypatch):
+    # The restart tests are about restarts; certificate and disk warnings (82-04) have their own suite.
+    monkeypatch.setattr(run_mod.warnings, "evaluate", lambda *args, **kwargs: ([], [], []))
     return Rig(tmp_path, monkeypatch)

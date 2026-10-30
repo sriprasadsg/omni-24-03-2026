@@ -10,8 +10,9 @@ injected. The seams, exactly as plans 82-03, 82-04 and 82-05 call them:
 A fourth seam, ``sleep(seconds)``, is used only while polling a service after a restart (82-03);
 tests pass the fake clock's ``advance``.
 
-Sequence of one run: check -> debounce -> stop -> restart decision (82-03) -> sync. Warning and paging
-stages are added by 82-04 and 82-05.
+Sequence of one run: check -> debounce -> stop -> restart decision (82-03) -> certificate and disk warnings
+(82-04) -> spool -> save state -> sync. The paging stage is added by 82-05 after the state is saved.
+A fifth seam, ``fs``, answers os.statvfs / os.stat for the disk checks (tests choose the numbers).
 """
 import argparse
 import os
@@ -22,7 +23,8 @@ import time
 import urllib.error
 import urllib.request
 
-from . import DEFAULTS, SERVICE_ORDER, checks, config as config_mod, restart, services, state as state_mod, sync
+from . import (DEFAULTS, SERVICE_ORDER, checks, config as config_mod, restart, services, state as state_mod, sync,
+               warnings)
 
 CHILD_ENV = {"PATH": "/usr/bin:/bin", "LC_ALL": "C"}
 
@@ -58,7 +60,7 @@ def _host(cfg):
     return (cfg.get("host") or socket.gethostname() or "omni")[:128]
 
 
-def run_once(config, state_dir, *, run, http, now, sleep=None):
+def run_once(config, state_dir, *, run, http, now, sleep=None, fs=None):
     """Check every service, update the state, send one sync. Returns a summary dict.
 
     A second concurrent run returns ``{"skipped": "locked"}`` at once, without checking or posting."""
@@ -67,10 +69,10 @@ def run_once(config, state_dir, *, run, http, now, sleep=None):
         if not acquired:
             return {"skipped": "locked"}
         return _run_locked({**DEFAULTS, **(config or {})}, state_dir, run=run, http=http, now=now,
-                           sleep=sleep or time.sleep)
+                           sleep=sleep or time.sleep, fs=fs)
 
 
-def _run_locked(cfg, state_dir, *, run, http, now, sleep):
+def _run_locked(cfg, state_dir, *, run, http, now, sleep, fs=None):
     t = now()
     path = state_mod.state_path(state_dir)
     state = state_mod.load_state(path, now=t)
@@ -95,14 +97,22 @@ def _run_locked(cfg, state_dir, *, run, http, now, sleep):
         recheck=lambda sid: checks.check_one(sid, run, http, cfg),
         persist=lambda: state_mod.save_state(path, state)))
 
+    # Certificate and disk warnings (82-04): read-only checks that run after the restart decision. Their events
+    # join the restart events in the one spool below, so a backend outage cannot lose them.
+    certs, disks, warning_events = warnings.evaluate(state, cfg, t, run, clock=now, fs=fs)
+    events.extend(warning_events)
+
     spool = state_mod.Spool(os.path.join(state_dir, "spool.ndjson"))
 
     # New events reach the spool (fsynced) before any send, so an outage cannot lose them.
     state["spoolDropped"] = int(state.get("spoolDropped") or 0) + spool.append(events)
+    # The incidents opened above are on disk before the network (and, from 82-05, any paging) is touched. A
+    # run killed earlier leaves the previous complete state.json: save_state is an atomic replace.
+    state_mod.save_state(path, state)
 
     channel = config_mod.load_oncall(cfg["oncall_env_path"])
     oncall = {"type": channel.type, "heartbeatConfigured": bool(channel.heartbeat_url), "last": state.get("oncallLast")}
-    body = sync.build_body(_host(cfg), state["services"], [], [], oncall, stop, [], [], sent_at=t)
+    body = sync.build_body(_host(cfg), state["services"], certs, disks, oncall, stop, [], [], sent_at=t)
     token = config_mod.read_token(cfg["ingest_token_path"])
     synced, response = sync.sync_cycle(http, cfg, token, body, spool, state) if token else (False, None)
     if synced:
