@@ -17,7 +17,7 @@ import { AutonomousOpsPlatformHealth } from '../../components/AutonomousOpsPlatf
 import { CertificatesCard, DiskCard, OnCallCard } from '../../components/AutonomousOpsHealthCards';
 import {
   mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, cert, disk, testAlert, gb, clock, AT_1402,
-  healthCalls, testAlertCalls,
+  healthCalls, testAlertCalls, retentionReview,
 } from './_platformHealthHarness';
 
 const CHECKLIST = { path: 'deploy/omni-watchdog/INSTALL.md', url: null };
@@ -390,7 +390,9 @@ describe('Send test alert', () => {
   });
 
   it('watchdog not installed: the button is disabled and the helper asks to install it first', async () => {
-    mockAuthFetch.mockImplementation(async () => jsonRes(notInstalledDoc()));
+    mockAuthFetch.mockImplementation(async (url: string) => (url.split('?')[0] === HEALTH
+      ? jsonRes(notInstalledDoc())
+      : jsonRes(retentionReview()))); // the retention card has its own fetch (82-13)
     await mountSection();
     expect(button()).toBeDisabled();
     expect(screen.getByText('Install the watchdog first.')).toBeInTheDocument();

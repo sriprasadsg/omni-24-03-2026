@@ -15,7 +15,7 @@ export const TEST_ALERT_WAIT_MS = 90_000;
 const MUTED = 'break-words text-xs text-gray-500 dark:text-gray-400';
 const DIVIDER = 'border-t border-gray-200 pt-6 dark:border-white/10';
 const NO_REASON = 'no reason was given';
-const SECONDARY_BUTTON =
+export const SECONDARY_BUTTON =
     'inline-flex items-center justify-center gap-2 min-h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 ' +
     'px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60';
 const CERT_NOTE =

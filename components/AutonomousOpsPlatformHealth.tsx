@@ -8,6 +8,7 @@ import {
     clockOrDash, HEALTH_SKELETON, HealthChip, HealthNotice, InstallChecklistLink,
 } from './AutonomousOpsHealthChips';
 import type { HealthChipKind } from './AutonomousOpsHealthChips';
+import { AutonomousOpsRetentionReview } from './AutonomousOpsRetentionReview';
 import { PauseCircleIcon } from './icons';
 
 export const HEALTH_POLL_MS = 30_000;
@@ -336,6 +337,8 @@ export const AutonomousOpsPlatformHealth: React.FC<PlatformHealthProps> = ({ ref
                     />
                 </>
             )}
+            {/* Retention runs in the backend and has its own fetch: it renders even when the health document failed or the watchdog is not installed. */}
+            <AutonomousOpsRetentionReview refreshSignal={refreshSignal} />
         </section>
     );
 };

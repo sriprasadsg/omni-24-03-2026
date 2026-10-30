@@ -18,7 +18,7 @@ import { AutonomousOpsActivity } from '../../components/AutonomousOpsActivity';
 import { AutonomousOpsPlatformHealth } from '../../components/AutonomousOpsPlatformHealth';
 import { requestPlatformHealthFocus } from '../../components/AutonomousOpsHealthBanners';
 import {
-  mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, services, healthCalls,
+  mockAuthFetch, jsonRes, healthDoc, notInstalledDoc, services, healthCalls, retentionReview, REVIEW_PATH,
   clock, minutesAgo, minutesAhead, AT_1402, AT_0915,
 } from './_platformHealthHarness';
 
@@ -49,6 +49,7 @@ function route(health: () => Response | Promise<Response> = () => jsonRes(health
       return jsonRes({ items: [], nextCursor: null });
     }
     if (path === '/api/platform/autonomous-ops/health') return health();
+    if (path === REVIEW_PATH) return jsonRes(retentionReview()); // the retention card has its own fetch (82-13)
     throw new Error(`unexpected request ${url}`);
   });
 }
@@ -123,6 +124,7 @@ const HEALTH_PATH = '/api/platform/autonomous-ops/health';
 function serve(doc: unknown) {
   mockAuthFetch.mockImplementation(async (url: string) => {
     if (url.split('?')[0] === HEALTH_PATH) return jsonRes(doc);
+    if (url.split('?')[0] === REVIEW_PATH) return jsonRes(retentionReview()); // the retention card has its own fetch (82-13)
     throw new Error(`unexpected request ${url}`);
   });
 }
@@ -357,21 +359,26 @@ describe('Platform health section: stop notice (D-11)', () => {
 describe('Platform health section: loading and error', () => {
   it('first load shows one skeleton card per block with aria-busy, then the content', async () => {
     let release: (r: Response) => void = () => {};
-    mockAuthFetch.mockImplementation(() => new Promise<Response>(resolve => { release = resolve; }));
+    mockAuthFetch.mockImplementation((url: string) => (url.split('?')[0] === REVIEW_PATH
+      ? Promise.resolve(jsonRes(retentionReview()))
+      : new Promise<Response>(resolve => { release = resolve; })));
     const { container } = render(<AutonomousOpsPlatformHealth />);
     const section = container.querySelector('section') as HTMLElement;
     expect(section).toHaveAttribute('aria-busy', 'true');
     expect(section.querySelectorAll('.card.p-6 .animate-pulse').length).toBeGreaterThanOrEqual(4);
-    expect(section.querySelectorAll('.card.p-6')).toHaveLength(4);
+    // four health skeleton cards plus the retention card, which has its own fetch
+    expect(section.querySelectorAll('.card.p-6')).toHaveLength(5);
     await act(async () => { release(jsonRes(healthDoc())); });
     await screen.findByText('Watchdog');
+    await screen.findByRole('table', { name: 'Retention counts waiting for confirmation' });
     expect(section).not.toHaveAttribute('aria-busy', 'true');
     expect(section.querySelector('.animate-pulse')).toBeNull();
   });
 
   it('a first-load failure shows one red alert card, and Reload platform health fetches again', async () => {
     let calls = 0;
-    mockAuthFetch.mockImplementation(async () => {
+    mockAuthFetch.mockImplementation(async (url: string) => {
+      if (url.split('?')[0] === REVIEW_PATH) return jsonRes(retentionReview());
       calls += 1;
       return calls === 1 ? jsonRes({ detail: 'nope' }, 500) : jsonRes(healthDoc());
     });
@@ -420,7 +427,8 @@ describe('Platform health section: refresh cadence', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 9, 30, 14, 2, 0));
     let calls = 0;
-    mockAuthFetch.mockImplementation(async () => {
+    mockAuthFetch.mockImplementation(async (url: string) => {
+      if (url.split('?')[0] === REVIEW_PATH) return jsonRes(retentionReview());
       calls += 1;
       return calls === 2 || calls === 3 ? jsonRes({ detail: 'down' }, 503) : jsonRes(healthDoc());
     });
