@@ -241,7 +241,7 @@ async def run_once(db, *, now: Optional[datetime] = None) -> Optional[Dict]:
 async def run_manual(db, tenant_id: str, *, now: Optional[datetime] = None) -> Optional[Dict]:
     """One tenant now (POST /api/retention/run, plan 82-10): the same gate and batches, trigger
     "manual". Takes the same lock; None when a run is in progress. Does not count as the day's
-    scheduled run."""
+    scheduled run. ``types`` carries the per-type outcome (state, days, count or deleted) of run_tenant."""
     import distributed_lock
     now = now or datetime.now(timezone.utc)
     lock_db = SimpleNamespace(_db=raw(db))
@@ -253,7 +253,7 @@ async def run_manual(db, tenant_id: str, *, now: Optional[datetime] = None) -> O
                                   deadline=time.monotonic() + RUN_MAX_MINUTES * 60, trigger="manual")
         summary = {"startedAt": now, "finishedAt": datetime.now(timezone.utc), "trigger": "manual",
                    "tenantId": tenant_id, "counted": result["counted"], "deleted": result["deleted"],
-                   "tenants": 1, "stoppedEarly": result["stoppedEarly"]}
+                   "tenants": 1, "stoppedEarly": result["stoppedEarly"], "types": result["types"]}
         await raw(db)[gate.RUNS].insert_one(dict(summary))
         return summary
 

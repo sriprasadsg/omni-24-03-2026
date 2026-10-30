@@ -4,8 +4,9 @@ from auth_utils import require_auth
 from auth_roles import tenant_admin_roles
 
 _RETENTION_ADMIN_ROLES = tenant_admin_roles()
-from retention_service import RetentionService
-from database import get_db, get_database
+import retention_gate
+import retention_job
+from database import get_database
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/retention", tags=["retention"])
@@ -39,8 +40,12 @@ async def _ensure_seeded(db):
         )
 
 
-def get_svc(db=Depends(get_db)):
-    return RetentionService(db)
+AUDIT_LOGS_NOTE = "Audit logs are kept by the audit ledger's own schedule, not by this cleanup."
+RUN_BUSY = "A retention run is in progress. Try again when it finishes."
+
+
+def _tenant_of(user):
+    return getattr(user, "tenant_id", None)
 
 
 @router.get("/policies")
@@ -48,35 +53,70 @@ async def get_policies(user=Depends(require_auth)):
     db = get_database()
     await _ensure_seeded(db)
     docs = await db.retention_policies.find({}, {"_id": 0}).to_list(length=100)
+    flags = await retention_gate.tenant_gate_flags(db, _tenant_of(user))
     seen: set = set()
     unique_docs = []
     for doc in docs:
         if doc["collection"] not in seen:
             seen.add(doc["collection"])
+            doc["gate"] = flags.get(doc["collection"]) or {"waiting": False, "reason": None}
+            if doc["collection"] == "audit_logs":
+                doc.update({"managedBy": "audit_ledger", "editable": False})
+            else:
+                doc["editable"] = True
             unique_docs.append(doc)
     return {"policies": unique_docs}
 
 
+def _manual_result(summary: dict):
+    """The per-type outcome of a manual run: a flat tile map (``<type>_counted`` or ``<type>_deleted``)
+    for the existing result card, and a list with the state and the number for each data type."""
+    tiles, types = {"status": "completed"}, []
+    for type_id in retention_gate.TYPE_IDS:
+        info = (summary.get("types") or {}).get(type_id)
+        if info is None:
+            continue
+        rtype = retention_gate.BY_ID[type_id]
+        entry = {"type": type_id, "label": rtype.label, "days": info.get("days")}
+        if "error" in info and "deleted" not in info:
+            entry["state"] = "failed"
+        elif info.get("state") in ("confirmed", "adopt"):
+            entry.update(state="deleted", deleted=info.get("deleted", 0))
+            tiles[f"{type_id}_deleted"] = entry["deleted"]
+        else:
+            entry.update(state="counted", count=info.get("count"))
+            tiles[f"{type_id}_counted"] = info.get("count") or 0
+            if info.get("error"):
+                entry["countFailed"] = True
+        types.append(entry)
+    return tiles, types
+
+
 @router.post("/run")
-async def run_cleanup(user=Depends(require_auth), svc: RetentionService = Depends(get_svc)):
+async def run_cleanup(user=Depends(require_auth)):
     if getattr(user, "role", None) not in _RETENTION_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin role required")
+    tenant_id = _tenant_of(user)
+    if not tenant_id:          # a delete path: an empty tenant must never reach the filters
+        raise HTTPException(status_code=400, detail="A tenant is required to run retention")
     db = get_database()
     await _ensure_seeded(db)
-    policies = {
-        doc["collection"]: doc["retention_days"]
-        for doc in await db.retention_policies.find({}, {"collection": 1, "retention_days": 1, "_id": 0}).to_list(length=100)
-    }
-    result = await svc.run_cleanup(policies=policies)
+    summary = await retention_job.run_manual(db, tenant_id)
+    if summary is None:
+        raise HTTPException(status_code=409, detail=RUN_BUSY)
+    result, types = _manual_result(summary)
     ran_at = datetime.now(timezone.utc).isoformat()
-    await db.retention_runs.insert_one({"ran_at": ran_at, "result": result})
-    return {"status": "completed", "ran_at": ran_at, "result": result}
+    await db.retention_runs.insert_one({"ran_at": ran_at, "result": result, "types": types})
+    return {"status": "completed", "ran_at": ran_at, "result": result, "types": types,
+            "stoppedEarly": bool(summary.get("stoppedEarly"))}
 
 
 @router.post("/policies/{collection}")
 async def update_policy(collection: str, body: RetentionPolicyUpdate, user=Depends(require_auth)):
     if getattr(user, "role", None) not in _RETENTION_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin role required")
+    if collection == "audit_logs":
+        raise HTTPException(status_code=409, detail=AUDIT_LOGS_NOTE)
     db = get_database()
     await _ensure_seeded(db)
     known = set(_POLICY_DEFAULTS.keys())
@@ -89,7 +129,11 @@ async def update_policy(collection: str, body: RetentionPolicyUpdate, user=Depen
         {"$set": {"retention_days": days, "updated_at": datetime.now(timezone.utc).isoformat()}},
         upsert=True,
     )
-    return {"collection": collection, "retention_days": days, "updated": True}
+    waiting = False
+    if collection in retention_gate.BY_ID:
+        waiting = (await retention_gate.tenant_gate_flags(db, _tenant_of(user)))[collection]["waiting"]
+    return {"collection": collection, "retention_days": days, "updated": True,
+            "countOnlyUntilConfirmed": waiting}
 
 
 @router.get("/stats")
@@ -103,5 +147,5 @@ async def get_stats(user=Depends(require_auth)):
         "policies": policies_count,
         "collections": collections,
         "last_cleanup": last_run["ran_at"] if last_run else None,
-        "next_scheduled": None,
+        "next_scheduled": retention_job.next_scheduled(datetime.now(timezone.utc)).isoformat(),
     }

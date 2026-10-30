@@ -7,17 +7,6 @@ class RetentionService:
     def __init__(self, db):
         self.db = db
         
-    async def cleanup_audit_logs(self, retention_days: int = 90) -> int:
-        """Delete audit logs older than retention_days"""
-        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
-        # Audit logs use 'timestamp' string ISO format usually, strictly we should parse.
-        # But assuming ISO format, lexicographical comparison works for standard ISO string.
-        # Better safe: $lt string comparison works for ISO8601.
-        result = await self.db.audit_logs.delete_many({
-            "timestamp": {"$lt": cutoff.isoformat()}
-        })
-        return result.deleted_count
-
     async def cleanup_system_metrics(self, retention_days: int = 30) -> int:
         """Delete metrics older than retention_days"""
         cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
@@ -70,7 +59,6 @@ class RetentionService:
     async def run_cleanup(self, policies: dict = None) -> dict:
         """Run cleanup tasks using DB-configured retention days."""
         p = policies or {}
-        audit_deleted   = await self.cleanup_audit_logs(p.get("audit_logs", 90))
         metrics_deleted = await self.cleanup_system_metrics(p.get("metrics", 30))
         notif_deleted   = await self.cleanup_notifications(p.get("notifications", 30))
         location_history_deleted = await self.cleanup_agent_location_history(
@@ -80,7 +68,6 @@ class RetentionService:
             p.get("agent_uptime_rollups", 90)
         )
         report = {
-            "audit_logs_deleted":   audit_deleted,
             "metrics_deleted":      metrics_deleted,
             "notifications_deleted": notif_deleted,
             "agent_location_history_deleted": location_history_deleted,
