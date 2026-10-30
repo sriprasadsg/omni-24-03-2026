@@ -177,6 +177,7 @@ async def run_all(db, *, now: Optional[datetime] = None, lost: Optional[Callable
         summary["stoppedEarly"] = summary["stoppedEarly"] or result["stoppedEarly"]
         errors.extend(info["error"] for info in result["types"].values() if info.get("error"))
     summary["finishedAt"] = datetime.now(timezone.utc)
+    summary["error"] = errors[0] if errors else None
     await rdb[gate.RUNS].insert_one(dict(summary))
     if trigger == "scheduled":
         await _record_run_activity(db, summary, errors)
@@ -220,6 +221,18 @@ async def last_scheduled_date(db) -> Optional[date]:
                                             sort=[("startedAt", -1)])
     started = gate.aware(doc.get("startedAt")) if doc else None
     return started.astimezone(timezone.utc).date() if started else None
+
+
+async def run_in_progress(db) -> bool:
+    """True while a run holds the job lock, or a run document has started and not finished (within the
+    wall-clock cap plus a margin). Read by the review so nobody confirms in the middle of a run."""
+    rdb = raw(db)
+    now = datetime.now(timezone.utc)
+    if await rdb["_distributed_locks"].find_one({"_id": LOCK_NAME, "expiresAt": {"$gt": now}}, {"_id": 1}):
+        return True
+    horizon = now - timedelta(minutes=RUN_MAX_MINUTES + 5)
+    return await rdb[gate.RUNS].count_documents(
+        {"finishedAt": {"$exists": False}, "startedAt": {"$gt": horizon}}, limit=1) > 0
 
 
 async def run_once(db, *, now: Optional[datetime] = None) -> Optional[Dict]:

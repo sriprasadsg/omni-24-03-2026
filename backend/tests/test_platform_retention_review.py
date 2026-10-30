@@ -146,3 +146,166 @@ async def test_a_run_that_deleted_something_records_mode_deleted_with_the_delete
     stored = [d async for d in db.autonomy_actions.find({"healthEvent": "retention_run"}).sort("createdAt", 1)]
     assert [d["healthParams"]["mode"] for d in stored] == ["counted", "deleted"]
     assert stored[1]["healthParams"]["records"] == 3
+
+
+# ------------------------------------------------------------------ Task 3: the review in detail
+
+async def waiting_world(db):
+    """Four tenants counted once: t3 has 5 old agent metrics, t1 and t2 have 3, t4 has 1."""
+    await seed_tenant(db, "t3")
+    await seed_tenant(db, "t4")
+    for tenant, old in (("t1", 3), ("t2", 3), ("t3", 5), ("t4", 1)):
+        await seed_old_metrics(db, tenant, old=old, new=1)
+    await job.run_all(db, trigger="scheduled")
+
+
+async def test_paging_is_25_per_page_with_a_token_that_covers_every_row(rapi):
+    await waiting_world(rapi.db)
+    first = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    assert first["total"] == 32 and len(first["items"]) == 25 and first["nextOffset"] == 25
+    second = (await rapi.call("GET", REVIEW + "?offset=25", role="super_admin")).json()
+    assert len(second["items"]) == 7 and second["nextOffset"] is None and second["total"] == 32
+    assert first["reviewToken"] == second["reviewToken"]
+    ids = [(i["tenantId"], i["type"]) for i in first["items"] + second["items"]]
+    assert len(ids) == len(set(ids)) == 32
+    small = (await rapi.call("GET", REVIEW + "?limit=10&offset=30", role="super_admin")).json()
+    assert len(small["items"]) == 2 and small["nextOffset"] is None
+
+
+async def test_paging_arguments_are_validated(rapi):
+    for query in ("?offset=-1", "?limit=0", "?limit=101", "?offset=x"):
+        assert (await rapi.call("GET", REVIEW + query, role="super_admin")).status_code == 422, query
+
+
+async def test_rows_are_ordered_by_count_then_tenant_name(rapi):
+    await waiting_world(rapi.db)
+    items = (await rapi.call("GET", REVIEW, role="super_admin")).json()["items"]
+    top = [(i["tenantName"], i["type"], i["count"]) for i in items[:4]]
+    assert top == [("T3", "agent_metrics", 5), ("T1", "agent_metrics", 3), ("T2", "agent_metrics", 3),
+                   ("T4", "agent_metrics", 1)]
+    counts = [i["count"] for i in items]
+    assert counts == sorted(counts, reverse=True)
+
+
+async def test_an_uncountable_row_is_listed_counted_in_the_totals_and_left_out_of_confirm(rapi):
+    db = rapi.db
+    await seed_old_metrics(db, "t1")
+    await job.run_all(db, trigger="scheduled")
+    await db.retention_counts.update_one({"tenantId": "t1", "type": "logs"},
+                                         {"$set": {"count": None, "error": "ExecutionTimeout: too slow"}})
+    body = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    bad = [i for i in body["items"] if i["tenantId"] == "t1" and i["type"] == "logs"][0]
+    assert bad["count"] is None and bad["countError"]
+    assert body["totals"]["uncountable"] == 1 and body["totals"]["rows"] == 16
+    res = await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": body["reviewToken"]})
+    assert res.status_code == 200 and res.json()["confirmed"]["rows"] == 15 and res.json()["confirmed"]["records"] == 3
+    gate_row = await db.retention_gate.find_one({"tenantId": "t1", "type": "logs"})
+    assert gate_row["confirmedDays"] is None                               # still waiting
+
+
+async def test_before_the_first_count_nothing_is_listed_and_not_counted_yet_is_true(rapi):
+    body = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    assert body["notCountedYet"] is True and body["items"] == [] and body["total"] == 0
+    assert body["mode"] == "counting_only" and body["lastRun"] is None and body["countedAt"] is None
+    assert body["nextRun"] and datetime.fromisoformat(body["nextRun"]).hour == 2
+    assert body["totals"] == {"records": 0, "tenants": 0, "rows": 0, "uncountable": 0}
+
+
+async def test_after_a_run_the_review_reports_the_last_run_and_when_it_counted(rapi):
+    await seed_old_metrics(rapi.db, "t1")
+    await job.run_all(rapi.db, trigger="scheduled")
+    body = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    assert body["notCountedYet"] is False and body["countedAt"]
+    last = body["lastRun"]
+    assert (last["trigger"], last["counted"], last["deleted"], last["tenants"]) == ("scheduled", 3, 0, 2)
+    assert last["error"] is None and last["stoppedEarly"] is False and last["at"]
+
+
+async def test_a_failed_last_run_reports_its_error(rapi, monkeypatch):
+    async def broken(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    await seed_old_metrics(rapi.db, "t1")
+    await job.run_all(rapi.db, trigger="scheduled")
+    res = await rapi.call("GET", REVIEW, role="super_admin")
+    token = res.json()["reviewToken"]
+    await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": token})
+    monkeypatch.setattr(job, "delete_type", broken)
+    await job.run_all(rapi.db, trigger="scheduled")
+    last = (await rapi.call("GET", REVIEW, role="super_admin")).json()["lastRun"]
+    assert last["error"] and "disk full" in last["error"]
+
+
+async def test_once_everything_is_confirmed_the_mode_is_deleting_nightly(rapi):
+    await seed_old_metrics(rapi.db, "t1")
+    await job.run_all(rapi.db, trigger="scheduled")
+    token = (await rapi.call("GET", REVIEW, role="super_admin")).json()["reviewToken"]
+    assert (await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": token})).status_code == 200
+    body = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    assert body["mode"] == "deleting_nightly" and body["items"] == [] and body["notCountedYet"] is False
+
+
+async def test_an_unfinished_run_means_mode_running_and_confirm_answers_409(rapi):
+    await seed_old_metrics(rapi.db, "t1")
+    await job.run_all(rapi.db, trigger="scheduled")
+    token = (await rapi.call("GET", REVIEW, role="super_admin")).json()["reviewToken"]
+    await rapi.db.retention_job_runs.insert_one({"startedAt": datetime.now(timezone.utc), "trigger": "scheduled"})
+    assert (await rapi.call("GET", REVIEW, role="super_admin")).json()["mode"] == "running"
+    res = await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": token})
+    assert res.status_code == 409 and "in progress" in res.json()["detail"]
+    assert await rapi.db.retention_gate.count_documents({"confirmedDays": {"$ne": None}}) == 0
+
+
+async def test_a_held_run_lock_means_mode_running_too(rapi):
+    await rapi.db["_distributed_locks"].insert_one(
+        {"_id": job.LOCK_NAME, "token": "other", "expiresAt": datetime.now(timezone.utc) + timedelta(minutes=5)})
+    assert (await rapi.call("GET", REVIEW, role="super_admin")).json()["mode"] == "running"
+    await rapi.db["_distributed_locks"].update_one(
+        {"_id": job.LOCK_NAME}, {"$set": {"expiresAt": datetime.now(timezone.utc) - timedelta(minutes=5)}})
+    assert (await rapi.call("GET", REVIEW, role="super_admin")).json()["mode"] == "counting_only"
+
+
+async def test_a_token_from_before_a_recount_answers_409_and_confirms_nothing(rapi):
+    db = rapi.db
+    await seed_old_metrics(db, "t1")
+    await job.run_all(db, trigger="scheduled")
+    stale = (await rapi.call("GET", REVIEW, role="super_admin")).json()["reviewToken"]
+    await seed_old_metrics(db, "t1", old=2, new=0)                         # the counts change
+    await job.run_all(db, trigger="scheduled")
+    res = await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": stale})
+    assert res.status_code == 409 and "counts changed" in res.json()["detail"]
+    assert await db.retention_gate.count_documents({"confirmedDays": {"$ne": None}}) == 0
+    assert await db.retention_gate_global.count_documents({}) == 0
+    fresh = (await rapi.call("GET", REVIEW, role="super_admin")).json()["reviewToken"]
+    assert (await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": fresh})).status_code == 200
+
+
+async def test_confirm_with_no_countable_rows_answers_422(rapi):
+    db = rapi.db
+    body = (await rapi.call("GET", REVIEW, role="super_admin")).json()          # nothing counted yet
+    res = await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": body["reviewToken"]})
+    assert res.status_code == 422
+    await seed_old_metrics(db, "t1")
+    await job.run_all(db, trigger="scheduled")
+    await db.retention_counts.update_many({}, {"$set": {"count": None, "error": "failed"}})
+    token = (await rapi.call("GET", REVIEW, role="super_admin")).json()["reviewToken"]
+    assert (await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": token})).status_code == 422
+    assert await db.retention_gate_global.count_documents({}) == 0
+
+
+async def test_confirm_validates_its_body(rapi):
+    assert (await rapi.call("POST", CONFIRM, role="super_admin", json={})).status_code == 422
+    assert (await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": ""})).status_code == 422
+    assert (await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": "x" * 129})).status_code == 422
+
+
+@pytest.mark.parametrize("role", ["tenant_admin", "viewer", "platform_support"])
+async def test_only_the_super_admin_may_review_or_confirm(rapi, role):
+    assert (await rapi.call("GET", REVIEW, role=role)).status_code == 403
+    assert (await rapi.call("POST", CONFIRM, role=role, json={"reviewToken": "abc"})).status_code == 403
+
+
+async def test_an_api_key_cannot_review_or_confirm(rapi):
+    assert (await rapi.call("GET", REVIEW, role="super_admin", auth="api_key", scopes=["*"])).status_code == 403
+    assert (await rapi.call("POST", CONFIRM, role="super_admin", auth="api_key", scopes=["*"],
+                            json={"reviewToken": "abc"})).status_code == 403
