@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from autonomous_ops import selfheal
+from autonomous_ops import oncall, selfheal
 from database import get_database
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,8 @@ class SyncBody(BaseModel):
 
 
 class ResultsBody(BaseModel):
-    """The outcome of the tasks the last sync handed out (pages sent, a test alert); acted on by 82-07."""
+    """The outcome of the tasks the last sync handed out: ``delivered`` ``[{id, ok, error?, at?}]`` for outbox
+    messages and ``testResult`` ``{id, ok, error?, at?}`` for the test alert."""
     model_config = ConfigDict(extra="ignore")
 
     v: int = 1
@@ -119,6 +120,7 @@ async def post_sync(request: Request, _auth: None = Depends(_require_watchdog_to
         await selfheal.record_heartbeat(db, body.host, now)
         await selfheal.store_snapshot(db, body.model_dump(), now)
         accepted, dropped = await selfheal.ingest_events(db, body.events, body.host, now)
+        await oncall.ack_delivered(db, body.delivered)
         return await selfheal.sync_response(db, accepted, dropped)
     except HTTPException:
         raise
@@ -129,6 +131,16 @@ async def post_sync(request: Request, _auth: None = Depends(_require_watchdog_to
 
 @router.post("/results", summary="Watchdog task results")
 async def post_results(request: Request, _auth: None = Depends(_require_watchdog_token)):
-    """Accepts the results of the tasks the last sync handed out (``ResultsBody``). Acted on by plan 82-07."""
-    await _parse(request, ResultsBody)
+    """Accepts the results of the tasks the last sync handed out (``ResultsBody``): marks the reported outbox
+    messages delivered and closes the pending test alert request. Answers ``{"ok": true}``."""
+    body: ResultsBody = await _parse(request, ResultsBody)
+    try:
+        db = get_database()
+        await oncall.ack_delivered(db, body.delivered)
+        if body.testResult is not None:
+            heartbeat = await selfheal.get_heartbeat(db)
+            await oncall.record_test_result(db, body.testResult, (heartbeat or {}).get("host"))
+    except Exception as exc:
+        logger.error("watchdog results could not be stored: %s", exc)
+        raise HTTPException(status_code=503, detail="Platform health is temporarily unavailable") from exc
     return {"ok": True}

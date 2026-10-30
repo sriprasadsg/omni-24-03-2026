@@ -13,6 +13,7 @@ Raw Mongo handle (``scope.raw``) with explicit ids; the ambient tenant ContextVa
 """
 import logging
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -45,6 +46,12 @@ _SNAPSHOT_DEPTH = 4
 
 HEARTBEAT_ID = "heartbeat"
 SNAPSHOT_ID = "snapshot"
+
+# The watchdog counts as silent after 300 s without a heartbeat, judged only once this backend
+# process has run for 180 s, so a backend restart never raises a false alarm (A-82-A10).
+SILENT_AFTER = 300
+STARTUP_GRACE = 180
+PROCESS_STARTED_AT = time.time()
 
 
 def _coll(db):
@@ -148,6 +155,35 @@ async def ingest_events(db, events: Iterable[Any], host: str, now: datetime) -> 
     return accepted, dropped
 
 
+def _epoch(value: Any) -> Optional[float]:
+    """Seconds since the epoch from a datetime (naive means UTC) or a number; None for anything else."""
+    if isinstance(value, datetime):
+        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).timestamp()
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return None
+
+
+def watchdog_state(heartbeat: Optional[Dict[str, Any]], now: Any, process_started_at: Any) -> str:
+    """``not_installed`` when no heartbeat document exists (D-24), ``silent`` when ``lastSeenAt`` is
+    more than ``SILENT_AFTER`` seconds old and this backend process has run for more than
+    ``STARTUP_GRACE`` seconds, otherwise ``running``. ``now`` and ``process_started_at`` are
+    datetimes or epoch seconds."""
+    if not heartbeat:
+        return "not_installed"
+    last, current, started = _epoch(heartbeat.get("lastSeenAt")), _epoch(now), _epoch(process_started_at)
+    if last is None or current is None or started is None:
+        return "running"
+    if current - last > SILENT_AFTER and current - started > STARTUP_GRACE:
+        return "silent"
+    return "running"
+
+
+async def get_heartbeat(db) -> Optional[Dict[str, Any]]:
+    """The heartbeat singleton, or None while the watchdog has never reported."""
+    return await _coll(db).find_one({"_id": HEARTBEAT_ID})
+
+
 def _iso(value: Any) -> Optional[str]:
     if not isinstance(value, datetime):
         return None
@@ -155,8 +191,10 @@ def _iso(value: Any) -> Optional[str]:
 
 
 async def sync_response(db, accepted: List[str], dropped: int) -> Dict[str, Any]:
-    """The frozen sync response. An unreadable platform stop is reported as active (fail closed);
-    ``outbox`` and ``testRequest`` are filled by later plans without changing this shape."""
+    """The frozen sync response. An unreadable platform stop is reported as active (fail closed).
+    ``outbox`` lists up to 20 queued on-call messages and ``testRequest`` the pending test alert
+    (82-07); neither can fail the sync, so an unreadable queue reads as empty."""
+    from . import oncall
     try:
         stop_doc = await settings.platform_stop(db)
         active = settings.stop_active(stop_doc)
@@ -164,5 +202,15 @@ async def sync_response(db, accepted: List[str], dropped: int) -> Dict[str, Any]
     except Exception as exc:
         logger.error("selfheal: the platform stop could not be read, reporting it as active: %s", exc)
         active, pressed = True, None
+    outbox: List[Dict[str, Any]] = []
+    test_request: Optional[Dict[str, Any]] = None
+    try:
+        outbox = await oncall.pending_outbox(db, datetime.now(timezone.utc))
+    except Exception as exc:
+        logger.error("selfheal: the on-call outbox could not be read: %s", type(exc).__name__)
+    try:
+        test_request = await oncall.pending_test(db, datetime.now(timezone.utc))
+    except Exception as exc:
+        logger.error("selfheal: the test alert request could not be read: %s", type(exc).__name__)
     return {"stop": {"active": active, "scope": "platform" if active else None, "pressedAt": pressed},
-            "acceptedEventIds": accepted, "droppedEvents": dropped, "outbox": [], "testRequest": None}
+            "acceptedEventIds": accepted, "droppedEvents": dropped, "outbox": outbox, "testRequest": test_request}
