@@ -7,7 +7,11 @@ injected. The seams, exactly as plans 82-03, 82-04 and 82-05 call them:
     http(method: str, url: str, headers: dict, body: bytes | None, timeout: float) -> (status: int, body: bytes)
     now() -> float                      # epoch seconds
 
-Restart, warning and paging stages are added to this sequence by 82-03, 82-04 and 82-05.
+A fourth seam, ``sleep(seconds)``, is used only while polling a service after a restart (82-03);
+tests pass the fake clock's ``advance``.
+
+Sequence of one run: check -> debounce -> stop -> restart decision (82-03) -> sync. Warning and paging
+stages are added by 82-04 and 82-05.
 """
 import argparse
 import os
@@ -18,7 +22,7 @@ import time
 import urllib.error
 import urllib.request
 
-from . import DEFAULTS, SERVICE_ORDER, checks, config as config_mod, services, state as state_mod, sync
+from . import DEFAULTS, SERVICE_ORDER, checks, config as config_mod, restart, services, state as state_mod, sync
 
 CHILD_ENV = {"PATH": "/usr/bin:/bin", "LC_ALL": "C"}
 
@@ -32,7 +36,10 @@ def real_run(argv, timeout):
         return 124, ""
     except OSError:
         return 127, ""
-    return done.returncode, done.stdout
+    out = done.stdout
+    if done.returncode != 0:
+        out = (out or "") + (done.stderr or "")      # a refused restart explains itself on stderr
+    return done.returncode, out
 
 
 def real_http(method, url, headers, body, timeout):
@@ -51,7 +58,7 @@ def _host(cfg):
     return (cfg.get("host") or socket.gethostname() or "omni")[:128]
 
 
-def run_once(config, state_dir, *, run, http, now):
+def run_once(config, state_dir, *, run, http, now, sleep=None):
     """Check every service, update the state, send one sync. Returns a summary dict.
 
     A second concurrent run returns ``{"skipped": "locked"}`` at once, without checking or posting."""
@@ -59,10 +66,11 @@ def run_once(config, state_dir, *, run, http, now):
     with state_mod.run_lock(os.path.join(state_dir, "state.lock")) as acquired:
         if not acquired:
             return {"skipped": "locked"}
-        return _run_locked({**DEFAULTS, **(config or {})}, state_dir, run=run, http=http, now=now)
+        return _run_locked({**DEFAULTS, **(config or {})}, state_dir, run=run, http=http, now=now,
+                           sleep=sleep or time.sleep)
 
 
-def _run_locked(cfg, state_dir, *, run, http, now):
+def _run_locked(cfg, state_dir, *, run, http, now, sleep):
     t = now()
     path = state_mod.state_path(state_dir)
     state = state_mod.load_state(path, now=t)
@@ -75,11 +83,19 @@ def _run_locked(cfg, state_dir, *, run, http, now):
         state["services"][sid] = new
         events.extend(produced)
 
-    spool = state_mod.Spool(os.path.join(state_dir, "spool.ndjson"))
     # The stop used for this run: the STOP file, else the value cached from the last good sync (D-11).
     # A stop pressed less than a minute before a backend crash can be missed once (82-RESEARCH Open Question 5).
     stop_on, stop_source = sync.resolve_stop(cfg["stop_file"], None, state)
     stop = {"effective": stop_on, "source": stop_source}
+
+    # Restart decision (82-03): only restarts pause during a stop; the checks above and the sync below do not.
+    health = {sid: (ok, detail) for sid, ok, detail in results}
+    events.extend(restart.decide(
+        state, health, stop, t, cfg, run=run, clock=now, sleep=sleep,
+        recheck=lambda sid: checks.check_one(sid, run, http, cfg),
+        persist=lambda: state_mod.save_state(path, state)))
+
+    spool = state_mod.Spool(os.path.join(state_dir, "spool.ndjson"))
 
     # New events reach the spool (fsynced) before any send, so an outage cannot lose them.
     state["spoolDropped"] = int(state.get("spoolDropped") or 0) + spool.append(events)

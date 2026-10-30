@@ -4,6 +4,11 @@ A service is ``checking`` after 1 failed check and ``down`` only after 2 failed 
 One passing check resets ``failedChecks`` to 0 and returns it to ``healthy``, with a
 ``service_recovered`` event when it had been checking or down. Timestamps are epoch seconds.
 Ollama is not debounced: its detail says whether it is off as expected or running unexpectedly.
+
+The restart plan (restart.py, 82-03) owns the ``restarting`` and ``gave_up`` states and the extra
+fields it keeps in each service entry (``restarts``, ``nextActionAt``, ``healthySince``, ``gaveUp``,
+``rearmPending``, ``skipped``, plus the reported restartsInWindow, nextRestartAt, budgetReturnsAt,
+pagedAt, waitingOn). ``observe`` carries all of them over untouched.
 """
 from datetime import datetime, timezone
 
@@ -12,6 +17,7 @@ from .state import new_event_id
 
 DOWN_AFTER = 2
 _RECOVERS_FROM = ("checking", "down", "restarting", "gave_up")
+_RECOMPUTED = ("state", "failedChecks", "detail", "since")
 
 
 def iso(epoch):
@@ -33,7 +39,9 @@ def observe(service_state, ok, detail, now, target=None):
     prev_state = prev.get("state")
     new = {"restartsInWindow": 0, "nextRestartAt": None, "budgetReturnsAt": None, "pagedAt": None,
            "waitingOn": None}
-    new.update({k: v for k, v in prev.items() if k in new})
+    new.update({k: v for k, v in prev.items() if k not in _RECOMPUTED})
+    if isinstance(new.get("restarts"), list):
+        new["restarts"] = list(new["restarts"])          # never share a list with the input
     events = []
 
     if detail in ("expected_off", "unexpected_running"):

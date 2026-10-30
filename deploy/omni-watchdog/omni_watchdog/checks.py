@@ -117,22 +117,29 @@ def ollama_state(run, http, expected, url=DEFAULTS["ollama_url"]):
     return (True, "") if status == 200 else (False, "http_%d" % status)
 
 
+def check_one(sid, run, http, config):
+    """(ok, detail) for one service id. ``check_all`` and the restart poll (82-03) both use it."""
+    cfg = {**DEFAULTS, **config}
+    if sid == "mongod":
+        if not is_active(run, UNITS["mongod"]):
+            return False, "inactive"
+        if not mongo_ping(cfg["mongo_host"], cfg["mongo_port"]):
+            return False, "no_reply"
+        return True, ""
+    if sid == "omni-backend":
+        return backend_ready(http, cfg["backend_url"])
+    if sid == "nginx":
+        if not is_active(run, UNITS["nginx"]):
+            return False, "inactive"
+        if not nginx_probe(cfg["nginx_host"], cfg["nginx_port"]):
+            return False, "no_reply"
+        return True, ""
+    if sid == "ollama":
+        return ollama_state(run, http, bool(cfg["ollama_expected"]), cfg["ollama_url"])
+    raise ValueError("unknown service id")
+
+
 def check_all(run, http, config):
     """One pass over every service: a list of (service id, ok, detail) in SERVICE_ORDER."""
-    cfg = {**DEFAULTS, **config}
-    results = {}
-    if not is_active(run, UNITS["mongod"]):
-        results["mongod"] = (False, "inactive")
-    elif not mongo_ping(cfg["mongo_host"], cfg["mongo_port"]):
-        results["mongod"] = (False, "no_reply")
-    else:
-        results["mongod"] = (True, "")
-    results["omni-backend"] = backend_ready(http, cfg["backend_url"])
-    if not is_active(run, UNITS["nginx"]):
-        results["nginx"] = (False, "inactive")
-    elif not nginx_probe(cfg["nginx_host"], cfg["nginx_port"]):
-        results["nginx"] = (False, "no_reply")
-    else:
-        results["nginx"] = (True, "")
-    results["ollama"] = ollama_state(run, http, bool(cfg["ollama_expected"]), cfg["ollama_url"])
+    results = {sid: check_one(sid, run, http, config) for sid in SERVICE_ORDER}
     return [(sid, results[sid][0], results[sid][1]) for sid in SERVICE_ORDER]

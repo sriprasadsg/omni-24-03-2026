@@ -24,6 +24,13 @@ READY = "/api/health/ready"
 SYNC = "/api/internal/watchdog/sync"
 
 
+@pytest.fixture(autouse=True)
+def _no_restart_decisions(monkeypatch):
+    """These tests are about the checks and the debounce; a service that stays down would now also be restarted (82-03).
+    The restart decision has its own tests in test_watchdog_restart.py."""
+    monkeypatch.setattr(run_mod.restart, "decide", lambda *args, **kwargs: [])
+
+
 def _config(tmp_path, mongo_port, nginx_port, **extra):
     token = tmp_path / "ingest.token"
     token.write_text(TOKEN + "\n")
