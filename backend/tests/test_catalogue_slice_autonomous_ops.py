@@ -62,8 +62,10 @@ def test_platform_router_is_mounted_required_and_permission_checked():
         ("GET", "/api/platform/autonomous-ops/status"), ("GET", "/api/platform/autonomous-ops/actions"),
         ("POST", "/api/platform/autonomous-ops/stop"), ("POST", "/api/platform/autonomous-ops/resume"),
         ("PUT", "/api/platform/autonomous-ops/tenants/{tenant_id}/max-level"),
-        ("PUT", "/api/platform/autonomous-ops/tenants/{tenant_id}/shadow")}
+        ("PUT", "/api/platform/autonomous-ops/tenants/{tenant_id}/shadow"),
+        ("GET", "/api/platform/autonomous-ops/retention/review"),
+        ("POST", "/api/platform/autonomous-ops/retention/confirm")}
     for record in platform:
         assert record["auth"] == "user", record
         assert record["known_guard"], record      # a _require_* dependency on every platform route
-        assert record["module"] == "autonomous_ops_platform_endpoints"
+        assert record["module"] in ("autonomous_ops_platform_endpoints", "autonomous_ops_retention_endpoints")
