@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchPlatformHealth } from '../services/autonomousOpsApi';
-import type { PlatformHealthDocument, PlatformHealthService, ServiceState } from '../services/autonomousOpsApi';
+import type { PlatformHealthDocument, PlatformHealthService, PlatformHealthTestAlert, ServiceState } from '../services/autonomousOpsApi';
 import { formatWhen } from './AutonomousOpsActivityList';
+import { CertificatesCard, DiskCard, OnCallCard, useTestAlertNoAnswer } from './AutonomousOpsHealthCards';
 import { consumePlatformHealthFocus, formatClock } from './AutonomousOpsHealthBanners';
 import {
     clockOrDash, HEALTH_SKELETON, HealthChip, HealthNotice, InstallChecklistLink,
@@ -10,6 +11,8 @@ import type { HealthChipKind } from './AutonomousOpsHealthChips';
 import { PauseCircleIcon } from './icons';
 
 export const HEALTH_POLL_MS = 30_000;
+/** While a test alert waits for the watchdog the section polls faster (D-21). */
+export const TEST_ALERT_POLL_MS = 5_000;
 const RESTART_BUDGET = 3;
 const DIVIDER = 'border-t border-gray-200 pt-6 dark:border-white/10';
 const MUTED = 'break-words text-xs text-gray-500 dark:text-gray-400';
@@ -55,11 +58,13 @@ function usePlatformHealth(refreshSignal: number) {
     const [failed, setFailed] = useState(false);
     const alive = useRef(true);
     const lastSignal = useRef(refreshSignal);
+    const generation = useRef(0);
 
     const load = useCallback(async () => {
+        const mine = generation.current;
         try {
             const next = await fetchPlatformHealth();
-            if (!alive.current) return;
+            if (!alive.current || mine !== generation.current) return; // a newer test alert answer outranks this read
             setDoc(next);
             setFetchedAt(Date.now());
             setFailed(false);
@@ -92,7 +97,11 @@ function usePlatformHealth(refreshSignal: number) {
     }, [refreshSignal, load]);
 
     const reload = useCallback(() => { setFailed(false); void load(); }, [load]);
-    return { doc, fetchedAt, loading: doc === null && !failed, loadFailed: doc === null && failed, reload };
+    const applyTestAlert = useCallback((testAlert: PlatformHealthTestAlert) => {
+        generation.current += 1;
+        setDoc(current => (current ? { ...current, testAlert } : current));
+    }, []);
+    return { doc, fetchedAt, load, reload, applyTestAlert, loading: doc === null && !failed, loadFailed: doc === null && failed };
 }
 
 // ── services ────────────────────────────────────────────────────────────────
@@ -262,14 +271,24 @@ const SkeletonCards: React.FC = () => (
  * in platform scope (AutonomousOpsActivity), so it never fetches for anyone else.
  */
 export const AutonomousOpsPlatformHealth: React.FC<PlatformHealthProps> = ({ refreshSignal = 0 }) => {
-    const { doc, fetchedAt, loading, loadFailed, reload } = usePlatformHealth(refreshSignal);
+    const { doc, fetchedAt, load, loading, loadFailed, reload, applyTestAlert } = usePlatformHealth(refreshSignal);
     const headingRef = useRef<HTMLHeadingElement>(null);
+    const testAlert = doc?.testAlert ?? null;
+    const noAnswer = useTestAlertNoAnswer(testAlert);
+    const fastPoll = testAlert?.state === 'pending' && !noAnswer;
 
     useEffect(() => {
         if (consumePlatformHealthFocus()) headingRef.current?.focus();
     }, []);
 
+    useEffect(() => {
+        if (!fastPoll) return;
+        const timer = setInterval(() => { if (document.visibilityState !== 'hidden') void load(); }, TEST_ALERT_POLL_MS);
+        return () => clearInterval(timer);
+    }, [fastPoll, load]);
+
     const updatedIso = fetchedAt ? new Date(fetchedAt).toISOString() : null;
+    const stale = doc ? doc.watchdog.state !== 'running' : true;
     return (
         <section id="platform-health" aria-labelledby="platform-health-title" aria-busy={loading} className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -300,7 +319,23 @@ export const AutonomousOpsPlatformHealth: React.FC<PlatformHealthProps> = ({ ref
                     </HealthNotice>
                 </div>
             )}
-            {doc && <WatchdogAndServices doc={doc} />}
+            {doc && (
+                <>
+                    <WatchdogAndServices doc={doc} />
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <CertificatesCard certs={doc.certs} stale={stale} updatedAt={doc.updatedAt} />
+                        <DiskCard disks={doc.disks} stale={stale} updatedAt={doc.updatedAt} />
+                    </div>
+                    <OnCallCard
+                        oncall={doc.oncall}
+                        testAlert={testAlert}
+                        watchdogState={doc.watchdog.state}
+                        installChecklist={doc.installChecklist}
+                        noAnswer={noAnswer}
+                        onTestRequested={applyTestAlert}
+                    />
+                </>
+            )}
         </section>
     );
 };
