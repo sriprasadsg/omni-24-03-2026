@@ -37,6 +37,7 @@ const EXPECTED_FILES = [
   'components/AutonomousOpsStopBanner.tsx',
   'components/AutonomousOpsHealthBanners.tsx',
   'components/AutonomousOpsHealthChips.tsx',
+  'components/AutonomousOpsPlatformHealth.tsx',
 ];
 
 const RULES: Rule[] = rulesFile.rules as Rule[];
@@ -108,7 +109,7 @@ describe('ACTV-08 real copy', () => {
   });
 
   it('scans at least the status card, dialog, banner, activity screen, client and poller', () => {
-    expect(FRONTEND_FILES).toHaveLength(9);
+    expect(FRONTEND_FILES).toHaveLength(10);
   });
 });
 

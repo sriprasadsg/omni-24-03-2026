@@ -18,6 +18,10 @@ export const minutesAhead = (m: number) => new Date(Date.now() + m * 60_000).toI
 export const AT_1402 = new Date(2026, 9, 30, 14, 2, 0).toISOString();
 export const AT_0915 = new Date(2026, 9, 30, 9, 15, 0).toISOString();
 
+/** HH:MM on the viewer's own 24-hour clock, the way the component formats it. */
+export const clock = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+
 const GB = 1024 ** 3;
 export const gb = (n: number) => n * GB;
 
