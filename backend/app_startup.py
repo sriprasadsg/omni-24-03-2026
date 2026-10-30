@@ -508,6 +508,12 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(_autonomous_ops_reconciler_loop(), "autonomous_ops_reconciler"),
                         name="autonomous_ops_reconciler")
 
+    # Platform self-healing dead-man switch (Phase 82, HEAL-05): one in-app alarm when the watchdog stops
+    # reporting. Armed only after its first heartbeat; one runner at a time (renewed Mongo lock).
+    from autonomous_ops.selfheal import selfheal_loop as _autonomous_ops_selfheal_loop
+    asyncio.create_task(_safe_bg_task(_autonomous_ops_selfheal_loop(), "autonomous_ops_selfheal"),
+                        name="autonomous_ops_selfheal")
+
     # Scheduled retention (Phase 82, HEAL-06): replaces the separate agent-telemetry purge. Counts first,
     # deletes only what a Super Admin confirmed, 02:00 UTC with catch-up, one runner at a time.
     from retention_job import retention_loop as _retention_loop

@@ -11,15 +11,19 @@ the words themselves come from ``health_messages``.
 
 Raw Mongo handle (``scope.raw``) with explicit ids; the ambient tenant ContextVar is never used.
 """
+import asyncio
 import logging
 import re
 import time
+import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
-from . import ledger, settings
+from . import PLATFORM_TENANT_ID, ledger, settings
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -52,6 +56,12 @@ SNAPSHOT_ID = "snapshot"
 SILENT_AFTER = 300
 STARTUP_GRACE = 180
 PROCESS_STARTED_AT = time.time()
+
+# The dead-man sweep (D-05): one runner at a time under a renewed distributed lock, every 60 s.
+LOCK_NAME = "autonomous_ops_selfheal"
+LOCK_TTL_SECONDS = 120
+LOCK_RENEW_EVERY = 30
+SWEEP_EVERY = 60
 
 
 def _coll(db):
@@ -109,15 +119,25 @@ def clean_params(params: Any, target: Any = None) -> Dict[str, Any]:
 
 
 async def record_heartbeat(db, host: str, now: datetime) -> None:
-    """``firstSeenAt`` is set once, on the first sync ever; ``lastSeenAt`` on every sync."""
-    update = {"$setOnInsert": {"firstSeenAt": now}, "$set": {"lastSeenAt": now, "host": clean_text(host, MAX_HOST)}}
+    """``firstSeenAt`` is set once, on the first sync ever; ``lastSeenAt`` on every sync. A heartbeat that ends
+    a silence the sweep had raised (``alarmedAt`` set) clears it and writes one ``watchdog_back`` row."""
+    update = {"$setOnInsert": {"firstSeenAt": now}, "$set": {"lastSeenAt": now, "host": clean_text(host, MAX_HOST),
+                                                              "alarmedAt": None}}
+    before = None
     for attempt in (1, 2):
         try:
-            await _coll(db).update_one({"_id": HEARTBEAT_ID}, update, upsert=True)
-            return
+            before = await _coll(db).find_one_and_update({"_id": HEARTBEAT_ID}, update, upsert=True,
+                                                         return_document=ReturnDocument.BEFORE)
+            break
         except DuplicateKeyError:           # two first syncs raced to create the singleton; the second now updates
             if attempt == 2:
                 raise
+    if before and before.get("alarmedAt") is not None:
+        try:
+            await ledger.record_platform_health(db, "back-" + uuid.uuid4().hex[:16], "watchdog_back", {}, at=now,
+                                                host=clean_text(host, MAX_HOST), actor=None)
+        except Exception as exc:            # the heartbeat itself is stored; only the Activity row is lost
+            logger.error("selfheal: the watchdog-back row was not recorded: %s", type(exc).__name__)
 
 
 async def store_snapshot(db, body: Dict[str, Any], now: datetime) -> None:
@@ -368,3 +388,63 @@ async def health_document(db, now: Optional[datetime] = None) -> Dict[str, Any]:
                    "status": _CHANNEL_STATUS[channel["channel"]], "last": channel["last"]},
         "testAlert": await oncall.test_view(db),
     }
+
+
+# ---------------------------------------------------------------- dead-man switch (D-05, D-24)
+
+async def silence_sweep(db, now: datetime) -> Dict[str, Any]:
+    """Find the watchdog silent and raise the in-app alarm once per silence episode. Armed only after the first
+    heartbeat ever (``not_installed`` never alarms) and after the startup grace (``watchdog_state``). The claim
+    is a compare-and-set on ``alarmedAt`` for this very ``lastSeenAt``, so a heartbeat arriving meanwhile or a
+    second runner changes nothing. The alarm is a platform-health row plus one in-app notification and nothing
+    else: it is never queued for on-call, because a silent watchdog could not send it."""
+    from pending_agents import post_to_recipients
+    heartbeat = await get_heartbeat(db)
+    state = watchdog_state(heartbeat, now, PROCESS_STARTED_AT)
+    result = {"state": state, "alarmed": False}
+    if state != "silent" or heartbeat.get("alarmedAt") is not None:
+        return result
+    claimed_at = now.replace(microsecond=now.microsecond // 1000 * 1000)       # MongoDB keeps milliseconds
+    last = _utc(heartbeat.get("lastSeenAt")) or claimed_at
+    claim = await _coll(db).update_one({"_id": HEARTBEAT_ID, "lastSeenAt": heartbeat["lastSeenAt"], "alarmedAt": None},
+                                       {"$set": {"alarmedAt": claimed_at}})
+    if claim.modified_count != 1:
+        return result
+    try:
+        await ledger.record_platform_health(db, f"silent-{int(last.timestamp() * 1000)}", "watchdog_silent",
+                                            {"minutes": int((claimed_at - last).total_seconds() // 60)}, at=now,
+                                            host=clean_text(heartbeat.get("host") or "", MAX_HOST) or None, actor=None)
+        await post_to_recipients(
+            raw(db), {"id": PLATFORM_TENANT_ID}, "The watchdog has gone silent",
+            f"Last seen {last:%H:%M} UTC. Services are not being checked or restarted, and no on-call pages can be "
+            "sent, until it reports again.", "critical", {"source": "autonomous_ops", "event": "watchdog_silent"})
+    except Exception as exc:                # give the episode back so the next sweep tries again
+        logger.error("selfheal: the watchdog-silent alarm could not be raised: %s", type(exc).__name__)
+        await _coll(db).update_one({"_id": HEARTBEAT_ID, "alarmedAt": claimed_at}, {"$set": {"alarmedAt": None}})
+        return result
+    result["alarmed"] = True
+    return result
+
+
+async def run_sweep_once(db, *, now: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+    """One sweep under the single-runner lock; None when another runner holds it."""
+    import distributed_lock
+    lock_db = SimpleNamespace(_db=raw(db))        # distributed_lock reads db._db
+    async with distributed_lock.lock_with_renewal(lock_db, LOCK_NAME, ttl_seconds=LOCK_TTL_SECONDS,
+                                                  renew_every=LOCK_RENEW_EVERY) as handle:
+        if not handle.acquired:
+            return None
+        return await silence_sweep(db, now or datetime.now(timezone.utc))
+
+
+async def selfheal_loop() -> None:
+    """Sweep every SWEEP_EVERY seconds. A failed pass is logged and the loop carries on."""
+    from database import get_database
+    while True:
+        try:
+            await run_sweep_once(get_database())
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("selfheal: sweep failed: %s", type(exc).__name__)
+        await asyncio.sleep(SWEEP_EVERY)
