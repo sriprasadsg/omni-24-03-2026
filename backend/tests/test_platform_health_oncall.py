@@ -297,3 +297,114 @@ def test_the_409_copy_lives_in_health_messages():
     assert health_messages.API_DETAIL == {
         "watchdog_not_installed": "Install the watchdog first.",
         "watchdog_silent": "The watchdog is silent, so a test can't be sent until it reports again."}
+
+
+# ------------------------------------------------------------------ Task 3: migration, limits, secrecy
+
+migration = importlib.import_module("migrations.026_oncall_outbox")
+
+
+def _keys(info, name):
+    return info[name]["key"]
+
+
+async def test_migration_creates_the_outbox_and_test_request_indexes(mongo_db):
+    await migration.up(mongo_db)
+    outbox = await mongo_db.oncall_outbox.index_information()
+    assert outbox["id_unique"]["unique"] is True and _keys(outbox, "id_unique") == [("id", 1)]
+    assert _keys(outbox, "expires_ttl") == [("expiresAt", 1)] and outbox["expires_ttl"]["expireAfterSeconds"] == 0
+    assert _keys(outbox, "delivered") == [("deliveredAt", 1)]
+    requests = await mongo_db.oncall_test_requests.index_information()
+    assert requests["id_unique"]["unique"] is True and _keys(requests, "id_unique") == [("id", 1)]
+    assert _keys(requests, "requested") == [("requestedAt", 1)]
+
+
+async def test_migration_twice_leaves_the_same_index_set(mongo_db):
+    await migration.up(mongo_db)
+    first = (await mongo_db.oncall_outbox.index_information(), await mongo_db.oncall_test_requests.index_information())
+    await migration.up(mongo_db)
+    assert (await mongo_db.oncall_outbox.index_information(),
+            await mongo_db.oncall_test_requests.index_information()) == first
+
+
+def test_migration_describes_itself():
+    assert migration.DESCRIPTION and hasattr(migration, "up")
+
+
+async def test_only_one_request_can_be_pending_at_the_database_level(mongo_db):
+    from pymongo.errors import DuplicateKeyError
+    await migration.up(mongo_db)
+    await mongo_db.oncall_test_requests.insert_one({"id": "a", "requestedAt": NOW, "state": "pending"})
+    with pytest.raises(DuplicateKeyError):
+        await mongo_db.oncall_test_requests.insert_one({"id": "b", "requestedAt": NOW, "state": "pending"})
+    await mongo_db.oncall_test_requests.insert_one({"id": "c", "requestedAt": NOW, "state": "delivered"})
+    await mongo_db.oncall_test_requests.insert_one({"id": "d", "requestedAt": NOW, "state": "delivered"})
+
+
+async def test_twenty_five_pending_messages_list_twenty_oldest_first(wd):
+    base = datetime.now(timezone.utc) - timedelta(hours=1)
+    for i in range(25):
+        await wd.db.oncall_outbox.insert_one({
+            "id": f"OB-{i:02d}", "kind": "trigger", "dedupKey": None, "severity": "info", "summary": f"m{i}",
+            "details": {}, "tenantId": "t1", "source": "autonomous_ops", "createdAt": base + timedelta(seconds=i),
+            "expiresAt": datetime.now(timezone.utc) + timedelta(hours=1), "deliveredAt": None, "ok": None, "error": None})
+    outbox = (await wd.post(body=_body())).json()["outbox"]
+    assert [m["id"] for m in outbox] == [f"OB-{i:02d}" for i in range(20)]
+
+
+async def test_a_long_notice_is_capped_at_1024_characters_in_the_summary(wd):
+    await oncall.enqueue(wd.db, tenant_id="t1", title="T" * 300, message="M" * 3000, severity="critical")
+    doc = await wd.db.oncall_outbox.find_one({})
+    assert len(doc["summary"]) == 1024 and doc["severity"] == "critical"
+    assert len(doc["details"]["message"]) <= 1024
+
+
+async def test_metadata_with_credential_like_keys_is_not_stored(wd):
+    await oncall.enqueue(wd.db, tenant_id="t1", title="x", message="y", severity="info",
+                         metadata={"token": "s3cret", "routing_key": "k", "scope": "platform", "nested": {"a": 1}})
+    doc = await wd.db.oncall_outbox.find_one({})
+    assert doc["details"]["scope"] == "platform"
+    assert "token" not in doc["details"] and "routing_key" not in doc["details"] and "nested" not in doc["details"]
+
+
+_BANNED = re.compile(r"oncall\.env|PAGERDUTY_ROUTING_KEY|(?<![A-Z_])WEBHOOK_URL|(?<![A-Z_])HEARTBEAT_URL")
+_SECRET_KEYS = {"routing_key", "routingkey", "webhookurl", "heartbeaturl", "token"}
+
+
+def test_no_backend_module_names_the_oncall_secret_file_or_its_variables():
+    root = Path(__file__).resolve().parent.parent
+    skip = {"venv", ".venv", "tests", "node_modules", "__pycache__", ".git"}
+    offenders = []
+    for folder, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in skip and not d.startswith("venv")]
+        for name in files:
+            if name.endswith(".py") and _BANNED.search(Path(folder, name).read_text(encoding="utf-8", errors="ignore")):
+                offenders.append(str(Path(folder, name).relative_to(root)))
+    assert offenders == []
+
+
+def _keys_in(value):
+    found = set()
+    if isinstance(value, dict):
+        for k, v in value.items():
+            found.add(str(k).lower())
+            found |= _keys_in(v)
+    elif isinstance(value, list):
+        for v in value:
+            found |= _keys_in(v)
+    return found
+
+
+async def test_no_response_or_document_carries_a_routing_key_or_url(beat, monkeypatch, tmp_path):
+    await seed_tenant(beat.db, "t1")
+    await _notify(beat.db)
+    alert = (await beat.call("POST", TEST_ALERT, role="super_admin")).json()
+    dog = Watchdog(beat.db, monkeypatch, tmp_path)
+    dog.set_token()
+    sync = (await dog.post(body=_body())).json()
+    assert sync["outbox"] and sync["testRequest"]
+    outbox_doc = {k: v for k, v in (await beat.db.oncall_outbox.find_one({}, {"_id": 0})).items()}
+    request_doc = await beat.db.oncall_test_requests.find_one({}, {"_id": 0})
+    for payload in (sync, alert, json.loads(json.dumps(outbox_doc, default=str)), json.loads(json.dumps(request_doc, default=str))):
+        assert not (_keys_in(payload) & _SECRET_KEYS)
+        assert "Bearer" not in json.dumps(payload) and "http://" not in json.dumps(payload) and "https://" not in json.dumps(payload)
