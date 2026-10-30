@@ -3,8 +3,10 @@
  * The document follows GET /api/platform/autonomous-ops/health (82-08): everything the watchdog could not
  * read is null, and the on-call block carries only the channel type and booleans.
  */
+import React from 'react';
 import { vi } from 'vitest';
 import { authFetch } from '../../services/apiService';
+import { UserContext } from '../../contexts/UserContext';
 
 export const mockAuthFetch = authFetch as unknown as ReturnType<typeof vi.fn>;
 
@@ -126,3 +128,31 @@ export const reviewCalls = () =>
   mockAuthFetch.mock.calls.filter(c => (c[0] as string).split('?')[0] === REVIEW_PATH);
 export const confirmCalls = () =>
   mockAuthFetch.mock.calls.filter(c => (c[0] as string).split('?')[0] === CONFIRM_PATH);
+
+export const PLATFORM_CONTROL = 'control:platform_autonomous_ops';
+export const SUPER_PERMISSIONS = ['view:autonomous_ops', 'control:autonomous_ops', 'manage:autonomous_ops', PLATFORM_CONTROL];
+
+/** Render `ui` as a signed-in user holding exactly `permissions`. */
+export function withUser(permissions: string[], ui: React.ReactElement) {
+  return (
+    <UserContext.Provider value={{
+      currentUser: { id: 'u1', name: 'Pat', email: 'pat@example.com', role: 'Super Admin', tenantId: 'tenant-a', permissions } as any,
+      login: async () => false, logout: () => {}, signup: async () => false, registerTenant: async () => false,
+      hasPermission: (p: any) => permissions.includes(p), enabledFeatures: [], serverLockedFeatures: {},
+    }}>
+      {ui}
+    </UserContext.Provider>
+  );
+}
+
+export type RetentionHandler = (url: string, init?: RequestInit) => Response | Promise<Response>;
+
+/** Route authFetch by path; an unknown path fails loudly so a stray request shows up in the test. */
+export function routeRetention(opts: { review?: RetentionHandler; confirm?: RetentionHandler } = {}) {
+  mockAuthFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+    const path = url.split('?')[0];
+    if (path === REVIEW_PATH) return (opts.review ?? (() => jsonRes(retentionReview())))(url, init);
+    if (path === CONFIRM_PATH) return (opts.confirm ?? (() => jsonRes({ confirmed: { rows: 2, records: 4, tenants: 2 } })))(url, init);
+    throw new Error(`unexpected request ${url}`);
+  });
+}
