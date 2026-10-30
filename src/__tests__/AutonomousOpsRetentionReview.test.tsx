@@ -297,7 +297,7 @@ describe('Retention card: the review table', () => {
     route();
     renderCard();
     await ready();
-    const cards = screen.getByRole('list', { name: 'Retention counts waiting for confirmation, card view' });
+    const cards = screen.getByRole('list', { name: 'Retention rows waiting for confirmation, card view' });
     expect(cards.className).toContain('xl:hidden');
     const first = within(cards).getAllByRole('listitem')[0];
     ['Data type', 'Keeps', 'Would be deleted', 'Why'].forEach(label => expect(within(first).getByText(label)).toBeInTheDocument());
