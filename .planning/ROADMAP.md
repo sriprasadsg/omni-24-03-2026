@@ -383,7 +383,7 @@ Plans:
   4. Data retention runs on a schedule per tenant in bounded batches and never touches audit logs, the audit ledger or decision records; its first run is a dry-run count the operator confirms before anything is deleted.
   5. Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope, and the repo ships the watchdog unit files, service drop-ins and an install checklist — the app itself installs nothing on the live server.
 
-**Plans**: 13/14 plans executed in 6 waves
+**Plans**: 14/14 plans executed in 6 waves
 
 Plans:
 **Wave 1**
@@ -410,7 +410,7 @@ Plans:
 - [x] 82-14-PLAN.md — Wave 5: Tracer: platform-health rows and filter pill in platform Activity only; tenant Retention Policy notices (D-16/D-19/D-25/D-26)
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 82-13-PLAN.md — Wave 6: Tracer: retention review card and Confirm deletion dialog with the stale-count guard
+- [x] 82-13-PLAN.md — Wave 6: Tracer: retention review card and Confirm deletion dialog with the stale-count guard
 
 **UI hint**: yes
 **Research**: Light — polkit/sudoers scoping for the watchdog and its MongoDB authentication path (MongoDB auth is still an open readiness item).
@@ -500,7 +500,7 @@ Plans:
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
-| 82. Platform Self-Healing & Scheduled Retention | 13/14 | In Progress | - |
+| 82. Platform Self-Healing & Scheduled Retention | 14/14 | In Progress | - |
 | 83. Autonomous Security Response | 0/TBD | Not started | - |
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |

@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
-status: executing
-stopped_at: Completed 82-14-PLAN.md
-last_updated: "2026-10-30T23:08:56.284Z"
+status: verifying
+stopped_at: Completed 82-13-PLAN.md
+last_updated: "2026-10-30T23:38:49.498Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 82 execution started
-state_head: a1370eeb328a6745cbcd08d19b376ba800238e58
+state_head: bea0249eda70cef670cf31d2e843ffc446235961
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 32
-  completed_plans: 31
+  completed_plans: 32
   percent: 17
 ---
 
@@ -495,6 +495,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-12: Platform health section owns its data hook (30 s while visible, focus, Refresh counter); a failed poll keeps data and only Updated stops advancing; Updated is the last successful fetch time
 - [Phase 82]: 82-12: test alert no-answer clock starts at the earlier of server requestedAt and first browser sighting; a POST answer outranks an older in-flight poll (generation counter)
 - [Phase 82]: 82-14: platform_health rows dropped client-side outside platform scope; shortened-period notice shows only for a lower value the server holds for confirmation
+- [Phase 82]: 82-13: the Confirm deletion dialog confirms a snapshot (token, totals, count time) taken when it opened, never the live review, so a 30 s poll cannot change what one click confirms
+- [Phase 82]: 82-13: a background refresh keeps rows already loaded by Load more while the review token is unchanged; a changed token replaces them with the fresh first page
 
 ## Performance Metrics
 
@@ -681,6 +683,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P11 | 20 min | 3 tasks | 11 files |
 | Phase 82 P12 | 55 min | 3 tasks | 10 files |
 | Phase 82 P14 | 35min | 3 tasks | 4 files |
+| Phase 82 P13 | 45 min | 3 tasks | 12 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -715,8 +718,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-30T23:08:55.871Z
-**Stopped at:** Completed 82-14-PLAN.md
+**Last session:** 2026-10-30T23:38:49.147Z
+**Stopped at:** Completed 82-13-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -743,7 +746,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
 Plan: 14 of 14
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-30 — Phase 82 execution resumed at wave 4 (82-05, 82-11)
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
 
