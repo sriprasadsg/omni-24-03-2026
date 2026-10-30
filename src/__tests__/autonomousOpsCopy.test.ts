@@ -108,7 +108,7 @@ describe('ACTV-08 real copy', () => {
   });
 
   it('scans at least the status card, dialog, banner, activity screen, client and poller', () => {
-    expect(FRONTEND_FILES).toHaveLength(7);
+    expect(FRONTEND_FILES).toHaveLength(9);
   });
 });
 

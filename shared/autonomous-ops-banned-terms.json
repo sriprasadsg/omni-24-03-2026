@@ -23,7 +23,9 @@
     "components/AutonomousOpsActivityList.tsx",
     "components/AutonomousOpsStatusCard.tsx",
     "components/AutonomousOpsStopDialog.tsx",
-    "components/AutonomousOpsStopBanner.tsx"
+    "components/AutonomousOpsStopBanner.tsx",
+    "components/AutonomousOpsHealthBanners.tsx",
+    "components/AutonomousOpsHealthChips.tsx"
   ],
   "catalogueViews": ["autonomousOps"]
 }
