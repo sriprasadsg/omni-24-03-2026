@@ -74,8 +74,12 @@ def post_sync(http, base_url, token, body):
     return _post(http, base_url.rstrip("/") + SYNC_PATH, token, body)
 
 
-def post_results(http, base_url, token, body):
-    """(ok, response dict or None) for ``POST /results`` (delivered outbox ids, test result)."""
+def post_results(http, base_url, token, delivered, test_result):
+    """(ok, response dict or None) for ``POST /results``: ``delivered`` is ``[{id, ok, error?, at}]`` for outbox
+    messages, ``test_result`` is ``{id, ok, error?, at}`` or None. ok only for a 200 answer."""
+    body = {"v": CONTRACT_VERSION, "delivered": list(delivered or [])[:MAX_EVENTS_PER_SYNC]}
+    if test_result is not None:
+        body["testResult"] = test_result
     return _post(http, base_url.rstrip("/") + RESULTS_PATH, token, body)
 
 
