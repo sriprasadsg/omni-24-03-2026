@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
 status: executing
-stopped_at: Completed 82-12-PLAN.md
-last_updated: "2026-10-30T20:59:55.263Z"
+stopped_at: Completed 82-14-PLAN.md
+last_updated: "2026-10-30T23:08:56.284Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 82 execution started
-state_head: 01fb923debe1d8a54e605a8f25a07f2a7ddd229e
+state_head: a1370eeb328a6745cbcd08d19b376ba800238e58
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 32
-  completed_plans: 30
+  completed_plans: 31
   percent: 17
 ---
 
@@ -494,6 +494,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-11: health banner visibility is one hook (useHealthBannerKind) shared by the stop banner wrapper; platform status in tenant scope is a side read that never sets the provider error flag
 - [Phase 82]: 82-12: Platform health section owns its data hook (30 s while visible, focus, Refresh counter); a failed poll keeps data and only Updated stops advancing; Updated is the last successful fetch time
 - [Phase 82]: 82-12: test alert no-answer clock starts at the earlier of server requestedAt and first browser sighting; a POST answer outranks an older in-flight poll (generation counter)
+- [Phase 82]: 82-14: platform_health rows dropped client-side outside platform scope; shortened-period notice shows only for a lower value the server holds for confirmation
 
 ## Performance Metrics
 
@@ -679,6 +680,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P05 | 16 min | 3 tasks | 6 files |
 | Phase 82 P11 | 20 min | 3 tasks | 11 files |
 | Phase 82 P12 | 55 min | 3 tasks | 10 files |
+| Phase 82 P14 | 35min | 3 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -713,8 +715,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-30T20:59:54.971Z
-**Stopped at:** Completed 82-12-PLAN.md
+**Last session:** 2026-10-30T23:08:55.871Z
+**Stopped at:** Completed 82-14-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -740,7 +742,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
-Plan: 13 of 14
+Plan: 14 of 14
 Status: Ready to execute
 Last activity: 2026-10-30 — Phase 82 execution resumed at wave 4 (82-05, 82-11)
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
