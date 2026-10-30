@@ -37,6 +37,7 @@ EXPECTED_FILES = [
     "components/AutonomousOpsHealthBanners.tsx",
     "components/AutonomousOpsHealthChips.tsx",
     "components/AutonomousOpsPlatformHealth.tsx",
+    "components/AutonomousOpsHealthCards.tsx",
 ]
 
 
