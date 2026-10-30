@@ -84,11 +84,13 @@ def _scrub(value: Any, depth: int = 0) -> Any:
 
 
 def _utc(value: Any) -> Optional[datetime]:
+    """A timezone-aware UTC datetime from a datetime (naive means UTC, as MongoDB returns it) or an ISO-8601
+    string; None for anything else. Never raises."""
     try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except (TypeError, ValueError):
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError):
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def clean_params(params: Any, target: Any = None) -> Dict[str, Any]:
@@ -214,3 +216,69 @@ async def sync_response(db, accepted: List[str], dropped: int) -> Dict[str, Any]
         logger.error("selfheal: the test alert request could not be read: %s", type(exc).__name__)
     return {"stop": {"active": active, "scope": "platform" if active else None, "pressedAt": pressed},
             "acceptedEventIds": accepted, "droppedEvents": dropped, "outbox": outbox, "testRequest": test_request}
+
+
+# ---------------------------------------------------------------- what the Super Admin sees (82-08)
+
+_URL = re.compile(r"https?://\S+", re.IGNORECASE)
+_OLDEST = datetime.min.replace(tzinfo=timezone.utc)
+_CHANNEL_TYPES = ("none", "pagerduty", "webhook")
+
+
+def _safe_error(value: Any) -> Optional[str]:
+    """A delivery error as text for the screen: capped, control characters removed, any URL replaced."""
+    text = clean_text(_URL.sub("[url]", str(value)), MAX_TEXT) if value else ""
+    return text or None
+
+
+def _candidate(when: Any, ok: Any, error: Any) -> Optional[Dict[str, Any]]:
+    """One delivery outcome. A time that cannot be read sorts as the oldest; no outcome is no candidate."""
+    if not isinstance(ok, bool):
+        return None
+    parsed = _utc(when)
+    return {"when": parsed or _OLDEST, "at": parsed, "ok": ok, "error": None if ok else _safe_error(error)}
+
+
+async def channel_status(db, snapshot: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """The on-call channel as ``{channel, error, last}``. ``channel`` is ``none`` when the watchdog reports no
+    channel type, otherwise the outcome of the newest of three records: the watchdog's last delivery, the
+    latest test result the watchdog reported and the latest acknowledged outbox message. ``failing`` when that
+    newest one failed, ``working`` when it succeeded, ``untested`` when there is none. Times arrive as strings
+    (snapshot) and as naive or aware datetimes (MongoDB); all are compared as UTC."""
+    from . import oncall
+    block = (snapshot or {}).get("oncall")
+    block = block if isinstance(block, dict) else {}
+    if block.get("type") == "none":
+        return {"channel": "none", "error": None, "last": None}
+    found = []
+    last = block.get("last")
+    if isinstance(last, dict):
+        found.append(_candidate(last.get("at"), last.get("ok"), last.get("error")))
+    test = await raw(db).oncall_test_requests.find_one(
+        {"state": {"$in": ["delivered", "failed"]}, "sentAt": {"$ne": None}}, sort=[("sentAt", -1)])
+    if test:
+        found.append(_candidate(test.get("sentAt"), test.get("state") == "delivered", test.get("error")))
+    sent = await raw(db).oncall_outbox.find_one({"deliveredAt": {"$ne": None}}, sort=[("deliveredAt", -1)])
+    if sent:
+        found.append(_candidate(sent.get("deliveredAt"), sent.get("ok"), sent.get("error")))
+    newest = max((c for c in found if c), key=lambda c: c["when"], default=None)
+    if newest is None:
+        return {"channel": "untested", "error": None, "last": None}
+    return {"channel": "working" if newest["ok"] else "failing", "error": newest["error"],
+            "last": {"at": newest["at"].isoformat() if newest["at"] else None, "ok": newest["ok"],
+                     "error": newest["error"]}}
+
+
+async def health_summary(db, now: Optional[datetime] = None) -> Dict[str, Any]:
+    """The compact summary on the platform status payload: ``{watchdog, lastSeenAt, channel, channelError}``.
+    ``channel`` is None while the watchdog is not installed (D-24)."""
+    now = now or datetime.now(timezone.utc)
+    heartbeat = await get_heartbeat(db)
+    state = watchdog_state(heartbeat, now, PROCESS_STARTED_AT)
+    seen = _utc((heartbeat or {}).get("lastSeenAt"))
+    channel = None
+    if state != "not_installed":
+        channel = await channel_status(db, await _coll(db).find_one({"_id": SNAPSHOT_ID}))
+    return {"watchdog": state, "lastSeenAt": seen.isoformat() if seen else None,
+            "channel": channel["channel"] if channel else None,
+            "channelError": channel["error"] if channel and channel["channel"] == "failing" else None}

@@ -20,7 +20,7 @@ from rbac_service import rbac_service as _rbac_service
 from rbac_utils import has_platform_permission, is_super_admin, verify_permission
 
 from . import (BUCKET_STATES, CONTROL_PERMISSION, LEVEL_RANK, MANAGE_PERMISSION, PLATFORM_CONTROL_PERMISSION,
-               PLATFORM_TENANT_ID, health_messages, ledger, messages, registry, settings, stop)
+               PLATFORM_TENANT_ID, health_messages, ledger, messages, registry, selfheal, settings, stop)
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -346,12 +346,18 @@ async def platform_status_payload(db, caller: Caller) -> Dict[str, Any]:
     """GET /api/platform/autonomous-ops/status."""
     platform_doc = await settings.platform_stop(db)
     stopped = await raw(db).autonomy_settings.count_documents({"stop.active": True})
+    try:
+        health = await selfheal.health_summary(db, datetime.now(timezone.utc))
+    except Exception as exc:        # the banners are optional; the stop status must still answer
+        logger.error("autonomous_ops: platform health summary failed: %s", type(exc).__name__)
+        health = None
     return {
         "scope": "platform",
         "stop": {"platform": stop_view(platform_doc, True)},
         "tenantStopsCount": stopped,
         "canStopPlatform": bool(caller.can_platform),
         "canResumePlatform": bool(caller.can_platform and caller.interactive and settings.stop_active(platform_doc)),
+        "health": health,
     }
 
 
