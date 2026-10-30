@@ -383,7 +383,7 @@ Plans:
   4. Data retention runs on a schedule per tenant in bounded batches and never touches audit logs, the audit ledger or decision records; its first run is a dry-run count the operator confirms before anything is deleted.
   5. Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope, and the repo ships the watchdog unit files, service drop-ins and an install checklist — the app itself installs nothing on the live server.
 
-**Plans**: 10/14 plans executed in 6 waves
+**Plans**: 11/14 plans executed in 6 waves
 
 Plans:
 **Wave 1**
@@ -403,7 +403,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [x] 82-05-PLAN.md — Wave 4: Tracer: watchdog pages PagerDuty/webhook once per incident with grouping and resolve, delivers outbox and test alerts, pings the external heartbeat; end-to-end contract test
-- [ ] 82-11-PLAN.md — Wave 4: Tracer: Super Admin health banners (watchdog silent, no working channel) in any scope; typed API surface and shared health chips
+- [x] 82-11-PLAN.md — Wave 4: Tracer: Super Admin health banners (watchdog silent, no working channel) in any scope; typed API surface and shared health chips
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 82-12-PLAN.md — Wave 5: Tracer: Platform health section with watchdog and services, certificate, disk and on-call cards and Send test alert
@@ -500,7 +500,7 @@ Plans:
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
-| 82. Platform Self-Healing & Scheduled Retention | 10/14 | In Progress | - |
+| 82. Platform Self-Healing & Scheduled Retention | 11/14 | In Progress | - |
 | 83. Autonomous Security Response | 0/TBD | Not started | - |
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
