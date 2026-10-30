@@ -161,7 +161,7 @@ async def _expire_stale(db, now: datetime) -> None:
 async def request_test(db, actor: Dict[str, Any], now: Optional[datetime] = None) -> Dict[str, Any]:
     """The pending test request, created when none is pending. ``actor`` is ``{username, display, ...}``.
     A second call while one is pending returns the same request."""
-    now = now or _now()
+    now = (now or _now()).replace(microsecond=0)        # MongoDB keeps milliseconds; the answer matches the stored value
     await _expire_stale(db, now)
     for _ in range(3):
         pending = await _requests(db).find_one({"state": "pending"}, {"_id": 0})

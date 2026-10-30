@@ -123,3 +123,177 @@ async def test_an_expired_message_is_never_returned(wd):
                                             ("weird", "warning"), (None, "warning"), ("INFO", "info")])
 def test_notify_severity_maps_to_oncall_severity(given, expected):
     assert oncall.map_severity(given) == expected
+
+
+# ------------------------------------------------------------------ Task 2: send test alert
+
+NOW = datetime(2026, 10, 30, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def _beat(seconds_old, now=NOW):
+    return {"_id": "heartbeat", "firstSeenAt": now - timedelta(days=1), "lastSeenAt": now - timedelta(seconds=seconds_old),
+            "host": "omni"}
+
+
+async def _seed_heartbeat(db, seconds_old):
+    """A heartbeat ``seconds_old`` seconds old by the real clock."""
+    now = datetime.now(timezone.utc)
+    await db.platform_health.replace_one({"_id": "heartbeat"}, _beat(seconds_old, now), upsert=True)
+
+
+@pytest.fixture
+def long_running(monkeypatch):
+    monkeypatch.setattr(selfheal, "PROCESS_STARTED_AT", datetime.now(timezone.utc).timestamp() - 3600)
+
+
+@pytest.fixture
+async def beat(api, long_running):
+    await _seed_heartbeat(api.db, 10)
+    return api
+
+
+def test_watchdog_state_not_installed_running_silent_and_grace():
+    started_long_ago = NOW.timestamp() - 3600
+    assert selfheal.watchdog_state(None, NOW, started_long_ago) == "not_installed"
+    assert selfheal.watchdog_state({}, NOW, started_long_ago) == "not_installed"
+    assert selfheal.watchdog_state(_beat(10), NOW, started_long_ago) == "running"
+    assert selfheal.watchdog_state(_beat(300), NOW, started_long_ago) == "running"       # exactly 300 s is not yet silent
+    assert selfheal.watchdog_state(_beat(301), NOW, started_long_ago) == "silent"
+    assert selfheal.watchdog_state(_beat(400), NOW, NOW.timestamp() - 60) == "running"    # grace after a backend start
+    assert selfheal.watchdog_state(_beat(400), NOW, NOW.timestamp() - 180) == "running"
+    assert selfheal.watchdog_state(_beat(400), NOW, NOW.timestamp() - 181) == "silent"
+    assert selfheal.SILENT_AFTER == 300 and selfheal.STARTUP_GRACE == 180
+
+
+def test_watchdog_state_accepts_naive_datetimes_as_stored_by_motor():
+    naive = {"lastSeenAt": (NOW - timedelta(seconds=10)).replace(tzinfo=None)}
+    assert selfheal.watchdog_state(naive, NOW, NOW - timedelta(hours=1)) == "running"
+    stale = {"lastSeenAt": (NOW - timedelta(seconds=999)).replace(tzinfo=None)}
+    assert selfheal.watchdog_state(stale, NOW, NOW - timedelta(hours=1)) == "silent"
+
+
+async def test_super_admin_requests_a_test_alert_and_a_second_click_gets_the_same_one(beat):
+    first = await beat.call("POST", TEST_ALERT, role="super_admin", username="root@example.test")
+    assert first.status_code == 200
+    alert = first.json()["testAlert"]
+    assert set(alert) == {"id", "requestedAt", "requestedBy", "state", "sentAt", "error"}
+    assert alert["state"] == "pending" and alert["sentAt"] is None and alert["requestedBy"] == "root@example.test"
+    second = await beat.call("POST", TEST_ALERT, role="super_admin")
+    assert second.status_code == 200 and second.json()["testAlert"]["id"] == alert["id"]
+    assert await beat.db.oncall_test_requests.count_documents({}) == 1
+    stored = await beat.db.oncall_test_requests.find_one({"id": alert["id"]})
+    assert stored["requestedBy"] == {"id": "root@example.test", "name": "root@example.test"}
+
+
+async def test_requested_by_uses_the_users_display_name(beat):
+    await beat.db.users.insert_one({"email": "root@example.test", "name": "Root Admin"})
+    res = await beat.call("POST", TEST_ALERT, role="super_admin", username="root@example.test")
+    assert res.json()["testAlert"]["requestedBy"] == "Root Admin"
+    stored = await beat.db.oncall_test_requests.find_one({})
+    assert stored["requestedBy"] == {"id": "root@example.test", "name": "Root Admin"}
+
+
+async def test_the_next_sync_carries_the_test_request_and_the_result_closes_it(beat, monkeypatch, tmp_path):
+    await beat.db.users.insert_one({"email": "root@example.test", "name": "Ana Root"})
+    alert = (await beat.call("POST", TEST_ALERT, role="super_admin", username="root@example.test")).json()["testAlert"]
+    dog = Watchdog(beat.db, monkeypatch, tmp_path)
+    dog.set_token()
+    sync = (await dog.post(body=_body())).json()
+    assert sync["testRequest"] == {"id": alert["id"], "requestedAt": alert["requestedAt"]}
+    sent = datetime.now(timezone.utc).replace(microsecond=0)
+    res = await dog.post(RESULTS, {"v": 1, "testResult": {"id": alert["id"], "ok": True, "at": sent.isoformat()}})
+    assert res.status_code == 200
+    stored = await beat.db.oncall_test_requests.find_one({"id": alert["id"]})
+    assert stored["state"] == "delivered" and stored["error"] is None
+    assert stored["sentAt"].replace(tzinfo=timezone.utc) == sent
+    assert (await dog.post(body=_body())).json()["testRequest"] is None
+
+    rows = (await beat.call("GET", PLATFORM_LIST, role="super_admin")).json()["items"]
+    tests = [r for r in rows if r["actionLabel"] == "Test alert"]
+    assert len(tests) == 1
+    row = tests[0]
+    assert row["reasonText"] == "Requested by Ana Root."
+    assert row["resultText"] == f"Sent at {sent:%H:%M}, delivered."
+    assert row["healthChip"] == "healthy" and row["id"] == "PH-test-" + alert["id"]
+
+
+async def test_a_repeated_result_writes_no_second_row(beat, monkeypatch, tmp_path):
+    alert = (await beat.call("POST", TEST_ALERT, role="super_admin")).json()["testAlert"]
+    dog = Watchdog(beat.db, monkeypatch, tmp_path)
+    dog.set_token()
+    for _ in range(2):
+        await dog.post(RESULTS, {"v": 1, "testResult": {"id": alert["id"], "ok": True}})
+    assert await beat.db.autonomy_actions.count_documents({"healthEvent": "test_alert"}) == 1
+
+
+async def test_a_failed_result_stores_the_capped_error_and_a_critical_chip(beat, monkeypatch, tmp_path):
+    alert = (await beat.call("POST", TEST_ALERT, role="super_admin")).json()["testAlert"]
+    dog = Watchdog(beat.db, monkeypatch, tmp_path)
+    dog.set_token()
+    await dog.post(RESULTS, {"v": 1, "testResult": {"id": alert["id"], "ok": False, "error": "e" * 500}})
+    stored = await beat.db.oncall_test_requests.find_one({"id": alert["id"]})
+    assert stored["state"] == "failed" and len(stored["error"]) == 300 and stored["sentAt"] is not None
+    row = (await beat.db.autonomy_actions.find_one({"healthEvent": "test_alert"}))
+    assert row["healthChip"] == "critical" and len(row["healthParams"]["error"]) == 300
+    shown = (await beat.call("GET", PLATFORM_LIST, role="super_admin")).json()["items"][0]
+    assert shown["healthChip"] == "critical" and "not delivered: " in shown["resultText"]
+    # the latest request is visible to a status reader
+    view = await oncall.test_view(beat.db)
+    assert view["state"] == "failed" and view["id"] == alert["id"]
+
+
+async def test_a_result_for_an_unknown_request_is_ignored(beat, monkeypatch, tmp_path):
+    dog = Watchdog(beat.db, monkeypatch, tmp_path)
+    dog.set_token()
+    res = await dog.post(RESULTS, {"v": 1, "testResult": {"id": "TR-nope", "ok": True}})
+    assert res.status_code == 200
+    assert await beat.db.autonomy_actions.count_documents({"healthEvent": "test_alert"}) == 0
+
+
+async def test_no_heartbeat_ever_answers_409_install_the_watchdog_first(api, long_running):
+    res = await api.call("POST", TEST_ALERT, role="super_admin")
+    assert res.status_code == 409 and res.json()["detail"] == "Install the watchdog first."
+    assert await api.db.oncall_test_requests.count_documents({}) == 0
+
+
+async def test_a_silent_watchdog_answers_409_with_the_silent_copy(api, long_running):
+    await _seed_heartbeat(api.db, 400)
+    res = await api.call("POST", TEST_ALERT, role="super_admin")
+    assert res.status_code == 409
+    assert res.json()["detail"] == "The watchdog is silent, so a test can't be sent until it reports again."
+
+
+async def test_a_stale_heartbeat_just_after_a_backend_start_is_accepted(api, monkeypatch):
+    monkeypatch.setattr(selfheal, "PROCESS_STARTED_AT", datetime.now(timezone.utc).timestamp() - 60)
+    await _seed_heartbeat(api.db, 400)
+    res = await api.call("POST", TEST_ALERT, role="super_admin")
+    assert res.status_code == 200 and res.json()["testAlert"]["state"] == "pending"
+
+
+@pytest.mark.parametrize("role", ["tenant_admin", "analyst", "platform_support"])
+async def test_non_super_admin_identities_get_403(beat, role):
+    res = await beat.call("POST", TEST_ALERT, role=role)
+    assert res.status_code == 403
+    assert await beat.db.oncall_test_requests.count_documents({}) == 0
+
+
+async def test_an_api_key_cannot_request_a_test_alert(beat):
+    res = await beat.call("POST", TEST_ALERT, role="super_admin", auth="api_key", scopes=["control:platform_autonomous_ops"])
+    assert res.status_code == 403
+
+
+async def test_a_request_nobody_picked_up_is_closed_so_a_new_test_can_be_sent(beat):
+    first = (await beat.call("POST", TEST_ALERT, role="super_admin")).json()["testAlert"]
+    await beat.db.oncall_test_requests.update_one(
+        {"id": first["id"]}, {"$set": {"requestedAt": datetime.now(timezone.utc) - timedelta(minutes=11)}})
+    assert await oncall.pending_test(beat.db) is None                           # not handed to a returning watchdog
+    second = (await beat.call("POST", TEST_ALERT, role="super_admin")).json()["testAlert"]
+    assert second["id"] != first["id"] and second["state"] == "pending"
+    old = await beat.db.oncall_test_requests.find_one({"id": first["id"]})
+    assert old["state"] == "failed" and old["error"] == oncall.TEST_NO_ANSWER
+
+
+def test_the_409_copy_lives_in_health_messages():
+    assert health_messages.API_DETAIL == {
+        "watchdog_not_installed": "Install the watchdog first.",
+        "watchdog_silent": "The watchdog is silent, so a test can't be sent until it reports again."}

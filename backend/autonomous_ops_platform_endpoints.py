@@ -11,14 +11,15 @@ Level, maximum level, shadow lift and never-touch editing are API-only in Phase 
 summaries and docstrings below are the documentation, served at /docs.
 """
 import logging
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, StrictBool
 
 from api_key_auth import get_current_user_or_api_key
-from autonomous_ops import (PLATFORM_CONTROL_PERMISSION, PLATFORM_TENANT_ID, ledger, messages, protected, settings,
-                            views)
+from autonomous_ops import (PLATFORM_CONTROL_PERMISSION, PLATFORM_TENANT_ID, health_messages, ledger, messages, oncall,
+                            protected, selfheal, settings, views)
 from autonomous_ops_endpoints import (
     NeverTouchBody, ResumeBody, StopBody, _forbidden, _require_interactive_session, _unavailable,
     clear_stop, press_stop,
@@ -116,6 +117,34 @@ async def post_platform_stop(
         caller = await views.build_caller(user)
         refused = await press_stop(db, caller, "platform", None, body.reason if body else None)
         return refused or await views.platform_status_payload(db, caller)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/health/test-alert", summary="Ask the watchdog to send a test alert")
+async def post_health_test_alert(
+    user=Depends(_require_platform_autonomy_control),
+    _session=Depends(_require_interactive_session),
+):
+    """Asks the watchdog to send one test message on the on-call channel. Answers
+    ``{testAlert: {id, requestedAt, requestedBy, state, sentAt, error}}``; while a request is pending a second
+    call returns the same one. The watchdog picks it up with its next sync and reports the result, which
+    appears in the platform Activity list. 409 when no watchdog has ever reported ("Install the watchdog
+    first.") or it has gone quiet. Super Admin only, interactive session."""
+    try:
+        db = get_database()
+        now = datetime.now(timezone.utc)
+        state = selfheal.watchdog_state(await selfheal.get_heartbeat(db), now, selfheal.PROCESS_STARTED_AT)
+        if state == "not_installed":
+            raise HTTPException(status_code=409, detail=health_messages.API_DETAIL["watchdog_not_installed"])
+        if state == "silent":
+            raise HTTPException(status_code=409, detail=health_messages.API_DETAIL["watchdog_silent"])
+        caller = await views.build_caller(user)
+        actor = await views.actor_for(db, caller)
+        request = await oncall.request_test(db, actor, now)
+        return {"testAlert": oncall.view(request)}
     except HTTPException:
         raise
     except Exception as exc:

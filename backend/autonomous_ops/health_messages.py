@@ -12,6 +12,12 @@ from typing import Any, Dict, Optional
 
 DASH = "—"
 
+# What the test-alert route says when it refuses (409): no watchdog has ever reported, or it has gone quiet.
+API_DETAIL = {
+    "watchdog_not_installed": "Install the watchdog first.",
+    "watchdog_silent": "The watchdog is silent, so a test can't be sent until it reports again.",
+}
+
 SERVICE_NAMES = {"mongod": "MongoDB", "omni-backend": "Backend", "nginx": "nginx", "ollama": "Ollama"}
 
 # The rule ids shown in font-mono under the reason text.
