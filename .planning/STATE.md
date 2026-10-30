@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
 status: executing
-stopped_at: Completed 82-10-PLAN.md
-last_updated: "2026-10-30T19:03:39.254Z"
+stopped_at: Completed 82-04-PLAN.md
+last_updated: "2026-10-30T19:26:59.186Z"
 last_activity: 2026-10-30
 last_activity_desc: Phase 82 execution started
-state_head: e88e1a57df4070707c560accbec44fbaceafe8e5
+state_head: 9c59bc9a503147c25b69c1660c9d93f5651c77d3
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 32
-  completed_plans: 25
+  completed_plans: 26
   percent: 17
 ---
 
@@ -483,6 +483,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-07: one pending test-alert request enforced by a partial unique index; unanswered requests close as failed after 10 minutes
 - [Phase 82]: 82-07: oncall.enqueue drops credential-like metadata keys; delivered entries (ok or not) mark an outbox message once
 - [Phase 82]: 82-10: review lists every waiting row incl. zero counts; POST /run result stays flat tiles with structured types list; run-in-progress = job lock or unfinished run doc; audit_logs policy writes refused 409 (A-82-A13 confirmed: only iso27001 A.8.10 counts documents)
+- [Phase 82]: 82-04: certs and disks blocks capped at 32 entries (backend limit); cert reads share a 6 s allowance (3 s each), unreached or timed-out certificate keeps its last entry and incident
+- [Phase 82]: 82-04: incident keys cert:<path>:30d|14d|7d|1d|unreadable, disk:<mount>:80|90|95, disk-forecast:<mount>:14d|7d|1d; kinds cert_expiring, cert_expired, cert_unreadable, disk_full, disk_forecast; state saved after spool append and before sync
 
 ## Performance Metrics
 
@@ -663,6 +665,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P03 | 40 min | 3 tasks | 10 files |
 | Phase 82 P07 | 42 min | 3 tasks | 8 files |
 | Phase 82 P10 | 15 min | 3 tasks | 11 files |
+| Phase 82 P04 | 25 min | 3 tasks | 7 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -697,8 +700,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-30T19:03:38.971Z
-**Stopped at:** Completed 82-10-PLAN.md
+**Last session:** 2026-10-30T19:26:59.004Z
+**Stopped at:** Completed 82-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -724,7 +727,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
-Plan: 8 of 14
+Plan: 9 of 14
 Status: Ready to execute
 Last activity: 2026-10-30 — Phase 82 execution resumed at 82-03 after the weekly usage limit
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
