@@ -346,7 +346,7 @@ async def test_platform_wide_stop_and_resume_and_name_masking(api):
 
     status = await api.call("GET", f"{PLAT}/status", role="super_admin")
     assert status.status_code == 200 and set(status.json()) == {"scope", "stop", "tenantStopsCount", "canStopPlatform",
-                                                                  "canResumePlatform"}
+                                                                  "canResumePlatform", "health"}
     assert status.json()["canResumePlatform"] is True and status.json()["tenantStopsCount"] == 0
     listed = (await api.call("GET", f"{PLAT}/actions", role="super_admin")).json()
     assert [i["controlEvent"] for i in listed["items"]] == ["platform_stop_pressed"]
