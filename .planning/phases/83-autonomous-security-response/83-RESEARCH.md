@@ -578,17 +578,24 @@ Not a rename/migration phase, but fences and new collections leave state:
 | A11 | `netstat -ano` output is Windows-formatted; Linux columns differ so Linux connection telemetry is unreliable | Q1 | Linux IP candidates would come only from scan results |
 | A12 | The Linux `iptables-nft` chain hook at position 1 coexists with ufw/firewalld | Q5, Q7 | Rules could be reordered by a firewall manager; verify catches it |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Do the public feeds populate `edr_ioc` live?**
    - Known: the code sends no `Auth-Key` and treats HTTP 401 as a debug line; secondary sources say a key is now required.
    - Unclear: the live row counts. Recommendation: the user runs one count of `edr_ioc` grouped by `source_feed` (research cannot read the live DB) before UAT; if empty, set a free abuse.ch key (needs a one-line `Auth-Key` header addition in `threat_feed_sync.py`, an in-scope fix) or accept that the UAT uses synthetic origins.
+   - RESOLVED: D-26 adds the optional key and keeps every feed name; the live row count and setting the key are user steps in 83-20, and automated tests use synthetic origins.
 2. **Quarantine succeeds but the file is still running.** D-06 only covers a failed move. Recommend the same card (kill, no retry needed). Needs a user yes because it extends D-06.
+   - RESOLVED: D-27, user-approved 2026-10-31.
 3. **Do tenant-added manual IOCs count as an origin?** Recommend no for v1 (not in D-01; a single analyst could otherwise supply an origin).
+   - RESOLVED: D-23, not an origin.
 4. **Auto-quarantine of OS-critical paths.** Recommend the sweep and agent refuse `System32`, `/usr/bin`, `/boot` style prefixes on the automatic path (suggestion or card instead).
+   - RESOLVED: D-28, user-approved 2026-10-31: an approval card.
 5. **Should deception count as an on-host origin?** Its alerts carry an external `source_ip` and no host; it cannot satisfy "on that host". Recommend excluded in v1.
+   - RESOLVED: D-23, not an origin.
 6. **Windows firewall native API.** Only if Defender or EDR blocks the CLIs on EILT0197.
+   - RESOLVED: deferred (83-CONTEXT Deferred Ideas); the Defender live check is a user step in 83-20.
 7. **Do `blocked_by_local_security` and `hash_mismatch` outcomes count toward the breaker?** Recommend `hash_mismatch` and noop do not; blocked-by-AV does.
+   - RESOLVED: adopted in 83-CONTEXT "Research defaults adopted".
 
 ## Environment Availability
 

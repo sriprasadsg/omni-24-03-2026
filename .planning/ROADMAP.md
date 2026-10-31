@@ -437,26 +437,46 @@ Plans:
 **Plans**: 20 plans in 10 waves
 
 Plans:
+**Wave 1**
 - [ ] 83-01-PLAN.md — Tracer: one two-source IP becomes one verified, undoable block (backend, agent contract file)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 83-02-PLAN.md — The real Rust agent speaks the contract: time-limited block, claims, verify, support report
 - [ ] 83-03-PLAN.md — All server copy and row fields (canUndo, undoHint, suggestion, blockedUntil)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 83-04-PLAN.md — Agent block complete: offline expiry, reboot safety, refusals, range blocks
 - [ ] 83-05-PLAN.md — Origins, two-source rule, feed key, decision memory, per-host cap, migration 028
 - [ ] 83-06-PLAN.md — Fences: swarm, SOAR, worker tasks, automatic XDR, delivery rule for new commands
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 83-07-PLAN.md — Response settings API: two-source switch, block length, watched services, bulk apply
 - [ ] 83-08-PLAN.md — Dormancy in the sweep, gate and approval; honest breaker; range needs approval
 - [ ] 83-09-PLAN.md — Agent quarantine and restore, kill bound to an executable
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 83-10-PLAN.md — Undo on Done rows and suggestions in volume
 - [ ] 83-11-PLAN.md — Incidents, quarantine decisions, protected paths, select_playbook, isolation proposal
 - [ ] 83-12-PLAN.md — Agent isolation with management carve-out, self-test and automatic revert
+
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 83-13-PLAN.md — Response settings panel and dialogs
 - [ ] 83-14-PLAN.md — Agent service watching, restart and reboot
 - [ ] 83-15-PLAN.md — Vulnerability and file-change suggestions, one row per host
 - [ ] 83-16-PLAN.md — Kill cards for running files, bounded retry, failed undo stays visible
+
+**Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 83-17-PLAN.md — Restart budget and the watched list in the heartbeat reply
+
+**Wave 8** *(blocked on Wave 7 completion)*
 - [ ] 83-18-PLAN.md — Incident cards route, confirm isolation, automatic revert noticed
+
+**Wave 9** *(blocked on Wave 8 completion)*
 - [ ] 83-19-PLAN.md — Needs your decision section and incident cards
+
+**Wave 10** *(blocked on Wave 9 completion)*
 - [ ] 83-20-PLAN.md — Agent 2.1.16, all gates together, the user's live list
+
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 83`) — cross-platform agent semantics (idempotent firewall rules, refcounted undo, `netsh` vs Defender heuristics, native APIs, isolate with management carve-out, per-action verify); re-run the `db.instructions` grep before fencing swarm and SOAR.
 **Live-only verification** (operator steps): firewall block and unblock round-trip on real Linux and Windows endpoints (EILT0197 with Defender); a block expiring while its agent is offline; quarantine and restore; isolate with the management connection kept open and the automatic revert; service restart; publish and roll out the new agent.
