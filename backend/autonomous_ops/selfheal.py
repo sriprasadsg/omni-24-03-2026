@@ -13,6 +13,7 @@ Raw Mongo handle (``scope.raw``) with explicit ids; the ambient tenant ContextVa
 """
 import asyncio
 import logging
+import math
 import re
 import time
 import uuid
@@ -78,12 +79,31 @@ def clean_text(value: Any, limit: int = MAX_TEXT) -> str:
     return _CONTROL.sub("", str(value))[:limit]
 
 
+_INT64_MIN = -2 ** 63
+_INT64_MAX = 2 ** 63 - 1
+
+
+def _storable(value: Any) -> bool:
+    """True when a Mongo document can hold the number and a JSON response can carry it: a bool, an integer in
+    signed 64-bit range, or a finite float. ``math.isfinite`` runs on floats only: on a huge integer it raises."""
+    if isinstance(value, bool):
+        return True
+    if isinstance(value, int):
+        return _INT64_MIN <= value <= _INT64_MAX
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return False
+
+
 def _scrub(value: Any, depth: int = 0) -> Any:
-    """Snapshot values: scalars kept (strings capped), nested dicts and lists limited in depth."""
+    """Snapshot values: scalars kept (strings capped), nested dicts and lists limited in depth. A number a stored
+    row cannot hold (infinity, NaN, an integer outside signed 64-bit) becomes None at any depth."""
     if isinstance(value, str):
         return clean_text(value)
-    if isinstance(value, (bool, int, float)) or value is None:
-        return value
+    if value is None:
+        return None
+    if isinstance(value, (bool, int, float)):
+        return value if _storable(value) else None
     if depth >= _SNAPSHOT_DEPTH:
         return None
     if isinstance(value, dict):
@@ -104,15 +124,17 @@ def _utc(value: Any) -> Optional[datetime]:
 
 
 def clean_params(params: Any, target: Any = None) -> Dict[str, Any]:
-    """Keep only the closed key set with scalar values; strings are capped at 300 characters."""
+    """Keep only the closed key set with scalar values; strings are capped at 300 characters. A number a stored
+    row cannot hold (infinity, NaN, an integer outside signed 64-bit) is dropped, so the key is simply absent."""
     out: Dict[str, Any] = {}
     source = dict(params) if isinstance(params, dict) else {}
     if target and "target" not in source:
         source["target"] = target
     for key in PARAM_KEYS:
         value = source.get(key)
-        if isinstance(value, bool) or (isinstance(value, (int, float)) and value == value):
-            out[key] = value
+        if isinstance(value, (bool, int, float)):
+            if _storable(value):
+                out[key] = value
         elif isinstance(value, str) and value:
             out[key] = clean_text(value)
     return out
@@ -154,7 +176,10 @@ async def ingest_events(db, events: Iterable[Any], host: str, now: datetime) -> 
 
     Returns ``(accepted ids, dropped count)``. A re-sent event is acknowledged again (its row
     already exists) so the watchdog can clear it from its spool. An event the ledger could not
-    record is neither accepted nor dropped: it stays in the watchdog's spool and is sent again."""
+    record is neither accepted nor dropped: it stays in the watchdog's spool and is sent again.
+    Any other failure on one event counts it as dropped and the loop goes on, so one malformed event
+    never turns the whole sync into a 503. Only the event id and the exception class are logged,
+    because the exception text can carry the event's content."""
     accepted: List[str] = []
     dropped = 0
     for event in events:
@@ -166,12 +191,16 @@ async def ingest_events(db, events: Iterable[Any], host: str, now: datetime) -> 
                 or kind not in WATCHDOG_EVENT_KINDS):
             dropped += 1
             continue
-        params = clean_params(event.get("params"), event.get("target"))
         try:
+            params = clean_params(event.get("params"), event.get("target"))
             await ledger.record_platform_health(db, event_id, kind, params, at=_utc(event.get("at")) or now,
                                                 host=clean_text(host, MAX_HOST), actor=None)
         except ledger.LedgerUnavailable as exc:
             logger.error("selfheal: event %s was not recorded: %s", event_id, exc)
+            continue
+        except Exception as exc:                # asyncio.CancelledError is not an Exception: it propagates
+            dropped += 1
+            logger.error("selfheal: event %s dropped: %s", event_id, type(exc).__name__)
             continue
         accepted.append(event_id)
     return accepted, dropped

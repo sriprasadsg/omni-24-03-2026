@@ -20,7 +20,7 @@ from tests._autonomous_ops_http import api  # noqa: F401  (fixture)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests._platform_health_world import (HEALTH, NAIVE, RESUME, STATUS, STOP, T0, World, _oncall,  # noqa: F401
                                           _test_result, world)
-from tests.test_platform_health_sync import _body
+from tests.test_platform_health_sync import _body, _event, _raw
 
 
 # ------------------------------------------------------------------ Task 1: the tracer
@@ -333,3 +333,24 @@ async def test_a_second_sync_replaces_the_values_the_backend_shows(world):
 def test_the_backend_never_reads_a_certificate_or_measures_a_disk():
     text = open(os.path.join(os.path.dirname(__file__), "..", "autonomous_ops", "selfheal.py"), encoding="utf-8").read()
     assert not any(word in text for word in ("statvfs", "openssl", "x509", "disk_usage"))
+
+
+# ------------------------------------------------------------------ 82-16: a poison snapshot value
+
+async def test_a_poison_snapshot_answers_200_and_the_health_document_still_loads(world):
+    event = _event()
+    disk = dict(DISKS[0], usedPct="@@INF@@", freeBytes="@@BIG@@", totalBytes=100)
+    cert = dict(CERTS[1], daysLeft="@@NEG@@")
+    res = await world.dog.post(content=_raw(_body([event], disks=[disk], certs=[cert])))
+    assert res.status_code == 200, res.text
+    assert res.json()["acceptedEventIds"] == [event["id"]]
+    assert await world.db.autonomy_actions.count_documents({"id": "PH-" + event["id"]}) == 1
+    snapshot = await world.db.platform_health.find_one({"_id": "snapshot"})
+    stored = snapshot["disks"][0]
+    assert (stored["usedPct"], stored["freeBytes"], stored["totalBytes"]) == (None, None, 100)
+    assert snapshot["certs"][0]["daysLeft"] is None
+    first = await world.get(HEALTH)                     # the read that proves infinity never reaches the response
+    assert first.status_code == 200
+    assert first.json()["disks"][0]["usedPct"] is None and first.json()["certs"][0]["daysLeft"] is None
+    await world.sync()
+    assert (await world.get(HEALTH)).status_code == 200

@@ -5,6 +5,8 @@ is reachable). The loopback client address is forced by giving httpx's ASGITrans
 ``client=("127.0.0.1", 50000)`` scope entry, because the test client's default host is "testclient".
 The token credential is a file under a tmp CREDENTIALS_DIRECTORY, read on every call.
 """
+import json
+import logging
 import os
 import sys
 import uuid
@@ -233,3 +235,105 @@ async def test_results_route_needs_the_token_and_answers_ok(wd):
     assert (await wd.post("/api/internal/watchdog/results", body, token="nope")).status_code == 401
     assert (await wd.post("/api/internal/watchdog/results", body, headers={"X-Real-IP": "1.2.3.4"})
             ).status_code == 403
+
+
+# ------------------------------------------------------------------ 82-16: one poison event never wedges the sync
+
+HUGE = 10 ** 400
+POISON = {"@@INF@@": "1e999", "@@NEG@@": "-Infinity", "@@BIG@@": "9" * 400}
+
+
+def _raw(body):
+    """The JSON text of a body, with each marker string replaced by a number Python cannot hold in a row."""
+    text = json.dumps(body)
+    for marker, literal in POISON.items():
+        text = text.replace(json.dumps(marker), literal)
+    return text
+
+
+async def test_a_poison_batch_answers_200_and_the_next_sync_succeeds(wd):
+    good = _event()
+    bad = [_event("disk_forecast", target="/", params={"rung": 1, "forecastDays": marker})
+           for marker in POISON]
+    res = await wd.post(content=_raw(_body([good] + bad)))
+    assert res.status_code == 200, res.text
+    answer = res.json()
+    assert good["id"] in answer["acceptedEventIds"]
+    sent = [good["id"]] + [e["id"] for e in bad]
+    not_accepted = [i for i in sent if i not in answer["acceptedEventIds"]]
+    assert len(not_accepted) <= answer["droppedEvents"]               # the test sync_cycle uses to clear the spool
+    for row in await _rows(wd.db):
+        assert "forecastDays" not in row.get("healthParams", {})
+    assert (await wd.post(body=_body([_event()]))).status_code == 200
+
+
+@pytest.mark.parametrize("value,kept", [
+    (float("inf"), False), (float("-inf"), False), (float("nan"), False), (HUGE, False), (-HUGE, False),
+    (2 ** 63 - 1, True), (-2 ** 63, True), (2 ** 63, False), (-2 ** 63 - 1, False),
+    (1.5, True), (0, True), (True, True), ("x", True)])
+def test_clean_params_drops_numbers_a_row_cannot_hold(value, kept):
+    out = selfheal.clean_params({"forecastDays": value})
+    assert ("forecastDays" in out) is kept
+    if kept:
+        assert out["forecastDays"] == value
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan"), HUGE, -HUGE, 2 ** 63, -2 ** 63 - 1])
+def test_scrub_stores_none_for_numbers_a_row_cannot_hold(value):
+    assert selfheal._scrub(value) is None
+
+
+@pytest.mark.parametrize("value", [2 ** 63 - 1, -2 ** 63, 1.5, 0, None, "x"])
+def test_scrub_keeps_numbers_a_row_can_hold(value):
+    assert selfheal._scrub(value) == value
+
+
+def test_scrub_keeps_bools_and_reaches_every_depth():
+    assert selfheal._scrub(True) is True and selfheal._scrub(False) is False
+    assert selfheal._scrub({"a": {"b": [float("inf"), 1, {"c": HUGE}]}}) == {"a": {"b": [None, 1, {"c": None}]}}
+
+
+@pytest.mark.parametrize("value,expected", [
+    (float("inf"), None), (float("-inf"), None), (float("nan"), None), (1.4, 1), (2.5, 2), (True, None), ("3", None)])
+def test_num_never_raises(value, expected):
+    assert health_messages._num(value) == expected
+
+
+def test_num_returns_without_raising_for_a_huge_integer():
+    health_messages._num(HUGE)
+
+
+def test_render_shows_a_dash_for_a_non_finite_number():
+    out = health_messages.render("disk_forecast", {"target": "/", "rung": 1, "forecastDays": float("inf")}, "omni")
+    assert health_messages.DASH in out["resultText"]
+
+
+def _patch_record(monkeypatch, fail_id, exc):
+    real = ledger.record_platform_health
+
+    async def record(db, event_id, *args, **kwargs):
+        if event_id == fail_id:
+            raise exc
+        return await real(db, event_id, *args, **kwargs)
+
+    monkeypatch.setattr(ledger, "record_platform_health", record)
+
+
+async def test_a_render_failure_drops_one_event_and_the_loop_continues(wd, monkeypatch, caplog):
+    events = [_event(), _event(), _event()]
+    _patch_record(monkeypatch, events[1]["id"], ZeroDivisionError("secret-text"))
+    caplog.set_level(logging.ERROR)
+    res = await wd.post(body=_body(events))
+    assert res.status_code == 200
+    assert res.json()["droppedEvents"] == 1
+    assert res.json()["acceptedEventIds"] == [events[0]["id"], events[2]["id"]]
+    assert events[1]["id"] in caplog.text and "ZeroDivisionError" in caplog.text
+    assert "secret-text" not in caplog.text
+
+
+async def test_a_ledger_outage_stays_neither_accepted_nor_dropped(wd, monkeypatch):
+    events = [_event(), _event()]
+    _patch_record(monkeypatch, events[0]["id"], ledger.LedgerUnavailable("down"))
+    res = await wd.post(body=_body(events))
+    assert res.status_code == 200
+    assert res.json()["acceptedEventIds"] == [events[1]["id"]] and res.json()["droppedEvents"] == 0

@@ -7,6 +7,7 @@ is the UI-SPEC section 8 vocabulary. ACTV-08 scans this file against
 shared/autonomous-ops-banned-terms.json: the feature is called Autonomous Ops, and the terms
 listed there are never used. A missing value renders as an em dash.
 """
+import math
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -65,10 +66,19 @@ def _text(value: Any) -> str:
     return str(value) if value not in (None, "") else DASH
 
 
-def _num(value: Any) -> Optional[int]:
+def _finite(value: Any) -> Optional[Any]:
+    """The value when it is a real, finite number (an int, or a float that is not infinity or NaN), else None.
+    ``math.isfinite`` runs on floats only: on an integer beyond the float range it raises OverflowError."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return int(round(value))
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
+def _num(value: Any) -> Optional[int]:
+    n = _finite(value)
+    return None if n is None else int(round(n))
 
 
 def _count(value: Any) -> str:
