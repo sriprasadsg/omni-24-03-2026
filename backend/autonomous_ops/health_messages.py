@@ -24,12 +24,15 @@ SERVICE_NAMES = {"mongod": "MongoDB", "omni-backend": "Backend", "nginx": "nginx
 # The rule ids shown in font-mono under the reason text.
 RULE_IDS = (
     "service-down", "service-recovered", "restart-budget", "service-unexpected",
-    "cert-expiry-30d", "cert-expiry-14d", "cert-expiry-7d", "cert-expiry-1d",
+    "cert-expiry-30d", "cert-expiry-14d", "cert-expiry-7d", "cert-expiry-1d", "cert-unreadable",
     "disk-80", "disk-90", "disk-95", "disk-forecast-14d", "disk-forecast-7d", "disk-forecast-1d",
     "oncall-page", "oncall-test", "watchdog-heartbeat", "state-reset", "retention-run", "retention-confirm",
 )
 
-_CERT_RULES = ("cert-expiry-30d", "cert-expiry-14d", "cert-expiry-7d", "cert-expiry-1d")
+# Mirrors CERT_LADDER in deploy/omni-watchdog/omni_watchdog/warnings.py, which this module may not import:
+# (days at most, rule id). The rule is compared on the unrounded daysLeft the watchdog sends, because the rung
+# is shared by 14 and 30 days and rounding 1.4 to 1 would name a threshold that did not fire.
+_CERT_LADDER = ((1, "cert-expiry-1d"), (7, "cert-expiry-7d"), (14, "cert-expiry-14d"))
 _DISK_RULES = ("disk-80", "disk-90", "disk-95")
 _FORECAST_RULES = ("disk-forecast-14d", "disk-forecast-7d", "disk-forecast-1d")
 _FORECAST_DAYS = (14, 7, 1)
@@ -141,10 +144,21 @@ def chip_for(kind: str, params: Optional[Dict[str, Any]] = None) -> str:
     return "notice"
 
 
+def _cert_rule(params: Dict[str, Any]) -> str:
+    """The certificate threshold that fired, from daysLeft; a certificate with no readable expiry has its own rule."""
+    days = _finite(params.get("daysLeft"))
+    if days is None:
+        return "cert-unreadable"
+    for limit, rule in _CERT_LADDER:
+        if days <= limit:
+            return rule
+    return "cert-expiry-30d"
+
+
 def _rule_id(kind: str, params: Dict[str, Any]) -> Optional[str]:
     rung = _rung(params)
     if kind == "cert_warning":
-        return _CERT_RULES[min(rung, len(_CERT_RULES)) - 1]
+        return _cert_rule(params)
     if kind == "disk_warning":
         return _DISK_RULES[min(rung, len(_DISK_RULES)) - 1]
     if kind == "disk_forecast":
@@ -183,14 +197,14 @@ def _reason_and_result(kind: str, p: Dict[str, Any], at: Optional[datetime]) -> 
     if kind == "cert_warning":
         days = _num(p.get("daysLeft"))
         if days is None:
-            reason = DASH
-        elif days < 0:
+            return "Can't read this file.", f"{_text(p.get('target'))} could not be read, so its expiry date is unknown."
+        if days < 0:
             reason = f"Expired {-days} days ago."
         elif days == 0:
             reason = "Expires today."
         else:
             reason = f"Expires in {days} days."
-        verb = "expired" if days is not None and days < 0 else "expires"
+        verb = "expired" if days < 0 else "expires"
         return reason, (f"{_text(p.get('target'))} {verb} {_date(p.get('notAfter'))}. "
                         "Replacing a pinned certificate needs an agent update.")
     if kind == "disk_warning":

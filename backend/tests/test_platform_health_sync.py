@@ -337,3 +337,54 @@ async def test_a_ledger_outage_stays_neither_accepted_nor_dropped(wd, monkeypatc
     res = await wd.post(body=_body(events))
     assert res.status_code == 200
     assert res.json()["acceptedEventIds"] == [events[1]["id"]] and res.json()["droppedEvents"] == 0
+
+
+# ------------------------------------------------------------------ 82-16: the certificate rule follows daysLeft
+
+CERT_RULES = [(31, "cert-expiry-30d"), (30, "cert-expiry-30d"), (15, "cert-expiry-30d"), (14, "cert-expiry-14d"),
+              (8, "cert-expiry-14d"), (7, "cert-expiry-7d"), (2, "cert-expiry-7d"), (1, "cert-expiry-1d"),
+              (0, "cert-expiry-1d"), (-3, "cert-expiry-1d"), (14.4, "cert-expiry-30d"), (7.4, "cert-expiry-14d"),
+              (1.4, "cert-expiry-7d"), (0.6, "cert-expiry-1d")]
+
+
+@pytest.mark.parametrize("rung", [1, 2, 3])
+@pytest.mark.parametrize("days,rule", CERT_RULES)
+def test_cert_rule_follows_the_days_left(days, rule, rung):
+    out = health_messages.render("cert_warning", {"target": "/etc/ssl/x.pem", "rung": rung, "daysLeft": days}, "omni")
+    assert out["ruleId"] == rule
+
+
+def test_an_unreadable_certificate_has_its_own_rule_and_wording():
+    params = {"target": "/etc/ssl/gone.pem", "rung": 2, "error": "unreadable"}
+    out = health_messages.render("cert_warning", params, "omni")
+    assert out["ruleId"] == "cert-unreadable" and "cert-unreadable" in health_messages.RULE_IDS
+    assert out["reasonText"] == "Can't read this file."
+    assert "/etc/ssl/gone.pem" in out["resultText"] and "read" in out["resultText"]
+    assert "expires" not in out["resultText"] and health_messages.DASH not in out["resultText"]
+    assert health_messages.chip_for("cert_warning", params) == "warning"
+
+
+@pytest.mark.parametrize("days", [float("inf"), float("nan")])
+def test_a_non_finite_days_left_reads_as_unreadable(days):
+    out = health_messages.render("cert_warning", {"target": "/x.pem", "rung": 1, "daysLeft": days}, "omni")
+    assert out["ruleId"] == "cert-unreadable"
+
+
+def test_a_readable_certificate_keeps_its_copy():
+    out = health_messages.render("cert_warning", {"target": "/x.pem", "rung": 1, "daysLeft": 12.4,
+                                                  "notAfter": "2026-11-11T12:00:00Z"}, "omni")
+    assert out["reasonText"] == "Expires in 12 days."
+    assert out["resultText"].endswith("Replacing a pinned certificate needs an agent update.")
+
+
+async def test_the_stored_row_carries_the_right_rule(wd):
+    readable = _event("cert_warning", target="/etc/ssl/extra.pem", severity="warning",
+                      params={"rung": 1, "daysLeft": 12.5, "notAfter": "2026-11-11T12:00:00Z"})
+    unreadable = _event("cert_warning", target="/etc/ssl/gone.pem", severity="warning",
+                        params={"rung": 2, "error": "unreadable"})
+    assert (await wd.post(body=_body([readable, unreadable]))).status_code == 200
+    by_id = {r["id"]: r for r in await _rows(wd.db)}
+    row = by_id["PH-" + readable["id"]]
+    assert row["reason"]["ruleId"] == "cert-expiry-14d"
+    row = by_id["PH-" + unreadable["id"]]
+    assert row["reason"]["ruleId"] == "cert-unreadable" and row["healthChip"] == "warning"
