@@ -283,7 +283,8 @@ async def _applied_row(db, example):
 
 async def test_verify_true_false_and_absent_are_three_different_outcomes(world):
     """Edge RESP-06 adjacency + empty: no verify block leaves the row executed and dispatches nothing."""
-    row, doc = await _applied_row(world, {"status": "success", "outcome": "applied", "expires_in": 86400})
+    without_verify = {k: v for k, v in EXAMPLES["block_applied"].items() if k != "verify"}
+    row, doc = await _applied_row(world, without_verify)
     await reconciler.tick(world)
     done = await get_row(world, row["id"])
     assert done["state"] == "executed" and done.get("reasonCode") != "verify_failed"

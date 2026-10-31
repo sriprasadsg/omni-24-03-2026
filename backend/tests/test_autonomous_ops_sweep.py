@@ -157,6 +157,7 @@ async def test_remember_stores_the_decision_on_the_signal(mongo_db):
 
 # ------------------------------------------------------------------ agent support
 
+@pytest.mark.real_agent_capabilities       # conftest otherwise switches every capability on
 async def test_check_names_the_first_reason_a_host_cannot_act(mongo_db):
     await seed_tenant(mongo_db, "t1", shadow=False)
     await seed_response_agent(mongo_db, "t1", "a1", hostname="h1", tokens=["block_ip_ttl"], capable=False)

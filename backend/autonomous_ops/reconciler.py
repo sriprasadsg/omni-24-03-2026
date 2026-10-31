@@ -6,7 +6,8 @@ tick, per tenant in sorted tenantId order:
 
 1. expires every overdue approval card (also while a stop is on, D-13);
 2. maps rows still ``dispatching`` to the outcome of their latest instruction:
-   completed / success -> ``executed``; failed / refused -> ``failed``; an instruction nobody
+   completed / success -> ``executed`` (a ``security_response`` row then goes straight on to
+   ``verified`` or ``failed`` from the agent's own verify result, see ``verify``); failed / refused -> ``failed``; an instruction nobody
    picked up within ``AUTONOMOUS_OPS_STUCK_DISPATCH_MIN`` (or no instruction at all) -> ``failed``
    with reason ``not_delivered``; an instruction an agent picked up (sent, delivered or any other
    status that is not pending / queued / a final outcome) that reports nothing within
@@ -26,7 +27,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
-from . import OPEN_STATES, approvals, breaker, ledger, messages, scope
+from . import OPEN_STATES, approvals, breaker, ledger, messages, scope, verify
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,12 @@ async def _latest_status(db, tenant_id: str, instruction_id: str) -> Optional[st
     return status.strip().lower() if isinstance(status, str) else None
 
 
+async def _instruction(db, tenant_id: str, instruction_id: str):
+    """The tenant's instruction document (status and stored result), else None."""
+    return await raw(db).agent_instructions.find_one({"id": instruction_id, "tenantId": tenant_id},
+                                                     {"_id": 0, "status": 1, "result": 1})
+
+
 async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, int]:
     """Map this tenant's dispatching (and stuck approved) rows to their outcome."""
     done = {"executed": 0, "failed": 0}
@@ -102,6 +109,10 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
             moved = await ledger.transition(db, tenant_id, row["id"], ("dispatching",), "executed",
                                             result={"instructionId": ids[-1], "instructionStatus": status})
             done["executed"] += 1 if moved else 0
+            if moved and moved.get("dispatcher") == "security_response":
+                # The agent's own verify result decides verified / failed; nothing is re-scanned or undone (RESP-06).
+                settled = await verify.settle(db, tenant_id, moved, await _instruction(db, tenant_id, ids[-1]), now=now)
+                done["failed"] += 1 if settled == "failed" else 0
         elif status in _FAILURE:
             moved = await ledger.transition(
                 db, tenant_id, row["id"], ("dispatching",), "failed", reasonCode="agent_failed",

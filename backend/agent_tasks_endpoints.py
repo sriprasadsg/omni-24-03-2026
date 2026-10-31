@@ -14,7 +14,7 @@ from tickets_service import tickets_service
 import logging
 from auth_roles import platform_scope_roles
 import agent_capabilities
-from autonomous_ops import delivery
+from autonomous_ops import delivery, verify as response_verify
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_tasks_endpoints")
@@ -107,6 +107,7 @@ async def report_instruction_result(
                     "message": message_text,
                     "error": error_msg,
                     "raw_status": raw_status,
+                    **response_verify.bounded_result(nested),
                 },
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }}
