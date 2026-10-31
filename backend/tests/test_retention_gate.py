@@ -198,6 +198,77 @@ async def test_confirm_with_a_token_from_before_a_recount_raises_and_changes_not
     assert (await _confirm(mongo_db))["records"] == 4
 
 
+METRICS_ROW = {"tenantId": "t1", "type": "agent_metrics"}
+
+
+@pytest.mark.asyncio
+async def test_a_manual_run_leaves_a_usable_count_and_the_review_token_alone(mongo_db):
+    """WR-06: the token spans every organization, so one tenant's Run Cleanup Now must not move it,
+    even when the true count has changed, as it keeps doing on any tenant still receiving data."""
+    await seed_tenant(mongo_db, "t1")
+    await _seed_old(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    token = gate.review_token(await gate.review_rows(mongo_db))
+    await mongo_db.agent_metrics.insert_one({"_id": oid(41), "tenant_id": "t1"})
+
+    manual = await job.run_manual(mongo_db, "t1", now=NOW + timedelta(minutes=5))
+
+    assert manual["types"]["agent_metrics"]["count"] == 4                   # the tenant sees the fresh number
+    row = await mongo_db.retention_counts.find_one(METRICS_ROW)
+    assert row["count"] == 3 and gate.aware(row["countedAt"]) == NOW
+    assert (await gate.confirm(mongo_db, token, "Super Admin", NOW))["records"] == 3
+
+
+@pytest.mark.asyncio
+async def test_the_nightly_run_refreshes_the_count_a_manual_run_left_alone(mongo_db):
+    await seed_tenant(mongo_db, "t1")
+    await _seed_old(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await mongo_db.agent_metrics.insert_one({"_id": oid(41), "tenant_id": "t1"})
+    await job.run_manual(mongo_db, "t1", now=NOW + timedelta(minutes=5))
+
+    await job.run_all(mongo_db, now=NOW + timedelta(days=1))
+
+    row = await mongo_db.retention_counts.find_one(METRICS_ROW)
+    assert row["count"] == 4 and gate.aware(row["countedAt"]) == NOW + timedelta(days=1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stored", [None, {"count": None, "error": "timed out"}, {"days": 7}],
+                         ids=["never_counted", "failed_count", "another_period"])
+async def test_a_manual_run_still_writes_a_row_the_review_cannot_use(mongo_db, stored):
+    await seed_tenant(mongo_db, "t1")
+    await _seed_old(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    if stored is None:
+        await mongo_db.retention_counts.delete_one(METRICS_ROW)
+    else:
+        await mongo_db.retention_counts.update_one(METRICS_ROW, {"$set": stored})
+
+    await job.run_manual(mongo_db, "t1", now=NOW + timedelta(minutes=5))
+
+    row = await mongo_db.retention_counts.find_one(METRICS_ROW)
+    assert (row["days"], row["count"], row["error"]) == (30, 3, None)
+    assert gate.aware(row["countedAt"]) == NOW + timedelta(minutes=5)
+
+
+@pytest.mark.asyncio
+async def test_a_failed_manual_count_is_reported_and_leaves_a_usable_row_alone(mongo_db, monkeypatch):
+    await seed_tenant(mongo_db, "t1")
+    await _seed_old(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    token = gate.review_token(await gate.review_rows(mongo_db))
+
+    async def fail(*args):
+        raise TimeoutError("too slow")
+
+    monkeypatch.setattr(job, "count_type", fail)
+    manual = await job.run_manual(mongo_db, "t1", now=NOW + timedelta(minutes=5))
+
+    assert "too slow" in manual["types"]["agent_metrics"]["error"]
+    assert gate.review_token(await gate.review_rows(mongo_db)) == token
+
+
 @pytest.mark.asyncio
 async def test_failed_counts_and_counts_at_another_period_are_not_confirmed(mongo_db):
     await seed_tenant(mongo_db, "t1")

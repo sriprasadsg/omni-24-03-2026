@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from auth_utils import require_auth
 from auth_roles import tenant_admin_roles
+from rate_limiter import limiter
 
 _RETENTION_ADMIN_ROLES = tenant_admin_roles()
 import retention_gate
@@ -93,7 +94,8 @@ def _manual_result(summary: dict):
 
 
 @router.post("/run")
-async def run_cleanup(user=Depends(require_auth)):
+@limiter.limit("6/minute")      # each run holds the job lock, which refuses a Super Admin's confirm (WR-06)
+async def run_cleanup(request: Request, response: Response, user=Depends(require_auth)):
     if getattr(user, "role", None) not in _RETENTION_ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin role required")
     tenant_id = _tenant_of(user)

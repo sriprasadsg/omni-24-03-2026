@@ -213,6 +213,12 @@ def _iso(value) -> str:
     return value.isoformat() if value is not None else ""
 
 
+def usable_count(counted: Optional[dict], days: int) -> bool:
+    """A stored count the review can show: it exists, did not fail, and is for the current period."""
+    return bool(counted) and not counted.get("error") and counted.get("days") == days \
+        and isinstance(counted.get("count"), int)
+
+
 async def review_rows(db) -> List[dict]:
     """The rows waiting for a Super Admin: first_run and shortened, with their latest count.
 
@@ -245,8 +251,7 @@ async def review_rows(db) -> List[dict]:
             continue
         counted = counts.get((tenant_id, rtype.id)) or {}
         error = counted.get("error")
-        usable = bool(counted) and not error and counted.get("days") == days \
-            and isinstance(counted.get("count"), int)
+        usable = usable_count(counted, days)
         rows.append({
             "tenantId": tenant_id, "tenantName": names[tenant_id], "type": rtype.id,
             "label": rtype.label, "collection": rtype.collection, "days": days,

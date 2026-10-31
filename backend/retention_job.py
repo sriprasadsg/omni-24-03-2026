@@ -71,17 +71,25 @@ async def count_type(db, rtype: RetentionType, tenant_id: str, days: int, now: d
         cutoff_filter(rtype, tenant_id, days, now), maxTimeMS=COUNT_MAX_TIME_MS)
 
 
-async def _record_count(db, tenant_id: str, rtype: RetentionType, days: int, now: datetime):
-    """Count one (tenant, type); a failure is stored on that row and never raised."""
+async def _record_count(db, tenant_id: str, rtype: RetentionType, days: int, now: datetime,
+                        *, keep_usable: bool = False):
+    """Count one (tenant, type); a failure is stored on that row and never raised.
+
+    ``keep_usable`` returns the fresh answer but leaves a usable stored count as it is. These rows
+    feed the platform-wide review token, so a tenant's manual run must not move what a Super Admin is
+    reviewing (WR-06); the nightly run refreshes them.
+    """
     try:
         count, error = await count_type(db, rtype, tenant_id, days, now), None
     except Exception as exc:  # a timeout or a driver error must not stop the other rows
         count, error = None, f"{type(exc).__name__}: {exc}"[:300]
         logger.warning("retention: counting %s for %s failed: %s", rtype.id, tenant_id, error)
-    await raw(db)[gate.COUNTS].update_one(
-        {"tenantId": tenant_id, "type": rtype.id},
-        {"$set": {"tenantId": tenant_id, "type": rtype.id, "days": days, "count": count,
-                  "countedAt": now, "error": error}}, upsert=True)
+    counts = raw(db)[gate.COUNTS]
+    key = {"tenantId": tenant_id, "type": rtype.id}
+    if keep_usable and gate.usable_count(await counts.find_one(key, {"_id": 0}), days):
+        return count, error
+    await counts.update_one(
+        key, {"$set": {**key, "days": days, "count": count, "countedAt": now, "error": error}}, upsert=True)
     return count, error
 
 
@@ -147,7 +155,7 @@ async def run_tenant(db, tenant_id: str, *, now: datetime, lost: Optional[Callab
                 logger.info("retention: %s/%s deleted %d record(s) older than %d day(s)",
                             tenant_id, rtype.id, result["deleted"], days)
         else:
-            count, error = await _record_count(db, tenant_id, rtype, days, now)
+            count, error = await _record_count(db, tenant_id, rtype, days, now, keep_usable=trigger == "manual")
             summary["counted"] += count or 0
             summary["types"][rtype.id] = {"state": state, "days": days, "count": count}
             if error:

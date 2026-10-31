@@ -14,6 +14,8 @@ import httpx
 import pytest
 from bson import ObjectId
 from fastapi import FastAPI
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.setdefault("ENVIRONMENT", "development")
@@ -26,6 +28,7 @@ import tenant_context
 from auth_types import TokenData
 from auth_utils import require_auth
 from database import TenantIsolatedDatabase
+from rate_limiter import limiter
 from retention_service import RetentionService
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_tenant
@@ -52,6 +55,8 @@ class Client:
         monkeypatch.setattr(ep, "get_database", lambda: self.wrapped)
         self.user = None
         self.app = FastAPI()
+        self.app.state.limiter = limiter
+        self.app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
         self.app.include_router(ep.router)
 
         async def _auth():
@@ -69,6 +74,7 @@ class Client:
 
 @pytest.fixture
 async def client(mongo_db, monkeypatch):  # noqa: F811
+    limiter._storage.reset()            # the limit buckets outlive one test
     await seed_tenant(mongo_db, "t1")
     await seed_tenant(mongo_db, "t2")
     # the periods these tests read and write are stored explicitly, so they do not depend on which
@@ -178,6 +184,14 @@ async def test_manual_run_answers_409_and_records_nothing_while_a_run_is_in_prog
     assert await db.retention_runs.count_documents({}) == 0
     assert await db.retention_job_runs.count_documents({}) == 0
     assert await db.agent_metrics.count_documents({}) == 5
+
+
+async def test_manual_run_is_rate_limited_so_a_loop_cannot_hold_the_job_lock(client):
+    """WR-06: while a manual run holds the lock the Super Admin's confirm answers 409."""
+    for _ in range(6):
+        res = await client.call("POST", "/api/retention/run")
+        assert res.status_code == 200 and res.headers["x-ratelimit-limit"] == "6"
+    assert (await client.call("POST", "/api/retention/run")).status_code == 429
 
 
 async def test_manual_run_without_a_tenant_is_refused_before_anything_runs(client, monkeypatch):
