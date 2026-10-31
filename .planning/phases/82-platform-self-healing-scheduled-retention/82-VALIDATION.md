@@ -115,9 +115,11 @@ Known flake: `src/__tests__/FinancePanel.test.tsx` failed once in 4 full fronten
 | Frontend (`npx vitest run src/__tests__`) | 70 files, 818 tests passed |
 | `npm run build` | passed |
 | Non-string `kind` fix (T-82-50), health and watchdog contract modules | 220 passed, 0 skipped |
-| Backend, full (`backend/tests`) | **Not completed.** Stopped by Claude Code at about 25% because the VM ran critically low on memory. This is no result either way; the last completed full run is the 2026-10-30 one above, which predates the gap round |
+| Backend, full (`backend/tests`), first attempt | Stopped by Claude Code at about 25% because the VM ran critically low on memory. No result either way |
+| Backend, full (`backend/tests`), rerun 2026-10-31 11:08 to 11:42 UTC, on 79191ef5e's code | 5,135 passed, 5 failed, 47 skipped, 34 min. The same 5 tests as the 2026-10-30 table, compared by name; nothing new fails |
+| Retention modules after WR-06 | 153 passed, plus 78 in the other modules that touch retention |
 
-The stopped run's partial log showed 5 failures. Two match the 2026-10-30 list (`test_catalogue_manifest`, `test_catalogue_route_parity`) and `test_audit_export` is the same module as a listed one. The other three were in `test_catalogue_slice_billing_identity.py` and `test_catalogue_slice_devices.py`, and those two modules pass alone: 15 passed, in 6 minutes. They ran while memory was exhausted; the cause was not investigated further, and no Phase 82 commit touches them.
+The stopped run's partial log showed 5 failures. Two match the 2026-10-30 list (`test_catalogue_manifest`, `test_catalogue_route_parity`) and `test_audit_export` is the same module as a listed one. The other three were in `test_catalogue_slice_billing_identity.py` and `test_catalogue_slice_devices.py`, and those two modules pass alone: 15 passed, in 6 minutes. They ran while memory was exhausted; the cause was not investigated further, and no Phase 82 commit touches them. Both modules passed in the completed rerun above, so the failures were not real regressions.
 
 Three tests 82-15 could not show failing on their own were run against exported copies of the older code, on the private mongod:
 

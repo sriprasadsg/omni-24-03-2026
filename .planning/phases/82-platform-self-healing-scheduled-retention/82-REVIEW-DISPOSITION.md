@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A tenant admin's \"Run Cleanup Now\" re-stamps `countedAt` and so invalidates the Super Admin's review token on demand"
   - id: IN-06
     severity: info
@@ -63,7 +63,7 @@ findings:
     severity: info
     disposition: open
     title: "Service state from the snapshot is not validated server-side"
-open: 10
+open: 9
 total: 15
 recorded: 2026-10-31T10:22:43.312Z
 ---
@@ -72,7 +72,7 @@ recorded: 2026-10-31T10:22:43.312Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-06 | warning | open | - |
+| WR-06 | warning | fixed | 79191ef5e (a manual run keeps a usable stored count, plus a rate limit; deliberately not the review's fix, reasons in the commit) |
 | IN-06 | info | open | - |
 | IN-07 | info | open | - |
 | IN-08 | info | open | - |

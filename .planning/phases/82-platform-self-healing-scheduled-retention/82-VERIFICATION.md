@@ -67,6 +67,7 @@ advisory:
     category: other
     reason: "Confirmed in code (retention_job.py:81-84, retention_endpoints.py:99-115). Availability of one confirmation step only; it can never cause a deletion. Fix is small (skip the count write when days, count and error are unchanged)."
     evidence_status: "code read; not reproduced against a mongod"
+    resolution: "Fixed after this report in 79191ef5e, with tests that failed first; the rate limit covers the lock path. Not re-verified by a verifier run."
 human_verification:
   - test: "Install the watchdog on the server by hand following deploy/omni-watchdog/INSTALL.md (never run-on-ubuntu.sh), then run pkcheck as the omni-watchdog user for nginx.service restart"
     expected: "Timer active; polkit allows exactly the listed units and verbs; the existing mongod GLIBC_TUNABLES drop-in still applies; deployed ownership and modes match T-82-06/20/21/22"

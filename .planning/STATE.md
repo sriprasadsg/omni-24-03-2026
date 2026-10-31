@@ -754,7 +754,7 @@ Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged an
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — VERIFYING
 Plan: 17 of 17
 Status: Human verification needed - 5/5 verified at code level, 5 operator checks in 82-UAT.md, next /gsd-verify-work 82
-Last activity: 2026-10-31 — Phase 82 gap round 82-15..82-17 executed, security threats_open 0, nyquist compliant, full backend suite not completed (stopped for low memory)
+Last activity: 2026-10-31 — Phase 82 gap round 82-15..82-17 executed, security threats_open 0, nyquist compliant; WR-06 fixed 79191ef5e; full backend suite 5,135 passed, 5 failed (same 5 as 2026-10-30), 47 skipped
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
 
 ## Deferred Items
