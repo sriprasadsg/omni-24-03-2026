@@ -1,9 +1,10 @@
-# Phase 82 — UI Review
+# Phase 82 — UI Review (re-audit after gap plan 82-17)
 
 **Audited:** 2026-10-31
-**Baseline:** 82-UI-SPEC.md (approved 2026-10-27)
-**Screenshots:** not captured. The Phase 82 UI is unpublished and no mocked-API preview of `dist-new` was practical, so no screenshots were taken. The live site at port 443 was not driven. The audit is code-only (components, services, existing tests).
-**Interaction captures:** off (workflow.ui_interaction_capture is false). Every interaction finding below is code-derived.
+**Baseline:** 82-UI-SPEC.md (approved 2026-10-27, amended 2026-10-31: Keep waiting is disabled and Esc is off while the confirm request is pending)
+**Screenshots:** not captured. Code-only audit by instruction (2 vCPU / 8 GB VM; no dev server, browser or Playwright started). The Phase 82 UI is also unpublished (`dist-new` only).
+**Interaction captures:** off (workflow.ui_interaction_capture is false). Every interaction finding is code-derived.
+**Previous review:** 17/24 on 2026-10-31 (before 82-17).
 
 ---
 
@@ -11,77 +12,74 @@
 
 | Pillar | Score | Key Finding |
 |--------|-------|-------------|
-| 1. Copywriting | 3/4 | Spec copy is reproduced almost verbatim; the legacy Run Cleanup Now screen prints "Cleanup completed" for failures (WR-05) |
-| 2. Visuals | 3/4 | Watchdog and services card is a clear focal point; chips always pair icon and text; the legacy screen still uses emoji icons |
-| 3. Color | 3/4 | Tone vocabulary is reused with no hex or rgba values; the dialog error blocks use a different dark palette than the contract |
-| 4. Typography | 3/4 | New files use only 12, 14 and 18px at weights 400 and 600; subheading levels (h3, h4) are flat |
-| 5. Spacing | 3/4 | Follows the 4/8/16/24 scale; a few half-step `mt-0.5` nudges that the contract does not list |
-| 6. Experience Design | 2/4 | WR-01 lets a reviewer attest to rows never shown; WR-05; Esc can close the confirm dialog mid-request; legacy screen has no error or load states |
+| 1. Copywriting | 3/4 | Spec copy matches; Run Cleanup Now no longer prints "Cleanup completed" for failures; legacy emoji labels remain |
+| 2. Visuals | 3/4 | Unchanged: clear watchdog focal point, icon plus text chips; flat subheading levels |
+| 3. Color | 3/4 | Unchanged: dialog error blocks still use `dark:red-900` palette; `red-600/400` text inconsistency remains |
+| 4. Typography | 3/4 | Unchanged: 12/14/18 at 400/600 only in new files |
+| 5. Spacing | 3/4 | Unchanged: `mt-0.5` half-steps not in contract exception list |
+| 6. Experience Design | 3/4 | WR-01, WR-05 and Esc/Keep-waiting are fixed; legacy Retention screen still has no load or save error handling |
 
-**Overall: 17/24**
+**Overall: 18/24** (was 17/24)
 
 ---
 
-## Top 3 Priority Fixes
+## Status of the previous findings
 
-1. **BLOCKER (WR-01, cited from 82-REVIEW.md): Confirm deletion is enabled while only the first 25 rows are loaded** — The checkbox says "I have reviewed the counts for every organization listed", but the token confirms every waiting row. With about 160 rows, a reviewer can authorize roughly 135 deletions they never saw. Fix in `components/AutonomousOpsRetentionReview.tsx:315`: add `|| state?.nextOffset !== null` to `disabled` and show "Load all {n} rows before confirming." in the helper line. Alternatively, have the dialog state how many rows are not yet displayed.
-2. **BLOCKER (WR-05, cited from 82-REVIEW.md): Run Cleanup Now reports success on 409, 403 and 400** — `components/RetentionPolicyDashboard.tsx:48-50` calls `r.json()` and `setLastResult(d)` without checking `r.ok`. A busy lock or a non-admin gets the green "Cleanup completed at Invalid Date" card with no tiles. Fix: check `r.ok`, otherwise `showToast(d.detail || "Couldn't run cleanup.", 'error')` and return. The same screen's `savePolicy` (line 58-71) and `loadAll` (line 41) also swallow failures, so a failed save or load shows nothing.
-3. **WARNING: The Confirm deletion dialog can be dismissed while the request is in flight** — `Modal` closes on Esc by default and `Keep waiting` stays enabled during `Confirming...` (`components/AutonomousOpsRetentionConfirmDialog.tsx:74-82`). The user sees the dialog close as if nothing was deleted, while the request may still succeed and show the success toast. Fix: pass `closeOnEsc={!pending}` and `disabled={pending}` on `Keep waiting`, or confirm that the contract intends "Keep waiting stays enabled" and then add a visible "request already sent" line.
+| # | Previous finding | Status | Evidence |
+|---|------------------|--------|----------|
+| 1 | BLOCKER WR-01: Confirm deletion enabled with rows not loaded | FIXED | `components/AutonomousOpsRetentionReview.tsx:262` `allLoaded = state?.nextOffset === null`; `:346` `disabled={running \|\| incomplete !== null \|\| countable <= 0 \|\| !allLoaded}`; `:355` helper `Load all {total} rows before confirming.` Helper order at `:351-357` (running, incomplete, no countable, not loaded, default) matches spec section 6. |
+| 2 | BLOCKER WR-05: Run Cleanup Now reports success on 409/403/400 | FIXED | `components/RetentionPolicyDashboard.tsx:52` checks `!r.ok` or missing string `ran_at`; `:53` error toast with server `detail` or `Couldn't run cleanup.`; `:59` network-error catch. Success card is no longer set on failure. Matches spec section 9 last row. |
+| 3 | WARNING: dialog dismissible mid-request | FIXED, matches amended spec | `components/AutonomousOpsRetentionConfirmDialog.tsx:82` `closeOnEsc={!pending}`; `:85` `Keep waiting ... disabled={pending}`; `closeOnBackdrop={false}` at `:81`. After a 409 or error `pending` returns to false in `finally` (`:66-69`) so both work again, as the spec says. |
+| 4 | WARNING: dialog error blocks use `dark:border-red-900/50 dark:bg-red-900/20` | REMAINS | `AutonomousOpsRetentionConfirmDialog.tsx:122` and `:128`. Spec section 2 and `HealthNotice tone="red"` use `red-400/25` and `red-400/10`. |
+| 5 | WARNING: legacy `RetentionPolicyDashboard` has no load, error or empty state | PARTLY FIXED | Run Cleanup Now now surfaces failure. Still open: `loadAll` only calls `console.error` (`RetentionPolicyDashboard.tsx:42`); `savePolicy` (starts `:63`) ignores `!res.ok` and gives no toast on a failed save; browser `confirm()` (`:46`) remains. |
+| 6 | WARNING: "Counting only" chip beside "Nothing is waiting" if server sends the mix | NOT RE-VERIFIED | Chip comes straight from `review.mode` (`AutonomousOpsRetentionReview.tsx:282`); the empty-state branch is `:314`. The mismatch depends on server data, so it is unconfirmed, not fixed. |
+| 7 | WARNING: failed-delivery line may re-announce on poll | NOT RE-VERIFIED | Needs a screen reader; out of scope for code-only. |
 
-Further items:
-4. WARNING: dialog error blocks use `dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300` (`AutonomousOpsRetentionConfirmDialog.tsx:119,125`). The spec and `HealthNotice` use `dark:border-red-400/25 dark:bg-red-400/10`. Reuse `HealthNotice tone="red"` so dark mode matches.
-5. WARNING: the legacy `RetentionPolicyDashboard` has no loading, error or empty state. `loadAll` only calls `console.error`, so a failed fetch renders a header and an empty list.
-6. WARNING: when the review is empty and `review.mode === 'counting_only'` but `notCountedYet` is false, the card shows the "Counting only" chip beside "Nothing is waiting for confirmation" (`AutonomousOpsRetentionReview.tsx:291`). The contract maps "Nothing waiting" to Deleting nightly, so the two lines can disagree if the server sends that mix.
-7. WARNING: `ResultLine` for the pending test and for the amber "not picked up" message is inside `role="status"`, but the failed-delivery line (`AutonomousOpsHealthCards.tsx:364`) is outside it with its own `role="alert"`. This is correct, but the 5 s poll can re-mount the line when `quiet` flips, which may re-announce it. Verify with a screen reader.
+Other previous items unchanged: `mt-0.5` (Spacing), `Couldn't count` and `Couldn't load more rows.` use `red-600/red-400` (`AutonomousOpsRetentionReview.tsx:136`, `:214`) while other red text uses `red-700/red-300`, `as any` permission cast (`:247`), legacy emoji labels.
+
+---
+
+## Top Priority Fixes (remaining)
+
+No BLOCKER remains. All items are WARNING.
+
+1. **Legacy Retention Policy screen swallows load and save failures** — a failed `loadAll` shows an empty list, and a failed `savePolicy` closes the editor as if saved (`components/RetentionPolicyDashboard.tsx:42`, `:63` onward). Fix: check `res.ok` in `savePolicy` and toast the server message; on `loadAll` failure show a toast or inline error.
+2. **Dialog error blocks use a different dark palette** — `AutonomousOpsRetentionConfirmDialog.tsx:122,128`. Replace with `HealthNotice tone="red"` or the `dark:border-red-400/25 dark:bg-red-400/10 dark:text-red-300` classes from the spec.
+3. **A 409 REVIEW_INCOMPLETE answer shows the "counts changed" stale text** — by 82-17's own decision it lands in the existing stale block (`AutonomousOpsRetentionConfirmDialog.tsx:121-126`), so the reason shown is not the real one (the count is incomplete, not changed). Low likelihood because the button is already disabled while incomplete, but if it happens the user is told the wrong cause. Add a branch with the incomplete copy, or tolerate it and note it.
+4. **Red shade inconsistency in the review card** — `AutonomousOpsRetentionReview.tsx:136,214` use `red-600 / red-400`; use `red-700 / red-300` like the other red text.
+5. **Half-step spacing** — `mt-0.5` at `AutonomousOpsRetentionConfirmDialog.tsx:105,123,129` and `AutonomousOpsHealthCards.tsx:247`; either use `mt-1` or add `mt-0.5` to the spec exceptions.
+6. **Legacy emoji labels** in `RetentionPolicyDashboard.tsx` (`🗑 Run Cleanup Now`) remain; allowed by "no restyle" but inconsistent with the "No emojis" naming rule that applies to the phase.
 
 ---
 
 ## Detailed Findings
 
 ### Pillar 1: Copywriting (3/4)
-- Banner, section, watchdog, certificate, disk, on-call, retention, dialog, toast and error strings match the Copywriting Contract line for line (`AutonomousOpsHealthBanners.tsx:72-97`, `AutonomousOpsPlatformHealth.tsx:43-48,213-233,301,314`, `AutonomousOpsHealthCards.tsx`, `AutonomousOpsRetentionConfirmDialog.tsx`).
-- Unspecified copy was added: `No row could be counted, so there is nothing to confirm yet.` (`AutonomousOpsRetentionReview.tsx:321`). It is reasonable, but it is not in the contract and not covered by a spec line.
-- The fallback text `no reason was given` is inserted after `Last attempt {HH:MM}:` and `not delivered:` without a closing period (`AutonomousOpsHealthCards.tsx`). Server errors are rendered as sent, so the sentence may end without a stop. The spec text for those two lines also has no closing period, so this matches.
-- `RetentionPolicyDashboard.tsx:45,122`: the confirm and notice copy matches D-26 and D-19, but the success card still says "Cleanup completed" for failed runs (WR-05). Generic labels remain (`Save`, `Cancel`, `Edit`), which the spec allows ("no restyle").
-- The legacy screen keeps emoji in labels (`🗑 Run Cleanup Now`, `✓`, `⚠`). The spec said no restyle, so this is not a Phase 82 regression, but it is in a file Phase 82 edited.
-- `autonomous-ops-banned-terms.json` lists all five new component files. `RetentionPolicyDashboard.tsx` is not in it, which is correct because it is not Autonomous Ops copy.
+- The 82-17 additions match the amended spec: `Load all {n} rows before confirming.` (`AutonomousOpsRetentionReview.tsx:355`), `Confirm after the next run has counted every organization.` (`:34`), and `Couldn't run cleanup.` (`RetentionPolicyDashboard.tsx:53,59`).
+- The run-cleanup confirm text at `RetentionPolicyDashboard.tsx:46` matches D-26 exactly.
+- `No row could be counted, so there is nothing to confirm yet.` (`AutonomousOpsRetentionReview.tsx:354`) is not in the spec's copy table; reasonable, but unspecified.
+- Generic `Save`/`Cancel`/`Edit` and emoji labels remain on the legacy screen (spec allows).
 
 ### Pillar 2: Visuals (3/4)
-- Focal point: the watchdog and services card is the first block after the heading (`AutonomousOpsPlatformHealth.tsx:325`) and the only block with per-service chips. Hierarchy follows H3.
-- Every chip has a 12px `aria-hidden` icon and visible text (`AutonomousOpsHealthChips.tsx`). The disk meter has `role="meter"`, an `aria-label`, visible percent text and decorative ticks (`AutonomousOpsHealthCards.tsx:149`).
-- The one icon-only affordance (none found); every button has text.
-- Hierarchy gap: h3 card titles, the h4 "Waiting for your confirmation" and card body subheads are all 14/600, so the retention card has no distinct level between title and table heading. This is by contract, but it flattens scanning.
-- The disk meter fill uses `bg-amber-500` for the Warning rung; the amber chip text is `amber-800`. Fine, but the spec's fill list says amber without a shade, so this is unverified against the Phase 81 palette.
-- No screenshots, so wrapping at 375 and 768 widths is verified only from classes (`grid-cols-1 sm:grid-cols-2 xl:grid-cols-4`, `basis-full sm:basis-auto` on `View details`).
+- Unchanged from the previous review. Watchdog and services card is the first block; chips always pair icon and text; every button has text. h3 and h4 levels are both 14/600 by contract.
+- New amber incomplete notice reuses `HealthNotice tone="amber"` (`AutonomousOpsRetentionReview.tsx:338-342`), so it sits visually with the other notices. Not rendered, so wrapping at 375, 768 and 1440 is unverified.
 
 ### Pillar 3: Color (3/4)
-- No hard-coded hex or rgb values in the audited Autonomous Ops files (grep returned none). All tones come from the six constants in `AutonomousOpsHealthChips.tsx`.
-- Accent is not used on any Phase 82 element except the pill reused from Phase 81 (`Platform health` filter), matching the contract. `Confirm deletion` is `bg-red-600`; `Send test alert` is secondary.
-- Deviation: dialog error blocks use `dark:border-red-900/50 dark:bg-red-900/20` instead of the contract's red-400 alpha tokens (`AutonomousOpsRetentionConfirmDialog.tsx:119,125`), so the same error looks different in dark mode between the card and the dialog.
-- `Couldn't count` uses `text-red-600 dark:text-red-400` (`AutonomousOpsRetentionReview.tsx:116`) while the other red text uses `red-700 / red-300`. Contrast is acceptable on white, but the red shades are inconsistent within one file.
-- Legacy `RetentionPolicyDashboard.tsx` uses blue, purple, green, yellow and red tiles. Out of scope by the spec ("no restyle") but it is the least consistent screen in the phase.
+- No hex or rgb values in new files (as before). Accent use stays within the contract.
+- Open: dark red palette in the dialog (Fix 2) and `red-600/400` text (Fix 4).
 
 ### Pillar 4: Typography (3/4)
-- The new files use only `text-xs`, `text-sm` and `text-lg`, which map to 12, 14 and 18px. Weights are `font-semibold` and the default 400. No `font-medium` or `font-bold` in any new file (grep). Mono is limited to units, paths, collection ids and `omni-watchdog.timer`.
-- `tabular-nums` is applied to percents, counts and the footer.
-- Weak differentiation between subheadings (see Visuals).
-- `RetentionPolicyDashboard.tsx` uses `text-2xl font-bold`, `text-3xl font-bold`, `font-medium` and `text-lg font-bold`. The spec scoped the changes to text and small blocks there, so this is not marked as a Phase 82 failure.
+- New files use `text-xs`, `text-sm`, `text-lg`, and weights 400 and 600 only. 82-17 added no new sizes. Legacy screen keeps its own `font-bold` sizes (out of scope).
 
 ### Pillar 5: Spacing (3/4)
-- Cards use `p-6` and `gap-6`; readout grids use `gap-4`; table cells use `px-4 py-4`; the section uses `space-y-6`. These match the scale.
-- `min-w-[200px]` on two table headers is an arbitrary value, but it is the contract's "min 200px". `mt-0.5` (2px) on icons in `HealthNotice`, `ResultLine` and the dialog blocks is not a multiple of 4 and not in the contract's exception list. The contract lists only `h-2` and `w-px` as exceptions.
-- Button heights: `Send test alert`, `Confirm deletion`, `Load more rows` all use `min-h-10`.
-- Viewport behavior at 375, 768 and 1440 was not rendered.
+- Scale followed (`p-6`, `gap-6`, `gap-4`, `min-h-10`). The amber notice and button row use `gap-4` inside `flex-col gap-6`, consistent. `mt-0.5` half-steps remain (Fix 5).
 
-### Pillar 6: Experience Design (2/4)
-- **WR-01 (cited, not re-derived):** `AutonomousOpsRetentionReview.tsx:315` enables Confirm deletion whenever `countable > 0`, while the checkbox attests to every organization listed. This breaks a destructive-action safeguard the contract relies on.
-- **WR-05 (cited, not re-derived):** `RetentionPolicyDashboard.tsx:48-50` treats every answer as success.
-- Dialog: the checkbox is first focusable and gates the button; no keyboard submit; stale 409 resets the checkbox and swaps to `Reload review`; 403 toasts and closes. These all match the contract. The gap is that Esc and `Keep waiting` stay live during `Confirming...` (see Fix 3).
-- Loading, error, empty and background-poll rules are implemented for the health section (`aria-busy`, skeletons, `Reload platform health`, last data kept on poll failure) and for the retention card (`Reload retention review`, `Couldn't load more rows.` with retry).
-- The test-alert state machine covers requesting, waiting (spinner, 5 s poll), no answer after 90 s, delivered, failed, request failed, not installed and silent. A silent watchdog disables the button, consistent with the contract's contradictory row.
-- The silent-watchdog in-app notification exists server-side (`backend/autonomous_ops/selfheal.py`); not verified end to end.
-- Legacy `RetentionPolicyDashboard.tsx`: no loading state, no error state on `loadAll`, `savePolicy` ignores `!res.ok` (no toast on failure), the browser `confirm()` is used for the destructive action. Server-held waiting state and the shortened notice are implemented correctly.
-- Permission gating: the section, banners and Confirm button are driven by `hasPermission('control:platform_autonomous_ops')`. The cast `as any` at `AutonomousOpsRetentionReview.tsx:227` hides a type gap but does not change behavior.
+### Pillar 6: Experience Design (3/4)
+- Destructive-action safeguard now holds: the button needs all rows loaded, no incomplete reason, a countable row and no run in progress; a recount resets `nextOffset` through the hook (`AutonomousOpsRetentionReview.tsx:81-82`), re-disabling the button.
+- Dialog in-flight behaviour matches the amended spec: Keep waiting disabled, Esc off, backdrop off, confirm shows `Confirming...`, a single-flight ref guards repeat clicks (`inFlight` in the dialog).
+- Run Cleanup Now handles 4xx, unreadable body, missing `ran_at` and network errors with a toast.
+- Remaining gaps: legacy screen load and save errors (Fix 1); wrong cause text for a 409 incomplete (Fix 3); the checkbox stays enabled while a request is pending (harmless).
+- Why 3 and not 4: the legacy screen still fails silently, and no interaction or rendered check was possible.
 
 ---
 
@@ -89,16 +87,9 @@ Further items:
 `components.json` is absent and the UI-SPEC lists no third-party registries. Registry audit skipped.
 
 ## Files Audited
-- components/AutonomousOpsHealthBanners.tsx
-- components/AutonomousOpsHealthChips.tsx
-- components/AutonomousOpsHealthCards.tsx
-- components/AutonomousOpsPlatformHealth.tsx
-- components/AutonomousOpsRetentionReview.tsx
-- components/AutonomousOpsRetentionConfirmDialog.tsx
-- components/AutonomousOpsActivityList.tsx (platform_health filter, guard, empty state: grep only)
-- components/AutonomousOpsStopBanner.tsx (health banner slot: grep only)
-- components/RetentionPolicyDashboard.tsx
-- shared/autonomous-ops-banned-terms.json
-- .planning/phases/82-platform-self-healing-scheduled-retention/82-UI-SPEC.md, 82-REVIEW.md
-
-> Citation check 2026-10-31: every file:line above was compared with the source after the audit. Two were corrected in the Top Fixes and 7 more were corrected or reduced to the file name. The findings themselves were not changed.
+- components/AutonomousOpsRetentionReview.tsx (368 lines; cited lines 34, 81-82, 136, 214, 247, 262, 282, 314, 338-357 checked)
+- components/AutonomousOpsRetentionConfirmDialog.tsx (146 lines; cited lines 66-69, 81-85, 105, 121-129 checked)
+- components/RetentionPolicyDashboard.tsx (220 lines; cited lines 42, 46, 52, 53, 59, 63 checked)
+- components/AutonomousOpsHealthCards.tsx (line 247 only)
+- .planning/phases/82-platform-self-healing-scheduled-retention/82-UI-SPEC.md, 82-17-SUMMARY.md, previous 82-UI-REVIEW.md
+- Not re-read this round: AutonomousOpsHealthBanners, AutonomousOpsHealthChips, AutonomousOpsPlatformHealth, AutonomousOpsActivityList; their findings carry over from the previous review unchanged (82-17 did not touch them).
