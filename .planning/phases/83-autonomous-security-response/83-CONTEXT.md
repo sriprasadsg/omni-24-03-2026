@@ -30,21 +30,21 @@ Staged patch rollouts are Phase 84. Digest, statistics and export are Phase 86. 
 - Level, maximum level and the never-touch list stay API-only (Phase 81 D-22). D-21 below adds a panel for this phase's three new settings only.
 
 ### Two-signal rule (RESP-08)
-- **D-01:** A second signal means a **different origin**. Origins are: the native agent verdict, each public feed in `edr_ioc` by `source_feed` (URLhaus, MalwareBazaar, OTX), VirusTotal, and an on-host detection on that host that names the same indicator (EDR, deception, UEBA). Two entries from one origin never count. Any two different origins satisfy the rule, so it can fire without paid or keyed feeds. If the agent bundle is ever built from a public feed, those two are one origin.
+- **D-01:** A second signal means a **different origin**. Origins are: the native agent verdict, each public feed in `edr_ioc` by `source_feed` (URLhaus, MalwareBazaar, OTX), VirusTotal, and an on-host detection on that host that names the same indicator (EDR, deception, UEBA). Two entries from one origin never count. Any two different origins satisfy the rule. If the agent bundle is ever built from a public feed, those two are one origin. Narrowed by D-23.
 - **D-02:** The rule applies to **block IP and quarantine file**. Restart service is exempt: a failed service is something the agent observed directly, and the restart budget limits it instead.
 - **D-03:** One signal becomes a suggestion. If a second origin arrives **within 24 hours** of the first, the suggestion turns into the automatic action through the gate. After 24 hours it stays a suggestion.
 - **D-04:** The rule is **on by default and can be switched off**. A tenant admin (manage permission) may turn it off for their own tenant; a Super Admin may do so for any tenant or for all tenants. With it off, one signal acts. Every change is recorded in the ledger and the audit chain. This loosens RESP-08's "only when two signals agree", and RESP-08 and Phase 83 success criterion 1 now say "by default". Every other limit still applies with the rule off. New tenants start with it on.
 
 ### Finding outcomes (RESP-01)
 - **D-05:** A malicious file with two origins is **quarantined**, replacing today's routing of a non-IP scan finding to `kill_process` in `select_playbook`. Moved, never deleted (RESP-03).
-- **D-06:** If quarantine fails because the file is running or locked, it becomes **one approval card on the same incident**: approving kills the process and retries the quarantine. Nothing is killed without a person.
+- **D-06:** If quarantine fails because the file is running or locked, it becomes **one approval card on the same incident**: approving kills the process and retries the quarantine. Nothing is killed without a person. Extended by D-27.
 - **D-07:** A vulnerability becomes a **suggestion only**, linking to patching. No approval card and no patching here, because rollouts belong to Phase 84 and a host can report hundreds. This covers both vuln routes in `select_playbook` (with a CVE and without).
 - **D-08:** A file-integrity change becomes a **suggestion only**. If the file's hash is also flagged malicious it takes the normal two-signal quarantine path, and the change itself is not an origin under D-01 because it shows a change, not malice. The current `fim → restore_file` route leaves the sweep: the agent refuses to restore without `backup_path`, and nothing in the backend ever sets one, so every card would fail.
 - **D-09 (research D6):** `restore_file`, `disable_service` and `rotate_key` **stay approval-only**, as the Phase 81 registry already has them.
 
 ### Timers and budgets
 - **D-10:** A tenant names the **services to watch** (manage permission). The list starts empty and nothing restarts until a tenant fills it. Agents do not report service failures today, so this phase adds that reporting for listed services only. A service an admin stopped on purpose must not count as failed.
-- **D-11:** Restart budget: **3 per service per host per rolling hour**, with growing waits between tries, then one approval card for further restarts. Same limit as the platform watchdog (Phase 82).
+- **D-11:** Restart budget: **3 per service per host per rolling hour**, with growing waits between tries, then one approval card for further restarts. (Corrected 2026-10-31: the platform watchdog's limit is 3 in 30 minutes, Phase 82 D-07, so these are not the same; the user chose 3 per hour and it stands.)
 - **D-12 (research D5):** Restart service runs automatically with **no Undo button**; a restart has no inverse. The row shows what restarted and the result.
 - **D-13:** Block length: **default 24 h, range 1 hour to 7 days**. A tenant admin sets it for their tenant; a Super Admin for any or all. The length travels with the instruction so the agent can remove the block at expiry while offline (RESP-02). — **Reversibility:** costly — the expiry contract ships inside a published agent binary, and changing it later needs a new agent release and rollout.
 - **D-14:** When a block expires and the address is still flagged, it is a **new decision through the gate**, never an automatic extension. It needs two origins again, and evidence older than the expired block's start does not count, so stale evidence cannot keep an address blocked. Expiry is not an undo, so RESP-07's 24-hour no-redo does not apply to it.
@@ -60,6 +60,27 @@ Staged patch rollouts are Phase 84. Digest, statistics and export are Phase 86. 
 
 ### Settings
 - **D-22:** A small **settings panel on the Autonomous Ops screen** holds the two-signal switch, the block length and the watched services, for holders of the manage permission. Without it restart would stay dormant for most tenants.
+
+### Post-research amendments (2026-10-31, user-approved after 83-RESEARCH.md)
+- **D-23 (narrows D-01; withdraws its "without keys" claim):** Deception alerts are **not** an origin: they name an external address and no host, so they cannot meet "on that host", and the honeytoken webhook is unauthenticated. Tenant-added manual IOCs are **not** an origin: one analyst could otherwise supply one. "On-host detection" means a structured `security_alerts.sha256` for that host; free-text fields never count. Two origins will be uncommon on this VM, so automatic block and quarantine mostly stay suggestions until real signals exist. That outcome is accepted and the UAT must say so.
+- **D-24 (what proposes isolation):** Any finding that meets the two-signal rule, or one signal with the rule off, adds **one `isolate_host` approval line to its incident**, beside the automatic action, at most one per incident. It is never automatic. Nothing else on the shipped agent can propose isolation, because XDR correlations carry no host.
+- **D-25 (amends Phase 81 D-21 for automatic executors):** XDR containment steps from `xdr-auto`, `ai-selector` and `fallback-selector` become **suggestions only**, through `gate.suggest`. They never reach `allow_auto` or `needs_approval`, so they cannot skip the two-signal rule or dispatch to `response_tasks`, which the Rust agent never reads. Human-started runs are unchanged.
+- **D-26 (feeds):** `threat_feed_sync.py` sends an optional abuse.ch key (`ABUSE_CH_AUTH_KEY`, as the `Auth-Key` header on URLhaus and MalwareBazaar requests; behaviour is unchanged when it is unset; never logged, never committed) and keeps every feed's name on an IOC (a `source_feeds` list), so two feeds can agree under D-01. Setting the key on the server is the user's step.
+- **D-27 (extends D-06):** If the move succeeds but the process is still running, the incident gets a **kill-only approval card**. The row states the file moved and the process is still running. Nothing is killed without a person.
+- **D-28 (protected paths):** Files under protected operating-system paths are **never quarantined automatically**. They become an approval card (`playbook_raise`), and the sweep and the agent both refuse the automatic path. The exact prefix lists are Claude's discretion and must cover at least `System32`, `SysWOW64`, `WinSxS`, `/usr/bin`, `/usr/sbin`, `/bin`, `/sbin`, `/boot` and the agent's own install and quarantine directories.
+- **Research defaults adopted (83-RESEARCH.md; no further user input needed):**
+  - The sweep is new code in `backend/autonomous_ops/`, every 60 s under `lock_with_renewal`. It calls `gate.decide` directly and never `remediate()` or `_dispatch_and_verify`, which would roll back a good block.
+  - Findings arrive with the hostname as the agent id, so each is resolved to `agents.id` per tenant, and an ambiguous host is skipped.
+  - Dormancy is checked before any decision and again when an approval is revalidated: capability tick, agent online, and `meta.response_actions` feature tokens. Tokens, not version numbers, because an old agent would accept `block_ip` and ignore its time limit.
+  - New collections `autonomy_signals` (the sweep's memory: per-origin first and last seen, plus the last decision, so nothing repeats each cycle) and `autonomy_incidents`; migration 028 adds indexes only.
+  - The circuit breaker counts only real failures: `verify_failed`, `agent_failed` and `blocked_by_local_security`. It ignores `hash_mismatch`, no-ops, dormant hosts and offline hosts. A block expiring normally changes no ledger state; the row shows `blockedUntil`.
+  - An extra cap of **3 automatic block or quarantine actions per host per hour**, then cards, limits a compromised agent that reports both of its own origins (research R2). Restart keeps its own budget (D-11) and does not count toward this cap.
+  - Verification comes from a `verify` block the agent returns, stored by `report_instruction_result`. A failed verify marks the row `failed` and compensates nothing (RESP-06).
+  - Agent-held state lives in `response_state.json` with an independent expiry sweeper; `block_id` is the instruction's own task id, so undo removes only that claim. Isolation writes its state first, adds the management allow rules, verifies them, then blocks, self-tests and holds its own 4-hour revert. Confirm reaches the agent in the heartbeat reply.
+  - The D-06 chain is a follow-up decision after the kill row executes, not one multi-step row; the incident route folds it into the kill line's `chain` steps so the card still shows one line (UI-SPEC 2a).
+  - The watched list reaches the agent in the heartbeat reply. Service-failure reporting uses `remediation_executor`. Service names must match `^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`, the rule the agent already enforces.
+  - No new crates and no PowerShell: `netsh`, `sc`, `iptables` and `shutdown` with fixed argv. A native Windows API is reconsidered only if Defender blocks these on EILT0197.
+  - This phase ships as one agent release, 2.1.16; publishing it and bumping `_LATEST_AGENT_VERSION` are the user's steps.
 
 ### Claude's Discretion
 - The exact origin table for D-01, as long as no pair shares an origin, and how an on-host detection is tied to an indicator.
@@ -147,9 +168,12 @@ Staged patch rollouts are Phase 84. Digest, statistics and export are Phase 86. 
 <deferred>
 ## Deferred Ideas
 
+- **Schedule agent scans:** nothing schedules them, and a native verdict exists only when an operator asks. Not added here because the native engine only knows the seed bundle; it only becomes useful alongside the next item.
 - **Feed real signatures to agents:** build the agent bundle from the public feeds in `edr_ioc`. Without this, native verdicts rarely fire on real threats, so automatic file and IP actions will be uncommon after this phase. A new capability; a roadmap candidate. Under D-01 the bundle and those feeds would then be one origin.
 - **Keep file content for real restores:** the FIM baseline stores hashes only. A real restore needs the agent to keep known-good copies. A new capability.
 - **Screens for level, maximum level and never-touch:** stay API-only under Phase 81 D-22.
+- **Human-started response routes on Rust agents:** human-started SOAR, playbook and active-response actions still write `response_tasks`, which the Rust agent never reads. D-25 only fences the automatic path. A separate fix, needed before those screens can contain anything on a Rust fleet.
+- **Native Windows firewall API:** only if Defender blocks the command-line tools on EILT0197.
 
 </deferred>
 

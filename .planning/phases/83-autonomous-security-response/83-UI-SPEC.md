@@ -6,6 +6,7 @@ shadcn_initialized: false
 preset: none
 created: "2026-10-31"
 reviewed_at: "2026-10-31"
+revised_at: "2026-10-31"
 ---
 
 # Phase 83 — UI Design Contract
@@ -190,6 +191,12 @@ Button states (per action line, independent of other lines on the same card, D-1
 
 **Kill-then-quarantine card (D-06).** One action line, not two, because it is one decision: label `Kill process, then quarantine file`; target shows both: process (mono) then the file path (mono) on its own line. Above the What happens line, a blue info block (`rounded-lg border p-4 text-sm`, `InfoIcon` 16px): `The file couldn't be moved because it is running. Approving ends the process, then tries the quarantine again. Nothing is deleted.` After approval, the line shows an ordered step list (`<ol>`, 14/400, each step an icon plus text, server state per step): `Kill process` and `Quarantine file`, each with Pending clock, Done check or Failed x. If the kill worked and the quarantine failed again: step 1 Done, step 2 Failed with the reason, and the result `The process was ended but the file is still in place: {reason}.` No further automatic try.
 
+**Kill-only card (D-27).** The move worked but the process is still running. One action line `Kill process`; target shows the process (mono). Blue info block (same anatomy as the kill-then-quarantine notice): `The file was moved to quarantine, but its process is still running. Approving ends the process.` What happens uses the kill process row. The matching Activity row for the quarantine stays `Done` and its Result adds `The process is still running. See Needs your decision.`
+
+**Protected system file card (D-28).** Action line `Quarantine file` on a file under a protected operating-system path. Why: `This is a protected system file, so it isn't moved automatically. {reason}`. What happens: `Moves this system file to quarantine. If it is needed, this computer may stop working properly until you undo this. Nothing is deleted.` Approve and Deny as usual. Once done, Undo restores it like any other quarantine.
+
+**Isolation proposed (D-24).** An action line `Isolate host` joins the incident when a finding is confirmed, beside the automatic action shown as a context line (R4). Why: `{reason}` from the finding, so a person sees what was confirmed. It uses the standard isolate What happens line. At most one per incident.
+
 **Restart after the budget is used up (D-11).** An action line `Restart service` with Why `Restarted {service} 3 times in the last hour. Further restarts need your approval.` and What happens `Restarts {service} on this computer. If it fails again it stays down until you act.`
 
 **Long cards.** More than 5 action lines: the first 5 render and a text button `Show {n} more actions` (14/600, underline, `aria-expanded`, `ChevronDownIcon`) expands the rest in place; `Show fewer actions` collapses. Actions that need a person sort first, then context lines newest first.
@@ -227,6 +234,7 @@ The Phase 81 five-column row anatomy is unchanged. Labels, reasons and results c
 | Isolate (card) | `Isolate host` / `Needs approval` | `{reason}` | see section 2a |
 | One source only (Suggested) | `Suggested: block IP address` or `Suggested: quarantine file` | `Only one source flagged this: {origin}. A second, different source has to agree.` | `Nothing was done. If a second source agrees within 24 hours this runs on its own. After that it stays a suggestion.` |
 | Undone earlier (Refused) | the action label | `You undid this action on {Mon D}. It isn't repeated for 24 hours.` | `Not repeated.` |
+| Correlation suggestion (Suggested, D-25) | `Suggested: isolate host` or `Suggested: block IP address` | `A correlation rule asked for this: {rule}.` | `Nothing was done. Correlation rules only suggest actions.` |
 | Agent cannot do it (Refused) | the action label | `This computer's agent doesn't support this action yet.` or `This action isn't supported on {OS}.` | `Nothing was done.` |
 
 Origin names shown to people (D-01): `agent verdict`, `URLhaus`, `MalwareBazaar`, `OTX`, `VirusTotal`, `detection on this computer`. Two entries from one origin never read as "two sources".
@@ -265,7 +273,7 @@ Visible to a viewer who holds `manage:autonomous_ops` and is not Platform Suppor
 
 **Group 2: block length.** Label 14/600 `Block length`. Helper 12/400 muted: `How long a blocked IP address stays blocked. The agent removes the block itself when the time is up, even if it can't reach the platform. Between 1 hour and 7 days. New blocks use this length; blocks already in place keep theirs.` Control: number input (`w-24`, `inputMode="numeric"`, `aria-label="Block length"`) and a unit `<select>` (`hours`, `days`), side by side. Range 1 to 168 hours or 1 to 7 days; the stored value shows in days when it is a whole number of days, otherwise in hours. Default 24 hours. Validation (inline, `text-xs text-red-600 dark:text-red-400`, `role="alert"`, on blur and on Save): `Enter a block length between 1 hour and 7 days.` Save is disabled while invalid.
 
-**Group 3: watched services.** Label 14/600 `Services to restart`. Helper 12/400 muted: `Autonomous Ops restarts these services on a computer if they fail, up to 3 times an hour per service per computer, then asks for your approval. A service you stop on purpose isn't counted as failed. Nothing restarts until you add a service.` Second helper line: `Works on Windows and Linux computers running the current agent. Other computers are skipped.` Control: a text input (`aria-label="Service name"`, placeholder `Service name, for example nginx or Spooler`) with an `Add` secondary button (`PlusIcon` 16px, `min-h-10`; Enter in the input also adds); below it the list as a wrapping row of chips: `inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 pl-3 pr-1 text-xs` with the name in `font-mono` 400 and a `XIcon` button (`h-8 w-8`, `aria-label="Remove {name}"`). Rules: trimmed, 1 to 128 characters, no `/`, `\` or line breaks, case-insensitive duplicates refused, at most 50. Inline errors: `Enter a service name.`; `{name} is already on the list.`; `A service name can't contain / or \ or line breaks.`; `You can watch up to 50 services.` Counter 12/400 muted `{n}/50 services`. Empty list shows 12/400 muted `No services are watched yet, so nothing restarts on its own.` If the server says restart is not available for this organization (`restartAvailable: false`, the remediation capability is not ticked, D-21): blue info block above the group, `Restarting services needs remediation to be switched on for this organization. Ask a platform administrator. You can still build the list now.`
+**Group 3: watched services.** Label 14/600 `Services to restart`. Helper 12/400 muted: `Autonomous Ops restarts these services on a computer if they fail, up to 3 times an hour per service per computer, then asks for your approval. A service you stop on purpose isn't counted as failed. Nothing restarts until you add a service.` Second helper line: `Works on Windows and Linux computers running the current agent. Other computers are skipped.` Control: a text input (`aria-label="Service name"`, placeholder `Service name, for example nginx or Spooler`) with an `Add` secondary button (`PlusIcon` 16px, `min-h-10`; Enter in the input also adds); below it the list as a wrapping row of chips: `inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 pl-3 pr-1 text-xs` with the name in `font-mono` 400 and a `XIcon` button (`h-8 w-8`, `aria-label="Remove {name}"`). Rules: trimmed, 1 to 128 characters, letters, numbers, dots, hyphens and underscores only, starting with a letter or number, case-insensitive duplicates refused, at most 50. Inline errors: `Enter a service name.`; `{name} is already on the list.`; `Use only letters, numbers, dots, hyphens and underscores, starting with a letter or number.`; `You can watch up to 50 services.` Counter 12/400 muted `{n}/50 services`. Empty list shows 12/400 muted `No services are watched yet, so nothing restarts on its own.` If the server says restart is not available for this organization (`restartAvailable: false`, the remediation capability is not ticked, D-21): blue info block above the group, `Restarting services needs remediation to be switched on for this organization. Ask a platform administrator. You can still build the list now.`
 
 **Form footer** (`flex flex-wrap items-center gap-4 pt-6 border-t`): `Save settings` (accent when dirty, disabled when clean or invalid, pending `Saving...`) and `Discard changes` (text button, shown only when dirty). The form is staged: nothing is written until Save. If the staged form turns the two-source rule from On to Off, Save first opens the confirmation dialog (section 7). Success: toast `Response settings saved.`, panel collapses its dirty state, refetch. Failure: red block above the footer (81 classes, `AlertTriangleIcon`, `role="alert"`): `Couldn't save response settings: {server message}. Try again.` Fallback `Couldn't save response settings. Check your connection and try again.` A 403 closes the form, toast `You don't have permission to change these settings.`, refetch. Leaving the screen with unsaved changes is not intercepted (the form is small and Discard is explicit).
 
@@ -345,6 +353,9 @@ Naming rule (ACTV-08, inherited): the feature is `Autonomous Ops`. Never use the
 | What happens, reboot host | `Restarts this computer. Anyone using it loses unsaved work.` |
 | What happens, restart over budget | `Restarts {service} on this computer. If it fails again it stays down until you act.` |
 | What happens, kill then quarantine | `Ends the process, then moves the file to quarantine. Nothing is deleted.` |
+| What happens, protected system file | `Moves this system file to quarantine. If it is needed, this computer may stop working properly until you undo this. Nothing is deleted.` |
+| Kill-only notice | `The file was moved to quarantine, but its process is still running. Approving ends the process.` |
+| Protected file reason | `This is a protected system file, so it isn't moved automatically. {reason}` |
 | Kill-then-quarantine notice | `The file couldn't be moved because it is running. Approving ends the process, then tries the quarantine again. Nothing is deleted.` |
 | Isolation done | `{host} is isolated. The connection to the platform stays open.` |
 | Isolation consequence | `Confirming keeps this computer isolated until you restore it. Without it, the computer returns to the network automatically at {HH:MM}.` |
@@ -371,7 +382,7 @@ Naming rule (ACTV-08, inherited): the feature is `Autonomous Ops`. Never use the
 | Error, confirm isolation | `Couldn't confirm isolation: {server message}. Try again.` (fallback `Couldn't confirm isolation. Check your connection and try again.`) |
 | Error, settings load | `Couldn't load response settings. Check your connection and try again.` |
 | Error, settings save | `Couldn't save response settings: {server message}. Try again.` (fallback `Couldn't save response settings. Check your connection and try again.`) |
-| Validation | `Enter a block length between 1 hour and 7 days.`; `Enter a service name.`; `{name} is already on the list.`; `A service name can't contain / or \ or line breaks.`; `You can watch up to 50 services.` |
+| Validation | `Enter a block length between 1 hour and 7 days.`; `Enter a service name.`; `{name} is already on the list.`; `Use only letters, numbers, dots, hyphens and underscores, starting with a letter or number.`; `You can watch up to 50 services.` |
 | Destructive confirmation | `Turn off the two-source rule?`: `With the rule off, one source is enough for Autonomous Ops to block an IP address or quarantine a file on its own for {tenant name}. Blocks and quarantines can still be undone, and every other limit still applies: the never-touch list, 20 automatic actions an hour, and the circuit breaker.` Buttons `Turn off the rule` / `Cancel` |
 | Bulk confirmation | `Apply to every organization?`: `This writes the setting to each organization on its own. An organization's administrator can change it back afterwards. The platform organization is not changed.` Buttons `Apply to every organization` / `Cancel`; required checkbox when turning the rule off `I understand this changes every organization.` |
 | Swarm not sent | `Nothing was sent. Antibody propagation no longer sends containment to agents on its own. Containment is handled in Autonomous Ops.` |
@@ -426,7 +437,7 @@ Resolved (explicit):
 - S5 long-text: The summary line and helper text wrap and are never truncated.
 - S6 empty: An empty list shows `No services are watched yet, so nothing restarts on its own.` and the collapsed summary ends `Nothing restarts until you add a service`.
 - S6 loading: The list loads inside the panel's skeleton; adding and removing are local until Save, so they have no loading state of their own.
-- S6 error: Inline role="alert" errors cover an empty name, a duplicate, forbidden characters and the 50 limit; a failed Save uses the form's red block.
+- S6 error: Inline role="alert" errors cover an empty name, a duplicate, characters outside the allowed set and the 50 limit; a failed Save uses the form's red block.
 - S6 populated: Services render as a wrapping row of mono chips, each with a remove button named `Remove {name}`, above a `{n}/50 services` counter.
 - S6 partial: When `restartAvailable` is false a blue block says remediation is not switched on and the list can still be built; helper text says computers on other platforms or older agents are skipped.
 - S6 overflow: Chips wrap in a flex-wrap row that grows with the list, with no inner scrollbar, up to the limit of 50.
@@ -488,7 +499,7 @@ Resolved (backstop):
 | R9 | Settings panel is collapsed by default with a values summary, and is a staged form with one Save. | Settings change rarely; the summary keeps the dormant-restart fact visible |
 | R10 | Watched services are not bulk-set by a Super Admin; two-source rule and block length are. | Service names are per computer; D-04 and D-13 name bulk only for those two |
 | R11 | Block length is a number plus hours or days (1 to 168 hours), not a preset list, so every value in D-13's range is reachable and an API-set value always displays. | D-13 |
-| R12 | Service name limits (1 to 128 characters, at most 50, no `/` `\` or line breaks) are UI defaults; the server must enforce the same or tighter. | No server limit is specified yet |
+| R12 | Service names follow the agent's own rule (`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`), at most 50; the server enforces it and the UI mirrors it. Windows display names with spaces are not service names. | 83-CONTEXT research defaults |
 | R13 | Swarm and SOAR changes are message-only; those screens keep their older style. | D-18 "answer that nothing was sent"; no restyle in scope |
 | R14 | Suggestion grouping (one row per host per kind) is a server responsibility; the UI trusts and renders it. | D-07 volume; UI cannot page hundreds of rows sensibly |
 
@@ -516,4 +527,4 @@ Server shapes the contract assumes (names are the planner's; the UI treats every
 - [x] Dimension 6 Registry Safety: PASS
 - [x] Dimension 7 Inventory Provenance: PASS (`Tool: none`; no Component Inventory section)
 
-**Approval:** approved 2026-10-31 (gsd-ui-checker, 0 BLOCK, 4 FLAG, D-01..D-22 checked with no contradictions). Two flags were fixed afterwards in this file: the anchor wording and the undeclared `pl-3`. UI Considerations probed: 48 applicable, 46 explicit, 2 backstop, 0 unresolved.
+**Approval:** approved 2026-10-31 (gsd-ui-checker, 0 BLOCK, 4 FLAG, D-01..D-22 checked with no contradictions). Two flags were fixed afterwards in this file: the anchor wording and the undeclared `pl-3`. Revised 2026-10-31 after research with the kill-only, protected-file and isolation-proposed cards, the correlation suggestion row and the stricter service-name rule (83-CONTEXT D-24, D-25, D-27, D-28); these additions reuse existing anatomy and were not re-run through the checker. UI Considerations probed: 48 applicable, 46 explicit, 2 backstop, 0 unresolved.
