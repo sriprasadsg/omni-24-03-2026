@@ -1,10 +1,11 @@
 ---
 phase: "83"
 slug: autonomous-security-response
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: "2026-10-31"
+reviewed_at: "2026-10-31"
 ---
 
 # Phase 83 — UI Design Contract
@@ -62,6 +63,7 @@ Exceptions (all multiples of 4):
 - `Approve`, `Deny`, `Confirm isolation`, `Undo`, `Save settings` and every dialog confirm are `min-h-10` (40px, `px-4`): these are the consequential controls (inherited from Stop and Resume).
 - Remove-service chip button: `h-8 w-8` (32px hit area) with a 16px `XIcon`.
 - Switch: `h-6 w-11` (24px by 44px), as the existing switch pattern.
+- Service chip: `pl-3 pr-1` (12px and 4px), so the name clears the rounded end while the 32px remove button sits close to the edge.
 - Block-length number input `w-24` (96px); service name input `w-full max-w-sm`.
 - No half-steps in new elements.
 
@@ -122,7 +124,7 @@ Super Admin in platform scope, top to bottom: page header, status card, Platform
 
 Platform organization (81 D-04): neither new section renders. Platform Support (read-only): sees `Needs your decision` with no buttons and never sees the settings panel.
 
-**Visual anchor (focal point).** When at least one incident is open, the first incident card in `Needs your decision` is the anchor of the screen below the status card: it is the first block after the status card, it is the only place with filled accent buttons, and it carries the only countdown chips. When nothing is open the section is not rendered and the status card is the anchor (as in 81). The stop banner (amber) and the watchdog-silent banner (red) still outrank both. The settings card is subordinate: collapsed it is one quiet `.card` row, and it is never placed above the decision section.
+**Visual anchor (focal point).** When at least one incident is open, the first incident card in `Needs your decision` is the anchor of the screen below the status card: it is the first block after the status card, apart from `Save settings` on an unsaved form it is the only place on the page body with filled accent buttons, and it carries the only countdown chips. When nothing is open the section is not rendered and the status card is the anchor (as in 81). The stop banner (amber) and the watchdog-silent banner (red) still outrank both. The settings card is subordinate: collapsed it is one quiet `.card` row, and it is never placed above the decision section.
 
 ### 2. `Needs your decision` section (ACTV-02, D-06, D-15, D-16, D-17)
 
@@ -255,7 +257,7 @@ Rules:
 
 Visible to a viewer who holds `manage:autonomous_ops` and is not Platform Support, in tenant scope for a non-platform organization. Not rendered for anyone else (inherited rule). Allowed during a stop (changing a setting is not an action).
 
-**Collapsed (default).** `.card`, one row, `p-6`, `flex flex-wrap items-center justify-between gap-4`: left a `<button aria-expanded aria-controls>` containing `SettingsIcon` 20px, `h2` 18/600 `Response settings`, `ChevronRightIcon` 16px (rotates when open); under it a 14/400 muted summary of the current values: `Two-source rule on · Blocks last 24 hours · 0 services watched`. The summary never hides the restart-dormant fact: when no service is watched it ends `· Nothing restarts until you add a service`. State is local; not persisted.
+**Collapsed (default).** `.card`, one row, `p-6`, `flex flex-wrap items-center justify-between gap-4`: left a `<button aria-expanded aria-controls>` containing `SettingsIcon` 20px, `h2` 18/600 `Response settings`, `ChevronRightIcon` 16px (rotates when open); under it a 14/400 muted summary of the current values: `Two-source rule on · Blocks last 24 hours · 0 services watched` (`1 service watched`, `{n} services watched`). The summary never hides the restart-dormant fact: when no service is watched it ends `· Nothing restarts until you add a service`. State is local; not persisted.
 
 **Expanded.** Same card, form below the header, `border-t border-gray-200 dark:border-white/10 pt-6`, three groups separated by `divide-y`, each `py-6 first:pt-0 last:pb-0`, `grid gap-4 lg:grid-cols-[1fr_auto]` (label and helper left, control right; stacked below `lg`).
 
@@ -358,7 +360,7 @@ Naming rule (ACTV-08, inherited): the feature is `Autonomous Ops`. Never use the
 | Suggested, file change | `Suggested: review file changes` / `No action was taken. Check whether these changes were expected.` |
 | Suggested, one source | `Only one source flagged this: {origin}. A second, different source has to agree.` / `Nothing was done. If a second source agrees within 24 hours this runs on its own. After that it stays a suggestion.` |
 | Switch label | `Require two sources before blocking or quarantining` (`On` / `Off`) |
-| Settings summary | `Two-source rule on · Blocks last 24 hours · 0 services watched · Nothing restarts until you add a service` |
+| Settings summary | `Two-source rule on · Blocks last 24 hours · 0 services watched · Nothing restarts until you add a service` (`1 service watched`, `{n} services watched`) |
 | Empty state, no services | `No services are watched yet, so nothing restarts on its own.` |
 | Empty state, decisions | none: the section is not rendered when there is nothing to decide (section 2) |
 | Empty state, Activity | unchanged from 81 and 82 (`No activity yet`, `No {state} actions.` + `Show all activity`) |
@@ -383,40 +385,63 @@ Destructive actions in this phase, and the confirmation approach for each:
 
 ## UI Considerations
 
-> Written by the researcher from the surfaces below; the ui-phase probe (Step 9.5) replaces these rows idempotently on its re-run after checker approval. Empty and error COPY lives in the Copywriting Contract; this section records state coverage only and references those rows.
+> Populated by the ui-phase UI-consideration probe (Step 9.5) on 2026-10-31 after checker approval; replaced, not appended, on a re-run. Empty and error COPY lives in the Copywriting Contract; this section records state coverage and references those rows.
 
-Surfaces and kinds: S1 Needs your decision section and incident cards (list-collection, interactive-control), S2 countdown and Confirm isolation (static-content, interactive-control), S3 Undo and the Pending link in Activity rows (interactive-control, list-collection), S4 grouped Suggested rows and details (list-collection, static-content), S5 Response settings form (form, interactive-control), S6 watched services list (form, list-collection), S7 settings dialogs (form), S8 swarm and SOAR not-sent message (static-content).
+Surfaces and confirmed kinds (user-confirmed 2026-10-31; the heuristic's guess corrected for S4): S1 Needs your decision section and incident cards (list-collection, interactive-control), S2 isolation countdown and Confirm isolation (interactive-control, static-content), S3 Undo and the Review link in Activity rows (list-collection, interactive-control), S4 grouped Suggested rows and details (list-collection, interactive-control), S5 Response settings form (form, interactive-control), S6 watched services (form, list-collection, interactive-control, static-content), S7 settings dialogs (form, interactive-control), S8 swarm and SOAR not-sent message (static-content).
 
-Applicable state considerations resolved: 23 covered, 2 backstop, 1 unresolved
+Applicable state considerations: 48. Resolved: 46 explicit, 2 backstop. Unresolved: 0. Unclassified: 0.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | S1 section | ✅ covered | With nothing to decide the section is not rendered and no empty card is shown; the Activity Pending filter keeps its Phase 81 empty copy. |
-| loading | S1 section | ✅ covered | First load renders nothing (no skeleton, no shift); background polls show no skeleton or spinner. |
-| error | S1 section | ✅ covered | First-load failure renders the heading and the role="alert" block `Couldn't load approvals...` with Try again; a failed background poll keeps the last cards. |
-| populated | S1 cards | ✅ covered | Cards sort by soonest deadline, 10 per page with Show more incidents, at most 5 action lines before Show more actions. |
-| partial | S1 action lines | ✅ covered | A missing target or result renders `—`; a line with no approval access shows `Waiting for someone with approval access.` instead of buttons. |
-| overflow | S1 cards | ✅ covered | Host names, reasons and results wrap with break-words; paths, IPs, process names wrap with break-all; below lg the controls drop under the text. |
-| zero-one-many | S1 header and cards | ✅ covered | Count line reads `1 incident` / `{n} incidents`, meta reads `1 alert` / `{n} alerts`; a lone action is still a card with one line. |
-| loading | S1 Approve, Deny, Confirm isolation | ✅ covered | Pending labels Approving..., Denying..., Confirming...; all buttons on that line disabled; one request per click; focus moves to the line container on success. |
-| error | S1 Approve, Deny | ✅ covered | Failure keeps the line with a role="alert" message and re-enables the buttons; 409 already handled or expired replaces the buttons with the server text and refetches. |
-| long-text | S1 What happens and Why | ✅ covered | Fixed server text wraps with break-words and is never truncated or clamped. |
-| loading | S2 countdown | ✅ covered | One 30-second timer for the section recomputes from the server deadline; no live region; Expired disables the card's buttons until refetch. |
-| zero-one-many | S2 countdown chip | ✅ covered | Chip text covers hours, minutes and `under 1 min`; it is never negative. |
-| error | S3 Undo | ✅ covered | Failure shows a role="alert" line under the button; breakerTripped shows the info toast and refetches the status card. |
-| loading | S3 Undo | ✅ covered | `Undoing...`, disabled, one request per click; allowed during a stop. |
-| partial | S3 rows without an inverse | ✅ covered | No button, no placeholder; the Result text states the outcome (restart, kill, reboot). |
-| overflow | S3 Result cell | ✅ covered | Result text then buttons wrap (`flex-wrap`); there is no sixth column and no horizontal scroll at xl. |
-| populated | S4 Suggested rows | ✅ covered | One row per host per kind with a count; a sweep updates the row rather than adding one; cards are in a different section so volume cannot bury them. |
-| overflow | S4 details | ✅ covered | The disclosure lists at most 10 items then `Showing 10 of {n}` with a link; the target cell shows three ids and `+{k} more`. |
-| zero-one-many | S4 target and details | ✅ covered | `1 vulnerability` / `{n} vulnerabilities`, `1 file` / `{n} files`; the link is plain text when the viewer cannot open the view. |
-| empty | S6 services | ✅ covered | `No services are watched yet, so nothing restarts on its own.` plus the summary note `Nothing restarts until you add a service`. |
-| partial | S5 form | ✅ covered | Unreadable settings show the safe defaults in a blue block, and Save is enabled only after a change. |
-| error | S5 and S7 save | ✅ covered | Role="alert" block with the server message and a fallback; 403 closes the form with a toast; bulk partial failure keeps the dialog open and retries only the failed organizations. |
-| long-text | S6 service names | ✅ covered | Chips wrap in a flex-wrap row with break-all mono names; names are limited to 128 characters and rejected if they contain / or \ or line breaks. |
-| long-text | S8 message | 🧪 backstop | Server not-sent text is rendered verbatim and wraps in the existing SwarmDashboard status element; verified by a held-out render test with a 300-character message. |
-| populated | S2 chips both themes | 🧪 backstop | The amber countdown chip meets 4.5:1 at 12px in light and dark; checked by a visual or contrast test of the shared AMBER classes. |
-| overflow | S1 sixth-column avoidance at 1280px | ⚠ unresolved | The real content width at the xl breakpoint depends on the sidebar state; the planner treats 1016px of column minimums as the constraint and confirms in the live check that nothing scrolls horizontally. |
+Resolved (explicit):
+- S1 empty: With nothing to decide the section is not rendered at all, and under the Pending filter the Activity list keeps its own empty copy.
+- S1 loading: First load renders nothing, with no skeleton and no heading; background polls show no skeleton or spinner; a pending Approve or Deny shows its pending label and disables only the buttons on that action line.
+- S1 error: A first-load failure renders the heading with the role="alert" block `Couldn't load approvals...` and Try again; a failed background poll keeps the last cards; a failed decision keeps the line, shows role="alert" text under the buttons and re-enables them.
+- S1 populated: Cards sort by soonest deadline, ties by incident start newest first, 10 per page then Show more incidents; each card has a header with its nearest deadline chip and one line per action.
+- S1 partial: A viewer without approval access sees `Waiting for someone with approval access.` instead of buttons; automatic actions of the incident that already ran appear as context lines without buttons; a past deadline shows `Expired` and disables every button on that card until the next refetch.
+- S1 overflow: More than 5 action lines collapse behind `Show {n} more actions`, and below lg the controls drop under the text.
+- S1 zero-one-many: Zero incidents renders no section; one reads `1 incident` and `1 alert`; many read `{n} incidents` and `{n} alerts`; a lone action is still a card with one action line.
+- S1 long-text: Hosts, reasons and results wrap with break-words and targets with break-all; nothing is truncated or clamped.
+- S2 loading: Confirm isolation shows `Confirming...` and is disabled while pending; one 30-second timer for the whole section recomputes every chip from the server deadline, with no live region.
+- S2 error: A failed confirm keeps the line, shows role="alert" text `Couldn't confirm isolation: {server message}. Try again.` with its fallback, and re-enables the button.
+- S2 overflow: The countdown chip has only the forms `Reverts in {h} h {m} min`, `Reverts in {m} min` and `Reverts in under 1 min`, is never negative, and wraps with its row.
+- S2 long-text: The isolation result and consequence lines wrap with break-words, and a long host name in them is never truncated.
+- S3 empty: With no row that can be undone no Undo renders, and an empty Activity list keeps its Phase 81 and 82 empty copy.
+- S3 loading: Undo shows `Undoing...`, is disabled and sends one request per click; it stays available during a stop.
+- S3 error: A failed undo shows role="alert" text under the button with a fallback; a 409 shows the server text and the row refetches; `breakerTripped` shows the info toast and refetches the status card.
+- S3 populated: Undo renders only when the server's `canUndo` is true, with `undoHint` under it; every Pending row shows its result text and the Review link.
+- S3 partial: A row with no inverse (restart, kill, reboot) shows no button and no placeholder, and its Result text states the outcome; the Review link is omitted when its card is not rendered.
+- S3 zero-one-many: Each eligible row carries its own single Undo, and there is no bulk undo at any count.
+- S3 long-text: Undo hints containing long paths wrap with break-words under the button and are never truncated.
+- S4 empty: The Suggested filter with no rows shows the inherited `No {state} actions.` with Show all activity.
+- S4 loading: Suggested rows load with the Activity list's existing states; Show details fetches nothing, because its items arrive in the row, so it has no loading state.
+- S4 error: Suggested rows share the Activity list's existing error states, and the disclosure cannot fail on its own.
+- S4 populated: One row per host per suggestion kind with a count and the latest sweep time; a newer sweep updates the row; single-signal suggestions stay one row each.
+- S4 partial: A link to patching or file integrity renders as plain text when the viewer cannot open that view, and a missing field renders `—`.
+- S4 overflow: The Target cell shows at most three ids or paths then `+{k} more`; details list at most 10 items then `Showing 10 of {n}...` with a link.
+- S4 zero-one-many: Text reads `1 vulnerability` or `{n} vulnerabilities` and `1 file` or `{n} files`, and the Suggested pill counts grouped rows.
+- S4 long-text: CVE ids and paths use font-mono with break-all and are never truncated.
+- S5 empty: The form never shows blank controls: it shows the stored values, or the safe defaults of two sources required, 24-hour blocks and no services.
+- S5 loading: The collapsed summary shows an `h-4 w-64` skeleton, expanding shows three `h-16` skeleton groups with aria-busy="true", and Save shows `Saving...` while pending.
+- S5 error: A load failure shows a red role="alert" block with Try again and keeps the header; a save failure shows a red block above the footer with the server message and a fallback; a 403 closes the form with a toast.
+- S5 partial: Unreadable settings show the safe defaults in a blue block and Save enables only after a change; an invalid block length shows an inline error and disables Save.
+- S5 long-text: The summary line and helper text wrap and are never truncated.
+- S6 empty: An empty list shows `No services are watched yet, so nothing restarts on its own.` and the collapsed summary ends `Nothing restarts until you add a service`.
+- S6 loading: The list loads inside the panel's skeleton; adding and removing are local until Save, so they have no loading state of their own.
+- S6 error: Inline role="alert" errors cover an empty name, a duplicate, forbidden characters and the 50 limit; a failed Save uses the form's red block.
+- S6 populated: Services render as a wrapping row of mono chips, each with a remove button named `Remove {name}`, above a `{n}/50 services` counter.
+- S6 partial: When `restartAvailable` is false a blue block says remediation is not switched on and the list can still be built; helper text says computers on other platforms or older agents are skipped.
+- S6 overflow: Chips wrap in a flex-wrap row that grows with the list, with no inner scrollbar, up to the limit of 50.
+- S6 zero-one-many: The summary reads `0 services watched`, `1 service watched` or `{n} services watched`; at 50 the Add control refuses with `You can watch up to 50 services.`
+- S6 long-text: Service names up to 128 characters wrap with break-all inside their chip.
+- S7 empty: `Apply to every organization` stays disabled until a box is checked and valid, and the required checkbox starts unchecked and keeps the confirm disabled.
+- S7 loading: Confirm buttons show `Saving...` or `Applying...` while pending, and Esc does not close a dialog while a request is in flight.
+- S7 error: A failed save keeps the dialog open with a red block carrying the server message.
+- S7 partial: A partial bulk failure keeps the dialog open with `Couldn't change {k} of {n} organizations...`, and the retry sends only the failed organizations.
+- S7 long-text: A long organization name in a dialog body wraps and is never truncated.
+- S8 overflow: The not-sent message wraps inside the existing status element and is not clipped.
+
+Resolved (backstop):
+- S3 overflow: { statement: "The Activity table, with Undo inside the Result cell, does not scroll horizontally at 1280px wide with the sidebar open and with it closed (the Phase 81 column minimums sum to 1016px, and the real content width depends on the sidebar)", verification: backstop }
+- S8 long-text: { statement: "A 300-character server not-sent message renders verbatim and wraps in the SwarmDashboard status element, never in the green success style", verification: backstop }
 
 ---
 
@@ -483,12 +508,12 @@ Server shapes the contract assumes (names are the planner's; the UI treats every
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS (`Tool: none`; no Component Inventory section)
+- [x] Dimension 1 Copywriting: FLAG, accepted (`Cancel` is the inherited Modal convention; `Approve`, `Deny`, `Undo` and `Add` are one word, and their aria-labels and the surrounding line name the target)
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: FLAG, accepted (four new accent uses; on a busy screen a repeated Approve can outweigh the 10% rule, and the switch track is the weakest use; approving a destructive action uses accent, not red, per R3)
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: FLAG, accepted (the 32px remove button is below the usual touch target; declared)
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS (`Tool: none`; no Component Inventory section)
 
-**Approval:** pending
+**Approval:** approved 2026-10-31 (gsd-ui-checker, 0 BLOCK, 4 FLAG, D-01..D-22 checked with no contradictions). Two flags were fixed afterwards in this file: the anchor wording and the undeclared `pl-3`. UI Considerations probed: 48 applicable, 46 explicit, 2 backstop, 0 unresolved.
