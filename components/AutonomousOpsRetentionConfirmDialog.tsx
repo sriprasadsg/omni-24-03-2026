@@ -69,6 +69,8 @@ const Inner: React.FC<{ review: RetentionReviewSnapshot; onClose: () => void; on
         }
     };
 
+    // Keep waiting promises that nothing was deleted, which stops being true once the request has been sent:
+    // neither the button nor Esc may close the dialog until the answer arrives.
     return (
         <Modal
             isOpen
@@ -77,9 +79,10 @@ const Inner: React.FC<{ review: RetentionReviewSnapshot; onClose: () => void; on
             size="md"
             showClose={false}
             closeOnBackdrop={false}
+            closeOnEsc={!pending}
             footer={(
                 <>
-                    <button type="button" className={SECONDARY_BUTTON} onClick={onClose}>Keep waiting</button>
+                    <button type="button" className={SECONDARY_BUTTON} onClick={onClose} disabled={pending}>Keep waiting</button>
                     {stale ? (
                         <button type="button" className={SECONDARY_BUTTON} onClick={onConfirmed}>Reload review</button>
                     ) : (

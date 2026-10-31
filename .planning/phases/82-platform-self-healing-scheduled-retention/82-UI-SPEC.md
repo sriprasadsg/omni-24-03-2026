@@ -6,7 +6,7 @@ shadcn_initialized: false
 preset: none
 created: "2026-10-27"
 reviewed_at: "2026-10-27"
-revised_at: "2026-10-27"
+revised_at: "2026-10-31"
 ---
 
 # Phase 82 — UI Design Contract
@@ -304,6 +304,8 @@ Scope note (always visible, 12/400 muted): `Audit logs, the audit ledger, decisi
 | Not counted yet (D-18) | Mode chip `Counting only`; blue info block: `The first run only counts what would be deleted. It runs at 02:00 UTC on {date}, and you confirm the counts here before anything is removed.` No table, no Confirm. |
 | Waiting for confirmation | Mode `Counting only`. Review table (below) and the `Confirm deletion` button. |
 | Run in progress | Mode `Running now`. `Confirm deletion` is `disabled` with helper `A run is in progress. Confirm after it finishes.` |
+| Rows not loaded | `Confirm deletion` is `disabled` with helper `Load all {total} rows before confirming.` until the last page is loaded; a recount returns the card to the first page and disables it again. |
+| Review incomplete | Amber block (`role="status"`) above the button naming the reason (copy in the Copywriting Contract), `Confirm deletion` `disabled`, helper `Confirm after the next run has counted every organization.` Shown only when rows are listed. |
 | Nothing waiting | Mode `Deleting nightly`. No table. One 14/400 muted line: `Nothing is waiting for confirmation. If an organization shortens a retention period, its next run only counts until you confirm it again.` |
 | Last run failed | Red block (`AlertTriangleIcon`, `role="alert"`) as in Last run helper, plus the rest of the card unchanged. |
 | Loading | Three `h-16` skeleton cells + `h-40` table skeleton, `aria-busy="true"`. |
@@ -325,18 +327,20 @@ Below `xl`: stacked cards (`p-4`, `divide-y`): top line tenant name 14/600 left 
 
 Ordering: largest `Would be deleted` first (the review is about what a click removes), ties by tenant name. Pagination: 25 rows per page with `Load more rows` (secondary, `min-h-10`; pending `Loading...`) and a footer `Showing {n} of {total} rows` (`Showing 1 row` for one). A failed page keeps loaded rows and shows `Couldn't load more rows.` with `Load more rows` as the retry. (The Phase 81 Activity list keeps its own `Load more` and `Try again`; they are not changed here.) Counts are formatted `toLocaleString('en-US')`. Rows with a failed count are listed and excluded from Confirm.
 
-**Confirm deletion button** (below the table, left-aligned, `min-h-10 px-4 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg`, `TrashIcon` 16px): label `Confirm deletion`. Helper to its right, 12/400 muted: `One confirmation covers every row listed. Deleted records can't be restored.` Rendered only for `control:platform_autonomous_ops`; it applies to all waiting rows at once (D-18 "confirm once for all"). Disabled with helper when a run is in progress or when zero rows are countable.
+**Confirm deletion button** (below the table, left-aligned, `min-h-10 px-4 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg`, `TrashIcon` 16px): label `Confirm deletion`. Helper to its right, 12/400 muted: `One confirmation covers every row listed. Deleted records can't be restored.` Rendered only for `control:platform_autonomous_ops`; it applies to all waiting rows at once (D-18 "confirm once for all"). Disabled with helper when a run is in progress, when the review is incomplete, when zero rows are countable, or while rows are not loaded; that order decides the helper line.
 
 ### 7. Confirm deletion dialog
 
-`Modal size="md"`, `showClose={false}`, `closeOnBackdrop={false}`, Esc closes. Footer: `Keep waiting` (secondary) left, confirm right. `Keep waiting` closes the dialog and leaves every row waiting for confirmation; nothing is deleted. Body column `gap-4`.
+**Amendment 2026-10-31 (gap plan 82-17):** the approved text kept `Keep waiting` live while the confirm request was in flight. `Keep waiting` is specified to leave every row waiting with nothing deleted, which is false once the request has been sent, so it is now disabled and Esc is off until the answer arrives (UI audit Fix 3).
+
+`Modal size="md"`, `showClose={false}`, `closeOnBackdrop={false}`, `closeOnEsc={!pending}`: Esc closes unless the confirm request is in flight. Footer: `Keep waiting` (secondary) left, confirm right. `Keep waiting` closes the dialog and leaves every row waiting for confirmation; nothing is deleted. It is disabled while the request is in flight, because that promise is false once the request has been sent. After an error or a stale answer both work again. Body column `gap-4`.
 
 - Title (18/600): `Confirm deletion of old records?`
 - Body (14/400): `From the next nightly run at 02:00 UTC, records older than each organization's retention period will be deleted. Deleted records can't be restored.`
 - Summary block (`rounded-lg bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 p-4`, 14/400): `{n} records across {t} organizations, counted {HH:MM}.` and, when any row failed to count: `{k} rows could not be counted and stay waiting.`
 - Safeguard line (12/400 muted): `Audit logs, the audit ledger, decision records and compliance evidence are never deleted.`
 - Required checkbox (first focusable element, so focus lands here): label 14/600 `I have reviewed the counts for every organization listed.` `aria-required="true"`. The confirm button stays `disabled` until it is checked. No keyboard submit shortcut (deliberate, like Resume).
-- Confirm: red `Confirm deletion` (pending `Confirming...`, disabled; `Keep waiting` stays enabled).
+- Confirm: red `Confirm deletion` (pending `Confirming...`, disabled; `Keep waiting` is disabled too and Esc does not close the dialog).
 - Success: close, `showToast('Retention confirmed. Old records will be deleted from the next nightly run.', 'success')`, refetch the section.
 - Stale counts (409, the nightly job recounted since the review loaded): dialog stays open, red block `role="alert"`: `The counts changed since you opened this review. Reload the review and check the new counts before confirming.` and the confirm button is replaced by `Reload review` (secondary) which closes the dialog and refetches. The checkbox resets.
 - Failure: red block (81 classes): `Couldn't confirm deletion: {server message}. Try again.` Fallback: `Couldn't confirm deletion. Check your connection and try again.`
@@ -375,6 +379,7 @@ Event vocabulary (server-supplied labels, run through the ACTV-08 copy test):
 | Gave up | `Restart {service}` | `Restart budget used up: 3 restarts in 30 minutes.` | `Not restarting again. On-call paged.` |
 | Budget re-armed | `Restart {service}` | `Healthy for 1 hour.` | `Restart budget is available again.` |
 | Certificate warning | `Certificate warning` | `Expires in {n} days.` | `{path} expires {date}. Replacing a pinned certificate needs an agent update.` |
+| Certificate unreadable | `Certificate warning` | `Can't read this file.` | `{path} could not be read, so its expiry date is unknown.` |
 | Disk warning | `Disk warning` | `{n}% used.` | `{mount} is {n}% full. Nothing is deleted automatically.` |
 | Disk forecast | `Disk forecast` | `Forecast to be full within {n} days.` | `At the last 7 days of growth, {mount} fills in about {d} days.` |
 | Page sent / resolved | `On-call page` | `{incident}` | `Page sent to {PagerDuty / webhook}.` / `Marked resolved.` |
@@ -383,6 +388,8 @@ Event vocabulary (server-supplied labels, run through the ACTV-08 copy test):
 | Watchdog silent / back | `Watchdog` | `No heartbeat for {m} minutes.` / `Heartbeat resumed.` | `Last seen {HH:MM}.` / `Reporting again.` |
 | Retention run | `Retention run` | `Scheduled nightly run.` | `Counted {n} records across {t} organizations. Deleted nothing.` / `Deleted {n} records across {t} organizations.` |
 | Retention confirmed | `Retention confirmed` | `Confirmed by {name}.` | `{n} records across {t} organizations will be deleted from the next nightly run.` |
+
+The unreadable-certificate row has a rule id of its own, `cert-unreadable` (82-16); the expiry rows keep `cert-expiry-30d`, `cert-expiry-14d`, `cert-expiry-7d` and `cert-expiry-1d`, chosen from the days left.
 
 Deduplication shown in the list: one row per incident transition (D-03), never one row per minute. Missing target or result renders `—`.
 
@@ -406,6 +413,7 @@ List states (unchanged from 81 except where noted):
 | Shorten a period (D-19) | After `Save` of a lower `retention_days`, show an inline yellow block on that card (existing yellow classes): `Saved. Because this shortens the period, the next cleanup run, nightly or manual, only counts what would be deleted. A platform administrator confirms before anything is removed.` Lengthening shows no extra block. |
 | Waiting state on a card | When the server reports that this tenant's data type is count-only, the card shows a 12/400 line `Waiting for a platform administrator to confirm before old records are deleted. Until then, the nightly run and Run Cleanup Now only count them.` Visible to the tenant for its own data types only; no counts and no other tenant's state. |
 | Guidelines list | Remove no existing bullet other than the schedule line above. |
+| Run Cleanup Now refused or failed | A refused or failed `Run Cleanup Now` (409, 403, 400, an unreadable answer or a network error) shows an error toast with the server's message, fallback `Couldn't run cleanup.`, and never the green `Cleanup completed` card (gap plan 82-17, WR-05). |
 
 ---
 
@@ -437,6 +445,10 @@ Naming rule (ACTV-08, inherited): the feature is `Autonomous Ops`. Never use the
 | Error, retention review | `Couldn't load the retention review. Check your connection and try again.` |
 | Error, more rows | `Couldn't load more rows.` + `Load more rows` retry |
 | Error, test request | `Couldn't request a test alert: {server message}. Try again.` (fallback `Couldn't request a test alert. Check your connection and try again.`) |
+| Helper, rows not loaded | `Load all {total} rows before confirming.` ({total} with thousands separators) |
+| Helper, review incomplete | `Confirm after the next run has counted every organization.` |
+| Notice, review incomplete | Amber, one sentence per reason, each ending `You can confirm after the next run.`: stopped early `The last run stopped early, so {n} organizations weren't counted.` (singular `1 organization wasn't counted`; with 0 organizations `The last run stopped early.`); failed `The last run failed for {n} organizations.` (`1 organization`); not reached `{n} organizations haven't been counted yet.` (`1 organization hasn't been counted yet.`); an unknown reason `Not every organization has been counted yet.` |
+| Error, Run Cleanup Now | `{server message}`, fallback `Couldn't run cleanup.` |
 | Error, confirm | `Couldn't confirm deletion: {server message}. Try again.` (fallback `Couldn't confirm deletion. Check your connection and try again.`) |
 | Error, stale counts | `The counts changed since you opened this review. Reload the review and check the new counts before confirming.` |
 | Destructive confirmation | `Confirm deletion of old records?`: `From the next nightly run at 02:00 UTC, records older than each organization's retention period will be deleted. Deleted records can't be restored.` Buttons `Confirm deletion` / `Keep waiting`; required checkbox `I have reviewed the counts for every organization listed.` |
@@ -488,11 +500,13 @@ Resolved (explicit):
 - S6 error: A load failure shows the role="alert" block "Couldn't load the retention review. Check your connection and try again." with Reload retention review; a failed page keeps loaded rows and shows "Couldn't load more rows." with Load more rows as the retry; a failed last run shows "Failed: {error}. It tries again at the next run."
 - S6 populated: The review is a 5-column table at xl (1280px) and wider and stacked cards below, 25 rows per page, largest "Would be deleted" first, ties by tenant name.
 - S6 partial: A row whose count failed shows "Couldn't count" in red, stays listed and is excluded from Confirm deletion.
+- S6 partial: While rows remain to load, Confirm deletion stays disabled with "Load all {total} rows before confirming."; a recount returns to the first page and disables it again.
+- S6 partial: When the last run stopped early, failed an organization or left one uncounted, an amber notice names the reason and Confirm deletion stays disabled until a later run has counted every organization.
 - S6 overflow: Below xl the table becomes stacked cards; there is no horizontal scroll and tenant names wrap with break-words.
 - S6 zero-one-many: Totals and the footer use singular and plural forms ("1 record", "1 organization", "Showing 1 row"); 0 records is allowed, and Confirm deletion is disabled when zero rows are countable.
 - S6 long-text: Tenant names and collection ids wrap; nothing is truncated.
 - S7 empty: The Confirm deletion button in the dialog stays disabled until the required review checkbox is checked.
-- S7 loading: While confirming, the confirm button shows Confirming... and is disabled, Keep waiting stays enabled, and one click sends one request.
+- S7 loading: While confirming, the confirm button shows Confirming... and is disabled, Keep waiting is disabled and Esc does not close the dialog, and one click sends one request; after an error or a stale answer Keep waiting and Esc work again.
 - S7 error: A failure keeps the dialog open with "Couldn't confirm deletion: {server message}. Try again."; a 409 shows the stale-counts block and replaces confirm with Reload review (the checkbox resets); a 403 closes the dialog with the "Only a platform administrator can confirm deletion." toast.
 - S7 partial: When some rows could not be counted, the summary adds "{k} rows could not be counted and stay waiting."
 - S7 long-text: The dialog body is fixed copy plus counts; a server message in the error block wraps with break-words.

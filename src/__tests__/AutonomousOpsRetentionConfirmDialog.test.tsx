@@ -70,16 +70,31 @@ describe('Confirm deletion dialog: content', () => {
 });
 
 describe('Confirm deletion dialog: pending, closing and keyboard', () => {
-  it('while confirming the button reads Confirming... and is disabled, Keep waiting stays enabled, one click sends one request', async () => {
+  it('while confirming the button reads Confirming... and is disabled, Keep waiting is disabled, Esc leaves the dialog open, one click sends one request', async () => {
     const confirm = vi.fn<RetentionHandler>(() => new Promise<Response>(() => {}));
     const { dialog, checkbox } = await openDialog({ confirm });
     fireEvent.click(checkbox);
     fireEvent.click(confirmIn(dialog));
     await waitFor(() => expect(confirmIn(dialog)).toHaveTextContent('Confirming...'));
     expect(confirmIn(dialog)).toBeDisabled();
-    expect(within(dialog).getByRole('button', { name: 'Keep waiting' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Keep waiting' })).toBeDisabled();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.click(confirmIn(dialog));
     expect(confirmCalls()).toHaveLength(1);
+  });
+
+  it.each([
+    ['a 409 stale answer', () => jsonRes({ detail: 'The counts changed.' }, 409)],
+    ['a 500 failure', () => jsonRes({ detail: 'The database is busy.' }, 500)],
+  ])('after %s Keep waiting is enabled again and Esc closes the dialog', async (_name, confirm) => {
+    const { dialog, checkbox } = await openDialog({ confirm });
+    fireEvent.click(checkbox);
+    fireEvent.click(confirmIn(dialog));
+    await within(dialog).findByRole('alert');
+    expect(within(dialog).getByRole('button', { name: 'Keep waiting' })).toBeEnabled();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('Keep waiting closes the dialog and deletes nothing; reopening starts with the box unchecked', async () => {
