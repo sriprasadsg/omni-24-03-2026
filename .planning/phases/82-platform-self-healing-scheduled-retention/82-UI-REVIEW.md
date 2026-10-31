@@ -32,30 +32,30 @@ Further items:
 4. WARNING: dialog error blocks use `dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300` (`AutonomousOpsRetentionConfirmDialog.tsx:119,125`). The spec and `HealthNotice` use `dark:border-red-400/25 dark:bg-red-400/10`. Reuse `HealthNotice tone="red"` so dark mode matches.
 5. WARNING: the legacy `RetentionPolicyDashboard` has no loading, error or empty state. `loadAll` only calls `console.error`, so a failed fetch renders a header and an empty list.
 6. WARNING: when the review is empty and `review.mode === 'counting_only'` but `notCountedYet` is false, the card shows the "Counting only" chip beside "Nothing is waiting for confirmation" (`AutonomousOpsRetentionReview.tsx:291`). The contract maps "Nothing waiting" to Deleting nightly, so the two lines can disagree if the server sends that mix.
-7. WARNING: `ResultLine` for the pending test and for the amber "not picked up" message is inside `role="status"`, but the failed-delivery line (`AutonomousOpsHealthCards.tsx:709`) is outside it with its own `role="alert"`. This is correct, but the 5 s poll can re-mount the line when `quiet` flips, which may re-announce it. Verify with a screen reader.
+7. WARNING: `ResultLine` for the pending test and for the amber "not picked up" message is inside `role="status"`, but the failed-delivery line (`AutonomousOpsHealthCards.tsx:364`) is outside it with its own `role="alert"`. This is correct, but the 5 s poll can re-mount the line when `quiet` flips, which may re-announce it. Verify with a screen reader.
 
 ---
 
 ## Detailed Findings
 
 ### Pillar 1: Copywriting (3/4)
-- Banner, section, watchdog, certificate, disk, on-call, retention, dialog, toast and error strings match the Copywriting Contract line for line (`AutonomousOpsHealthBanners.tsx:72-97`, `AutonomousOpsPlatformHealth.tsx:43-48,213-233,301,314`, `AutonomousOpsHealthCards.tsx:367-369,424,688-710`, `AutonomousOpsRetentionConfirmDialog.tsx:382-460`).
+- Banner, section, watchdog, certificate, disk, on-call, retention, dialog, toast and error strings match the Copywriting Contract line for line (`AutonomousOpsHealthBanners.tsx:72-97`, `AutonomousOpsPlatformHealth.tsx:43-48,213-233,301,314`, `AutonomousOpsHealthCards.tsx`, `AutonomousOpsRetentionConfirmDialog.tsx`).
 - Unspecified copy was added: `No row could be counted, so there is nothing to confirm yet.` (`AutonomousOpsRetentionReview.tsx:321`). It is reasonable, but it is not in the contract and not covered by a spec line.
-- The fallback text `no reason was given` is inserted after `Last attempt {HH:MM}:` and `not delivered:` without a closing period (`AutonomousOpsHealthCards.tsx:652,710`). Server errors are rendered as sent, so the sentence may end without a stop. The spec text for those two lines also has no closing period, so this matches.
+- The fallback text `no reason was given` is inserted after `Last attempt {HH:MM}:` and `not delivered:` without a closing period (`AutonomousOpsHealthCards.tsx`). Server errors are rendered as sent, so the sentence may end without a stop. The spec text for those two lines also has no closing period, so this matches.
 - `RetentionPolicyDashboard.tsx:45,122`: the confirm and notice copy matches D-26 and D-19, but the success card still says "Cleanup completed" for failed runs (WR-05). Generic labels remain (`Save`, `Cancel`, `Edit`), which the spec allows ("no restyle").
 - The legacy screen keeps emoji in labels (`🗑 Run Cleanup Now`, `✓`, `⚠`). The spec said no restyle, so this is not a Phase 82 regression, but it is in a file Phase 82 edited.
 - `autonomous-ops-banned-terms.json` lists all five new component files. `RetentionPolicyDashboard.tsx` is not in it, which is correct because it is not Autonomous Ops copy.
 
 ### Pillar 2: Visuals (3/4)
 - Focal point: the watchdog and services card is the first block after the heading (`AutonomousOpsPlatformHealth.tsx:325`) and the only block with per-service chips. Hierarchy follows H3.
-- Every chip has a 12px `aria-hidden` icon and visible text (`AutonomousOpsHealthChips.tsx:194-202`). The disk meter has `role="meter"`, an `aria-label`, visible percent text and decorative ticks (`AutonomousOpsHealthCards.tsx:493-503`).
+- Every chip has a 12px `aria-hidden` icon and visible text (`AutonomousOpsHealthChips.tsx`). The disk meter has `role="meter"`, an `aria-label`, visible percent text and decorative ticks (`AutonomousOpsHealthCards.tsx:149`).
 - The one icon-only affordance (none found); every button has text.
 - Hierarchy gap: h3 card titles, the h4 "Waiting for your confirmation" and card body subheads are all 14/600, so the retention card has no distinct level between title and table heading. This is by contract, but it flattens scanning.
 - The disk meter fill uses `bg-amber-500` for the Warning rung; the amber chip text is `amber-800`. Fine, but the spec's fill list says amber without a shade, so this is unverified against the Phase 81 palette.
 - No screenshots, so wrapping at 375 and 768 widths is verified only from classes (`grid-cols-1 sm:grid-cols-2 xl:grid-cols-4`, `basis-full sm:basis-auto` on `View details`).
 
 ### Pillar 3: Color (3/4)
-- No hard-coded hex or rgb values in the audited Autonomous Ops files (grep returned none). All tones come from the six constants in `AutonomousOpsHealthChips.tsx:154-159`.
+- No hard-coded hex or rgb values in the audited Autonomous Ops files (grep returned none). All tones come from the six constants in `AutonomousOpsHealthChips.tsx`.
 - Accent is not used on any Phase 82 element except the pill reused from Phase 81 (`Platform health` filter), matching the contract. `Confirm deletion` is `bg-red-600`; `Send test alert` is secondary.
 - Deviation: dialog error blocks use `dark:border-red-900/50 dark:bg-red-900/20` instead of the contract's red-400 alpha tokens (`AutonomousOpsRetentionConfirmDialog.tsx:119,125`), so the same error looks different in dark mode between the card and the dialog.
 - `Couldn't count` uses `text-red-600 dark:text-red-400` (`AutonomousOpsRetentionReview.tsx:116`) while the other red text uses `red-700 / red-300`. Contrast is acceptable on white, but the red shades are inconsistent within one file.
@@ -100,3 +100,5 @@ Further items:
 - components/RetentionPolicyDashboard.tsx
 - shared/autonomous-ops-banned-terms.json
 - .planning/phases/82-platform-self-healing-scheduled-retention/82-UI-SPEC.md, 82-REVIEW.md
+
+> Citation check 2026-10-31: every file:line above was compared with the source after the audit. Two were corrected in the Top Fixes and 7 more were corrected or reduced to the file name. The findings themselves were not changed.
