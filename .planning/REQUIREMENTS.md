@@ -53,14 +53,14 @@
 
 ### 4. Platform Self-Healing
 
-- [x] **HEAL-01**: A watchdog running outside the backend (systemd timer) checks backend readiness, MongoDB and Ollama (only where Ollama is expected) every minute and restarts a failed service from a fixed allowlist, MongoDB before the backend.
-- [x] **HEAL-02**: Restarts follow a budget with backoff; when the budget is used up the watchdog stops restarting and pages once.
-- [x] **HEAL-03**: The operator is warned 30, 14, 7 and 1 days before a certificate expires and when a disk passes 80, 90 and 95 percent; the platform never renews certificates or deletes files on its own.
-- [x] **HEAL-04**: The operator is warned days ahead when a disk will fill at its current growth rate (disk-growth forecast).
-- [x] **HEAL-05**: On-call alerts go to a configured webhook or PagerDuty with deduplication; the operator can send a test alert, sees a banner when no working channel is configured, and is alerted when the watchdog itself stops reporting.
-- [x] **HEAL-06**: Data retention runs on a schedule per tenant in bounded batches, never touches audit logs, the audit ledger or decision records, and its first run is a dry-run count the operator confirms.
-- [x] **HEAL-07**: Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope.
-- [x] **HEAL-08**: The repo ships the watchdog unit files, service drop-ins and an install checklist; installing them on the live server stays the operator's step.
+- [ ] **HEAL-01**: A watchdog running outside the backend (systemd timer) checks backend readiness, MongoDB and Ollama (only where Ollama is expected) every minute and restarts a failed service from a fixed allowlist, MongoDB before the backend.
+- [ ] **HEAL-02**: Restarts follow a budget with backoff; when the budget is used up the watchdog stops restarting and pages once.
+- [ ] **HEAL-03**: The operator is warned 30, 14, 7 and 1 days before a certificate expires and when a disk passes 80, 90 and 95 percent; the platform never renews certificates or deletes files on its own.
+- [ ] **HEAL-04**: The operator is warned days ahead when a disk will fill at its current growth rate (disk-growth forecast).
+- [ ] **HEAL-05**: On-call alerts go to a configured webhook or PagerDuty with deduplication; the operator can send a test alert, sees a banner when no working channel is configured, and is alerted when the watchdog itself stops reporting.
+- [ ] **HEAL-06**: Data retention runs on a schedule per tenant in bounded batches, never touches audit logs, the audit ledger or decision records, and its first run is a dry-run count the operator confirms.
+- [ ] **HEAL-07**: Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope.
+- [ ] **HEAL-08**: The repo ships the watchdog unit files, service drop-ins and an install checklist; installing them on the live server stays the operator's step.
 
 ### 5. Service Desk
 
@@ -198,14 +198,14 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | ACTV-01 | Phase 81 | Complete |
 | ACTV-03 | Phase 81 | Gaps Found |
 | ACTV-08 | Phase 81 | Gaps Found |
-| HEAL-01 | Phase 82 | Complete |
-| HEAL-02 | Phase 82 | Complete |
-| HEAL-03 | Phase 82 | Complete |
-| HEAL-04 | Phase 82 | Complete |
-| HEAL-05 | Phase 82 | Complete |
-| HEAL-06 | Phase 82 | Complete |
-| HEAL-07 | Phase 82 | Complete |
-| HEAL-08 | Phase 82 | Complete |
+| HEAL-01 | Phase 82 | Gaps Found |
+| HEAL-02 | Phase 82 | Gaps Found |
+| HEAL-03 | Phase 82 | Gaps Found |
+| HEAL-04 | Phase 82 | Gaps Found |
+| HEAL-05 | Phase 82 | Gaps Found |
+| HEAL-06 | Phase 82 | Gaps Found |
+| HEAL-07 | Phase 82 | Gaps Found |
+| HEAL-08 | Phase 82 | Gaps Found |
 | RESP-01 | Phase 83 | Pending |
 | RESP-02 | Phase 83 | Pending |
 | RESP-03 | Phase 83 | Pending |
