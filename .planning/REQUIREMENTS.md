@@ -36,7 +36,7 @@
 - [ ] **RESP-05**: Kill process and isolate host appear as approval cards; isolation always keeps the agent's management connection open and reverts automatically after a set time unless an operator confirms it.
 - [ ] **RESP-06**: Each action is verified by its own check (e.g. the firewall rule exists, the file is in quarantine), not by re-reading the original finding, so a successful block is never rolled back.
 - [ ] **RESP-07**: The same finding does not create a new action every cycle (dedupe per tenant, finding and action), and an action an operator undid is not redone for 24 hours.
-- [ ] **RESP-08**: An action runs on its own only when two independent signals agree (e.g. scan verdict and threat intel); a single signal becomes a suggestion (corroboration rule).
+- [ ] **RESP-08**: By default an action runs on its own only when two independent signals agree (e.g. scan verdict and threat intel); a single signal becomes a suggestion (corroboration rule). A tenant admin can turn the rule off for their tenant and a Super Admin for any or all tenants.
 - [ ] **RESP-09**: A burst of related alerts on one host becomes one approval card per incident, not one per alert (incident grouping).
 - [ ] **RESP-10**: The Rust agent (with Python agent parity where that agent stays supported) gains restart service, quarantine and restore file, isolate and restore host, and reboot host; each new action is gated by the tenant's agent-capability ticks, and rules that need it stay dormant until the agent reports support.
 - [ ] **RESP-11**: Existing fan-out paths that bypass the gate (swarm "propagate antibody", SOAR block/isolate plugins) are fenced so they cannot dispatch autonomous containment.
