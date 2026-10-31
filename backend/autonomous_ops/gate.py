@@ -33,7 +33,7 @@ from pymongo.errors import DuplicateKeyError
 
 from . import (APPROVAL_TTL, COOLDOWN, HOST_CAP, INSTRUCTION_KINDS, OPEN_STATES, PLATFORM_TENANT_ID,
                RATE_LIMIT_PER_WINDOW, RATE_LIMIT_WINDOW, STAMP_SOURCE, STOP_EXEMPT_KINDS)
-from . import dispatch_check, ledger, messages, notify, protected, registry, settings
+from . import decision_row, dispatch_check, ledger, messages, notify, protected, registry, settings
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -317,60 +317,6 @@ _STEPS = (_step_platform_stop, _step_eligibility, _step_tenant_stop, _step_level
 
 # ---------------------------------------------------------------- the decision
 
-def _display_target(spec: Optional[registry.ActionSpec], req: ActionRequest) -> Optional[str]:
-    if spec is not None:
-        for key in spec.ip_params:
-            if req.params.get(key):
-                return str(req.params[key])
-    return req.targets[0] if req.targets else None
-
-
-def _undo_block(spec: Optional[registry.ActionSpec], params: Dict[str, Any], multi: bool = False) -> Dict[str, Any]:
-    spec = None if multi else spec      # a multi-step row offers no one-instruction undo
-    undo_params: Dict[str, Any] = dict(params)
-    if spec is not None:
-        for key in spec.ip_params:
-            if params.get(key):
-                undo_params = {"ip_address": params[key]}
-                break
-    return {"available": bool(spec and spec.undo), "action": spec.undo if spec else None,
-            "params": undo_params if spec and spec.undo else {}, "undoneAt": None, "undoneBy": None}
-
-
-def _reason_text(req: ActionRequest, outcome: str, code: str) -> Optional[str]:
-    """The caller's own wording for an automatic action; otherwise the plain-words reason for
-    the code (refusals and escalations)."""
-    if outcome == "allow_auto" and req.reason_text:
-        return req.reason_text
-    return messages.REASON_TEXT.get(code, req.reason_text)
-
-
-def _row(ctx: _Ctx, state: str, outcome: str, code: str) -> Dict[str, Any]:
-    req = ctx.req
-    spec = ctx.specs[0] if ctx.specs else None
-    needs_card = state in ("awaiting_approval", "suggested")
-    pairs = dispatch_check.request_steps(req)
-    return {
-        "tenantId": req.tenant_id, "kind": req.kind, "origin": req.origin, "dispatcher": req.dispatcher,
-        "action": req.actions[0] if req.actions else None,
-        "actions": [s.name for s in ctx.specs] or list(req.actions or []),
-        "command": spec.name if spec else None, "targets": list(req.targets or []),
-        "target": _display_target(spec, req), "params": dict(pairs[0][1]) if pairs else {},
-        "steps": dispatch_check.plan_of(pairs), "rollback": dispatch_check.plan_of(dispatch_check.request_rollback(req)),
-        "state": state, "level": ctx.level, "shadow": ctx.shadow is not None,
-        "wouldHave": outcome if state == "shadow" else None,
-        "reason": req.reason or {"ruleId": f"gate:{req.origin}", "inputs": {}},
-        "reasonCode": code, "reasonText": _reason_text(req, outcome, code), "trace": ctx.trace,
-        "dedupeKey": req.dedupe_key, "remediationId": req.remediation_id, "instructionIds": [],
-        "approval": {"requiredBy": code if needs_card else None,
-                     "expiresAt": ctx.now + APPROVAL_TTL if needs_card else None,
-                     "approver": None, "decidedAt": None},
-        "undo": _undo_block(spec, req.params or {}, multi=len(pairs) > 1),
-        "autoDispatched": state == "dispatching",
-        "createdAt": ctx.now, "updatedAt": ctx.now,
-    }
-
-
 async def decide(db, req: ActionRequest, *, master_shadow: Optional[bool] = None,
                  now: Optional[datetime] = None) -> Decision:
     """Decide one autonomous action request and record the decision before returning it."""
@@ -394,7 +340,7 @@ async def decide(db, req: ActionRequest, *, master_shadow: Optional[bool] = None
         state = "shadow" if ctx.shadow else _STATE[outcome]
 
     try:
-        row = await ledger.create_intent(db, _row(ctx, state, outcome, code))
+        row = await ledger.create_intent(db, decision_row.build_row(ctx, state, outcome, code))
     except ledger.LedgerUnavailable as exc:
         logger.error("autonomous_ops: decision not recorded, refusing: %s", exc)
         ctx.note("ledger", "refuse", "ledger_unavailable")

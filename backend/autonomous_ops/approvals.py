@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from . import APPROVAL_TTL, PLATFORM_TENANT_ID, ledger, messages, protected, registry, settings
-from . import breaker, dispatch_check, gate
+from . import breaker, decision_row, dispatch_check, gate
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -217,7 +217,16 @@ async def undo(db, tenant_id: str, action_id: str, *, actor: Dict[str, Any]) -> 
     targets = row.get("targets") or []
     if not targets:
         return {"status": "refused", "reason": "no_target"}
-    params = gate._undo_block(spec, row.get("params") or {})["params"]
+    claim = None
+    if row.get("dispatcher") == "security_response":
+        # The undo removes only this action's own claim on the agent (ACTV-02): the first instruction id
+        # is the original block, read from the row and never from a request. An expired block lifted
+        # itself, so there is nothing left to undo.
+        until = row.get("blockedUntil")
+        if isinstance(until, datetime) and until <= _now(None):
+            return {"status": "refused", "reason": "not_undoable"}
+        claim = (row.get("instructionIds") or [None])[0]
+    params = decision_row.undo_block(spec, row.get("params") or {}, claim=claim)["params"]
     block = {"available": True, "action": spec.undo, "params": params, "undoneAt": _now(None),
              "undoneBy": dict(actor)}
     won = await ledger.transition(db, tenant_id, action_id, _UNDOABLE, "undone", actor=actor, undo=block)
