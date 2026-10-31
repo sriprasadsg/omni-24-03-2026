@@ -4,7 +4,7 @@ slug: "platform-self-healing-scheduled-retention"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
 status: validated
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: true
 created: "2026-10-27"
 ---
@@ -48,7 +48,10 @@ Fixtures to reuse: `backend/tests/_mongo_test_db.py` (`mongo_db`, real throwaway
 | 82-04-T1, 82-04-T3 | 82-04 | 3 | HEAL-03 | T-82-13, T-82-15 | Certificate rungs at 30/14/7/1 days and expired from a generated test certificate; extra certificate paths from config (D-13); disk rungs 80/90/95 with hysteresis via injected statvfs (D-14); never renews / never deletes (structural grep) | unit + structural | `pytest backend/tests/test_watchdog_warnings.py -x` | ✅ | ✅ green |
 | 82-04-T2 | 82-04 | 3 | HEAL-04 | T-82-14 | Forecast: fewer than 7 days of history = insufficient; flat = no forecast; growth = days to full; 14/7/1-day rungs, page at 1 day (D-14) | unit | `pytest backend/tests/test_watchdog_warnings.py -k forecast -x` | ✅ | ✅ green |
 | 82-01-T1, 82-01-T3, 82-07-T1..T3, 82-08-T1..T3, 82-05-T1..T3 | 82-01, 82-07, 82-08, 82-05 | 1-4 | HEAL-05 | T-82-01, T-82-16..T-82-19, T-82-24..T-82-29 | PagerDuty Events v2 / webhook payloads against a local fake HTTP server (stable dedup_key, resolve, severity map, retries only on 429/5xx, one grouped page per run, test alert = trigger + resolve) (D-02, D-03, D-21); backend outbox fed by `notify` and drained by the watchdog (D-04); watchdog token auth on the loopback sync route (constant-time compare, proxy headers rejected); dead-man: silent after 300 s only after the first heartbeat, grace after backend start (D-05, D-24); `health` summary values; no key/URL/token in any API response | unit + real-Mongo + HTTP | `pytest backend/tests/test_watchdog_oncall.py backend/tests/test_watchdog_contract.py backend/tests/test_platform_health_sync.py backend/tests/test_platform_health_oncall.py backend/tests/test_platform_health_status.py -x` | ✅ | ✅ green |
-| 82-09-T1..T3, 82-10-T1..T3 | 82-09, 82-10 | 1, 2 | HEAL-06 | T-82-30..T-82-37 | Gate function table; first run counts only (D-18); confirm deletes from the next run; shortened period back to count-only for that tenant + type only (D-19); lengthening adopts; manual run honours the gate (D-26); 409 on a changed review token; audit_logs and `autonomy_actions` untouched, including after a manual run (D-16); audit_logs policy writes refused / Edit removed (D-25); batches bounded (seed N, assert batch sizes and pauses); nightly 02:00 UTC catch-up under the distributed lock (D-17); telemetry loop folded in (D-15) | unit + real-Mongo | `pytest backend/tests/test_retention_job.py backend/tests/test_retention_gate.py backend/tests/test_retention_endpoints_phase82.py backend/tests/test_platform_retention_review.py -x` | ✅ | ⚠️ partial: tests green, CR-01 open (see Open Gaps) |
+| 82-09-T1..T3, 82-10-T1..T3 | 82-09, 82-10 | 1, 2 | HEAL-06 | T-82-30..T-82-37 | Gate function table; first run counts only (D-18); confirm deletes from the next run; shortened period back to count-only for that tenant + type only (D-19); lengthening adopts; manual run honours the gate (D-26); 409 on a changed review token; audit_logs and `autonomy_actions` untouched, including after a manual run (D-16); audit_logs policy writes refused / Edit removed (D-25); batches bounded (seed N, assert batch sizes and pauses); nightly 02:00 UTC catch-up under the distributed lock (D-17); telemetry loop folded in (D-15) | unit + real-Mongo | `pytest backend/tests/test_retention_job.py backend/tests/test_retention_gate.py backend/tests/test_retention_endpoints_phase82.py backend/tests/test_platform_retention_review.py -x` | ✅ | ✅ green |
+| 82-15-T1..T3 | 82-15 | 1 (gap) | HEAL-06, HEAL-07 | T-82-33, T-82-36, T-82-46..T-82-48 | A tenant the first pass never reached is counted, listed and deleted only after a confirmation covers it; adoption only for a readable creation time strictly after the confirmation; POST /api/retention/run only counts for an unreached tenant; one tenant raising leaves the others reached, the run on record and Activity not ok; confirmation refused (409 REVIEW_INCOMPLETE) while the counted set is incomplete | real-Mongo + HTTP | `pytest backend/tests/test_retention_unreached.py backend/tests/test_retention_gate.py backend/tests/test_retention_job.py backend/tests/test_platform_retention_review.py backend/tests/test_retention_endpoints_phase82.py -x` | ✅ | ✅ green |
+| 82-16-T1, 82-16-T2 | 82-16 | 1 (gap) | HEAL-03, HEAL-07 | T-82-04, T-82-49..T-82-52 | A poison batch or snapshot (1e999, -Infinity, a 400-digit integer) answers 200, the good event lands, the next sync succeeds and GET /health loads; a render failure drops one event and logs no content; a ledger outage stays in the spool; certificate rule from unrounded daysLeft; own rule for an unreadable certificate | real-Mongo + HTTP | `pytest backend/tests/test_platform_health_sync.py backend/tests/test_platform_health_status.py -x` | ✅ | ✅ green |
+| 82-17-T1..T3 | 82-17 | 2 (gap) | HEAL-06 | T-82-42, T-82-53..T-82-55 | Confirm deletion disabled until every row is loaded and while the review is incomplete, a recount disables it again; Keep waiting and Esc off while the request is pending; Run Cleanup Now never shows a completed card for a refused or failed run | vitest | `npx vitest run src/__tests__/AutonomousOpsRetentionReview.test.tsx src/__tests__/AutonomousOpsRetentionConfirmDialog.test.tsx src/__tests__/RetentionPolicyDashboard.test.tsx` | ✅ | ✅ green |
 | 82-01-T1, 82-01-T2, 82-10-T1 | 82-01, 82-10 | 1, 2 | HEAL-07 | T-82-02, T-82-03 | Ingest creates `kind: "platform_health"` rows idempotently; Super Admin platform list shows them with `counts.platform_health`; tenant admins and Platform Support (including `tenantId=platform-admin`) see none (D-23); bucket mapping | real-Mongo + HTTP | `pytest backend/tests/test_platform_health_activity.py -x` | ✅ | ✅ green |
 | 82-06-T1..T3 | 82-06 | 1 | HEAL-08 | T-82-20..T-82-23 | Units pass `systemd-analyze verify`; no `RuntimeMaxSec` on a oneshot; polkit rule harness 8/8 + ES5 lint, unit + verb allowlist only (D-12); drop-ins use new file names only (existing mongod drop-ins untouched); `INSTALL.md` exists and names every file; no backend module calls `systemctl` or writes `/etc`; `start-all-services.sh` does not reference the watchdog | structural / unit | `pytest backend/tests/test_watchdog_artifacts.py -x` | ✅ | ✅ green |
 | 82-11-T1..T3, 82-12-T1..T3, 82-13-T1..T3, 82-14-T1..T3 | 82-11..82-14 | 4-6 | UI (D-20..D-26) | T-82-38..T-82-45 | Health banners (priority, arming after first heartbeat, Super Admin only), section states, test-alert state machine, retention review table / Confirm deletion dialog / 409, Activity `Platform health` pill and client-side drop outside platform scope, tenant Retention Policy notices, copy test file list | vitest | `npx vitest run src/__tests__/AutonomousOpsPlatformHealth.test.tsx src/__tests__/AutonomousOpsHealthCards.test.tsx src/__tests__/AutonomousOpsRetentionReview.test.tsx src/__tests__/AutonomousOpsHealthBanners.test.tsx src/__tests__/AutonomousOpsActivityPlatformHealth.test.tsx src/__tests__/RetentionPolicyDashboard.test.tsx src/__tests__/autonomousOpsCopy.test.ts` | ✅ | ✅ green |
@@ -77,7 +80,7 @@ Fixtures to reuse: `backend/tests/_mongo_test_db.py` (`mongo_db`, real throwaway
 | Watchdog units, polkit rule and drop-ins installed; `omni-watchdog` user and directories created | HEAL-08 | Installing on the live server is the operator's step; the app installs nothing | Follow `deploy/omni-watchdog/INSTALL.md`; never `run-on-ubuntu.sh`; then `pkcheck --action-id org.freedesktop.systemd1.manage-units --details unit nginx.service --details verb restart` as the watchdog user |
 | Real stop / start of MongoDB and the backend is noticed and restarted, MongoDB first | HEAL-01, HEAL-02 | Needs the installed units and real service restarts | Stop `mongod` (and the backend) on the server; watch the panel and Activity within about 2 minutes; confirm restart order and that the GLIBC_TUNABLES drop-in still applies after a watchdog-triggered restart |
 | Test alert reaches the real on-call channel once; external heartbeat configured | HEAL-05 | Needs the real PagerDuty key / webhook URL in the root-only file and outbound HTTPS | Fill `/etc/omni-watchdog/oncall.env`; press Send test alert; confirm one alert arrives and resolves; confirm the "no working channel" banner clears |
-| First retention count reviewed and confirmed before anything is deleted | HEAL-06 | Live data; deletion is irreversible | After the first 02:00 UTC run, review counts on the Platform health panel, then Confirm deletion. Do not confirm until CR-01 is fixed |
+| First retention count reviewed and confirmed before anything is deleted | HEAL-06 | Live data; deletion is irreversible | After the first 02:00 UTC run, review counts on the Platform health panel, then Confirm deletion. Confirm only on a deployed build that includes 82-15 |
 | Platform health section and retention card in a real browser | HEAL-01..06 | Layout, dark theme and the xl table switch need a published UI | After the UI publish, open Autonomous Ops as Super Admin in platform scope, light and dark, at 640, 1024 and 1280 px, against 82-UI-SPEC sections 1-7 |
 
 ---
@@ -104,11 +107,28 @@ Known flake: `src/__tests__/FinancePanel.test.tsx` failed once in 4 full fronten
 
 ---
 
+## Gap Round Results (2026-10-31, after 82-15..82-17, against a private throwaway mongod)
+
+| Suite | Result |
+|-------|--------|
+| Phase 82 backend modules (watchdog, retention, platform health, copy, route auth, catalogue parity) | 645 passed, 1 failed, 0 skipped; the failure is `test_ledger_ratchets`, listed above and not from Phase 82 |
+| Frontend (`npx vitest run src/__tests__`) | 70 files, 818 tests passed |
+| `npm run build` | passed |
+| Backend, full (`backend/tests`) | running at the time of this audit; the result is recorded below once it finishes |
+
+Three tests 82-15 could not show failing on their own were run against exported copies of the older code, on the private mongod:
+
+| Test | Code | Result |
+|------|------|--------|
+| `test_manual_run_for_an_unreached_tenant_after_the_confirmation_only_counts` | 5e4bddb70, before the fix | Failed with `KeyError: 'count'`: the old code took the adopt path instead of counting |
+| `test_manual_run_before_the_first_nightly_run_then_confirm_is_refused`, `test_review_reports_incomplete_null_after_a_clean_run` | 0a4de3acd, before 82-15 Task 3 | Failed: `incomplete` is absent from GET /review |
+| All three | HEAD | Passed |
+
+---
+
 ## Open Gaps
 
-| Requirement | Gap | Why no test closes it now | Next step |
-|-------------|-----|---------------------------|-----------|
-| HEAL-06 | CR-01 (82-REVIEW.md): a tenant the first count pass never reached is `adopt`ed after the confirmation and deleted without a count or review. No test covers an interrupted first pass; `test_retention_gate.py` and `test_retention_job.py` assert the `adopt` path as designed | The gap is in the code. A correct test would fail until `retention_gate` / `retention_job` change, and the auditor may not modify implementation files. Marking it manual-only would hide a data-loss bug | Fix CR-01 and add the interrupted-first-pass test together, then re-run this audit |
+None. HEAL-06's gap (CR-01, the interrupted first pass) is closed by `backend/tests/test_retention_unreached.py` and the fix in 82-15. Its reproduction test fails on the old code (`assert 2 == 5`) and passes now.
 
 ---
 
@@ -119,9 +139,9 @@ Known flake: `src/__tests__/FinancePanel.test.tsx` failed once in 4 full fronten
 - [x] Wave 0 covers all MISSING references
 - [x] No watch-mode flags
 - [x] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter (held by the HEAL-06 gap)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** withheld until the HEAL-06 gap is closed
+**Approval:** granted 2026-10-31. Every requirement has automated coverage; the items under Manual-Only Verifications stay with the operator.
 
 ## Validation Audit 2026-10-31
 
@@ -130,3 +150,11 @@ Known flake: `src/__tests__/FinancePanel.test.tsx` failed once in 4 full fronten
 | Gaps found | 1 |
 | Resolved | 0 |
 | Escalated | 1 |
+
+## Validation Audit 2026-10-31
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 1 |
+| Escalated | 0 |
