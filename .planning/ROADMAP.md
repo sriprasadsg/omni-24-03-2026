@@ -434,7 +434,29 @@ Plans:
   4. From the Autonomous Ops screen an operator can approve or deny pending actions and undo done actions that have an inverse (remove a block, restore a quarantined file) with one click.
   5. The Rust agent (with Python agent parity where that agent stays supported) supports restart service, quarantine and restore file, isolate and restore host, and reboot host; each is gated by the tenant's agent-capability ticks, and rules that need one stay dormant until the agent reports support. The swarm "propagate antibody" and SOAR block/isolate paths are fenced so they cannot dispatch automatic containment.
 
-**Plans**: TBD
+**Plans**: 20 plans in 10 waves
+
+Plans:
+- [ ] 83-01-PLAN.md — Tracer: one two-source IP becomes one verified, undoable block (backend, agent contract file)
+- [ ] 83-02-PLAN.md — The real Rust agent speaks the contract: time-limited block, claims, verify, support report
+- [ ] 83-03-PLAN.md — All server copy and row fields (canUndo, undoHint, suggestion, blockedUntil)
+- [ ] 83-04-PLAN.md — Agent block complete: offline expiry, reboot safety, refusals, range blocks
+- [ ] 83-05-PLAN.md — Origins, two-source rule, feed key, decision memory, per-host cap, migration 028
+- [ ] 83-06-PLAN.md — Fences: swarm, SOAR, worker tasks, automatic XDR, delivery rule for new commands
+- [ ] 83-07-PLAN.md — Response settings API: two-source switch, block length, watched services, bulk apply
+- [ ] 83-08-PLAN.md — Dormancy in the sweep, gate and approval; honest breaker; range needs approval
+- [ ] 83-09-PLAN.md — Agent quarantine and restore, kill bound to an executable
+- [ ] 83-10-PLAN.md — Undo on Done rows and suggestions in volume
+- [ ] 83-11-PLAN.md — Incidents, quarantine decisions, protected paths, select_playbook, isolation proposal
+- [ ] 83-12-PLAN.md — Agent isolation with management carve-out, self-test and automatic revert
+- [ ] 83-13-PLAN.md — Response settings panel and dialogs
+- [ ] 83-14-PLAN.md — Agent service watching, restart and reboot
+- [ ] 83-15-PLAN.md — Vulnerability and file-change suggestions, one row per host
+- [ ] 83-16-PLAN.md — Kill cards for running files, bounded retry, failed undo stays visible
+- [ ] 83-17-PLAN.md — Restart budget and the watched list in the heartbeat reply
+- [ ] 83-18-PLAN.md — Incident cards route, confirm isolation, automatic revert noticed
+- [ ] 83-19-PLAN.md — Needs your decision section and incident cards
+- [ ] 83-20-PLAN.md — Agent 2.1.16, all gates together, the user's live list
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 83`) — cross-platform agent semantics (idempotent firewall rules, refcounted undo, `netsh` vs Defender heuristics, native APIs, isolate with management carve-out, per-action verify); re-run the `db.instructions` grep before fencing swarm and SOAR.
 **Live-only verification** (operator steps): firewall block and unblock round-trip on real Linux and Windows endpoints (EILT0197 with Defender); a block expiring while its agent is offline; quarantine and restore; isolate with the management connection kept open and the automatic revert; service restart; publish and roll out the new agent.
