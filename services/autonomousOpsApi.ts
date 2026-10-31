@@ -202,6 +202,14 @@ export interface RetentionLastRun {
     stoppedEarly: boolean;
 }
 
+/** Why the counted set is not complete (82-15). `tenants` is the organizations concerned and can be 0 for stopped_early. */
+export type RetentionIncompleteReason = 'stopped_early' | 'tenant_failed' | 'not_reached';
+
+export interface RetentionIncomplete {
+    reason: RetentionIncompleteReason;
+    tenants: number;
+}
+
 /** GET /api/platform/autonomous-ops/retention/review?offset=&limit=25 (82-10). */
 export interface RetentionReview {
     mode: 'running' | 'counting_only' | 'deleting_nightly';
@@ -214,6 +222,8 @@ export interface RetentionReview {
     items: RetentionReviewItem[];
     total: number;
     nextOffset: number | null;
+    /** Null when every organization was counted; set when a confirmation would be refused (82-15). */
+    incomplete: RetentionIncomplete | null;
 }
 
 /** POST /api/platform/autonomous-ops/retention/confirm. */
@@ -347,7 +357,7 @@ export function fetchRetentionReview(offset = 0): Promise<RetentionReview> {
     return getJson(`${API_BASE}/platform/autonomous-ops/retention/review?${params.toString()}`);
 }
 
-/** POST /api/platform/autonomous-ops/retention/confirm: 409 when the counts changed, 403 for anyone but a platform administrator. */
+/** POST /api/platform/autonomous-ops/retention/confirm: 409 when the counts changed or not every organization has been counted, 403 for anyone but a platform administrator. */
 export async function confirmRetention(reviewToken: string): Promise<ConfirmRetentionResult> {
     const res = await authFetch(`${API_BASE}/platform/autonomous-ops/retention/confirm`, {
         method: 'POST', body: JSON.stringify({ reviewToken }),

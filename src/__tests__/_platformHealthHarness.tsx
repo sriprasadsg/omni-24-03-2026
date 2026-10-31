@@ -119,7 +119,7 @@ export function retentionReview(over: Record<string, unknown> = {}) {
     lastRun: { at: minutesAgo(600), trigger: 'scheduled', counted: 4, deleted: 0, tenants: 2, error: null, stoppedEarly: false },
     countedAt: minutesAgo(10), reviewToken: 'abc',
     totals: { records: 4, tenants: 2, rows: items.length, uncountable: 0 },
-    items, total: items.length, nextOffset: null,
+    items, total: items.length, nextOffset: null, incomplete: null,
     ...over,
   };
 }

@@ -397,4 +397,102 @@ describe('Retention card: paging', () => {
     await waitFor(() => expect(reviewCalls()).toHaveLength(3));
     expect(within(table).getAllByRole('row')).toHaveLength(31);
   });
+
+  it('Confirm deletion waits for the last page: disabled on page 1 with the Load all line, enabled once every row is loaded, disabled again after a recount', async () => {
+    let token = 'one';
+    route({ review: url => jsonRes(retentionReview({
+      items: pageOf(all, offsetOf(url)), total: 30, totals, reviewToken: token, nextOffset: offsetOf(url) + 25 < 30 ? offsetOf(url) + 25 : null,
+    })) });
+    const view = renderCard();
+    const table = await ready();
+    expect(confirmButton()).toBeDisabled();
+    expect(screen.getByText('Load all 30 rows before confirming.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more rows' }));
+    await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(31));
+    expect(confirmButton()).toBeEnabled();
+    expect(screen.queryByText(/Load all 30 rows/)).toBeNull();
+
+    token = 'two'; // a recount: the new token takes the fresh first page
+    view.rerender(withUser(SUPER, <AutonomousOpsRetentionReview refreshSignal={1} />));
+    await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(26));
+    expect(confirmButton()).toBeDisabled();
+    expect(screen.getByText('Load all 30 rows before confirming.')).toBeInTheDocument();
+  });
+});
+
+// ── 82-17: the helper line and the incomplete notice ──
+const NEXT_RUN = 'You can confirm after the next run.';
+const unloaded = { total: 1234, nextOffset: 25 };
+const noCountable = { totals: { records: 0, tenants: 0, rows: 1, uncountable: 1 } };
+const INCOMPLETE_HELPER = 'Confirm after the next run has counted every organization.';
+const NO_COUNTABLE = 'No row could be counted, so there is nothing to confirm yet.';
+const RUN_LINE = 'A run is in progress. Confirm after it finishes.';
+describe('Retention card: helper line precedence', () => {
+  const gap = { reason: 'tenant_failed', tenants: 1 };
+  it.each([
+    ['run in progress beats everything', { mode: 'running', incomplete: gap, ...noCountable, ...unloaded }, RUN_LINE],
+    ['incomplete beats no countable rows and unloaded rows', { incomplete: gap, ...noCountable, ...unloaded }, INCOMPLETE_HELPER],
+    ['no countable rows beats unloaded rows', { ...noCountable, ...unloaded }, NO_COUNTABLE],
+    ['unloaded rows alone read with a thousands separator', { ...unloaded }, 'Load all 1,234 rows before confirming.'],
+    ['none of these reads the default line', {}, "One confirmation covers every row listed. Deleted records can't be restored."],
+  ])('%s', async (_name, over, line) => {
+    route({ review: () => jsonRes(retentionReview(over)) });
+    renderCard();
+    await ready();
+    expect(screen.getByText(line)).toBeInTheDocument();
+    const others = [RUN_LINE, INCOMPLETE_HELPER, NO_COUNTABLE, /^Load all /].filter(o => (o instanceof RegExp ? !line.startsWith('Load all') : o !== line));
+    others.forEach(o => expect(screen.queryByText(o)).toBeNull());
+    if (line.startsWith('One confirmation')) expect(confirmButton()).toBeEnabled(); else expect(confirmButton()).toBeDisabled();
+  });
+});
+
+describe('Retention card: the review is incomplete', () => {
+  it.each([
+    [{ reason: 'stopped_early', tenants: 3 }, `The last run stopped early, so 3 organizations weren't counted. ${NEXT_RUN}`],
+    [{ reason: 'stopped_early', tenants: 1 }, `The last run stopped early, so 1 organization wasn't counted. ${NEXT_RUN}`],
+    [{ reason: 'stopped_early', tenants: 0 }, `The last run stopped early. ${NEXT_RUN}`],
+    [{ reason: 'tenant_failed', tenants: 2 }, `The last run failed for 2 organizations. ${NEXT_RUN}`],
+    [{ reason: 'tenant_failed', tenants: 1 }, `The last run failed for 1 organization. ${NEXT_RUN}`],
+    [{ reason: 'not_reached', tenants: 4 }, `4 organizations haven't been counted yet. ${NEXT_RUN}`],
+    [{ reason: 'not_reached', tenants: 1 }, `1 organization hasn't been counted yet. ${NEXT_RUN}`],
+    [{ reason: 'something_new', tenants: 2 }, `Not every organization has been counted yet. ${NEXT_RUN}`],
+  ])('%j reads as an amber status notice and disables Confirm deletion', async (incomplete, copy) => {
+    route({ review: () => jsonRes(retentionReview({ incomplete })) });
+    renderCard();
+    await ready();
+    const notice = screen.getByRole('status');
+    expect(within(notice).getByText(copy)).toBeInTheDocument();
+    expect(notice.className).toContain('amber');
+    expect(confirmButton()).toBeDisabled();
+    expect(screen.getByText(INCOMPLETE_HELPER)).toBeInTheDocument();
+  });
+
+  it('incomplete null, and a response with no incomplete key, show no notice and leave the button enabled', async () => {
+    route({ review: () => jsonRes(retentionReview({ incomplete: null })) });
+    const first = renderCard();
+    await ready();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(confirmButton()).toBeEnabled();
+    first.unmount();
+    route({ review: () => jsonRes(Object.fromEntries(Object.entries(retentionReview()).filter(([k]) => k !== 'incomplete'))) });
+    renderCard();
+    await ready();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(confirmButton()).toBeEnabled();
+  });
+
+  it('with no rows listed there is no notice: the blue block and the muted line stand alone', async () => {
+    const empty = { items: [], total: 0, totals: { records: 0, tenants: 0, rows: 0, uncountable: 0 }, incomplete: { reason: 'not_reached', tenants: 2 } };
+    route({ review: () => jsonRes(retentionReview({ ...empty, notCountedYet: true })) });
+    const first = renderCard();
+    expect(await screen.findByText(/^The first run only counts what would be deleted\./)).toBeInTheDocument();
+    expect(screen.queryByText(/haven't been counted yet/)).toBeNull();
+    first.unmount();
+
+    route({ review: () => jsonRes(retentionReview(empty)) });
+    renderCard();
+    expect(await screen.findByText(/^Nothing is waiting for confirmation\./)).toBeInTheDocument();
+    expect(screen.queryByText(/haven't been counted yet/)).toBeNull();
+  });
 });

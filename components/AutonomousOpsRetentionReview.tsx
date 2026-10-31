@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchRetentionReview } from '../services/autonomousOpsApi';
-import type { RetentionReview, RetentionReviewItem } from '../services/autonomousOpsApi';
+import type { RetentionIncomplete, RetentionReview, RetentionReviewItem } from '../services/autonomousOpsApi';
 import { useUser } from '../contexts/UserContext';
 import { formatWhen } from './AutonomousOpsActivityList';
 import { SECONDARY_BUTTON } from './AutonomousOpsHealthCards';
@@ -29,6 +29,26 @@ function utcParts(iso: string): { date: string; time: string } | null {
 
 /** A server message without its closing full stop, so it reads inside "Failed: {error}. It tries again...". */
 const plain = (message: string) => message.trim().replace(/[.\s]+$/, '');
+
+const NEXT_RUN_NOTE = 'You can confirm after the next run.';
+const INCOMPLETE_HELPER = 'Confirm after the next run has counted every organization.';
+
+/** The amber notice naming why the counted set is not complete (82-15 `incomplete`); an unknown reason still reads. */
+function incompleteNotice(gap: RetentionIncomplete): string {
+    const orgs = plural(gap.tenants, 'organization', 'organizations');
+    switch (gap.reason) {
+        case 'stopped_early':
+            return gap.tenants > 0
+                ? `The last run stopped early, so ${orgs} ${gap.tenants === 1 ? "wasn't" : "weren't"} counted. ${NEXT_RUN_NOTE}`
+                : `The last run stopped early. ${NEXT_RUN_NOTE}`;
+        case 'tenant_failed':
+            return `The last run failed for ${orgs}. ${NEXT_RUN_NOTE}`;
+        case 'not_reached':
+            return `${orgs} ${gap.tenants === 1 ? "hasn't" : "haven't"} been counted yet. ${NEXT_RUN_NOTE}`;
+        default:
+            return `Not every organization has been counted yet. ${NEXT_RUN_NOTE}`;
+    }
+}
 
 // ── data ────────────────────────────────────────────────────────────────────
 
@@ -237,6 +257,9 @@ export const AutonomousOpsRetentionReview: React.FC<{ refreshSignal?: number }> 
 
     const running = review?.mode === 'running';
     const countable = review ? review.totals.rows - review.totals.uncountable : 0;
+    const incomplete = review?.incomplete ?? null;
+    // Confirm deletion attests to every listed row, so every waiting row must be on screen first (T-82-42).
+    const allLoaded = state?.nextOffset === null;
     const next = review ? utcParts(review.nextRun) : null;
     const run = review?.lastRun ?? null;
     const last = run?.at ? formatWhen(run.at) : null;
@@ -311,17 +334,29 @@ export const AutonomousOpsRetentionReview: React.FC<{ refreshSignal?: number }> 
                         loading={loadingMore} failed={moreFailed} onMore={() => { void loadMore(); }}
                     />
                     {canConfirm && (
-                        <div className="flex flex-wrap items-center gap-4">
-                            <button type="button" className={CONFIRM_BUTTON} onClick={openDialog} disabled={running || countable <= 0}>
-                                <TrashIcon size={16} aria-hidden="true" />
-                                Confirm deletion
-                            </button>
-                            <p className={MUTED}>
-                                {running ? 'A run is in progress. Confirm after it finishes.'
-                                    : countable <= 0 ? 'No row could be counted, so there is nothing to confirm yet.'
-                                        : "One confirmation covers every row listed. Deleted records can't be restored."}
-                            </p>
-                        </div>
+                        <>
+                            {incomplete && (
+                                <HealthNotice tone="amber" role="status">
+                                    <p>{incompleteNotice(incomplete)}</p>
+                                </HealthNotice>
+                            )}
+                            <div className="flex flex-wrap items-center gap-4">
+                                <button
+                                    type="button" className={CONFIRM_BUTTON} onClick={openDialog}
+                                    disabled={running || incomplete !== null || countable <= 0 || !allLoaded}
+                                >
+                                    <TrashIcon size={16} aria-hidden="true" />
+                                    Confirm deletion
+                                </button>
+                                <p className={MUTED}>
+                                    {running ? 'A run is in progress. Confirm after it finishes.'
+                                        : incomplete ? INCOMPLETE_HELPER
+                                            : countable <= 0 ? 'No row could be counted, so there is nothing to confirm yet.'
+                                                : !allLoaded ? `Load all ${number(review.total)} rows before confirming.`
+                                                    : "One confirmation covers every row listed. Deleted records can't be restored."}
+                                </p>
+                            </div>
+                        </>
                     )}
                 </div>
             )}
