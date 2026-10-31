@@ -229,3 +229,109 @@ def test_bounded_result_caps_the_list_and_drops_bad_entries():
     assert len(got) == 128 and all(e == good for e in got)
     assert verify.bounded_result({"still_running": [{"pid": 1, "name": "init", "start_time": 5}]}) == {"still_running": []}
     assert json.dumps(verify.bounded_result({"still_running": entries}))      # serialisable
+
+
+# ------------------------------------------------------------------ one runner, a lost lock, a crash (Task 2)
+
+async def test_only_one_sweep_runner_ticks_at_a_time(mongo_db):
+    """Edge RESP-01 concurrency: lock autonomous_ops_sweep through lock_with_renewal."""
+    import asyncio
+    from unittest.mock import patch
+    assert sweep.LOCK_NAME == "autonomous_ops_sweep"
+    entered = []
+
+    async def slow(db, *, now=None, lost=None):
+        entered.append(1)
+        await asyncio.sleep(0.4)
+        return {"tenants": 0}
+
+    with patch.object(sweep, "tick", slow):
+        results = await asyncio.gather(sweep.run_once(mongo_db), sweep.run_once(mongo_db))
+    assert len(entered) == 1 and results.count(None) == 1
+    with patch.object(sweep, "tick", slow):
+        assert await sweep.run_once(mongo_db) is not None                 # released, so the next runner proceeds
+    assert await mongo_db["_distributed_locks"].count_documents({"_id": sweep.LOCK_NAME}) == 0
+
+
+async def test_a_held_sweep_lock_makes_run_once_return_none_and_touch_nothing(mongo_db):
+    from types import SimpleNamespace
+    from distributed_lock import acquire_lock
+    await _world(mongo_db, "t1")
+    assert await acquire_lock(SimpleNamespace(_db=mongo_db), sweep.LOCK_NAME, ttl_seconds=30)
+    assert await sweep.run_once(mongo_db) is None
+    assert await _rows(mongo_db, "t1") == []
+
+
+async def test_a_lost_lock_stops_the_sweep_between_tenants(mongo_db):
+    for tenant in ("t-a", "t-b"):
+        await _world(mongo_db, tenant)
+    polls = iter([False, True, True])
+    counts = await sweep.tick(mongo_db, lost=lambda: next(polls))
+    assert counts["tenants"] == 1
+    assert len(await _rows(mongo_db, "t-a")) == 1 and await _rows(mongo_db, "t-b") == []
+
+
+async def test_a_stage_that_fails_for_one_tenant_does_not_stop_the_next(mongo_db, caplog):
+    from unittest.mock import patch
+    for tenant in ("t-a", "t-b"):
+        await _world(mongo_db, tenant)
+    real = sweep.sweep_security.run
+
+    async def flaky(db, tenant_id, tenant, response, now):
+        if tenant_id == "t-a":
+            raise RuntimeError("boom")
+        return await real(db, tenant_id, tenant, response, now)
+
+    with patch.object(sweep, "_STAGES", (flaky,)), caplog.at_level("ERROR"):
+        await sweep.tick(mongo_db)
+    assert await _rows(mongo_db, "t-a") == [] and len(await _rows(mongo_db, "t-b")) == 1
+    assert "t-a" in caplog.text and tenant_context.get_tenant_id() is None
+
+
+async def test_a_crash_between_decide_and_execute_ends_as_not_delivered(mongo_db):
+    """Edge RESP-01: a dispatching row with no instruction is ended by the reconciler after the stuck bound."""
+    from unittest.mock import AsyncMock, patch
+    from autonomous_ops import reconciler, response_dispatch
+    await _world(mongo_db, "t1")
+    with patch.object(response_dispatch, "send", AsyncMock(side_effect=RuntimeError("crashed"))):
+        await sweep.tick(mongo_db)
+    (row,) = await _rows(mongo_db, "t1")
+    assert row["state"] == "dispatching" and row["instructionIds"] == []
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
+    later = datetime.now(timezone.utc) + timedelta(minutes=31)
+    await reconciler.tick(mongo_db, now=later)
+    done = (await _rows(mongo_db, "t1"))[0]
+    assert (done["state"], done["reasonCode"]) == ("failed", "not_delivered")
+
+
+def test_the_loop_reads_its_interval_from_the_environment(monkeypatch):
+    assert sweep._interval() == 60
+    monkeypatch.setenv("AUTONOMOUS_OPS_SWEEP_INTERVAL_SEC", "5")
+    assert sweep._interval() == 5
+    monkeypatch.setenv("AUTONOMOUS_OPS_SWEEP_INTERVAL_SEC", "x")
+    assert sweep._interval() == 60
+
+
+async def test_the_loop_survives_a_failing_pass_and_keeps_going(monkeypatch):
+    import asyncio
+    from unittest.mock import patch
+    calls = []
+
+    async def flaky(db, **kw):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("down")
+        raise asyncio.CancelledError
+
+    monkeypatch.setenv("AUTONOMOUS_OPS_SWEEP_INTERVAL_SEC", "0.01")
+    with patch("database.get_database", lambda: object()), patch.object(sweep, "run_once", flaky):
+        with pytest.raises(asyncio.CancelledError):
+            await sweep.sweep_loop()
+    assert len(calls) == 2
+
+
+def test_the_backend_starts_the_sweep_beside_the_reconciler():
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app_startup.py"),
+               encoding="utf-8").read()
+    assert "sweep_loop" in src and '"autonomous_ops_sweep"' in src
+    assert src.index("autonomous_ops_reconciler") < src.index("autonomous_ops_sweep")
