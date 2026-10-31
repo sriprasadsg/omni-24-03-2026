@@ -188,7 +188,7 @@ async def ingest_events(db, events: Iterable[Any], host: str, now: datetime) -> 
             continue
         event_id, kind = event.get("id"), event.get("kind")
         if (not isinstance(event_id, str) or not _EVENT_ID.match(event_id)
-                or kind not in WATCHDOG_EVENT_KINDS):
+                or not isinstance(kind, str) or kind not in WATCHDOG_EVENT_KINDS):
             dropped += 1
             continue
         try:

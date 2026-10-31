@@ -204,6 +204,14 @@ async def test_unknown_and_backend_only_kinds_are_dropped_and_counted(wd):
     assert [r["healthEvent"] for r in await _rows(wd.db)] == ["service_down"]
 
 
+@pytest.mark.parametrize("kind", [["service_down"], [], {"a": 1}, {}, 5, None])
+async def test_a_kind_that_is_not_a_string_is_dropped_and_the_sync_still_answers(wd, kind):
+    good, bad = _event(), _event(kind=kind)
+    res = await wd.post(body=_body([good, bad]))
+    assert res.status_code == 200, res.text
+    assert res.json()["droppedEvents"] == 1 and res.json()["acceptedEventIds"] == [good["id"]]
+
+
 async def test_error_strings_are_capped_at_300_characters_and_unknown_params_dropped(wd):
     event = _event("restart", params={"error": "e" * 1000, "attempt": 1, "ok": False, "evil": "<script>",
                                       "nested": {"a": 1}})
