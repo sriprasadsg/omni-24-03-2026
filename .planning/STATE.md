@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
-status: Ready to execute - gap plans 82-15..82-17 planned, next /gsd-execute-phase 82 --gaps-only
-stopped_at: Planned gap round 82-15..82-17
-last_updated: "2026-10-31T05:51:20.857Z"
+status: executing
+stopped_at: Completed 82-15-PLAN.md
+last_updated: "2026-10-31T06:16:41.951Z"
 last_activity: 2026-10-31
-last_activity_desc: Phase 82 gap plans 82-15..82-17 created, plan check 0 blockers
-state_head: e82e6407d7ecaf540864dbbda906e9fe0364af2c
+last_activity_desc: Phase 82 execution started
+state_head: ec6cd56712b28b5d3ee1f277638219c32fb8a341
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 35
-  completed_plans: 32
+  completed_plans: 33
   percent: 17
 ---
 
@@ -497,6 +497,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-14: platform_health rows dropped client-side outside platform scope; shortened-period notice shows only for a lower value the server holds for confirmation
 - [Phase 82]: 82-13: the Confirm deletion dialog confirms a snapshot (token, totals, count time) taken when it opened, never the live review, so a 30 s poll cannot change what one click confirms
 - [Phase 82]: 82-13: a background refresh keeps rows already loaded by Load more while the review token is unchanged; a changed token replaces them with the fresh first page
+- [Phase 82]: 82-15: tenant adoption keys on its readable creation time (strictly after the global confirmation); an absent, unparseable or equal time waits for a count and a confirmation (A-82-A12 narrowed)
+- [Phase 82]: 82-15: a confirmation is refused with 409 REVIEW_INCOMPLETE while the latest scheduled run stopped early or failed a tenant, or a pre-existing tenant lacks a gate row; a time-capped run keeps ok true in Activity
 
 ## Performance Metrics
 
@@ -684,6 +686,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P12 | 55 min | 3 tasks | 10 files |
 | Phase 82 P14 | 35min | 3 tasks | 4 files |
 | Phase 82 P13 | 45 min | 3 tasks | 12 files |
+| Phase 82 P15 | 8 min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -718,8 +721,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-30T23:38:49.147Z
-**Stopped at:** Completed 82-13-PLAN.md
+**Last session:** 2026-10-31T06:16:41.656Z
+**Stopped at:** Completed 82-15-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -744,10 +747,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 82 (Platform Self-Healing & Scheduled Retention) — READY TO EXECUTE
-Plan: 14 of 17
-Status: Ready to execute - gap plans 82-15..82-17 planned (CR-01, WR-01, WR-02, WR-03, WR-05, dialog dismissal), next /gsd-execute-phase 82 --gaps-only
-Last activity: 2026-10-31 — Phase 82 gap plans 82-15..82-17 created, plan check 0 blockers, 0 warnings
+Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
+Plan: 15 of 17
+Status: Ready to execute
+Last activity: 2026-10-31 — Phase 82 gap round execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
 
 ## Deferred Items

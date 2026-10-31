@@ -383,7 +383,7 @@ Plans:
   4. Data retention runs on a schedule per tenant in bounded batches and never touches audit logs, the audit ledger or decision records; its first run is a dry-run count the operator confirms before anything is deleted.
   5. Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope, and the repo ships the watchdog unit files, service drop-ins and an install checklist — the app itself installs nothing on the live server.
 
-**Plans**: 14/17 plans executed: 14 in 6 waves, plus a gap round of 3 plans in 2 waves
+**Plans**: 15/17 plans executed: 14 in 6 waves, plus a gap round of 3 plans in 2 waves
 
 Plans:
 **Wave 1**
@@ -413,7 +413,7 @@ Plans:
 - [x] 82-13-PLAN.md — Wave 6: Tracer: retention review card and Confirm deletion dialog with the stale-count guard
 
 **Gap round** (verification gaps; run with `/gsd-execute-phase 82 --gaps-only`)
-- [ ] 82-15-PLAN.md — Gap wave 1: Tracer: a tenant the first pass never reached is counted and confirmed before any delete; adoption keys on tenant creation time; each tenant guarded in run_all; confirm refused while the count is incomplete (HEAL-06, HEAL-07)
+- [x] 82-15-PLAN.md — Gap wave 1: Tracer: a tenant the first pass never reached is counted and confirmed before any delete; adoption keys on tenant creation time; each tenant guarded in run_all; confirm refused while the count is incomplete (HEAL-06, HEAL-07)
 - [ ] 82-16-PLAN.md — Gap wave 1: Tracer: one poison event no longer wedges the watchdog sync; certificate rule ids follow daysLeft, with cert-unreadable for an unreadable file (HEAL-03, HEAL-07)
 - [ ] 82-17-PLAN.md — Gap wave 2: Tracer: Confirm deletion waits for every row and a complete count; the dialog cannot be dismissed mid-request; Run Cleanup Now reports refusals; UI-SPEC amended (HEAL-06)
 
@@ -505,7 +505,7 @@ Plans:
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
-| 82. Platform Self-Healing & Scheduled Retention | 14/17 | In Progress | - |
+| 82. Platform Self-Healing & Scheduled Retention | 15/17 | In Progress | - |
 | 83. Autonomous Security Response | 0/TBD | Not started | - |
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
