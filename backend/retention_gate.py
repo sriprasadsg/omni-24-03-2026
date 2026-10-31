@@ -7,7 +7,8 @@ that data type only (D-19); lengthening needs no review.
 
 Collections written here (all on the raw handle, explicit tenant field on every filter):
 
-* ``retention_gate``        one document per (tenantId, type): confirmedDays, firstSeenAt
+* ``retention_gate``        one document per (tenantId, type): confirmedDays, firstSeenAt (informational:
+                            it decides nothing; adoption keys on the tenant's creation time, CR-01)
 * ``retention_gate_global`` one document ``{_id: "global"}``: confirmedAt, confirmedBy
 * ``retention_counts``      latest count per (tenantId, type): days, count, countedAt, error
 * ``retention_job_runs``    one summary per run (written by retention_job)
@@ -89,16 +90,54 @@ def aware(value: Optional[datetime]) -> Optional[datetime]:
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
+def _read_time(value) -> Optional[datetime]:
+    """One stored time as an aware UTC-or-offset datetime, or None when it is absent or unreadable.
+    A datetime goes through ``aware`` (naive means UTC); a non-empty ISO-8601 string (a trailing Z
+    is accepted) is parsed and then made aware. Nothing is rounded or truncated."""
+    if isinstance(value, datetime):
+        return aware(value)
+    if isinstance(value, str) and value.strip():
+        text = value.strip()
+        if text.endswith(("Z", "z")):
+            text = text[:-1] + "+00:00"
+        try:
+            return aware(datetime.fromisoformat(text))
+        except (ValueError, TypeError, OverflowError):
+            return None
+    return None
+
+
+def created_at_of(tenant: Optional[dict]) -> Optional[datetime]:
+    """When the tenant was created, from ``createdAt`` and ``created_at`` (the writers disagree on
+    the name). Fails closed: None when neither field is readable; when both are, the earlier one."""
+    if not isinstance(tenant, dict):
+        return None
+    found = [t for t in (_read_time(tenant.get("createdAt")), _read_time(tenant.get("created_at")))
+             if t is not None]
+    return min(found) if found else None
+
+
+async def tenant_created_at(db, tenant_id: Optional[str]) -> Optional[datetime]:
+    """``created_at_of`` the tenant with this id; None for an empty id (a filter on a None id would
+    match a document without an id field). A read error propagates: the run records the tenant failed."""
+    if not tenant_id:
+        return None
+    doc = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "createdAt": 1, "created_at": 1})
+    return created_at_of(doc)
+
+
 def gate_state(policy_days: int, confirmed_days: Optional[int], global_confirmed_at: Optional[datetime],
-               first_seen_at: Optional[datetime]) -> str:
+               tenant_created_at: Optional[datetime]) -> str:
     """first_run | adopt | shortened | confirmed. Only confirmed and adopt delete (D-18, D-19).
 
-    adopt (A-82-A12): never confirmed, but first seen *after* the one global confirmation (a new
-    tenant or a new data type), so it has nothing old for a reviewer to look at.
+    adopt (A-82-A12, narrowed by the CR-01 gap round): never confirmed, and the tenant itself was
+    created strictly after the one global confirmation, so a reviewer could not have seen it and it
+    holds nothing old. A data type added to the registry later for an existing tenant waits for the
+    review. Every other unconfirmed case, an unknown time or an equal one included, is first_run.
     """
     if confirmed_days is None:
-        seen, confirmed_at = aware(first_seen_at), aware(global_confirmed_at)
-        if confirmed_at is not None and seen is not None and seen > confirmed_at:
+        created, confirmed_at = aware(tenant_created_at), aware(global_confirmed_at)
+        if confirmed_at is not None and created is not None and created > confirmed_at:
             return "adopt"
         return "first_run"
     return "shortened" if policy_days < confirmed_days else "confirmed"
@@ -176,8 +215,12 @@ async def review_rows(db) -> List[dict]:
     """
     rdb = raw(db)
     global_at = await global_confirmed_at(db)
-    names = {t["id"]: t.get("name") or t["id"]
-             async for t in rdb.tenants.find({}, {"_id": 0, "id": 1, "name": 1}) if t.get("id")}
+    names: Dict[str, str] = {}
+    created: Dict[str, Optional[datetime]] = {}
+    async for t in rdb.tenants.find({}, {"_id": 0, "id": 1, "name": 1, "createdAt": 1, "created_at": 1}):
+        if t.get("id"):
+            names[t["id"]] = t.get("name") or t["id"]
+            created[t["id"]] = created_at_of(t)
     counts = {(c["tenantId"], c["type"]): c async for c in rdb[COUNTS].find({}, {"_id": 0})}
     policies: Dict[str, Dict[str, int]] = {}
     rows: List[dict] = []
@@ -189,7 +232,7 @@ async def review_rows(db) -> List[dict]:
         if tenant_id not in policies:
             policies[tenant_id] = await load_policy_days(db, tenant_id)
         days = effective_days(policies[tenant_id], rtype)
-        state = gate_state(days, gate.get("confirmedDays"), global_at, gate.get("firstSeenAt"))
+        state = gate_state(days, gate.get("confirmedDays"), global_at, created.get(tenant_id))
         if state not in ("first_run", "shortened"):
             continue
         counted = counts.get((tenant_id, rtype.id)) or {}
@@ -239,15 +282,14 @@ async def confirm(db, token: str, actor: str, now: datetime) -> dict:
 
 async def tenant_gate_flags(db, tenant_id: str) -> Dict[str, dict]:
     """Per type: is this tenant's data type waiting for a confirmation, and why."""
-    now = datetime.now(timezone.utc)
     global_at = await global_confirmed_at(db)
+    created = await tenant_created_at(db, tenant_id)
     policies = await load_policy_days(db, tenant_id)
     gates = await gate_rows(db, tenant_id)
     flags: Dict[str, dict] = {}
     for rtype in RETENTION_TYPES:
         gate = gates.get(rtype.id) or {}
-        state = gate_state(effective_days(policies, rtype), gate.get("confirmedDays"), global_at,
-                           gate.get("firstSeenAt") or now)
+        state = gate_state(effective_days(policies, rtype), gate.get("confirmedDays"), global_at, created)
         waiting = state in ("first_run", "shortened")
         flags[rtype.id] = {"waiting": waiting, "reason": state if waiting else None}
     return flags

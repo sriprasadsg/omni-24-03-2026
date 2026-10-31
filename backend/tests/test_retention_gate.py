@@ -46,26 +46,74 @@ async def _confirm(db, actor="Super Admin", now=NOW):
 
 # --------------------------------------------------------------------------- gate_state
 
-@pytest.mark.parametrize("policy,confirmed,global_at,seen,expected", [
+@pytest.mark.parametrize("policy,confirmed,global_at,created,expected", [
     (30, None, None, G, "first_run"),
     (30, None, G, G - timedelta(days=1), "first_run"),
     (30, None, G, G + timedelta(days=1), "adopt"),
     (30, None, G, G, "first_run"),
+    (30, None, G, G + timedelta(seconds=1), "adopt"),
+    (30, None, G, G - timedelta(seconds=1), "first_run"),
     (30, None, G, None, "first_run"),
+    (30, None, G, G.replace(tzinfo=None) + timedelta(seconds=1), "adopt"),
     (30, 30, G, G, "confirmed"),
     (60, 30, G, G, "confirmed"),
     (20, 30, G, G, "shortened"),
     (29, 30, None, None, "shortened"),
     (30, 30, None, None, "confirmed"),
 ])
-def test_gate_state_table(policy, confirmed, global_at, seen, expected):
-    assert gate.gate_state(policy, confirmed, global_at, seen) == expected
+def test_gate_state_table(policy, confirmed, global_at, created, expected):
+    assert gate.gate_state(policy, confirmed, global_at, created) == expected
 
 
 def test_gate_state_accepts_naive_datetimes_as_mongo_returns_them():
     assert gate.gate_state(30, None, G.replace(tzinfo=None), (G + timedelta(hours=1))) == "adopt"
     assert gate.gate_state(30, None, G.replace(tzinfo=None), (G - timedelta(hours=1)).replace(tzinfo=None)) \
         == "first_run"
+
+
+T0 = datetime(2026, 10, 20, 12, 0, 0, tzinfo=timezone.utc)
+T1 = T0 + timedelta(hours=3)
+
+
+@pytest.mark.parametrize("doc,expected", [
+    ({"createdAt": "2026-10-20T12:00:00+00:00"}, T0),
+    ({"createdAt": "2026-10-20T12:00:00Z"}, T0),
+    ({"createdAt": "2026-10-20T12:00:00"}, T0),
+    ({"createdAt": "2026-10-20T17:30:00+05:30"}, T0),
+    ({"createdAt": "2026-10-20T12:00:00.123456+00:00"}, T0 + timedelta(microseconds=123456)),
+    ({"created_at": "2026-10-20T12:00:00+00:00"}, T0),
+    ({"createdAt": T0}, T0),
+    ({"createdAt": T0.replace(tzinfo=None)}, T0),
+    ({"created_at": T0}, T0),
+    ({"created_at": T0.replace(tzinfo=None)}, T0),
+    ({"createdAt": "not a time"}, None),
+    ({"createdAt": ""}, None),
+    ({"createdAt": 12345}, None),
+    ({"createdAt": True}, None),
+    ({"createdAt": None}, None),
+    ({}, None),
+    (None, None),
+    ({"createdAt": T1, "created_at": T0}, T0),                  # both parse: the earlier wins
+    ({"createdAt": T0, "created_at": T1}, T0),
+    ({"createdAt": "2026-10-20T15:00:00Z", "created_at": "2026-10-20T12:00:00Z"}, T0),
+    ({"createdAt": "garbage", "created_at": T1}, T1),            # one garbage, one good: the good one
+    ({"createdAt": T1, "created_at": 5}, T1),
+])
+def test_created_at_of_table(doc, expected):
+    assert gate.created_at_of(doc) == expected
+    if expected is not None:
+        assert gate.created_at_of(doc).tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_tenant_created_at_reads_the_tenant_document_and_never_matches_an_empty_id(mongo_db):
+    await seed_tenant(mongo_db, "t1")
+    await mongo_db.tenants.update_one({"id": "t1"}, {"$set": {"createdAt": T0.isoformat()}})
+    await mongo_db.tenants.insert_one({"name": "no id field", "createdAt": T0.isoformat()})
+    assert await gate.tenant_created_at(mongo_db, "t1") == T0
+    assert await gate.tenant_created_at(mongo_db, "unknown") is None
+    assert await gate.tenant_created_at(mongo_db, None) is None
+    assert await gate.tenant_created_at(mongo_db, "") is None
 
 
 # --------------------------------------------------------------------------- policy loader
@@ -198,8 +246,21 @@ async def test_tenant_gate_flags(mongo_db):
     flags = await gate.tenant_gate_flags(mongo_db, "t1")
     assert flags["logs"] == {"waiting": True, "reason": "shortened"}
     assert flags["agent_metrics"] == {"waiting": False, "reason": None}
-    await seed_tenant(mongo_db, "t-new")                       # never seen after the confirmation: adopted
+    await seed_tenant(mongo_db, "t-new")                       # created after the confirmation: adopted
+    await mongo_db.tenants.update_one({"id": "t-new"}, {"$set": {"createdAt": NOW}})
     assert all(not f["waiting"] for f in (await gate.tenant_gate_flags(mongo_db, "t-new")).values())
+
+
+@pytest.mark.asyncio
+async def test_tenant_gate_flags_reports_an_unreached_tenant_as_waiting(mongo_db):
+    await seed_tenant(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await _confirm(mongo_db)
+    await seed_tenant(mongo_db, "t-old")                       # existed before the confirmation, never reached
+    await mongo_db.tenants.update_one({"id": "t-old"}, {"$set": {"createdAt": NOW - timedelta(days=9)}})
+    flags = await gate.tenant_gate_flags(mongo_db, "t-old")
+    assert set(flags) == set(gate.TYPE_IDS)
+    assert all(f == {"waiting": True, "reason": "first_run"} for f in flags.values())
 
 
 # --------------------------------------------------------------------------- migration 027

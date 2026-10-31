@@ -321,11 +321,12 @@ async def test_a_lengthened_period_is_adopted_without_review(mongo_db, pauses):
 
 
 @pytest.mark.asyncio
-async def test_a_tenant_first_seen_after_the_confirmation_is_adopted_and_deletes(mongo_db, pauses):
+async def test_a_tenant_created_after_the_confirmation_is_adopted_and_deletes(mongo_db, pauses):
     await seed_tenant(mongo_db, "t1")
     await job.run_all(mongo_db, now=NOW)
     await _confirm_all(mongo_db)
     await seed_tenant(mongo_db, "t-new")
+    await mongo_db.tenants.update_one({"id": "t-new"}, {"$set": {"createdAt": (NOW + timedelta(hours=1)).isoformat()}})
     await _seed_metrics(mongo_db, "t-new")
 
     await job.run_all(mongo_db, now=NOW + timedelta(days=1))

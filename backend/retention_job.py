@@ -122,6 +122,7 @@ async def run_tenant(db, tenant_id: str, *, now: datetime, lost: Optional[Callab
     (confirmed, adopted). A shortened period only sends that tenant's data type back to counting."""
     policies = await gate.load_policy_days(db, tenant_id)
     global_at = await gate.global_confirmed_at(db)
+    created = await gate.tenant_created_at(db, tenant_id)
     summary = {"tenantId": tenant_id, "counted": 0, "deleted": 0, "types": {}, "stoppedEarly": False}
     for rtype in gate.RETENTION_TYPES:
         if (lost is not None and lost()) or (deadline is not None and time.monotonic() >= deadline):
@@ -129,7 +130,7 @@ async def run_tenant(db, tenant_id: str, *, now: datetime, lost: Optional[Callab
             break
         days = gate.effective_days(policies, rtype)
         row = await gate.mark_seen(db, tenant_id, rtype.id, now)
-        state = gate.gate_state(days, row.get("confirmedDays"), global_at, row.get("firstSeenAt"))
+        state = gate.gate_state(days, row.get("confirmedDays"), global_at, created)
         if state in ("confirmed", "adopt"):
             try:
                 result = await delete_type(db, rtype, tenant_id, days, now, lost=lost, deadline=deadline)
