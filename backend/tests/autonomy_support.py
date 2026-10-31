@@ -41,6 +41,39 @@ async def seed_agent(db, tenant_id, agent_id, *, hostname=None, ip=None):
          "ipAddress": ip or "10.9.9.9", "status": "Online"}, upsert=True)
 
 
+async def seed_response_agent(db, tenant, agent_id, *, hostname, tokens, platform="Linux", last_seen=None,
+                              capable=True, status="Online"):
+    """An enrolled agent that reports response-action tokens (Phase 83). ``last_seen`` is an aware
+    datetime (default now); ``capable`` also ticks every agent capability for the tenant, which the
+    sweep's dormancy check needs (the seed_tenant helper leaves the list unset)."""
+    seen = last_seen or datetime.now(timezone.utc)
+    await db.agents.replace_one(
+        {"id": agent_id},
+        {"id": agent_id, "tenantId": tenant, "hostname": hostname, "ipAddress": "10.9.9.9", "status": status,
+         "platform": platform, "lastSeen": seen.isoformat(),
+         "meta": {"response_actions": {"tokens": list(tokens)}}}, upsert=True)
+    if capable:
+        await db.tenants.update_one({"id": tenant}, {"$set": {"agentCapabilities": ["all"]}})
+
+
+async def seed_feed_ioc(db, *, ioc_type, value, source_ip=None, feed, updated_at=None):
+    """A global threat-feed row in edr_ioc: like the real feed sync it carries no tenantId."""
+    stamp = (updated_at or datetime.now(timezone.utc)).isoformat()
+    await db.edr_ioc.insert_one({"ioc_type": ioc_type, "ioc_value": value, "source_ip": source_ip,
+                                 "source_feed": feed, "confidence": 0.85, "updated_at": stamp,
+                                 "last_seen": stamp})
+
+
+async def seed_native_verdict(db, tenant, hostname, *, kind, target, sha256=None, created_at=None, verdict="Malicious"):
+    """A native scan verdict as ingest_scan_result stores it: ``agentId`` is the hostname the agent
+    posted under (not agents.id) and ``created_at`` is an ISO string."""
+    stamp = (created_at or datetime.now(timezone.utc)).isoformat()
+    await db.security_scan_results.insert_one({
+        "id": uuid.uuid4().hex, "tenantId": tenant, "agentId": hostname, "type": kind, "target": target,
+        "verdict": verdict, "confidence": 0.99, "sha256": sha256, "matched": "test", "source": "native",
+        "created_at": stamp})
+
+
 async def seed_platform_stop(db, active=True, by="Super Admin"):
     """The platform-wide stop document (system_settings, type autonomous_ops)."""
     stop = {"active": active, "scope": "platform", "pressedBy": {"username": by, "display": by},

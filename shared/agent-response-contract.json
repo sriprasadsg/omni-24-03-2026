@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "description": "The single contract between the backend and the published agent for Autonomous Ops response actions (Phase 83). The backend tests and the Rust agent tests both read this file, so a change to a token, parameter, outcome or check is a change to both sides at once.",
+  "tokens": [
+    "block_ip_ttl",
+    "block_ip_range",
+    "quarantine_file",
+    "unquarantine_file",
+    "kill_process_exe",
+    "restart_service",
+    "service_failures",
+    "isolate_host",
+    "restore_host",
+    "reboot_host"
+  ],
+  "commandToken": {
+    "block_ip": "block_ip_ttl",
+    "unblock_ip": "block_ip_ttl",
+    "quarantine_file": "quarantine_file",
+    "unquarantine_file": "unquarantine_file",
+    "kill_process": "kill_process_exe",
+    "restart_service": "restart_service",
+    "isolate_host": "isolate_host",
+    "restore_host": "restore_host",
+    "reboot_host": "reboot_host"
+  },
+  "rangeToken": "block_ip_range",
+  "blockTtlSeconds": {"min": 3600, "max": 604800, "default": 86400},
+  "isolationRevertSeconds": 14400,
+  "rebootDelaySeconds": {"min": 30, "max": 300},
+  "stillRunningCap": 128,
+  "outcomes": [
+    "applied",
+    "already_applied",
+    "removed",
+    "not_found",
+    "quarantined",
+    "restored",
+    "hash_mismatch",
+    "locked",
+    "protected_path",
+    "restarted",
+    "not_running",
+    "isolated",
+    "self_test_failed",
+    "not_effective",
+    "scheduled",
+    "killed",
+    "process_gone",
+    "blocked_by_local_security",
+    "refused"
+  ],
+  "checks": [
+    "firewall_rule_present",
+    "firewall_rule_absent",
+    "in_quarantine",
+    "restored_to_path",
+    "service_running",
+    "process_gone",
+    "management_connection_open",
+    "network_restored",
+    "reboot_scheduled"
+  ],
+  "protectedPaths": {
+    "windows": [
+      "windows\\system32",
+      "windows\\syswow64",
+      "windows\\winsxs",
+      "program files\\omniagentrust",
+      "programdata\\omniagent"
+    ],
+    "linux": [
+      "/usr/bin/",
+      "/usr/sbin/",
+      "/bin/",
+      "/sbin/",
+      "/boot/",
+      "/lib/",
+      "/lib64/",
+      "/usr/lib/",
+      "/etc/",
+      "/var/lib/omni-agent/",
+      "/opt/omni-agent/"
+    ]
+  },
+  "criticalServices": [
+    "sshd",
+    "ssh",
+    "systemd",
+    "dbus",
+    "networkmanager",
+    "init",
+    "omniagent",
+    "omni-agent",
+    "rpcss",
+    "dcomlaunch",
+    "lsm",
+    "samss",
+    "eventlog",
+    "winmgmt",
+    "schedule",
+    "bfe",
+    "mpssvc",
+    "windefend"
+  ],
+  "examples": {
+    "block_applied": {
+      "status": "success",
+      "outcome": "applied",
+      "verify": {"ok": true, "check": "firewall_rule_present"},
+      "expires_in": 86400
+    },
+    "block_already_applied": {
+      "status": "success",
+      "outcome": "already_applied",
+      "verify": {"ok": true, "check": "firewall_rule_present"},
+      "expires_in": 86400
+    },
+    "block_verify_failed": {
+      "status": "success",
+      "outcome": "applied",
+      "verify": {"ok": false, "check": "firewall_rule_present"}
+    },
+    "unblock_removed": {
+      "status": "success",
+      "outcome": "removed",
+      "verify": {"ok": true, "check": "firewall_rule_absent"}
+    },
+    "quarantine_moved": {
+      "status": "success",
+      "outcome": "quarantined",
+      "verify": {"ok": true, "check": "in_quarantine"}
+    },
+    "quarantine_moved_still_running": {
+      "status": "success",
+      "outcome": "quarantined",
+      "verify": {"ok": true, "check": "in_quarantine"},
+      "still_running": [{"pid": 4242, "name": "evil.exe", "start_time": 1761900000}]
+    },
+    "quarantine_locked": {
+      "status": "error",
+      "outcome": "locked",
+      "verify": {"ok": false, "check": "in_quarantine"},
+      "error": "The file is in use and could not be moved."
+    },
+    "quarantine_hash_mismatch": {
+      "status": "error",
+      "outcome": "hash_mismatch",
+      "verify": {"ok": false, "check": "in_quarantine"},
+      "error": "The file no longer matches the hash that was flagged."
+    },
+    "kill_done": {
+      "status": "success",
+      "outcome": "killed",
+      "verify": {"ok": true, "check": "process_gone"}
+    },
+    "kill_gone": {
+      "status": "success",
+      "outcome": "process_gone",
+      "verify": {"ok": true, "check": "process_gone"}
+    },
+    "kill_survived": {
+      "status": "success",
+      "outcome": "killed",
+      "verify": {"ok": false, "check": "process_gone"},
+      "still_running": [{"pid": 4242, "name": "evil.exe", "start_time": 1761900000}]
+    },
+    "kill_refused": {
+      "status": "error",
+      "outcome": "refused",
+      "verify": {"ok": false, "check": "process_gone"},
+      "still_running": [{"pid": 4242, "name": "evil.exe", "start_time": 1761900000}],
+      "error": "The process does not match the expected program."
+    },
+    "restart_done": {
+      "status": "success",
+      "outcome": "restarted",
+      "verify": {"ok": true, "check": "service_running"},
+      "healthy_after": 30
+    },
+    "isolate_done": {
+      "status": "success",
+      "outcome": "isolated",
+      "verify": {"ok": true, "check": "management_connection_open"}
+    },
+    "isolate_self_test_failed": {
+      "status": "error",
+      "outcome": "self_test_failed",
+      "verify": {"ok": false, "check": "management_connection_open"},
+      "error": "The management connection did not stay open, so the change was undone."
+    },
+    "restore_done": {
+      "status": "success",
+      "outcome": "restored",
+      "verify": {"ok": true, "check": "network_restored"}
+    },
+    "reboot_scheduled": {
+      "status": "success",
+      "outcome": "scheduled",
+      "verify": {"ok": true, "check": "reboot_scheduled"}
+    }
+  }
+}
