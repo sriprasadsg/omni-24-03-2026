@@ -320,3 +320,122 @@ async def test_two_passes_write_one_audit_event_per_state_change(world):
         await asyncio.gather(reconciler.tick(world), reconciler.tick(world))
     mine = [event for rid, event in seen if rid == row["id"]]
     assert sorted(mine) == ["executed", "verified"]
+
+
+# ------------------------------------------------------------------ undo removes only this block's claim (Task 3)
+
+ACTOR = {"username": "alice", "display": "Alice", "tier": "tenant"}
+
+
+async def _verified_block(db):
+    row, doc = await one_block(db)
+    await post_result(db, doc["id"], "block_applied")
+    await reconciler.tick(db)
+    return await get_row(db, row["id"]), doc
+
+
+async def test_undo_sends_one_unblock_that_names_the_original_block_instruction(world):
+    """ACTV-02: block_id is the task id of the original block, read from the row, never from a request."""
+    from autonomous_ops import approvals, dispatch_check
+    row, block_doc = await _verified_block(world)
+    out = await approvals.undo(world, "t1", row["id"], actor=ACTOR)
+    assert out["status"] == "undone" and out["dispatch"]["status"] == "queued"
+    docs = await instructions(world)
+    (unblock,) = [d for d in docs if d["type"] == "unblock_ip"]
+    assert len(docs) == 2 and unblock["triggered_by"] == "autonomous_ops" and unblock["autonomy"]["kind"] == "undo"
+    assert unblock["agent_id"] == "a1" and unblock["parameters"] == {"ip_address": IP, "block_id": block_doc["id"]}
+    after = await get_row(world, row["id"])
+    assert unblock["parameters"]["block_id"] == after["instructionIds"][0] == block_doc["id"]
+    assert after["state"] == "undone" and after["undo"]["undoneBy"] == ACTOR
+    assert after["undo"]["params"] == unblock["parameters"]
+    # bind accepts exactly this dispatch and nothing else
+    assert await dispatch_check.bind(world, "t1", after, command="unblock_ip", agent_id="a1",
+                                     params=unblock["parameters"], kind="undo") is None
+    assert await dispatch_check.bind(world, "t1", after, command="unblock_ip", agent_id="a1",
+                                     params={"ip_address": IP, "block_id": "someone-elses-claim"},
+                                     kind="undo") == "step_mismatch"
+
+
+async def test_a_dispatcher_other_than_security_response_keeps_the_old_undo_params(world):
+    from autonomous_ops import approvals, gate
+    req = gate.ActionRequest(tenant_id="t1", kind="security", origin="test", actions=["block_ip"], targets=["a1"],
+                             params={"ip_address": IP}, dedupe_key="t1|plain|block", reason={"ruleId": "t", "inputs": {}})
+    d = await gate.decide(world, req, master_shadow=False)
+    out = await gate.execute(world, "t1", d.action_id, command="block_ip", agent_id="a1", params={"ip_address": IP})
+    await world.agent_instructions.update_one({"id": out["task_id"]}, {"$set": {"status": "SUCCESS"}})
+    await reconciler.tick(world)
+    assert (await get_row(world, d.action_id))["state"] == "executed"
+    assert (await approvals.undo(world, "t1", d.action_id, actor=ACTOR))["status"] == "undone"
+    (unblock,) = [x async for x in world.agent_instructions.find({"type": "unblock_ip"}, {"_id": 0})]
+    assert unblock["parameters"] == {"ip_address": IP}
+
+
+async def test_an_expired_block_can_no_longer_be_undone_and_nothing_is_written(world):
+    from autonomous_ops import approvals
+    row, _ = await _verified_block(world)
+    await world.autonomy_actions.update_one(
+        {"id": row["id"]}, {"$set": {"blockedUntil": datetime.now(timezone.utc) - timedelta(seconds=1)}})
+    out = await approvals.undo(world, "t1", row["id"], actor=ACTOR)
+    assert out == {"status": "refused", "reason": "not_undoable"}
+    assert (await get_row(world, row["id"]))["state"] == "verified" and len(await instructions(world)) == 1
+
+
+async def test_later_ticks_add_no_row_and_no_instruction_while_the_block_lasts(world):
+    row, _ = await _verified_block(world)
+    for _ in range(10):
+        await sweep.tick(world)
+        await reconciler.tick(world)
+    assert len(await rows(world)) == 1 and len(await instructions(world)) == 1
+    assert (await get_row(world, row["id"]))["state"] == "verified"
+
+
+async def test_after_an_undo_ticks_inside_a_day_add_no_instruction(world):
+    from autonomous_ops import approvals
+    row, _ = await _verified_block(world)
+    await approvals.undo(world, "t1", row["id"], actor=ACTOR)
+    for _ in range(5):
+        await sweep.tick(world)
+    assert len(await rows(world)) == 1 and len(await instructions(world)) == 2      # the block and its unblock only
+
+
+# ------------------------------------------------------------------ the row builder moved out of the gate
+
+def test_claim_keys_name_the_three_undo_commands():
+    from autonomous_ops import decision_row
+    assert decision_row.CLAIM_KEYS == {"unblock_ip": "block_id", "unquarantine_file": "quarantine_id",
+                                       "restore_host": "isolation_id"}
+
+
+def test_undo_block_with_and_without_a_claim():
+    from autonomous_ops import decision_row, registry
+    block, quarantine = registry.resolve("block_ip"), registry.resolve("quarantine_file")
+    isolate, restart = registry.resolve("isolate_host"), registry.resolve("restart_service")
+    plain = decision_row.undo_block(block, {"ip_address": IP, "ttl_seconds": 86400})
+    assert plain["params"] == {"ip_address": IP} and plain["action"] == "unblock_ip" and plain["available"] is True
+    claimed = decision_row.undo_block(block, {"ip_address": IP, "ttl_seconds": 86400}, claim="abc")
+    assert claimed["params"] == {"ip_address": IP, "block_id": "abc"}
+    assert decision_row.undo_block(quarantine, {"path": "/x", "sha256": "h"}, claim="q1")["params"] == {"quarantine_id": "q1"}
+    assert decision_row.undo_block(isolate, {}, claim="i1")["params"] == {"isolation_id": "i1"}
+    assert decision_row.undo_block(quarantine, {"path": "/x"})["params"] == {"path": "/x"}      # as before: no claim, no change
+    assert decision_row.undo_block(restart, {"service": "x"}, claim="c")["available"] is False      # nothing to undo
+    assert decision_row.undo_block(block, {"ip_address": IP}, multi=True, claim="c")["params"] == {}
+
+
+def test_reason_text_keeps_the_callers_words_only_for_security_response():
+    from autonomous_ops import decision_row, gate, messages
+    mine = gate.ActionRequest(tenant_id="t", kind="security", origin="sweep", actions=["block_ip"], targets=["a"],
+                              params={}, dedupe_key="k", reason_text="OWN WORDS", dispatcher="security_response")
+    other = gate.ActionRequest(tenant_id="t", kind="security", origin="x", actions=["block_ip"], targets=["a"],
+                               params={}, dedupe_key="k", reason_text="OWN WORDS", dispatcher="instruction")
+    for code in ("class_auto", "suggest_requested", "playbook_raised", "class_approve", "suppressed_by_undo"):
+        assert decision_row.reason_text(mine, "needs_approval", code) == "OWN WORDS", code
+    assert decision_row.reason_text(mine, "refuse", "protected_target") == messages.REASON_TEXT["protected_target"]
+    assert decision_row.reason_text(other, "needs_approval", "class_approve") == messages.REASON_TEXT["class_approve"]
+    assert decision_row.reason_text(other, "allow_auto", "class_auto") == "OWN WORDS"       # as today
+    assert decision_row.reason_text(mine, "allow_auto", "class_auto") == "OWN WORDS"
+
+
+def test_the_gate_and_approvals_stay_under_500_lines():
+    for name in ("gate.py", "approvals.py", "decision_row.py", "sweep_security.py", "sweep.py"):
+        with open(os.path.join(_BACKEND, "autonomous_ops", name), encoding="utf-8") as fh:
+            assert len(fh.read().splitlines()) < 500, name
