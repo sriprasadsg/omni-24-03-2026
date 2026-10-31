@@ -508,6 +508,12 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(_autonomous_ops_reconciler_loop(), "autonomous_ops_reconciler"),
                         name="autonomous_ops_reconciler")
 
+    # Autonomous Ops sweep (Phase 83): finds corroborated threats and hands them to the gate. One runner at a
+    # time (renewed Mongo lock); the gate owns every stop, level, shadow and limit.
+    from autonomous_ops.sweep import sweep_loop as _autonomous_ops_sweep_loop
+    asyncio.create_task(_safe_bg_task(_autonomous_ops_sweep_loop(), "autonomous_ops_sweep"),
+                        name="autonomous_ops_sweep")
+
     # Platform self-healing dead-man switch (Phase 82, HEAL-05): one in-app alarm when the watchdog stops
     # reporting. Armed only after its first heartbeat; one runner at a time (renewed Mongo lock).
     from autonomous_ops.selfheal import selfheal_loop as _autonomous_ops_selfheal_loop

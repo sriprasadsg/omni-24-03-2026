@@ -9,6 +9,11 @@ and shadow rule.
 A stage has the signature ``run(db, tenant_id, tenant, response, now) -> Dict[str, int]`` where
 ``tenant`` is ``settings.TenantSettings`` and ``response`` is ``response_settings.ResponseSettings``.
 
+One runner at a time: ``run_once`` holds ``distributed_lock.lock_with_renewal`` on ``autonomous_ops_sweep``
+(a second runner gets None) and a tick stops between tenants when the lock reports lost. A crash between
+deciding and sending leaves a ``dispatching`` row with no instruction, which the reconciler ends as
+``not_delivered`` after its stuck-dispatch bound.
+
 The platform-wide stop is read once per tick; if it cannot be read the whole pass does nothing (fail
 closed). The sweep calls no model and reads no free text (PROH-83-01).
 
@@ -18,14 +23,22 @@ approval card of that dispatcher can be sent by the same process.
 Raw Mongo handle with an explicit tenantId; the ambient tenant ContextVar is never set outside
 ``scope.tenant_scope``.
 """
+import asyncio
 import logging
+import os
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
 from . import PLATFORM_TENANT_ID, SCREEN_PERMISSION, response_settings, scope, settings, sweep_security
 from .scope import raw
 
 logger = logging.getLogger(__name__)
+
+LOCK_NAME = "autonomous_ops_sweep"
+LOCK_TTL_SECONDS = 120
+LOCK_RENEW_EVERY = 30
+_DEFAULT_INTERVAL_SEC = 60
 
 _STAGES = (sweep_security.run,)
 
@@ -70,3 +83,43 @@ async def tick(db, *, now: Optional[datetime] = None, lost: Optional[Callable[[]
             logger.error("autonomous_ops: sweep failed for tenant %s: %s", tenant_id, exc)
     return counts
 
+
+
+# ---------------------------------------------------------------- one runner, and the loop
+
+def _env_number(name: str, default: float) -> float:
+    try:
+        value = float(os.getenv(name, default))
+        return value if value > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _interval() -> float:
+    return _env_number("AUTONOMOUS_OPS_SWEEP_INTERVAL_SEC", _DEFAULT_INTERVAL_SEC)
+
+
+async def run_once(db, *, now: Optional[datetime] = None) -> Optional[Dict[str, int]]:
+    """One tick under the single-runner lock; None when another runner holds it."""
+    import distributed_lock
+    lock_db = SimpleNamespace(_db=raw(db))        # distributed_lock reads db._db
+    async with distributed_lock.lock_with_renewal(lock_db, LOCK_NAME, ttl_seconds=LOCK_TTL_SECONDS,
+                                                  renew_every=LOCK_RENEW_EVERY) as handle:
+        if not handle.acquired:
+            return None
+        return await tick(db, now=now, lost=lambda: handle.lost)
+
+
+async def sweep_loop() -> None:
+    """Run a tick every AUTONOMOUS_OPS_SWEEP_INTERVAL_SEC. A failing pass is logged and the loop goes on."""
+    from database import get_database
+    while True:
+        try:
+            counts = await run_once(get_database())
+            if counts and any(v for k, v in counts.items() if k != "tenants"):
+                logger.info("autonomous_ops: sweep pass %s", counts)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("autonomous_ops: sweep pass failed: %s", exc)
+        await asyncio.sleep(_interval())
