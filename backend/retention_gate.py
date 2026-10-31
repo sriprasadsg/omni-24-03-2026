@@ -200,6 +200,14 @@ class StaleReview(Exception):
     """The waiting rows changed (a recount, a new policy) since the reviewer loaded them."""
 
 
+class ReviewIncomplete(Exception):
+    """The counted set is known to be incomplete (T-82-47); ``gap`` is ``{reason, tenants}``."""
+
+    def __init__(self, gap: dict):
+        super().__init__("the retention review is incomplete: " + str(gap.get("reason")))
+        self.gap = gap
+
+
 def _iso(value) -> str:
     value = aware(value) if isinstance(value, datetime) else value
     return value.isoformat() if value is not None else ""
@@ -251,6 +259,45 @@ async def review_rows(db) -> List[dict]:
     return rows
 
 
+async def incomplete_review(db) -> Optional[dict]:
+    """Why a confirmation would speak for organizations nobody counted, or None when it would not.
+
+    ``{"reason": "stopped_early" | "tenant_failed" | "not_reached", "tenants": n}`` where n is the
+    number of organizations concerned. The latest *scheduled* run decides stopped_early and
+    tenant_failed. A tenant is not reached when it lacks a gate row for any registry type, unless its
+    creation time is readable and strictly later than the global confirmation or than that run's start
+    (it did not exist when the set was counted). An unreadable time never exempts, and rows made by
+    manual runs only ever cover their own tenant. Shared by confirm() and GET /review (CR-01)."""
+    rdb = raw(db)
+    run = await rdb[RUNS].find_one({"trigger": "scheduled"},
+                                   {"_id": 0, "startedAt": 1, "stoppedEarly": 1, "failedTenants": 1},
+                                   sort=[("startedAt", -1)])
+    run_start = _read_time(run.get("startedAt")) if run else None
+    global_at = await global_confirmed_at(db)
+    covered: Dict[str, set] = {}
+    async for row in rdb[GATE].find({}, {"_id": 0, "tenantId": 1, "type": 1}):
+        covered.setdefault(row.get("tenantId"), set()).add(row.get("type"))
+    not_reached = set()
+    async for tenant in rdb.tenants.find({}, {"_id": 0, "id": 1, "createdAt": 1, "created_at": 1}):
+        tenant_id = tenant.get("id")
+        if not tenant_id or set(TYPE_IDS) <= covered.get(tenant_id, set()):
+            continue
+        created = created_at_of(tenant)
+        if created is not None and ((global_at is not None and created > global_at)
+                                    or (run_start is not None and created > run_start)):
+            continue
+        not_reached.add(tenant_id)
+    failed = {t for t in ((run or {}).get("failedTenants") or []) if isinstance(t, str)}
+    gap = {"tenants": len(failed | not_reached)}
+    if run and run.get("stoppedEarly"):
+        return {"reason": "stopped_early", **gap}
+    if failed:
+        return {"reason": "tenant_failed", **gap}
+    if not_reached:
+        return {"reason": "not_reached", **gap}
+    return None
+
+
 def review_token(rows: List[dict]) -> str:
     """Stateless stale-review guard: a hash of the sorted waiting rows."""
     lines = sorted(f"{r['tenantId']}|{r['type']}|{r['days']}|{r['count']}|{_iso(r.get('countedAt'))}"
@@ -264,11 +311,17 @@ def _eligible(row: dict) -> bool:
 
 async def confirm(db, token: str, actor: str, now: datetime) -> dict:
     """Confirm the counted waiting rows the reviewer saw. Raises StaleReview when the waiting
-    set no longer matches ``token``. Deletes nothing itself: the next run deletes."""
+    set no longer matches ``token``, and ReviewIncomplete (before any write) when something would be
+    confirmed while ``incomplete_review`` says the counted set is incomplete. Deletes nothing itself:
+    the next run deletes."""
     rows = await review_rows(db)
     if token != review_token(rows):
         raise StaleReview("the retention review changed; reload it")
     confirmed = [r for r in rows if _eligible(r)]
+    if confirmed:
+        gap = await incomplete_review(db)
+        if gap is not None:
+            raise ReviewIncomplete(gap)
     rdb = raw(db)
     for row in confirmed:
         await set_confirmed_days(db, row["tenantId"], row["type"], row["days"], now, actor=actor)

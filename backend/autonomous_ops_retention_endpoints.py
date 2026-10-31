@@ -30,6 +30,7 @@ router = APIRouter(prefix="/api/platform/autonomous-ops/retention", tags=["Auton
 
 RUN_IN_PROGRESS = "A retention run is in progress. Confirm after it finishes."
 NOTHING_TO_CONFIRM = "There are no counted rows to confirm yet."
+REVIEW_INCOMPLETE = "Not every organization has been counted yet. Confirm after the next run."
 STALE_REVIEW = ("The counts changed since you opened this review. Reload the review and check the new "
                 "counts before confirming.")
 
@@ -80,6 +81,7 @@ async def get_review(
             "notCountedYet": not counted_yet,
             "nextRun": retention_job.next_scheduled(datetime.now(timezone.utc)).isoformat(),
             "lastRun": await _last_run(db),
+            "incomplete": await retention_gate.incomplete_review(db),
             "countedAt": _when(max(stamps)) if stamps else None,
             "reviewToken": retention_gate.review_token(rows),
             "totals": {"records": sum(r["count"] for r in countable),
@@ -112,6 +114,8 @@ async def post_confirm(
             confirmed = await retention_gate.confirm(db, body.reviewToken, actor["username"], now)
         except retention_gate.StaleReview as exc:
             raise HTTPException(status_code=409, detail=STALE_REVIEW) from exc
+        except retention_gate.ReviewIncomplete as exc:
+            raise HTTPException(status_code=409, detail=REVIEW_INCOMPLETE) from exc
         if not confirmed["rows"]:
             raise HTTPException(status_code=422, detail=NOTHING_TO_CONFIRM)
         try:

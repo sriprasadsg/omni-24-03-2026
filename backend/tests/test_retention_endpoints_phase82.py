@@ -148,6 +148,26 @@ async def test_a_shortened_period_goes_back_to_counting_for_the_manual_run(clien
     assert await db.agent_metrics.count_documents({"tenant_id": "t1"}) == 5
 
 
+async def test_manual_run_for_an_unreached_tenant_after_the_confirmation_only_counts(client):
+    """T-82-36: t2 was never reached by the first pass; a confirmation then exists; the manual run counts."""
+    db = client.db
+    await seed_data(db, "t1")
+    await seed_data(db, "t2")
+    await job.run_tenant(db, "t1", now=datetime.now(timezone.utc))
+    await db[gate.GATE_GLOBAL].update_one(
+        {"_id": gate.GLOBAL_ID}, {"$setOnInsert": {"confirmedAt": datetime.now(timezone.utc) - timedelta(days=1)}},
+        upsert=True)
+    assert await db.retention_gate.count_documents({"tenantId": "t2"}) == 0
+
+    res = await client.call("POST", "/api/retention/run", tenant="t2")
+
+    assert res.status_code == 200
+    types = by_type(res)
+    assert (types["agent_metrics"]["state"], types["agent_metrics"]["count"]) == ("counted", 3)
+    assert await db.agent_metrics.count_documents({"tenant_id": "t2"}) == 5
+    assert await db.notifications.count_documents({"tenantId": "t2"}) == 5
+
+
 async def test_manual_run_answers_409_and_records_nothing_while_a_run_is_in_progress(client):
     db = client.db
     await seed_data(db, "t1")

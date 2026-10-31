@@ -274,3 +274,134 @@ async def test_cancellation_is_not_swallowed(mongo_db, pauses, monkeypatch):
 
     assert await mongo_db.retention_job_runs.count_documents({}) == 0
     assert await activity_row(mongo_db) is None
+
+
+# ------------------------------------------------------------------ Task 3: a confirmation is refused while the set is incomplete
+
+async def rows_of(db, tenant_id):
+    return {r["type"] async for r in db.retention_gate.find({"tenantId": tenant_id})}
+
+
+async def nothing_confirmed(db):
+    assert await db.retention_gate.count_documents({"confirmedDays": {"$ne": None}}) == 0
+    assert await db.retention_gate_global.count_documents({}) == 0
+
+
+@pytest.mark.asyncio
+async def test_a_run_that_stopped_early_refuses_confirmation(mongo_db, pauses):
+    for tid in ("t-a", "t-z"):
+        await seed_tenant(mongo_db, tid)
+    await job.run_all(mongo_db, now=NOW, lost=lost_after(9))
+
+    assert await gate.incomplete_review(mongo_db) == {"reason": "stopped_early", "tenants": 1}
+    token = gate.review_token(await gate.review_rows(mongo_db))
+    with pytest.raises(gate.ReviewIncomplete) as refused:
+        await gate.confirm(mongo_db, token, "Super Admin", NOW)
+    assert refused.value.gap == {"reason": "stopped_early", "tenants": 1}
+    await nothing_confirmed(mongo_db)
+
+    await job.run_all(mongo_db, now=NOW + DAY)
+    assert await gate.incomplete_review(mongo_db) is None
+    assert (await confirm_all(mongo_db, NOW + DAY))["tenants"] == 2
+
+
+@pytest.mark.asyncio
+async def test_one_failed_tenant_refuses_confirmation_until_a_clean_run(mongo_db, pauses, monkeypatch):
+    await three_tenants(mongo_db)
+    with monkeypatch.context() as patch:
+        fail_for(patch, "t-b", RuntimeError("mongo down"))
+        await job.run_all(mongo_db, now=NOW)
+
+    assert await gate.incomplete_review(mongo_db) == {"reason": "tenant_failed", "tenants": 1}
+    with pytest.raises(gate.ReviewIncomplete):
+        await confirm_all(mongo_db, NOW)
+    await nothing_confirmed(mongo_db)
+
+    await job.run_all(mongo_db, now=NOW + DAY)
+    assert await gate.incomplete_review(mongo_db) is None
+
+
+@pytest.mark.asyncio
+async def test_one_missing_type_row_refuses_confirmation(mongo_db, pauses):
+    await three_tenants(mongo_db)
+    await job.run_all(mongo_db, now=NOW)
+    assert await gate.incomplete_review(mongo_db) is None
+    await mongo_db.retention_gate.delete_one({"tenantId": "t-b", "type": "logs"})      # exactly one of eight
+
+    assert await gate.incomplete_review(mongo_db) == {"reason": "not_reached", "tenants": 1}
+    with pytest.raises(gate.ReviewIncomplete):
+        await confirm_all(mongo_db, NOW)
+
+
+@pytest.mark.asyncio
+async def test_a_tenant_created_after_the_last_run_does_not_block_and_stays_waiting(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await seed_tenant(mongo_db, "t-late")
+    await set_created(mongo_db, "t-late", (NOW + timedelta(hours=1)).isoformat())
+
+    assert await gate.incomplete_review(mongo_db) is None
+    assert (await confirm_all(mongo_db, NOW + timedelta(hours=2)))["tenants"] == 1
+    flags = await gate.tenant_gate_flags(mongo_db, "t-late")            # it predates the confirmation
+    assert all(f == {"waiting": True, "reason": "first_run"} for f in flags.values())
+    await _seed_metrics(mongo_db, "t-late")
+
+    await job.run_all(mongo_db, now=NOW + DAY)
+
+    assert await kept(mongo_db, "t-late") == 5
+    rows = await gate.review_rows(mongo_db)
+    assert {r["tenantId"] for r in rows} == {"t-late"}
+
+
+@pytest.mark.parametrize("offset,expected", [(0, "not_reached"), (1, None)])
+@pytest.mark.asyncio
+async def test_a_tenant_created_exactly_at_the_last_run_start_gets_no_exemption(mongo_db, pauses, offset, expected):
+    await seed_tenant(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await seed_tenant(mongo_db, "t-late")
+    await set_created(mongo_db, "t-late", NOW + timedelta(seconds=offset))
+
+    gap = await gate.incomplete_review(mongo_db)
+    assert (gap or {}).get("reason") == expected
+
+
+@pytest.mark.asyncio
+async def test_a_tenant_created_after_the_confirmation_gets_the_exemption(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await confirm_all(mongo_db, NOW)
+    await seed_tenant(mongo_db, "t-new")
+    await set_created(mongo_db, "t-new", NOW + timedelta(hours=1))
+    await job.run_all(mongo_db, now=NOW + DAY)                           # reaches t-new
+    await mongo_db.retention_gate.delete_many({"tenantId": "t-new"})     # only the global bound can exempt it
+    await mongo_db.retention_policies.insert_one({"tenantId": "t1", "collection": "logs", "retention_days": 10})
+    await job.run_tenant(mongo_db, "t1", now=NOW + DAY)                  # recount t1 at the shortened period
+
+    assert await gate.incomplete_review(mongo_db) is None
+    assert (await confirm_all(mongo_db, NOW + DAY))["rows"] == 1
+
+
+@pytest.mark.parametrize("value", ["absent", "not a time"])
+@pytest.mark.asyncio
+async def test_no_readable_creation_time_gets_no_exemption(mongo_db, pauses, value):
+    await seed_tenant(mongo_db, "t1")
+    await job.run_all(mongo_db, now=NOW)
+    await seed_tenant(mongo_db, "t-x")
+    if value != "absent":
+        await set_created(mongo_db, "t-x", value)
+
+    assert await gate.incomplete_review(mongo_db) == {"reason": "not_reached", "tenants": 1}
+    await job.run_all(mongo_db, now=NOW + DAY)                           # the next scheduled run reaches it
+    assert await gate.incomplete_review(mongo_db) is None
+
+
+@pytest.mark.asyncio
+async def test_a_manual_run_does_not_stand_in_for_the_other_tenants(mongo_db, pauses):
+    await seed_tenant(mongo_db, "t1")
+    await seed_tenant(mongo_db, "t2")
+    await job.run_manual(mongo_db, "t1", now=NOW)
+
+    assert await rows_of(mongo_db, "t1") == set(gate.TYPE_IDS)
+    assert await gate.incomplete_review(mongo_db) == {"reason": "not_reached", "tenants": 1}
+    with pytest.raises(gate.ReviewIncomplete):
+        await confirm_all(mongo_db, NOW)

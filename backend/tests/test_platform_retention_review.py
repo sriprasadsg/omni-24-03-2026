@@ -280,6 +280,32 @@ async def test_a_token_from_before_a_recount_answers_409_and_confirms_nothing(ra
     assert (await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": fresh})).status_code == 200
 
 
+async def test_manual_run_before_the_first_nightly_run_then_confirm_is_refused(rapi):
+    db = rapi.db
+    await seed_old_metrics(db, "t1")
+    await job.run_manual(db, "t1")
+
+    body = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    assert body["incomplete"] == {"reason": "not_reached", "tenants": 1}
+    res = await rapi.call("POST", CONFIRM, role="super_admin", json={"reviewToken": body["reviewToken"]})
+    assert res.status_code == 409 and res.json()["detail"] == review_ep.REVIEW_INCOMPLETE
+    assert await db.retention_gate.count_documents({"confirmedDays": {"$ne": None}}) == 0
+    assert await db.retention_gate_global.count_documents({}) == 0
+
+    await job.run_all(db, trigger="scheduled")
+    fresh = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    assert fresh["incomplete"] is None
+    assert (await rapi.call("POST", CONFIRM, role="super_admin",
+                            json={"reviewToken": fresh["reviewToken"]})).status_code == 200
+
+
+async def test_review_reports_incomplete_null_after_a_clean_run(rapi):
+    await seed_old_metrics(rapi.db, "t1")
+    await job.run_all(rapi.db, trigger="scheduled")
+    body = (await rapi.call("GET", REVIEW, role="super_admin")).json()
+    assert "incomplete" in body and body["incomplete"] is None
+
+
 async def test_confirm_with_no_countable_rows_answers_422(rapi):
     db = rapi.db
     body = (await rapi.call("GET", REVIEW, role="super_admin")).json()          # nothing counted yet
