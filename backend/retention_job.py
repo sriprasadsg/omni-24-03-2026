@@ -162,21 +162,34 @@ async def run_all(db, *, now: Optional[datetime] = None, lost: Optional[Callable
     rdb = raw(db)
     deadline = time.monotonic() + RUN_MAX_MINUTES * 60
     summary = {"startedAt": now, "trigger": trigger, "counted": 0, "deleted": 0, "tenants": 0,
-               "stoppedEarly": False}
+               "stoppedEarly": False, "failedTenants": []}
     errors: list = []
-    async for tenant in rdb.tenants.find({}, {"_id": 0, "id": 1}).sort("id", 1):
-        tenant_id = tenant.get("id")
-        if not tenant_id:
-            continue
-        if (lost is not None and lost()) or time.monotonic() >= deadline:
-            summary["stoppedEarly"] = True
-            break
-        result = await run_tenant(db, tenant_id, now=now, lost=lost, deadline=deadline, trigger=trigger)
-        summary["tenants"] += 1
-        summary["counted"] += result["counted"]
-        summary["deleted"] += result["deleted"]
-        summary["stoppedEarly"] = summary["stoppedEarly"] or result["stoppedEarly"]
-        errors.extend(info["error"] for info in result["types"].values() if info.get("error"))
+    try:
+        async for tenant in rdb.tenants.find({}, {"_id": 0, "id": 1}).sort("id", 1):
+            tenant_id = tenant.get("id")
+            if not tenant_id:
+                continue
+            if (lost is not None and lost()) or time.monotonic() >= deadline:
+                summary["stoppedEarly"] = True
+                break
+            try:
+                result = await run_tenant(db, tenant_id, now=now, lost=lost, deadline=deadline, trigger=trigger)
+            except Exception as exc:     # never BaseException: a cancelled run must still stop (HEAL-07)
+                error = f"{type(exc).__name__}: {exc}"[:300]
+                logger.error("retention: tenant %s failed: %s", tenant_id, error)
+                summary["failedTenants"].append(tenant_id)
+                errors.append(error)
+                continue
+            summary["tenants"] += 1
+            summary["counted"] += result["counted"]
+            summary["deleted"] += result["deleted"]
+            summary["stoppedEarly"] = summary["stoppedEarly"] or result["stoppedEarly"]
+            errors.extend(info["error"] for info in result["types"].values() if info.get("error"))
+    except Exception as exc:             # the tenants cursor itself failed: still leave a run on record
+        error = f"{type(exc).__name__}: {exc}"[:300]
+        logger.error("retention: the tenants cursor failed: %s", error)
+        summary["stoppedEarly"] = True
+        errors.append(error)
     summary["finishedAt"] = datetime.now(timezone.utc)
     summary["error"] = errors[0] if errors else None
     await rdb[gate.RUNS].insert_one(dict(summary))

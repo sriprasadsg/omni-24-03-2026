@@ -162,3 +162,115 @@ async def test_an_unreadable_creation_time_is_never_adopted(mongo_db, pauses, va
     assert await kept(mongo_db, "t-z") == 5
     count = await mongo_db.retention_counts.find_one({"tenantId": "t-z", "type": "agent_metrics"})
     assert count["count"] == 3
+
+
+# ------------------------------------------------------------------ Task 2: HEAL-07, a failed tenant never reads as a clean run
+
+def fail_for(monkeypatch, tenant_id, error):
+    """load_policy_days raises ``error`` for ``tenant_id`` only; call inside monkeypatch.context()."""
+    real = gate.load_policy_days
+
+    async def flaky(db, tid):
+        if tid == tenant_id:
+            raise error
+        return await real(db, tid)
+
+    monkeypatch.setattr(gate, "load_policy_days", flaky)
+
+
+async def three_tenants(db):
+    for tid in ("t-a", "t-b", "t-c"):
+        await seed_tenant(db, tid)
+
+
+async def activity_row(db):
+    return await db.autonomy_actions.find_one({"healthEvent": "retention_run"})
+
+
+@pytest.mark.asyncio
+async def test_one_tenant_raising_does_not_stop_the_later_tenants(mongo_db, pauses, monkeypatch):
+    await three_tenants(mongo_db)
+    with monkeypatch.context() as patch:
+        fail_for(patch, "t-b", RuntimeError("mongo down"))
+        summary = await job.run_all(mongo_db, now=NOW)
+
+    assert summary["failedTenants"] == ["t-b"] and summary["tenants"] == 2
+    assert "RuntimeError" in summary["error"] and "mongo down" in summary["error"]
+    run = await mongo_db.retention_job_runs.find_one({})
+    assert run["failedTenants"] == ["t-b"] and run["tenants"] == 2 and "RuntimeError" in run["error"]
+    assert {r["type"] async for r in mongo_db.retention_gate.find({"tenantId": "t-c"})} == set(gate.TYPE_IDS)
+    assert await mongo_db.retention_gate.count_documents({"tenantId": "t-b"}) == 0
+
+
+@pytest.mark.asyncio
+async def test_a_failed_tenant_makes_the_activity_row_critical(mongo_db, pauses, monkeypatch):
+    await three_tenants(mongo_db)
+    with monkeypatch.context() as patch:
+        fail_for(patch, "t-b", RuntimeError("mongo down"))
+        await job.run_all(mongo_db, now=NOW)
+
+    row = await activity_row(mongo_db)
+    assert row["healthParams"]["ok"] is False and "RuntimeError" in row["healthParams"]["error"]
+    assert row["healthChip"] == "critical"
+
+
+@pytest.mark.asyncio
+async def test_a_clean_run_stores_no_failed_tenants_and_an_ok_activity_row(mongo_db, pauses):
+    await three_tenants(mongo_db)
+    summary = await job.run_all(mongo_db, now=NOW)
+
+    assert summary["failedTenants"] == [] and summary["error"] is None
+    assert (await mongo_db.retention_job_runs.find_one({}))["failedTenants"] == []
+    row = await activity_row(mongo_db)
+    assert row["healthParams"]["ok"] is True and row["healthChip"] == "healthy"
+
+
+class _BrokenCursor:
+    def find(self, *args, **kwargs):
+        return self
+
+    def sort(self, *args, **kwargs):
+        return self
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        raise RuntimeError("cursor lost")
+
+
+class _CursorDownDb:
+    """A database that delegates everything except the tenants cursor, which fails on iteration."""
+
+    def __init__(self, db):
+        self._real = db
+
+    def __getitem__(self, name):
+        return self._real[name]
+
+    def __getattr__(self, name):
+        return _BrokenCursor() if name == "tenants" else getattr(self._real, name)
+
+
+@pytest.mark.asyncio
+async def test_a_tenants_cursor_failure_still_writes_the_run(mongo_db, pauses):
+    await three_tenants(mongo_db)
+    summary = await job.run_all(_CursorDownDb(mongo_db), now=NOW)
+
+    assert summary["stoppedEarly"] is True and "cursor lost" in summary["error"]
+    run = await mongo_db.retention_job_runs.find_one({})
+    assert run["stoppedEarly"] is True and "cursor lost" in run["error"] and run["tenants"] == 0
+    row = await activity_row(mongo_db)
+    assert row["healthParams"]["ok"] is False and row["healthChip"] == "critical"
+
+
+@pytest.mark.asyncio
+async def test_cancellation_is_not_swallowed(mongo_db, pauses, monkeypatch):
+    await three_tenants(mongo_db)
+    with monkeypatch.context() as patch:
+        fail_for(patch, "t-a", asyncio.CancelledError())
+        with pytest.raises(asyncio.CancelledError):
+            await job.run_all(mongo_db, now=NOW)
+
+    assert await mongo_db.retention_job_runs.count_documents({}) == 0
+    assert await activity_row(mongo_db) is None
