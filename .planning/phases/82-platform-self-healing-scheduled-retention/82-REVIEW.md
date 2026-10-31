@@ -1,239 +1,133 @@
 ---
 phase: 82-platform-self-healing-scheduled-retention
-reviewed: 2026-10-30T22:00:00Z
+reviewed: 2026-10-31T12:00:00Z
 depth: standard
-files_reviewed: 54
+scope: gap round re-review (plans 82-15, 82-16, 82-17 and cbdb97708, diff base 7c946fb97)
+files_reviewed: 20
 files_reviewed_list:
-  - App.tsx
-  - backend/app_background_tasks.py
-  - backend/app_startup.py
   - backend/autonomous_ops/health_messages.py
-  - backend/autonomous_ops/ledger.py
-  - backend/autonomous_ops/notify.py
-  - backend/autonomous_ops/oncall.py
   - backend/autonomous_ops/selfheal.py
-  - backend/autonomous_ops/views.py
-  - backend/autonomous_ops_platform_endpoints.py
   - backend/autonomous_ops_retention_endpoints.py
-  - backend/migrations/025_platform_health.py
-  - backend/migrations/026_oncall_outbox.py
-  - backend/migrations/027_retention_gate.py
-  - backend/retention_endpoints.py
   - backend/retention_gate.py
   - backend/retention_job.py
-  - backend/retention_service.py
-  - backend/router_registry.py
-  - backend/watchdog_ingest_endpoints.py
-  - components/AutonomousOpsActivity.tsx
-  - components/AutonomousOpsActivityList.tsx
-  - components/AutonomousOpsHealthBanners.tsx
-  - components/AutonomousOpsHealthCards.tsx
-  - components/AutonomousOpsHealthChips.tsx
-  - components/AutonomousOpsPlatformHealth.tsx
+  - backend/tests/test_platform_health_status.py
+  - backend/tests/test_platform_health_sync.py
+  - backend/tests/test_platform_retention_review.py
+  - backend/tests/test_retention_endpoints_phase82.py
+  - backend/tests/test_retention_gate.py
+  - backend/tests/test_retention_job.py
+  - backend/tests/test_retention_unreached.py
   - components/AutonomousOpsRetentionConfirmDialog.tsx
   - components/AutonomousOpsRetentionReview.tsx
-  - components/AutonomousOpsStopBanner.tsx
   - components/RetentionPolicyDashboard.tsx
-  - contexts/AutonomousOpsStatusContext.tsx
-  - deploy/omni-watchdog/INSTALL.md
-  - deploy/omni-watchdog/etc/oncall.env.example
-  - deploy/omni-watchdog/etc/watchdog.conf.example
-  - deploy/omni-watchdog/omni-watchdog.py
-  - deploy/omni-watchdog/omni_watchdog/__init__.py
-  - deploy/omni-watchdog/omni_watchdog/checks.py
-  - deploy/omni-watchdog/omni_watchdog/config.py
-  - deploy/omni-watchdog/omni_watchdog/incidents.py
-  - deploy/omni-watchdog/omni_watchdog/paging.py
-  - deploy/omni-watchdog/omni_watchdog/restart.py
-  - deploy/omni-watchdog/omni_watchdog/run.py
-  - deploy/omni-watchdog/omni_watchdog/services.py
-  - deploy/omni-watchdog/omni_watchdog/state.py
-  - deploy/omni-watchdog/omni_watchdog/sync.py
-  - deploy/omni-watchdog/omni_watchdog/warnings.py
-  - deploy/omni-watchdog/polkit/49-omni-watchdog.rules
-  - deploy/omni-watchdog/systemd/mongod.service.d/50-omni-restart.conf
-  - deploy/omni-watchdog/systemd/nginx.service.d/50-omni-restart.conf
-  - deploy/omni-watchdog/systemd/omni-backend.service.d/10-omni-watchdog.conf
-  - deploy/omni-watchdog/systemd/omni-watchdog.service
-  - deploy/omni-watchdog/systemd/omni-watchdog.timer
   - services/autonomousOpsApi.ts
-  - shared/autonomous-ops-banned-terms.json
+  - src/__tests__/AutonomousOpsRetentionConfirmDialog.test.tsx
+  - src/__tests__/AutonomousOpsRetentionReview.test.tsx
+  - src/__tests__/RetentionPolicyDashboard.test.tsx
+  - src/__tests__/_platformHealthHarness.tsx
 findings:
-  critical: 1
-  warning: 5
-  info: 5
-  total: 11
+  critical: 0
+  warning: 2
+  info: 8
+  total: 10
 status: issues_found
 ---
 
-# Phase 82: Code Review Report
+# Phase 82: Code Review Report (gap round re-review)
 
-**Reviewed:** 2026-10-30
+**Reviewed:** 2026-10-31
 **Depth:** standard
-**Files Reviewed:** production files above (test files in the scope list were read for context only and are not enumerated)
+**Files Reviewed:** 20 (changed lines since 7c946fb97 and what they affect; `retention_gate.py`, `retention_job.py` and `selfheal.py` were read whole)
+**Status:** issues_found
 
 ## Summary
 
-Production code was read before tests, concentrating on the retention job and gate, the review token and confirm flow, the watchdog ingest route, the restart allowlist and polkit rule, tenant isolation and secrecy.
+This round re-reviews the gap closure for CR-01, WR-01, WR-02, WR-03 and WR-05. No backend test was run (they default to the live mongod); every conclusion below comes from reading the code and the call chains.
 
-What holds up:
-- Retention: the job iterates only the eight registry types. `NEVER_DELETED` is asserted at import and re-checked in `delete_type`. Every filter carries the stored tenant field on the raw handle. Deletion is by exact `_id` list plus the tenant field. A shortened period returns to counting. A malformed policy value falls back to the default.
-- Confirm: it requires `control:platform_autonomous_ops` and an interactive session. The token is a hash over all waiting rows, including counts and `countedAt`, so a recount gives 409.
-- Ingest route: the bearer comparison is constant-time and the credential is read on every call. It rejects non-loopback clients and any proxy header, and the body is capped at 256 KB. The credential is never logged.
-- Restart path: units come from the constant `UNITS`. The polkit rule is exact-match on subject, action, unit and verb, and falls through to NO for every other `systemd1` action. Watchdog error strings are built from fixed templates plus exception class names, so the routing key, webhook URL and heartbeat URL do not reach events, errors or the sync body.
-- Platform-health rows are filtered out of every tenant Activity query.
+Disposition of the previous findings that were targets of this round:
 
-One data-loss finding against the "never delete before confirmation" rule remains (CR-01). The warnings cover a confirm that covers rows the reviewer never saw, a mislabelled certificate rule id, a poison-event wedge in the ingest, leftover un-gated delete code, and a misleading failure display on the manual cleanup button.
+| Id | Verdict | Evidence |
+|---|---|---|
+| CR-01 | Fixed | `gate_state` now adopts only when the tenant's own creation time is readable and strictly later than the global confirmation (`retention_gate.py:129-143`). `run_tenant`, `review_rows` and `tenant_gate_flags` all decide through `created_at_of`, which reads both field names, fails closed and takes the earlier value (`:110-126`, `retention_job.py:125,133`). A tenant the first pass never reached keeps `confirmedDays` null, is `first_run`, is counted by the next run, and is deleted only after a confirmation. `incomplete_review` plus `ReviewIncomplete` is checked inside `confirm()` before any write (`:320-324`). `run_all` guards each tenant, records `failedTenants` and always writes the run row (`retention_job.py:167-195`). |
+| WR-01 | Fixed client-side | `allLoaded = state?.nextOffset === null` is in the button's `disabled` (`AutonomousOpsRetentionReview.tsx:262,346`). The remaining client-only limit is already recorded in 82-SECURITY.md and is not re-reported. |
+| WR-02 | Fixed | `_cert_rule` derives the rule from the unrounded `daysLeft` with `<=` comparisons that match `CERT_LADDER` in `warnings.py:27,77-78`. Checked: the watchdog opens a separate incident per suffix (30d, 14d, 7d, 1d), so each threshold emits its own event with the `daysLeft` at the crossing, and the rule id follows it. An unreadable certificate has its own `cert-unreadable` rule and wording. A cleared incident emits no `cert_warning` event (`warnings.py:89-99`), so the new "Can't read this file." text cannot appear for a healthy certificate. |
+| WR-03 | Fixed | The `clean_params` call moved inside the `try`, a final `except Exception` counts the event as dropped and the loop continues (`selfheal.py:191-204`). Non-finite floats and integers outside signed 64-bit are dropped in `clean_params` and `_scrub`; `_finite` guards `math.isfinite` to floats only. An unhashable `kind` no longer raises `TypeError` (`isinstance(kind, str)` first). `CancelledError` is a `BaseException` and still propagates. A bad event in a batch that also holds an unrecordable one is re-sent until the watchdog's `MAX_TRIES` and then abandoned (`sync.py:128-133`), so the wedge is bounded. |
+| WR-05 | Fixed | `runCleanup` checks `r.ok` and a string `ran_at` before setting the success card, and has a `catch` (`RetentionPolicyDashboard.tsx:49-60`). `ran_at` is a string in the real response (`retention_endpoints.py:112-114`). A list-valued 422 `detail` falls back to the generic message. |
 
-## Critical Issues
+Carried and deliberately not re-reviewed: WR-04 and IN-01 to IN-05 (their files are out of this scope). They stay open under the same ids and are listed at the end.
 
-### CR-01: "adopt" auto-deletes a tenant or type that the first count pass never reached
-
-**File:** `backend/retention_gate.py:92-104` (also `backend/retention_job.py:126-135`, `166-178`; `backend/retention_gate.py:222-237`)
-
-**Issue:** `gate_state` returns `adopt`, which deletes immediately, for any row with `confirmedDays is None` whose `firstSeenAt` is later than the single global `confirmedAt`. The assumption (A-82-A12) is that such a row is a brand-new tenant or type with nothing old to review. But `firstSeenAt` is only set when the nightly job first reaches that (tenant, type) via `mark_seen`. The first counting pass does not reliably reach every tenant:
-
-- `run_all` stops at `RUN_MAX_MINUTES` or on a lost lock (`stoppedEarly`).
-- `run_tenant` does not guard `load_policy_days`, `mark_seen`, or the `update_one` inside `_record_count`. A Mongo error for one tenant aborts `run_all` before any run summary is written, and `retention_loop` retries every 5 minutes from the same tenant.
-
-Failure scenario:
-1. The first run counts tenants A..M and then stops or aborts. Rows for N..Z do not exist yet.
-2. The Super Admin reviews the visible rows and confirms. `confirm()` sets the global `confirmedAt` to T.
-3. At the next 02:00 run, tenants N..Z get `firstSeenAt` greater than T, so `gate_state` returns `adopt`.
-4. `delete_type` immediately deletes their metrics, logs, location history and the other types older than the default periods. No count was ever shown and no one confirmed.
-
-The same happens for a tenant created before T but not yet seen. This is irreversible deletion without confirmation, which the phase says must not happen.
-
-**Fix:** Make "adopt" depend on the tenant or type genuinely being new, not on the run order. Two options:
-
-```python
-# in confirm(), before writing GATE_GLOBAL: seed every existing (tenant, type) row so none can later read as new
-async for t in rdb.tenants.find({}, {"_id": 0, "id": 1}):
-    for rtype in RETENTION_TYPES:
-        await rdb[GATE].update_one(
-            {"tenantId": t["id"], "type": rtype.id},
-            {"$setOnInsert": {"tenantId": t["id"], "type": rtype.id, "confirmedDays": None,
-                              "firstSeenAt": now}},   # == confirmedAt, so "seen > confirmed_at" is False -> first_run
-            upsert=True)
-```
-
-Alternatively, adopt only when the tenant document's `createdAt` is after `confirmedAt`. In addition, wrap the per-tenant body of `run_all` in try/except so one bad tenant cannot leave the remaining tenants unseen, and so the run summary is always written.
+The hardest-looked-at paths (`incomplete_review`, `confirm`, `gate_state`, `run_all`, `ingest_events`) hold up: I could not construct a case where unconfirmed data is deleted, and the refusal cases all clear on the next complete scheduled run. One availability weakness in the confirm token (WR-06) and three minor items (IN-06 to IN-08) are new.
 
 ## Warnings
 
-### WR-01: One confirmation covers every waiting row, but only the first 25 are shown, and the reviewer attests to "every organization listed"
+### WR-06: A tenant admin's "Run Cleanup Now" re-stamps `countedAt` and so invalidates the Super Admin's review token on demand
 
-**File:** `components/AutonomousOpsRetentionReview.tsx:313-318` (and `components/AutonomousOpsRetentionConfirmDialog.tsx:38-39`, `104`)
+**File:** `backend/retention_job.py:74-85` (also `:149-154`, `:268-285`; `backend/retention_gate.py:301-305`; `backend/retention_endpoints.py:99-115`)
 
-**Issue:** The review endpoint pages at 25 rows. The token and `confirm()` cover all rows (`retention_gate.confirm` confirms every eligible row), and the dialog summary shows totals over all rows. The Confirm deletion button is enabled whenever `countable > 0`, even while `state.nextOffset !== null` (more rows not yet loaded). With 20 tenants and 8 types there are 160 rows. A reviewer who looks at the first page, ticks "I have reviewed the counts for every organization listed", and confirms authorizes deletion for about 135 rows they never saw. The checkbox claim is true only for the loaded rows.
+**Issue:** `review_token` hashes `tenantId|type|days|count|countedAt` for every waiting row. `_record_count` always writes `countedAt: now` (`retention_job.py:81-84`), even when days, count and error are unchanged. `POST /api/retention/run` is open to any tenant admin for their own tenant and calls `run_manual` -> `run_tenant`, which recounts every `first_run` and `shortened` row of that tenant. So any tenant admin can change the platform-wide token with one request, and while a manual run holds the lock the confirm route answers 409 `RUN_IN_PROGRESS`. The route has only the default limit of 600 per minute (`rate_limiter.py:18`). One script looping on it from any tenant keeps the Super Admin's Confirm deletion answering 409 (stale review), and the tenant's own rows stay waiting precisely because the confirmation is being blocked. The refusal clears only when the loop stops. Because the review spans all organizations, one tenant can stall retention confirmation for every tenant. An honest tenant admin pressing the button during a review causes the same 409 by accident.
 
-**Fix:** Disable Confirm until all pages are loaded (`state.nextOffset === null`), or have the dialog state the number of rows not yet displayed and require loading them first:
-
-```tsx
-const allLoaded = state?.nextOffset === null;
-<button ... disabled={running || countable <= 0 || !allLoaded}>
-...
-{!allLoaded && <p className={MUTED}>Load all {review.total} rows before confirming.</p>}
-```
-
-### WR-02: Certificate rule id is off by one rung for 14d, 7d and 1d
-
-**File:** `backend/autonomous_ops/health_messages.py:31, 136-137` (rung source `deploy/omni-watchdog/omni_watchdog/warnings.py:27`)
-
-**Issue:** `CERT_LADDER` has four thresholds but only three rungs: 30d and 14d share rung 1, 7d is rung 2, 1d is rung 3. `_CERT_RULES` has four entries and is indexed by `rung - 1`. Result, verified by running `_rule_id`:
-
-| Real condition | Rule id shown |
-|---|---|
-| 14-day warning | `cert-expiry-30d` |
-| 7-day warning | `cert-expiry-14d` |
-| 1-day critical (and expired) | `cert-expiry-7d` |
-| unreadable certificate (rung 2) | `cert-expiry-14d` |
-
-`cert-expiry-1d` is unreachable. The rule id is the audit-facing explanation under every certificate row in Platform Activity, and it is stored on the ledger row (`reason.ruleId`). It is wrong for the most urgent rungs. As a related defect, an unreadable certificate renders "`<path> expires —`" (`_reason_and_result`, cert_warning branch), because `daysLeft` is absent.
-
-**Fix:** Derive the rule from the threshold, not the rung. Have the watchdog send the suffix (for example `params["threshold"] = 14`), or map `daysLeft` with `<=1 -> 1d`, `<=7 -> 7d`, `<=14 -> 14d`, otherwise `30d`. Add a distinct "unreadable" rule and wording.
-
-### WR-03: A single un-renderable event wedges the whole watchdog sync permanently
-
-**File:** `backend/autonomous_ops/selfheal.py:152-177` (with `backend/autonomous_ops/health_messages.py:68-71`, `backend/autonomous_ops/ledger.py:176`)
-
-**Issue:** `ingest_events` catches only `ledger.LedgerUnavailable`. `record_platform_health` calls `health_messages.render(...)` before its `try`, and `_num` does `int(round(value))`. `clean_params` only filters NaN, so `inf` passes. `pydantic.model_validate_json` accepts `1e999` and `Infinity`. Verified: an event `{"kind":"disk_forecast","params":{"forecastDays":1e999}}` raises `OverflowError` from `render`. `post_sync` then converts it to 503 for the whole request.
-
-The watchdog only bumps `tries` or removes spool entries on a 200 (`sync.sync_cycle`), so the same event is resent first, in order, every minute. From then on no sync completes. The platform stop is not refreshed. The outbox is never handed out, test alerts are never picked up, and no later event is recorded. The heartbeat still updates, so the dead-man alarm stays quiet.
-
-The watchdog is trusted, but a corrupt `state.json` or spool value, or a future bug, reaches this path.
-
-**Fix:** Treat a render or other per-event failure as a dropped event, not a request failure:
+**Fix:** Do not change the count row when nothing changed, so the token only moves for a real recount:
 
 ```python
-try:
-    await ledger.record_platform_health(...)
-except ledger.LedgerUnavailable as exc:
-    ...; continue
-except Exception as exc:               # a malformed event must not wedge the spool
-    logger.error("selfheal: event %s dropped: %s", event_id, type(exc).__name__)
-    dropped += 1
-    continue
+async def _record_count(db, tenant_id, rtype, days, now):
+    try:
+        count, error = await count_type(db, rtype, tenant_id, days, now), None
+    except Exception as exc:
+        count, error = None, f"{type(exc).__name__}: {exc}"[:300]
+        logger.warning(...)
+    coll = raw(db)[gate.COUNTS]
+    prev = await coll.find_one({"tenantId": tenant_id, "type": rtype.id},
+                               {"_id": 0, "days": 1, "count": 1, "error": 1})
+    if prev and prev.get("days") == days and prev.get("count") == count and prev.get("error") == error:
+        return count, error                       # same answer: keep the old countedAt, keep the token
+    await coll.update_one(...)                    # as today
 ```
 
-Also reject non-finite numbers in `clean_params` (`math.isfinite`), and make `_num` return None for non-finite input.
+Optionally also have a manual run skip recounting a row whose usable count already exists, and rate limit the route per tenant.
 
-### WR-04: Un-gated platform-wide delete paths remain in `retention_service.py`
+### WR-04 (carried, open): un-gated platform-wide delete paths remain in `retention_service.py`
 
-**File:** `backend/retention_service.py:30-47` (`purge_agent_telemetry`) and `57-127` (`RetentionService.cleanup_*`, `run_cleanup`)
-
-**Issue:** Phase 82 routes both the nightly job and the manual run through `retention_job`. But `purge_agent_telemetry` and `cleanup_agent_telemetry` (which delete by tenant with no gate), and `RetentionService.cleanup_system_metrics`, `cleanup_notifications`, `cleanup_agent_location_history` and `cleanup_agent_uptime_rollups`, are still importable. The `RetentionService` methods delete across all tenants with no tenant filter. A grep of non-test code shows no callers; only tests, one of which monkeypatches `run_cleanup` to prove it is off the manual path. Any future caller, for example a restored cron or a copy-pasted endpoint, silently bypasses the confirmation gate and the tenant scoping that this phase established. `purge_agent_telemetry` also reads `retention_days` from `retention_policies` without the `valid_days` check, so a malformed value (0 or negative) deletes everything.
-
-**Fix:** Delete the unused functions (`purge_agent_telemetry`, `cleanup_agent_telemetry`, and the `RetentionService` delete methods), and update or remove the legacy tests that exercise them. If the class must stay, make each delete method raise unless called by `retention_job`.
-
-### WR-05: "Run Cleanup Now" reports "Cleanup completed" for 409, 403 and 400 answers
-
-**File:** `components/RetentionPolicyDashboard.tsx:44-53`
-
-**Issue:** `runCleanup` does `const d = await r.json(); setLastResult(d);` without checking `r.ok`. This phase added new failure answers to `POST /api/retention/run`: 409 (a run is in progress), 400 (no tenant), and 403 (not an admin). Each returns `{"detail": ...}`. The component then renders the green "Cleanup completed at Invalid Date" card with no tiles (`lastResult.ran_at` is undefined). A tenant admin who hits the busy lock, or a non-admin, is told the cleanup completed.
-
-**Fix:**
-```tsx
-const r = await authFetch('/api/retention/run', { method: 'POST' });
-const d = await r.json().catch(() => ({}));
-if (!r.ok) { showToast(d.detail || "Couldn't run cleanup.", 'error'); return; }
-setLastResult(d);
-```
+Not re-reviewed this round. See the previous review entry; unchanged.
 
 ## Info
 
-### IN-01: Outbox pages are trigger-only, so each Autonomous Ops notice leaves an open on-call incident
+### IN-06: `gate_state` parameter shadows the module function `tenant_created_at`
 
-**File:** `backend/autonomous_ops/oncall.py:102` and `deploy/omni-watchdog/omni_watchdog/paging.py:366-368`
+**File:** `backend/retention_gate.py:129-130` (function defined at `:120`)
 
-**Issue:** `enqueue` always creates `kind: "trigger"` with `dedupKey: None`. The watchdog then uses a unique key `omni:<host>:<id>` per message and never sends the matching resolve. On PagerDuty each stop, breaker or rate-limit notice opens its own incident that nothing auto-resolves. Webhook channels see the same one-way pattern. If this is intended (D-04), document it in INSTALL.md. Otherwise send a resolve when the notice's condition clears.
+**Issue:** The new parameter is named `tenant_created_at`, the same name as the async function defined nine lines above it. It is harmless today because the body never calls the function, but any later edit that wants to call `tenant_created_at(db, ...)` inside `gate_state` gets the datetime instead, and fails with a confusing `TypeError`.
 
-### IN-02: `testAlert.error` and the Activity `error` params are not URL-scrubbed, unlike the channel status path
+**Fix:** Rename the parameter to `created` (the body already uses that local name for the aware value) and update the keyword uses in the tests.
 
-**File:** `backend/autonomous_ops/oncall.py:147-152`, `backend/autonomous_ops/selfheal.py:256-259, 288-291`
+### IN-07: Adoption now rests on a mutable `createdAt`, and the demo seed script rewrites it for existing tenants
 
-**Issue:** `channel_status` runs delivery errors through `_safe_error` (URL replaced by `[url]`). But `oncall.test_view`, the `ack_delivered` error stored on the outbox, and the `test_alert` and `page_failed` ledger params keep the watchdog's text with only `clean_text`. Today the watchdog builds these from fixed templates, so no URL reaches them. The backend's own claim ("never a key or URL") then rests on the watchdog alone. Apply `_safe_error` in `_view`, `ack_delivered` and `record_test_result` for defence in depth.
+**File:** `backend/seed_demo_data.py:19,26,30`
 
-### IN-03: Loopback test compares literal strings
+**Issue:** `await db.tenants.update_one({"id": t["id"]}, {"$set": t}, upsert=True)` sets `createdAt` to the current time on every run, including for tenants that already exist (the Acme and Exafluence entries are real-looking ids). Adoption (`created > global confirmedAt`) trusts that field, so running this script after the first confirmation makes those tenants read as brand new, and the next nightly run deletes their old records without a count or a confirmation. The script has no caller in the app (manual use only), and the live tenant routes cannot set `createdAt`, so this is a latent path, not an active one.
 
-**File:** `backend/watchdog_ingest_endpoints.py:31, 52`
+**Fix:** In the script use `{"$set": {k: v for k, v in t.items() if k != "createdAt"}, "$setOnInsert": {"createdAt": ...}}`. Longer term, record an explicit immutable `retentionAdoptable` or the creation time inside the gate collection at tenant creation, so adoption does not depend on a field every writer can touch.
 
-**Issue:** `_LOOPBACK = {"127.0.0.1", "::1"}`. If uvicorn is ever bound dual-stack, a local IPv4 client appears as `::ffff:127.0.0.1` and the watchdog is locked out with 403. Also, uvicorn's proxy-header handling is trusted for 127.0.0.1, so nginx on the same host rewrites `client.host`. The "unreachable through nginx" property depends on nginx always adding `X-Forwarded-For`. The bearer token still protects the route, but consider an explicit `location /api/internal/ { return 404; }` in nginx. Use `ipaddress.ip_address(host).is_loopback` after unmapping IPv4-mapped addresses.
+### IN-08: The "run document without `finishedAt`" branch of `run_in_progress` can never match
 
-### IN-04: INSTALL.md section 12 names a control that does not exist there
+**File:** `backend/retention_job.py:247-249`
 
-**File:** `deploy/omni-watchdog/INSTALL.md:264-265`
+**Issue:** `run_all` and `run_manual` insert their run document only at the end, with `finishedAt` set (`:193-195`, `:281-284`). `count_documents({"finishedAt": {"$exists": False}, ...})` therefore never counts anything, and "a run is in progress" rests only on the lock document. If the lock expires while a run is still going (event loop blocked past the 120 s TTL), the confirm route and the review no longer see the run. The docstring promises both signals.
 
-**Issue:** It says "sooner with **Run cleanup now** on the Platform health panel". The manual run is **Run Cleanup Now** on the Data Retention Policies page (tenant admin, own tenant only). The Platform health panel has only the review and Confirm deletion. An operator following the checklist will not find the button, and the manual run cannot count other tenants.
+**Fix:** Either insert a `{startedAt, trigger}` document at the start of `run_all` and update it at the end, or delete the dead branch and the claim in the docstring.
 
-### IN-05: Service state from the snapshot is not validated server-side
+## Carried from the previous review (not re-reviewed)
 
-**File:** `backend/autonomous_ops/selfheal.py:332-340` and `components/AutonomousOpsPlatformHealth.tsx:131-141`
+- WR-04: un-gated delete paths remain in `backend/retention_service.py`. Open.
+- IN-01: outbox pages are trigger-only. Open.
+- IN-02: `testAlert.error` and Activity `error` params are not URL-scrubbed. Open.
+- IN-03: loopback test compares literal strings. Open.
+- IN-04: INSTALL.md section 12 names a control that does not exist there. Open.
+- IN-05: service state from the snapshot is not validated server-side. Open.
 
-**Issue:** `_service` passes `state` through as any string up to 32 characters. The UI indexes `SERVICE_LABEL[state]` and `SERVICE_CHIP[state]` with it. An unrecognised value (a newer watchdog, a corrupt snapshot) renders "Last known: undefined" for the stale case, and passes `undefined` to `HealthChip` for the fresh case, which destructures `CHIPS[undefined]` and throws, taking down the Platform health section. Whitelist the vocabulary in `_service` (map unknown to null), or guard in the UI.
+Already recorded and not re-reported: the client-side limit on "every row loaded", `_EVENT_ID` accepting one trailing newline, the LedgerUnavailable log line, the adoption persistent case (A-82-A16), the sub-millisecond adoption window (A-82-A15), and the UI items in 82-UI-REVIEW.md (including the 409 incomplete answer showing the "counts changed" text).
 
 ---
 
-_Reviewed: 2026-10-30_
+_Reviewed: 2026-10-31_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
