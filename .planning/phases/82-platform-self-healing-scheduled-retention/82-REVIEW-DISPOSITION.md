@@ -21,19 +21,19 @@ findings:
     title: "The \"run document without `finishedAt`\" branch of `run_in_progress` can never match"
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "\"adopt\" auto-deletes a tenant or type that the first count pass never reached"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "One confirmation covers every waiting row, but only the first 25 are shown, and the reviewer attests to \"every organization listed\""
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Certificate rule id is off by one rung for 14d, 7d and 1d"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A single un-renderable event wedges the whole watchdog sync permanently"
   - id: WR-04
     severity: warning
@@ -41,7 +41,7 @@ findings:
     title: "Un-gated platform-wide delete paths remain in `retention_service.py`"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "\"Run Cleanup Now\" reports \"Cleanup completed\" for 409, 403 and 400 answers"
   - id: IN-01
     severity: info
@@ -63,9 +63,8 @@ findings:
     severity: info
     disposition: open
     title: "Service state from the snapshot is not validated server-side"
-open: 15
+open: 10
 total: 15
-unparsed: 6
 recorded: 2026-10-31T10:22:43.312Z
 ---
 
@@ -77,12 +76,12 @@ recorded: 2026-10-31T10:22:43.312Z
 | IN-06 | info | open | - |
 | IN-07 | info | open | - |
 | IN-08 | info | open | - |
-| CR-01 | critical | open | - (not in the current review) |
-| WR-01 | warning | open | - (not in the current review) |
-| WR-02 | warning | open | - (not in the current review) |
-| WR-03 | warning | open | - (not in the current review) |
+| CR-01 | critical | fixed | 82-15 afd90e532, 0a4de3acd, 642624ac4, confirmed by the gap-round review |
+| WR-01 | warning | fixed | 82-17 c157feb10, confirmed by the gap-round review |
+| WR-02 | warning | fixed | 82-16 14d343740, confirmed by the gap-round review |
+| WR-03 | warning | fixed | 82-16 ab2907a7c, cbdb97708, confirmed by the gap-round review |
 | WR-04 | warning | open | - (not in the current review) |
-| WR-05 | warning | open | - (not in the current review) |
+| WR-05 | warning | fixed | 82-17 57705c85a, confirmed by the gap-round review |
 | IN-01 | info | open | - (not in the current review) |
 | IN-02 | info | open | - (not in the current review) |
 | IN-03 | info | open | - (not in the current review) |
