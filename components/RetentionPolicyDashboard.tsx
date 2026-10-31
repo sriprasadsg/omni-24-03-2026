@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
+import { showToast } from '../utils/toast';
 
 interface Policy {
   collection: string;
@@ -46,9 +47,16 @@ export default function RetentionPolicyDashboard() {
     setRunning(true);
     try {
       const r = await authFetch('/api/retention/run', { method: 'POST' });
-      const d = await r.json();
+      const d = await r.json().catch(() => null);
+      // A refused or failed run (409 busy, 403, 400) must never read as a completed one (WR-05).
+      if (!r.ok || typeof d?.ran_at !== 'string' || !d.ran_at) {
+        showToast(typeof d?.detail === 'string' && d.detail.trim() ? d.detail : "Couldn't run cleanup.", 'error');
+        return;
+      }
       setLastResult(d);
       loadAll();
+    } catch {
+      showToast("Couldn't run cleanup.", 'error');
     } finally { setRunning(false); }
   }
 

@@ -11,10 +11,14 @@ vi.mock('../../services/apiService', () => ({
   authFetch: vi.fn(),
 }));
 
+vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
+
 import { authFetch } from '../../services/apiService';
+import { showToast } from '../../utils/toast';
 import RetentionPolicyDashboard from '../../components/RetentionPolicyDashboard';
 
 const mockAuthFetch = authFetch as unknown as ReturnType<typeof vi.fn>;
+const mockToast = showToast as unknown as ReturnType<typeof vi.fn>;
 const jsonRes = (body: unknown, status = 200) =>
   ({ ok: status < 400, status, json: async () => body }) as unknown as Response;
 
@@ -70,6 +74,7 @@ const D26 =
 let confirmSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   mockAuthFetch.mockReset();
+  mockToast.mockReset();
   confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
 });
 afterEach(() => { confirmSpy.mockRestore(); });
@@ -131,6 +136,49 @@ describe('Run Cleanup Now confirmation (D-26)', () => {
     await loaded();
     fireEvent.click(screen.getByRole('button', { name: /Run Cleanup Now/ }));
     expect(mockAuthFetch.mock.calls.some(c => String(c[0]) === '/api/retention/run')).toBe(false);
+  });
+});
+
+describe('Run Cleanup Now outcomes (WR-05, T-82-55)', () => {
+  const FALLBACK = "Couldn't run cleanup.";
+  async function run() {
+    confirmSpy.mockReturnValue(true);
+    render(<RetentionPolicyDashboard />);
+    await loaded();
+    fireEvent.click(screen.getByRole('button', { name: /Run Cleanup Now/ }));
+  }
+  const unreadable = () => ({ ok: false, status: 502, json: () => Promise.reject(new SyntaxError('bad json')) }) as unknown as Response;
+  const failures: Array<[string, () => Response, string]> = [
+    ['a 409 busy lock', () => jsonRes({ detail: 'A retention run is in progress. Try again when it finishes.' }, 409), 'A retention run is in progress. Try again when it finishes.'],
+    ['a 403 for a viewer', () => jsonRes({ detail: 'Admin role required' }, 403), 'Admin role required'],
+    ['a 400 without a tenant', () => jsonRes({ detail: 'A tenant is required to run retention' }, 400), 'A tenant is required to run retention'],
+    ['a 422 whose detail is a list', () => jsonRes({ detail: [{ msg: 'bad' }] }, 422), FALLBACK],
+    ['a 502 with an unreadable body', unreadable, FALLBACK],
+    ['a 200 with no readable ran_at', () => jsonRes({ status: 'completed', result: {} }), FALLBACK],
+  ];
+
+  it.each(failures)('%s shows an error toast and never the completed card', async (_name, answer, message) => {
+    route({ run: answer });
+    await run();
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(message, 'error'));
+    expect(screen.queryByText(/Cleanup completed/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Run Cleanup Now/ })).toBeEnabled();
+  });
+
+  it('a network error does not throw, shows the fallback toast and no card', async () => {
+    route({ run: () => { throw new TypeError('Failed to fetch'); } });
+    await run();
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(FALLBACK, 'error'));
+    expect(screen.queryByText(/Cleanup completed/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Run Cleanup Now/ })).toBeEnabled();
+  });
+
+  it('a successful run still shows the green Cleanup completed card with its tiles and no toast', async () => {
+    route({ run: () => jsonRes({ status: 'completed', ran_at: '2026-10-31T01:00:00+00:00', result: { logs: 7 } }) });
+    await run();
+    expect(await screen.findByText(/Cleanup completed at/)).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(mockToast).not.toHaveBeenCalled();
   });
 });
 
