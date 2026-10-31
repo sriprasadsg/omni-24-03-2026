@@ -114,7 +114,10 @@ Known flake: `src/__tests__/FinancePanel.test.tsx` failed once in 4 full fronten
 | Phase 82 backend modules (watchdog, retention, platform health, copy, route auth, catalogue parity) | 645 passed, 1 failed, 0 skipped; the failure is `test_ledger_ratchets`, listed above and not from Phase 82 |
 | Frontend (`npx vitest run src/__tests__`) | 70 files, 818 tests passed |
 | `npm run build` | passed |
-| Backend, full (`backend/tests`) | running at the time of this audit; the result is recorded below once it finishes |
+| Non-string `kind` fix (T-82-50), health and watchdog contract modules | 220 passed, 0 skipped |
+| Backend, full (`backend/tests`) | **Not completed.** Stopped by Claude Code at about 25% because the VM ran critically low on memory. This is no result either way; the last completed full run is the 2026-10-30 one above, which predates the gap round |
+
+The stopped run's partial log showed 5 failures. Two match the 2026-10-30 list (`test_catalogue_manifest`, `test_catalogue_route_parity`) and `test_audit_export` is the same module as a listed one. The other three were in `test_catalogue_slice_billing_identity.py` and `test_catalogue_slice_devices.py`, and those two modules pass alone: 15 passed, in 6 minutes. They ran while memory was exhausted; the cause was not investigated further, and no Phase 82 commit touches them.
 
 Three tests 82-15 could not show failing on their own were run against exported copies of the older code, on the private mongod:
 

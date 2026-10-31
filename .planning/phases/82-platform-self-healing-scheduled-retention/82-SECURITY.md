@@ -1,9 +1,9 @@
 ---
 phase: "82"
 slug: "platform-self-healing-scheduled-retention"
-status: draft
+status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 3
+threats_open: 0
 asvs_level: 1
 created: "2026-10-31"
 ---
@@ -11,13 +11,13 @@ created: "2026-10-31"
 # Phase 82 — Security
 
 > Per-phase security contract: threat register, accepted risks, and audit trail.
-> Register authored at plan time (the `<threat_model>` blocks of 82-01..82-14) and verified against the
-> implementation at ASVS L1 on 2026-10-31, after all 14 plans executed. Phase 82 backend modules and the
-> frontend suite (792 tests) were green at audit time; none of those tests cover the open threats below.
+> Register authored at plan time (the `<threat_model>` blocks of 82-01..82-17) and verified against the
+> implementation at ASVS L1 on 2026-10-31, first after plans 82-01..82-14 and again after the gap round
+> 82-15..82-17. The gap-round audit ran the retention and health backend modules on a private mongod with
+> 0 skipped, and the three retention UI test files.
 
-**Phase status: SECURITY BLOCKED.** Three high-severity threats are open. Advancement stays blocked until
-`threats_open: 0`. Nothing here is deployed: the Phase 82 backend needs a restart and the watchdog is not
-installed, so no open threat is reachable on the live server yet.
+**Phase status: THREAT-SECURE.** All 55 threats are closed. Nothing here is deployed: the Phase 82 backend
+needs a restart and the watchdog is not installed, so the fixes are not on the live server yet.
 
 ---
 
@@ -65,7 +65,7 @@ installed, so no open threat is reachable on the live server yet.
 | T-82-01 | Spoofing | POST /api/internal/watchdog/sync | high | mitigate | Bearer token from the systemd credential compared with hmac.compare_digest; loopback client only; proxy headers refused (unreachable via nginx); 503 while no credential exists | closed |
 | T-82-02 | Tampering | event text in the Activity UI, forged retention confirmation | high | mitigate | Closed WATCHDOG_EVENT_KINDS enum, closed params keys, backend-only kinds refused from the watchdog, all user-visible text rendered from health_messages.py | closed |
 | T-82-03 | Information Disclosure | views.list_page for tenants and Platform Support | high | mitigate | include_platform_health defaults False and ANDs kind != platform_health for every tenant id including platform-admin; separate PlatformBucket on the platform route only; tests for tenant admin, viewer and Platform Support (PROH-82-06) | closed |
-| T-82-04 | Denial of Service | sync body and event flood | medium | mitigate | 256 KB body cap (413), 50 events per call, 300-character strings, idempotent ids so re-sends never multiply rows | open — below high threshold (non-blocking) |
+| T-82-04 | Denial of Service | sync body and event flood | medium | mitigate | 256 KB body cap (413), 50 events per call, 300-character strings, idempotent ids so re-sends never multiply rows; per-event isolation and rejection of unstorable numbers (82-16, completed by the non-string kind fix under T-82-50) | closed |
 | T-82-05 | Repudiation | watchdog events | low | mitigate | Each accepted event is mirrored to the platform-admin hash-chained audit ledger through ledger._mirror | closed |
 | T-82-06 | Elevation of Privilege | watchdog code path | high | mitigate | Stdlib-only package installed root-owned outside the checkout (82-06 INSTALL.md); entry script adds only its own real directory to sys.path under python3 -I | closed |
 | T-82-07 | Tampering | state.json / concurrent runs | medium | mitigate | Atomic temp+fsync+os.replace writes, corrupt-file quarantine with a state_reset event, fcntl.flock run lock | closed |
@@ -94,19 +94,29 @@ installed, so no open threat is reachable on the live server yet.
 | T-82-30 | Tampering | deleting audit evidence or decision records | high | mitigate | Registry of eight types only, NEVER_DELETED asserted disjoint at import and in tests, protected collections untouched after a confirmed run (PROH-82-05) | closed |
 | T-82-31 | Denial of Service | MongoDB load during deletes | medium | mitigate | 500-id batches, 0.5 s pauses, 60-minute cap, count maxTimeMS 30000, 02:00 UTC before the 02:30 backup | closed |
 | T-82-32 | Tampering | cross-tenant deletion through the wrong tenant field | high | mitigate | Raw handle with the type's stored tenant field (tenant_id for uptime rollups and agent/asset metrics); two-tenant isolation tests | closed |
-| T-82-33 | Tampering | unconfirmed deletion | high | mitigate | Gate: first_run and shortened only count; confirmation keyed by a review token; uncountable rows stay waiting | open |
+| T-82-33 | Tampering | unconfirmed deletion | high | mitigate | Gate: first_run and shortened only count; confirmation keyed by a review token; uncountable rows stay waiting; adoption only for a readable tenant creation time strictly after the confirmation (82-15) | closed |
 | T-82-34 | Tampering | confirming counts that changed | high | mitigate | reviewToken over every waiting row; mismatch 409; mid-run 409; uncountable rows excluded | closed |
 | T-82-35 | Elevation of Privilege | review and confirm routes | high | mitigate | control:platform_autonomous_ops (platform-only) plus interactive session; 403 tests for tenant roles and Platform Support | closed |
-| T-82-36 | Tampering | bypassing the review with Run cleanup now | high | mitigate | /run calls run_manual which applies the same gate; tests prove waiting types are only counted (PROH-82-10) | open |
+| T-82-36 | Tampering | bypassing the review with Run cleanup now | high | mitigate | /run calls run_manual which applies the same gate; tests prove waiting types are only counted, an unreached tenant included (PROH-82-10) | closed |
 | T-82-37 | Information Disclosure | tenant seeing other tenants' review state | medium | mitigate | /policies flags computed for the caller's own tenant only, no counts; test with two tenants | closed |
 | T-82-38 | Information Disclosure | health banners and platform status fetch | medium | mitigate | Fetch and render gated on hasPermission('control:platform_autonomous_ops'); server enforces the same permission (82-08); test that a tenant admin triggers no platform request | closed |
 | T-82-39 | Tampering | server error text in banners (XSS) | medium | mitigate | React text only, no dangerouslySetInnerHTML (grep check), server caps at 300 characters | closed |
 | T-82-40 | Tampering | rendered server strings and the checklist link | medium | mitigate | React text only; the url renders as a link only when it is https or same-origin, else as text; rel noopener noreferrer | closed |
 | T-82-41 | Information Disclosure | on-call secrets in the UI | high | mitigate | The API carries none (82-07/82-08); the card renders only type and booleans; test asserts no URL-like text in the on-call card | closed |
-| T-82-42 | Tampering | accidental or stale confirmation | high | mitigate | Required review checkbox, no keyboard submit, one request per click, server reviewToken 409 handled by Reload review (server guard in 82-10) | open |
+| T-82-42 | Tampering | accidental or stale confirmation | high | mitigate | Required review checkbox, no keyboard submit, one request per click, server reviewToken 409 handled by Reload review (server guard in 82-10), Confirm disabled until every row is loaded (82-17; client-side, see Audit Notes) | closed |
 | T-82-43 | Elevation of Privilege | Confirm deletion visibility | medium | mitigate | Rendered only for hasPermission('control:platform_autonomous_ops'); server enforces the same permission; 403 closes with a toast | closed |
 | T-82-44 | Information Disclosure | platform-health rows in tenant views | medium | mitigate | Client-side drop outside platform scope as a second guard behind the server filter (82-01); test feeds a platform_health row into tenant scope | closed |
 | T-82-45 | Information Disclosure | tenant notices revealing other tenants or counts | low | mitigate | The screen renders only the caller's own gate flags (server-scoped in 82-10) and never counts | closed |
+| T-82-46 | Tampering | tenant creation time read for adoption | high | mitigate | created_at_of fails closed: an absent, unparseable or equal time is first_run; every tenant write path checked, no route lets a caller set createdAt or created_at (PROH-82-14) | closed |
+| T-82-47 | Tampering | confirming a counted set known to be incomplete | high | mitigate | incomplete_review runs inside confirm() before any write; 409 REVIEW_INCOMPLETE; manual-run rows cover only their own tenant (PROH-82-15) | closed |
+| T-82-48 | Repudiation | a failed tenant or tenants cursor leaving no trace | medium | mitigate | Per-tenant and cursor guards on Exception only, failedTenants on an always-written run document, retention_run row ok false (PROH-82-16) | closed |
+| T-82-49 | Denial of Service | non-finite or oversized numbers in event params and snapshot values | medium | mitigate | clean_params drops them, _scrub stores None through _storable, health_messages._num returns None | closed |
+| T-82-50 | Denial of Service | any other per-event failure in ingest_events | medium | mitigate | Per-event guard on Exception counts the event as dropped and continues; LedgerUnavailable keeps its spool meaning; a non-string kind is dropped before the set lookup (fixed after the audit reproduced a 503, see Audit Notes) (PROH-82-17) | closed |
+| T-82-51 | Information Disclosure | the dropped-event log line | low | mitigate | Logs the validated event id and the exception class only | closed |
+| T-82-52 | Repudiation | audit rule id naming a threshold that did not fire | medium | mitigate | Rule from the unrounded daysLeft with the watchdog's ladder; own rule id for an unreadable certificate (PROH-82-18) | closed |
+| T-82-53 | Tampering | one confirmation attesting to rows never shown | high | mitigate | Confirm deletion disabled until nextOffset is null and while incomplete is set; a recount disables it again (PROH-82-19) | closed |
+| T-82-54 | Repudiation | dialog dismissed as if nothing happened while the request is in flight | medium | mitigate | Keep waiting disabled and closeOnEsc false while pending; both work again once the request ends (PROH-82-20) | closed |
+| T-82-55 | Spoofing | a refused or failed manual run shown as completed | medium | mitigate | runCleanup checks r.ok and a readable ran_at before setting the result; the server detail is shown only as plain text (PROH-82-21) | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -116,12 +126,26 @@ installed, so no open threat is reachable on the live server yet.
 
 ## Open Threats
 
-| Threat | Severity | How the mitigation is bypassed | Fix |
-|--------|----------|--------------------------------|-----|
-| T-82-33 | high | CR-01. `gate_state` returns `adopt` when `confirmedDays` is None and `firstSeenAt` is after the global `confirmedAt` (`retention_gate.py:99-102`). `firstSeenAt` is set only when `run_tenant` reaches the tenant (`retention_job.py:131`), and `confirm()` seeds nothing. A tenant that existed before the confirmation but was missed by an interrupted first pass (time cap, lost lock, or an unguarded Mongo error in another tenant) is deleted with no count and no confirmation. Reproduced by the auditor: `t-z` went from 5 documents to 2 in the next nightly run. The same applies to a data type added later whose collection already holds old data | Seed gate rows for every existing tenant and type at confirm time, or adopt only when the tenant's `createdAt` is after `confirmedAt`. Refuse confirm when the last run stopped early or a tenant lacks gate rows. Guard each tenant in `run_all`. Add a test for the unreached tenant |
-| T-82-36 | high | The same hole through `POST /api/retention/run` into `run_tenant` (`retention_endpoints.py:108`). Reproduced through `run_manual`. The legacy delete functions in `retention_service.py` (WR-04) have no non-test callers and are not the route | Same fix as T-82-33 |
-| T-82-42 | high | WR-01. Confirm deletion is enabled while pages remain unloaded (`AutonomousOpsRetentionReview.tsx:315`), and the server confirms every eligible row (`retention_gate.py:228`). At 25 rows per page and 8 rows per tenant, 4 or more tenants are paged, so one checkbox attests to rows never displayed. The dialog's whole-set totals reduce this but do not prevent it | Disable Confirm until `nextOffset === null`, with a test for the paged case |
-| T-82-04 | medium | WR-03. Size, count and string caps hold, but failure is not isolated per event. An event with `forecastDays: 1e999` passes validation and raises OverflowError in `health_messages._num`; `ingest_events` catches only `LedgerUnavailable`, so `post_sync` answers 503 and the watchdog resends the same event every minute. Needs a token holder or a corrupted spool; the watchdog cannot produce it alone | Catch per-event failures, reject non-finite numbers |
+None.
+
+How the four threats open at the first audit were closed:
+
+| Threat | Severity | What was wrong | Closed by |
+|--------|----------|----------------|-----------|
+| T-82-33 | high | CR-01: `adopt` keyed on when the job first saw a gate row, so a tenant missed by an interrupted first pass was deleted with no count and no confirmation | 82-15: adoption keys on the tenant's creation time; `test_retention_unreached.py` reproduces the old failure (`assert 2 == 5`) and passes now |
+| T-82-36 | high | The same hole through `POST /api/retention/run` | 82-15, same gate; the T-82-36 test fails on the code before the fix (`KeyError: 'count'`) and passes now |
+| T-82-42 | high | WR-01: Confirm deletion was enabled while pages remained unloaded | 82-17: disabled until `nextOffset === null`; 82-15: the server refuses an incomplete counted set |
+| T-82-04 | medium | WR-03: one event with a non-finite number answered 503 and blocked every later event | 82-16 for numbers, plus the non-string `kind` fix below |
+
+---
+
+## Audit Notes (gap round, 2026-10-31)
+
+- **T-82-50 was found open and fixed in the same round.** 82-16's per-event guard did not cover the pre-filter in `ingest_events`: `kind not in WATCHDOG_EVENT_KINDS` raised `TypeError` for a list or dict `kind`, and a request with one good event and one such event answered 503. The auditor reproduced it through the real sync route. It needs a token holder or a corrupted spool. The fix is `not isinstance(kind, str)` before the set lookup. A table test through the route failed first (4 of 6 cases, list and dict) and passes now.
+- **T-82-42: "every row loaded" is client-side.** The server does not know how many rows the reviewer loaded, and `confirm()` still confirms every eligible row. A caller using the API directly could confirm rows it never paged through. The server enforces a token over the whole waiting set, no run in progress, a complete counted set, the platform permission and an interactive session. This meets the threat as declared (accidental or stale); it is not proof that a person saw every row.
+- **Adoption in the persistent case.** A tenant created after the confirmation is deleted by policy with no count, on the premise that it holds nothing old. If the nightly job stays capped or failing for longer than that tenant's retention period, its own aged telemetry could be deleted unreviewed. Rated unlikely; not counted as a gap.
+- **`_EVENT_ID` accepts one trailing newline.** `$` matches before a final `\n`, so a logged id can carry a line break. A log-forging nuisance, not a disclosure, and it needs a token holder or a corrupted spool. Left as it is.
+- **`LedgerUnavailable` logs the wrapped driver text** at `selfheal.py:199`. Outside T-82-51's dropped-event line, and unchanged by this round.
 
 ---
 
@@ -129,8 +153,8 @@ installed, so no open threat is reachable on the live server yet.
 
 Outside the register, recorded so they are not lost. All are also in `82-REVIEW.md` except the last.
 
-- WR-02: certificate rule ids are off by one rung (14d shows as 30d, 7d as 14d, 1d as 7d) on the audit-facing `reason.ruleId`.
-- WR-05: Run Cleanup Now shows "Cleanup completed" for 409, 403 and 400 answers.
+- WR-02: certificate rule ids off by one rung. Fixed by 82-16.
+- WR-05: Run Cleanup Now showed "Cleanup completed" for 409, 403 and 400 answers. Fixed by 82-17.
 - IN-02: `testAlert.error` and the stored `page_failed` and `test_alert` params are not URL-scrubbed. The watchdog never formats exception text into them today.
 - IN-03: the loopback check is a literal string match, and "unreachable through nginx" depends on nginx always adding `X-Forwarded-For`, which the live config does.
 - T-82-06, T-82-20, T-82-21 and T-82-22 are verified at artifact and test level only. The watchdog is not installed on this host, so deployed ownership and modes must be checked after the operator install.
@@ -150,6 +174,8 @@ No accepted risks.
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-10-31 | 45 | 41 | 4 (3 blocking) | gsd-security-auditor, ASVS L1, block_on high |
+| 2026-10-31 | 55 | 53 | 2 (0 blocking): T-82-04, T-82-50 | gsd-security-auditor, ASVS L1, block_on high, after 82-15..82-17 |
+| 2026-10-31 | 55 | 55 | 0 | Orchestrator, after the non-string `kind` fix; 220 backend tests passed, 0 skipped |
 
 ---
 
@@ -157,7 +183,15 @@ No accepted risks.
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed
-- [ ] `status: verified` set in frontmatter
+- [x] `threats_open: 0` confirmed
+- [x] `status: verified` set in frontmatter
 
-**Approval:** pending, blocked by T-82-33, T-82-36 and T-82-42
+**Approval:** granted 2026-10-31. T-82-06, T-82-20, T-82-21 and T-82-22 stay verified at artifact and test level until the operator installs the watchdog.
+
+## Security Audit 2026-10-31
+
+| Metric | Count |
+|---|---|
+| Threats found | 55 |
+| Closed | 55 |
+| Open | 0 |
