@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 82
 current_phase_name: Platform Self-Healing & Scheduled Retention
 status: executing
-stopped_at: Completed 82-16-PLAN.md
-last_updated: "2026-10-31T06:22:28.446Z"
+stopped_at: Completed 82-17-PLAN.md
+last_updated: "2026-10-31T06:28:58.962Z"
 last_activity: 2026-10-31
 last_activity_desc: Phase 82 execution started
-state_head: 14d343740434038e68d35f2087ffdd84d41ca7dd
+state_head: 57705c85a195c57fdb2d611747cab4f0c4308032
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 35
-  completed_plans: 34
+  completed_plans: 35
   percent: 17
 ---
 
@@ -500,6 +500,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-15: tenant adoption keys on its readable creation time (strictly after the global confirmation); an absent, unparseable or equal time waits for a count and a confirmation (A-82-A12 narrowed)
 - [Phase 82]: 82-15: a confirmation is refused with 409 REVIEW_INCOMPLETE while the latest scheduled run stopped early or failed a tenant, or a pre-existing tenant lacks a gate row; a time-capped run keeps ok true in Activity
 - [Phase 82]: 82-16: cert rule id compares the unrounded daysLeft with the watchdog ladder; per-event Exception guard in ingest_events counts a bad event as dropped (id and class logged only); _storable drops/nulls non-finite and out-of-int64 numbers
+- [Phase 82]: 82-17: Confirm deletion gated on state.nextOffset === null and review.incomplete; a refused confirm (409 REVIEW_INCOMPLETE) reuses the dialog's stale block; dialog Keep waiting and Esc locked while pending
 
 ## Performance Metrics
 
@@ -689,6 +690,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P13 | 45 min | 3 tasks | 12 files |
 | Phase 82 P15 | 8 min | 3 tasks | 8 files |
 | Phase 82 P16 | 12min | 2 tasks | 4 files |
+| Phase 82 P17 | 12min | 3 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -723,8 +725,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-31T06:22:28.118Z
-**Stopped at:** Completed 82-16-PLAN.md
+**Last session:** 2026-10-31T06:28:58.771Z
+**Stopped at:** Completed 82-17-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -750,7 +752,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 82 (Platform Self-Healing & Scheduled Retention) — EXECUTING
-Plan: 16 of 17
+Plan: 17 of 17
 Status: Ready to execute
 Last activity: 2026-10-31 — Phase 82 gap round execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
