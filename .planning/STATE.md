@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 83
 current_phase_name: Autonomous Security Response
-status: planned
-stopped_at: Phase 83 planned, 20 plans in 10 waves, next /gsd-execute-phase 83; Phase 82 UAT still open
-last_updated: "2026-10-31T15:55:37.460Z"
+status: executing
+stopped_at: Completed 83-01-PLAN.md
+last_updated: "2026-10-31T17:17:47.366Z"
 last_activity: 2026-10-31
-last_activity_desc: Phase 83 planned, 20 plans in 10 waves
-state_head: d0b9a9324cc10c519e45a6eb3c305ac01c1f7705
+last_activity_desc: Phase 83 execution started
+state_head: 201bd86d3f0ffe56f0bab63ac051e8a678914538
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 55
-  completed_plans: 35
+  completed_plans: 36
   percent: 17
 ---
 
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 82 — Platform Self-Healing & Scheduled Retention
+**Current focus:** Phase 83 — Autonomous Security Response
 
 ## Current Phase
 
@@ -501,6 +501,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 82]: 82-15: a confirmation is refused with 409 REVIEW_INCOMPLETE while the latest scheduled run stopped early or failed a tenant, or a pre-existing tenant lacks a gate row; a time-capped run keeps ok true in Activity
 - [Phase 82]: 82-16: cert rule id compares the unrounded daysLeft with the watchdog ladder; per-event Exception guard in ingest_events counts a bad event as dropped (id and class logged only); _storable drops/nulls non-finite and out-of-int64 numbers
 - [Phase 82]: 82-17: Confirm deletion gated on state.nextOffset === null and review.incomplete; a refused confirm (409 REVIEW_INCOMPLETE) reuses the dialog's stale block; dialog Keep waiting and Esc locked while pending
+- [Phase 83]: 83-01: the sweep's memory holds a dispatched block quiet until blockedUntil (24h fallback); a failed-verify block is not retried inside that window
+- [Phase 83]: 83-01: a global feed row corroborates only an address some host already has from a host-bound observation; settle lets verify.ok false win over already_applied
 
 ## Performance Metrics
 
@@ -691,6 +693,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P15 | 8 min | 3 tasks | 8 files |
 | Phase 82 P16 | 12min | 2 tasks | 4 files |
 | Phase 82 P17 | 12min | 3 tasks | 9 files |
+| Phase 83 P01 | 20min | 3 tasks | 17 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -725,9 +728,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-10-31T12:04:15.602Z
-**Stopped at:** Phase 83 UI-SPEC approved
-**Resume file:** .planning/phases/83-autonomous-security-response/83-UI-SPEC.md
+**Last session:** 2026-10-31T17:17:46.793Z
+**Stopped at:** Completed 83-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -751,10 +754,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 83 (Autonomous Security Response) — READY TO EXECUTE
-Plan: 0 of 20
-Status: Ready to execute - 20 plans in 10 waves, next /gsd-execute-phase 83. Phase 82 stays open: 5 operator checks in 82-UAT.md need a deployed build, then /gsd-verify-work 82
-Last activity: 2026-10-31 — Phase 83 discussed, UI contract approved, researched and planned (20 plans, plan check 0 blockers); Phase 82 WR-06 fixed 79191ef5e and full backend suite 5,135 passed, 5 known failures, 47 skipped
+Phase: 83 (Autonomous Security Response) — EXECUTING
+Plan: 2 of 20
+Status: Ready to execute
+Last activity: 2026-10-31 — Phase 83 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
 
 ## Deferred Items
