@@ -26,6 +26,7 @@ pub mod privileged;
 pub mod response_state;
 pub mod firewall;
 pub mod response_actions;
+pub mod response_sweeper;
 #[cfg(test)]
 mod response_contract_tests;
 pub mod ssh_key_checks;

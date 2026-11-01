@@ -10,6 +10,7 @@
 //! A file that cannot be read or parsed is an error, never silently an empty state: an empty
 //! state would forget live blocks.
 
+use crate::capabilities::firewall::Os;
 use crate::capabilities::remediation_actions::RemediationError;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -221,6 +222,40 @@ impl Store {
 fn state_error(path: &Path, why: &str) -> RemediationError {
     RemediationError::OperationFailed(format!("{} cannot be used: {why}", path.display()))
 }
+
+/// What one expiry or start-up pass did.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PassReport {
+    /// Targets whose firewall rule was taken out and whose last claim is gone.
+    pub removed: Vec<String>,
+    /// Claims forgotten (every one of them expired).
+    pub dropped: usize,
+    /// Targets whose rules were put back (start-up on Linux).
+    pub reapplied: Vec<String>,
+    /// Targets a removal or a re-apply failed for; their claims stay and are tried again.
+    pub failed: Vec<String>,
+    /// The state file could not be used; nothing was changed.
+    pub error: Option<String>,
+}
+
+/// Remove what has expired.
+pub fn expire_due(_store: &Store, _os: Os, _now: i64) -> PassReport {
+    PassReport::default()
+}
+
+/// Put the rules of unexpired claims back.
+pub fn reapply_live(_store: &Store, _os: Os, _now: i64) -> PassReport {
+    PassReport::default()
+}
+
+/// The pass at start-up.
+pub fn start_up(_store: &Store, _os: Os, _now: i64) -> PassReport {
+    PassReport::default()
+}
+
+#[cfg(test)]
+#[path = "response_state_expiry_tests.rs"]
+mod expiry_tests;
 
 /// Test support: points `Store::default()` of this thread at a fresh temporary directory.
 #[cfg(test)]
