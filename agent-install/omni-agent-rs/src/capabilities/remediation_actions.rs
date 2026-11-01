@@ -23,7 +23,7 @@ pub(crate) const CRITICAL_PROCESS_NAMES: &[&str] = &[
     "init", "systemd", "launchd", "kernel_task",
     "wininit.exe", "winlogon.exe", "csrss.exe", "smss.exe", "services.exe", "lsass.exe",
 ];
-const CRITICAL_SERVICE_NAMES: &[&str] = &[
+pub(crate) const CRITICAL_SERVICE_NAMES: &[&str] = &[
     "sshd", "ssh", "systemd", "dbus", "networkmanager", "init",
 ];
 
@@ -200,7 +200,7 @@ pub async fn enable_service(service_name: &str) -> Result<(), RemediationError> 
     }
 }
 
-fn validate_service_name(service_name: &str) -> Result<(), RemediationError> {
+pub(crate) fn validate_service_name(service_name: &str) -> Result<(), RemediationError> {
     if service_name.is_empty() {
         return Err(RemediationError::InvalidTarget("Service name cannot be empty.".to_string()));
     }
