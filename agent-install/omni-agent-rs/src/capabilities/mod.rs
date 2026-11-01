@@ -28,6 +28,8 @@ pub mod firewall;
 pub mod net_safety;
 pub mod response_actions;
 pub mod response_sweeper;
+pub mod isolation;
+pub mod isolation_plan;
 pub mod quarantine;
 pub mod quarantine_paths;
 pub mod process_kill;
