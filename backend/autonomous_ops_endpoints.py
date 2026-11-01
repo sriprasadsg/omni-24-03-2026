@@ -83,7 +83,8 @@ async def get_actions(
         tenant = await _tenant_for(db, user, tenantId, write=False)
         caller = await views.build_caller(user)
         return await views.list_page(db, tenant, bucket=bucket, limit=limit, cursor=cursor,
-                                     viewer_is_platform_staff=caller.staff)
+                                     viewer_is_platform_staff=caller.staff,
+                                     can_act=caller.can_control and caller.interactive)
     except HTTPException:
         raise
     except Exception as exc:
@@ -401,7 +402,8 @@ async def _decide(action_id: str, tenant_id: Optional[str], user, what: str, rea
             ok = "undone"
         if out.get("status") != ok:
             raise _decision_error(out)
-        body = {"status": ok, "action": await views.present_one(db, tenant, action_id, caller)}
+        body = {"status": ok, "action": await views.present_one(
+            db, tenant, action_id, caller, can_act=caller.can_control and caller.interactive)}
         if what == "undo":
             body["breakerTripped"] = bool(out.get("breaker_tripped"))
         return body
