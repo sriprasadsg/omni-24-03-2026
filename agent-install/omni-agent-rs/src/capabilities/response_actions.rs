@@ -42,12 +42,16 @@ pub const BLOCK_TTL_DEFAULT: i64 = 86_400;
 
 const SUPPORT_REPORT_VERSION: u32 = 1;
 
+/// Every command this module answers. A test checks the list against the contract's
+/// `commandToken`, so a command cannot be added here without a token.
+pub const HANDLED: &[&str] = &[
+    "block_ip", "unblock_ip", "quarantine_file", "unquarantine_file", "kill_process",
+    "restart_service", "isolate_host", "restore_host",
+];
+
 /// True for the commands this module answers.
 pub fn handles(action: &str) -> bool {
-    matches!(
-        action,
-        "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file" | "kill_process" | "restart_service" | "isolate_host" | "restore_host"
-    )
+    HANDLED.contains(&action)
 }
 
 /// What the heartbeat carries as `meta.response_actions`: which platform this is and which

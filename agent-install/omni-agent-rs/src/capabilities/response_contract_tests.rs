@@ -10,7 +10,7 @@ use crate::capabilities::firewall::Os;
 use crate::capabilities::privileged::with_recorder;
 use crate::capabilities::response_actions::{
     handle_at, support_report, support_report_for, BLOCK_TTL_DEFAULT, BLOCK_TTL_MAX, BLOCK_TTL_MIN,
-    SUPPORTED_TOKENS,
+    HANDLED, SUPPORTED_TOKENS,
 };
 use crate::capabilities::quarantine_paths::use_temp_paths;
 use crate::capabilities::response_state::{use_temp_store, Store};
@@ -152,9 +152,9 @@ fn a_changed_example_body_is_noticed() {
 fn support_names_the_platform_and_holds_the_ttl_token() {
     let report = support_report_for(Some(Os::Windows));
     assert_eq!(report["platform"], "windows");
-    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host"]));
+    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host"]));
     assert_eq!(report["v"], 1);
-    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host"]));
+    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host"]));
 }
 
 #[test]
@@ -262,4 +262,67 @@ fn every_heartbeat_carries_the_response_state_report() {
     let report = &payload["meta"]["response_state"];
     assert_eq!(report["v"], 1);
     assert!(report.get("isolation").is_some() && report["boot_time"].is_u64() && report["active_blocks"].is_u64());
+}
+
+fn strings(c: &Value, key: &str) -> Vec<String> {
+    let mut list: Vec<String> = c[key].as_array().unwrap().iter().filter_map(Value::as_str).map(str::to_string).collect();
+    list.sort();
+    list
+}
+
+#[test]
+fn the_reported_tokens_equal_the_contract_exactly() {
+    let Some(c) = contract() else { return };
+    let mut ours: Vec<String> = SUPPORTED_TOKENS.iter().map(|t| t.to_string()).collect();
+    ours.sort();
+    assert_eq!(ours, strings(&c, "tokens"));
+}
+
+#[test]
+fn the_command_tokens_cover_every_command_the_agent_answers() {
+    let Some(c) = contract() else { return };
+    let mut commands: Vec<String> = c["commandToken"].as_object().unwrap().keys().cloned().collect();
+    commands.sort();
+    let mut handled: Vec<String> = HANDLED.iter().map(|h| h.to_string()).collect();
+    handled.sort();
+    assert_eq!(handled, commands);
+    for (command, token) in c["commandToken"].as_object().unwrap() {
+        let token = token.as_str().unwrap();
+        assert!(SUPPORTED_TOKENS.contains(&token), "{command} needs {token}, which this build does not report");
+        assert!(crate::capabilities::response_actions::handles(command), "{command}");
+    }
+}
+
+#[test]
+fn the_reboot_scheduled_example_has_a_real_producer_on_both_systems() {
+    use crate::capabilities::host_power::{DELAY_MAX, DELAY_MIN};
+    let Some(c) = contract() else { return };
+    assert_eq!(c["rebootDelaySeconds"]["min"], DELAY_MIN);
+    assert_eq!(c["rebootDelaySeconds"]["max"], DELAY_MAX);
+    let item = json!({"task_id": "task-1", "parameters": {"delay_seconds": 60, "reason": "Patch window"}});
+    let (_d, store) = store();
+    for os in [Os::Linux, Os::Windows] {
+        let body = handle_at("reboot_host", &item, &test_cfg(), Some(os), &store, T0);
+        assert_eq!(body, c["examples"]["reboot_scheduled"], "{os:?}");
+    }
+}
+
+#[test]
+fn every_example_in_the_contract_is_one_the_agent_tests_reproduce() {
+    // Each of these is compared with a real producer in a test of this crate. A new example in
+    // the contract fails here until a producer and a comparison exist for it.
+    let Some(c) = contract() else { return };
+    let mut known: Vec<String> = [
+        "block_applied", "block_already_applied", "block_verify_failed", "unblock_removed", "quarantine_moved",
+        "quarantine_moved_still_running", "quarantine_locked", "quarantine_hash_mismatch", "kill_done", "kill_gone",
+        "kill_survived", "kill_refused", "restart_done", "isolate_done", "isolate_self_test_failed", "restore_done",
+        "reboot_scheduled",
+    ]
+    .iter()
+    .map(|k| k.to_string())
+    .collect();
+    known.sort();
+    let mut theirs: Vec<String> = c["examples"].as_object().unwrap().keys().cloned().collect();
+    theirs.sort();
+    assert_eq!(theirs, known);
 }
