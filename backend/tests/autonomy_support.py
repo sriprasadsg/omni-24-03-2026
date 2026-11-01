@@ -56,12 +56,21 @@ async def seed_response_agent(db, tenant, agent_id, *, hostname, tokens, platfor
         await db.tenants.update_one({"id": tenant}, {"$set": {"agentCapabilities": ["all"]}})
 
 
-async def seed_feed_ioc(db, *, ioc_type, value, source_ip=None, feed, updated_at=None):
-    """A global threat-feed row in edr_ioc: like the real feed sync it carries no tenantId."""
+async def seed_feed_ioc(db, *, ioc_type, value, source_ip=None, feed, updated_at=None, source_feeds=None,
+                        feed_seen=None, tenant_id=None):
+    """A threat-feed row in edr_ioc: like the real feed sync it carries no tenantId (``tenant_id`` makes
+    it a tenant-added row instead). ``source_feeds`` and ``feed_seen`` are what the sync writes when
+    several feeds list one indicator."""
     stamp = (updated_at or datetime.now(timezone.utc)).isoformat()
-    await db.edr_ioc.insert_one({"ioc_type": ioc_type, "ioc_value": value, "source_ip": source_ip,
-                                 "source_feed": feed, "confidence": 0.85, "updated_at": stamp,
-                                 "last_seen": stamp})
+    doc = {"ioc_type": ioc_type, "ioc_value": value, "source_ip": source_ip, "source_feed": feed,
+           "confidence": 0.85, "updated_at": stamp, "last_seen": stamp}
+    if source_feeds is not None:
+        doc["source_feeds"] = list(source_feeds)
+    if feed_seen is not None:
+        doc["feed_seen"] = {k: v.isoformat() for k, v in feed_seen.items()}
+    if tenant_id is not None:
+        doc["tenantId"] = tenant_id
+    await db.edr_ioc.insert_one(doc)
 
 
 async def seed_native_verdict(db, tenant, hostname, *, kind, target, sha256=None, created_at=None, verdict="Malicious"):
@@ -72,6 +81,36 @@ async def seed_native_verdict(db, tenant, hostname, *, kind, target, sha256=None
         "id": uuid.uuid4().hex, "tenantId": tenant, "agentId": hostname, "type": kind, "target": target,
         "verdict": verdict, "confidence": 0.99, "sha256": sha256, "matched": "test", "source": "native",
         "created_at": stamp})
+
+
+async def seed_alert(db, tenant, hostname, *, sha256, source=None, vt_ratio=None, created_at=None):
+    """A ``security_alerts`` row that carries a sha256. ``source="native"`` is the alert the native scan
+    mirrors; ``vt_ratio`` is the alert a VirusTotal FIM match mirrors; neither is any other detection."""
+    stamp = (created_at or datetime.now(timezone.utc)).isoformat()
+    doc = {"id": uuid.uuid4().hex, "tenantId": tenant, "agent_id": hostname, "type": "malware_detected",
+           "severity": "critical", "sha256": sha256, "created_at": stamp, "status": "open"}
+    if source:
+        doc["source"] = source
+    if vt_ratio is not None:
+        doc["vt_detection_ratio"] = vt_ratio
+    await db.security_alerts.insert_one(doc)
+
+
+async def seed_fim_event(db, tenant, hostname, *, path, hash_after=None, sha256=None, received_at=None):
+    """A ``fim_events`` row as the file-integrity ingest stores it (``agent_id`` is what the URL carried)."""
+    stamp = (received_at or datetime.now(timezone.utc)).isoformat()
+    await db.fim_events.insert_one({"id": uuid.uuid4().hex, "agent_id": hostname, "tenantId": tenant, "path": path,
+                                    "sha256": sha256, "hash_after": hash_after, "received_at": stamp})
+
+
+async def seed_telemetry(db, agent_id, *, processes=None, connections=None):
+    """What a heartbeat stores under ``agents.meta``: processes {sha256, exe} and connections {remote_address}."""
+    sets = {}
+    if processes is not None:
+        sets["meta.process_monitor.processes"] = processes
+    if connections is not None:
+        sets["meta.runtime_security.connections"] = connections
+    await db.agents.update_one({"id": agent_id}, {"$set": sets})
 
 
 async def seed_platform_stop(db, active=True, by="Super Admin"):
