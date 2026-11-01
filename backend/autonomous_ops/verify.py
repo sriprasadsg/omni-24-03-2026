@@ -11,6 +11,14 @@ a number outside its range, an oversized list or a wrongly typed value becomes n
 ``verify_failed`` (the agent says its check did not pass). A result with no verify block leaves the
 row ``executed``.
 
+``failure_outcome`` names how a ``security_response`` instruction that did not succeed ended, from the
+stored instruction document: (``refused``, ``hash_mismatch``) when the file no longer matches what was
+flagged, (``refused``, ``protected_path``), (``refused``, ``agent_refused``) when the host declined the
+target and changed nothing, (``failed``, ``blocked_by_local_security``), (``failed``, ``locked``),
+(``failed``, ``capability_off``) when the poll held the instruction back because the capability was no
+longer ticked, and otherwise (``failed``, ``agent_failed``). The circuit breaker counts only some of these
+(``ledger.BREAKER_FAILURES``).
+
 What this module never does (PROH-83-06): it does not look at any finding, it does not start a
 re-scan, and it does not undo, compensate or repeat the action. A block whose address is still
 flagged stays in place; the only thing that ends a verified block is its expiry or a person's undo.
@@ -20,7 +28,7 @@ Raw Mongo handle with an explicit tenantId; the ambient tenant ContextVar is nev
 """
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from . import ledger, messages
 from .agent_support import CONTRACT
@@ -81,6 +89,23 @@ def bounded_result(nested: Any) -> Dict[str, Any]:
         entries = (_entry(item) for item in running)
         out["still_running"] = [e for e in entries if e is not None][:_CAP]
     return out
+
+
+def failure_outcome(doc: Optional[Dict[str, Any]]) -> Tuple[str, str]:
+    """(ledger state, reason code) for an instruction that ended in a failure status. Anything the contract
+    does not name is ``agent_failed``."""
+    result = doc.get("result") if isinstance(doc, dict) else None
+    outcome = result.get("outcome") if isinstance(result, dict) else None
+    if outcome in ("hash_mismatch", "protected_path"):
+        return "refused", outcome
+    if outcome == "refused":
+        return "refused", "agent_refused"
+    if outcome in ("blocked_by_local_security", "locked"):
+        return "failed", outcome
+    status = doc.get("status") if isinstance(doc, dict) else None
+    if isinstance(status, str) and status.strip().lower() == "refused":
+        return "failed", "capability_off"       # refused at the poll, never delivered (agent_capabilities.hold_back)
+    return "failed", "agent_failed"
 
 
 def _now(now: Optional[datetime]) -> datetime:

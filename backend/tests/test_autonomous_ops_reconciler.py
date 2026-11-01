@@ -202,13 +202,24 @@ async def test_no_result_move_does_not_overwrite_a_concurrent_agent_result(live)
     assert await _state(live, action) == "dispatching"
 
 
-async def test_three_no_result_failures_trip_the_breaker(live):
-    ids = [(await _dispatched(live, f"203.0.113.{40 + i}", status="sent"))[0] for i in range(3)]
-    for action in ids:
-        await _age(live, action, 25 * 60)
+async def test_three_agent_failures_trip_the_breaker(live):
+    """Phase 83 (83-08) moved this case from silent instructions to ones the host reported as failed: an
+    instruction nobody answered is plumbing and is transparent to the breaker (see the next test)."""
+    ids = [(await _dispatched(live, f"203.0.113.{40 + i}", status="failed"))[0] for i in range(3)]
     out = await reconciler.tick(live)
     assert out["failed"] == 3 and out["tripped"] == 1
     assert (await settings_load(live)).breaker is not None
+
+
+async def test_three_no_result_failures_do_not_trip_the_breaker(live):
+    """Phase 83 (83-08, RESP-10): a host that never answered is not a failed action."""
+    ids = [(await _dispatched(live, f"203.0.113.{50 + i}", status="sent"))[0] for i in range(3)]
+    for action in ids:
+        await _age(live, action, 25 * 60)
+    out = await reconciler.tick(live)
+    assert out["failed"] == 3 and out["tripped"] == 0
+    assert (await settings_load(live)).breaker is None
+    assert {(await ledger.get(live, "t1", a))["reasonCode"] for a in ids} == {"no_result"}
 
 
 async def settings_load(db):

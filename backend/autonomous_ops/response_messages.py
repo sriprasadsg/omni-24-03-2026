@@ -133,6 +133,7 @@ REASON_TEXT = {
     "locked": "The file is in use and could not be moved, so a person has to decide.",
     "protected_path": "This is a protected system file, so it isn't moved automatically.",
     "blocked_by_local_security": "Security software on the computer blocked this action.",
+    "agent_refused": "The computer refused this target, so nothing was changed.",
     "suggestion_only": "This was only suggested. Nothing was done.",
     "auto_reverted": RESULT_TEMPLATES["isolation_reverted"],
     "undo_failed": "The host did not confirm the undo, so the action may still be in place.",

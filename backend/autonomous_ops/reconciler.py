@@ -7,7 +7,9 @@ tick, per tenant in sorted tenantId order:
 1. expires every overdue approval card (also while a stop is on, D-13);
 2. maps rows still ``dispatching`` to the outcome of their latest instruction:
    completed / success -> ``executed`` (a ``security_response`` row then goes straight on to
-   ``verified`` or ``failed`` from the agent's own verify result, see ``verify``); failed / refused -> ``failed``; an instruction nobody
+   ``verified`` or ``failed`` from the agent's own verify result, see ``verify``); failed / refused -> ``failed`` (a ``security_response`` row is named by what the host
+   reported instead (see ``verify``): ``refused`` for hash_mismatch, protected_path and a refused
+   target, ``failed`` with its own reason otherwise); an instruction nobody
    picked up within ``AUTONOMOUS_OPS_STUCK_DISPATCH_MIN`` (or no instruction at all) -> ``failed``
    with reason ``not_delivered``; an instruction an agent picked up (sent, delivered or any other
    status that is not pending / queued / a final outcome) that reports nothing within
@@ -114,9 +116,13 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
                 settled = await verify.settle(db, tenant_id, moved, await _instruction(db, tenant_id, ids[-1]), now=now)
                 done["failed"] += 1 if settled == "failed" else 0
         elif status in _FAILURE:
+            to_state, code = "failed", "agent_failed"
+            if row.get("dispatcher") == "security_response":
+                # Each ending has its own name; the breaker counts only some of them.
+                to_state, code = verify.failure_outcome(await _instruction(db, tenant_id, ids[-1]))
             moved = await ledger.transition(
-                db, tenant_id, row["id"], ("dispatching",), "failed", reasonCode="agent_failed",
-                reasonText=messages.REASON_TEXT["agent_failed"],
+                db, tenant_id, row["id"], ("dispatching",), to_state, reasonCode=code,
+                reasonText=messages.REASON_TEXT[code],
                 result={"instructionId": ids[-1], "instructionStatus": status})
             done["failed"] += 1 if moved else 0
         elif old and (status is None or status in _UNDELIVERED):

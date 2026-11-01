@@ -240,6 +240,16 @@ async def counts(db, tenant_id: str) -> Dict[str, int]:
 
 _AUTO_ROWS = {"autoDispatched": True, "kind": {"$ne": "control"}, "state": {"$ne": "shadow"}}
 
+# The circuit breaker (Phase 83, RESP-10, PROH-83-11) counts a row that ended undone or rolled_back, and a
+# failed row with no reasonCode (Phase 81); of the reasons added since, only these three are the host or the
+# action really going wrong.
+BREAKER_FAILURES = ("verify_failed", "agent_failed", "blocked_by_local_security")
+# Plumbing and safeguards working are transparent: such a row neither counts nor breaks a run of three. An
+# old agent, an unticked capability, an offline host, a file that moved or is in use, a host that refused a
+# protected or unmatched target, and an instruction that was never delivered must never lower a level.
+BREAKER_IGNORED = ("not_delivered", "no_result", "capability_off", "agent_unsupported", "agent_offline",
+                   "hash_mismatch", "protected_path", "agent_refused", "locked", "dispatch_failed")
+
 
 async def count_auto_since(db, tenant_id: str, since: datetime) -> int:
     """Automatic decisions created strictly after ``since`` (shadow and control rows excluded)."""
@@ -247,8 +257,11 @@ async def count_auto_since(db, tenant_id: str, since: datetime) -> int:
 
 
 async def recent_finished_auto(db, tenant_id: str, n: int = 3) -> list:
-    """The tenant's ``n`` most recently finished automatic rows, newest first."""
-    found = _actions(db).find({"tenantId": tenant_id, **_AUTO_ROWS, "finishedAt": {"$ne": None}},
+    """The tenant's ``n`` most recently finished automatic rows that can count toward the breaker, newest
+    first. A row whose reasonCode is in ``BREAKER_IGNORED`` is left out, so it is transparent; a row with no
+    reasonCode stays in (Phase 81)."""
+    found = _actions(db).find({"tenantId": tenant_id, **_AUTO_ROWS, "finishedAt": {"$ne": None},
+                               "reasonCode": {"$nin": list(BREAKER_IGNORED)}},
                               {"_id": 0}).sort("finishedAt", -1).limit(n)
     return [_normalize(r) async for r in found]
 
