@@ -27,7 +27,7 @@ Raw Mongo handle with an explicit tenantId; the ambient tenant ContextVar is nev
 """
 import logging
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from . import (APPROVAL_TTL, COOLDOWN, RATE_LIMIT_WINDOW, agent_support, gate, ledger, messages, response_dispatch,
