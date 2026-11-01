@@ -10,8 +10,13 @@ worth.
   is written and nothing is approved by it. While the origin is still being seen the suggestion is kept
   alive (``ledger.refresh_suggestion``), so a second origin that arrives after 24 hours finds a suggestion,
   and leaves it one.
-* File candidates (a sha256 with a path) are observed and suggested here; the automatic quarantine
-  decision is a later plan (83-11).
+* A file (a sha256 and where it sits on the host) follows the same rules with params ``{path, sha256}``: two
+  origins make an automatic ``quarantine_file`` (D-05); one suggests it; two origins and no known path stay a
+  suggestion, because there is nothing to move. A file under a protected operating-system path never goes
+  automatically (D-28): the gate gets ``playbook_raise`` and the params carry ``allow_protected`` true, which
+  the agent accepts only from that approval card. The class of a decision also comes from the tenant's
+  playbook for the finding (``select_playbook``): only its raise key counts, a playbook never lowers a class.
+* Every acting decision carries ``reason.inputs.incidentId`` (RESP-09); a suggestion carries none.
 * A range (a network a feed lists and a host has talked to) follows the same rules as an address but with
   params ``{cidr, ttl_seconds}``: one origin suggests it, and two corroborating origins reach the gate,
   which always turns a network into an approval card (``range_block``, RESP-02). The sweep never writes an
@@ -32,16 +37,20 @@ Raw Mongo handle with an explicit tenantId; the ambient tenant ContextVar is nev
 import logging
 from dataclasses import replace
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from remediation_playbook_service import load_playbooks, select_playbook
 
 from . import (APPROVAL_TTL, COOLDOWN, RATE_LIMIT_WINDOW, agent_support, gate, incidents, ledger, messages,
-               response_dispatch, response_messages as rm, signals, sweep_memory)
+               protected_paths, registry, response_dispatch, response_messages as rm, signals, sweep_memory)
+from .scope import raw
 from .settings import TenantSettings
 
 logger = logging.getLogger(__name__)
 
 RULE_ID = "sweep:block_ip"
 SUGGEST_RULE_ID = "sweep:single_signal"
+QUARANTINE_RULE_ID = "sweep:quarantine_file"
 HOUR = 3600
 HOST_AUTO_LIMIT = 3                  # research default R2: automatic block or quarantine actions per computer per hour
 _HOST_COMMANDS = ("block_ip", "quarantine_file")        # restarts do not count toward it
@@ -82,27 +91,70 @@ def _block_params(candidate: signals.Candidate, response) -> Dict[str, Any]:
     return {key: candidate.indicator, "ttl_seconds": response.block_hours * HOUR}
 
 
-def _suggest_request(tenant_id, candidate, command, origins, response, key) -> gate.ActionRequest:
+def _params(candidate: signals.Candidate, command: str, response) -> Dict[str, Any]:
+    """What the agent is told: a block's address and length, or a quarantine's path and hash."""
     if command == "block_ip":
-        params = _block_params(candidate, response)
-    else:
-        params = {"path": candidate.path, "sha256": candidate.indicator}
+        return _block_params(candidate, response)
+    return {"path": candidate.path, "sha256": candidate.indicator}
+
+
+class _Playbooks:
+    """The tenant's playbooks, read once per pass and only when a decision needs one."""
+
+    def __init__(self, db, tenant_id: str):
+        self._db, self._tenant_id, self._loaded = db, tenant_id, None
+
+    async def route(self, candidate: signals.Candidate) -> Tuple[Optional[str], bool]:
+        """(playbook name, whether its steps raise the class) for a finding of this kind. Only the name and
+        the ``gate_class`` raise key are read (GATE-04). A tenant whose playbooks cannot be read is treated
+        as having raised the class: the decision becomes a card."""
+        if self._loaded is None:
+            try:
+                self._loaded = await load_playbooks(raw(self._db), self._tenant_id)
+            except Exception as exc:
+                logger.error("autonomous_ops: playbooks of %s unreadable, raising to a card: %s", self._tenant_id, exc)
+                return None, True
+        finding = {"finding_type": "nscan", "tenant_id": self._tenant_id,
+                   "details": {"type": "file" if candidate.kind == "file" else "ip"}}
+        playbook = select_playbook(finding, self._loaded)
+        if playbook is None:
+            return None, False
+        return playbook.get("name"), registry.playbook_raises(playbook.get("steps"))
+
+
+def _suggest_request(tenant_id, candidate, command, origins, response, key, *, no_path=False) -> gate.ActionRequest:
+    params = _params(candidate, command, response)
     inputs = {"suggestionOnly": True, "origins": origins, "indicator": candidate.indicator,
-              "twoSignal": response.two_signal, "suggestion": {"kind": "single_signal"}}
+              "twoSignal": response.two_signal}
+    if no_path:
+        # Two sources agree but nothing says where the file is: the sentence says so, and it is no single-signal row.
+        params = {"sha256": candidate.indicator}
+        text = _words(rm.why_two_sources, origins) if len(origins) > 1 else _words(rm.why_rule_off, origins[0])
+        text = rm.fill(rm.WHY_TEMPLATES["file_no_path"], reason=text or "").strip()
+    else:
+        inputs["suggestion"] = {"kind": "single_signal"}
+        text = _words(rm.why_one_source, origins[0])
     return gate.ActionRequest(
         tenant_id=tenant_id, kind="security", origin="sweep", actions=[command], targets=[candidate.agent_id],
         params=params, dedupe_key=key, reason={"ruleId": SUGGEST_RULE_ID, "inputs": inputs},
-        reason_text=_words(rm.why_one_source, origins[0]), dispatcher=response_dispatch.DISPATCHER_NAME)
+        reason_text=text, dispatcher=response_dispatch.DISPATCHER_NAME)
 
 
-def _act_request(tenant_id, candidate, origins, response, key, incident_id) -> gate.ActionRequest:
-    ip = candidate.indicator
+def _act_request(tenant_id, candidate, command, origins, response, key, incident_id, route, agent) -> gate.ActionRequest:
     text = _words(rm.why_two_sources, origins) if len(origins) > 1 else _words(rm.why_rule_off, origins[0])
+    params = _params(candidate, command, response)
+    inputs = {"origins": origins, "indicator": candidate.indicator, "twoSignal": response.two_signal,
+              "incidentId": incident_id}
+    name, raises = route
+    if command == "quarantine_file" and protected_paths.is_protected(candidate.path, (agent or {}).get("platform")):
+        # D-28: never automatic. The card is the only thing that sends allow_protected, and the agent refuses without it.
+        params, raises = {**params, "allow_protected": True}, True
+        inputs.update(protectedPath=True, detail=text or "")
+        text = rm.fill(rm.WHY_TEMPLATES["protected_file"], reason=text or "").strip()
     return gate.ActionRequest(
-        tenant_id=tenant_id, kind="security", origin="sweep", actions=["block_ip"], targets=[candidate.agent_id],
-        params=_block_params(candidate, response), dedupe_key=key,
-        reason={"ruleId": RULE_ID, "inputs": {"origins": origins, "indicator": ip, "twoSignal": response.two_signal,
-                                              "incidentId": incident_id}},
+        tenant_id=tenant_id, kind="security", origin="sweep", actions=[command], targets=[candidate.agent_id],
+        params=params, dedupe_key=key, playbook=name, playbook_raise=raises,
+        reason={"ruleId": RULE_ID if command == "block_ip" else QUARANTINE_RULE_ID, "inputs": inputs},
         reason_text=text, dispatcher=response_dispatch.DISPATCHER_NAME)
 
 
@@ -130,9 +182,10 @@ async def _supersede(db, tenant_id: str, suggest_key: str) -> None:
                                 reasonText=messages.REASON_TEXT["superseded"])
 
 
-async def _suggest(db, tenant_id, candidate, command, origins, response, now, counts) -> None:
+async def _suggest(db, tenant_id, candidate, command, origins, response, now, counts, *, no_path=False) -> None:
     _, suggest_key = _keys(tenant_id, candidate, command)
-    decision = await gate.suggest(db, _suggest_request(tenant_id, candidate, command, origins, response, suggest_key), now=now)
+    request = _suggest_request(tenant_id, candidate, command, origins, response, suggest_key, no_path=no_path)
+    decision = await gate.suggest(db, request, now=now)
     if decision.state == "shadow":
         counts["shadow"] += 1
     elif decision.recorded:
@@ -163,7 +216,7 @@ async def _dispatch(db, tenant_id, candidate, decision, origins, now, counts) ->
     sent = await response_dispatch.send(db, row)
     if sent.get("status") != "queued":
         return await _remember(db, tenant_id, candidate, decision, origins, now, "failed")
-    counts["blocked"] += 1
+    counts["quarantined" if row.get("command") == "quarantine_file" else "blocked"] += 1
     after = await ledger.get(db, tenant_id, decision.action_id) or {}
     window = {f: after[f] for f in ("blockedFrom", "blockedUntil") if after.get(f) is not None}
     await _remember(db, tenant_id, candidate, decision, origins, now, "blocked", **window)
@@ -176,15 +229,16 @@ def _undone_at(row: Dict[str, Any]) -> Optional[datetime]:
     return max(stamps) if stamps else None
 
 
-async def _act(db, tenant_id, candidate, origins, live, response, agent, now, counts, incident_id) -> None:
-    key, suggest_key = _keys(tenant_id, candidate, "block_ip")
+async def _act(db, tenant_id, candidate, origins, live, response, agent, now, counts, incident_id, route) -> None:
+    command = _COMMANDS[candidate.kind]
+    key, suggest_key = _keys(tenant_id, candidate, command)
     row = await sweep_memory.latest_state(db, tenant_id, candidate.decision)
     if sweep_memory.skip_reason(candidate.decision, row, sorted(live), now) \
-            or await agent_support.check(db, tenant_id, agent, "block_ip", now=now,
-                                         params=_block_params(candidate, response)):
+            or await agent_support.check(db, tenant_id, agent, command, now=now,
+                                         params=_params(candidate, command, response)):
         counts["skipped"] += 1
         return
-    req, hold = _act_request(tenant_id, candidate, origins, response, key, incident_id), None
+    req, hold = _act_request(tenant_id, candidate, command, origins, response, key, incident_id, route, agent), None
     undone = await ledger.latest_undone(db, tenant_id, key)
     at = _undone_at(undone) if undone else None
     if at is not None and at > now - COOLDOWN:
@@ -193,6 +247,8 @@ async def _act(db, tenant_id, candidate, origins, live, response, agent, now, co
         inputs = {**req.reason["inputs"], "undoneAt": shown.isoformat()}
         req = replace(req, record_suppressed=True, reason={**req.reason, "inputs": inputs},
                       reason_text=rm.fill(rm.WHY_TEMPLATES["undone_earlier"], date=rm.short_date(shown)))
+    elif req.reason["inputs"].get("protectedPath"):
+        pass                                   # already a card, with its own words (D-28)
     elif await ledger.count_host_auto_since(db, tenant_id, candidate.agent_id, _HOST_COMMANDS,
                                             now - RATE_LIMIT_WINDOW) >= HOST_AUTO_LIMIT:
         req = replace(req, playbook_raise=True, reason_text=rm.WHY_TEMPLATES["host_cap"])
@@ -231,9 +287,11 @@ async def _incident_of(db, tenant_id: str, candidate, live, now) -> Optional[str
 
 async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetime) -> Dict[str, int]:
     """One tenant's pass. Returns counts {observed, blocked, suggested, shadow, skipped}."""
-    counts = {"observed": 0, "blocked": 0, "suggested": 0, "shadow": 0, "skipped": 0, "refused": 0, "cards": 0}
+    counts = {"observed": 0, "blocked": 0, "quarantined": 0, "suggested": 0, "shadow": 0, "skipped": 0, "refused": 0,
+              "cards": 0}
     agents = await signals.agents_of(db, tenant_id)
     by_id = {a["id"]: a for a in agents}
+    playbooks = _Playbooks(db, tenant_id)
     observed = await signals.observe(db, tenant_id, agents, now)
     await _record_incidents(db, tenant_id, observed.new_evidence)
     for candidate in observed:
@@ -249,11 +307,16 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
         if not live:
             continue
         agree = signals.corroborated(candidate, two_signal=response.two_signal, evidence_after=after)
-        if agree and candidate.kind == "file":                   # the automatic quarantine decision is 83-11
-            continue
         if not agree and candidate.kind == "file" and not candidate.path:
-            continue                                             # nothing to point a quarantine at
+            continue                                             # one source and nothing to point a quarantine at
         agent = by_id.get(candidate.agent_id)
+        if agree and candidate.kind == "file" and not candidate.path:
+            # Two sources agree but the host never said where the file is: a suggestion, nothing to move.
+            if await agent_support.check(db, tenant_id, agent, command, now=now):
+                counts["skipped"] += 1
+                continue
+            await _suggest(db, tenant_id, candidate, command, _agreeing(live), response, now, counts, no_path=True)
+            continue
         if not agree:
             probe = _block_params(candidate, response) if command == "block_ip" else None
             if await agent_support.check(db, tenant_id, agent, command, now=now, params=probe):
@@ -265,5 +328,7 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
             if incident_id is None:
                 counts["skipped"] += 1
                 continue
-            await _act(db, tenant_id, candidate, _agreeing(live), live, response, agent, now, counts, incident_id)
+            route = await playbooks.route(candidate)
+            await _act(db, tenant_id, candidate, _agreeing(live), live, response, agent, now, counts, incident_id,
+                       route)
     return counts

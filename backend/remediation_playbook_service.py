@@ -31,6 +31,8 @@ ACTION_MAP: Dict[str, str] = {
     "restore_file": "restore_file",
     "block_ip": "block_ip",
     "unblock_ip": "unblock_ip",
+    "quarantine_file": "quarantine_file",
+    "unquarantine_file": "unquarantine_file",
     "disable_service": "disable_service",
     "enable_service": "enable_service",
     "rotate_key": "rotate_key",
@@ -108,11 +110,13 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
     class. `playbooks` defaults to the vendored set (hermetic); the engine
     passes the merged default+operator set from the DB.
 
-    finding_class mapping (grounded in the actual finding shapes):
-      - fim  -> restore_file
-      - nscan + scan type "ip" -> block_ip; otherwise -> kill_process
-      - vuln + playbook_ref rotate_key + fingerprint -> rotate_key
-      - vuln + a resolvable CVE id -> patch_package; no CVE (misconfig) -> disable_service
+    finding_class mapping (grounded in the actual finding shapes; Phase 83 D-05, D-07, D-08):
+      - fim  -> None (a suggestion only: the agent refuses a restore without a backup_path
+        and nothing sets one)
+      - nscan + scan type "ip" -> block_ip; otherwise (a file or a hash) -> quarantine_file,
+        which moves the file and never deletes it (it used to be kill_process)
+      - vuln + playbook_ref rotate_key + fingerprint -> rotate_key; every other vuln, with or
+        without a CVE id, -> None (a suggestion only: patching is Phase 84)
       - anomaly + anomaly_rule "shadow_ai_detected" + a real agent_id -> kill_process
         (reuses the existing agent-dispatch playbook verbatim, AUT-03); every
         other anomaly (no agent_id, or a different anomaly_rule) honestly
@@ -127,21 +131,18 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
     details = _finding_attr(finding, "details", {}) or {}
 
     if finding_type == "fim":
-        return by_name.get("restore_file")
+        return None                                          # D-08: suggestion only
 
     if finding_type == "nscan":
         scan_type = details.get("type") or details.get("scan_type")
         if scan_type == "ip":
             return by_name.get("block_ip")
-        return by_name.get("kill_process")
+        return by_name.get("quarantine_file")                # D-05
 
     if finding_type == "vuln":
         if details.get("playbook_ref") == "rotate_key" and details.get("fingerprint"):
             return by_name.get("rotate_key")
-        cve_id = details.get("cveId") or details.get("cve_id")
-        if cve_id:
-            return by_name.get("patch_package")
-        return by_name.get("disable_service")
+        return None                                          # D-07: suggestion only, with or without a CVE
 
     if finding_type == "anomaly":
         anomaly_details = _finding_attr(finding, "details", {}) or {}

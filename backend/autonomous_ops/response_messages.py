@@ -86,6 +86,7 @@ WHY_TEMPLATES = {
     "restart_watched": "{service} stopped and is on your watched list.",
     "restart_over_budget": "Restarted {service} 3 times in the last hour. Further restarts need your approval.",
     "protected_file": "This is a protected system file, so it isn't moved automatically. {reason}",
+    "file_no_path": "{reason} Where this file is on the computer isn't known, so there is nothing to move.",
     "undone_earlier": "You undid this action on {date}. It isn't repeated for 24 hours.",
     "host_cap": ("This computer already had 3 automatic actions in the last hour, so this one needs your "
                  "approval."),

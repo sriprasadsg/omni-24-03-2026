@@ -1,0 +1,13 @@
+name: quarantine_file
+finding_class: nscan
+match:
+  scan_type_not: ip
+steps:
+  - action: quarantine_file
+    params:
+      path: "{{finding.resource_id}}"
+      sha256: "{{finding.details.sha256}}"
+    destructive: true
+# Moved, never deleted. There is no rollback step: undoing a quarantine is a person's click on the
+# Activity row (unquarantine_file), and a failed verify compensates nothing (RESP-06).
+rollback: []

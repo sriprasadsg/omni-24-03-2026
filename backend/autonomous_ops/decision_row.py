@@ -30,6 +30,8 @@ def display_target(spec: Optional[registry.ActionSpec], req: Any) -> Optional[st
         for key in spec.ip_params + spec.cidr_params:
             if req.params.get(key):
                 return str(req.params[key])
+    if isinstance(req.params.get("path"), str) and req.params["path"]:
+        return req.params["path"]                  # a file action shows the file, not the agent id (Phase 83)
     return req.targets[0] if req.targets else None
 
 

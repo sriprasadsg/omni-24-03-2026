@@ -172,7 +172,10 @@ async def test_approving_the_protected_card_sends_allow_protected_and_nothing_el
     await _flag(mongo_db, "/usr/bin/ls")
     await _tick(mongo_db)
     (card,) = await _rows(mongo_db)
-    await mongo_db.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": datetime.now(timezone.utc).isoformat()}})
+    # The dormancy re-check at approval time reads the real clock: the host reports in now, the card is still fresh.
+    now = datetime.now(timezone.utc)
+    await mongo_db.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": now.isoformat()}})
+    await mongo_db.autonomy_actions.update_one({"id": card["id"]}, {"$set": {"approval.expiresAt": now + 10 * MIN}})
     out = await approvals.approve(mongo_db, "t1", card["id"],
                                   approver={"username": "alice", "display": "Alice", "tier": "tenant"})
     assert out["status"] == "dispatched", out
