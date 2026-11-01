@@ -1,8 +1,11 @@
 """
 Threat Feed Synchronisation Service
 
-Pulls IOC data from free public feeds (no API key required) and an optional
-AlienVault OTX feed (requires OTX_API_KEY env var).
+Pulls IOC data from the abuse.ch public feeds and an optional AlienVault OTX
+feed (requires OTX_API_KEY env var). abuse.ch now asks for an account key:
+when ABUSE_CH_AUTH_KEY is set it is sent as the ``Auth-Key`` header on the two
+abuse.ch calls (and nowhere else, and never written to a log); when it is
+unset the calls are made without it, as before, and may be refused (HTTP 401).
 
 Sources
 -------
@@ -24,7 +27,9 @@ IOC document schema (matches existing `edr_ioc` usage in ueba_service.py)
     "ioc_value":  str,
     "threat_type": str,          # e.g. "malware_download", "botnet_cc"
     "confidence": float,         # 0.0–1.0
-    "source_feed": str,          # "urlhaus" | "malwarebazaar" | "otx"
+    "source_feed": str,          # the feed that listed it last: "urlhaus" | "malwarebazaar" | "otx"
+    "source_feeds": [str],       # every feed that has listed it (the Autonomous Ops sweep counts these)
+    "feed_seen":   {feed: ISO},  # when each of those feeds last listed it
     "tags":       [str],
     "last_seen":  ISO datetime,
     "updated_at": ISO datetime,
@@ -43,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 SYNC_INTERVAL_HOURS: int = int(os.getenv("THREAT_FEED_INTERVAL_HOURS", "6"))
 OTX_API_KEY: str = os.getenv("OTX_API_KEY", "")
+ABUSE_CH_AUTH_KEY: str = os.getenv("ABUSE_CH_AUTH_KEY", "")
 OTX_BASE = "https://otx.alienvault.com/api/v1"
 URLHAUS_RECENT = "https://urlhaus-api.abuse.ch/v1/urls/recent/"
 BAZAAR_EXPORT = "https://bazaar.abuse.ch/export/json/recent/"
@@ -51,16 +57,28 @@ BAZAAR_EXPORT = "https://bazaar.abuse.ch/export/json/recent/"
 MAX_PER_SOURCE = int(os.getenv("THREAT_FEED_MAX_PER_SOURCE", "500"))
 
 
+def _abuse_headers() -> Dict[str, str]:
+    """The Auth-Key header for the abuse.ch calls, or nothing when no key is set."""
+    return {"Auth-Key": ABUSE_CH_AUTH_KEY} if ABUSE_CH_AUTH_KEY else {}
+
+
+def _abuse_unauthorised(feed: str) -> None:
+    if ABUSE_CH_AUTH_KEY:
+        logger.warning("[ThreatFeed] %s refused the configured abuse.ch Auth-Key (HTTP 401)", feed)
+    else:
+        logger.debug("[ThreatFeed] %s blocked (HTTP 401) — an abuse.ch Auth-Key is needed, or the IP may be rate-limited", feed)
+
+
 # ── Individual feed fetchers ─────────────────────────────────────────────────
 
 async def _fetch_urlhaus(session: aiohttp.ClientSession) -> List[Dict[str, Any]]:
     """Fetch recent malicious URLs from URLhaus."""
     iocs: List[Dict[str, Any]] = []
     try:
-        async with session.post(URLHAUS_RECENT, data={"limit": MAX_PER_SOURCE},
+        async with session.post(URLHAUS_RECENT, data={"limit": MAX_PER_SOURCE}, headers=_abuse_headers(),
                                 timeout=aiohttp.ClientTimeout(total=30)) as resp:
             if resp.status == 401:
-                logger.debug("[ThreatFeed] URLhaus blocked (HTTP 401) — IP may be rate-limited or blocked by abuse.ch")
+                _abuse_unauthorised("URLhaus")
                 return iocs
             if resp.status != 200:
                 logger.warning("[ThreatFeed] URLhaus returned HTTP %d", resp.status)
@@ -93,10 +111,11 @@ async def _fetch_malwarebazaar(session: aiohttp.ClientSession) -> List[Dict[str,
         async with session.post(
             "https://mb-api.abuse.ch/api/v1/",
             data={"query": "get_recent", "selector": "100"},
+            headers=_abuse_headers(),
             timeout=aiohttp.ClientTimeout(total=30),
         ) as resp:
             if resp.status == 401:
-                logger.debug("[ThreatFeed] MalwareBazaar blocked (HTTP 401) — IP may be rate-limited or blocked by abuse.ch")
+                _abuse_unauthorised("MalwareBazaar")
                 return iocs
             if resp.status != 200:
                 logger.warning("[ThreatFeed] MalwareBazaar returned HTTP %d", resp.status)
@@ -191,10 +210,15 @@ async def _upsert_iocs(db, iocs: List[Dict[str, Any]]) -> int:
     upserted = 0
     for ioc in iocs:
         ioc["updated_at"] = now
+        feed = ioc.get("source_feed")
+        update: Dict[str, Any] = {"$set": ioc}
+        if feed:
+            # Two feeds can list one indicator: keep every name, and when each last listed it.
+            update = {"$set": {**ioc, f"feed_seen.{feed}": now}, "$addToSet": {"source_feeds": feed}}
         try:
             result = await db.edr_ioc.update_one(
                 {"ioc_type": ioc["ioc_type"], "ioc_value": ioc["ioc_value"]},
-                {"$set": ioc},
+                update,
                 upsert=True,
             )
             if result.upserted_id or result.modified_count:
