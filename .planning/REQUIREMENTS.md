@@ -39,7 +39,7 @@
 - [ ] **RESP-08**: By default an action runs on its own only when two independent signals agree (e.g. scan verdict and threat intel); a single signal becomes a suggestion (corroboration rule). A tenant admin can turn the rule off for their tenant and a Super Admin for any or all tenants.
 - [ ] **RESP-09**: A burst of related alerts on one host becomes one approval card per incident, not one per alert (incident grouping).
 - [ ] **RESP-10**: The Rust agent (with Python agent parity where that agent stays supported) gains restart service, quarantine and restore file, isolate and restore host, and reboot host; each new action is gated by the tenant's agent-capability ticks, and rules that need it stay dormant until the agent reports support.
-- [ ] **RESP-11**: Existing fan-out paths that bypass the gate (swarm "propagate antibody", SOAR block/isolate plugins) are fenced so they cannot dispatch autonomous containment.
+- [x] **RESP-11**: Existing fan-out paths that bypass the gate (swarm "propagate antibody", SOAR block/isolate plugins) are fenced so they cannot dispatch autonomous containment.
 
 ### 3. Staged Patching
 
@@ -216,7 +216,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | RESP-08 | Phase 83 | Pending |
 | RESP-09 | Phase 83 | Pending |
 | RESP-10 | Phase 83 | Pending |
-| RESP-11 | Phase 83 | Pending |
+| RESP-11 | Phase 83 | Complete |
 | ACTV-02 | Phase 83 | Pending |
 | PTCH-01 | Phase 84 | Pending |
 | PTCH-02 | Phase 84 | Pending |

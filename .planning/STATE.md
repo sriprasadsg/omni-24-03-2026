@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 83
 current_phase_name: Autonomous Security Response
 status: executing
-stopped_at: Completed 83-05-PLAN.md
-last_updated: "2026-11-01T17:18:56.952Z"
+stopped_at: Completed 83-06-PLAN.md
+last_updated: "2026-11-01T17:32:27.564Z"
 last_activity: 2026-10-31
 last_activity_desc: Phase 83 execution started
-state_head: fda46a1c5bbc08ad8d33377b7f74d3a727039f31
+state_head: 3b6cab52506bf984966091021a49a4fc676cef37
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 55
-  completed_plans: 40
+  completed_plans: 41
   percent: 17
 ---
 
@@ -510,6 +510,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 83]: 83-04: the agent refuses every non-global address, including RFC 1918 (reverses 83-02's choice); a failed start-up re-apply is retried each pass until it works
 - [Phase 83]: [83-05] Per-feed listing times (feed_seen) are stored beside source_feeds so a feed that stopped listing an indicator cannot keep counting as an origin
 - [Phase 83]: [83-05] Suggestions are not written to the signal's decision memory (it holds blockedFrom/blockedUntil for D-14); an undo-window refusal stores holdUntil
+- [Phase 83]: 83-06: automatic XDR executors only reach gate.suggest (D-25 amends 81 D-21); unstamped gate-only commands are refused at delivery (autonomy_gate_required)
+- [Phase 83]: 83-06: swarm_service, soar_engine and tasks send nothing and answer not_sent; a swarm mission never queues isolate_host
 
 ## Performance Metrics
 
@@ -705,6 +707,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 83 P02 | 1h | 2 tasks | 9 files |
 | Phase 83 P04 | 1 session | 2 tasks | 14 files |
 | Phase 83 P05 | 95min | 3 tasks | 14 files |
+| Phase 83 P06 | 50min | 2 tasks | 14 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -739,8 +742,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-01T17:18:56.676Z
-**Stopped at:** Completed 83-05-PLAN.md
+**Last session:** 2026-11-01T17:32:27.347Z
+**Stopped at:** Completed 83-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -766,7 +769,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 83 (Autonomous Security Response) — EXECUTING
-Plan: 6 of 20
+Plan: 7 of 20
 Status: Ready to execute
 Last activity: 2026-10-31 — Phase 83 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
