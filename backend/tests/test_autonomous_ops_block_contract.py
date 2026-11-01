@@ -400,7 +400,9 @@ async def test_after_an_undo_ticks_inside_a_day_add_no_instruction(world):
     await approvals.undo(world, "t1", row["id"], actor=ACTOR)
     for _ in range(5):
         await sweep.tick(world)
-    assert len(await rows(world)) == 1 and len(await instructions(world)) == 2      # the block and its unblock only
+    # Plan 83-05: the sweep records ONE refused row saying why, however many ticks pass, and sends nothing.
+    assert sorted(r["state"] for r in await rows(world)) == ["refused", "undone"]
+    assert len(await instructions(world)) == 2                                      # the block and its unblock only
 
 
 # ------------------------------------------------------------------ the row builder moved out of the gate

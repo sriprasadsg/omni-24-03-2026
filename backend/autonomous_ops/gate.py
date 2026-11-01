@@ -75,6 +75,7 @@ class ActionRequest:
     remediation_id: Optional[str] = None
     steps: Optional[List[Dict[str, Any]]] = None      # [{action, params}] in playbook order
     rollback: Optional[List[Dict[str, Any]]] = None   # compensation steps, same shape
+    record_suppressed: bool = False    # record the refusal for an undo inside the cooldown instead of dropping it
 
 
 @dataclass
@@ -293,7 +294,7 @@ async def _step_dedupe(ctx: _Ctx) -> None:
         undone = {**base, "state": "undone", "$or": [{"undo.undoneAt": {"$gt": since}},
                                                        {"finishedAt": {"$gt": since}}, {"createdAt": {"$gt": since}}]}
         if await coll.find_one(undone, {"_id": 1}):
-            return ctx.refuse("dedupe", "suppressed_by_undo", record=False)
+            return ctx.refuse("dedupe", "suppressed_by_undo", record=ctx.req.record_suppressed)
     except Exception as exc:
         logger.error("autonomous_ops: dedupe check failed, refusing: %s", exc)
         return ctx.refuse("dedupe", "ledger_unavailable", record=False)
@@ -331,7 +332,8 @@ async def decide(db, req: ActionRequest, *, master_shadow: Optional[bool] = None
 
     if ctx.refusal:
         code, record = ctx.refusal
-        record = record and code not in _UNRECORDED and ctx.tenant is not None and ctx.level != "off"
+        unrecorded = _UNRECORDED - {"suppressed_by_undo"} if ctx.req.record_suppressed else _UNRECORDED
+        record = record and code not in unrecorded and ctx.tenant is not None and ctx.level != "off"
         if not record:
             return Decision("refuse", "refused", code, trace=ctx.trace)
         outcome, state = "refuse", "refused"

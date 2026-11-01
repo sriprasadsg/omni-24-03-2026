@@ -14,6 +14,10 @@ worth.
   decision is a later plan (83-11), and ranges are 83-08.
 * After a block has run out (``blockedUntil`` passed) evidence dated before the block began no longer
   counts (D-14). Expiry is never treated as an undo and writes no ledger state.
+* Nothing repeats (RESP-07): every recorded decision is remembered on the signal (``signals.remember``)
+  and ``sweep_memory.skip_reason`` keeps the finding quiet for the outcome's window before the gate is
+  asked again. Inside 24 hours of an undo the sweep records one refused row saying so and sends nothing.
+  The fourth automatic block or quarantine on one computer in a rolling hour becomes an approval card.
 
 Only structured fields decide anything. This module calls no model and reads no free text from an alert,
 finding or ticket (PROH-83-01). A host that cannot carry the action right now (capability not ticked,
@@ -22,10 +26,12 @@ offline, no token) gets no row at all.
 Raw Mongo handle with an explicit tenantId; the ambient tenant ContextVar is never used.
 """
 import logging
+from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from . import APPROVAL_TTL, agent_support, gate, ledger, messages, response_dispatch, response_messages as rm, signals
+from . import (APPROVAL_TTL, COOLDOWN, RATE_LIMIT_WINDOW, agent_support, gate, ledger, messages, response_dispatch,
+               response_messages as rm, signals, sweep_memory)
 from .settings import TenantSettings
 
 logger = logging.getLogger(__name__)
@@ -33,20 +39,9 @@ logger = logging.getLogger(__name__)
 RULE_ID = "sweep:block_ip"
 SUGGEST_RULE_ID = "sweep:single_signal"
 HOUR = 3600
+HOST_AUTO_LIMIT = 3                  # research default R2: automatic block or quarantine actions per computer per hour
+_HOST_COMMANDS = ("block_ip", "quarantine_file")        # restarts do not count toward it
 _COMMANDS = {"ip": "block_ip", "file": "quarantine_file"}
-
-
-async def _block_window(db, tenant_id: str, candidate: signals.Candidate):
-    """(began, until) of the block the sweep last dispatched for this signal. The ledger row holds the real
-    window and is read first; the sweep's own memory is the fallback (no recorded window: 24 hours from the
-    decision, the default length)."""
-    decision = candidate.decision or {}
-    row = await ledger.get(db, tenant_id, decision["actionId"]) if decision.get("actionId") else None
-    began = (row or {}).get("blockedFrom") or decision.get("blockedFrom")
-    until = (row or {}).get("blockedUntil") or decision.get("blockedUntil")
-    if not isinstance(until, datetime) and isinstance(decision.get("at"), datetime):
-        until = decision["at"] + timedelta(hours=24)
-    return (began if isinstance(began, datetime) else None), (until if isinstance(until, datetime) else None)
 
 
 def _ordered(live: Dict[str, Dict[str, Any]]) -> List[str]:
@@ -135,42 +130,76 @@ async def _suggest(db, tenant_id, candidate, command, origins, response, now, co
         await _keep_alive(db, tenant_id, suggest_key, origins, now)
 
 
+async def _remember(db, tenant_id, candidate, decision, origins, now, outcome, **extra) -> None:
+    key = {"tenantId": tenant_id, "agentId": candidate.agent_id, "kind": candidate.kind, "indicator": candidate.indicator}
+    await signals.remember(db, key, {"actionId": decision.action_id, "at": now, "outcome": outcome,
+                                     "origins": origins, **extra})
+
+
 async def _dispatch(db, tenant_id, candidate, decision, origins, now, counts) -> None:
-    if decision.state == "shadow":
-        counts["shadow"] += 1
+    """Send a row the gate recorded as dispatching, and remember every recorded outcome."""
+    if not decision.recorded or not decision.action_id:
         return
-    if decision.state != "dispatching" or not decision.action_id:
+    outcome = {"shadow": "shadow", "refused": "refused", "awaiting_approval": "card", "suggested": "suggested"}.get(decision.state)
+    if outcome:
+        counts["shadow" if outcome == "shadow" else "refused" if outcome == "refused" else "cards"] += 1
+        return await _remember(db, tenant_id, candidate, decision, origins, now, outcome)
+    if decision.state != "dispatching":
         return
     row = await ledger.get(db, tenant_id, decision.action_id)
     if row is None:
         return
     sent = await response_dispatch.send(db, row)
     if sent.get("status") != "queued":
-        return
+        return await _remember(db, tenant_id, candidate, decision, origins, now, "failed")
     counts["blocked"] += 1
     after = await ledger.get(db, tenant_id, decision.action_id) or {}
-    key = {"tenantId": tenant_id, "agentId": candidate.agent_id, "kind": candidate.kind, "indicator": candidate.indicator}
-    memory: Dict[str, Any] = {"actionId": decision.action_id, "at": now, "outcome": "blocked", "origins": origins}
-    for field in ("blockedFrom", "blockedUntil"):
-        if after.get(field) is not None:
-            memory[field] = after[field]
-    await signals.remember(db, key, memory)
+    window = {f: after[f] for f in ("blockedFrom", "blockedUntil") if after.get(f) is not None}
+    await _remember(db, tenant_id, candidate, decision, origins, now, "blocked", **window)
 
 
-async def _act(db, tenant_id, candidate, origins, response, agent, now, counts, until) -> None:
+def _undone_at(row: Dict[str, Any]) -> Optional[datetime]:
+    """When the person's undo took effect: the latest of the stamps the gate's own cooldown looks at."""
+    stamps = [v for v in ((row.get("undo") or {}).get("undoneAt"), row.get("finishedAt"), row.get("createdAt"))
+              if isinstance(v, datetime)]
+    return max(stamps) if stamps else None
+
+
+async def _act(db, tenant_id, candidate, origins, live, response, agent, now, counts) -> None:
     key, suggest_key = _keys(tenant_id, candidate, "block_ip")
-    if (until is not None and now < until) or await agent_support.check(db, tenant_id, agent, "block_ip", now=now):
+    row = await sweep_memory.latest_state(db, tenant_id, candidate.decision)
+    if sweep_memory.skip_reason(candidate.decision, row, sorted(live), now) \
+            or await agent_support.check(db, tenant_id, agent, "block_ip", now=now):
         counts["skipped"] += 1
         return
-    decision = await gate.decide(db, _act_request(tenant_id, candidate, origins, response, key), now=now)
+    req, hold = _act_request(tenant_id, candidate, origins, response, key), None
+    undone = await ledger.latest_undone(db, tenant_id, key)
+    at = _undone_at(undone) if undone else None
+    if at is not None and at > now - COOLDOWN:
+        # Inside 24 hours of a person's undo: one refused row saying so, nothing sent (the gate records it).
+        hold, shown = at + COOLDOWN, (undone.get("undo") or {}).get("undoneAt") or at
+        inputs = {**req.reason["inputs"], "undoneAt": shown.isoformat()}
+        req = replace(req, record_suppressed=True, reason={**req.reason, "inputs": inputs},
+                      reason_text=rm.fill(rm.WHY_TEMPLATES["undone_earlier"], date=rm.short_date(shown)))
+    elif await ledger.count_host_auto_since(db, tenant_id, candidate.agent_id, _HOST_COMMANDS,
+                                            now - RATE_LIMIT_WINDOW) >= HOST_AUTO_LIMIT:
+        req = replace(req, playbook_raise=True, reason_text=rm.WHY_TEMPLATES["host_cap"])
+    decision = await gate.decide(db, req, now=now)
     if decision.recorded:
         await _supersede(db, tenant_id, suggest_key)
+        if hold is not None:
+            return await _remember_refusal(db, tenant_id, candidate, decision, origins, now, hold, counts)
     await _dispatch(db, tenant_id, candidate, decision, origins, now, counts)
+
+
+async def _remember_refusal(db, tenant_id, candidate, decision, origins, now, hold, counts) -> None:
+    counts["refused"] += 1
+    await _remember(db, tenant_id, candidate, decision, origins, now, "refused", holdUntil=hold)
 
 
 async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetime) -> Dict[str, int]:
     """One tenant's pass. Returns counts {observed, blocked, suggested, shadow, skipped}."""
-    counts = {"observed": 0, "blocked": 0, "suggested": 0, "shadow": 0, "skipped": 0}
+    counts = {"observed": 0, "blocked": 0, "suggested": 0, "shadow": 0, "skipped": 0, "refused": 0, "cards": 0}
     agents = await signals.agents_of(db, tenant_id)
     by_id = {a["id"]: a for a in agents}
     for candidate in await signals.observe(db, tenant_id, agents, now):
@@ -178,7 +207,8 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
         command = _COMMANDS.get(candidate.kind)
         if command is None:                                      # ranges wait for 83-08
             continue
-        began, until = await _block_window(db, tenant_id, candidate)
+        row = await sweep_memory.latest_state(db, tenant_id, candidate.decision)
+        began, until = sweep_memory.block_window(candidate.decision, row)
         after = began if began is not None and until is not None and until <= now else None      # D-14
         live = {n: v for n, v in signals.counting_origins(candidate, after).items()
                 if isinstance(v.get("firstSeenAt"), datetime)}
@@ -196,5 +226,5 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
                 continue
             await _suggest(db, tenant_id, candidate, command, _ordered(live)[:1], response, now, counts)
         else:
-            await _act(db, tenant_id, candidate, _agreeing(live), response, agent, now, counts, until)
+            await _act(db, tenant_id, candidate, _agreeing(live), live, response, agent, now, counts)
     return counts

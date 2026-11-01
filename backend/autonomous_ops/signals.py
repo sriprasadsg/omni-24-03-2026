@@ -493,7 +493,7 @@ def corroborated(doc: Any, *, two_signal: bool, evidence_after: Optional[datetim
 
 async def remember(db, doc_key: Dict[str, Any], decision: Dict[str, Any]) -> None:
     """Write the sweep's memory of what it decided for this signal: {actionId, at, outcome, origins?,
-    blockedFrom?, blockedUntil?}."""
-    keep = {k: decision[k] for k in ("actionId", "at", "outcome", "origins", "blockedFrom", "blockedUntil")
-            if k in decision}
+    blockedFrom?, blockedUntil?, holdUntil?}."""
+    keep = {k: v for k, v in decision.items() if k in (
+        "actionId", "at", "outcome", "origins", "blockedFrom", "blockedUntil", "holdUntil")}
     await _signals(db).update_one(doc_key, {"$set": {"decision": keep}})

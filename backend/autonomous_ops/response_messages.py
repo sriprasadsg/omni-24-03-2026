@@ -87,6 +87,8 @@ WHY_TEMPLATES = {
     "restart_over_budget": "Restarted {service} 3 times in the last hour. Further restarts need your approval.",
     "protected_file": "This is a protected system file, so it isn't moved automatically. {reason}",
     "undone_earlier": "You undid this action on {date}. It isn't repeated for 24 hours.",
+    "host_cap": ("This computer already had 3 automatic actions in the last hour, so this one needs your "
+                 "approval."),
     "agent_cannot": "This computer's agent doesn't support this action yet.",
     "os_cannot": "This action isn't supported on {os}.",
     "correlation": "A correlation rule asked for this: {rule}.",

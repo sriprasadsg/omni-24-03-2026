@@ -269,3 +269,17 @@ async def refresh_suggestion(db, tenant_id: str, action_id: str, *, inputs: Dict
         sets["createdAt"] = now
     done = await _actions(db).update_one({"id": action_id, "tenantId": tenant_id, "state": "suggested"}, {"$set": sets})
     return done.modified_count == 1
+
+
+async def latest_undone(db, tenant_id: str, dedupe_key: str) -> Optional[Dict[str, Any]]:
+    """The newest row a person undid for this dedupe key, else None."""
+    found = _actions(db).find({"tenantId": tenant_id, "dedupeKey": dedupe_key, "state": "undone"},
+                              {"_id": 0}).sort([("finishedAt", -1), ("createdAt", -1)]).limit(1)
+    return next(iter([_normalize(r) async for r in found]), None)
+
+
+async def count_host_auto_since(db, tenant_id: str, agent_id: str, commands: Iterable[str], since: datetime) -> int:
+    """Automatic actions of these commands aimed at one computer, created strictly after ``since`` (shadow
+    and control rows excluded, like ``count_auto_since``; a card nobody approved was never automatic)."""
+    return await _actions(db).count_documents({"tenantId": tenant_id, **_AUTO_ROWS, "targets": agent_id,
+                                               "command": {"$in": list(commands)}, "createdAt": {"$gt": since}})
