@@ -237,7 +237,7 @@ async def test_after_a_block_expires_old_evidence_does_not_count_and_fresh_evide
     rows = await _rows(mongo_db)
     assert len(rows) == 2 and rows[1]["state"] == "dispatching" and rows[1]["id"] != first_id
     assert rows[0]["state"] == "verified"             # expiry is never an undo
-    assert [d["type"] for d in await _instructions(mongo_db)] == ["block_ip"]
+    assert [d["type"] for d in await _instructions(mongo_db)] == ["block_ip", "block_ip"]     # never an unblock
 
 
 async def test_after_a_block_expires_one_fresh_origin_is_only_a_suggestion(mongo_db):

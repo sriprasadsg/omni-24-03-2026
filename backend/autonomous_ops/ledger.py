@@ -251,3 +251,21 @@ async def recent_finished_auto(db, tenant_id: str, n: int = 3) -> list:
     found = _actions(db).find({"tenantId": tenant_id, **_AUTO_ROWS, "finishedAt": {"$ne": None}},
                               {"_id": 0}).sort("finishedAt", -1).limit(n)
     return [_normalize(r) async for r in found]
+
+
+async def open_row(db, tenant_id: str, dedupe_key: str, states: Iterable[str] = OPEN_STATES) -> Optional[Dict[str, Any]]:
+    """The row holding ``dedupe_key`` open for the tenant (at most one, the open-dedupe index), else None."""
+    return _normalize(await _actions(db).find_one(
+        {"tenantId": tenant_id, "dedupeKey": dedupe_key, "state": {"$in": list(states)}}))
+
+
+async def refresh_suggestion(db, tenant_id: str, action_id: str, *, inputs: Dict[str, Any], expires_at: datetime,
+                             touch_created: bool, now: datetime) -> bool:
+    """Keep a still-seen suggestion alive: one update of its inputs, expiry and updatedAt (and createdAt
+    when ``touch_created``) while it is still ``suggested``. This is no state change, so no audit event is
+    written. Returns whether a row was changed."""
+    sets: Dict[str, Any] = {"reason.inputs": inputs, "approval.expiresAt": expires_at, "updatedAt": now}
+    if touch_created:
+        sets["createdAt"] = now
+    done = await _actions(db).update_one({"id": action_id, "tenantId": tenant_id, "state": "suggested"}, {"$set": sets})
+    return done.modified_count == 1

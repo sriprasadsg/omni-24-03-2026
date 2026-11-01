@@ -236,9 +236,12 @@ async def test_shadow_records_would_have_and_writes_no_instruction(mongo_db):
 
 
 async def test_only_one_origin_produces_no_block(world):
+    """Plan 83-05: one origin records a suggestion (nothing to approve) and sends nothing."""
     await world.edr_ioc.delete_many({})
     await sweep.tick(world)
-    assert await rows(world) == [] and await instructions(world) == []
+    (row,) = await rows(world)
+    assert row["state"] == "suggested" and row["reason"]["inputs"]["suggestionOnly"] is True
+    assert await instructions(world) == []
 
 
 async def test_two_origins_more_than_a_day_apart_do_not_corroborate(world):
@@ -249,7 +252,9 @@ async def test_two_origins_more_than_a_day_apart_do_not_corroborate(world):
     await seed_feed_ioc(world, ioc_type="url", value=f"http://{IP}/p", source_ip=IP, feed="urlhaus",
                         updated_at=now)
     await sweep.tick(world, now=now)
-    assert await rows(world) == [] and await instructions(world) == []
+    (row,) = await rows(world)               # still only the suggestion the first sighting recorded
+    assert row["state"] == "suggested" and row["dedupeKey"].startswith("t1|sweep-suggest|")
+    assert await instructions(world) == []
 
 
 async def test_a_hostname_shared_by_two_agents_produces_no_row(world):

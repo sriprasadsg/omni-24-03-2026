@@ -480,15 +480,15 @@ def counting_origins(doc: Any, evidence_after: Optional[datetime] = None) -> Dic
 
 
 def corroborated(doc: Any, *, two_signal: bool, evidence_after: Optional[datetime] = None) -> bool:
-    """D-03: two different origins whose firstSeenAt are at most 24 hours apart (inclusive); with
-    two_signal off (D-04) one is enough. ``doc`` is a Candidate or a mapping holding ``origins``."""
+    """D-03: two different origins whose firstSeenAt are at most 24 hours apart (inclusive, and no matter
+    what a third did); with two_signal off (D-04) one is enough. ``doc`` is a Candidate or a mapping holding ``origins``."""
     firsts = sorted(t for t in (_aware(v.get("firstSeenAt")) for v in counting_origins(doc, evidence_after).values())
                     if isinstance(t, datetime))
     if not firsts:
         return False
     if len(firsts) == 1:
         return not two_signal
-    return firsts[-1] - firsts[0] <= CORROBORATION_WINDOW or not two_signal
+    return any(b - a <= CORROBORATION_WINDOW for a, b in zip(firsts, firsts[1:])) or not two_signal
 
 
 async def remember(db, doc_key: Dict[str, Any], decision: Dict[str, Any]) -> None:
