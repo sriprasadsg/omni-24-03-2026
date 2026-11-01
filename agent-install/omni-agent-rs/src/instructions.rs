@@ -513,13 +513,6 @@ pub async fn compute_instruction_result(
                 Err(e) => serde_json::json!({"status": "error", "error": e}),
             }
         }
-        "kill_process" => {
-            let target = item.get("parameters").and_then(|p| p.get("target")).and_then(|v| v.as_str()).unwrap_or("");
-            match crate::capabilities::remediation_actions::kill_process(target).await {
-                Ok(()) => serde_json::json!({"status": "success", "message": "Process kill initiated"}),
-                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
-            }
-        }
         "restore_file" => {
             let path = item.get("parameters").and_then(|p| p.get("path")).and_then(|v| v.as_str()).unwrap_or("");
             let backup = item.get("parameters").and_then(|p| p.get("backup_path")).and_then(|v| v.as_str());

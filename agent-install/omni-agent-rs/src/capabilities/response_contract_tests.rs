@@ -12,6 +12,7 @@ use crate::capabilities::response_actions::{
     handle_at, support_report, support_report_for, BLOCK_TTL_DEFAULT, BLOCK_TTL_MAX, BLOCK_TTL_MIN,
     SUPPORTED_TOKENS,
 };
+use crate::capabilities::quarantine_paths::use_temp_paths;
 use crate::capabilities::response_state::{use_temp_store, Store};
 use crate::config::Config;
 use serde_json::{json, Value};
@@ -151,9 +152,9 @@ fn a_changed_example_body_is_noticed() {
 fn support_names_the_platform_and_holds_the_ttl_token() {
     let report = support_report_for(Some(Os::Windows));
     assert_eq!(report["platform"], "windows");
-    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file"]));
+    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe"]));
     assert_eq!(report["v"], 1);
-    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file"]));
+    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe"]));
 }
 
 #[test]
@@ -179,4 +180,52 @@ fn every_heartbeat_carries_the_support_report() {
     let payload = crate::heartbeat::build_payload(&cfg, &sys, &crate::capabilities::CapabilityManager::new());
     assert_eq!(payload["meta"]["response_actions"], support_report());
     assert!(payload["meta"]["response_actions"]["tokens"].is_array());
+}
+
+#[tokio::test]
+async fn the_real_dispatch_answers_a_quarantine_with_the_contract_example() {
+    let Some(c) = contract() else { return };
+    let _dir = use_temp_paths();
+    let work = tempfile::tempdir().unwrap();
+    let file = work.path().join("evil.bin");
+    std::fs::write(&file, b"bytes").unwrap();
+    let sha = hex::encode(<sha2::Sha256 as sha2::Digest>::digest(b"bytes"));
+    let item = json!({"task_id": "task-1", "parameters": {"path": file.to_string_lossy(), "sha256": sha}});
+    let client = reqwest::Client::new();
+    let body = crate::instructions::compute_instruction_result("quarantine_file", "quarantine_file", &item, &test_cfg(), &client)
+        .await
+        .expect("quarantine_file answers");
+    assert_eq!(body, c["examples"]["quarantine_moved"]);
+    let undo = json!({"parameters": {"quarantine_id": "task-1"}});
+    let restored = crate::instructions::compute_instruction_result("unquarantine_file", "unquarantine_file", &undo, &test_cfg(), &client)
+        .await
+        .expect("unquarantine_file answers");
+    assert_eq!(restored["outcome"], "restored");
+    assert_eq!(restored["verify"]["check"], "restored_to_path");
+}
+
+#[test]
+fn the_kill_and_quarantine_outcomes_and_checks_are_all_in_the_contract() {
+    use crate::capabilities::process_kill::{kill_body, KillPlan};
+    use crate::capabilities::quarantine::RunningProcess;
+    let Some(c) = contract() else { return };
+    let outcomes: Vec<&str> = c["outcomes"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+    let checks: Vec<&str> = c["checks"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+    let p = RunningProcess { pid: 4242, name: "evil.exe".into(), start_time: 1_761_900_000, exe: None };
+    let bodies = [
+        kill_body(&KillPlan::default(), &[]),
+        kill_body(&KillPlan { kill: vec![p.clone()], unconfirmed: vec![] }, &[]),
+        kill_body(&KillPlan { kill: vec![p.clone()], unconfirmed: vec![] }, &[p.clone()]),
+        kill_body(&KillPlan { kill: vec![], unconfirmed: vec![p] }, &[]),
+    ];
+    for body in bodies {
+        assert!(outcomes.contains(&body["outcome"].as_str().unwrap()));
+        assert!(checks.contains(&body["verify"]["check"].as_str().unwrap()));
+    }
+    for token in ["quarantine_file", "unquarantine_file", "kill_process_exe"] {
+        assert!(SUPPORTED_TOKENS.contains(&token));
+    }
+    assert_eq!(c["commandToken"]["kill_process"], "kill_process_exe");
+    assert_eq!(c["commandToken"]["quarantine_file"], "quarantine_file");
+    assert_eq!(c["commandToken"]["unquarantine_file"], "unquarantine_file");
 }

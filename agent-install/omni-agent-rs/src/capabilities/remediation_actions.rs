@@ -19,7 +19,7 @@ use std::path::Path;
 // approval gate (53-04) is the primary control, the agent itself refuses
 // to touch a short list of single-instance, OS-critical targets so a
 // malformed or overly broad playbook can never brick or lock out the host.
-const CRITICAL_PROCESS_NAMES: &[&str] = &[
+pub(crate) const CRITICAL_PROCESS_NAMES: &[&str] = &[
     "init", "systemd", "launchd", "kernel_task",
     "wininit.exe", "winlogon.exe", "csrss.exe", "smss.exe", "services.exe", "lsass.exe",
 ];

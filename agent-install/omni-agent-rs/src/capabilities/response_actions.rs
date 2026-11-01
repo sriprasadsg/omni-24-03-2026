@@ -17,8 +17,9 @@
 
 use crate::capabilities::firewall::{self, Os, Target};
 use crate::capabilities::net_safety;
+use crate::capabilities::process_kill;
 use crate::capabilities::quarantine;
-use crate::capabilities::remediation_actions::RemediationError;
+use crate::capabilities::remediation_actions::{self, RemediationError};
 use crate::capabilities::response_state::{ClaimAdded, Store};
 use crate::config::Config;
 use serde_json::{json, Value};
@@ -26,7 +27,7 @@ use serde_json::{json, Value};
 /// The feature tokens this build reports in every heartbeat (`meta.response_actions.tokens`).
 /// The backend acts on an agent only when the token for the command is in this list.
 pub const SUPPORTED_TOKENS: &[&str] =
-    &["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file"];
+    &["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe"];
 pub const BLOCK_TTL_MIN: i64 = 3_600;
 pub const BLOCK_TTL_MAX: i64 = 604_800;
 pub const BLOCK_TTL_DEFAULT: i64 = 86_400;
@@ -35,7 +36,7 @@ const SUPPORT_REPORT_VERSION: u32 = 1;
 
 /// True for the commands this module answers.
 pub fn handles(action: &str) -> bool {
-    matches!(action, "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file")
+    matches!(action, "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file" | "kill_process")
 }
 
 /// What the heartbeat carries as `meta.response_actions`: which platform this is and which
@@ -64,6 +65,7 @@ pub async fn handle(action: &str, item: &Value, cfg: &Config, _client: &reqwest:
     match action {
         "quarantine_file" => return quarantine_arm(item).await,
         "unquarantine_file" => return unquarantine_arm(item).await,
+        "kill_process" => return kill_arm(item).await,
         _ => {}
     }
     handle_at(action, item, cfg, Os::current(), &Store::default(), now_epoch())
@@ -104,6 +106,33 @@ async fn unquarantine_arm(item: &Value) -> Value {
     tokio::task::spawn_blocking(move || quarantine::restore_at(&paths, &id))
         .await
         .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The restore task stopped unexpectedly.".into())))
+}
+
+/// `kill_process`. With `expected_exe` it ends only the approved program (see `process_kill`);
+/// with `quarantine_id` it also ends the quarantined image, whose stored path the agent works out
+/// itself, because the instruction never carries one. With only `target` it is the Phase 53 kill
+/// that the UEBA path uses, with the same result body as before.
+async fn kill_arm(item: &Value) -> Value {
+    if param(item, "expected_exe").is_none() {
+        let target = param(item, "target").and_then(Value::as_str).unwrap_or("");
+        return match remediation_actions::kill_process(target).await {
+            Ok(()) => json!({"status": "success", "message": "Process kill initiated"}),
+            Err(e) => json!({"status": "error", "error": e.to_string()}),
+        };
+    }
+    let params = item.get("parameters").cloned().unwrap_or_else(|| json!({}));
+    let (expected_exe, listed) = match process_kill::parse_request(&params) {
+        Ok(parsed) => parsed,
+        Err(why) => return process_kill::refused_body(&why),
+    };
+    let moved_exe = match param(item, "quarantine_id") {
+        None => None,
+        Some(v) => match v.as_str().filter(|id| valid_id(id)) {
+            Some(id) => Some(quarantine::stored_path(&quarantine::QuarantinePaths::system(), id).to_string_lossy().into_owned()),
+            None => return process_kill::refused_body("quarantine_id is not valid."),
+        },
+    };
+    process_kill::kill_by_exe(process_kill::KillRequest { expected_exe, moved_exe, listed }).await
 }
 
 pub(crate) fn now_epoch() -> i64 {

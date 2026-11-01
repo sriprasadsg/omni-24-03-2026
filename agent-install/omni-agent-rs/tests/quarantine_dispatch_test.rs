@@ -137,3 +137,69 @@ fn moving_a_running_program_reports_it_and_the_listing_then_shows_the_stored_pat
     // plan also accepts the stored path.
     assert!(!same_exe(Some(&seen_after), &original, false));
 }
+
+#[cfg(target_os = "linux")]
+fn listed(p: &omni_agent::capabilities::quarantine::RunningProcess) -> omni_agent::capabilities::process_kill::ListedProcess {
+    omni_agent::capabilities::process_kill::ListedProcess { pid: p.pid, start_time: p.start_time }
+}
+
+#[cfg(target_os = "linux")]
+fn is_running(pid: u32) -> bool {
+    running_now().iter().any(|p| p.pid == pid)
+}
+
+/// The kill after a quarantine, on a real child: the plan finds the child under the stored path,
+/// signals only it, and the answer is `killed` with verify ok once it has really left.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_kill_after_a_move_ends_the_child_that_runs_the_stored_image() {
+    use omni_agent::capabilities::process_kill::{kill_by_exe, KillRequest};
+    let root = tempfile::tempdir().unwrap();
+    let paths = paths_in(root.path());
+    let (mut child, copy) = spawn_sleeper(root.path());
+    let original = copy.to_string_lossy().into_owned();
+    let seen = wait_for_exe(child.id(), &original);
+    let listing = running_now();
+    let moved = quarantine_at(&paths, &request(&copy, "task-1"), T0, &listing);
+    assert_eq!(outcome(&moved), "quarantined", "{moved}");
+
+    let stored = stored_path(&paths, "task-1").to_string_lossy().into_owned();
+    let body = kill_by_exe(KillRequest { expected_exe: original, moved_exe: Some(stored), listed: vec![listed(&seen)] }).await;
+    let gone = !is_running(child.id());
+    let _ = child.kill(); // a safety net for a failed assertion; the child is already dead
+    let _ = child.wait();
+    assert_eq!(body["outcome"], "killed", "{body}");
+    assert_eq!(body["verify"], serde_json::json!({"ok": true, "check": "process_gone"}));
+    assert!(gone, "the pid is gone from the process list");
+}
+
+/// With nothing moved, only the approved program ends. A decoy that runs another program, and a
+/// pid listed with the wrong start time (a reused pid), are both left alive.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_kill_ends_only_the_approved_program_and_leaves_a_reused_pid_alone() {
+    use omni_agent::capabilities::process_kill::{kill_by_exe, KillRequest, ListedProcess};
+    let target_dir = tempfile::tempdir().unwrap();
+    let decoy_dir = tempfile::tempdir().unwrap();
+    let (mut target, target_exe) = spawn_sleeper(target_dir.path());
+    let (mut decoy, decoy_exe) = spawn_sleeper(decoy_dir.path());
+    let seen = wait_for_exe(target.id(), &target_exe.to_string_lossy());
+    let decoy_seen = wait_for_exe(decoy.id(), &decoy_exe.to_string_lossy());
+
+    let req = KillRequest {
+        expected_exe: target_exe.to_string_lossy().into_owned(),
+        moved_exe: None,
+        listed: vec![listed(&seen), ListedProcess { pid: decoy.id(), start_time: decoy_seen.start_time + 9_000 }],
+    };
+    let body = kill_by_exe(req).await;
+    let target_gone = !is_running(target.id());
+    let decoy_alive = is_running(decoy.id());
+    let _ = target.kill();
+    let _ = target.wait();
+    let _ = decoy.kill();
+    let _ = decoy.wait();
+    assert_eq!(body["outcome"], "killed", "{body}");
+    assert_eq!(body["verify"]["ok"], true);
+    assert!(target_gone);
+    assert!(decoy_alive, "a process that only shares a listed pid was not signalled");
+}

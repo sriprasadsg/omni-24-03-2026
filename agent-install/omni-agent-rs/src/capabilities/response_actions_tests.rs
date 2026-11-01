@@ -32,7 +32,7 @@ fn recorded() -> Vec<String> {
 fn only_the_block_commands_are_handled() {
     assert!(handles("block_ip") && handles("unblock_ip"));
     assert!(handles("quarantine_file") && handles("unquarantine_file"));
-    assert!(!handles("kill_process") && !handles("enable_rdp"));
+    assert!(handles("kill_process") && !handles("enable_rdp"));
 }
 
 #[test]
