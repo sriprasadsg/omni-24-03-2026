@@ -42,6 +42,8 @@ _SKIP_DIRS = {"tests", "__pycache__", "node_modules", ".git"}
 # separately. Several of these write only after a person acted (manual executors, operator
 # routes); two in correlation_engine_threat.py still write XDR work outside the gate
 # (trigger_threat_hunt and prestage_kill_chain_defenses, A-81-XDR-GRANDFATHERED).
+# Phase 83 (83-06) took swarm_service.py, soar_engine.py and tasks.py off this list: they no longer
+# write any queue (the old ``instructions`` collection is fenced for good, see the scan below).
 # ADDING A MODULE HERE REQUIRES A REVIEW AGAINST GATE-03: anything that can act without a person
 # must go through autonomous_ops.gate instead.
 GRANDFATHERED_WRITERS = (
@@ -74,11 +76,8 @@ GRANDFATHERED_WRITERS = (
     "scheduler.py",
     "simulation_endpoints.py",
     "skill_handlers.py",
-    "soar_engine.py",
     "software_endpoints.py",
     "swarm_endpoints.py",
-    "swarm_service.py",
-    "tasks.py",
 )
 
 # The package modules that may touch the queues: the gate writes, the others only change the
@@ -346,6 +345,44 @@ def test_queue_scanner_negative_controls():
     assert not writes_agent_queue("async def f(db):\n    return await db.agent_instructions.find_one({})\n")
     assert not writes_agent_queue("async def f(db):\n    await db.alerts.insert_one({})\n")
     assert inserts_agent_queue("async def f(db):\n    await db.response_tasks.insert_one({})\n")
+
+
+# The old ``instructions`` collection (not ``agent_instructions``) is read by nothing. Antibody propagation,
+# the SOAR block/isolate plugins and the worker tasks used to fill it; they are fenced (RESP-11, D-18).
+_DEAD_QUEUE_REF = r"""(?:\.\s*instructions\b|\[\s*['"]instructions['"]\s*\]|get_collection\(\s*['"]instructions['"]\s*\))"""
+_DEAD_QUEUE_WRITE = re.compile(rf"{_DEAD_QUEUE_REF}\s*\.\s*{_WRITE}\s*\(")
+_DEAD_QUEUE_ALIAS = re.compile(rf"(\w+)\s*=\s*[^\n=]*{_DEAD_QUEUE_REF}(?!\s*\.)")
+
+
+def writes_dead_instructions_queue(src: str) -> bool:
+    """True when the source writes the old ``instructions`` collection, directly or through a bound name."""
+    if _DEAD_QUEUE_WRITE.search(src):
+        return True
+    for match in _DEAD_QUEUE_ALIAS.finditer(src):
+        if re.search(rf"\b{re.escape(match.group(1))}\s*\.\s*{_WRITE}\s*\(", src):
+            return True
+    return False
+
+
+def test_nothing_writes_the_dead_instructions_queue(sources):
+    writers = sorted(rel for rel, src in sources.items() if writes_dead_instructions_queue(src))
+    assert writers == [], (f"{writers} write the old instructions collection. Nothing reads it, so a write there "
+                           "is a command that looks sent and never arrives (RESP-11, D-18).")
+    # The three modules that used to write it are still scanned (they are tracked sources).
+    for rel in ("swarm_service.py", "soar_engine.py", "tasks.py"):
+        assert rel in sources and "autonomous_ops.response_messages" in sources[rel]
+
+
+def test_dead_queue_scanner_negative_control():
+    assert writes_dead_instructions_queue("async def f(db):\n    await db.instructions.insert_many([])\n")
+    assert writes_dead_instructions_queue("def f(db):\n    db.instructions.insert_one({})\n")
+    assert writes_dead_instructions_queue("async def f(m):\n    await m.db.instructions.insert_one({})\n")
+    assert writes_dead_instructions_queue("async def f(db):\n    await db['instructions'].update_one({}, {})\n")
+    assert writes_dead_instructions_queue("async def f(db):\n    await db.get_collection('instructions').insert_one({})\n")
+    assert writes_dead_instructions_queue("async def f(db):\n    q = db.instructions\n    await q.insert_one({})\n")
+    assert not writes_dead_instructions_queue("async def f(db):\n    await db.agent_instructions.insert_one({})\n")
+    assert not writes_dead_instructions_queue("async def f(db):\n    return await db.instructions.find_one({})\n")
+    assert not writes_dead_instructions_queue("async def f(db):\n    await db.response_tasks.insert_one({})\n")
 
 
 # ------------------------------------------------------------------ GATE-05: no LLM on the autonomous path

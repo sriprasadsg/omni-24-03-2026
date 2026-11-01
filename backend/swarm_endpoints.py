@@ -9,6 +9,7 @@ from authentication_service import get_current_user, get_current_user_or_agent
 from rbac_utils import require_permission, verify_permission
 from auth_types import TokenData
 from agent_auth import require_agent_named
+from autonomous_ops.response_messages import FENCE
 
 router = APIRouter(prefix="/api/swarm", tags=["Swarm"])
 
@@ -28,6 +29,18 @@ missions = {}
 
 # ── Goal → instruction mapping ─────────────────────────────────────────────
 
+# A swarm mission never queues containment (RESP-11, D-18): isolating a host is decided in
+# Autonomous Ops, through the gate. Whatever chose the step (keyword map or model), it is dropped.
+CONTAINMENT_MISSION_TYPES = {"isolate_host"}
+
+
+def _without_containment(instructions: list) -> tuple[list, int]:
+    """(the steps that may be dispatched, how many were removed)."""
+    kept = [i for i in instructions
+            if not (isinstance(i, dict) and str(i.get("type", "")).strip().lower() in CONTAINMENT_MISSION_TYPES)]
+    return kept, len(instructions) - len(kept)
+
+
 def _goal_to_instructions(goal: str) -> list[dict]:
     """Map a free-text mission goal to typed agent instructions."""
     g = goal.lower()
@@ -40,8 +53,6 @@ def _goal_to_instructions(goal: str) -> list[dict]:
         instructions.append({"type": "threat_hunt", "instruction": f"Swarm mission: {goal}"})
     if any(k in g for k in ("collect", "log", "ship")):
         instructions.append({"type": "log_collection", "instruction": f"Swarm mission: {goal}"})
-    if any(k in g for k in ("isolat", "quarantin", "block")):
-        instructions.append({"type": "isolate_host", "instruction": f"Swarm mission: {goal}"})
     if not instructions:
         instructions.append({"type": "general_task", "instruction": f"Swarm mission: {goal}"})
     return instructions
@@ -79,7 +90,7 @@ async def run_swarm_lifecycle(mission_id: str, goal: str, tenant_id: str = None)
         prompt = f"""You are the coordinator of an autonomous security agent swarm.
 Goal: {goal}
 
-Return a JSON array of 3-5 objects, each with "type" (one of: vulnerability_scan, os_patch_install, threat_hunt, log_collection, isolate_host, general_task) and "instruction" (one short sentence).
+Return a JSON array of 3-5 objects, each with "type" (one of: vulnerability_scan, os_patch_install, threat_hunt, log_collection, general_task) and "instruction" (one short sentence).
 Example: [{{"type": "vulnerability_scan", "instruction": "Scan all endpoints for critical CVEs"}}]"""
         try:
             import json
@@ -112,6 +123,11 @@ Example: [{{"type": "vulnerability_scan", "instruction": "Scan all endpoints for
     _log("Coordinator", "Manager", f"Found {agent_count} online agent(s). Planning instruction dispatch...")
 
     instructions = ai_instructions if ai_instructions else _goal_to_instructions(goal)
+    instructions, removed = _without_containment(instructions)
+    if removed:
+        _log("Coordinator", "Manager", FENCE["swarm_mission"])
+    if not instructions:
+        instructions = _goal_to_instructions(goal)
     _log("Coordinator", "Manager",
          f"Plan: {len(instructions)} instruction type(s) → {', '.join(i['type'] for i in instructions)}")
 

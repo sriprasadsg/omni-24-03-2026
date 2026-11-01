@@ -28,60 +28,20 @@ def run_agent_task_async(task_description: str, agent_id: str = "default"):
 @celery_app.task(name='tasks.execute_remediation_script')
 def execute_remediation_script(script_content: str, language: str = "powershell", agent_id: str = None, tenant_id: str = None):
     """
-    Dispatches a remediation script to a real agent via the instructions collection.
-    Polls for up to 60 seconds for completion, then returns timeout status.
+    Fenced (RESP-11, D-18). This task used to queue a script for an endpoint agent and poll for
+    its result, outside the Autonomous Ops gate. It now sends nothing, opens no database client
+    and answers not_sent at once. Containment and remediation are decided in Autonomous Ops.
     """
-    import time
-    import uuid
-    from datetime import datetime, timezone
-    from pymongo import MongoClient
+    from autonomous_ops.response_messages import FENCE
 
-    print(f"[Worker] Dispatching remediation script ({language}) to agent {agent_id}...")
-
-    mongo_url = os.getenv('MONGODB_URI', 'mongodb://localhost:27017')
-    client = MongoClient(mongo_url)
-    db = client['omni-agent']
-
-    instruction_id = str(uuid.uuid4())
-    instruction = {
-        "id": instruction_id,
-        "agent_id": agent_id,
-        "tenant_id": tenant_id,
-        "type": "run_script",
-        "parameters": {"script": script_content, "language": language},
-        "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "source": "remediation_task"
-    }
-
-    if not agent_id:
-        # No agent target — log and return actionable error
-        client.close()
-        return {"status": "failed", "output": "No agent_id provided; cannot dispatch remediation script."}
-
-    db.instructions.insert_one(instruction)
-    print(f"[Worker] Instruction {instruction_id} queued for agent {agent_id}")
-
-    # Poll for result for up to 60 seconds
-    deadline = time.time() + 60
-    while time.time() < deadline:
-        time.sleep(3)
-        result_doc = db.instruction_results.find_one({"instruction_id": instruction_id})
-        if result_doc:
-            client.close()
-            return {
-                "status": result_doc.get("status", "completed"),
-                "output": result_doc.get("output", ""),
-                "instruction_id": instruction_id
-            }
-
-    client.close()
-    return {"status": "timeout", "output": f"Agent {agent_id} did not respond within 60 seconds.", "instruction_id": instruction_id}
+    print(f"[Worker] Not sent: remediation script ({language}) for agent {agent_id}")
+    return {"status": "not_sent", "output": FENCE["worker"]}
 
 @celery_app.task(name='tasks.run_periodic_patch_scan')
 def run_periodic_patch_scan():
     """
-    Periodic task to trigger software scans on active agents and check for SLA breaches.
+    Periodic task that checks for SLA breaches in the software inventory. It no longer queues
+    software-scan instructions for agents (RESP-11, D-18).
     """
     from pymongo import MongoClient
     from datetime import datetime, timezone
@@ -93,24 +53,9 @@ def run_periodic_patch_scan():
     
     print("[Worker] Running periodic patch scan...")
     
-    # 1. Trigger scans for active agents
-    active_agents_list = list(db.agents.find({
-        "last_seen": {"$gt": datetime.now(timezone.utc).timestamp() - 3600} # Active in last hour
-    }))
-    
-    for agent in active_agents_list:
-        agent_id = str(agent.get("_id") or agent.get("id"))
-        tenant_id = agent.get("tenant_id")
-        
-        # Add 'run_software_scan' instruction
-        db.instructions.insert_one({
-            "agent_id": agent_id,
-            "tenant_id": tenant_id,
-            "type": "run_software_scan",
-            "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-    
+    # 1. The loop that queued a software-scan instruction per active agent was removed (RESP-11,
+    #    D-18): it wrote the old instructions collection, which nothing reads.
+
     # 2. Check for SLA breaches in existing inventory
     patch_service = get_patch_service()
     outdated_items = list(db.software_inventory.find({"is_outdated": True}))
@@ -138,6 +83,6 @@ def run_periodic_patch_scan():
                 upsert=True
             )
             
-    print(f"[Worker] Periodic scan complete. Triggered {len(active_agents_list)} agent scans. Found {breach_count} SLA breaches.")
-    return {"scans_triggered": len(active_agents_list), "breaches_found": breach_count}
+    print(f"[Worker] Periodic scan complete. Triggered 0 agent scans. Found {breach_count} SLA breaches.")
+    return {"scans_triggered": 0, "breaches_found": breach_count}
 

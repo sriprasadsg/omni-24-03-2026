@@ -4,6 +4,8 @@ import os
 from datetime import datetime, timezone
 import uuid
 
+from autonomous_ops.response_messages import FENCE
+
 logger = logging.getLogger(__name__)
 
 class NodeExecutionError(Exception):
@@ -76,6 +78,8 @@ class SOAREngine:
                 if node_type in self.plugins:
                     result = await self.plugins[node_type](node.get('data', {}), context)
                     context["results"][current_id] = result
+                    if isinstance(result, dict) and result.get("action") == "not_sent":
+                        node_status = "not_sent"      # never "success" for a step that sent nothing (PROH-83-10)
                 elif node_type == "trigger":
                     result = context["trigger"]
                 else:
@@ -172,29 +176,12 @@ class SOAREngine:
             return {"malicious": False, "score": 0, "ip": ip, "error": str(e)}
 
     async def _plugin_block_ip_firewall(self, data: dict, context: dict):
+        # Fenced (RESP-11, D-18): this step used to queue a block for the agent without the Autonomous Ops
+        # gate. It sends nothing now and says so; containment is decided in Autonomous Ops.
         ip = data.get("ip", context["trigger"].get("source_ip"))
         agent_id = data.get("agent_id", context["trigger"].get("agent_id"))
-        logger.warning(f"SOAR ACTION: Blocking IP {ip} via agent {agent_id}")
-        if agent_id:
-            try:
-                from database import mongodb
-                import uuid as _uuid
-                from datetime import timezone
-                instruction = {
-                    "id": str(_uuid.uuid4()),
-                    "agent_id": agent_id,
-                    "type": "block_ip",
-                    "parameters": {"ip": ip},
-                    "status": "pending",
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "source": "soar"
-                }
-                await mongodb.db.instructions.insert_one(instruction)
-                return {"action": "queued", "ip": ip, "agent_id": agent_id, "instruction_id": instruction["id"]}
-            except Exception as e:
-                logger.error(f"block_ip dispatch failed: {e}")
-                return {"action": "failed", "ip": ip, "error": str(e)}
-        return {"action": "skipped", "ip": ip, "reason": "no agent_id provided"}
+        logger.warning(f"SOAR ACTION not sent: block IP {ip} for agent {agent_id}")
+        return {"action": "not_sent", "ip": ip, "agent_id": agent_id, "message": FENCE["soar"]}
 
     async def _plugin_suspend_okta_user(self, data: dict, context: dict):
         user = data.get("username", context["trigger"].get("user", "unknown"))
@@ -251,32 +238,13 @@ class SOAREngine:
             return {"action": "failed", "channel": channel, "error": str(e)}
 
     async def _plugin_isolate_host(self, data: dict, context: dict):
+        # Fenced (RESP-11, D-18): nothing is queued and no agent is marked isolated, because the host
+        # received nothing. Isolation is decided in Autonomous Ops.
         host_id = data.get("host_id", context["trigger"].get("agent_id"))
-        logger.warning(f"SOAR ACTION: Isolating host {host_id}")
         if not host_id:
             return {"action": "skipped", "reason": "no host_id provided"}
-        try:
-            from database import mongodb
-            import uuid as _uuid
-            from datetime import timezone
-            instruction = {
-                "id": str(_uuid.uuid4()),
-                "agent_id": host_id,
-                "type": "network_isolate",
-                "parameters": {"mode": "full"},
-                "status": "pending",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "source": "soar"
-            }
-            await mongodb.db.instructions.insert_one(instruction)
-            await mongodb.db.agents.update_one(
-                {"id": host_id},
-                {"$set": {"isolated": True, "isolation_time": datetime.now(timezone.utc).isoformat()}}
-            )
-            return {"action": "isolated", "host_id": host_id, "instruction_id": instruction["id"]}
-        except Exception as e:
-            logger.error(f"isolate_host failed for {host_id}: {e}")
-            return {"action": "failed", "host_id": host_id, "error": str(e)}
+        logger.warning(f"SOAR ACTION not sent: isolate host {host_id}")
+        return {"action": "not_sent", "host_id": host_id, "message": FENCE["soar"]}
 
 # Global engine instance
 soar_engine = SOAREngine()

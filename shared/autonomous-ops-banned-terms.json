@@ -31,7 +31,8 @@
     "components/AutonomousOpsPlatformHealth.tsx",
     "components/AutonomousOpsHealthCards.tsx",
     "components/AutonomousOpsRetentionReview.tsx",
-    "components/AutonomousOpsRetentionConfirmDialog.tsx"
+    "components/AutonomousOpsRetentionConfirmDialog.tsx",
+    "components/SwarmDashboard.tsx"
   ],
   "catalogueViews": ["autonomousOps"]
 }

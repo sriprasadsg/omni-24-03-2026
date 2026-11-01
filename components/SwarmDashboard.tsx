@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Activity, Shield, Cpu, MessageSquare, Terminal, Zap, AlertTriangle } from 'lucide-react';
+import { Play, Activity, Shield, Cpu, MessageSquare, Terminal, Zap, AlertTriangle, Info } from 'lucide-react';
 import { fetchSwarmMissions, fetchSwarmTopology, startSwarmMission, propagateAntibody } from '../services/apiService';
 
 interface AgentMessage {
@@ -16,6 +16,18 @@ interface Mission {
     logs: AgentMessage[];
 }
 
+// Shown when the server answers that nothing was sent but sent no sentence of its own (83-UI-SPEC section 8).
+const NOT_SENT_FALLBACK =
+    'Nothing was sent. Antibody propagation no longer sends containment to agents on its own. Containment is handled in Autonomous Ops.';
+
+type AntibodyStatus = { kind: 'ok' | 'notSent' | 'error'; message: string };
+
+const STATUS_STYLE: Record<AntibodyStatus['kind'], string> = {
+    ok: 'bg-green-50 border-green-200 text-green-700',
+    notSent: 'bg-amber-50 border-amber-200 text-amber-800',
+    error: 'bg-red-50 border-red-200 text-red-700',
+};
+
 const THREAT_TYPES = ['ransomware', 'c2_beacon', 'lateral_movement', 'data_exfil', 'brute_force', 'malware'];
 
 const SwarmDashboard: React.FC = () => {
@@ -25,7 +37,7 @@ const SwarmDashboard: React.FC = () => {
     const [topology, setTopology] = useState<any>(null);
     const [antibodyThreat, setAntibodyThreat] = useState('ransomware');
     const [antibodyIndicator, setAntibodyIndicator] = useState('');
-    const [antibodyStatus, setAntibodyStatus] = useState<{ ok: boolean; message: string } | null>(null);
+    const [antibodyStatus, setAntibodyStatus] = useState<AntibodyStatus | null>(null);
     const [propagating, setPropagating] = useState(false);
 
     useEffect(() => {
@@ -78,12 +90,17 @@ const SwarmDashboard: React.FC = () => {
         const result = await propagateAntibody({ threat_type: antibodyThreat, indicator: antibodyIndicator.trim() });
         setPropagating(false);
         if (result.status === 403) {
-            setAntibodyStatus({ ok: false, message: 'Tenant context required. Please re-authenticate.' });
+            setAntibodyStatus({ kind: 'error', message: 'Tenant context required. Please re-authenticate.' });
         } else if (!result.ok) {
-            setAntibodyStatus({ ok: false, message: result.data?.detail || 'Propagation failed.' });
+            setAntibodyStatus({ kind: 'error', message: result.data?.detail || 'Propagation failed.' });
         } else {
             const dispatched = result.data?.dispatched ?? 0;
-            setAntibodyStatus({ ok: true, message: `Antibody dispatched to ${dispatched} agent${dispatched !== 1 ? 's' : ''}.` });
+            if (dispatched === 0 || result.data?.status === 'not_sent') {
+                // The server sent nothing to any agent: say so in its own words, never in the success style.
+                setAntibodyStatus({ kind: 'notSent', message: result.data?.message || NOT_SENT_FALLBACK });
+            } else {
+                setAntibodyStatus({ kind: 'ok', message: `Antibody dispatched to ${dispatched} agent${dispatched !== 1 ? 's' : ''}.` });
+            }
             setAntibodyIndicator('');
         }
     };
@@ -193,13 +210,18 @@ const SwarmDashboard: React.FC = () => {
                 <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
                     <Shield size={20} className="text-red-600" /> Digital Immune System
                 </h2>
-                <p className="text-sm text-slate-500 mb-4">Broadcast a block rule (antibody) to all online agents in the tenant.</p>
+                <p className="text-sm text-slate-500 mb-4">Propagating an antibody no longer sends anything to agents. Containment is handled in Autonomous Ops.</p>
 
                 {antibodyStatus && (
-                    <div className={`flex items-center gap-2 mb-4 px-4 py-3 rounded-lg text-sm font-medium border ${antibodyStatus.ok ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-                        {antibodyStatus.ok ? <Zap size={15} /> : <AlertTriangle size={15} />}
-                        {antibodyStatus.message}
-                        <button onClick={() => setAntibodyStatus(null)} className="ml-auto text-current opacity-50 hover:opacity-100">✕</button>
+                    <div
+                        role={antibodyStatus.kind === 'error' ? 'alert' : 'status'}
+                        className={`flex items-start gap-2 mb-4 px-4 py-3 rounded-lg text-sm font-medium border break-words ${STATUS_STYLE[antibodyStatus.kind]}`}
+                    >
+                        <span className="mt-0.5 shrink-0">
+                            {antibodyStatus.kind === 'ok' ? <Zap size={15} /> : antibodyStatus.kind === 'notSent' ? <Info size={15} /> : <AlertTriangle size={15} />}
+                        </span>
+                        <span className="min-w-0 flex-1 break-words">{antibodyStatus.message}</span>
+                        <button onClick={() => setAntibodyStatus(null)} aria-label="Dismiss" className="ml-auto shrink-0 text-current opacity-50 hover:opacity-100">✕</button>
                     </div>
                 )}
 
