@@ -153,6 +153,23 @@ API_DETAIL = {
     "invalid_service": ("Use only letters, numbers, dots, hyphens and underscores, starting with a letter or "
                         "number."),
     "invalid_block_length": "Enter a block length between 1 hour and 7 days.",
+    "empty_service": "Enter a service name.",
+    "duplicate_service": "{name} is already on the list.",
+    "too_many_services": "You can watch up to 50 services.",
+    "critical_service": "{name} is a system service, so it is never restarted automatically.",
+    "invalid_setting": "Check the setting and try again.",
+    "bulk_failed": "The settings could not be saved for this organization.",
+    "organization_missing": "This organization no longer exists.",
+    "no_setting_change": "Choose at least one setting to change.",
+}
+
+# The reason line of a settings change in the activity list (the label comes from CONTROL_LABELS).
+CONTROL_REASONS = {
+    "two_signal_on": "Two different sources must now agree before an IP address is blocked or a file is quarantined.",
+    "two_signal_off": "One source is now enough to block an IP address or quarantine a file.",
+    "block_length_changed": "New blocks now last {length}.",
+    "watched_services_changed": "{count} watched: {names}.",
+    "watched_services_none": "No services are watched now, so nothing restarts on its own.",
 }
 
 

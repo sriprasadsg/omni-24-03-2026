@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import autonomous_ops_endpoints as endpoints
 import autonomous_ops_platform_endpoints as platform_endpoints
+import autonomous_ops_response_endpoints as response_endpoints
 import rbac_utils
 from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
@@ -40,11 +41,14 @@ class Api:
         self.user = None
         monkeypatch.setattr(endpoints, "get_database", lambda: db)
         monkeypatch.setattr(platform_endpoints, "get_database", lambda: db)
+        monkeypatch.setattr(response_endpoints, "get_database", lambda: db)
         monkeypatch.setattr(rbac_utils, "get_database", lambda: db)     # role documents for the permission checks
         self.app = FastAPI()
         self.app.include_router(endpoints.router,
                                 dependencies=mount_dependencies("autonomous_ops_endpoints", "router"))
         self.app.include_router(platform_endpoints.router)
+        self.app.include_router(response_endpoints.router,
+                                dependencies=mount_dependencies("autonomous_ops_response_endpoints", "router"))
         self.app.dependency_overrides[get_current_user_or_api_key] = lambda: self.user
 
     async def call(self, method, path, *, role="tenant_admin", tenant="t1", username=None, auth="session",

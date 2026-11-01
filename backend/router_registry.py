@@ -51,6 +51,7 @@ _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     # app up with no way to press or clear a stop, so startup must fail instead.
     "autonomous_ops_endpoints",
     "autonomous_ops_platform_endpoints",
+    "autonomous_ops_response_endpoints",
 })
 
 
@@ -340,6 +341,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "autonomous_ops_endpoints",   "router")  # Phase 81: Autonomous Ops tenant routes
     _load(app, "autonomous_ops_platform_endpoints", "router")  # Phase 81: platform-wide stop, maximum level, shadow
     _load(app, "autonomous_ops_retention_endpoints", "router")  # Phase 82: retention review and confirm (Super Admin)
+    _load(app, "autonomous_ops_response_endpoints", "router")  # Phase 83: response settings (tenant admin)
     _load(app, "watchdog_ingest_endpoints", "router")  # Phase 82: watchdog heartbeat/events (loopback + bearer token)
 
     # ── Optional / Feature Routers (non-fatal if missing) ────────────────────

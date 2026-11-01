@@ -27,15 +27,18 @@ def test_guard_matches_manifest_and_is_the_mount():
     assert sorted(meta["read"]) == sorted(resolved_read(entry)) == ["view:autonomous_ops"]
     assert sorted(meta["write"]) == sorted(resolved_write(entry))
     assert MOUNT_GUARDS[("autonomous_ops_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
-    assert autonomous_ops.MOUNTS == {("autonomous_ops_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD}
+    assert MOUNT_GUARDS[("autonomous_ops_response_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
+    assert autonomous_ops.MOUNTS == {("autonomous_ops_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD,
+                                     ("autonomous_ops_response_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD}
 
 
 def test_every_tenant_route_carries_the_manifest_guard():
     records = run_real_app_walk()["routes"]
     manifest = load_manifest()
     entry = _entry()
-    mine = [r for r in records if r["module"] == "autonomous_ops_endpoints"]
-    assert {"/api/autonomous-ops/status", "/api/autonomous-ops/actions"} <= {r["path"] for r in mine}
+    mine = [r for r in records if r["module"] in ("autonomous_ops_endpoints", "autonomous_ops_response_endpoints")]
+    assert {"/api/autonomous-ops/status", "/api/autonomous-ops/actions",
+            "/api/autonomous-ops/response-settings"} <= {r["path"] for r in mine}
     offenders = []
     for record in mine:
         assert owner_of(record["path"], manifest)["view"] == "autonomousOps"
@@ -51,6 +54,11 @@ def test_every_tenant_route_carries_the_manifest_guard():
 def test_tenant_router_is_required():
     import router_registry
     assert "autonomous_ops_endpoints" in router_registry._REQUIRED_ROUTERS
+
+
+def test_response_settings_routers_are_required():
+    import router_registry
+    assert "autonomous_ops_response_endpoints" in router_registry._REQUIRED_ROUTERS
 
 
 def test_platform_router_is_mounted_required_and_permission_checked():
