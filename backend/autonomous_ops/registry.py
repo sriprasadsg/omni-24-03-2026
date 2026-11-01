@@ -23,12 +23,14 @@ class ActionSpec:
     """name: the agent instruction command. cls: "auto" (runs on its own), "approve" (needs a
     person), "undo_only" (only the inverse of another action) or "probe" (read-only re-scan).
     undo: the command that puts it back, or None. target_kind: what the action protects
-    ("ip", "host" or "none"). ip_params: parameter names that carry an IP address."""
+    ("ip", "host" or "none"). ip_params: parameter names that carry an IP address. cidr_params: parameter
+    names that carry a whole network (Phase 83): a request holding one always needs a person."""
     name: str
     cls: str
     undo: Optional[str] = None
     target_kind: str = "host"
     ip_params: Tuple[str, ...] = ()
+    cidr_params: Tuple[str, ...] = ()
 
 
 def _specs(*specs: ActionSpec):
@@ -37,7 +39,8 @@ def _specs(*specs: ActionSpec):
 
 ACTIONS = _specs(
     # Locked split (GATE-04): these three run on their own.
-    ActionSpec("block_ip", "auto", undo="unblock_ip", target_kind="ip", ip_params=("ip_address", "ip")),
+    ActionSpec("block_ip", "auto", undo="unblock_ip", target_kind="ip", ip_params=("ip_address", "ip"),
+               cidr_params=("cidr",)),
     ActionSpec("quarantine_file", "auto", undo="unquarantine_file"),
     ActionSpec("restart_service", "auto"),
     # These need a person.
@@ -50,7 +53,7 @@ ACTIONS = _specs(
     ActionSpec("rotate_key", "approve", undo="rotate_key_rollback"),
     ActionSpec("rollback_ransomware", "approve"),
     # Only ever the inverse of a registered action.
-    ActionSpec("unblock_ip", "undo_only", target_kind="ip", ip_params=("ip_address", "ip")),
+    ActionSpec("unblock_ip", "undo_only", target_kind="ip", ip_params=("ip_address", "ip"), cidr_params=("cidr",)),
     ActionSpec("enable_service", "undo_only"),
     ActionSpec("unquarantine_file", "undo_only"),
     ActionSpec("restore_host", "undo_only"),

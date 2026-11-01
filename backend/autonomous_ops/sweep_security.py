@@ -11,7 +11,11 @@ worth.
   alive (``ledger.refresh_suggestion``), so a second origin that arrives after 24 hours finds a suggestion,
   and leaves it one.
 * File candidates (a sha256 with a path) are observed and suggested here; the automatic quarantine
-  decision is a later plan (83-11), and ranges are 83-08.
+  decision is a later plan (83-11).
+* A range (a network a feed lists and a host has talked to) follows the same rules as an address but with
+  params ``{cidr, ttl_seconds}``: one origin suggests it, and two corroborating origins reach the gate,
+  which always turns a network into an approval card (``range_block``, RESP-02). The sweep never writes an
+  instruction for a range, and a host without the range token stays silent.
 * After a block has run out (``blockedUntil`` passed) evidence dated before the block began no longer
   counts (D-14). Expiry is never treated as an undo and writes no ledger state.
 * Nothing repeats (RESP-07): every recorded decision is remembered on the signal (``signals.remember``)
@@ -41,7 +45,7 @@ SUGGEST_RULE_ID = "sweep:single_signal"
 HOUR = 3600
 HOST_AUTO_LIMIT = 3                  # research default R2: automatic block or quarantine actions per computer per hour
 _HOST_COMMANDS = ("block_ip", "quarantine_file")        # restarts do not count toward it
-_COMMANDS = {"ip": "block_ip", "file": "quarantine_file"}
+_COMMANDS = {"ip": "block_ip", "range": "block_ip", "file": "quarantine_file"}
 
 
 def _ordered(live: Dict[str, Dict[str, Any]]) -> List[str]:
@@ -72,9 +76,15 @@ def _keys(tenant_id: str, candidate: signals.Candidate, command: str):
     return f"{tenant_id}|sweep|{tail}", f"{tenant_id}|sweep-suggest|{tail}"
 
 
+def _block_params(candidate: signals.Candidate, response) -> Dict[str, Any]:
+    """A block names one address, or for a range its normalised network (never both)."""
+    key = "cidr" if candidate.kind == "range" else "ip_address"
+    return {key: candidate.indicator, "ttl_seconds": response.block_hours * HOUR}
+
+
 def _suggest_request(tenant_id, candidate, command, origins, response, key) -> gate.ActionRequest:
     if command == "block_ip":
-        params = {"ip_address": candidate.indicator, "ttl_seconds": response.block_hours * HOUR}
+        params = _block_params(candidate, response)
     else:
         params = {"path": candidate.path, "sha256": candidate.indicator}
     inputs = {"suggestionOnly": True, "origins": origins, "indicator": candidate.indicator,
@@ -90,7 +100,7 @@ def _act_request(tenant_id, candidate, origins, response, key) -> gate.ActionReq
     text = _words(rm.why_two_sources, origins) if len(origins) > 1 else _words(rm.why_rule_off, origins[0])
     return gate.ActionRequest(
         tenant_id=tenant_id, kind="security", origin="sweep", actions=["block_ip"], targets=[candidate.agent_id],
-        params={"ip_address": ip, "ttl_seconds": response.block_hours * HOUR}, dedupe_key=key,
+        params=_block_params(candidate, response), dedupe_key=key,
         reason={"ruleId": RULE_ID, "inputs": {"origins": origins, "indicator": ip, "twoSignal": response.two_signal}},
         reason_text=text, dispatcher=response_dispatch.DISPATCHER_NAME)
 
@@ -169,7 +179,8 @@ async def _act(db, tenant_id, candidate, origins, live, response, agent, now, co
     key, suggest_key = _keys(tenant_id, candidate, "block_ip")
     row = await sweep_memory.latest_state(db, tenant_id, candidate.decision)
     if sweep_memory.skip_reason(candidate.decision, row, sorted(live), now) \
-            or await agent_support.check(db, tenant_id, agent, "block_ip", now=now):
+            or await agent_support.check(db, tenant_id, agent, "block_ip", now=now,
+                                         params=_block_params(candidate, response)):
         counts["skipped"] += 1
         return
     req, hold = _act_request(tenant_id, candidate, origins, response, key), None
@@ -205,7 +216,7 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
     for candidate in await signals.observe(db, tenant_id, agents, now):
         counts["observed"] += 1
         command = _COMMANDS.get(candidate.kind)
-        if command is None:                                      # ranges wait for 83-08
+        if command is None:
             continue
         row = await sweep_memory.latest_state(db, tenant_id, candidate.decision)
         began, until = sweep_memory.block_window(candidate.decision, row)
@@ -221,7 +232,8 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
             continue                                             # nothing to point a quarantine at
         agent = by_id.get(candidate.agent_id)
         if not agree:
-            if await agent_support.check(db, tenant_id, agent, command, now=now):
+            probe = _block_params(candidate, response) if command == "block_ip" else None
+            if await agent_support.check(db, tenant_id, agent, command, now=now, params=probe):
                 counts["skipped"] += 1
                 continue
             await _suggest(db, tenant_id, candidate, command, _ordered(live)[:1], response, now, counts)

@@ -27,7 +27,7 @@ _OWN_WORDS = frozenset({"class_auto", "suggest_requested", "playbook_raised", "c
 
 def display_target(spec: Optional[registry.ActionSpec], req: Any) -> Optional[str]:
     if spec is not None:
-        for key in spec.ip_params:
+        for key in spec.ip_params + spec.cidr_params:
             if req.params.get(key):
                 return str(req.params[key])
     return req.targets[0] if req.targets else None
@@ -42,6 +42,11 @@ def undo_block(spec: Optional[registry.ActionSpec], params: Dict[str, Any], mult
             if params.get(key):
                 undo_params = {"ip_address": params[key]}
                 break
+        else:
+            for key in spec.cidr_params:
+                if params.get(key):
+                    undo_params = {"cidr": params[key]}      # a range is lifted by its own network, never by an address
+                    break
     if claim and spec is not None and spec.undo in CLAIM_KEYS:
         if spec.undo == "unblock_ip":
             undo_params = {**undo_params, CLAIM_KEYS["unblock_ip"]: claim}

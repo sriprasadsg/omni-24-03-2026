@@ -44,8 +44,14 @@ CONTRACT: Dict[str, Any] = _load()
 
 
 def token_for(command: Any, params: Optional[Dict[str, Any]] = None) -> Optional[str]:
-    """The agent token a command needs, or None for a command the contract does not name."""
-    return CONTRACT["commandToken"].get(command) if isinstance(command, str) else None
+    """The agent token a command needs, or None for a command the contract does not name. Params that
+    name a network (``cidr``) need the range token instead of the single-address one."""
+    if not isinstance(command, str):
+        return None
+    spec = registry.resolve(command)
+    if spec is not None and isinstance(params, dict) and any(params.get(k) for k in spec.cidr_params):
+        return CONTRACT["rangeToken"]
+    return CONTRACT["commandToken"].get(command)
 
 
 def tokens_of(agent: Optional[Dict[str, Any]]) -> Set[str]:

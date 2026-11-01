@@ -49,7 +49,7 @@ REASON_CODES = (
     "settings_unreadable", "level_suggest", "suggest_requested", "unregistered_action", "class_approve",
     "playbook_raised", "class_auto", "no_target", "cross_tenant_target", "protected_target",
     "invalid_target", "blast_radius", "rate_limit", "duplicate", "suppressed_by_undo",
-    "ledger_unavailable", "agent_unsupported", "capability_off", "agent_offline")
+    "ledger_unavailable", "agent_unsupported", "capability_off", "agent_offline", "range_block")
 # Refusals that never leave a row: the tenant is Off, so nothing is recorded (D-23).
 _UNRECORDED = frozenset({"no_tenant", "platform_tenant", "not_enabled", "level_off", "duplicate",
                          "suppressed_by_undo", "ledger_unavailable", "agent_unsupported",
@@ -191,10 +191,13 @@ async def _step_class(ctx: _Ctx) -> None:
     if not specs:
         return ctx.refuse("class", "unregistered_action")
     if any(s.cls == "approve" for s in specs):
-        return ctx.escalate("class", "needs_approval", "class_approve")
-    if registry.effective_class(specs[0], playbook_raise=ctx.req.playbook_raise) == "approve":
-        return ctx.escalate("class", "needs_approval", "playbook_raised")
-    ctx.note("class", "allow_auto", "class_auto")
+        ctx.escalate("class", "needs_approval", "class_approve")
+    elif registry.effective_class(specs[0], playbook_raise=ctx.req.playbook_raise) == "approve":
+        ctx.escalate("class", "needs_approval", "playbook_raised")
+    else:
+        ctx.note("class", "allow_auto", "class_auto")
+    if dispatch_check.has_range(ctx.req, specs):       # RESP-02: a whole network always waits for a person
+        ctx.escalate("class", "needs_approval", "range_block")
 
 
 async def _agent_of(ctx: _Ctx, target: str) -> Optional[Dict[str, Any]]:

@@ -322,3 +322,24 @@ async def check(db, tenant_id: Optional[str], *, agent: Optional[Dict[str, Any]]
         if recorded is not None and _matches_ip(entries, recorded):
             return "protected_target"
     return None
+
+
+async def check_network(db, tenant_id: Optional[str], cidr) -> Optional[str]:
+    """For a whole network (Phase 83, RESP-02): "invalid_target" when ``cidr`` does not parse as a
+    network, "protected_target" when it overlaps any never-touch IP or network entry (built in, platform
+    or this tenant's: the same list ``check`` reads), else None. A host or agent entry names a computer, not
+    an address range, so it does not apply here. Errors propagate: the caller treats an unreadable list as
+    a refusal."""
+    net = _network(cidr.strip()) if isinstance(cidr, str) and "/" in cidr else None
+    if net is None:
+        return "invalid_target"
+    for e in await list_entries(db, tenant_id):
+        if e.kind == "ip":
+            other = parse_ip(e.value)
+            if other is not None and other.version == net.version and other in net:
+                return "protected_target"
+        elif e.kind == "cidr":
+            other = _network(e.value)
+            if other is not None and other.version == net.version and net.overlaps(other):
+                return "protected_target"
+    return None

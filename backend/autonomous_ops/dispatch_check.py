@@ -109,7 +109,19 @@ async def ip_refusal(db, tenant_id: str, pairs) -> Optional[str]:
                 code = await protected.check(db, tenant_id, ip=params[key])
                 if code:
                     return code
+        for key in spec.cidr_params:
+            if params.get(key) is not None:
+                code = await protected.check_network(db, tenant_id, params[key])
+                if code:
+                    return code
     return None
+
+
+def has_range(req, specs) -> bool:
+    """True when any main step carries a network parameter (``cidr``): such a request always needs a
+    person, whoever asks and whatever the caller set (RESP-02)."""
+    return any(isinstance(params, dict) and params.get(key)
+               for spec, (_, params) in zip(specs, request_steps(req)) for key in spec.cidr_params)
 
 
 # ---------------------------------------------------------------- approval-time re-check (81-18)
