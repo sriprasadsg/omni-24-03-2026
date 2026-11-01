@@ -28,6 +28,9 @@ pub mod firewall;
 pub mod net_safety;
 pub mod response_actions;
 pub mod response_sweeper;
+pub mod quarantine;
+pub mod quarantine_paths;
+pub mod process_kill;
 #[cfg(test)]
 mod response_contract_tests;
 pub mod ssh_key_checks;

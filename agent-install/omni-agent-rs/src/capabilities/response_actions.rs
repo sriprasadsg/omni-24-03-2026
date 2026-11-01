@@ -17,6 +17,7 @@
 
 use crate::capabilities::firewall::{self, Os, Target};
 use crate::capabilities::net_safety;
+use crate::capabilities::quarantine;
 use crate::capabilities::remediation_actions::RemediationError;
 use crate::capabilities::response_state::{ClaimAdded, Store};
 use crate::config::Config;
@@ -24,7 +25,8 @@ use serde_json::{json, Value};
 
 /// The feature tokens this build reports in every heartbeat (`meta.response_actions.tokens`).
 /// The backend acts on an agent only when the token for the command is in this list.
-pub const SUPPORTED_TOKENS: &[&str] = &["block_ip_ttl", "block_ip_range"];
+pub const SUPPORTED_TOKENS: &[&str] =
+    &["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file"];
 pub const BLOCK_TTL_MIN: i64 = 3_600;
 pub const BLOCK_TTL_MAX: i64 = 604_800;
 pub const BLOCK_TTL_DEFAULT: i64 = 86_400;
@@ -33,7 +35,7 @@ const SUPPORT_REPORT_VERSION: u32 = 1;
 
 /// True for the commands this module answers.
 pub fn handles(action: &str) -> bool {
-    matches!(action, "block_ip" | "unblock_ip")
+    matches!(action, "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file")
 }
 
 /// What the heartbeat carries as `meta.response_actions`: which platform this is and which
@@ -59,7 +61,49 @@ pub fn spawn_sweeper(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
 
 /// Answer one response instruction. Never panics; every failure is a result body.
 pub async fn handle(action: &str, item: &Value, cfg: &Config, _client: &reqwest::Client) -> Value {
+    match action {
+        "quarantine_file" => return quarantine_arm(item).await,
+        "unquarantine_file" => return unquarantine_arm(item).await,
+        _ => {}
+    }
     handle_at(action, item, cfg, Os::current(), &Store::default(), now_epoch())
+}
+
+/// Move a flagged file into quarantine. The process list is read just before the move so the
+/// answer can name what still runs from the file afterwards. File work runs off the async
+/// threads, and the paths are read here, on the calling thread.
+async fn quarantine_arm(item: &Value) -> Value {
+    let (Some(path), Some(sha256)) = (
+        param(item, "path").and_then(Value::as_str),
+        param(item, "sha256").and_then(Value::as_str),
+    ) else {
+        return refused("path and sha256 are required.");
+    };
+    let req = quarantine::QuarantineRequest {
+        path: path.to_string(),
+        sha256: sha256.to_string(),
+        allow_protected: param(item, "allow_protected").and_then(Value::as_bool).unwrap_or(false),
+        id: item.get("task_id").and_then(Value::as_str).unwrap_or("").to_string(),
+    };
+    let paths = quarantine::QuarantinePaths::system();
+    tokio::task::spawn_blocking(move || {
+        let running = quarantine::running_now();
+        quarantine::quarantine_at(&paths, &req, now_epoch(), &running)
+    })
+    .await
+    .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The quarantine task stopped unexpectedly.".into())))
+}
+
+/// Put a quarantined file back. Only the id travels in the instruction; the destination comes
+/// from the manifest the agent wrote.
+async fn unquarantine_arm(item: &Value) -> Value {
+    let Some(id) = param(item, "quarantine_id").and_then(Value::as_str).map(str::to_string) else {
+        return refused("quarantine_id is required.");
+    };
+    let paths = quarantine::QuarantinePaths::system();
+    tokio::task::spawn_blocking(move || quarantine::restore_at(&paths, &id))
+        .await
+        .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The restore task stopped unexpectedly.".into())))
 }
 
 pub(crate) fn now_epoch() -> i64 {
@@ -105,7 +149,7 @@ fn param<'a>(item: &'a Value, key: &str) -> Option<&'a Value> {
 }
 
 /// An instruction id the agent will accept as a claim key.
-fn valid_id(id: &str) -> bool {
+pub(crate) fn valid_id(id: &str) -> bool {
     (1..=64).contains(&id.len()) && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
