@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 83
 current_phase_name: Autonomous Security Response
 status: executing
-stopped_at: Completed 83-10-PLAN.md
-last_updated: "2026-11-01T21:36:12.472Z"
+stopped_at: Completed 83-11-PLAN.md
+last_updated: "2026-11-01T22:05:30.850Z"
 last_activity: 2026-10-31
 last_activity_desc: Phase 83 execution started
-state_head: cad2548cfbf268d11551d7c8ac5248e0938935e0
+state_head: 03c90856d51ad5dd0c8cc9f2c24e01165abede5d
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 55
-  completed_plans: 45
+  completed_plans: 46
   percent: 17
 ---
 
@@ -517,6 +517,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 83]: 83-09: a missing file at quarantine time answers refused (agent_refused, not counted by the breaker); a restore of an unknown id answers status error with outcome not_found
 - [Phase 83]: 83-09: kill_process with expected_exe binds to pid plus start time or the stored image; unconfirmable processes are reported and never called gone; kill_body is verify ok only with no survivor
 - [Phase 83]: 83-10: the list's onOpenView is a map of openers, one per allowed target, so a target without permission renders plain text
+- [Phase 83]: 83-11: a decision with no new evidence joins the host's open incident however old its last evidence is; closing is lazy, on new evidence
+- [Phase 83]: 83-11: the isolate line is attempted after every recorded acting decision except an undo-window refusal, claimed once per incident by compare-and-set
+- [Phase 83]: 83-11: tests that used a malicious file or a vulnerability as a vehicle now use a tenant playbook that raises quarantine_file, or a hand route to patch_package
 
 ## Performance Metrics
 
@@ -717,6 +720,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 83 P08 | ~2h | 3 tasks | 18 files |
 | Phase 83 P09 | about 1h40m | 2 tasks | 13 files |
 | Phase 83 P10 | 20min | 2 tasks | 9 files |
+| Phase 83 P11 | 25min | 3 tasks | 17 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -751,8 +755,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-01T21:36:12.165Z
-**Stopped at:** Completed 83-10-PLAN.md
+**Last session:** 2026-11-01T22:05:30.521Z
+**Stopped at:** Completed 83-11-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -778,7 +782,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 83 (Autonomous Security Response) — EXECUTING
-Plan: 11 of 20
+Plan: 12 of 20
 Status: Ready to execute
 Last activity: 2026-10-31 — Phase 83 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
