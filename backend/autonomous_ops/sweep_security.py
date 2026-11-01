@@ -34,8 +34,8 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from . import (APPROVAL_TTL, COOLDOWN, RATE_LIMIT_WINDOW, agent_support, gate, ledger, messages, response_dispatch,
-               response_messages as rm, signals, sweep_memory)
+from . import (APPROVAL_TTL, COOLDOWN, RATE_LIMIT_WINDOW, agent_support, gate, incidents, ledger, messages,
+               response_dispatch, response_messages as rm, signals, sweep_memory)
 from .settings import TenantSettings
 
 logger = logging.getLogger(__name__)
@@ -95,13 +95,14 @@ def _suggest_request(tenant_id, candidate, command, origins, response, key) -> g
         reason_text=_words(rm.why_one_source, origins[0]), dispatcher=response_dispatch.DISPATCHER_NAME)
 
 
-def _act_request(tenant_id, candidate, origins, response, key) -> gate.ActionRequest:
+def _act_request(tenant_id, candidate, origins, response, key, incident_id) -> gate.ActionRequest:
     ip = candidate.indicator
     text = _words(rm.why_two_sources, origins) if len(origins) > 1 else _words(rm.why_rule_off, origins[0])
     return gate.ActionRequest(
         tenant_id=tenant_id, kind="security", origin="sweep", actions=["block_ip"], targets=[candidate.agent_id],
         params=_block_params(candidate, response), dedupe_key=key,
-        reason={"ruleId": RULE_ID, "inputs": {"origins": origins, "indicator": ip, "twoSignal": response.two_signal}},
+        reason={"ruleId": RULE_ID, "inputs": {"origins": origins, "indicator": ip, "twoSignal": response.two_signal,
+                                              "incidentId": incident_id}},
         reason_text=text, dispatcher=response_dispatch.DISPATCHER_NAME)
 
 
@@ -175,7 +176,7 @@ def _undone_at(row: Dict[str, Any]) -> Optional[datetime]:
     return max(stamps) if stamps else None
 
 
-async def _act(db, tenant_id, candidate, origins, live, response, agent, now, counts) -> None:
+async def _act(db, tenant_id, candidate, origins, live, response, agent, now, counts, incident_id) -> None:
     key, suggest_key = _keys(tenant_id, candidate, "block_ip")
     row = await sweep_memory.latest_state(db, tenant_id, candidate.decision)
     if sweep_memory.skip_reason(candidate.decision, row, sorted(live), now) \
@@ -183,7 +184,7 @@ async def _act(db, tenant_id, candidate, origins, live, response, agent, now, co
                                          params=_block_params(candidate, response)):
         counts["skipped"] += 1
         return
-    req, hold = _act_request(tenant_id, candidate, origins, response, key), None
+    req, hold = _act_request(tenant_id, candidate, origins, response, key, incident_id), None
     undone = await ledger.latest_undone(db, tenant_id, key)
     at = _undone_at(undone) if undone else None
     if at is not None and at > now - COOLDOWN:
@@ -208,12 +209,34 @@ async def _remember_refusal(db, tenant_id, candidate, decision, origins, now, ho
     await _remember(db, tenant_id, candidate, decision, origins, now, "refused", holdUntil=hold)
 
 
+async def _record_incidents(db, tenant_id: str, new_evidence) -> None:
+    """Each origin first seen in this pass is one piece of evidence on its host's incident, dated by when
+    the evidence happened (RESP-09). A failed write is logged; the decisions below fail closed on it."""
+    for item in sorted(new_evidence, key=lambda e: (e["evidenceAt"], e["agentId"], e["indicator"], e["origin"])):
+        try:
+            await incidents.attach(db, tenant_id, item["agentId"], item["evidenceAt"])
+        except Exception as exc:
+            logger.error("autonomous_ops: incident evidence for %s not recorded: %s", item.get("agentId"), exc)
+
+
+async def _incident_of(db, tenant_id: str, candidate, live, now) -> Optional[str]:
+    """The id of the incident a decision on this candidate belongs to, or None when it cannot be read."""
+    stamps = [v["evidenceAt"] for v in live.values() if isinstance(v.get("evidenceAt"), datetime)]
+    try:
+        return (await incidents.current(db, tenant_id, candidate.agent_id, max(stamps, default=now)))["id"]
+    except Exception as exc:
+        logger.error("autonomous_ops: incident for %s unreadable, skipping the decision: %s", candidate.agent_id, exc)
+        return None
+
+
 async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetime) -> Dict[str, int]:
     """One tenant's pass. Returns counts {observed, blocked, suggested, shadow, skipped}."""
     counts = {"observed": 0, "blocked": 0, "suggested": 0, "shadow": 0, "skipped": 0, "refused": 0, "cards": 0}
     agents = await signals.agents_of(db, tenant_id)
     by_id = {a["id"]: a for a in agents}
-    for candidate in await signals.observe(db, tenant_id, agents, now):
+    observed = await signals.observe(db, tenant_id, agents, now)
+    await _record_incidents(db, tenant_id, observed.new_evidence)
+    for candidate in observed:
         counts["observed"] += 1
         command = _COMMANDS.get(candidate.kind)
         if command is None:
@@ -238,5 +261,9 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
                 continue
             await _suggest(db, tenant_id, candidate, command, _ordered(live)[:1], response, now, counts)
         else:
-            await _act(db, tenant_id, candidate, _agreeing(live), live, response, agent, now, counts)
+            incident_id = await _incident_of(db, tenant_id, candidate, live, now)
+            if incident_id is None:
+                counts["skipped"] += 1
+                continue
+            await _act(db, tenant_id, candidate, _agreeing(live), live, response, agent, now, counts, incident_id)
     return counts

@@ -372,8 +372,11 @@ async def test_migration_028_creates_only_indexes_and_a_second_run_changes_nothi
     assert sig["signal_ttl"]["expireAfterSeconds"] == 2592000 and sig["signal_ttl"]["key"] == [("lastSeenAt", 1)]
     assert first["edr_ioc"]["ioc_type_value"]["key"] == [("ioc_type", 1), ("ioc_value", 1)]
     assert first["edr_ioc"]["ioc_type_source_ip"]["key"] == [("ioc_type", 1), ("source_ip", 1)]
-    assert sorted(await mongo_db.list_collection_names()) == sorted(set(before) | {"autonomy_signals"})
+    # 83-11 adds the incident indexes (autonomy_incidents, and the incident lookup on autonomy_actions)
+    assert sorted(await mongo_db.list_collection_names()) == sorted(
+        set(before) | {"autonomy_signals", "autonomy_incidents", "autonomy_actions"})
     assert await mongo_db.edr_ioc.count_documents({}) == 1 and await mongo_db.autonomy_signals.count_documents({}) == 0
+    assert await mongo_db.autonomy_incidents.count_documents({}) == 0 and await mongo_db.autonomy_actions.count_documents({}) == 0
 
 
 def test_signals_module_stays_inside_its_size_and_source_rules():
