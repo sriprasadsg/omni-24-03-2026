@@ -222,3 +222,151 @@ async def test_a_host_quiet_for_an_hour_gets_a_fresh_incident_from_the_next_new_
     (second,) = await _open(mongo_db)
     assert second["id"] != first["id"]
     assert (await mongo_db.autonomy_incidents.find_one({"id": first["id"]}))["closed"] is True
+
+
+# ------------------------------------------------------------------ isolation is proposed once per incident (D-24)
+
+IP2 = "46.101.1.7"
+
+
+async def _confirm(db, at, ip=IP, *, feed=True):
+    """The native scan flags an address and (when ``feed``) URLhaus lists it: two different origins."""
+    await seed_native_verdict(db, "t1", "host-a1", kind="ip", target=ip, created_at=at - 5 * MIN)
+    if feed:
+        await seed_feed_ioc(db, ioc_type="url", value=f"http://{ip}/x", source_ip=ip, feed="urlhaus", updated_at=at)
+
+
+async def _isolate_rows(db):
+    return await _rows(db, "isolate_host")
+
+
+async def _instruction_types(db):
+    return sorted([d["type"] async for d in db.agent_instructions.find({"tenantId": "t1"}, {"type": 1})])
+
+
+async def test_a_corroborated_finding_adds_one_isolate_approval_beside_the_automatic_action(mongo_db):
+    await _world(mongo_db)
+    await _confirm(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    (block,) = await _rows(mongo_db, "block_ip")
+    (isolate,) = await _isolate_rows(mongo_db)
+    (incident,) = await _open(mongo_db)
+    assert block["state"] == "dispatching"
+    assert isolate["state"] == "awaiting_approval" and isolate["autoDispatched"] is False
+    assert isolate["reason"]["inputs"]["incidentId"] == block["reason"]["inputs"]["incidentId"] == incident["id"]
+    assert isolate["targets"] == ["a1"] and isolate["params"] == {} and isolate["dispatcher"] == "security_response"
+    assert isolate["dedupeKey"] == f"t1|sweep|isolate_host|a1|{incident['id']}"
+    assert isolate["reasonText"] == block["reasonText"] and isolate["reasonText"].startswith("Two sources agree:")
+    assert incident["isolateProposed"] is True
+    assert await _instruction_types(mongo_db) == ["block_ip"]            # nothing isolates on its own
+
+
+async def test_a_second_corroborated_finding_in_the_same_incident_adds_no_second_isolate_row(mongo_db):
+    await _world(mongo_db)
+    await _confirm(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    await _confirm(mongo_db, NOW + 10 * MIN, IP2)
+    await _tick(mongo_db, NOW + 15 * MIN)
+    assert len(await _rows(mongo_db, "block_ip")) == 2 and len(await _isolate_rows(mongo_db)) == 1
+    assert len(await _open(mongo_db)) == 1
+
+
+async def test_a_new_incident_may_propose_isolation_again(mongo_db):
+    await _world(mongo_db)
+    await _confirm(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    later = NOW + 2 * HOUR
+    await _confirm(mongo_db, later, IP2)
+    await _tick(mongo_db, later + 5 * MIN)
+    isolates = await _isolate_rows(mongo_db)
+    assert len(isolates) == 2 and len({r["reason"]["inputs"]["incidentId"] for r in isolates}) == 2
+
+
+async def test_one_signal_with_the_rule_on_proposes_nothing(mongo_db):
+    await _world(mongo_db)
+    await _confirm(mongo_db, NOW, feed=False)
+    await _tick(mongo_db, NOW)
+    assert await _isolate_rows(mongo_db) == []
+    assert [r["state"] for r in await _rows(mongo_db, "block_ip")] == ["suggested"]
+
+
+async def test_one_signal_with_the_rule_off_proposes_isolation(mongo_db):
+    await _world(mongo_db, two_signal=False)
+    await _confirm(mongo_db, NOW, feed=False)
+    await _tick(mongo_db, NOW)
+    (isolate,) = await _isolate_rows(mongo_db)
+    assert isolate["state"] == "awaiting_approval" and isolate["reasonText"].startswith("This organization's two-source rule is off")
+
+
+async def test_a_host_that_cannot_isolate_gets_no_line_and_the_claim_is_not_spent(mongo_db):
+    await _world(mongo_db, tokens=("block_ip_ttl", "quarantine_file"))
+    await _confirm(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    assert await _isolate_rows(mongo_db) == []
+    assert len(await _rows(mongo_db, "block_ip")) == 1
+    (incident,) = await _open(mongo_db)
+    assert incident["isolateProposed"] is False
+
+
+async def test_at_suggest_level_the_isolate_line_is_a_suggested_row_and_nothing_is_dispatched(mongo_db):
+    await _world(mongo_db, level="suggest")
+    await _confirm(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    (isolate,) = await _isolate_rows(mongo_db)
+    assert isolate["state"] == "suggested" and isolate["autoDispatched"] is False
+    assert await _instruction_types(mongo_db) == []
+
+
+async def test_in_shadow_the_isolate_line_is_a_simulation_that_would_have_needed_approval(mongo_db):
+    await _world(mongo_db, shadow=True)
+    await _confirm(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    (isolate,) = await _isolate_rows(mongo_db)
+    assert isolate["state"] == "shadow" and isolate["wouldHave"] == "needs_approval"
+    assert await _instruction_types(mongo_db) == []
+
+
+async def test_a_refusal_that_records_nothing_gives_the_claim_back(mongo_db, monkeypatch):
+    from autonomous_ops import gate
+    real = gate.decide
+
+    async def refuse_isolation(db, req, **kw):
+        if req.actions == ["isolate_host"]:
+            return gate.Decision("refuse", "refused", "duplicate", trace=[])
+        return await real(db, req, **kw)
+
+    monkeypatch.setattr(gate, "decide", refuse_isolation)
+    await _world(mongo_db)
+    await _confirm(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    assert await _isolate_rows(mongo_db) == []
+    (incident,) = await _open(mongo_db)
+    assert incident["isolateProposed"] is False
+
+
+async def test_claim_isolate_has_one_winner_and_release_gives_it_back(mongo_db):
+    from autonomous_ops import incidents
+    made = await incidents.attach(mongo_db, "t1", "a1", T0)
+    wins = await asyncio.gather(*[incidents.claim_isolate(mongo_db, "t1", made["id"]) for _ in range(6)])
+    assert wins.count(True) == 1
+    await incidents.release_isolate(mongo_db, "t1", made["id"])
+    assert await incidents.claim_isolate(mongo_db, "t1", made["id"]) is True
+    assert await incidents.claim_isolate(mongo_db, "t1", "INC-nope") is False
+
+
+async def test_the_isolate_line_is_never_sent_to_the_dispatcher_by_a_tick(mongo_db, monkeypatch):
+    from autonomous_ops import response_dispatch
+    sent = []
+    real = response_dispatch.send
+
+    async def spy(db, row):
+        sent.append(row.get("command"))
+        return await real(db, row)
+
+    monkeypatch.setattr(response_dispatch, "send", spy)
+    for level in ("undoable_auto", "suggest"):
+        await _world(mongo_db, level=level)
+        await _confirm(mongo_db, NOW)
+        await _tick(mongo_db, NOW)
+    assert "isolate_host" not in sent and "block_ip" in sent
+    assert all(r["state"] != "dispatching" for r in await _isolate_rows(mongo_db))
