@@ -20,6 +20,7 @@
 //! result route under the same task id (see `background_arm`).
 
 use crate::capabilities::firewall::{self, Os, Target};
+use crate::capabilities::host_power;
 use crate::capabilities::isolation;
 use crate::capabilities::net_safety;
 use crate::capabilities::process_kill;
@@ -34,7 +35,7 @@ use serde_json::{json, Value};
 /// The backend acts on an agent only when the token for the command is in this list.
 pub const SUPPORTED_TOKENS: &[&str] = &[
     "block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe",
-    "restart_service", "service_failures", "isolate_host", "restore_host",
+    "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host",
 ];
 pub const BLOCK_TTL_MIN: i64 = 3_600;
 pub const BLOCK_TTL_MAX: i64 = 604_800;
@@ -46,7 +47,7 @@ const SUPPORT_REPORT_VERSION: u32 = 1;
 /// `commandToken`, so a command cannot be added here without a token.
 pub const HANDLED: &[&str] = &[
     "block_ip", "unblock_ip", "quarantine_file", "unquarantine_file", "kill_process",
-    "restart_service", "isolate_host", "restore_host",
+    "restart_service", "isolate_host", "restore_host", "reboot_host",
 ];
 
 /// True for the commands this module answers.
@@ -222,6 +223,7 @@ pub(crate) fn handle_at(
     match action {
         "block_ip" => block(item, cfg, os, store, now),
         "unblock_ip" => unblock(item, os, store, now),
+        "reboot_host" => host_power::handle(item, os),
         _ => refused("Not a response command."),
     }
 }

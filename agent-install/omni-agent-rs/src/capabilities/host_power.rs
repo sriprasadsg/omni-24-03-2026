@@ -1,16 +1,80 @@
-//! RED stub: every function panics until the implementation lands.
+//! `reboot_host`: schedule a restart of this computer (RESP-10).
+//!
+//! Nothing in Phase 83 proposes a reboot. The action exists because RESP-10 lists it and Phase 84
+//! (staged patch rollouts) needs it; it reaches an agent only through the gate as an approve-class
+//! action, so a person has approved it. `shutdown` returns at once after scheduling, so the work
+//! runs inside the dispatch arm and the answer is the normal result body. A restart has no
+//! undo (the platform shows no Undo button for it).
+//!
+//! The delay (30 to 300 seconds) and the reason text come from an instruction, so both are
+//! checked here as well as on the platform. The reason is cleaned (control characters removed,
+//! cut to 200 characters, no leading option character) and passed as one argv element.
+
 use crate::capabilities::firewall::Os;
+use crate::capabilities::privileged;
+use crate::capabilities::response_actions::{failed, refused};
 use serde_json::{json, Value};
 
 pub const DELAY_MIN: i64 = 30;
 pub const DELAY_MAX: i64 = 300;
 pub const DELAY_DEFAULT: i64 = 60;
 pub const REASON_MAX: usize = 200;
+const DEFAULT_REASON: &str = "Restart requested by Omni Agent";
 
-pub fn parse_delay(_value: Option<&Value>) -> Result<i64, String> { todo!() }
-pub fn clean_reason(_raw: &str) -> String { todo!() }
-pub fn schedule_reboot(_os: Os, _delay_seconds: i64, _reason: &str) -> Value { todo!() }
-pub(crate) fn handle(_item: &Value, _os: Os) -> Value { todo!() }
+const DELAY_MESSAGE: &str = "delay_seconds must be a whole number from 30 to 300.";
+
+/// The delay an instruction asks for: 60 when it names none, otherwise a whole number in range.
+pub fn parse_delay(value: Option<&Value>) -> Result<i64, String> {
+    match value {
+        None => Ok(DELAY_DEFAULT),
+        Some(v) => match v.as_i64() {
+            Some(n) if (DELAY_MIN..=DELAY_MAX).contains(&n) => Ok(n),
+            _ => Err(DELAY_MESSAGE.to_string()),
+        },
+    }
+}
+
+/// The reason as it is passed to `shutdown`. It cannot start with `-` or `/`, so the program can
+/// never read it as an option, and it is never empty.
+pub fn clean_reason(raw: &str) -> String {
+    let no_controls: String = raw.chars().filter(|c| !c.is_control()).collect();
+    let text = no_controls.trim().trim_start_matches(['-', '/']).trim();
+    let cut: String = text.chars().take(REASON_MAX).collect();
+    let cut = cut.trim_end();
+    if cut.is_empty() { DEFAULT_REASON.to_string() } else { cut.to_string() }
+}
+
+/// Schedule the restart `delay_seconds` from now. Linux counts whole minutes, rounded up.
+pub fn schedule_reboot(os: Os, delay_seconds: i64, reason: &str) -> Value {
+    if !(DELAY_MIN..=DELAY_MAX).contains(&delay_seconds) {
+        return refused(DELAY_MESSAGE);
+    }
+    let reason = clean_reason(reason);
+    let scheduled = match os {
+        Os::Linux => {
+            let when = format!("+{}", (delay_seconds + 59) / 60);
+            privileged::run("shutdown", &["-r", &when, &reason])
+        }
+        Os::Windows => {
+            let seconds = delay_seconds.to_string();
+            privileged::run("shutdown", &["/r", "/t", &seconds, "/c", &reason])
+        }
+    };
+    match scheduled {
+        Ok(()) => json!({"status": "success", "outcome": "scheduled", "verify": {"ok": true, "check": "reboot_scheduled"}}),
+        Err(e) => failed(e),
+    }
+}
+
+/// The `reboot_host` instruction.
+pub(crate) fn handle(item: &Value, os: Os) -> Value {
+    let params = item.get("parameters");
+    let get = |key: &str| params.and_then(|p| p.get(key)).filter(|v| !v.is_null());
+    match parse_delay(get("delay_seconds")) {
+        Ok(delay) => schedule_reboot(os, delay, get("reason").and_then(Value::as_str).unwrap_or("")),
+        Err(why) => refused(&why),
+    }
+}
 
 #[cfg(test)]
 mod tests {
