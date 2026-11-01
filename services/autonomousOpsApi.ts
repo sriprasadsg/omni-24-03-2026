@@ -409,3 +409,30 @@ export async function undoAutonomousOpsAction(id: string, tenantId?: string | nu
     if (!res.ok) throw await failure(res);
     return res.json();
 }
+
+/** GET and PUT /api/autonomous-ops/response-settings (83-07). `readable: false` means the stored value was not understood and the defaults are shown. */
+export interface ResponseSettings {
+    twoSignal: boolean;
+    /** 1 to 168. */
+    blockHours: number;
+    watchedServices: string[];
+    readable: boolean;
+    /** False when remediation is not switched on for the organization; the list still saves. */
+    restartAvailable: boolean;
+}
+
+/** What a save may carry: any of the three, and only what changed. */
+export type ResponseSettingsChanges = Partial<Pick<ResponseSettings, 'twoSignal' | 'blockHours' | 'watchedServices'>>;
+
+/** GET /api/autonomous-ops/response-settings[?tenantId=] (manage:autonomous_ops) */
+export function fetchResponseSettings(tenantId?: string | null): Promise<ResponseSettings> {
+    return getJson(withTenant(`${API_BASE}/autonomous-ops/response-settings`, tenantId));
+}
+
+/** PUT /api/autonomous-ops/response-settings[?tenantId=]: 422 {detail} names the field that was refused, 403 when the viewer may not change it. */
+export async function saveResponseSettings(changes: ResponseSettingsChanges, tenantId?: string | null): Promise<ResponseSettings> {
+    const url = withTenant(`${API_BASE}/autonomous-ops/response-settings`, tenantId);
+    const res = await authFetch(url, { method: 'PUT', body: JSON.stringify(changes) });
+    if (!res.ok) throw await failure(res);
+    return res.json();
+}

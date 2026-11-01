@@ -6,6 +6,7 @@ import { platformTier } from '../utils/permissions';
 import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
 import type { OpenViewHandlers } from './AutonomousOpsRowActions';
 import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
+import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
 import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
 import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
@@ -49,6 +50,10 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
         if (canFim) out.fimMonitoring = () => onOpenView('fimMonitoring');
         return out;
     }, [onOpenView, canPatch, canFim]);
+
+    // Response settings (D-22): holders of manage in an organization that is not the platform one; never Platform Support.
+    const showResponseSettings = scope.kind === 'tenant' && !readOnly && !!status && !status.platformTenant
+        && hasPermission('manage:autonomous_ops');
 
     const scopeLabel = scope.kind === 'platform'
         ? 'Platform'
@@ -98,6 +103,13 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                     </div>
                     {scope.kind === 'platform' && hasPermission('control:platform_autonomous_ops') && (
                         <AutonomousOpsPlatformHealth refreshSignal={refreshSignal} />
+                    )}
+                    {showResponseSettings && (
+                        <AutonomousOpsResponseSettings
+                            key={scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}
+                            tenantId={scope.kind === 'tenant' ? scope.tenantId : null}
+                            tenantName={status?.tenantName || 'this organization'}
+                        />
                     )}
                     <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
                         <div className="flex flex-wrap items-center justify-between gap-4">

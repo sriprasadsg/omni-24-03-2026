@@ -77,6 +77,10 @@ function routeFetch(handlers: { status?: Handler; actions?: Handler; platformSta
     const path = url.split('?')[0];
     if (path === '/api/autonomous-ops/status') return (handlers.status ?? (() => jsonRes(statusPayload())))(url);
     if (path === '/api/autonomous-ops/actions') return (handlers.actions ?? (() => jsonRes({ items: [], nextCursor: null })))(url);
+    // 83-13: the Response settings panel reads its own settings; this screen's tests are about the activity list.
+    if (path === '/api/autonomous-ops/response-settings') {
+      return jsonRes({ twoSignal: true, blockHours: 24, watchedServices: [], readable: true, restartAvailable: true });
+    }
     if (path === '/api/platform/autonomous-ops/status') return (handlers.platformStatus ?? (() => jsonRes(platformStatusPayload())))(url);
     if (path === '/api/platform/autonomous-ops/actions') return (handlers.platformActions ?? (() => jsonRes({ items: [], nextCursor: null })))(url);
     throw new Error(`unexpected request ${url}`);
