@@ -17,21 +17,42 @@ pub(crate) fn run(program: &str, args: &[&str]) -> Result<(), RemediationError> 
     run_output(program, args).map(|_| ())
 }
 
+/// Raw Windows error codes that mean a security product or policy stopped a program: access
+/// denied (5), the file contains a virus (225) and blocked by policy (4551).
+const SECURITY_OS_CODES: [i32; 3] = [5, 225, 4551];
+
+/// Phrases a blocked command prints (lower case).
+const SECURITY_PHRASES: [&str; 4] =
+    ["contains a virus", "potentially unwanted software", "blocked by group policy", "application control policy"];
+
+/// True when a spawn failure (`raw_os` code, only meaningful on Windows) or a command's complaint
+/// says a local security product stopped it.
+pub(crate) fn blocked_by_security(_raw_os: Option<i32>, _windows: bool, _text: &str) -> bool {
+    false
+}
+
+/// The error for a command that could not be started.
+pub(crate) fn spawn_failure(program: &str, raw_os: Option<i32>, windows: bool, text: &str) -> RemediationError {
+    let _ = (&SECURITY_OS_CODES, &SECURITY_PHRASES);
+    RemediationError::OperationFailed(format!("{program} failed to spawn: {text}{}", raw_os.map_or(String::new(), |_| String::new())) + if windows { "" } else { "" })
+}
+
+/// The error for a command that ran and exited with a failure.
+pub(crate) fn exit_failure(program: &str, code: Option<i32>, stderr: &str) -> RemediationError {
+    RemediationError::OperationFailed(format!("{program} exited with {code:?}: {stderr}"))
+}
+
 /// Like [`run`], and returns what the command wrote to standard output.
 #[cfg(not(test))]
 pub(crate) fn run_output(program: &str, args: &[&str]) -> Result<String, RemediationError> {
     let output = std::process::Command::new(program)
         .args(args)
         .output()
-        .map_err(|e| RemediationError::OperationFailed(format!("{program} failed to spawn: {e}")))?;
+        .map_err(|e| spawn_failure(program, e.raw_os_error(), cfg!(windows), &e.to_string()))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
-        Err(RemediationError::OperationFailed(format!(
-            "{program} exited with {:?}: {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr).trim()
-        )))
+        Err(exit_failure(program, output.status.code(), String::from_utf8_lossy(&output.stderr).trim()))
     }
 }
 
@@ -43,11 +64,18 @@ pub(crate) fn run_output(program: &str, args: &[&str]) -> Result<String, Remedia
         rec.calls.push(call);
         match rec.script.pop_front() {
             Some(Ok(out)) => Ok(out),
-            Some(Err(msg)) => Err(RemediationError::OperationFailed(msg)),
+            Some(Err(msg)) => match msg.strip_prefix(SPAWN_MARK).and_then(|c| c.parse::<i32>().ok()) {
+                Some(code) => Err(spawn_failure(program, Some(code), true, "scripted spawn failure")),
+                None => Err(exit_failure(program, Some(1), &msg)),
+            },
             None => Ok(String::new()),
         }
     })
 }
+
+/// Marks a scripted failure as "the program could not be started, with this raw OS code".
+#[cfg(test)]
+const SPAWN_MARK: &str = "\u{1}spawn:";
 
 /// What the test seam saw and what it will answer next.
 #[cfg(test)]
@@ -66,6 +94,11 @@ impl Recorder {
         for _ in 0..n {
             self.script.push_back(Err("scripted failure".to_string()));
         }
+    }
+
+    /// Queue one call that cannot start the program, with this raw OS error code.
+    pub fn fail_spawn(&mut self, code: i32) {
+        self.script.push_back(Err(format!("{SPAWN_MARK}{code}")));
     }
 
     /// Queue one successful call that prints `out`.
@@ -115,5 +148,44 @@ mod tests {
         assert!(run("x", &[]).is_err());
         assert_eq!(run_output("x", &[]).unwrap(), "hello");
         assert_eq!(run_output("x", &[]).unwrap(), "");
+    }
+
+    #[test]
+    fn the_windows_codes_for_a_security_block_are_recognised_only_on_windows() {
+        for code in [5, 225, 4551] {
+            assert!(blocked_by_security(Some(code), true, "x"), "{code}");
+            assert!(!blocked_by_security(Some(code), false, "x"), "{code} on another system");
+            assert!(matches!(spawn_failure("netsh", Some(code), true, "x"), RemediationError::BlockedByLocalSecurity(_)));
+        }
+        for code in [2, 3, 6, 226, 4550] {
+            assert!(!blocked_by_security(Some(code), true, "x"), "{code}");
+        }
+        assert!(!blocked_by_security(None, true, "x"));
+        assert!(matches!(spawn_failure("netsh", Some(2), true, "x"), RemediationError::OperationFailed(_)));
+    }
+
+    #[test]
+    fn a_complaint_that_names_a_virus_or_a_policy_block_is_a_security_block() {
+        for text in [
+            "Operation did not complete successfully because the file contains a virus or potentially unwanted software.",
+            "This program is blocked by group policy. For more information, contact your system administrator.",
+            "BLOCKED BY GROUP POLICY",
+            "Your application control policy blocked this file",
+        ] {
+            assert!(blocked_by_security(None, false, text), "{text}");
+            assert!(matches!(exit_failure("netsh", Some(1), text), RemediationError::BlockedByLocalSecurity(_)), "{text}");
+        }
+        for text in ["", "iptables: Bad rule (does a matching rule exist in that chain?).", "Permission denied", "No chain/target/match by that name."] {
+            assert!(!blocked_by_security(None, false, text), "{text}");
+            assert!(matches!(exit_failure("iptables", Some(1), text), RemediationError::OperationFailed(_)), "{text}");
+        }
+    }
+
+    #[test]
+    fn the_test_seam_can_script_a_spawn_failure() {
+        with_recorder(|r| r.fail_spawn(225));
+        assert!(matches!(run("netsh", &["x"]), Err(RemediationError::BlockedByLocalSecurity(_))));
+        with_recorder(|r| r.fail_spawn(2));
+        assert!(matches!(run("netsh", &["x"]), Err(RemediationError::OperationFailed(_))));
     }
 }

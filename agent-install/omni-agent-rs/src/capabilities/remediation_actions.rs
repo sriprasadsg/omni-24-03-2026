@@ -51,6 +51,9 @@ pub enum RemediationError {
     LockoutRefused(String),
     #[error("Key not found: {0}")]
     KeyNotFound(String),
+    /// A security product on this machine stopped the command. Never retried automatically.
+    #[error("Security software on this computer blocked the command: {0}")]
+    BlockedByLocalSecurity(String),
 }
 
 fn is_valid_service_name(name: &str) -> bool {

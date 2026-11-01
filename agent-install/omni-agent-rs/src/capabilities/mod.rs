@@ -25,6 +25,7 @@ pub mod remediation_actions;
 pub mod privileged;
 pub mod response_state;
 pub mod firewall;
+pub mod net_safety;
 pub mod response_actions;
 pub mod response_sweeper;
 #[cfg(test)]

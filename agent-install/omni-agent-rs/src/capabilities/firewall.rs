@@ -13,6 +13,9 @@
 //!
 //! Windows: two named rules per address, `OmniAgent_Block_<addr>_in` (dir=in) and `_out`
 //! (dir=out). The older single rule `OmniAgent_Block_<addr>` is removed on unblock, best effort.
+//!
+//! A target is an address or a network (`45.33.32.0/24`), one rule per direction either way:
+//! `-s`/`-d` and `remoteip` take the CIDR text. In a Windows rule name "/" becomes "_".
 
 use crate::capabilities::privileged;
 use crate::capabilities::remediation_actions::RemediationError;
@@ -103,13 +106,44 @@ pub fn canonical(ip: IpAddr) -> IpAddr {
     ip.to_canonical()
 }
 
-fn iptables(ip: IpAddr) -> &'static str {
-    if ip.is_ipv6() { "ip6tables" } else { "iptables" }
+/// An address or a network (masked by `net_safety`); its text is the claim key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Target {
+    pub addr: IpAddr,
+    pub prefix: Option<u8>,
 }
 
-/// The two Windows rule names for an address: inbound and outbound.
-pub fn windows_rule_names(ip: IpAddr) -> (String, String) {
-    (format!("{WINDOWS_RULE_PREFIX}{ip}_in"), format!("{WINDOWS_RULE_PREFIX}{ip}_out"))
+impl Target {
+    pub fn host(ip: IpAddr) -> Target { Target { addr: canonical(ip), prefix: None } }
+
+    pub fn network(ip: IpAddr, prefix: u8) -> Target { Target { addr: ip, prefix: Some(prefix) } }
+
+    fn rule_key(&self) -> String {
+        self.to_string().replace('/', "_")
+    }
+}
+
+impl std::fmt::Display for Target {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.prefix {
+            Some(p) => write!(f, "{}/{p}", self.addr),
+            None => write!(f, "{}", self.addr),
+        }
+    }
+}
+
+impl From<IpAddr> for Target {
+    fn from(ip: IpAddr) -> Target { Target::host(ip) }
+}
+
+fn iptables(t: &Target) -> &'static str {
+    if t.addr.is_ipv6() { "ip6tables" } else { "iptables" }
+}
+
+/// The two Windows rule names for a target: inbound and outbound.
+pub fn windows_rule_names(t: impl Into<Target>) -> (String, String) {
+    let key = t.into().rule_key();
+    (format!("{WINDOWS_RULE_PREFIX}{key}_in"), format!("{WINDOWS_RULE_PREFIX}{key}_out"))
 }
 
 fn linux_rule(ipt: &'static str, flag: &'static str, addr: &str, verb: &'static str) -> Cmd {
@@ -142,12 +176,12 @@ fn windows_delete(name: &str) -> Cmd {
 }
 
 /// Everything that must exist for `ip` to be blocked in both directions, in order.
-pub fn block_plan(os: Os, ip: IpAddr) -> Vec<Ensure> {
-    let ip = canonical(ip);
-    let addr = ip.to_string();
+pub fn block_plan(os: Os, target: impl Into<Target>) -> Vec<Ensure> {
+    let t = target.into();
+    let addr = t.to_string();
     match os {
         Os::Linux => {
-            let ipt = iptables(ip);
+            let ipt = iptables(&t);
             vec![
                 Ensure {
                     check: Cmd::new(ipt, &["-w", "-n", "-L", LINUX_CHAIN]),
@@ -166,7 +200,7 @@ pub fn block_plan(os: Os, ip: IpAddr) -> Vec<Ensure> {
             ]
         }
         Os::Windows => {
-            let (inbound, outbound) = windows_rule_names(ip);
+            let (inbound, outbound) = windows_rule_names(t);
             vec![
                 Ensure { check: windows_show(&inbound), add: windows_add(&inbound, "in", &addr) },
                 Ensure { check: windows_show(&outbound), add: windows_add(&outbound, "out", &addr) },
@@ -176,12 +210,12 @@ pub fn block_plan(os: Os, ip: IpAddr) -> Vec<Ensure> {
 }
 
 /// The checks that together say "this address is blocked right now".
-pub fn present_plan(os: Os, ip: IpAddr) -> Vec<Cmd> {
-    let ip = canonical(ip);
-    let addr = ip.to_string();
+pub fn present_plan(os: Os, target: impl Into<Target>) -> Vec<Cmd> {
+    let t = target.into();
+    let addr = t.to_string();
     match os {
         Os::Linux => {
-            let ipt = iptables(ip);
+            let ipt = iptables(&t);
             vec![
                 linux_hook(ipt, "INPUT").check,
                 linux_hook(ipt, "OUTPUT").check,
@@ -190,19 +224,19 @@ pub fn present_plan(os: Os, ip: IpAddr) -> Vec<Cmd> {
             ]
         }
         Os::Windows => {
-            let (inbound, outbound) = windows_rule_names(ip);
+            let (inbound, outbound) = windows_rule_names(t);
             vec![windows_show(&inbound), windows_show(&outbound)]
         }
     }
 }
 
 /// Everything that is removed to lift a block. The chain and its hooks stay: other addresses use them.
-pub fn unblock_plan(os: Os, ip: IpAddr) -> Vec<Remove> {
-    let ip = canonical(ip);
-    let addr = ip.to_string();
+pub fn unblock_plan(os: Os, target: impl Into<Target>) -> Vec<Remove> {
+    let t = target.into();
+    let addr = t.to_string();
     match os {
         Os::Linux => {
-            let ipt = iptables(ip);
+            let ipt = iptables(&t);
             vec![
                 Remove { check: linux_rule(ipt, "-s", &addr, "-C"), delete: linux_rule(ipt, "-s", &addr, "-D"), legacy: false },
                 Remove { check: linux_rule(ipt, "-d", &addr, "-C"), delete: linux_rule(ipt, "-d", &addr, "-D"), legacy: false },
@@ -215,8 +249,8 @@ pub fn unblock_plan(os: Os, ip: IpAddr) -> Vec<Remove> {
             ]
         }
         Os::Windows => {
-            let (inbound, outbound) = windows_rule_names(ip);
-            let old = format!("{WINDOWS_RULE_PREFIX}{ip}");
+            let (inbound, outbound) = windows_rule_names(t);
+            let old = format!("{WINDOWS_RULE_PREFIX}{}", t.rule_key());
             vec![
                 Remove { check: windows_show(&inbound), delete: windows_delete(&inbound), legacy: false },
                 Remove { check: windows_show(&outbound), delete: windows_delete(&outbound), legacy: false },
@@ -228,8 +262,8 @@ pub fn unblock_plan(os: Os, ip: IpAddr) -> Vec<Remove> {
 
 /// Add every missing rule for `ip`. Rules that already exist are left alone, so this is safe to
 /// repeat and never creates a second rule.
-pub fn apply_block(os: Os, ip: IpAddr) -> Result<(), RemediationError> {
-    for step in block_plan(os, ip) {
+pub fn apply_block(os: Os, target: impl Into<Target>) -> Result<(), RemediationError> {
+    for step in block_plan(os, target) {
         if !step.check.passes() {
             step.add.run()?;
         }
@@ -239,9 +273,9 @@ pub fn apply_block(os: Os, ip: IpAddr) -> Result<(), RemediationError> {
 
 /// Remove every rule for `ip`. Returns true when at least one rule was removed. A rule that is
 /// already gone is not an error.
-pub fn remove_block(os: Os, ip: IpAddr) -> Result<bool, RemediationError> {
+pub fn remove_block(os: Os, target: impl Into<Target>) -> Result<bool, RemediationError> {
     let mut removed = false;
-    for step in unblock_plan(os, ip) {
+    for step in unblock_plan(os, target) {
         if !step.check.passes() {
             continue;
         }
@@ -255,9 +289,13 @@ pub fn remove_block(os: Os, ip: IpAddr) -> Result<bool, RemediationError> {
 }
 
 /// True when the firewall holds every rule that blocks `ip` in both directions.
-pub fn rule_present(os: Os, ip: IpAddr) -> Result<bool, RemediationError> {
-    Ok(present_plan(os, ip).iter().all(Cmd::passes))
+pub fn rule_present(os: Os, target: impl Into<Target>) -> Result<bool, RemediationError> {
+    Ok(present_plan(os, target).iter().all(Cmd::passes))
 }
+
+#[cfg(test)]
+#[path = "firewall_range_tests.rs"]
+mod range_tests;
 
 #[cfg(test)]
 mod tests {

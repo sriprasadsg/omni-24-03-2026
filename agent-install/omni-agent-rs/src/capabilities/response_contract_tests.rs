@@ -151,9 +151,9 @@ fn a_changed_example_body_is_noticed() {
 fn support_names_the_platform_and_holds_the_ttl_token() {
     let report = support_report_for(Some(Os::Windows));
     assert_eq!(report["platform"], "windows");
-    assert_eq!(report["tokens"], json!(["block_ip_ttl"]));
+    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range"]));
     assert_eq!(report["v"], 1);
-    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl"]));
+    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range"]));
 }
 
 #[test]
