@@ -1,3 +1,4 @@
+use crate::capabilities::response_actions;
 use crate::config::Config;
 use crate::heartbeat::hostname_str;
 use serde_json::Value;
@@ -569,6 +570,7 @@ pub async fn compute_instruction_result(
                 }
             }
         }
+        a if response_actions::handles(a) => response_actions::handle(a, item, cfg, client).await,
         _ => {
             // Report instead of silently returning: an unhandled instruction must
             // surface as an error in the dashboard, not sit "sent" forever looking

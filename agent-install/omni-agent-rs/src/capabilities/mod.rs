@@ -25,6 +25,9 @@ pub mod remediation_actions;
 pub mod privileged;
 pub mod response_state;
 pub mod firewall;
+pub mod response_actions;
+#[cfg(test)]
+mod response_contract_tests;
 pub mod ssh_key_checks;
 pub mod ssh_key_rotation;
 pub mod patch_installer;
