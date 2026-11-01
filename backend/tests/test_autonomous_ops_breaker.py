@@ -246,3 +246,83 @@ async def test_a_failed_control_row_does_not_undo_the_level_change(live, notices
     assert out == {"status": "ok", "breakerCleared": True}
     s = await _tenant(live)
     assert s.level == "undoable_auto" and s.breaker is None
+
+
+# ---------------------------------------------------------------- Phase 83, plan 83-08 (RESP-10, PROH-83-11)
+# Added cases only: a failed row with no reasonCode keeps counting, exactly as in Phase 81.
+
+async def _ended(db, state, code, *, finished=None, n=[1000]):
+    """A finished automatic row that ended ``state`` for ``code`` (the way the reconciler writes it)."""
+    n[0] += 1
+    finished = finished or NOW - timedelta(minutes=n[0] % 50)
+    await db.autonomy_actions.insert_one({
+        "id": f"AO-r{n[0]}", "tenantId": "t1", "kind": "security", "state": state, "autoDispatched": True,
+        "createdAt": finished - timedelta(seconds=30), "updatedAt": finished, "finishedAt": finished,
+        "command": "block_ip", "targets": ["a1"], "params": {}, "reasonCode": code,
+        "reason": {"ruleId": "t", "inputs": {}}})
+    return f"AO-r{n[0]}"
+
+
+def test_the_counted_and_the_ignored_codes_are_named_and_never_overlap():
+    assert set(ledger.BREAKER_FAILURES) == {"verify_failed", "agent_failed", "blocked_by_local_security"}
+    assert {"not_delivered", "no_result", "capability_off", "agent_unsupported", "agent_offline", "hash_mismatch",
+            "locked", "dispatch_failed"} <= set(ledger.BREAKER_IGNORED)
+    assert not set(ledger.BREAKER_FAILURES) & set(ledger.BREAKER_IGNORED)
+
+
+async def test_three_real_failures_trip_it(live, notices):
+    for code in ("verify_failed", "agent_failed", "blocked_by_local_security"):
+        await _ended(live, "failed", code)
+    assert await breaker.evaluate(live, "t1", now=NOW) is True
+    assert (await _tenant(live)).level == "suggest"
+
+
+@pytest.mark.parametrize("code", ["not_delivered", "no_result", "capability_off", "agent_unsupported", "agent_offline",
+                                  "dispatch_failed", "locked"])
+async def test_plumbing_failures_never_trip_it(live, notices, code):
+    """PROH-83-11: an old agent, an unticked capability, an offline host or a moved file never lowers a level."""
+    for _ in range(3):
+        await _ended(live, "failed", code)
+    assert await breaker.evaluate(live, "t1", now=NOW) is False
+    assert (await _tenant(live)).level == "undoable_auto"
+    notices.assert_not_awaited()
+
+
+async def test_three_plumbing_codes_together_do_not_trip_it(live, notices):
+    for code in ("not_delivered", "no_result", "capability_off"):
+        await _ended(live, "failed", code)
+    assert await breaker.evaluate(live, "t1", now=NOW) is False
+
+
+async def test_an_ignored_row_neither_counts_nor_breaks_a_run_of_three(live, notices):
+    """Two real failures around one ignored row still reach three with a third real failure."""
+    await _ended(live, "failed", "verify_failed", finished=NOW - timedelta(minutes=40))
+    await _ended(live, "failed", "not_delivered", finished=NOW - timedelta(minutes=30))
+    await _ended(live, "failed", "agent_failed", finished=NOW - timedelta(minutes=20))
+    assert await breaker.evaluate(live, "t1", now=NOW) is False                     # only two real ones so far
+    await _ended(live, "refused", "hash_mismatch", finished=NOW - timedelta(minutes=15))
+    await _ended(live, "failed", "blocked_by_local_security", finished=NOW - timedelta(minutes=10))
+    assert await breaker.evaluate(live, "t1", now=NOW) is True
+    assert len((await _tenant(live)).breaker["actionIds"]) == 3
+
+
+async def test_refused_results_from_the_host_are_transparent(live, notices):
+    """hash_mismatch, protected_path and a refused target are the safeguards working, not failures."""
+    await _ended(live, "failed", "verify_failed", finished=NOW - timedelta(minutes=50))
+    await _ended(live, "failed", "agent_failed", finished=NOW - timedelta(minutes=40))
+    for code in ("hash_mismatch", "protected_path", "agent_refused"):
+        await _ended(live, "refused", code, finished=NOW - timedelta(minutes=30))
+    assert await breaker.evaluate(live, "t1", now=NOW) is False
+    await _ended(live, "failed", "verify_failed", finished=NOW - timedelta(minutes=5))
+    assert await breaker.evaluate(live, "t1", now=NOW) is True
+
+
+async def test_three_undone_rows_still_trip_it(live, notices):
+    for _ in range(3):
+        await _ended(live, "undone", "class_auto")
+    assert await breaker.evaluate(live, "t1", now=NOW) is True
+
+
+async def test_a_failed_row_with_no_reason_code_still_counts(live, notices):
+    await _bad(live, 3)
+    assert await breaker.evaluate(live, "t1", now=NOW) is True

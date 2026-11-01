@@ -250,3 +250,101 @@ async def test_the_route_answers_409_with_the_api_text_for_a_suggestion_only_row
     assert done.json()["detail"] == messages.API_DETAIL["suggestion_only"]
     assert await api.db.agent_instructions.count_documents({}) == 0
     assert (await ledger.get(api.db, "t1", card))["state"] == "suggested"
+
+
+# ---------------------------------------------------------------- how a finished instruction is named (Task 2)
+
+from autonomous_ops import breaker, reconciler, verify  # noqa: E402
+
+
+@pytest.mark.parametrize("doc,expected", [
+    ({"status": "failed", "result": {"outcome": "hash_mismatch"}}, ("refused", "hash_mismatch")),
+    ({"status": "failed", "result": {"outcome": "protected_path"}}, ("refused", "protected_path")),
+    ({"status": "failed", "result": {"outcome": "refused"}}, ("refused", "agent_refused")),
+    ({"status": "failed", "result": {"outcome": "blocked_by_local_security"}}, ("failed", "blocked_by_local_security")),
+    ({"status": "failed", "result": {"outcome": "locked"}}, ("failed", "locked")),
+    ({"status": "refused"}, ("failed", "capability_off")),
+    ({"status": "REFUSED", "result": {}}, ("failed", "capability_off")),
+    ({"status": "failed"}, ("failed", "agent_failed")),
+    ({"status": "failed", "result": {"outcome": "self_test_failed"}}, ("failed", "agent_failed")),
+    ({"status": "failed", "result": "garbage"}, ("failed", "agent_failed")),
+    (None, ("failed", "agent_failed")),
+    ({}, ("failed", "agent_failed")),
+])
+def test_failure_outcome_names_each_ending(doc, expected):
+    assert verify.failure_outcome(doc) == expected
+
+
+def test_every_failure_ending_has_its_own_words():
+    for _, code in (verify.failure_outcome({"status": "failed", "result": {"outcome": o}})
+                    for o in ("hash_mismatch", "protected_path", "refused", "blocked_by_local_security", "locked")):
+        assert messages.REASON_TEXT[code]
+    assert "refused" in messages.REASON_TEXT["agent_refused"] or "nothing was changed" in messages.REASON_TEXT["agent_refused"]
+
+
+async def _sent(db, n, *, status, result=None):
+    """A security_response block sent to the host, whose instruction then reports ``status`` and ``result``."""
+    ip = f"45.33.32.{100 + n}"
+    decision = await gate.decide(db, _req(ip=ip), now=datetime.now(timezone.utc), **OFF)
+    assert decision.state == "dispatching", decision
+    sent = await gate.execute(db, "t1", decision.action_id, command="block_ip", agent_id="a1",
+                              params={"ip_address": ip, "ttl_seconds": 86400})
+    sets = {"status": status}
+    if result is not None:
+        sets["result"] = result
+    await db.agent_instructions.update_one({"id": sent["task_id"]}, {"$set": sets})
+    return decision.action_id
+
+
+async def test_the_reconciler_names_each_ending_for_a_security_response_row(world):
+    await seed_response_agent(world, "t1", "a1", hostname="h1", tokens=TOKENS)
+    mismatch = await _sent(world, 1, status="failed", result={"outcome": "hash_mismatch"})
+    blocked = await _sent(world, 2, status="failed", result={"outcome": "blocked_by_local_security"})
+    refused = await _sent(world, 3, status="refused")                      # the capability hold-back
+    plain = await _sent(world, 4, status="failed")
+    await reconciler.tick(world)
+    got = {name: await ledger.get(world, "t1", aid) for name, aid in
+           (("mismatch", mismatch), ("blocked", blocked), ("held", refused), ("plain", plain))}
+    assert (got["mismatch"]["state"], got["mismatch"]["reasonCode"]) == ("refused", "hash_mismatch")
+    assert (got["blocked"]["state"], got["blocked"]["reasonCode"]) == ("failed", "blocked_by_local_security")
+    assert (got["held"]["state"], got["held"]["reasonCode"]) == ("failed", "capability_off")
+    assert (got["plain"]["state"], got["plain"]["reasonCode"]) == ("failed", "agent_failed")
+    for row in got.values():
+        assert row["reasonText"] == messages.REASON_TEXT[row["reasonCode"]]
+        assert row["finishedAt"] is not None
+
+
+async def test_a_phase_81_row_keeps_agent_failed_whatever_the_result_says(world):
+    """Only security_response rows are named by outcome: every other row stays agent_failed exactly."""
+    await seed_agent(world, "t1", "a1", hostname="h1")
+    old = gate.ActionRequest(tenant_id="t1", kind="security", origin="test", actions=["block_ip"], targets=["a1"],
+                             params={"ip_address": IP}, dedupe_key="old", reason={"ruleId": "t", "inputs": {}})
+    decision = await gate.decide(world, old, now=datetime.now(timezone.utc), **OFF)
+    sent = await gate.execute(world, "t1", decision.action_id, command="block_ip", agent_id="a1", params={"ip_address": IP})
+    await world.agent_instructions.update_one({"id": sent["task_id"]}, {"$set": {
+        "status": "failed", "result": {"outcome": "hash_mismatch"}}})
+    await reconciler.tick(world)
+    row = await ledger.get(world, "t1", decision.action_id)
+    assert (row["state"], row["reasonCode"]) == ("failed", "agent_failed")
+
+
+async def test_three_dormant_endings_in_a_row_never_lower_the_level(world):
+    """PROH-83-11 end to end: three instructions held back at the poll (a tick removed after the decision)
+    end failed with capability_off and the tenant keeps its level."""
+    await seed_response_agent(world, "t1", "a1", hostname="h1", tokens=TOKENS)
+    for n in range(3):
+        await _sent(world, n, status="refused")
+    await reconciler.tick(world)
+    rows = [r async for r in world.autonomy_actions.find({"tenantId": "t1"})]
+    assert [r["reasonCode"] for r in rows] == ["capability_off"] * 3
+    settings_doc = await world.autonomy_settings.find_one({"tenantId": "t1"})
+    assert settings_doc["level"] == "undoable_auto" and settings_doc["breaker"] is None
+
+
+async def test_three_real_failures_do_lower_the_level(world):
+    await seed_response_agent(world, "t1", "a1", hostname="h1", tokens=TOKENS)
+    for n in range(3):
+        await _sent(world, n, status="failed")
+    await reconciler.tick(world)
+    settings_doc = await world.autonomy_settings.find_one({"tenantId": "t1"})
+    assert settings_doc["level"] == "suggest" and settings_doc["breaker"] is not None
