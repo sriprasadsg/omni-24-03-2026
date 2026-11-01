@@ -11,18 +11,20 @@
 //! The parameters come from a backend instruction, so the agent validates all of them itself: a
 //! time limit outside 1 hour..7 days is refused (a missing one is 24 hours, so no block is ever
 //! open-ended), as is an instruction id that is not 1 to 64 characters of letters, digits or
-//! hyphens, and an address that cannot sensibly be blocked.
+//! hyphens, and an address or network that must never be blocked (`net_safety::refuse_reason`: not
+//! on the public internet, too wide, the platform, the gateway, a DNS server). A network goes in
+//! `cidr` and is one rule under the same claim rules; the token `block_ip_range` says so.
 
-use crate::capabilities::firewall::{self, Os};
+use crate::capabilities::firewall::{self, Os, Target};
+use crate::capabilities::net_safety;
 use crate::capabilities::remediation_actions::RemediationError;
 use crate::capabilities::response_state::{ClaimAdded, Store};
 use crate::config::Config;
 use serde_json::{json, Value};
-use std::net::IpAddr;
 
 /// The feature tokens this build reports in every heartbeat (`meta.response_actions.tokens`).
 /// The backend acts on an agent only when the token for the command is in this list.
-pub const SUPPORTED_TOKENS: &[&str] = &["block_ip_ttl"];
+pub const SUPPORTED_TOKENS: &[&str] = &["block_ip_ttl", "block_ip_range"];
 pub const BLOCK_TTL_MIN: i64 = 3_600;
 pub const BLOCK_TTL_MAX: i64 = 604_800;
 pub const BLOCK_TTL_DEFAULT: i64 = 86_400;
@@ -91,6 +93,10 @@ fn refused(why: &str) -> Value {
 }
 
 fn failed(err: RemediationError) -> Value {
+    // A security product stopped the command: its own outcome, and nothing retries it.
+    if matches!(err, RemediationError::BlockedByLocalSecurity(_)) {
+        return json!({"status": "error", "outcome": "blocked_by_local_security", "error": err.to_string()});
+    }
     json!({"status": "error", "error": err.to_string()})
 }
 
@@ -115,46 +121,30 @@ fn ttl_seconds(item: &Value) -> Result<i64, String> {
     }
 }
 
-fn parse_ip(item: &Value) -> Result<IpAddr, String> {
-    let raw = param(item, "ip_address")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "ip_address is required.".to_string())?;
-    raw.parse::<IpAddr>()
-        .map(firewall::canonical)
-        .map_err(|_| "ip_address is not a valid IP address.".to_string())
-}
-
-/// An address that must never be blocked from here: it would cut the host off from itself, from
-/// its neighbours, or from the platform.
-fn unblockable(ip: IpAddr, cfg: &Config) -> Option<&'static str> {
-    let bad = match ip {
-        IpAddr::V4(v4) => v4.is_unspecified() || v4.is_loopback() || v4.is_multicast() || v4.is_broadcast() || v4.is_link_local(),
-        IpAddr::V6(v6) => {
-            v6.is_unspecified() || v6.is_loopback() || v6.is_multicast() || (v6.segments()[0] & 0xffc0) == 0xfe80
-        }
-    };
-    if bad {
-        return Some("That address is local, unspecified or multicast and is never blocked.");
+/// The address (`ip_address`) or the network (`cidr`) the instruction names, but not both.
+fn parse_target_param(item: &Value) -> Result<Target, String> {
+    match (param(item, "ip_address"), param(item, "cidr")) {
+        (Some(_), Some(_)) => Err("Give either ip_address or cidr, not both.".to_string()),
+        (None, Some(cidr)) => cidr
+            .as_str()
+            .and_then(net_safety::parse_network)
+            .map(|(ip, prefix)| Target::network(ip, prefix))
+            .ok_or_else(|| "cidr is not a valid network.".to_string()),
+        (ip, None) => ip
+            .and_then(Value::as_str)
+            .ok_or_else(|| "ip_address is required.".to_string())?
+            .parse::<std::net::IpAddr>()
+            .map(Target::host)
+            .map_err(|_| "ip_address is not a valid IP address.".to_string()),
     }
-    if platform_ip(cfg) == Some(ip) {
-        return Some("That is the platform's own address and is never blocked.");
-    }
-    None
-}
-
-/// The platform address when `api_base_url` names it as an IP literal.
-fn platform_ip(cfg: &Config) -> Option<IpAddr> {
-    let url = reqwest::Url::parse(&cfg.api_base_url).ok()?;
-    let host = url.host_str()?.trim_start_matches('[').trim_end_matches(']');
-    host.parse::<IpAddr>().ok().map(firewall::canonical)
 }
 
 fn block(item: &Value, cfg: &Config, os: Os, store: &Store, now: i64) -> Value {
-    let ip = match parse_ip(item) {
-        Ok(ip) => ip,
+    let target = match parse_target_param(item) {
+        Ok(target) => target,
         Err(why) => return refused(&why),
     };
-    if let Some(why) = unblockable(ip, cfg) {
+    if let Some(why) = net_safety::refuse_reason(&target, cfg, os, &net_safety::system_lookup) {
         return refused(why);
     }
     let ttl = match ttl_seconds(item) {
@@ -165,10 +155,10 @@ fn block(item: &Value, cfg: &Config, os: Os, store: &Store, now: i64) -> Value {
         Some(id) if valid_id(id) => id,
         _ => return refused("The instruction id is missing or not valid."),
     };
-    let target = ip.to_string();
+    let key = target.to_string();
 
     // 1. The claim goes to disk before the firewall changes.
-    let added = match store.update(|s| s.add_claim(&target, block_id, now + ttl, now)) {
+    let added = match store.update(|s| s.add_claim(&key, block_id, now + ttl, now)) {
         Ok(added) => added,
         Err(e) => return failed(e),
     };
@@ -178,15 +168,15 @@ fn block(item: &Value, cfg: &Config, os: Os, store: &Store, now: i64) -> Value {
     };
 
     // 2. Add what is missing. Nothing is added twice.
-    if let Err(e) = firewall::apply_block(os, ip) {
+    if let Err(e) = firewall::apply_block(os, target) {
         if added == ClaimAdded::New {
-            undo_failed_block(store, os, ip, &target, block_id, now);
+            undo_failed_block(store, os, target, block_id, now);
         }
         return failed(e);
     }
 
     // 3. Check it is there, and say so.
-    let present = firewall::rule_present(os, ip).unwrap_or(false);
+    let present = firewall::rule_present(os, target).unwrap_or(false);
     let mut body = json!({
         "status": "success",
         "outcome": outcome,
@@ -200,18 +190,19 @@ fn block(item: &Value, cfg: &Config, os: Os, store: &Store, now: i64) -> Value {
 
 /// The firewall step failed after the claim was written: drop the claim, and take out whatever
 /// part of the rule was added unless another live claim still needs it.
-fn undo_failed_block(store: &Store, os: Os, ip: IpAddr, target: &str, block_id: &str, now: i64) {
+fn undo_failed_block(store: &Store, os: Os, target: Target, block_id: &str, now: i64) {
+    let key = target.to_string();
     let _ = store.update(|s| {
-        s.remove_claims(target, Some(block_id));
-        if s.live_for(target, now) == 0 {
-            let _ = firewall::remove_block(os, ip);
+        s.remove_claims(&key, Some(block_id));
+        if s.live_for(&key, now) == 0 {
+            let _ = firewall::remove_block(os, target);
         }
     });
 }
 
 fn unblock(item: &Value, os: Os, store: &Store, now: i64) -> Value {
-    let ip = match parse_ip(item) {
-        Ok(ip) => ip,
+    let target = match parse_target_param(item) {
+        Ok(target) => target,
         Err(why) => return refused(&why),
     };
     let block_id = match param(item, "block_id") {
@@ -219,18 +210,18 @@ fn unblock(item: &Value, os: Os, store: &Store, now: i64) -> Value {
         Some(Value::String(id)) if valid_id(id) => Some(id.as_str()),
         Some(_) => return refused("block_id is not valid."),
     };
-    let target = ip.to_string();
+    let key = target.to_string();
 
     // The claim is removed, and the rule with it only when no live claim is left. The change is
     // kept only if the rule removal worked, so a failed removal leaves the claims in place.
     let done = store.update(|state| -> Result<(usize, bool, bool), RemediationError> {
         let mut next = state.clone();
-        let claims_removed = next.remove_claims(&target, block_id);
-        let still_held = next.live_for(&target, now) > 0;
+        let claims_removed = next.remove_claims(&key, block_id);
+        let still_held = next.live_for(&key, now) > 0;
         let mut rule_removed = false;
         if !still_held {
-            rule_removed = firewall::remove_block(os, ip)?;
-            next.drop_expired(&target, now);
+            rule_removed = firewall::remove_block(os, target)?;
+            next.drop_expired(&key, now);
         }
         *state = next;
         Ok((claims_removed, still_held, rule_removed))
@@ -241,7 +232,7 @@ fn unblock(item: &Value, os: Os, store: &Store, now: i64) -> Value {
     };
 
     let outcome = if claims_removed > 0 || rule_removed { "removed" } else { "not_found" };
-    let present = firewall::rule_present(os, ip).unwrap_or(false);
+    let present = firewall::rule_present(os, target).unwrap_or(false);
     let verify = if still_held {
         // Another instruction still holds this address, so the rule is meant to stay.
         json!({"ok": present, "check": "firewall_rule_present"})

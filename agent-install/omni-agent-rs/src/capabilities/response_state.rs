@@ -249,8 +249,9 @@ fn run_pass(store: &Store, what: &str, change: impl FnOnce(&mut ResponseState, &
     report
 }
 
-fn address_of(target: &str) -> Option<std::net::IpAddr> {
-    target.parse::<std::net::IpAddr>().ok()
+/// The firewall target a claim's text names (an address or a network).
+fn address_of(target: &str) -> Option<crate::capabilities::firewall::Target> {
+    crate::capabilities::net_safety::parse_target(target)
 }
 
 /// The targets in `state` that match `wanted`, each once, in file order.

@@ -27,19 +27,30 @@ const SECURITY_PHRASES: [&str; 4] =
 
 /// True when a spawn failure (`raw_os` code, only meaningful on Windows) or a command's complaint
 /// says a local security product stopped it.
-pub(crate) fn blocked_by_security(_raw_os: Option<i32>, _windows: bool, _text: &str) -> bool {
-    false
+pub(crate) fn blocked_by_security(raw_os: Option<i32>, windows: bool, text: &str) -> bool {
+    if windows && raw_os.is_some_and(|code| SECURITY_OS_CODES.contains(&code)) {
+        return true;
+    }
+    let lower = text.to_lowercase();
+    SECURITY_PHRASES.iter().any(|phrase| lower.contains(phrase))
 }
 
 /// The error for a command that could not be started.
 pub(crate) fn spawn_failure(program: &str, raw_os: Option<i32>, windows: bool, text: &str) -> RemediationError {
-    let _ = (&SECURITY_OS_CODES, &SECURITY_PHRASES);
-    RemediationError::OperationFailed(format!("{program} failed to spawn: {text}{}", raw_os.map_or(String::new(), |_| String::new())) + if windows { "" } else { "" })
+    if blocked_by_security(raw_os, windows, text) {
+        RemediationError::BlockedByLocalSecurity(format!("{program} could not be started: {text}"))
+    } else {
+        RemediationError::OperationFailed(format!("{program} failed to spawn: {text}"))
+    }
 }
 
 /// The error for a command that ran and exited with a failure.
 pub(crate) fn exit_failure(program: &str, code: Option<i32>, stderr: &str) -> RemediationError {
-    RemediationError::OperationFailed(format!("{program} exited with {code:?}: {stderr}"))
+    if blocked_by_security(None, false, stderr) {
+        RemediationError::BlockedByLocalSecurity(format!("{program} was stopped: {stderr}"))
+    } else {
+        RemediationError::OperationFailed(format!("{program} exited with {code:?}: {stderr}"))
+    }
 }
 
 /// Like [`run`], and returns what the command wrote to standard output.

@@ -216,3 +216,24 @@ fn a_reapply_on_windows_is_a_no_op() {
     assert_eq!(reapply_live(&store, Os::Windows, T0), PassReport::default());
     assert!(lines().is_empty());
 }
+
+#[test]
+fn a_network_claim_expires_and_is_put_back_like_an_address() {
+    let (_d, store) = store_with(&[("45.33.32.0/24", "a", T0 + 10), ("45.34.0.0/16", "b", T0 + 1000)]);
+    let report = expire_due(&store, Os::Linux, T0 + 10);
+    assert_eq!(report.removed, vec!["45.33.32.0/24".to_string()]);
+    assert!(lines().contains(&"iptables -w -D OMNI_BLOCK -s 45.33.32.0/24 -j DROP".to_string()), "{:?}", lines());
+
+    with_recorder(|r| r.clear_calls());
+    empty_linux_firewall();
+    let again = reapply_live(&store, Os::Linux, T0 + 20);
+    assert_eq!(again.reapplied, vec!["45.34.0.0/16".to_string()]);
+    assert!(lines().contains(&"iptables -w -A OMNI_BLOCK -s 45.34.0.0/16 -j DROP".to_string()), "{:?}", lines());
+}
+
+#[test]
+fn a_network_claim_expires_on_windows_by_the_underscore_name() {
+    let (_d, store) = store_with(&[("45.33.32.0/24", "a", T0 + 10)]);
+    expire_due(&store, Os::Windows, T0 + 10);
+    assert!(lines().contains(&"netsh advfirewall firewall delete rule name=OmniAgent_Block_45.33.32.0_24_in".to_string()), "{:?}", lines());
+}
