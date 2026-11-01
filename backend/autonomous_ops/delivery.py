@@ -2,8 +2,11 @@
 
 ``hold_back_autonomous`` runs on the instructions an agent is about to receive;
 ``hold_back_response_tasks`` does the same for the response-task queue (the third queue, D-21).
-Only items carrying the autonomy stamp (``autonomy.actionId``) are looked at: with none, the list
-is returned unchanged and the database is not touched. For a stamped item:
+An item with NO autonomy stamp is looked at only for its command: one naming a gate-only command
+(``GATE_ONLY_COMMANDS``, the actions 2.1.16 added) is marked ``refused`` with error
+``autonomy_gate_required`` and dropped, whatever wrote it (T-83-25, RESP-11). Any other unstamped item is
+returned untouched. With no gate-only item and no stamped item, the list is returned unchanged and the
+database is not touched. For a stamped item:
 
 * a stop (platform or the tenant's) on an action or probe: the item becomes terminal
   ``cancelled_by_stop`` and its ledger row follows, so it is never delivered after the stop is
@@ -27,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 _CANCELLED = "cancelled_by_stop"
 _REFUSED = "refused"
+
+# Commands an agent may run only when the gate decided them (the autonomy stamp). A queue row that names
+# one without the stamp was not decided by the gate, so it is never delivered (RESP-11).
+GATE_ONLY_COMMANDS = ("quarantine_file", "unquarantine_file", "restart_service", "isolate_host",
+                      "restore_host", "reboot_host")
+_GATE_REQUIRED = "autonomy_gate_required"
 _CANCEL_ROW_STATES = ("approved", "dispatching")
 
 
@@ -37,6 +46,16 @@ class _Unreadable(Exception):
 def _stamp(item: Dict[str, Any]) -> Dict[str, Any]:
     stamp = item.get("autonomy")
     return stamp if isinstance(stamp, dict) and isinstance(stamp.get("actionId"), str) and stamp["actionId"] else {}
+
+
+def _command_name(value: Any) -> str:
+    """The same normalisation the capability check uses: text before ':', lower case, ``_`` for space and ``-``."""
+    return str(value or "").split(":", 1)[0].strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _gate_only_unstamped(item: Dict[str, Any]) -> bool:
+    return not _stamp(item) and any(_command_name(item.get(f)) in GATE_ONLY_COMMANDS
+                                    for f in ("type", "instruction", "action"))
 
 
 async def _stopped(db, tenant_id: str, cache: Dict[str, bool]) -> bool:
@@ -122,6 +141,20 @@ async def hold_back_autonomous(db, tenant_id: Optional[str], instructions: List[
     """The agent instructions that may be delivered now (stamped ones filtered per the rules above)."""
     if not instructions:
         return instructions
+    unstamped = [i for i in instructions if _gate_only_unstamped(i)]
+    if unstamped:
+        coll = raw(db).agent_instructions
+        for item in unstamped:
+            try:
+                await coll.update_one({"_id": item["_id"], "status": "pending"},
+                                      {"$set": {"status": _REFUSED, "error": _GATE_REQUIRED,
+                                                "refused_at": datetime.now(timezone.utc).isoformat()}})
+            except Exception as exc:       # still withheld: it is dropped from the list either way
+                logger.error("autonomous_ops: unstamped %s not marked refused: %s", item.get("_id"), exc)
+        gone = {id(i) for i in unstamped}
+        instructions = [i for i in instructions if id(i) not in gone]
+        if not instructions:
+            return instructions
     return await _screen(db, tenant_id, instructions, coll_name="agent_instructions", key="_id",
                          pending="pending", default_kind=None)
 

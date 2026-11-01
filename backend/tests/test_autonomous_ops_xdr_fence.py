@@ -12,6 +12,12 @@ confidence 0.99 skips the approval requirement, an unticked tenant leaves a row,
 run changes shape;
 no_claim=the grandfathered correlation writers (threat hunt, kill-chain pre-staging) and the
 approval/dispatch of a card, which 81-04 and 81-08 cover.
+
+Phase 83 (83-06) amends this file: D-25 amends Phase 81 D-21. An automatic executor (xdr-auto,
+ai-selector, fallback-selector) used to get an allowed action as a stamped response task, or an
+approval card for an approve-class step. It now only ever reaches gate.suggest: the row is a
+suggestion (suggestionOnly, kind correlation), a task is never written, and nothing here reaches
+allow_auto or needs_approval. The manual-run assertions are unchanged.
 """
 import os
 import sys
@@ -66,31 +72,40 @@ async def test_tracer_xdr_block_ip_at_defaults_is_a_simulation(mongo_db):
     rows = await _rows(mongo_db)
     assert len(rows) == 1
     assert (rows[0]["state"], rows[0]["origin"], rows[0]["dispatcher"]) == ("shadow", "xdr-auto", "response_task")
-    assert rows[0]["wouldHave"] == "allow_auto" and rows[0]["targets"] == ["a1"]
+    assert rows[0]["wouldHave"] == "suggest" and rows[0]["targets"] == ["a1"]       # D-25: was allow_auto
     assert "nothing was done" in out.lower()
 
 
-async def test_xdr_block_ip_with_shadow_off_writes_one_stamped_task(monkeypatch, mongo_db):
+def _assert_correlation_suggestion(row, rule="p1"):
+    inputs = row["reason"]["inputs"]
+    assert (row["state"], row["reasonCode"]) == ("suggested", "suggest_requested")
+    assert inputs["suggestionOnly"] is True
+    assert inputs["suggestion"] == {"kind": "correlation", "rule": rule}
+    assert (row.get("approval") or {}).get("approver") is None and not row.get("autoDispatched")
+
+
+async def test_xdr_block_ip_with_shadow_off_leaves_one_suggestion_and_no_task(monkeypatch, mongo_db):
+    """D-25 amends D-21: an allowed automatic action used to become a stamped task; now it is a suggestion."""
     monkeypatch.setenv(MASTER_ENV, "false")
     await _setup(mongo_db, shadow=False)
     engine = PlaybookExecutionEngine(mongo_db)
+    trigger = {"source_ip": IP, "agent_id": "a1", "pattern_id": "p1"}
 
-    out = await engine._action_block_ip({}, _context("xdr-auto", execution_id="EX-7"))
+    out = await engine._action_block_ip({}, _context("xdr-auto", execution_id="EX-7", trigger=trigger))
 
-    tasks = await mongo_db.response_tasks.find({}).to_list(10)
-    assert len(tasks) == 1
-    task = tasks[0]
-    row = (await _rows(mongo_db))[0]
-    assert (task["action"], task["params"]["ip"], task["status"], task["tenantId"]) == ("block_ip", IP, "queued", "t1")
-    assert task["agent_id"] == "a1" and task["triggered_by"] == "autonomous_ops"
-    assert task["autonomy"]["actionId"] == row["id"] and task["playbook_execution_id"] == "EX-7"
-    assert row["state"] == "dispatching" and row["autoDispatched"] is True
-    assert task["task_id"] in out
+    assert await mongo_db.response_tasks.count_documents({}) == 0
+    rows = await _rows(mongo_db)
+    assert len(rows) == 1
+    assert (rows[0]["command"], rows[0]["origin"], rows[0]["dispatcher"]) == ("block_ip", "xdr-auto", "response_task")
+    _assert_correlation_suggestion(rows[0])
+    assert not rows[0].get("autoDispatched")
+    assert out.startswith("Suggested only") and "Nothing was done" in out
 
 
 @pytest.mark.parametrize("name,method", [("isolate_host", "_action_isolate_endpoint"),
                                          ("rollback_ransomware", "_action_rollback_ransomware")])
-async def test_isolate_and_rollback_from_an_automatic_executor_become_approval_cards(monkeypatch, mongo_db, name, method):
+async def test_isolate_and_rollback_from_an_automatic_executor_are_only_suggestions(monkeypatch, mongo_db, name, method):
+    """D-25 amends D-21: these used to become approval cards (awaiting_approval); now they are suggestions."""
     monkeypatch.setenv(MASTER_ENV, "false")
     await _setup(mongo_db, shadow=False)
     engine = PlaybookExecutionEngine(mongo_db)
@@ -98,28 +113,51 @@ async def test_isolate_and_rollback_from_an_automatic_executor_become_approval_c
     async def _no_own_gate(*a, **k):  # the engine's own approval path must not be entered
         raise AssertionError("engine approval path entered")
     engine._gate_high_risk_action = _no_own_gate
+    trigger = {"source_ip": IP, "agent_id": "a1", "pattern_id": "p1"}
 
-    out = await getattr(engine, method)({}, _context("xdr-auto"))
+    out = await getattr(engine, method)({}, _context("xdr-auto", trigger=trigger))
 
     assert await mongo_db.response_tasks.count_documents({}) == 0
     rows = await _rows(mongo_db)
     assert len(rows) == 1
-    assert (rows[0]["state"], rows[0]["command"], rows[0]["dispatcher"]) == ("awaiting_approval", name, "response_task")
-    assert rows[0]["approval"]["requiredBy"] == "class_approve"
-    assert "approval" in out.lower()
+    assert (rows[0]["command"], rows[0]["dispatcher"]) == (name, "response_task")
+    _assert_correlation_suggestion(rows[0])
+    assert out.startswith("Suggested only")
 
 
-async def test_quarantine_file_from_an_automatic_executor_is_decided_by_the_gate(monkeypatch, mongo_db):
+async def test_quarantine_file_from_an_automatic_executor_is_only_a_suggestion(monkeypatch, mongo_db):
     monkeypatch.setenv(MASTER_ENV, "false")
     await _setup(mongo_db, shadow=False)
     engine = PlaybookExecutionEngine(mongo_db)
-    trigger = {"agent_id": "a1", "process": {"path": "C:/tmp/bad.exe"}}
+    trigger = {"agent_id": "a1", "process": {"path": "C:/tmp/bad.exe"}, "pattern_id": "p1"}
 
     await engine._action_quarantine_file({}, _context("xdr-auto", trigger=trigger))
 
-    tasks = await mongo_db.response_tasks.find({}).to_list(10)
-    assert [(t["action"], t["params"]["file_path"], t["triggered_by"]) for t in tasks] == \
-        [("quarantine_file", "C:/tmp/bad.exe", "autonomous_ops")]
+    assert await mongo_db.response_tasks.count_documents({}) == 0
+    rows = await _rows(mongo_db)
+    assert [r["command"] for r in rows] == ["quarantine_file"]
+    _assert_correlation_suggestion(rows[0])
+
+
+async def test_no_automatic_executor_reaches_allow_auto_or_needs_approval(monkeypatch, mongo_db):
+    """D-25: whichever origin starts it, at any level, an automatic step is never decided past suggest."""
+    from autonomous_ops import gate
+    monkeypatch.setenv(MASTER_ENV, "false")
+    await _setup(mongo_db, shadow=False)
+    seen = []
+    real = gate.decide
+
+    async def spy(db, req, **kw):
+        decision = await real(db, req, **kw)
+        seen.append(decision.outcome)
+        return decision
+    monkeypatch.setattr(gate, "decide", spy)
+    engine = PlaybookExecutionEngine(mongo_db)
+    for origin in sorted(AUTOMATIC_EXECUTORS):
+        await engine._action_block_ip({}, _context(origin, trigger={"source_ip": f"198.51.100.{len(seen) + 10}",
+                                                                    "agent_id": "a1"}))
+    assert seen and set(seen) <= {"suggest", "refuse"}
+    assert await mongo_db.response_tasks.count_documents({}) == 0
 
 
 async def test_unticked_tenant_leaves_no_task_and_no_row(mongo_db):
@@ -191,7 +229,7 @@ async def test_a_full_xdr_playbook_run_at_defaults_writes_no_response_task(mongo
     assert [r["state"] for r in await _rows(mongo_db)] == ["shadow"]
 
 
-async def test_a_playbook_step_with_gate_class_approve_raises_block_ip_to_an_approval_card(monkeypatch, mongo_db):
+async def test_a_playbook_step_with_gate_class_approve_is_still_only_a_suggestion(monkeypatch, mongo_db):
     monkeypatch.setenv(MASTER_ENV, "false")
     await _setup(mongo_db, shadow=False)
     await mongo_db.playbooks.insert_one({
@@ -204,7 +242,7 @@ async def test_a_playbook_step_with_gate_class_approve_raises_block_ip_to_an_app
 
     assert await mongo_db.response_tasks.count_documents({}) == 0
     rows = await _rows(mongo_db)
-    assert [(r["state"], r["reasonCode"]) for r in rows] == [("awaiting_approval", "playbook_raised")]
+    assert [(r["state"], r["reasonCode"]) for r in rows] == [("suggested", "suggest_requested")]    # D-25: was a card
 
 
 # ------------------------------------------------------------------ selectors and the bypass
@@ -281,6 +319,7 @@ async def test_ai_selector_with_shadow_off_leaves_a_suggested_card_not_a_task(mo
 
     rows = await _rows(mongo_db)
     assert [(r["origin"], r["state"]) for r in rows] == [("ai-selector", "suggested")]
+    _assert_correlation_suggestion(rows[0])          # D-25: the same row shape as an xdr-auto step
     assert await mongo_db.response_tasks.count_documents({}) == 0 and no_playbook_run == []
 
 
@@ -296,6 +335,7 @@ async def test_fallback_selector_records_a_suggestion_for_an_isolate_step(monkey
     rows = await _rows(mongo_db)
     assert [(r["origin"], r["state"], r["command"]) for r in rows] == \
         [("fallback-selector", "suggested", "isolate_host")]
+    _assert_correlation_suggestion(rows[0])
     assert await mongo_db.response_tasks.count_documents({}) == 0 and no_playbook_run == []
 
 

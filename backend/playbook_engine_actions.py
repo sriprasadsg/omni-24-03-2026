@@ -23,18 +23,26 @@ def gate_request(command: str, *, tenant_id, origin: str, agent_id: str, target:
     """The one place that builds the gate request for a playbook containment step (the playbook
     fence and the two selectors share it). Dedupe is per tenant, action, agent and target, not
     per run, so a repeated correlation does not open a second card (A-81-XDR-DEDUPE). Only an
-    explicit gate_class step key raises the class (GATE-04); the destructive flag is not read."""
+    explicit gate_class step key raises the class (GATE-04); the destructive flag is not read.
+
+    A request from an automatic executor is a suggestion only (D-25): its reason inputs carry
+    ``suggestionOnly`` and a ``correlation`` suggestion naming the rule, so the row reads as one."""
     from autonomous_ops import gate, messages, registry
     label = messages.ACTION_LABELS.get(command, command).lower()
     where = f"{target} on agent {agent_id}" if target != agent_id else f"agent {agent_id}"
     prefix = "xdr" if origin == "xdr-auto" else origin
+    suggestion_inputs: Dict[str, Any] = {}
+    if origin in AUTOMATIC_EXECUTORS:
+        rule = (trigger or {}).get("pattern_id")
+        suggestion_inputs = {"suggestionOnly": True,
+                             "suggestion": {"kind": "correlation", **({"rule": rule} if rule else {})}}
     return gate.ActionRequest(
         tenant_id=tenant_id, kind="security", origin=origin, actions=[command], targets=[agent_id],
         params=dict(task_params), dedupe_key=f"{tenant_id}|xdr|{command}|{agent_id}|{target}",
         playbook=(trigger or {}).get("pattern_id"),
         playbook_raise=registry.playbook_raises([step]),
         reason={"ruleId": f"{prefix}:{(trigger or {}).get('pattern_id') or 'playbook'}",
-                "inputs": {"executionId": execution_id, **(inputs or {})}},
+                "inputs": {"executionId": execution_id, **(inputs or {}), **suggestion_inputs}},
         reason_text=f"A playbook step asked for: {label} ({where}).",
         dispatcher="response_task")
 
@@ -79,12 +87,12 @@ class PlaybookActionsMixin:
         self, command: str, context: Dict[str, Any], *, agent_id: str, task_params: Dict[str, Any],
         target: str, inputs: Dict[str, Any],
     ) -> Optional[str]:
-        """The Autonomous Ops fence (D-21, GATE-03) for the four side-effecting actions.
+        """The Autonomous Ops fence (D-21, D-25, GATE-03) for the four side-effecting actions.
 
         Returns None for a human-started run (the caller continues on the unchanged manual path).
-        For an automatic executor it asks ``gate.decide`` first and returns the step output; a
-        response task exists only for an allowed automatic action, written by
-        ``gate.execute_response_task`` (stamped). Every other outcome writes no task."""
+        For an automatic executor it asks ``gate.suggest``: the outcome is at most a suggestion, so
+        no response task is ever written from here (D-25 amends Phase 81 D-21, which let an allowed
+        automatic action through). The output is the refusal, the simulation or Suggested only."""
         executed_by = context.get("executed_by")
         if executed_by not in AUTOMATIC_EXECUTORS:
             return None
@@ -99,22 +107,12 @@ class PlaybookActionsMixin:
             command, tenant_id=tenant_id, origin=executed_by, agent_id=agent_id, target=target,
             task_params=task_params, trigger=trigger, execution_id=execution_id,
             step=context.get("_current_step"), inputs=inputs)
-        decision = await gate.decide(self.db, req)
+        decision = await gate.suggest(self.db, req)
         if decision.outcome == "refuse":
             return messages.REASON_TEXT.get(decision.reason, "The request was refused.")
         if decision.state == "shadow":
             return messages.simulation_result(f"{label} for {where}")
-        if decision.outcome == "needs_approval":
-            return f"Waiting for approval: {label} for {where}. Nothing was done yet."
-        if decision.outcome == "suggest":
-            return f"Suggested only: {label} for {where}. Nothing was done."
-        sent = await gate.execute_response_task(
-            self.db, tenant_id, decision.action_id, action=command, agent_id=agent_id,
-            params=dict(task_params), playbook_execution_id=execution_id)
-        if sent.get("status") != "queued":
-            return f"{label.capitalize()} for {where} was not sent ({sent.get('reason')}). Nothing was done."
-        self.logger.info("Playbook queued %s task %s for %s", command, sent["task_id"], where)
-        return f"{label.capitalize()} task {sent['task_id']} queued for {where}"
+        return f"Suggested only: {label} for {where}. Nothing was done."
 
     async def _action_log(self, params: Dict[str, Any], context: Dict[str, Any]) -> str:
         message = params.get("message", "")

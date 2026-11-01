@@ -238,3 +238,94 @@ def test_the_old_modules_do_not_import_a_database_client_for_the_dead_queue():
     for module in (swarm_service, soar_engine, tasks):
         src = inspect.getsource(module)
         assert "instructions.insert" not in src, module.__name__
+
+
+# ---------------------------------------------------------------- delivery: gate-only commands (T-83-25)
+
+async def _live(db):
+    from autonomous_ops import ledger, protected
+    from tests.autonomy_support import seed_agent, seed_tenant
+    protected.cache_clear()
+    await ledger.ensure_indexes(db)
+    await seed_tenant(db, "t1", shadow=False)
+    await db.tenants.update_one({"id": "t1"}, {"$set": {"agentCapabilities": ["all"]}})
+    await seed_agent(db, "t1", "a1")
+
+
+async def _queued(db, **doc):
+    base = {"agent_id": "a1", "tenantId": "t1", "status": "pending", "payload": {}}
+    await db.agent_instructions.insert_one({**base, **doc})
+    return await db.agent_instructions.find({"id": doc["id"]}).to_list(1)
+
+
+async def _stamped_row(db):
+    """A decided ledger row the stamp can point at (a block_ip decision at allow_auto)."""
+    from autonomous_ops import gate
+    req = gate.ActionRequest(tenant_id="t1", kind="security", origin="test", actions=["block_ip"], targets=["a1"],
+                             params={"ip_address": IP}, dedupe_key="t1|block_ip|a1|" + IP,
+                             reason={"ruleId": "test", "inputs": {}}, dispatcher="instruction")
+    decision = await gate.decide(db, req, master_shadow=False)
+    assert decision.outcome == "allow_auto", decision
+    return decision.action_id
+
+
+@pytest.mark.parametrize("name", ["quarantine_file", "unquarantine_file", "restart_service", "isolate_host",
+                                  "restore_host", "reboot_host"])
+async def test_an_unstamped_gate_only_command_is_refused_at_delivery(mongo_db, name):
+    from autonomous_ops import delivery
+    await _live(mongo_db)
+    items = await _queued(mongo_db, id=f"i-{name}", type=name, instruction="Swarm mission: x")
+    kept = await delivery.hold_back_autonomous(mongo_db, "t1", items)
+    assert kept == []
+    stored = await mongo_db.agent_instructions.find_one({"id": f"i-{name}"})
+    assert stored["status"] == "refused" and stored["error"] == "autonomy_gate_required"
+    assert stored["refused_at"]
+
+
+async def test_the_instruction_text_counts_as_well_as_the_type(mongo_db):
+    from autonomous_ops import delivery
+    await _live(mongo_db)
+    items = await _queued(mongo_db, id="i-text", type="general_task", instruction="Isolate-Host: the server")
+    assert await delivery.hold_back_autonomous(mongo_db, "t1", items) == []
+    assert (await mongo_db.agent_instructions.find_one({"id": "i-text"}))["error"] == "autonomy_gate_required"
+
+
+async def test_a_stamped_gate_only_command_passes(mongo_db):
+    from autonomous_ops import delivery
+    await _live(mongo_db)
+    action_id = await _stamped_row(mongo_db)
+    items = await _queued(mongo_db, id="i-ok", type="isolate_host",
+                          autonomy={"actionId": action_id, "tenantId": "t1", "kind": "action"})
+    kept = await delivery.hold_back_autonomous(mongo_db, "t1", items)
+    assert [i["id"] for i in kept] == ["i-ok"]
+    assert (await mongo_db.agent_instructions.find_one({"id": "i-ok"}))["status"] == "pending"
+
+
+async def test_an_unstamped_block_ip_and_a_list_without_such_rows_pass_unchanged(mongo_db):
+    from autonomous_ops import delivery
+    await _live(mongo_db)
+    items = await _queued(mongo_db, id="i-blk", type="block_ip", instruction="block_ip")
+    assert await delivery.hold_back_autonomous(mongo_db, "t1", items) == items
+    assert (await mongo_db.agent_instructions.find_one({"id": "i-blk"}))["status"] == "pending"
+
+    plain = await _queued(mongo_db, id="i-scan", type="vulnerability_scan", instruction="scan")
+    before = await mongo_db.agent_instructions.find({}).to_list(10)
+    assert await delivery.hold_back_autonomous(mongo_db, "t1", plain) == plain
+    assert await mongo_db.agent_instructions.find({}).to_list(10) == before         # nothing written
+
+
+async def test_a_mixed_poll_keeps_the_rest_and_refuses_only_the_gate_only_command(mongo_db):
+    from autonomous_ops import delivery
+    await _live(mongo_db)
+    await _queued(mongo_db, id="m1", type="isolate_host", instruction="x")
+    await _queued(mongo_db, id="m2", type="log_collection", instruction="x")
+    items = await mongo_db.agent_instructions.find({}).to_list(10)
+    kept = await delivery.hold_back_autonomous(mongo_db, "t1", items)
+    assert [i["id"] for i in kept] == ["m2"]
+    assert (await mongo_db.agent_instructions.find_one({"id": "m1"}))["status"] == "refused"
+
+
+def test_the_gate_only_list_is_the_six_new_actions():
+    from autonomous_ops import delivery
+    assert delivery.GATE_ONLY_COMMANDS == ("quarantine_file", "unquarantine_file", "restart_service",
+                                           "isolate_host", "restore_host", "reboot_host")
