@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 83
 current_phase_name: Autonomous Security Response
 status: executing
-stopped_at: Completed 83-02-PLAN.md
-last_updated: "2026-11-01T16:25:57.106Z"
+stopped_at: Completed 83-04-PLAN.md
+last_updated: "2026-11-01T16:47:09.699Z"
 last_activity: 2026-10-31
 last_activity_desc: Phase 83 execution started
-state_head: 41ae56df8ec409b76bc0a940ba88cc4cde0a8a89
+state_head: 42c068609e40e5e29bc12b97c1a4afe9a42b518d
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 55
-  completed_plans: 38
+  completed_plans: 39
   percent: 17
 ---
 
@@ -507,6 +507,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 83]: 83-03: row_extras reads result.healthy_after and result.still_running from the row; the plans that write restart and kill results must store them there
 - [Phase 83]: 83-02: a block_ip with no ttl_seconds lasts 24 h on the Rust agent (old arm was permanent); TTL outside 1 h..7 d is refused
 - [Phase 83]: 83-02: agent refuses loopback/link-local/multicast/unspecified/broadcast and the platform's own IP; unblock keeps claims if rule removal fails
+- [Phase 83]: 83-04: the agent refuses every non-global address, including RFC 1918 (reverses 83-02's choice); a failed start-up re-apply is retried each pass until it works
 
 ## Performance Metrics
 
@@ -700,6 +701,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 83 P01 | 20min | 3 tasks | 17 files |
 | Phase 83 P03 | 25min | 2 tasks | 9 files |
 | Phase 83 P02 | 1h | 2 tasks | 9 files |
+| Phase 83 P04 | 1 session | 2 tasks | 14 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -734,8 +736,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-01T16:25:46.584Z
-**Stopped at:** Completed 83-02-PLAN.md
+**Last session:** 2026-11-01T16:47:09.514Z
+**Stopped at:** Completed 83-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
