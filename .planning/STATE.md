@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 83
 current_phase_name: Autonomous Security Response
 status: executing
-stopped_at: Completed 83-03-PLAN.md
-last_updated: "2026-11-01T16:13:50.106Z"
+stopped_at: Completed 83-02-PLAN.md
+last_updated: "2026-11-01T16:25:57.106Z"
 last_activity: 2026-10-31
 last_activity_desc: Phase 83 execution started
-state_head: 251f23b417ac739f905c1cce7d72038f77c39bb8
+state_head: 41ae56df8ec409b76bc0a940ba88cc4cde0a8a89
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 55
-  completed_plans: 37
+  completed_plans: 38
   percent: 17
 ---
 
@@ -505,6 +505,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 83]: 83-01: a global feed row corroborates only an address some host already has from a host-bound observation; settle lets verify.ok false win over already_applied
 - [Phase 83]: 83-03: outcome wording for block, quarantine, restart and isolation is overridden only on security_response rows; Phase 81 rows keep their stored text
 - [Phase 83]: 83-03: row_extras reads result.healthy_after and result.still_running from the row; the plans that write restart and kill results must store them there
+- [Phase 83]: 83-02: a block_ip with no ttl_seconds lasts 24 h on the Rust agent (old arm was permanent); TTL outside 1 h..7 d is refused
+- [Phase 83]: 83-02: agent refuses loopback/link-local/multicast/unspecified/broadcast and the platform's own IP; unblock keeps claims if rule removal fails
 
 ## Performance Metrics
 
@@ -697,6 +699,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 82 P17 | 12min | 3 tasks | 9 files |
 | Phase 83 P01 | 20min | 3 tasks | 17 files |
 | Phase 83 P03 | 25min | 2 tasks | 9 files |
+| Phase 83 P02 | 1h | 2 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -731,8 +734,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-01T16:13:49.816Z
-**Stopped at:** Completed 83-03-PLAN.md
+**Last session:** 2026-11-01T16:25:46.584Z
+**Stopped at:** Completed 83-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
