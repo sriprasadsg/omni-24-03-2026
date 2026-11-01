@@ -209,6 +209,7 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
             uninstall::update_from_heartbeat(&mut cfg, &body);
             crate::capabilities::update_enabled_from_heartbeat(&mut cfg, &body);
             crate::capabilities::isolation::apply_body(&body);
+            crate::capabilities::service_watch::update_watched_from_heartbeat(&mut cfg, &body);
         }
         if registration::admission() != registration::Admission::Admitted {
             // This beat was answered "pending" or "rejected": tell the tray, and

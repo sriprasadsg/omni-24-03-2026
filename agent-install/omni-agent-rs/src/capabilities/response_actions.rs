@@ -26,6 +26,7 @@ use crate::capabilities::process_kill;
 use crate::capabilities::quarantine;
 use crate::capabilities::remediation_actions::{self, RemediationError};
 use crate::capabilities::response_state::{ClaimAdded, Store};
+use crate::capabilities::service_watch;
 use crate::config::Config;
 use serde_json::{json, Value};
 
@@ -33,7 +34,7 @@ use serde_json::{json, Value};
 /// The backend acts on an agent only when the token for the command is in this list.
 pub const SUPPORTED_TOKENS: &[&str] = &[
     "block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe",
-    "isolate_host", "restore_host",
+    "restart_service", "service_failures", "isolate_host", "restore_host",
 ];
 pub const BLOCK_TTL_MIN: i64 = 3_600;
 pub const BLOCK_TTL_MAX: i64 = 604_800;
@@ -45,7 +46,7 @@ const SUPPORT_REPORT_VERSION: u32 = 1;
 pub fn handles(action: &str) -> bool {
     matches!(
         action,
-        "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file" | "kill_process" | "isolate_host" | "restore_host"
+        "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file" | "kill_process" | "restart_service" | "isolate_host" | "restore_host"
     )
 }
 
@@ -75,6 +76,7 @@ pub fn spawn_sweeper(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
 pub async fn handle(action: &str, item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
     match action {
         "isolate_host" | "restore_host" => return background_arm(action, item, cfg, client),
+        "restart_service" => return service_watch::restart_arm(item, cfg, client),
         "quarantine_file" => return quarantine_arm(item).await,
         "unquarantine_file" => return unquarantine_arm(item).await,
         "kill_process" => return kill_arm(item).await,
@@ -85,7 +87,7 @@ pub async fn handle(action: &str, item: &Value, cfg: &Config, client: &reqwest::
 
 /// How long the final isolation body waits, so the `accepted` answer is posted first and the
 /// final body is the last word the platform hears for the task.
-const ACCEPTED_HEAD_START: std::time::Duration = std::time::Duration::from_secs(2);
+pub(crate) const ACCEPTED_HEAD_START: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// `isolate_host` / `restore_host`: check the input, answer `accepted`, and do the work on a
 /// blocking thread. The final body is posted with the same task id as the `accepted` one.

@@ -23,9 +23,18 @@ pub(crate) const CRITICAL_PROCESS_NAMES: &[&str] = &[
     "init", "systemd", "launchd", "kernel_task",
     "wininit.exe", "winlogon.exe", "csrss.exe", "smss.exe", "services.exe", "lsass.exe",
 ];
+/// Lower case. The same list as `criticalServices` in `shared/agent-response-contract.json`
+/// (a test compares them): the platform refuses these names when an admin lists them, and the
+/// agent refuses them again, so neither side alone can restart one.
 pub(crate) const CRITICAL_SERVICE_NAMES: &[&str] = &[
     "sshd", "ssh", "systemd", "dbus", "networkmanager", "init",
+    "omniagent", "omni-agent", "rpcss", "dcomlaunch", "lsm", "samss", "eventlog", "winmgmt",
+    "schedule", "bfe", "mpssvc", "windefend",
 ];
+/// Other names the agent itself runs under (the installer's Windows service and the Rust unit).
+const OWN_SERVICE_NAMES: &[&str] = &["omniagentrust", "omni-agent-rs"];
+/// The longest service name the platform lets an admin list.
+const MAX_SERVICE_NAME: usize = 128;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RemediationError {
@@ -56,8 +65,9 @@ pub enum RemediationError {
     BlockedByLocalSecurity(String),
 }
 
-fn is_valid_service_name(name: &str) -> bool {
+pub(crate) fn is_valid_service_name(name: &str) -> bool {
     !name.is_empty()
+        && name.len() <= MAX_SERVICE_NAME
         && !name.starts_with('-')
         && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
 }
@@ -207,7 +217,10 @@ pub(crate) fn validate_service_name(service_name: &str) -> Result<(), Remediatio
     if !is_valid_service_name(service_name) {
         return Err(RemediationError::InvalidTarget(format!("Service name '{service_name}' contains invalid characters.")));
     }
-    if CRITICAL_SERVICE_NAMES.iter().any(|n| *n == service_name.to_ascii_lowercase()) {
+    // `sshd.service` is `sshd` to systemd, so the suffix does not get a name past the list.
+    let lower = service_name.to_ascii_lowercase();
+    let bare = lower.strip_suffix(".service").unwrap_or(&lower);
+    if CRITICAL_SERVICE_NAMES.iter().chain(OWN_SERVICE_NAMES).any(|n| *n == bare) {
         return Err(RemediationError::ServiceNotFound(format!("Refusing to touch OS-critical service '{service_name}'.")));
     }
     Ok(())

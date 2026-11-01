@@ -48,6 +48,10 @@ pub struct Config {
     /// `None` until the platform says; then collectors outside the list do not run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled_capabilities: Option<Vec<String>>,
+    /// The services this agent's tenant wants watched for failure, from the last heartbeat reply.
+    /// `None` or empty means no service is checked (see capabilities/service_watch.rs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub watched_services: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
