@@ -17,6 +17,9 @@ worth.
   the agent accepts only from that approval card. The class of a decision also comes from the tenant's
   playbook for the finding (``select_playbook``): only its raise key counts, a playbook never lowers a class.
 * Every acting decision carries ``reason.inputs.incidentId`` (RESP-09); a suggestion carries none.
+* Beside each recorded acting decision the incident gets ONE ``isolate_host`` line (D-24): claimed by a
+  compare-and-set on the incident, only for a host that can isolate, never automatic (the registry makes it
+  an approval card; at Suggest it is a suggestion, in shadow a simulation) and never sent from here.
 * A range (a network a feed lists and a host has talked to) follows the same rules as an address but with
   params ``{cidr, ttl_seconds}``: one origin suggests it, and two corroborating origins reach the gate,
   which always turns a network into an approval card (``range_block``, RESP-02). The sweep never writes an
@@ -51,6 +54,7 @@ logger = logging.getLogger(__name__)
 RULE_ID = "sweep:block_ip"
 SUGGEST_RULE_ID = "sweep:single_signal"
 QUARANTINE_RULE_ID = "sweep:quarantine_file"
+ISOLATE_RULE_ID = "sweep:isolate_host"
 HOUR = 3600
 HOST_AUTO_LIMIT = 3                  # research default R2: automatic block or quarantine actions per computer per hour
 _HOST_COMMANDS = ("block_ip", "quarantine_file")        # restarts do not count toward it
@@ -129,7 +133,7 @@ def _suggest_request(tenant_id, candidate, command, origins, response, key, *, n
     if no_path:
         # Two sources agree but nothing says where the file is: the sentence says so, and it is no single-signal row.
         params = {"sha256": candidate.indicator}
-        text = _words(rm.why_two_sources, origins) if len(origins) > 1 else _words(rm.why_rule_off, origins[0])
+        text = _why(origins)
         text = rm.fill(rm.WHY_TEMPLATES["file_no_path"], reason=text or "").strip()
     else:
         inputs["suggestion"] = {"kind": "single_signal"}
@@ -140,8 +144,13 @@ def _suggest_request(tenant_id, candidate, command, origins, response, key, *, n
         reason_text=text, dispatcher=response_dispatch.DISPATCHER_NAME)
 
 
+def _why(origins: List[str]) -> Optional[str]:
+    """Why the sweep acted: two sources agree, or the rule is off and one was enough."""
+    return _words(rm.why_two_sources, origins) if len(origins) > 1 else _words(rm.why_rule_off, origins[0])
+
+
 def _act_request(tenant_id, candidate, command, origins, response, key, incident_id, route, agent) -> gate.ActionRequest:
-    text = _words(rm.why_two_sources, origins) if len(origins) > 1 else _words(rm.why_rule_off, origins[0])
+    text = _why(origins)
     params = _params(candidate, command, response)
     inputs = {"origins": origins, "indicator": candidate.indicator, "twoSignal": response.two_signal,
               "incidentId": incident_id}
@@ -229,6 +238,30 @@ def _undone_at(row: Dict[str, Any]) -> Optional[datetime]:
     return max(stamps) if stamps else None
 
 
+async def _propose_isolation(db, tenant_id, candidate, origins, incident_id, agent, now, counts) -> None:
+    """D-24: one ``isolate_host`` line for the incident, for a person to approve. A host that cannot isolate
+    gets no line and the claim is not spent; a refusal that records nothing gives the claim back."""
+    if await agent_support.check(db, tenant_id, agent, "isolate_host", now=now):
+        return
+    if not await incidents.claim_isolate(db, tenant_id, incident_id):
+        return
+    recorded = False
+    try:
+        decision = await gate.decide(db, gate.ActionRequest(
+            tenant_id=tenant_id, kind="security", origin="sweep", actions=["isolate_host"],
+            targets=[candidate.agent_id], params={},
+            dedupe_key=f"{tenant_id}|sweep|isolate_host|{candidate.agent_id}|{incident_id}",
+            reason={"ruleId": ISOLATE_RULE_ID, "inputs": {"incidentId": incident_id, "origins": origins,
+                                                          "indicator": candidate.indicator}},
+            reason_text=_why(origins), dispatcher=response_dispatch.DISPATCHER_NAME), now=now)
+        recorded = decision.recorded
+    finally:
+        if not recorded:
+            await incidents.release_isolate(db, tenant_id, incident_id)
+    if recorded:
+        counts["isolation"] += 1
+
+
 async def _act(db, tenant_id, candidate, origins, live, response, agent, now, counts, incident_id, route) -> None:
     command = _COMMANDS[candidate.kind]
     key, suggest_key = _keys(tenant_id, candidate, command)
@@ -258,6 +291,8 @@ async def _act(db, tenant_id, candidate, origins, live, response, agent, now, co
         if hold is not None:
             return await _remember_refusal(db, tenant_id, candidate, decision, origins, now, hold, counts)
     await _dispatch(db, tenant_id, candidate, decision, origins, now, counts)
+    if decision.recorded:
+        await _propose_isolation(db, tenant_id, candidate, origins, incident_id, agent, now, counts)
 
 
 async def _remember_refusal(db, tenant_id, candidate, decision, origins, now, hold, counts) -> None:
@@ -288,7 +323,7 @@ async def _incident_of(db, tenant_id: str, candidate, live, now) -> Optional[str
 async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetime) -> Dict[str, int]:
     """One tenant's pass. Returns counts {observed, blocked, suggested, shadow, skipped}."""
     counts = {"observed": 0, "blocked": 0, "quarantined": 0, "suggested": 0, "shadow": 0, "skipped": 0, "refused": 0,
-              "cards": 0}
+              "cards": 0, "isolation": 0}
     agents = await signals.agents_of(db, tenant_id)
     by_id = {a["id"]: a for a in agents}
     playbooks = _Playbooks(db, tenant_id)
