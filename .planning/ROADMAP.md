@@ -434,7 +434,7 @@ Plans:
   4. From the Autonomous Ops screen an operator can approve or deny pending actions and undo done actions that have an inverse (remove a block, restore a quarantined file) with one click.
   5. The Rust agent (with Python agent parity where that agent stays supported) supports restart service, quarantine and restore file, isolate and restore host, and reboot host; each is gated by the tenant's agent-capability ticks, and rules that need one stay dormant until the agent reports support. The swarm "propagate antibody" and SOAR block/isolate paths are fenced so they cannot dispatch automatic containment.
 
-**Plans**: 7/20 plans executed in 10 waves
+**Plans**: 8/20 plans executed in 10 waves
 
 Plans:
 **Wave 1**
@@ -451,7 +451,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [x] 83-07-PLAN.md — Response settings API: two-source switch, block length, watched services, bulk apply
-- [ ] 83-08-PLAN.md — Dormancy in the sweep, gate and approval; honest breaker; range needs approval
+- [x] 83-08-PLAN.md — Dormancy in the sweep, gate and approval; honest breaker; range needs approval
 - [ ] 83-09-PLAN.md — Agent quarantine and restore, kill bound to an executable
 
 **Wave 5** *(blocked on Wave 4 completion)*
@@ -548,7 +548,7 @@ Plans:
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
-| 83. Autonomous Security Response | 7/20 | In Progress | - |
+| 83. Autonomous Security Response | 8/20 | In Progress | - |
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
