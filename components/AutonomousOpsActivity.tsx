@@ -1,8 +1,10 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import type { AppView } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { resolveAutonomousOpsScope, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { platformTier } from '../utils/permissions';
 import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
+import type { OpenViewHandlers } from './AutonomousOpsRowActions';
 import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
 import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
 import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
@@ -11,6 +13,8 @@ interface AutonomousOpsActivityProps {
     /** viewingTenantId: the organization platform staff entered from Tenants, else null. */
     tenantId?: string | null;
     onGoToTenants?: () => void;
+    /** Moves the app to another screen. A suggestion row may open Patching or File Integrity through it. */
+    onOpenView?: (view: AppView) => void;
 }
 
 const SECONDARY_BUTTON =
@@ -19,8 +23,8 @@ const SECONDARY_BUTTON =
 const OUTLINE_CHIP =
     'inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs font-semibold text-gray-700 dark:text-gray-200 break-words';
 
-/** Autonomous Ops (ACTV-01, ACTV-03): the read-only record of every decision. Phase 83 adds row actions. */
-export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ tenantId = null, onGoToTenants }) => {
+/** Autonomous Ops (ACTV-01, ACTV-03): the read-only record of every decision. Phase 83 adds Undo and links to Patching and File Integrity. */
+export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ tenantId = null, onGoToTenants, onOpenView }) => {
     const { currentUser, hasPermission } = useUser();
     const { status, refresh } = useAutonomousOpsStatus();
     const [refreshing, setRefreshing] = useState(false);
@@ -34,6 +38,17 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
         setRefreshSignal(n => n + 1);
         try { await refresh(); } finally { setRefreshing(false); }
     }, [refresh]);
+
+    // A link out exists for a target only when the viewer may open that screen; otherwise it reads as plain text.
+    const canPatch = hasPermission('view:patching');
+    const canFim = hasPermission('view:fim');
+    const openers = useMemo<OpenViewHandlers | undefined>(() => {
+        if (!onOpenView) return undefined;
+        const out: OpenViewHandlers = {};
+        if (canPatch) out.patchManagement = () => onOpenView('patchManagement');
+        if (canFim) out.fimMonitoring = () => onOpenView('fimMonitoring');
+        return out;
+    }, [onOpenView, canPatch, canFim]);
 
     const scopeLabel = scope.kind === 'platform'
         ? 'Platform'
@@ -89,7 +104,7 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                             <h2 id="autonomous-ops-activity-title" className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Activity</h2>
                             <span className="text-xs text-gray-500 dark:text-gray-400">Newest first</span>
                         </div>
-                        <AutonomousOpsActivityList scope={scope} refreshSignal={refreshSignal} />
+                        <AutonomousOpsActivityList scope={scope} refreshSignal={refreshSignal} onOpenView={openers} />
                     </section>
                 </>
             )}

@@ -1729,7 +1729,7 @@ const App: React.FC = () => {
       case 'pentest': return <ErrorBoundary name="PentestDashboard"><PentestDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
       case 'playbooks': return <ErrorBoundary name="PlaybookBuilder"><PlaybookBuilder /></ErrorBoundary>;
       case 'soar': return <ErrorBoundary name="SOARDashboard"><SOARDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
-      case 'autonomousOps': return <ErrorBoundary name="AutonomousOpsActivity"><Suspense fallback={<SkeletonDashboard />}><AutonomousOpsActivity tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} /></Suspense></ErrorBoundary>;
+      case 'autonomousOps': return <ErrorBoundary name="AutonomousOpsActivity"><Suspense fallback={<SkeletonDashboard />}><AutonomousOpsActivity tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} onOpenView={handleSetCurrentView} /></Suspense></ErrorBoundary>;
       case 'threatIntelligence': return (
         <ErrorBoundary name="ThreatIntelligence">
           <div className="space-y-6">
