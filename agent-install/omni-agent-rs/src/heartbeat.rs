@@ -536,6 +536,7 @@ pub fn build_payload(cfg: &Config, sys: &System, cap_mgr: &CapabilityManager) ->
     meta["capabilities"] = json!(cap_ids);
     meta["capabilities_status"] = json!(cap_statuses);
     meta["response_actions"] = crate::capabilities::response_actions::support_report();
+    meta["response_state"] = crate::capabilities::isolation::response_state_report(&Default::default(), crate::capabilities::response_actions::now_epoch());
 
     // WAN / ISP-assigned address (resolved asynchronously, cached). Present only
     // once discovered; absent on the very first heartbeat if resolution is slow.

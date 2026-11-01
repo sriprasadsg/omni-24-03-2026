@@ -252,3 +252,14 @@ fn the_isolation_tokens_outcomes_checks_and_revert_time_match_the_contract() {
     assert!(crate::capabilities::response_actions::handles("isolate_host"));
     assert!(crate::capabilities::response_actions::handles("restore_host"));
 }
+
+#[test]
+fn every_heartbeat_carries_the_response_state_report() {
+    let mut cfg = test_cfg();
+    cfg.enabled_capabilities = Some(Vec::new());
+    let sys = sysinfo::System::new();
+    let payload = crate::heartbeat::build_payload(&cfg, &sys, &crate::capabilities::CapabilityManager::new());
+    let report = &payload["meta"]["response_state"];
+    assert_eq!(report["v"], 1);
+    assert!(report.get("isolation").is_some() && report["boot_time"].is_u64() && report["active_blocks"].is_u64());
+}

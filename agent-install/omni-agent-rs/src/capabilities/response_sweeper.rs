@@ -3,10 +3,12 @@
 //! It reads only `response_state.json` and the local firewall, so a host with no token, no route
 //! or an unreachable platform still removes its blocks when they run out. It runs one start-up
 //! pass (on Linux that also puts back the rules a reboot lost) and then an expiry pass every 15
-//! seconds. A pass that panics is logged and the loop carries on. Nothing here talks to the
+//! seconds; each pass also ends an isolation whose revert time has come (`isolation::revert_due`).
+//! A pass that panics is logged and the loop carries on. Nothing here talks to the
 //! backend: an expiry changes nothing there (D-14).
 
 use crate::capabilities::firewall::Os;
+use crate::capabilities::isolation;
 use crate::capabilities::response_state::{expire_due, reapply_live, start_up, Store};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -36,14 +38,22 @@ pub(crate) fn sweep(store: &Store, os: Os, now: i64, first: bool, pending: &Atom
         let report = start_up(store, os, now);
         log_report("start-up", &report);
         pending.store(os == Os::Linux && !report.failed.is_empty(), Ordering::SeqCst);
+        log_isolation(&isolation::start_up(store, os, now));
         return;
     }
     let report = expire_due(store, os, now);
     log_report("expiry", &report);
+    log_isolation(&isolation::revert_due(store, os, now));
     if pending.load(Ordering::SeqCst) {
         let again = reapply_live(store, os, now);
         log_report("re-apply", &again);
         pending.store(!again.failed.is_empty() || again.error.is_some(), Ordering::SeqCst);
+    }
+}
+
+fn log_isolation(pass: &isolation::PassOutcome) {
+    if pass.reverted {
+        log::info!("Response isolation pass: the host was taken out of isolation");
     }
 }
 
