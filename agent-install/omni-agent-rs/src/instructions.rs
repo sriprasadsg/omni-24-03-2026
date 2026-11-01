@@ -527,20 +527,6 @@ pub async fn compute_instruction_result(
                 Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
             }
         }
-        "block_ip" => {
-            let ip = item.get("parameters").and_then(|p| p.get("ip_address")).and_then(|v| v.as_str()).unwrap_or("");
-            match crate::capabilities::remediation_actions::block_ip(ip).await {
-                Ok(()) => serde_json::json!({"status": "success", "message": "IP block initiated"}),
-                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
-            }
-        }
-        "unblock_ip" => {
-            let ip = item.get("parameters").and_then(|p| p.get("ip_address")).and_then(|v| v.as_str()).unwrap_or("");
-            match crate::capabilities::remediation_actions::unblock_ip(ip).await {
-                Ok(()) => serde_json::json!({"status": "success", "message": "IP unblock initiated"}),
-                Err(e) => serde_json::json!({"status": "error", "error": e.to_string()}),
-            }
-        }
         "disable_service" => {
             let service = item.get("parameters").and_then(|p| p.get("service_name")).and_then(|v| v.as_str()).unwrap_or("");
             match crate::capabilities::remediation_actions::disable_service(service).await {

@@ -5,14 +5,14 @@
 //! `{status: "error", error: ...}` back to the backend, which verifies
 //! before ever marking a finding resolved.
 //!
-//! Real OS calls (kill signal, firewall rule, service start/stop) are
-//! gated behind `run_privileged_command` / the sysinfo kill call, which
-//! are stubbed out under `#[cfg(test)]` so the unit test suite exercises
-//! only param validation + branching — it never actually kills a process,
-//! touches the host firewall, or starts/stops a real service.
+//! Real OS calls (kill signal, service start/stop) go through
+//! `privileged::run` / the sysinfo kill call; the privileged seam is a
+//! recorder under `#[cfg(test)]`, so the unit test suite exercises only
+//! param validation + branching — it never actually kills a process or
+//! starts/stops a real service. The firewall lives in `firewall.rs`.
 
+use crate::capabilities::privileged;
 use crate::capabilities::ssh_key_rotation;
-use std::net::IpAddr;
 use std::path::Path;
 
 // Small, deliberately conservative denylists: even though the backend's
@@ -51,32 +51,6 @@ pub enum RemediationError {
     LockoutRefused(String),
     #[error("Key not found: {0}")]
     KeyNotFound(String),
-}
-
-/// Runs a privileged OS command (firewall rule, service control) and maps
-/// a non-zero exit to `OperationFailed`. Stubbed to a no-op success under
-/// `#[cfg(test)]` so unit tests never touch the real firewall/service
-/// manager (per the plan's hermetic-test requirement).
-#[cfg(not(test))]
-fn run_privileged_command(program: &str, args: &[&str]) -> Result<(), RemediationError> {
-    let output = std::process::Command::new(program)
-        .args(args)
-        .output()
-        .map_err(|e| RemediationError::OperationFailed(format!("{program} failed to spawn: {e}")))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(RemediationError::OperationFailed(format!(
-            "{program} exited with {:?}: {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr).trim()
-        )))
-    }
-}
-
-#[cfg(test)]
-fn run_privileged_command(_program: &str, _args: &[&str]) -> Result<(), RemediationError> {
-    Ok(())
 }
 
 fn is_valid_service_name(name: &str) -> bool {
@@ -181,64 +155,6 @@ pub async fn restore_file(file_path: &str, backup_path: Option<&str>) -> Result<
     }
 }
 
-/// Adds a host firewall DROP rule for `ip_address` (iptables on Linux,
-/// Windows Advanced Firewall on Windows).
-pub async fn block_ip(ip_address: &str) -> Result<(), RemediationError> {
-    let ip = validate_ip(ip_address)?;
-
-    #[cfg(target_os = "linux")]
-    {
-        run_privileged_command("iptables", &["-I", "INPUT", "-s", &ip.to_string(), "-j", "DROP"])
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let rule_name = format!("OmniAgent_Block_{ip}");
-        run_privileged_command(
-            "netsh",
-            &[
-                "advfirewall", "firewall", "add", "rule",
-                &format!("name={rule_name}"), "dir=in", "action=block",
-                &format!("remoteip={ip}"),
-            ],
-        )
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    {
-        Err(RemediationError::OperationFailed("block_ip is unsupported on this platform.".to_string()))
-    }
-}
-
-/// Removes the firewall rule added by `block_ip`.
-pub async fn unblock_ip(ip_address: &str) -> Result<(), RemediationError> {
-    let ip = validate_ip(ip_address)?;
-
-    #[cfg(target_os = "linux")]
-    {
-        run_privileged_command("iptables", &["-D", "INPUT", "-s", &ip.to_string(), "-j", "DROP"])
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let rule_name = format!("OmniAgent_Block_{ip}");
-        run_privileged_command(
-            "netsh",
-            &["advfirewall", "firewall", "delete", "rule", &format!("name={rule_name}")],
-        )
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    {
-        Err(RemediationError::OperationFailed("unblock_ip is unsupported on this platform.".to_string()))
-    }
-}
-
-fn validate_ip(ip_address: &str) -> Result<IpAddr, RemediationError> {
-    if ip_address.is_empty() {
-        return Err(RemediationError::InvalidIpAddress("IP address cannot be empty.".to_string()));
-    }
-    ip_address
-        .parse::<IpAddr>()
-        .map_err(|_| RemediationError::InvalidIpAddress(ip_address.to_string()))
-}
-
 /// Stops and disables a named service (systemctl on Linux, sc.exe on
 /// Windows). Refuses a short list of OS-critical services.
 pub async fn disable_service(service_name: &str) -> Result<(), RemediationError> {
@@ -246,13 +162,13 @@ pub async fn disable_service(service_name: &str) -> Result<(), RemediationError>
 
     #[cfg(target_os = "linux")]
     {
-        let _ = run_privileged_command("systemctl", &["stop", service_name]);
-        run_privileged_command("systemctl", &["disable", service_name])
+        let _ = privileged::run("systemctl", &["stop", service_name]);
+        privileged::run("systemctl", &["disable", service_name])
     }
     #[cfg(target_os = "windows")]
     {
-        let _ = run_privileged_command("sc", &["stop", service_name]);
-        run_privileged_command("sc", &["config", service_name, "start=", "disabled"])
+        let _ = privileged::run("sc", &["stop", service_name]);
+        privileged::run("sc", &["config", service_name, "start=", "disabled"])
     }
     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
@@ -267,13 +183,13 @@ pub async fn enable_service(service_name: &str) -> Result<(), RemediationError> 
 
     #[cfg(target_os = "linux")]
     {
-        run_privileged_command("systemctl", &["enable", service_name])?;
-        run_privileged_command("systemctl", &["start", service_name])
+        privileged::run("systemctl", &["enable", service_name])?;
+        privileged::run("systemctl", &["start", service_name])
     }
     #[cfg(target_os = "windows")]
     {
-        run_privileged_command("sc", &["config", service_name, "start=", "auto"])?;
-        run_privileged_command("sc", &["start", service_name])
+        privileged::run("sc", &["config", service_name, "start=", "auto"])?;
+        privileged::run("sc", &["start", service_name])
     }
     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
@@ -386,29 +302,6 @@ mod tests {
 
         let _ = std::fs::remove_file(&target);
         let _ = std::fs::remove_file(&backup);
-    }
-
-    // ── block_ip / unblock_ip ────────────────────────────────────────────
-    #[tokio::test]
-    async fn block_ip_empty() {
-        assert!(matches!(block_ip("").await, Err(RemediationError::InvalidIpAddress(_))));
-    }
-
-    #[tokio::test]
-    async fn block_ip_invalid_format() {
-        assert!(matches!(block_ip("not-an-ip").await, Err(RemediationError::InvalidIpAddress(_))));
-    }
-
-    #[tokio::test]
-    async fn block_ip_valid_format_stubbed_success() {
-        // Real Command execution is stubbed out under #[cfg(test)] — this
-        // only proves validation passes through to the (stubbed) dispatch.
-        assert!(block_ip("192.0.2.10").await.is_ok());
-    }
-
-    #[tokio::test]
-    async fn unblock_ip_invalid_format() {
-        assert!(matches!(unblock_ip("not-an-ip").await, Err(RemediationError::InvalidIpAddress(_))));
     }
 
     // ── disable_service / enable_service ────────────────────────────────
