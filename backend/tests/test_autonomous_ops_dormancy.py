@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from autonomous_ops import agent_support, approvals, gate, ledger, messages, protected
+from autonomous_ops import agent_support, approvals, gate, ledger, messages, protected, response_dispatch  # noqa: F401 (registers the dispatcher)
 from tests._autonomous_ops_http import _env, api  # noqa: F401  (fixtures)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_agent, seed_response_agent, seed_tenant

@@ -274,3 +274,11 @@ async def test_unreadable_settings_are_suggest_not_auto_and_not_off(world):
 
 def test_reason_codes_are_unique():
     assert len(set(gate.REASON_CODES)) == len(gate.REASON_CODES)
+
+
+def test_the_steps_run_in_the_decision_order_with_agent_support_after_the_protected_targets():
+    """Phase 83 (RESP-10): the dormancy step sits between the protected-target and blast-radius steps, so a
+    host that cannot carry an action is refused before it can use up the rate limit."""
+    assert [s.__name__ for s in gate._STEPS] == [
+        "_step_platform_stop", "_step_eligibility", "_step_tenant_stop", "_step_level", "_step_class",
+        "_step_protected_targets", "gate_step", "_step_blast_radius", "_step_dedupe", "_step_shadow"]

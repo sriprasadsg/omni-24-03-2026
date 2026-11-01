@@ -20,7 +20,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
-from . import APPROVAL_TTL, PLATFORM_TENANT_ID, ledger, messages, protected, registry, settings
+from . import APPROVAL_TTL, PLATFORM_TENANT_ID, agent_support, ledger, messages, protected, registry, settings
 from . import breaker, decision_row, dispatch_check, gate
 from .scope import raw
 
@@ -102,6 +102,12 @@ async def _revalidate(db, row: Dict[str, Any]) -> Optional[str]:
         code = await dispatch_check.ip_refusal(db, tenant_id, dispatch_check.row_pairs(row))
         if code:
             return code        # every recorded step and compensation step, each with its own params
+        if row.get("dispatcher") == "security_response":
+            # RESP-10: up to 24 hours passed since the decision, so the host is asked again whether it can
+            # carry the action (capability, online, token); a card never fires at a host that lost support.
+            agent = await agent_support.agent_of(db, targets[0])
+            return await agent_support.check(db, tenant_id, agent, row.get("command"),
+                                             params=row.get("params") or {}, now=datetime.now(timezone.utc))
     except Exception as exc:
         logger.error("autonomous_ops: approval re-check of the target failed, refusing: %s", exc)
         return "protected_target"
@@ -128,6 +134,8 @@ async def approve(db, tenant_id: str, action_id: str, *, approver: Dict[str, Any
         return {"status": "refused", "reason": "no_dispatcher"}
     if row.get("state") not in _OPEN:
         return {"status": "already_handled"}
+    if ((row.get("reason") or {}).get("inputs") or {}).get("suggestionOnly") is True:
+        return {"status": "refused", "reason": "suggestion_only"}     # D-07, D-25: only a suggestion, never a card
     expires = _expires_at(row)
     if expires is None or now >= expires:
         await ledger.transition(db, tenant_id, action_id, _OPEN, "expired")

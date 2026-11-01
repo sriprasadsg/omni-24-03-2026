@@ -2,8 +2,9 @@
 the only writer of autonomous instructions.
 
 ``decide`` is an ordered list of check steps in the GATE-03 order: platform stop, tenant
-eligibility, tenant stop, level, action class, protected targets, blast-radius cap, dedupe /
-cooldown / undo suppression, shadow wrapper. Each step appends ``{check, result, code}`` to
+eligibility, tenant stop, level, action class, protected targets, agent support (a Phase 83
+``security_response`` request only: capability, online, feature token),
+blast-radius cap, dedupe / cooldown / undo suppression, shadow wrapper. Each step appends ``{check, result, code}`` to
 the decision trace. The first hard refusal in that order is the reason recorded; soft
 escalations accumulate and the strongest wins (suggest over needs_approval over allow_auto).
 
@@ -33,7 +34,7 @@ from pymongo.errors import DuplicateKeyError
 
 from . import (APPROVAL_TTL, COOLDOWN, HOST_CAP, INSTRUCTION_KINDS, OPEN_STATES, PLATFORM_TENANT_ID,
                RATE_LIMIT_PER_WINDOW, RATE_LIMIT_WINDOW, STAMP_SOURCE, STOP_EXEMPT_KINDS)
-from . import decision_row, dispatch_check, ledger, messages, notify, protected, registry, settings
+from . import agent_support, decision_row, dispatch_check, ledger, messages, notify, protected, registry, settings
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -48,10 +49,11 @@ REASON_CODES = (
     "settings_unreadable", "level_suggest", "suggest_requested", "unregistered_action", "class_approve",
     "playbook_raised", "class_auto", "no_target", "cross_tenant_target", "protected_target",
     "invalid_target", "blast_radius", "rate_limit", "duplicate", "suppressed_by_undo",
-    "ledger_unavailable")
+    "ledger_unavailable", "agent_unsupported", "capability_off", "agent_offline")
 # Refusals that never leave a row: the tenant is Off, so nothing is recorded (D-23).
 _UNRECORDED = frozenset({"no_tenant", "platform_tenant", "not_enabled", "level_off", "duplicate",
-                         "suppressed_by_undo", "ledger_unavailable"})
+                         "suppressed_by_undo", "ledger_unavailable", "agent_unsupported",
+                         "capability_off", "agent_offline"})
 # Row states each kind of instruction may be dispatched from.
 _DISPATCHABLE = {"action": ("approved", "dispatching"), "probe": ("dispatching", "executed"),
                  "compensate": ("dispatching", "failed"), "undo": ("undone",)}
@@ -313,7 +315,8 @@ async def _step_shadow(ctx: _Ctx) -> None:
 
 
 _STEPS = (_step_platform_stop, _step_eligibility, _step_tenant_stop, _step_level, _step_class,
-          _step_protected_targets, _step_blast_radius, _step_dedupe, _step_shadow)
+          _step_protected_targets, agent_support.gate_step, _step_blast_radius, _step_dedupe,
+          _step_shadow)
 
 
 # ---------------------------------------------------------------- the decision
