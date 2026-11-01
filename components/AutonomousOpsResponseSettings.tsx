@@ -16,8 +16,13 @@ export const SERVICE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 export const BLOCK_LENGTH_ERROR = 'Enter a block length between 1 hour and 7 days.';
 export const LOAD_ERROR = "Couldn't load response settings. Check your connection and try again.";
 
-const HELPER = 'break-words text-xs text-gray-500 dark:text-gray-400';
-const FIELD =
+export const RULE_LABEL = 'Require two sources before blocking or quarantining';
+export const RULE_HELP =
+    "On: an IP address is blocked or a file is quarantined on its own only when two different sources agree, for example the agent's verdict and a public threat feed. One source becomes a suggestion. Off: one source is enough. Every other limit still applies.";
+export const BLOCK_HELP =
+    "How long a blocked IP address stays blocked. The agent removes the block itself when the time is up, even if it can't reach the platform. Between 1 hour and 7 days. New blocks use this length; blocks already in place keep theirs.";
+export const HELPER = 'break-words text-xs text-gray-500 dark:text-gray-400';
+export const FIELD =
     'min-h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100';
 
 /** A stored length shows in days when it is a whole number of days above one day, else in hours: 24 stays "24 hours", 48 reads "2 days". */
@@ -286,10 +291,10 @@ export const AutonomousOpsResponseSettings: React.FC<PanelProps> = ({ tenantId, 
                     <div className="divide-y divide-gray-200 dark:divide-white/10">
                         <Group
                             labelId={switchLabelId}
-                            label="Require two sources before blocking or quarantining"
+                            label={RULE_LABEL}
                             helper={(
                                 <>
-                                    <p className={HELPER}>On: an IP address is blocked or a file is quarantined on its own only when two different sources agree, for example the agent's verdict and a public threat feed. One source becomes a suggestion. Off: one source is enough. Every other limit still applies.</p>
+                                    <p className={HELPER}>{RULE_HELP}</p>
                                     <p className={HELPER}>Restarting a failed service doesn't need two sources.</p>
                                 </>
                             )}
@@ -298,7 +303,7 @@ export const AutonomousOpsResponseSettings: React.FC<PanelProps> = ({ tenantId, 
                         <Group
                             labelId={blockLabelId}
                             label="Block length"
-                            helper={<p className={HELPER}>How long a blocked IP address stays blocked. The agent removes the block itself when the time is up, even if it can't reach the platform. Between 1 hour and 7 days. New blocks use this length; blocks already in place keep theirs.</p>}
+                            helper={<p className={HELPER}>{BLOCK_HELP}</p>}
                             control={(
                                 <div>
                                     <BlockLengthControl

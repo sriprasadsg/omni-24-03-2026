@@ -74,3 +74,77 @@ export const TurnOffRuleDialog: React.FC<TurnOffProps> = ({
         </Modal>
     );
 };
+
+interface ApplyAllProps {
+    open: boolean;
+    /** One line per ticked setting, for example "Two-source rule: off" and "Block length: 12 hours". */
+    lines: string[];
+    /** How many organizations this click will write. */
+    organizations: number;
+    /** True when the rule is being turned off everywhere: adds the amber block and the required checkbox. */
+    loosening: boolean;
+    pending: boolean;
+    error: string | null;
+    onCancel: () => void;
+    onConfirm: () => void;
+}
+
+const ApplyAllInner: React.FC<Omit<ApplyAllProps, 'open'>> = ({ lines, organizations, loosening, pending, error, onCancel, onConfirm }) => {
+    // The box starts unchecked each time the dialog opens and stays ticked through a retry of the failed organizations.
+    const [understood, setUnderstood] = React.useState(false);
+    const blocked = loosening && !understood;
+    return (
+        <Modal
+            isOpen
+            onClose={onCancel}
+            title="Apply to every organization?"
+            size="md"
+            showClose={false}
+            closeOnBackdrop={false}
+            closeOnEsc={!pending}
+            footer={(
+                <>
+                    <button type="button" className={SECONDARY_BUTTON} onClick={onCancel} disabled={pending}>Cancel</button>
+                    <button type="button" className={ACCENT_BUTTON} onClick={onConfirm} disabled={pending || blocked}>
+                        {pending ? 'Applying...' : 'Apply to every organization'}
+                    </button>
+                </>
+            )}
+        >
+            <div className="flex flex-col gap-4">
+                {loosening && (
+                    <label className="flex items-start gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                        <input
+                            type="checkbox" checked={understood} aria-required="true" disabled={pending}
+                            onChange={e => setUnderstood(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0"
+                        />
+                        <span className="min-w-0 break-words">I understand this changes every organization.</span>
+                    </label>
+                )}
+                <p className="break-words text-sm text-gray-700 dark:text-gray-200">
+                    This writes the setting to each organization on its own. An organization's administrator can change it back afterwards. The platform organization is not changed.
+                </p>
+                <div className="flex flex-col gap-1 break-words rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-200">
+                    {lines.map(line => <p key={line}>{line}</p>)}
+                    <p className="tabular-nums">{`${plural(organizations, 'organization', 'organizations')} will be changed.`}</p>
+                </div>
+                {loosening && (
+                    <HealthNotice tone="amber" role="status">
+                        <p>Turning the rule off lets one source block an IP address or quarantine a file on its own in every organization. Every other limit still applies.</p>
+                    </HealthNotice>
+                )}
+                {error && (
+                    <HealthNotice tone="red" role="alert">
+                        <p>{error}</p>
+                    </HealthNotice>
+                )}
+            </div>
+        </Modal>
+    );
+};
+
+/**
+ * Apply to every organization? (83-UI-SPEC section 7). The platform form opens it before anything is written. Turning the
+ * rule off needs the required box first, which is the first focusable element. Esc and Cancel are ignored while the request is in flight.
+ */
+export const ApplyAllDialog: React.FC<ApplyAllProps> = ({ open, ...rest }) => (open ? <ApplyAllInner {...rest} /> : null);

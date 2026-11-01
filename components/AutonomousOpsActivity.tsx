@@ -7,6 +7,7 @@ import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivi
 import type { OpenViewHandlers } from './AutonomousOpsRowActions';
 import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
 import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
+import { PlatformResponseSettings } from './AutonomousOpsResponseSettingsPlatform';
 import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
 import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
@@ -104,6 +105,7 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                     {scope.kind === 'platform' && hasPermission('control:platform_autonomous_ops') && (
                         <AutonomousOpsPlatformHealth refreshSignal={refreshSignal} />
                     )}
+                    {scope.kind === 'platform' && hasPermission('control:platform_autonomous_ops') && <PlatformResponseSettings />}
                     {showResponseSettings && (
                         <AutonomousOpsResponseSettings
                             key={scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}

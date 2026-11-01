@@ -81,6 +81,9 @@ function routeFetch(handlers: { status?: Handler; actions?: Handler; platformSta
     if (path === '/api/autonomous-ops/response-settings') {
       return jsonRes({ twoSignal: true, blockHours: 24, watchedServices: [], readable: true, restartAvailable: true });
     }
+    if (path === '/api/platform/autonomous-ops/response-settings') {
+      return jsonRes({ organizations: 1, twoSignal: { on: 1, off: 0 }, blockHours: { '24': 1 }, unreadable: 0 });
+    }
     if (path === '/api/platform/autonomous-ops/status') return (handlers.platformStatus ?? (() => jsonRes(platformStatusPayload())))(url);
     if (path === '/api/platform/autonomous-ops/actions') return (handlers.platformActions ?? (() => jsonRes({ items: [], nextCursor: null })))(url);
     throw new Error(`unexpected request ${url}`);

@@ -436,3 +436,43 @@ export async function saveResponseSettings(changes: ResponseSettingsChanges, ten
     if (!res.ok) throw await failure(res);
     return res.json();
 }
+
+/** GET /api/platform/autonomous-ops/response-settings (83-07): the spread across organizations; the platform organization is not counted. */
+export interface ResponseSettingsDistribution {
+    organizations: number;
+    twoSignal: { on: number; off: number };
+    /** Block length in hours (as text) to the number of organizations using it. */
+    blockHours: Record<string, number>;
+    unreadable: number;
+}
+
+/** GET /api/platform/autonomous-ops/response-settings (Super Admin) */
+export function fetchResponseSettingsDistribution(): Promise<ResponseSettingsDistribution> {
+    return getJson(`${API_BASE}/platform/autonomous-ops/response-settings`);
+}
+
+/** The body of a bulk write. Only the two shared settings travel; `onlyTenants` limits a retry to the organizations that failed. */
+export interface ApplyToAllBody {
+    twoSignal?: boolean;
+    blockHours?: number;
+    onlyTenants?: string[];
+}
+
+export interface ApplyToAllFailure {
+    tenantId: string;
+    name: string;
+    /** A plain sentence; never carries an exception text. */
+    detail: string;
+}
+
+export interface ApplyToAllResult {
+    changed: string[];
+    failures: ApplyToAllFailure[];
+}
+
+/** PUT /api/platform/autonomous-ops/response-settings/bulk: 200 with per-organization failures, 422 when the body names nothing to change. */
+export async function applyResponseSettingsToAll(body: ApplyToAllBody): Promise<ApplyToAllResult> {
+    const res = await authFetch(`${API_BASE}/platform/autonomous-ops/response-settings/bulk`, { method: 'PUT', body: JSON.stringify(body) });
+    if (!res.ok) throw await failure(res);
+    return res.json();
+}
