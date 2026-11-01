@@ -42,6 +42,24 @@ def _mock_db():
     return db
 
 
+@pytest.fixture
+def _vuln_routed_to_patch_package():
+    """D-07: a vulnerability no longer selects a playbook (it is a suggestion only; patching is Phase 84),
+    so the loop's own mechanics (dispatch, verify, timeout, audit) are exercised here by routing the
+    vulnerability finding to the vendored patch_package playbook by hand. TestSuggestionOnlyFindings
+    below pins the real routing."""
+    import remediation_playbook_service as service
+    real = service.select_playbook
+
+    def route(finding, playbooks=None):
+        if getattr(finding, "finding_type", None) == "vuln":
+            return {p["name"]: p for p in (playbooks or service.load_default_playbooks())}.get("patch_package")
+        return real(finding, playbooks)
+
+    with patch("remediation_playbook_service.select_playbook", new=route):
+        yield
+
+
 @pytest.fixture(autouse=True)
 def _no_real_sleep():
     with patch("autonomous_remediation_service.asyncio.sleep", new=AsyncMock(return_value=None)):
@@ -88,6 +106,7 @@ class TestFindingSources:
         assert fim[0].resource_id == "/etc/passwd"
 
 
+@pytest.mark.usefixtures("_vuln_routed_to_patch_package")
 class TestRemediateLoop:
     def _finding(self, finding_type="vuln", **overrides):
         base = dict(
@@ -236,6 +255,27 @@ class TestLegacyLlmPathIsGone:
         assert approvals._DISPATCHERS["remediation"] is service_module._remediation_dispatcher
 
 
+class TestSuggestionOnlyFindings:
+    """D-07 and D-08: neither a vulnerability (with or without a CVE) nor a file-integrity change selects a
+    playbook, so remediate() answers no_playbook and writes nothing to an agent."""
+
+    @pytest.mark.parametrize("finding_type,details", [
+        ("vuln", {"cveId": "CVE-2024-0001", "package": "openssl"}),
+        ("vuln", {"detail": "telnet enabled", "service": "telnet"}),
+        ("fim", {"path": "/etc/passwd", "change_type": "Changed"}),
+    ])
+    async def test_remediate_answers_no_playbook(self, finding_type, details):
+        db = _mock_db()
+        db.agent_instructions.insert_one = AsyncMock()
+        finding = RemediationFinding(finding_id="f-9", finding_type=finding_type, severity="critical", tenant_id="t1",
+                                     agent_id="agent-1", resource_id="asset-1", details=details)
+        with patch("autonomous_remediation_service.get_database", return_value=db):
+            result = await AutonomousRemediationService().remediate(finding)
+        assert result["status"] == "no_playbook"
+        db.agent_instructions.insert_one.assert_not_called()
+
+
+@pytest.mark.usefixtures("_vuln_routed_to_patch_package")
 class TestAppendOnlyAudit:
     async def test_write_audit_inserts_record(self):
         from remediation_audit_service import write_audit

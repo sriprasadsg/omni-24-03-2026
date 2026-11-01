@@ -25,7 +25,8 @@ def test_load_default_playbooks_returns_at_least_six():
     playbooks = load_default_playbooks()
     assert len(playbooks) >= 6
     names = {p["name"] for p in playbooks}
-    assert {"patch_package", "kill_process", "restore_file", "block_ip", "disable_service", "rotate_key"} <= names
+    assert {"patch_package", "kill_process", "restore_file", "block_ip", "disable_service", "rotate_key",
+            "quarantine_file"} <= names
     for p in playbooks:
         assert "name" in p
         assert "finding_class" in p
@@ -39,17 +40,14 @@ def test_select_playbook_for_rotate_key_with_fingerprint():
 
 def test_select_playbook_for_preexisting_secret_finding_without_fingerprint_is_unchanged():
     # This simulates the existing vulnerability_scan.rs::secret_finding() output
-    # which has playbook_ref rotate_key but no fingerprint, and should route to disable_service
+    # which has playbook_ref rotate_key but no fingerprint. D-07: a vulnerability is a suggestion only,
+    # so with no fingerprint it no longer routes to disable_service (or anywhere).
     finding = _Finding("vuln", details={"type": "secret", "playbook_ref": "rotate_key", "affected_path": "/etc/environment", "detail": "Private key material"})
-    playbook = select_playbook(finding)
-    assert playbook is not None
-    assert playbook["name"] == "disable_service"
+    assert select_playbook(finding) is None
 
 def test_select_playbook_for_rotate_key_with_empty_fingerprint_is_unchanged():
     finding = _Finding("vuln", details={"playbook_ref": "rotate_key", "fingerprint": "", "affected_path": "/some/path"})
-    playbook = select_playbook(finding)
-    assert playbook is not None
-    assert playbook["name"] == "disable_service"
+    assert select_playbook(finding) is None            # D-07: no longer disable_service
 
 def test_select_playbook_for_vuln_with_cve_and_rotate_key_selects_rotate_key_first():
     finding = _Finding("vuln", details={"cveId": "CVE-2023-1234", "playbook_ref": "rotate_key", "fingerprint": "SHA256:def"})
@@ -65,24 +63,46 @@ def test_destructive_flag_preserved():
 
 
 def test_select_playbook_for_vuln_finding_with_cve():
+    # D-07: a vulnerability is a suggestion only (patching is Phase 84), so no playbook is selected.
     finding = _Finding("vuln", resource_id="asset-1", details={"cveId": "CVE-2023-1234", "package": "openssl"})
-    playbook = select_playbook(finding)
-    assert playbook is not None
-    assert playbook["name"] == "patch_package"
+    assert select_playbook(finding) is None
 
 
-def test_select_playbook_for_malicious_process_nscan_finding():
-    finding = _Finding("nscan", resource_id="1234", details={"type": "file", "verdict": "Malicious"})
+def test_select_playbook_for_malicious_file_nscan_finding():
+    # D-05: a malicious file is quarantined (moved, never deleted); it used to route to kill_process.
+    finding = _Finding("nscan", resource_id="/tmp/evil.exe", details={"type": "file", "verdict": "Malicious"})
     playbook = select_playbook(finding)
     assert playbook is not None
-    assert playbook["name"] == "kill_process"
+    assert playbook["name"] == "quarantine_file"
+
+
+def test_select_playbook_for_malicious_hash_nscan_finding():
+    finding = _Finding("nscan", resource_id="a" * 64, details={"scan_type": "hash", "verdict": "Malicious"})
+    assert select_playbook(finding)["name"] == "quarantine_file"
 
 
 def test_select_playbook_for_fim_drift_finding():
+    # D-08: a file-integrity change is a suggestion only; the restore route left because the agent
+    # refuses to restore without a backup_path and nothing ever sets one.
     finding = _Finding("fim", resource_id="/etc/passwd", details={"change_type": "modified"})
-    playbook = select_playbook(finding)
-    assert playbook is not None
-    assert playbook["name"] == "restore_file"
+    assert select_playbook(finding) is None
+
+
+def test_the_approval_only_playbooks_stay_vendored_and_registered_as_approval_only():
+    # D-09: restore_file, disable_service and rotate_key stay approval-only.
+    from autonomous_ops import registry
+    names = {p["name"] for p in load_default_playbooks()}
+    assert {"restore_file", "disable_service", "rotate_key", "patch_package", "kill_process"} <= names
+    for command in ("restore_file", "disable_service", "rotate_key", "kill_process"):
+        assert registry.resolve(command).cls == "approve"
+
+
+def test_quarantine_file_is_a_registered_playbook_with_both_actions_mapped():
+    playbook = {p["name"]: p for p in load_default_playbooks()}["quarantine_file"]
+    assert [s["action"] for s in playbook["steps"]] == ["quarantine_file"] and playbook["rollback"] == []
+    assert set(playbook["steps"][0]["params"]) == {"path", "sha256"}
+    assert ACTION_MAP["quarantine_file"] == "quarantine_file" and ACTION_MAP["unquarantine_file"] == "unquarantine_file"
+    assert "gate_class" not in playbook["steps"][0]            # automatic unless a tenant raises it
 
 
 def test_select_playbook_for_ip_nscan_finding():
@@ -94,9 +114,7 @@ def test_select_playbook_for_ip_nscan_finding():
 
 def test_select_playbook_for_vuln_misconfig_finding():
     finding = _Finding("vuln", resource_id="svc-1", details={"package": "telnet"})
-    playbook = select_playbook(finding)
-    assert playbook is not None
-    assert playbook["name"] == "disable_service"
+    assert select_playbook(finding) is None            # D-07
 
 
 def test_select_playbook_unknown_finding_type_returns_none():

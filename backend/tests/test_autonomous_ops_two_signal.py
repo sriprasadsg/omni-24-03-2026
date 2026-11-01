@@ -159,15 +159,20 @@ async def test_one_event_seen_through_its_mirrored_alert_is_still_one_origin(mon
     assert row["command"] == "quarantine_file" and row["params"] == {"path": "/tmp/evil", "sha256": SHA}
 
 
-async def test_a_file_that_two_origins_name_is_left_for_the_quarantine_plan(mongo_db):
-    """File candidates are observed and suggested here; the automatic quarantine decision is plan 83-11."""
+async def test_a_file_that_two_origins_name_is_quarantined_by_the_sweep(mongo_db):
+    """Plan 83-11 (D-05): a file two different origins name, with a known path, is one automatic quarantine.
+    (It was left alone here until that plan.)"""
     from tests.autonomy_support import seed_alert
     await _world(mongo_db)
     await seed_native_verdict(mongo_db, "t1", "host-a1", kind="file", target="/tmp/evil", sha256=SHA,
                               created_at=NOW - timedelta(minutes=5))
     await seed_alert(mongo_db, "t1", "host-a1", sha256=SHA, vt_ratio="9/70", created_at=NOW - timedelta(minutes=5))
     await _tick(mongo_db, NOW)
-    assert await _rows(mongo_db) == [] and await _instructions(mongo_db) == []
+    (row,) = await _rows(mongo_db)
+    assert row["command"] == "quarantine_file" and row["state"] == "dispatching"
+    assert row["params"] == {"path": "/tmp/evil", "sha256": SHA}
+    assert row["reason"]["inputs"]["origins"] == ["native", "virustotal"]
+    assert len(await _instructions(mongo_db)) == 1
     assert await mongo_db.autonomy_signals.count_documents({"kind": "file"}) == 1
 
 

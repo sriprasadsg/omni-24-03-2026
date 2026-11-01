@@ -24,6 +24,12 @@ pytestmark = pytest.mark.asyncio
 
 APPROVER = {"username": "alice", "display": "Alice", "tier": "tenant"}
 
+RAISED_QUARANTINE = {
+    "id": "op-quarantine", "name": "quarantine_file", "finding_class": "nscan", "source": "operator", "tenantId": "t1",
+    "steps": [{"action": "quarantine_file", "params": {"path": "{{finding.resource_id}}", "sha256": "{{finding.details.sha256}}"},
+               "destructive": True, "gate_class": "approve"}],
+    "rollback": []}
+
 
 def _mock_db():
     db = MagicMock()
@@ -103,7 +109,7 @@ class TestApprovalGate:
              patch("autonomous_remediation_service.get_database", return_value=db), \
              patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}):
             svc = AutonomousRemediationService()
-            result = await svc.remediate(_file_finding())  # nscan/file -> kill_process, an approval action
+            result = await svc.remediate(_file_finding())  # nscan/file -> quarantine_file (D-05), forced to a card here
         assert result["status"] == "pending_approval"
         db.agent_instructions.insert_one.assert_not_called()
         db.remediation_requests.insert_one.assert_called_once()
@@ -118,6 +124,9 @@ async def live(mongo_db):  # noqa: F811
     await ledger.ensure_indexes(mongo_db)
     await seed_tenant(mongo_db, "t1", shadow=False)
     await seed_agent(mongo_db, "t1", "a1")
+    # D-05 sends a malicious file to quarantine_file, an automatic action. These tests need an approval card, so
+    # the tenant raises that playbook with gate_class (GATE-04: a playbook may raise a class, never lower it).
+    await mongo_db.remediation_playbooks.insert_one(RAISED_QUARANTINE)
     with patch("autonomous_remediation_service.get_database", return_value=mongo_db), \
          patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
          patch("soc_integration_service.push_ocsf_event", new=AsyncMock()):
@@ -125,7 +134,7 @@ async def live(mongo_db):  # noqa: F811
 
 
 async def _card(live, finding=None):
-    """remediate() a kill_process finding to a pending card; (service, remediation_id, ledger row)."""
+    """remediate() a raised quarantine_file finding to a pending card; (service, remediation_id, ledger row)."""
     svc = AutonomousRemediationService()
     pending = await svc.remediate(finding or _file_finding())
     assert pending["status"] == "pending_approval", pending
@@ -146,7 +155,7 @@ class TestApprovalThroughTheLedger:
 
         assert out["status"] == "resolved" and out["remediation_id"] == rid
         docs = await _instructions(live)
-        assert [d["type"] for d in docs] == ["kill_process", "scan_file"]
+        assert [d["type"] for d in docs] == ["quarantine_file", "scan_file"]
         assert [d["autonomy"]["kind"] for d in docs] == ["action", "probe"]
         for d in docs:
             assert d["triggered_by"] == "autonomous_ops" and d["type"] in registry.commands()
@@ -231,7 +240,7 @@ class TestLedgerFollowsTheAuditPoints:
         with agent_that_completes("Malicious"):
             out = await svc.approve_remediation(rid, "t1", APPROVER)
         assert out["status"] == "failed" and out.get("escalated") is True
-        assert [d["type"] for d in await _instructions(live)] == ["kill_process", "scan_file"]
+        assert [d["type"] for d in await _instructions(live)] == ["quarantine_file", "scan_file"]
         assert (await live.autonomy_actions.find_one({"id": row["id"]}))["state"] == "failed"
         assert await live.alerts.count_documents({"type": "REMEDIATION_ESCALATION"}) == 1
 

@@ -459,18 +459,31 @@ def _findings():
     return {
         "block_ip": RemediationFinding(finding_id="n-ip", finding_type="nscan", resource_id="203.0.113.7",
                                        details={"type": "ip", "verdict": "Malicious"}, **base),
-        "kill_process": RemediationFinding(finding_id="n-file", finding_type="nscan", resource_id="/tmp/evil.exe",
-                                           details={"type": "file", "verdict": "Malicious"}, **base),
-        "patch_package": RemediationFinding(finding_id="v-cve", finding_type="vuln", resource_id="asset-1",
-                                            details={"cveId": "CVE-2024-0001", "package": "openssl"}, **base),
-        "disable_service": RemediationFinding(finding_id="v-mis", finding_type="vuln", resource_id="asset-1",
-                                              details={"detail": "telnet enabled", "service": "telnet"}, **base),
-        "restore_file": RemediationFinding(finding_id="fim-1", finding_type="fim", resource_id="/etc/passwd",
-                                           details={"path": "/etc/passwd", "change_type": "Changed"}, **base),
+        # D-05: a malicious file is quarantined; kill_process is now reached by the shadow-AI anomaly only.
+        "quarantine_file": RemediationFinding(finding_id="n-file", finding_type="nscan", resource_id="/tmp/evil.exe",
+                                              details={"type": "file", "verdict": "Malicious"}, **base),
+        "kill_process": RemediationFinding(finding_id="ueba-1", finding_type="anomaly", resource_id="ollama.exe",
+                                           details={"anomaly_rule": "shadow_ai_detected"}, **base),
         "rotate_key": RemediationFinding(finding_id="v-key", finding_type="vuln", resource_id="asset-1",
                                          details={"playbook_ref": "rotate_key", "fingerprint": "SHA256:abc",
                                                   "affected_path": "/home/u/.ssh/authorized_keys"}, **base),
     }
+
+
+# Vendored playbooks no finding selects any more (D-07, D-08, D-09): they stay vendored for operators.
+NOT_SELECTED = {"patch_package", "disable_service", "restore_file"}
+
+
+def _not_selected_findings():
+    base = dict(severity="critical", tenant_id="t1", agent_id="a1")
+    return [
+        RemediationFinding(finding_id="v-cve", finding_type="vuln", resource_id="asset-1",
+                           details={"cveId": "CVE-2024-0001", "package": "openssl"}, **base),
+        RemediationFinding(finding_id="v-mis", finding_type="vuln", resource_id="asset-1",
+                           details={"detail": "telnet enabled", "service": "telnet"}, **base),
+        RemediationFinding(finding_id="fim-1", finding_type="fim", resource_id="/etc/passwd",
+                           details={"path": "/etc/passwd", "change_type": "Changed"}, **base),
+    ]
 
 
 def test_the_findings_cover_every_vendored_playbook():
@@ -478,7 +491,9 @@ def test_the_findings_cover_every_vendored_playbook():
     playbooks = load_default_playbooks()
     selected = {name: (select_playbook(f, playbooks) or {}).get("name") for name, f in _findings().items()}
     assert selected == {name: name for name in selected}, selected
-    assert set(selected) == {p["name"] for p in playbooks}, "a vendored playbook has no finding in this test"
+    assert set(selected) | NOT_SELECTED == {p["name"] for p in playbooks}, "a vendored playbook has no finding in this test"
+    assert not set(selected) & NOT_SELECTED
+    assert [select_playbook(f, playbooks) for f in _not_selected_findings()] == [None, None, None]
 
 
 def test_the_remediation_service_has_one_shadow_reader_and_no_override(sources):
@@ -499,6 +514,9 @@ def test_the_remediation_service_has_one_shadow_reader_and_no_override(sources):
     assert "master_shadow" in [k.arg for k in control.keywords]
 
 
+AUTOMATIC = ("block_ip", "quarantine_file")          # the locked automatic split (GATE-04)
+
+
 @pytest.fixture
 async def live(mongo_db):  # noqa: F811
     protected.cache_clear()
@@ -512,8 +530,7 @@ async def live(mongo_db):  # noqa: F811
         yield mongo_db
 
 
-@pytest.mark.parametrize("playbook", ["block_ip", "kill_process", "patch_package", "disable_service",
-                                      "restore_file", "rotate_key"])
+@pytest.mark.parametrize("playbook", ["block_ip", "quarantine_file", "kill_process", "rotate_key"])
 async def test_only_registry_actions_reach_the_queue(live, playbook):
     """remediate() then (for a card) approvals.approve: whatever the playbook, the agent queue only
     ever receives stamped registry commands, never a script."""
@@ -523,10 +540,10 @@ async def test_only_registry_actions_reach_the_queue(live, playbook):
     with agent_that_completes("Clean"):
         result = await svc.remediate(finding)
         if result["status"] == "pending_approval":
-            assert playbook != "block_ip", "the locked automatic action asked for a card"
+            assert playbook not in AUTOMATIC, "a locked automatic action asked for a card"
             result = await svc.approve_remediation(result["remediation_id"], "t1", approver)
         else:
-            assert playbook == "block_ip", f"{playbook} dispatched without a card: {result}"
+            assert playbook in AUTOMATIC, f"{playbook} dispatched without a card: {result}"
 
     docs = [d async for d in live.agent_instructions.find({})]
     assert docs, f"{playbook} wrote no instruction at all: {result}"
