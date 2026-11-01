@@ -14,8 +14,13 @@
 //! hyphens, and an address or network that must never be blocked (`net_safety::refuse_reason`: not
 //! on the public internet, too wide, the platform, the gateway, a DNS server). A network goes in
 //! `cidr` and is one rule under the same claim rules; the token `block_ip_range` says so.
+//!
+//! `isolate_host` and `restore_host` change the host's whole network, so they run off the poll
+//! loop: the instruction answers `accepted`, and `isolation` posts the final body to the same
+//! result route under the same task id (see `background_arm`).
 
 use crate::capabilities::firewall::{self, Os, Target};
+use crate::capabilities::isolation;
 use crate::capabilities::net_safety;
 use crate::capabilities::process_kill;
 use crate::capabilities::quarantine;
@@ -26,8 +31,10 @@ use serde_json::{json, Value};
 
 /// The feature tokens this build reports in every heartbeat (`meta.response_actions.tokens`).
 /// The backend acts on an agent only when the token for the command is in this list.
-pub const SUPPORTED_TOKENS: &[&str] =
-    &["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe"];
+pub const SUPPORTED_TOKENS: &[&str] = &[
+    "block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe",
+    "isolate_host", "restore_host",
+];
 pub const BLOCK_TTL_MIN: i64 = 3_600;
 pub const BLOCK_TTL_MAX: i64 = 604_800;
 pub const BLOCK_TTL_DEFAULT: i64 = 86_400;
@@ -36,7 +43,10 @@ const SUPPORT_REPORT_VERSION: u32 = 1;
 
 /// True for the commands this module answers.
 pub fn handles(action: &str) -> bool {
-    matches!(action, "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file" | "kill_process")
+    matches!(
+        action,
+        "block_ip" | "unblock_ip" | "quarantine_file" | "unquarantine_file" | "kill_process" | "isolate_host" | "restore_host"
+    )
 }
 
 /// What the heartbeat carries as `meta.response_actions`: which platform this is and which
@@ -61,14 +71,62 @@ pub fn spawn_sweeper(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
 }
 
 /// Answer one response instruction. Never panics; every failure is a result body.
-pub async fn handle(action: &str, item: &Value, cfg: &Config, _client: &reqwest::Client) -> Value {
+pub async fn handle(action: &str, item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
     match action {
+        "isolate_host" | "restore_host" => return background_arm(action, item, cfg, client),
         "quarantine_file" => return quarantine_arm(item).await,
         "unquarantine_file" => return unquarantine_arm(item).await,
         "kill_process" => return kill_arm(item).await,
         _ => {}
     }
     handle_at(action, item, cfg, Os::current(), &Store::default(), now_epoch())
+}
+
+/// How long the final isolation body waits, so the `accepted` answer is posted first and the
+/// final body is the last word the platform hears for the task.
+const ACCEPTED_HEAD_START: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// `isolate_host` / `restore_host`: check the input, answer `accepted`, and do the work on a
+/// blocking thread. The final body is posted with the same task id as the `accepted` one.
+fn background_arm(action: &str, item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
+    let Some(os) = Os::current() else {
+        return refused("This platform does not support isolating a host.");
+    };
+    let Some(task_id) = item.get("task_id").and_then(Value::as_str).filter(|id| valid_id(id)).map(str::to_string) else {
+        return refused("The instruction id is missing or not valid.");
+    };
+    let restoring = action == "restore_host";
+    let id = if restoring {
+        match param(item, "isolation_id").and_then(Value::as_str).filter(|id| valid_id(id)) {
+            Some(id) => id.to_string(),
+            None => return refused("isolation_id is required."),
+        }
+    } else {
+        if !isolation::platform_has_host(cfg) {
+            return refused("The platform address has no host, so no way to it can be kept open and the host is not isolated.");
+        }
+        task_id.clone()
+    };
+    let (cfg, client, action) = (cfg.clone(), client.clone(), action.to_string());
+    tokio::spawn(async move {
+        tokio::time::sleep(ACCEPTED_HEAD_START).await;
+        let work = {
+            let cfg = cfg.clone();
+            move || {
+                let store = Store::default();
+                if restoring {
+                    isolation::restore(&store, os, &id, now_epoch())
+                } else {
+                    isolation::apply(&store, os, &cfg, &id, now_epoch(), &isolation::tcp_self_test)
+                }
+            }
+        };
+        let body = tokio::task::spawn_blocking(work)
+            .await
+            .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The isolation task stopped unexpectedly.".into())));
+        crate::instructions::report_result(&client, &cfg, &task_id, &action, &body).await;
+    });
+    json!({"status": "accepted"})
 }
 
 /// Move a flagged file into quarantine. The process list is read just before the move so the
@@ -161,11 +219,11 @@ pub(crate) fn handle_at(
     }
 }
 
-fn refused(why: &str) -> Value {
+pub(crate) fn refused(why: &str) -> Value {
     json!({"status": "error", "outcome": "refused", "error": why})
 }
 
-fn failed(err: RemediationError) -> Value {
+pub(crate) fn failed(err: RemediationError) -> Value {
     // A security product stopped the command: its own outcome, and nothing retries it.
     if matches!(err, RemediationError::BlockedByLocalSecurity(_)) {
         return json!({"status": "error", "outcome": "blocked_by_local_security", "error": err.to_string()});

@@ -152,9 +152,9 @@ fn a_changed_example_body_is_noticed() {
 fn support_names_the_platform_and_holds_the_ttl_token() {
     let report = support_report_for(Some(Os::Windows));
     assert_eq!(report["platform"], "windows");
-    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe"]));
+    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "isolate_host", "restore_host"]));
     assert_eq!(report["v"], 1);
-    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe"]));
+    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "isolate_host", "restore_host"]));
 }
 
 #[test]
@@ -228,4 +228,27 @@ fn the_kill_and_quarantine_outcomes_and_checks_are_all_in_the_contract() {
     assert_eq!(c["commandToken"]["kill_process"], "kill_process_exe");
     assert_eq!(c["commandToken"]["quarantine_file"], "quarantine_file");
     assert_eq!(c["commandToken"]["unquarantine_file"], "unquarantine_file");
+}
+
+#[test]
+fn the_isolation_tokens_outcomes_checks_and_revert_time_match_the_contract() {
+    use crate::capabilities::isolation_plan::REVERT_SECONDS;
+    let Some(c) = contract() else { return };
+    let list = |key: &str| -> Vec<String> {
+        c[key].as_array().unwrap().iter().filter_map(Value::as_str).map(str::to_string).collect()
+    };
+    let (tokens, outcomes, checks) = (list("tokens"), list("outcomes"), list("checks"));
+    for token in ["isolate_host", "restore_host"] {
+        assert!(SUPPORTED_TOKENS.contains(&token) && tokens.iter().any(|t| t == token), "{token}");
+        assert_eq!(c["commandToken"][token], token);
+    }
+    assert_eq!(c["isolationRevertSeconds"], REVERT_SECONDS);
+    for outcome in ["isolated", "already_applied", "self_test_failed", "not_effective", "restored", "not_found"] {
+        assert!(outcomes.iter().any(|o| o == outcome), "{outcome}");
+    }
+    for check in ["management_connection_open", "network_restored"] {
+        assert!(checks.iter().any(|k| k == check), "{check}");
+    }
+    assert!(crate::capabilities::response_actions::handles("isolate_host"));
+    assert!(crate::capabilities::response_actions::handles("restore_host"));
 }

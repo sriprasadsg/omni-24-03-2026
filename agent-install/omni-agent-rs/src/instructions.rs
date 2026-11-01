@@ -77,6 +77,18 @@ async fn execute_instruction(
         None => return,
     };
 
+    report_result(client, cfg, task_id, action, &result).await;
+}
+
+/// Post one instruction's result to the platform. A command that finishes later than its
+/// poll (isolation) calls this a second time with the same `task_id`.
+pub(crate) async fn report_result(
+    client: &reqwest::Client,
+    cfg: &Config,
+    task_id: &str,
+    action: &str,
+    result: &Value,
+) {
     let report_url = format!(
         "{}/api/agents/{}/instructions/result",
         cfg.api_base_url.trim_end_matches('/'),

@@ -117,6 +117,7 @@ pub(super) fn contract() -> Option<Value> {
 fn ordering_every_allow_command_comes_before_the_first_block_command_on_both_systems() {
     for os in [Os::Linux, Os::Windows] {
         let (_d, store) = fresh();
+        with_recorder(|r| r.clear_calls());
         match os {
             Os::Linux => script_linux_apply(),
             Os::Windows => script_windows_apply(BLOCKED),
@@ -130,7 +131,8 @@ fn ordering_every_allow_command_comes_before_the_first_block_command_on_both_sys
         // The checks that the rules exist sit between the last allow and the first block.
         let between = &got[last_allow + 1..first_block];
         let expected = if os == Os::Linux { LINUX_ALLOW } else { 4 };
-        let checks = between.iter().filter(|l| l.contains(" -C ") || l.contains("show rule")).count();
+        let is_check = |l: &&String| (l.contains(" -C ") || l.contains(" -n -L ") || l.contains("show rule")) && !l.ends_with("DROP");
+        let checks = between.iter().filter(is_check).count();
         assert_eq!(checks, expected, "{os:?}: {between:#?}");
     }
 }

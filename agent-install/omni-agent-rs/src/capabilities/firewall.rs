@@ -65,17 +65,17 @@ pub struct Cmd {
 }
 
 impl Cmd {
-    fn new(program: &'static str, args: &[&str]) -> Cmd {
+    pub(crate) fn new(program: &'static str, args: &[&str]) -> Cmd {
         Cmd { program, args: args.iter().map(|a| a.to_string()).collect() }
     }
 
-    fn run(&self) -> Result<(), RemediationError> {
+    pub(crate) fn run(&self) -> Result<(), RemediationError> {
         let args: Vec<&str> = self.args.iter().map(String::as_str).collect();
         privileged::run(self.program, &args)
     }
 
     /// True when the command exits 0 and, for `netsh show rule`, does not say nothing matched.
-    fn passes(&self) -> bool {
+    pub(crate) fn passes(&self) -> bool {
         let args: Vec<&str> = self.args.iter().map(String::as_str).collect();
         match privileged::run_output(self.program, &args) {
             Ok(out) => !out.contains("No rules match"),
