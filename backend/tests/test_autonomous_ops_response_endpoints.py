@@ -20,12 +20,14 @@ import pytest
 from autonomous_ops import PLATFORM_TENANT_ID, ledger, response_messages, response_settings
 from tests._autonomous_ops_http import PLATFORM, _case, _env, _probe, api  # noqa: F401  (fixtures)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.autonomy_support import seed_tenant
 
 pytestmark = pytest.mark.real_agent_capabilities       # restartAvailable reads the tenant's real capability list
 
 ALL_SCOPES = ["view:autonomous_ops", "manage:autonomous_ops", "control:autonomous_ops",
               "control:platform_autonomous_ops"]
 PATH = "/api/autonomous-ops/response-settings"
+PLAT = "/api/platform/autonomous-ops/response-settings"
 
 
 async def _controls(db, tenant, event=None):
@@ -200,6 +202,93 @@ async def test_the_platform_organization_is_refused_by_save(mongo_db):
     assert await mongo_db.autonomy_settings.find_one({"tenantId": PLATFORM_TENANT_ID}) is None
 
 
+# ================================================================== platform routes
+
+async def test_distribution_counts_every_organization_but_the_platform_one(api):
+    await seed_tenant(api.db, PLATFORM_TENANT_ID, name="Platform")
+    await api.call("PUT", PATH, role="tenant_admin", json={"twoSignal": False, "blockHours": 12})
+    got = await api.call("GET", PLAT, role="super_admin")
+    assert got.status_code == 200
+    body = got.json()
+    assert body["organizations"] == 2 and body["twoSignal"] == {"on": 1, "off": 1}
+    assert body["blockHours"] == {"12": 1, "24": 1}
+
+
+async def test_bulk_writes_each_organization_with_its_own_rows(api):
+    """protects=D-04 / D-13 (bulk = a write to each tenant's own setting); fails_when=the platform
+    organization changes, an organization lacks its own control row, or the change is not per tenant."""
+    await seed_tenant(api.db, PLATFORM_TENANT_ID, name="Platform")
+    done = await api.call("PUT", PLAT + "/bulk", role="super_admin", username="root@example.test",
+                          json={"twoSignal": False, "blockHours": 6})
+    assert done.status_code == 200
+    assert done.json() == {"changed": ["t1", "t2"], "failures": []}
+    for tenant in ("t1", "t2"):
+        assert await _stored(api.db, tenant) == {"twoSignal": False, "blockHours": 6}
+        rows = await _controls(api.db, tenant, "two_signal_off")
+        assert len(rows) == 1 and rows[0]["actor"]["username"] == "root@example.test"
+        assert rows[0]["scope"] == "platform"
+        assert len(await _controls(api.db, tenant, "block_length_changed")) == 1
+        assert "autonomous_ops.two_signal_off" in await _audit_actions(api.db, tenant)
+    assert await _stored(api.db, PLATFORM_TENANT_ID) is None
+    assert await _controls(api.db, PLATFORM_TENANT_ID) == []
+    # an organization's own administrator can change it back, and there is one value to read
+    back = await api.call("PUT", PATH, role="tenant_admin", json={"twoSignal": True})
+    assert back.status_code == 200 and back.json()["twoSignal"] is True and back.json()["blockHours"] == 6
+    again = await api.call("PUT", PLAT + "/bulk", role="super_admin", json={"twoSignal": False, "blockHours": 6})
+    assert again.json()["changed"] == ["t1", "t2"]
+    assert len(await _controls(api.db, "t2", "two_signal_off")) == 1          # t2 was already off: no second row
+    assert len(await _controls(api.db, "t1", "two_signal_off")) == 2
+
+
+async def test_one_failing_organization_does_not_stop_the_others_and_a_retry_sends_only_it(api):
+    """protects=the partial-failure contract of UI-SPEC section 7; fails_when=a failure aborts the rest,
+    is not listed, or the retry rewrites the organizations that already changed."""
+    real = response_settings.save
+
+    async def flaky(db, tenant_id, changes, **kw):
+        if tenant_id == "t1":
+            raise RuntimeError("boom")
+        return await real(db, tenant_id, changes, **kw)
+    with patch.object(response_settings, "save", flaky):
+        got = await api.call("PUT", PLAT + "/bulk", role="super_admin", json={"blockHours": 48})
+    assert got.status_code == 200
+    body = got.json()
+    assert body["changed"] == ["t2"]
+    assert [(f["tenantId"], f["name"]) for f in body["failures"]] == [("t1", "T1")]
+    assert "boom" not in str(body)
+    assert await _stored(api.db, "t1") is None and (await _stored(api.db, "t2"))["blockHours"] == 48
+
+    retry = await api.call("PUT", PLAT + "/bulk", role="super_admin",
+                           json={"blockHours": 48, "onlyTenants": ["t1"]})
+    assert retry.json() == {"changed": ["t1"], "failures": []}
+    assert len(await _controls(api.db, "t2", "block_length_changed")) == 1
+    assert len(await _controls(api.db, "t1", "block_length_changed")) == 1
+
+    missing = await api.call("PUT", PLAT + "/bulk", role="super_admin",
+                             json={"blockHours": 24, "onlyTenants": ["t2", "gone"]})
+    assert missing.json()["changed"] == ["t2"] and [f["tenantId"] for f in missing.json()["failures"]] == ["gone"]
+    refused = await api.call("PUT", PLAT + "/bulk", role="super_admin",
+                             json={"blockHours": 24, "onlyTenants": [PLATFORM_TENANT_ID]})
+    assert refused.status_code == 409
+
+
+async def test_bulk_refuses_empty_bad_and_service_bodies(api):
+    for body in ({}, {"onlyTenants": ["t1"]}, {"blockHours": 0}, {"blockHours": 169}, {"twoSignal": "no"},
+                 {"watchedServices": ["nginx"]}, {"twoSignal": False, "watchedServices": ["nginx"]}):
+        assert (await api.call("PUT", PLAT + "/bulk", role="super_admin", json=body)).status_code == 422, body
+    assert await _stored(api.db, "t1") is None and await _controls(api.db, "t1") == []
+
+
+async def test_platform_routes_refuse_everyone_but_the_super_admin(api):
+    for role in ("tenant_admin", "platform_support", "security_analyst", "platform_billing"):
+        assert (await api.call("GET", PLAT, role=role)).status_code == 403, role
+        assert (await api.call("PUT", PLAT + "/bulk", role=role, json={"blockHours": 6})).status_code == 403, role
+    assert (await api.call("GET", PLAT, role="super_admin", auth="api_key", scopes=ALL_SCOPES)).status_code == 403
+    assert (await api.call("PUT", PLAT + "/bulk", role="super_admin", auth="api_key", scopes=ALL_SCOPES,
+                           json={"blockHours": 6})).status_code == 403
+    assert await _controls(api.db, "t1") == []
+
+
 # ================================================================== the full app (guards as shipped)
 
 def test_the_role_matrix_on_the_real_app():
@@ -217,7 +306,15 @@ def test_the_role_matrix_on_the_real_app():
            for method in ("GET", "PUT")]
         + [_case(PATH, "tenant_admin", method=method, **tenant_key) for method in ("GET", "PUT")]
         + [_case(PATH + "?tenantId=t1", "super_admin", method=method, **tenant_key) for method in ("GET", "PUT")],
+        "platform_allowed": [_case(PLAT, "super_admin"), _case(PLAT + "/bulk", "super_admin", method="PUT")],
+        "platform_denied": [_case(path, role, method=method) for role in
+                            ("tenant_admin", "security_analyst", "platform_support", "platform_billing")
+                            for path, method in ((PLAT, "GET"), (PLAT + "/bulk", "PUT"))]
+        + [_case(path, "super_admin", method=method, **tenant_key)
+           for path, method in ((PLAT, "GET"), (PLAT + "/bulk", "PUT"))],
     }
     got = _probe(groups)
     assert all(code in (200, 422, 503) for code in got["tenant_allowed"]), got["tenant_allowed"]
     assert all(code == 403 for code in got["tenant_denied"]), got["tenant_denied"]
+    assert all(code in (200, 422, 503) for code in got["platform_allowed"]), got["platform_allowed"]
+    assert all(code == 403 for code in got["platform_denied"]), got["platform_denied"]

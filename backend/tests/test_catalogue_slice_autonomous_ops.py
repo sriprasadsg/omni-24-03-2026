@@ -59,6 +59,7 @@ def test_tenant_router_is_required():
 def test_response_settings_routers_are_required():
     import router_registry
     assert "autonomous_ops_response_endpoints" in router_registry._REQUIRED_ROUTERS
+    assert "autonomous_ops_response_platform_endpoints" in router_registry._REQUIRED_ROUTERS
 
 
 def test_platform_router_is_mounted_required_and_permission_checked():
@@ -72,8 +73,11 @@ def test_platform_router_is_mounted_required_and_permission_checked():
         ("PUT", "/api/platform/autonomous-ops/tenants/{tenant_id}/max-level"),
         ("PUT", "/api/platform/autonomous-ops/tenants/{tenant_id}/shadow"),
         ("GET", "/api/platform/autonomous-ops/retention/review"),
-        ("POST", "/api/platform/autonomous-ops/retention/confirm")}
+        ("POST", "/api/platform/autonomous-ops/retention/confirm"),
+        ("GET", "/api/platform/autonomous-ops/response-settings"),
+        ("PUT", "/api/platform/autonomous-ops/response-settings/bulk")}
     for record in platform:
         assert record["auth"] == "user", record
         assert record["known_guard"], record      # a _require_* dependency on every platform route
-        assert record["module"] in ("autonomous_ops_platform_endpoints", "autonomous_ops_retention_endpoints")
+        assert record["module"] in ("autonomous_ops_platform_endpoints", "autonomous_ops_retention_endpoints",
+                                    "autonomous_ops_response_platform_endpoints")
