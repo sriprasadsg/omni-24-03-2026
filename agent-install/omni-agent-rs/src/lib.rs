@@ -40,6 +40,9 @@ pub async fn agent_loop(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
             Err(e) => log::warn!("Could not save the carried-over enrollment: {e}"),
         }
     }
+    // Blocks end on their own: this reads only response_state.json and the local firewall, so it
+    // starts before any registration or network call and a host with no route still expires them.
+    crate::capabilities::response_actions::spawn_sweeper(stop_rx.clone());
     let interval = std::time::Duration::from_secs(cfg.interval_seconds);
     log::info!(
         "Omni Agent v2.0 starting — interval {}s, host {}",

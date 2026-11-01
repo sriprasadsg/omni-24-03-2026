@@ -1,20 +1,98 @@
 //! The independent task that ends blocks on time.
+//!
+//! It reads only `response_state.json` and the local firewall, so a host with no token, no route
+//! or an unreachable platform still removes its blocks when they run out. It runs one start-up
+//! pass (on Linux that also puts back the rules a reboot lost) and then an expiry pass every 15
+//! seconds. A pass that panics is logged and the loop carries on. Nothing here talks to the
+//! backend: an expiry changes nothing there (D-14).
 
 use crate::capabilities::firewall::Os;
-use crate::capabilities::response_state::Store;
-use std::sync::atomic::AtomicBool;
+use crate::capabilities::response_state::{expire_due, reapply_live, start_up, Store};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::watch::Receiver;
 
 /// How often the sweeper looks at the claims.
 pub const PERIOD: Duration = Duration::from_secs(15);
 
-/// One pass.
-pub(crate) fn sweep(_store: &Store, _os: Os, _now: i64, _first: bool, _pending: &AtomicBool) {}
+/// Start the sweeper. Call it once, before registration or any network call. A platform with no
+/// firewall plan starts nothing.
+pub fn spawn(stop_rx: Option<Receiver<bool>>) {
+    let Some(os) = Os::current() else { return };
+    let store = Store::default();
+    let pending = AtomicBool::new(false);
+    let pass = Arc::new(move |first: bool| {
+        sweep(&store, os, crate::capabilities::response_actions::now_epoch(), first, &pending)
+    });
+    tokio::spawn(run(stop_rx, PERIOD, pass));
+}
 
-pub(crate) async fn run<F>(_stop: Option<tokio::sync::watch::Receiver<bool>>, _period: Duration, _pass: std::sync::Arc<F>)
+/// One pass. `first` is the start-up pass. When a start-up re-apply failed (the firewall may not
+/// be ready early in boot) it is tried again on each later pass until it works, so a block that a
+/// reboot lost is not forgotten.
+pub(crate) fn sweep(store: &Store, os: Os, now: i64, first: bool, pending: &AtomicBool) {
+    if first {
+        let report = start_up(store, os, now);
+        log_report("start-up", &report);
+        pending.store(os == Os::Linux && !report.failed.is_empty(), Ordering::SeqCst);
+        return;
+    }
+    let report = expire_due(store, os, now);
+    log_report("expiry", &report);
+    if pending.load(Ordering::SeqCst) {
+        let again = reapply_live(store, os, now);
+        log_report("re-apply", &again);
+        pending.store(!again.failed.is_empty() || again.error.is_some(), Ordering::SeqCst);
+    }
+}
+
+fn log_report(what: &str, r: &crate::capabilities::response_state::PassReport) {
+    if r.removed.is_empty() && r.reapplied.is_empty() && r.dropped == 0 {
+        return;
+    }
+    log::info!(
+        "Response {what} pass: {} block(s) ended, {} rule(s) put back, {} claim(s) forgotten",
+        r.removed.len(),
+        r.reapplied.len(),
+        r.dropped
+    );
+}
+
+pub(crate) async fn run<F>(mut stop: Option<Receiver<bool>>, period: Duration, pass: Arc<F>)
 where
     F: Fn(bool) + Send + Sync + 'static,
 {
+    let mut tick = tokio::time::interval(period);
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut first = true;
+    loop {
+        tokio::select! {
+            _ = tick.tick() => {}
+            _ = stopped(&mut stop) => return,
+        }
+        let (p, is_first) = (pass.clone(), first);
+        // spawn_blocking: the file and firewall work must not hold up the async runtime, and a
+        // panic comes back as an error here instead of ending the loop.
+        match tokio::task::spawn_blocking(move || p(is_first)).await {
+            Ok(()) => first = false,
+            Err(e) => log::error!("A response sweeper pass failed and will be tried again: {e}"),
+        }
+    }
+}
+
+async fn stopped(stop: &mut Option<Receiver<bool>>) {
+    match stop {
+        None => std::future::pending::<()>().await,
+        Some(rx) => loop {
+            if *rx.borrow() {
+                return;
+            }
+            if rx.changed().await.is_err() {
+                std::future::pending::<()>().await;
+            }
+        },
+    }
 }
 
 #[cfg(test)]

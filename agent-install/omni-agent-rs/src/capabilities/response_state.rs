@@ -238,19 +238,93 @@ pub struct PassReport {
     pub error: Option<String>,
 }
 
-/// Remove what has expired.
-pub fn expire_due(_store: &Store, _os: Os, _now: i64) -> PassReport {
-    PassReport::default()
+/// Run one pass under the state lock. A state file that cannot be used is logged and reported,
+/// and nothing is changed.
+fn run_pass(store: &Store, what: &str, change: impl FnOnce(&mut ResponseState, &mut PassReport)) -> PassReport {
+    let mut report = PassReport::default();
+    if let Err(e) = store.update(|state| change(state, &mut report)) {
+        log::error!("Response {what} pass skipped: {e}");
+        report.error = Some(e.to_string());
+    }
+    report
 }
 
-/// Put the rules of unexpired claims back.
-pub fn reapply_live(_store: &Store, _os: Os, _now: i64) -> PassReport {
-    PassReport::default()
+fn address_of(target: &str) -> Option<std::net::IpAddr> {
+    target.parse::<std::net::IpAddr>().ok()
 }
 
-/// The pass at start-up.
-pub fn start_up(_store: &Store, _os: Os, _now: i64) -> PassReport {
-    PassReport::default()
+/// The targets in `state` that match `wanted`, each once, in file order.
+fn targets_where(state: &ResponseState, wanted: impl Fn(&Claim) -> bool) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for claim in state.claims.iter().filter(|c| wanted(c)) {
+        if !out.contains(&claim.target) {
+            out.push(claim.target.clone());
+        }
+    }
+    out
+}
+
+/// Take out the rule of every address whose last claim has run out, and forget the expired claims.
+/// A claim whose removal failed stays, so the next pass tries again; an address that another
+/// unexpired claim still holds keeps its rule. A claim expires when `expires_at <= now`.
+pub fn expire_due(store: &Store, os: Os, now: i64) -> PassReport {
+    run_pass(store, "expiry", |state, report| {
+        for target in targets_where(state, |c| c.expires_at <= now) {
+            let Some(ip) = address_of(&target) else {
+                log::warn!("Dropping a block claim whose target {target:?} is not an address");
+                report.dropped += state.drop_expired(&target, now);
+                continue;
+            };
+            if state.live_for(&target, now) > 0 {
+                report.dropped += state.drop_expired(&target, now);
+                continue;
+            }
+            match crate::capabilities::firewall::remove_block(os, ip) {
+                Ok(_) => {
+                    report.dropped += state.drop_expired(&target, now);
+                    report.removed.push(target);
+                }
+                Err(e) => {
+                    log::warn!("Could not remove the block on {target}, will retry: {e}");
+                    report.failed.push(target);
+                }
+            }
+        }
+    })
+}
+
+/// Put the rules of unexpired claims back. Linux loses its rules on reboot; Windows keeps them,
+/// so there this does nothing. Safe to repeat: a rule that is there is not added twice.
+pub fn reapply_live(store: &Store, os: Os, now: i64) -> PassReport {
+    run_pass(store, "re-apply", |state, report| {
+        if os != Os::Linux {
+            return;
+        }
+        for target in targets_where(state, |c| c.expires_at > now) {
+            let Some(ip) = address_of(&target) else { continue };
+            match crate::capabilities::firewall::apply_block(os, ip) {
+                Ok(()) => report.reapplied.push(target),
+                Err(e) => {
+                    log::warn!("Could not put the block on {target} back: {e}");
+                    report.failed.push(target);
+                }
+            }
+        }
+    })
+}
+
+/// The pass at start-up: drop what expired while the agent was away, then put back what is still
+/// owed (Linux only).
+pub fn start_up(store: &Store, os: Os, now: i64) -> PassReport {
+    let mut report = expire_due(store, os, now);
+    if report.error.is_some() {
+        return report;
+    }
+    let again = reapply_live(store, os, now);
+    report.reapplied = again.reapplied;
+    report.failed.extend(again.failed);
+    report.error = again.error;
+    report
 }
 
 #[cfg(test)]

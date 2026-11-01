@@ -49,12 +49,18 @@ pub(crate) fn support_report_for(os: Option<Os>) -> Value {
     })
 }
 
+/// Start the task that ends blocks on time: a start-up pass, then one every 15 seconds. It needs
+/// nothing from the platform, so call it before registration.
+pub fn spawn_sweeper(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
+    crate::capabilities::response_sweeper::spawn(stop_rx);
+}
+
 /// Answer one response instruction. Never panics; every failure is a result body.
 pub async fn handle(action: &str, item: &Value, cfg: &Config, _client: &reqwest::Client) -> Value {
     handle_at(action, item, cfg, Os::current(), &Store::default(), now_epoch())
 }
 
-fn now_epoch() -> i64 {
+pub(crate) fn now_epoch() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
