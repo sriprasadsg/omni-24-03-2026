@@ -65,7 +65,8 @@ pub(crate) fn support_report_for(os: Option<Os>) -> Value {
 }
 
 /// Start the task that ends blocks on time: a start-up pass, then one every 15 seconds. It needs
-/// nothing from the platform, so call it before registration.
+/// nothing from the platform, so call it before registration. The same passes end an isolation
+/// whose revert time has come (`isolation::revert_due`, called from `response_sweeper`).
 pub fn spawn_sweeper(stop_rx: Option<tokio::sync::watch::Receiver<bool>>) {
     crate::capabilities::response_sweeper::spawn(stop_rx);
 }
