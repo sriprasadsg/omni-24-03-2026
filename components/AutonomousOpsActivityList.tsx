@@ -6,13 +6,16 @@ import {
 import { STATUS_POLL_MS, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { HealthChip } from './AutonomousOpsHealthChips';
 import {
+    OpenViewHandlers, ResultCell, ResultContext, TargetSummary, fillBlockTimes, isGroupedSuggestion,
+} from './AutonomousOpsRowActions';
+import {
     AlertTriangleIcon, CheckCircleIcon, ClockIcon, FlaskConicalIcon, HistoryIcon, InfoIcon, PauseCircleIcon,
-    PlayCircleIcon, RefreshCcwIcon, ShieldLockIcon, XCircleIcon,
+    PlayCircleIcon, RefreshCcwIcon, ShieldLockIcon, SlidersHorizontalIcon, XCircleIcon,
 } from './icons';
 
 export const PAGE_SIZE = 25;
 
-type ChipKey = 'pending' | 'done' | 'undone' | 'failed' | 'refused' | 'suggested' | 'simulation' | 'stop' | 'resume';
+type ChipKey = 'pending' | 'done' | 'undone' | 'failed' | 'refused' | 'suggested' | 'simulation' | 'stop' | 'resume' | 'setting';
 
 const CHIP_BASE = 'inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold border';
 const AMBER = 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-400/10 dark:text-amber-200 dark:border-amber-400/25';
@@ -28,12 +31,18 @@ const CHIPS: Record<ChipKey, { label: string; Icon: React.FC<any>; classes: stri
     simulation: { label: 'Simulation', Icon: FlaskConicalIcon, classes: 'bg-transparent text-gray-800 border-dashed border-gray-400 dark:text-gray-100 dark:border-gray-500' },
     stop: { label: 'Stop', Icon: PauseCircleIcon, classes: AMBER },
     resume: { label: 'Resume', Icon: PlayCircleIcon, classes: NEUTRAL },
+    // A change to the two-source rule, block length or watched services: neutral, no new tone (A-83-SETTING-CHIP).
+    setting: { label: 'Setting', Icon: SlidersHorizontalIcon, classes: NEUTRAL },
 };
 
 const STOPPING_EVENTS = new Set(['stop_pressed', 'platform_stop_pressed', 'breaker_tripped']);
+const SETTING_EVENTS = new Set(['two_signal_on', 'two_signal_off', 'block_length_changed', 'watched_services_changed']);
 
 function chipKeyFor(row: AutonomousOpsRow): ChipKey {
-    if (row.bucket === 'control') return row.controlEvent && STOPPING_EVENTS.has(row.controlEvent) ? 'stop' : 'resume';
+    if (row.bucket === 'control') {
+        if (row.controlEvent && SETTING_EVENTS.has(row.controlEvent)) return 'setting';
+        return row.controlEvent && STOPPING_EVENTS.has(row.controlEvent) ? 'stop' : 'resume';
+    }
     // platform_health rows never reach here: RowChip renders them with HealthChip.
     return row.bucket as ChipKey;
 }
@@ -60,9 +69,10 @@ const SIM_LEAD = 'Nothing was done. This is what would have happened: ';
 
 /** What the Result cell says. A simulation can never read as something that was carried out. */
 export function resultFor(row: AutonomousOpsRow): string | null {
-    if (row.bucket !== 'simulation') return row.resultText || null;
-    if (!row.resultText) return SIM_PREFIX;
-    return row.resultText.startsWith(SIM_PREFIX) ? row.resultText : `${SIM_LEAD}${row.resultText}`;
+    const text = fillBlockTimes(row.resultText, row.blockedUntil);
+    if (row.bucket !== 'simulation') return text || null;
+    if (!text) return SIM_PREFIX;
+    return text.startsWith(SIM_PREFIX) ? text : `${SIM_LEAD}${text}`;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -124,13 +134,16 @@ const Target: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => {
     );
 };
 
-const Result: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => (
-    <span className="text-sm text-gray-600 dark:text-gray-400 break-words">{resultFor(row) ?? Dash}</span>
+const Result: React.FC<{ row: AutonomousOpsRow; ctx: ResultContext }> = ({ row, ctx }) => (
+    <ResultCell row={row} text={resultFor(row)} ctx={ctx} />
 );
+
+/** A grouped suggestion summarises its Target; every other row shows the host and target as sent. */
+const TargetCell: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => (isGroupedSuggestion(row) ? <TargetSummary row={row} /> : <Target row={row} />);
 
 const SIM_RULE = 'border-l-2 border-dashed border-gray-400 dark:border-gray-500';
 
-const ActivityTable: React.FC<{ rows: AutonomousOpsRow[] }> = ({ rows }) => (
+const ActivityTable: React.FC<{ rows: AutonomousOpsRow[]; ctx: ResultContext }> = ({ rows, ctx }) => (
     <div className="hidden xl:block">
         <table className="w-full text-sm">
             <caption className="sr-only">Autonomous Ops activity</caption>
@@ -154,8 +167,8 @@ const ActivityTable: React.FC<{ rows: AutonomousOpsRow[] }> = ({ rows }) => (
                         </td>
                         <td className="px-4 py-4 align-top"><WhatRan row={row} /></td>
                         <td className="px-4 py-4 align-top"><Why row={row} /></td>
-                        <td className="px-4 py-4 align-top"><Target row={row} /></td>
-                        <td className="px-4 py-4 align-top"><Result row={row} /></td>
+                        <td className="px-4 py-4 align-top"><TargetCell row={row} /></td>
+                        <td className="px-4 py-4 align-top"><Result row={row} ctx={ctx} /></td>
                     </tr>
                 ))}
             </tbody>
@@ -163,7 +176,7 @@ const ActivityTable: React.FC<{ rows: AutonomousOpsRow[] }> = ({ rows }) => (
     </div>
 );
 
-const ActivityCards: React.FC<{ rows: AutonomousOpsRow[] }> = ({ rows }) => (
+const ActivityCards: React.FC<{ rows: AutonomousOpsRow[]; ctx: ResultContext }> = ({ rows, ctx }) => (
     <ul className="xl:hidden divide-y divide-gray-200 dark:divide-white/10">
         {rows.map(row => (
             <li key={row.id} className={`p-4 flex flex-col gap-2 ${row.bucket === 'simulation' ? SIM_RULE : ''}`}>
@@ -179,11 +192,11 @@ const ActivityCards: React.FC<{ rows: AutonomousOpsRow[] }> = ({ rows }) => (
                     </div>
                     <div>
                         <dt className="text-xs text-gray-500 dark:text-gray-400">Target</dt>
-                        <dd><Target row={row} /></dd>
+                        <dd><TargetCell row={row} /></dd>
                     </div>
                     <div>
                         <dt className="text-xs text-gray-500 dark:text-gray-400">Result</dt>
-                        <dd><Result row={row} /></dd>
+                        <dd><Result row={row} ctx={ctx} /></dd>
                     </div>
                 </dl>
             </li>
@@ -253,9 +266,13 @@ export interface ActivityListProps {
     scope: { kind: 'tenant'; tenantId: string | null } | { kind: 'platform' };
     /** Bumped by the screen's Refresh button; reloads the first page without a skeleton. */
     refreshSignal?: number;
+    /** Incident ids whose approval card is rendered above the list; a Pending row links only to one of these. */
+    decisionIds?: ReadonlySet<string>;
+    /** The screens a suggestion may open; a target is present only when the viewer may open it. */
+    onOpenView?: OpenViewHandlers;
 }
 
-export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, refreshSignal = 0 }) => {
+export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, refreshSignal = 0, decisionIds, onOpenView }) => {
     const { status, platformStatus } = useAutonomousOpsStatus();
     const platform = scope.kind === 'platform';
     const tenantId = scope.kind === 'tenant' ? scope.tenantId : null;
@@ -355,6 +372,10 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
 
     // A simulation, control or platform-health row is shown only where the contract allows it, whatever the
     // server sent: platform-health rows never leave the platform scope (D-23, H11, T-82-44).
+    const onRowChanged = useCallback((next: AutonomousOpsRow) => setRows(prev => prev.map(r => (r.id === next.id ? next : r))), []);
+    const onStale = useCallback(() => loadFirst(true), [loadFirst]);
+    const ctx: ResultContext = { tenantId, decisionIds, onOpenView, onRowChanged, onStale };
+
     const visible = useMemo(
         () => rows.filter(r => (platform || r.bucket !== 'platform_health') && (bucket === 'all' || r.bucket === bucket)),
         [rows, bucket, platform],
@@ -416,8 +437,8 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
                     )
                 ) : (
                     <>
-                        <ActivityTable rows={visible} />
-                        <ActivityCards rows={visible} />
+                        <ActivityTable rows={visible} ctx={ctx} />
+                        <ActivityCards rows={visible} ctx={ctx} />
                         <div className="flex flex-col items-center gap-2 border-t border-gray-200 p-4 dark:border-white/10">
                             {moreFailed ? (
                                 <div role="alert" className="flex flex-wrap items-center justify-center gap-4 text-sm text-red-700 dark:text-red-300">

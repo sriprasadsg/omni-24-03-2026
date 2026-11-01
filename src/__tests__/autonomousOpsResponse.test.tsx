@@ -102,7 +102,7 @@ describe('Undo on Done rows', () => {
     render(shell(list()));
     expect((await undoButtons()).length).toBe(2); // the table and the stacked layout each render the one row
     expect(screen.getAllByText('Removes the block on 45.33.32.156.').length).toBe(2);
-    expect(screen.queryAllByRole('button', { name: /^Undo/ }).length).toBe(2);
+    expect(screen.queryAllByRole('button', { name: /^Undo:/ }).length).toBe(2);
   });
 
   it('sends one request for two clicks and shows Undoing... while it is pending', async () => {
@@ -139,7 +139,7 @@ describe('Undo on Done rows', () => {
     expect(cell.getAttribute('tabindex')).toBe('-1');
     fireEvent.click(button);
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Undo sent to web-01.example.com.', 'success'));
-    await waitFor(() => expect(screen.queryAllByRole('button', { name: /^Undo/ }).length).toBe(0));
+    await waitFor(() => expect(screen.queryAllByRole('button', { name: /^Undo:/ }).length).toBe(0));
     expect(screen.getAllByText('Block removed.').length).toBeGreaterThan(0);
     expect(document.activeElement).toBe(cell);
   });

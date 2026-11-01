@@ -35,6 +35,7 @@ EXPECTED_FILES = [
     "contexts/AutonomousOpsStatusContext.tsx",
     "components/AutonomousOpsActivity.tsx",
     "components/AutonomousOpsActivityList.tsx",
+    "components/AutonomousOpsRowActions.tsx",
     "components/AutonomousOpsStatusCard.tsx",
     "components/AutonomousOpsStopDialog.tsx",
     "components/AutonomousOpsStopBanner.tsx",

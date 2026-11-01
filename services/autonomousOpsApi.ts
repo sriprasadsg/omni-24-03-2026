@@ -9,7 +9,28 @@ export type AutonomousOpsRowBucket = Exclude<AutonomousOpsBucket, 'all'> | 'cont
 
 export type AutonomousOpsControlEvent =
     | 'stop_pressed' | 'stop_cleared' | 'platform_stop_pressed' | 'platform_stop_cleared'
-    | 'breaker_tripped' | 'level_restored';
+    | 'breaker_tripped' | 'level_restored'
+    | 'two_signal_on' | 'two_signal_off' | 'block_length_changed' | 'watched_services_changed';
+
+/** Where a suggestion row sends the viewer: the Patching and File Integrity screens. */
+export type AutonomousOpsOpenView = 'patchManagement' | 'fimMonitoring';
+
+export type AutonomousOpsSuggestionKind = 'single_signal' | 'vulnerability' | 'file_change' | 'correlation';
+
+/** One listed item of a grouped suggestion: a vulnerability has cve and package, a file change has path. */
+export interface AutonomousOpsSuggestionItem {
+    cve?: string;
+    package?: string;
+    path?: string;
+}
+
+/** A suggestion as the server groups it: one row per host per kind, at most 10 items, `count` is the true total. */
+export interface AutonomousOpsSuggestion {
+    kind: AutonomousOpsSuggestionKind;
+    count: number;
+    items: AutonomousOpsSuggestionItem[];
+    openView: AutonomousOpsOpenView | null;
+}
 
 /** One activity entry as the server delivers it. Every string is rendered as text. */
 export interface AutonomousOpsRow {
@@ -18,7 +39,7 @@ export interface AutonomousOpsRow {
     state: string;
     createdAt: string;
     actionLabel: string;
-    classLine: 'Automatic' | 'Needs approval' | null;
+    classLine: 'Automatic' | 'Needs approval' | 'Suggestion only' | null;
     reasonText: string;
     ruleId: string | null;
     host: string | null;
@@ -28,6 +49,14 @@ export interface AutonomousOpsRow {
     /** Platform-health rows only (Phase 82): the Activity chip and where the event came from. */
     healthChip?: AutonomousOpsHealthRowChip | null;
     source?: string | null;
+    /** Phase 83: the server decides these; a missing key reads as false or empty. */
+    canUndo?: boolean;
+    undoHint?: string | null;
+    /** Pending rows: the incident whose card holds the decision. */
+    incidentId?: string | null;
+    /** Block rows: when the block ends (ISO), used to fill the time in the result text. */
+    blockedUntil?: string | null;
+    suggestion?: AutonomousOpsSuggestion | null;
 }
 
 /** The Activity chip of a platform-health row, chosen by the server. */
@@ -362,6 +391,21 @@ export async function confirmRetention(reviewToken: string): Promise<ConfirmRete
     const res = await authFetch(`${API_BASE}/platform/autonomous-ops/retention/confirm`, {
         method: 'POST', body: JSON.stringify({ reviewToken }),
     });
+    if (!res.ok) throw await failure(res);
+    return res.json();
+}
+
+/** The answer of an undo: the refreshed row, and whether this undo tripped the circuit breaker. */
+export interface UndoResult {
+    status: 'undone';
+    action: AutonomousOpsRow;
+    breakerTripped: boolean;
+}
+
+/** POST /api/autonomous-ops/actions/{id}/undo[?tenantId=]: 409 {detail} when the action cannot be undone now. */
+export async function undoAutonomousOpsAction(id: string, tenantId?: string | null): Promise<UndoResult> {
+    const url = withTenant(`${API_BASE}/autonomous-ops/actions/${encodeURIComponent(id)}/undo`, tenantId);
+    const res = await authFetch(url, { method: 'POST', body: JSON.stringify({}) });
     if (!res.ok) throw await failure(res);
     return res.json();
 }

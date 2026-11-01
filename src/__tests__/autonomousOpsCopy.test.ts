@@ -36,6 +36,7 @@ const EXPECTED_FILES = [
   'contexts/AutonomousOpsStatusContext.tsx',
   'components/AutonomousOpsActivity.tsx',
   'components/AutonomousOpsActivityList.tsx',
+  'components/AutonomousOpsRowActions.tsx',
   'components/AutonomousOpsStatusCard.tsx',
   'components/AutonomousOpsStopDialog.tsx',
   'components/AutonomousOpsStopBanner.tsx',
@@ -117,7 +118,7 @@ describe('ACTV-08 real copy', () => {
   });
 
   it('scans at least the status card, dialog, banner, activity screen, client and poller', () => {
-    expect(FRONTEND_FILES).toHaveLength(14);
+    expect(FRONTEND_FILES).toHaveLength(15);
   });
 });
 
