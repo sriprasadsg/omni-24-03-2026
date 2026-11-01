@@ -5,15 +5,16 @@ rules in shared/autonomous-ops-banned-terms.json: the feature is called Autonomo
 terms listed there are never used (say undo / undone). The dictionary keys below are agent
 instruction identifiers, not words shown to anyone.
 """
+from . import response_messages
 
 # What an action is called on screen, keyed by the registry command name.
 ACTION_LABELS = {
     "block_ip": "Block IP address",
     "quarantine_file": "Quarantine file",
     "restart_service": "Restart service",
-    "isolate_host": "Isolate host from the network",
-    "kill_process": "Stop process",
-    "reboot_host": "Restart host",
+    "isolate_host": "Isolate host",
+    "kill_process": "Kill process",
+    "reboot_host": "Reboot host",
     "upgrade_software": "Update software",
     "restore_file": "Restore file",
     "disable_service": "Disable service",
@@ -42,6 +43,7 @@ CONTROL_LABELS = {
     "breaker_tripped": "Level lowered by the circuit breaker",
     "level_restored": "Level restored",
     "rate_limit_reached": "Rate limit reached",
+    **response_messages.CONTROL_LABELS,
 }
 
 # D-25: a tenant never sees which platform person acted.
@@ -79,6 +81,7 @@ REASON_TEXT = {
     "rollback_incomplete": "The check afterwards still found the problem, and putting it back was not confirmed by the host.",
     "agent_busy": "The host is busy with another remediation, so nothing was run.",
     "verify_failed": "The check afterwards still found the problem.",
+    **response_messages.REASON_TEXT,
 }
 
 
@@ -127,6 +130,7 @@ API_DETAIL = {
     "entry_limit": "The never-touch list is full.",
     "interactive": "An interactive sign-in is required for this action.",
     "invalid_reason": "A reason is required, up to 500 characters.",
+    **response_messages.API_DETAIL,
 }
 
 
