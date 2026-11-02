@@ -78,6 +78,26 @@ export function isPlatformRoleName(role?: string | null): boolean {
   return platformTier(role) !== null;
 }
 
+/**
+ * Phase 87: the two roles of a partner organization's own people. A partner role is never a
+ * platform tier (platformTier returns null for both): the Partner portal is theirs alone.
+ * Mirrors backend rbac_defaults (partner_admin, partner_viewer).
+ */
+export const PARTNER_ROLE_KEYS = ['partner_admin', 'partner_viewer'] as const;
+
+export function isPartnerRoleName(role?: string | null): boolean {
+  return (PARTNER_ROLE_KEYS as readonly string[]).includes(normalizeRoleName(role));
+}
+
+export function isPartnerAdminRoleName(role?: string | null): boolean {
+  return normalizeRoleName(role) === 'partner_admin';
+}
+
+/** How a partner role is shown to people. */
+export function partnerRoleLabel(role?: string | null): string {
+  return isPartnerAdminRoleName(role) ? 'Partner administrator' : 'Partner viewer';
+}
+
 /** The tenant that holds every platform account; its users must hold a platform role. */
 export const PLATFORM_TENANT_ID = 'platform-admin';
 

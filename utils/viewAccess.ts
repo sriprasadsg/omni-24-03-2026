@@ -1,6 +1,6 @@
 import type { AppView, Permission, User } from '../types';
 import { NAV_GROUPS, catalogueFor, viewForHash } from './catalogueAccess';
-import { isHideOnlyScreen, isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './permissions';
+import { isHideOnlyScreen, isPartnerRoleName, isPlatformRoleName, isSuperAdminRoleName, screenAllowed } from './permissions';
 
 /**
  * Phase 77 (D-05, D-06, D-12): the one place that decides whether the signed-in user may see a
@@ -22,10 +22,24 @@ export const LANDING_PREFERENCE: readonly AppView[] = ['dashboard', 'itam'];
 
 type Has = (permission: Permission) => boolean;
 
+/**
+ * Phase 87 (T-87-20): views that belong to a partner organization's own people. The Super Admin owner
+ * passes every permission check, so these are hidden by role, before that short-circuit. The server
+ * (backend/partner_endpoints) is the real wall; this only keeps the screen out of the wrong sidebar.
+ */
+export const PARTNER_ONLY_VIEWS: ReadonlySet<AppView> = new Set<AppView>(['partnerPortal']);
+
+/** True when `view` is in PARTNER_ONLY_VIEWS and the user is not a partner role (evaluated before any owner pass). */
+const isPartnerOnlyDenied =(view: AppView, user: User | null): boolean =>
+  PARTNER_ONLY_VIEWS.has(view) && !(user && isPartnerRoleName(user.role));
+
 export function evaluateViewAccess(view: AppView, user: User | null, has: Has): ViewAccess {
   const entry = catalogueFor(view);
   // A view with no manifest entry is denied for everyone, Super Admin included (76 IN-04).
   if (!entry) return { allowed: false, reason: 'unmapped', label: String(view) };
+  if (isPartnerOnlyDenied(view, user)) {
+    return { allowed: false, reason: 'role', label: entry.label, permission: entry.permission };
+  }
   if (user && isSuperAdminRoleName(user.role)) return { allowed: true };
   if (has('*' as Permission)) return { allowed: true };
   const platform = !!user && isPlatformRoleName(user.role);
@@ -52,6 +66,7 @@ export function canReadView(view: AppView, user: User | null, has: Has): boolean
   if (!user) return false;
   const entry = catalogueFor(view);
   if (!entry) return false;
+  if (isPartnerOnlyDenied(view, user)) return false;
   if (isSuperAdminRoleName(user.role) || has('*' as Permission)) return true;
   const needed = entry.read && entry.read.length > 0 ? entry.read : [entry.permission];
   if (!needed.some(permission => has(permission as Permission))) return false;

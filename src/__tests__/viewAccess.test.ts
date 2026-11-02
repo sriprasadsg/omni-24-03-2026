@@ -7,6 +7,7 @@ import {
   evaluateViewAccess,
   hasAnyScreen,
   landingView,
+  PARTNER_ONLY_VIEWS,
   permissionsKnown,
   resolveHashView,
 } from '../../utils/viewAccess';
@@ -59,6 +60,8 @@ describe('evaluateViewAccess (D-05)', () => {
   it.each(SUPER_ADMIN_SPELLINGS)('allows every manifest view for the super-admin spelling %s', role => {
     const user = mk(role, []);
     for (const entry of CATALOGUES) {
+      // Phase 87 (R1): the Partner portal is for partner users only, so even the owner is denied it.
+      if (PARTNER_ONLY_VIEWS.has(entry.view)) continue;
       expect(evaluate(entry.view, user)).toEqual({ allowed: true });
     }
   });

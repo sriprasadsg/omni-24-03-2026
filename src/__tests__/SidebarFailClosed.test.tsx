@@ -16,6 +16,7 @@ vi.mock('../../services/socketService', () => ({ socketService: { on: vi.fn(), o
 import { Sidebar } from '../../components/Sidebar';
 import { UserContext } from '../../contexts/UserContext';
 import { NAV_GROUPS } from '../../utils/catalogueAccess';
+import { PARTNER_ONLY_VIEWS } from '../../utils/viewAccess';
 
 const itemLabel = (view: string) =>
   NAV_GROUPS.flatMap(g => g.items).find(i => i.view === view)!.label;
@@ -77,7 +78,9 @@ describe('Sidebar fails closed (ACC-06)', () => {
     const user = tenantUser([], 'platform-admin');
     const { container } = renderWith({ currentUser: user, hasPermission: () => false }, { isViewingTenant: true });
     const shown = labels(container);
-    const manifestItems = NAV_GROUPS.flatMap(g => g.items).filter(i => i.permission !== 'manage:tenants');
+    // Phase 87 (R1): the Partner portal is for partner users only, so even the owner does not see it.
+    const manifestItems = NAV_GROUPS.flatMap(g => g.items)
+      .filter(i => i.permission !== 'manage:tenants' && !PARTNER_ONLY_VIEWS.has(i.view));
     for (const item of manifestItems) expect(shown.some(l => l.startsWith(item.label))).toBe(true);
     expect(shown.some(l => l.startsWith('Back to Tenants'))).toBe(true);
   });
