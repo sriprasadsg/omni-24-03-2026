@@ -8,7 +8,7 @@ mounted ``partnerPortal`` catalogue guard checks the permission; this module pin
 ``tenants`` is exempt from the tenant wrapper, so every read and write here uses the raw handle with
 an explicit filter on the partner taken from the token, and answers with the D-01 allowlist only.
 """
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -46,6 +46,20 @@ class SeatsBody(BaseModel):
     seats: int = Field(..., ge=0, le=licensing.MAX_AGENTS_CEILING)
 
 
+class ColleagueInvite(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    email: str = Field(..., min_length=1, max_length=254)
+    role: Literal["partner_admin", "partner_viewer"]
+
+    @field_validator("name")
+    @classmethod
+    def _stripped(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("must not be blank")
+        return value
+
+
 class FeaturesBody(BaseModel):
     enabledFeatures: List[str] = Field(..., max_length=300)
 
@@ -65,9 +79,9 @@ def _is_partner_admin(user) -> bool:
         == rbac_defaults.PARTNER_ADMIN_KEY
 
 
-def _require_partner_admin(user) -> None:
+def _require_partner_admin(user, what: str = "change the partner's customers") -> None:
     if not _is_partner_admin(user):
-        raise HTTPException(status_code=403, detail="Only a partner admin can change the partner's customers")
+        raise HTTPException(status_code=403, detail=f"Only a partner admin can {what}")
 
 
 @router.get("/overview")
@@ -119,5 +133,36 @@ async def put_customer_features(customer_id: str, data: FeaturesBody, ctx=Depend
     _require_partner_admin(user)
     try:
         return await service.set_customer_features(mongodb.db, partner, customer_id, data.enabledFeatures, user)
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.get("/team")
+async def get_team(ctx=Depends(current_partner)):
+    """The partner's own staff and whether each has set a password (partner admins only)."""
+    user, partner = ctx
+    _require_partner_admin(user, "see the partner's team")
+    return await service.team(mongodb.db, partner)
+
+
+@router.post("/team", status_code=201)
+async def post_colleague(data: ColleagueInvite, ctx=Depends(current_partner)):
+    """Invite a colleague into this partner as a partner admin or viewer."""
+    user, partner = ctx
+    _require_partner_admin(user, "invite colleagues")
+    try:
+        return await service.invite_colleague(mongodb.db, partner, name=data.name, email=data.email,
+                                              role=data.role, actor=user)
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.post("/team/{user_id}/resend")
+async def post_resend_colleague(user_id: str, ctx=Depends(current_partner)):
+    """Send a colleague who has not set a password a new link."""
+    user, partner = ctx
+    _require_partner_admin(user, "invite colleagues")
+    try:
+        return await service.resend_colleague(mongodb.db, partner, user_id, user)
     except PartnerError as err:
         return error_response(err)
