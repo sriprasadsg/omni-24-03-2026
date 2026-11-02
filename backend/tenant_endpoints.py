@@ -6,6 +6,9 @@ from authentication_service import get_current_user, revoke_user_sessions
 from rbac_utils import require_permission
 from rbac_utils import can_read_all_tenants, has_platform_permission, is_super_admin
 import compliance_purchases
+import partner_pool
+import partner_store
+import tenant_docs
 import tenant_features
 import agent_capabilities
 from cache_service import invalidate_cache
@@ -100,35 +103,15 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
     if existing:
         raise HTTPException(status_code=400, detail="Tenant already exists")
         
-    tenant_id = f"tenant_{uuid.uuid4().hex[:12]}"
-    registration_key = f"reg_{uuid.uuid4().hex}"
-    
-    tenant_doc = {
-        "id": tenant_id,
-        "name": data.name,
-        "subscriptionTier": data.subscriptionTier,
-        "registrationKey": registration_key,
-        # Exactly what was selected: no screen is added because its feature is on (spec C6).
-        "enabledFeatures": list(dict.fromkeys(data.enabledFeatures)),
-        "agentCapabilities": agent_capabilities.every_capability(),
-        "notificationPreferences": data.notificationPreferences,
-        "emailConfig": {},
-        "maxAgents": data.maxAgents,
-        "license": {"maxAgents": data.maxAgents, "seatsUsed": 0,
-                    "inactiveReclaimDays": licensing.DEFAULT_RECLAIM_DAYS},
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "updatedAt": datetime.now(timezone.utc).isoformat()
-    }
+    # The same builder a partner's customer comes from; no partnerId means a direct customer (D-12).
+    tenant_doc = tenant_docs.build_tenant_doc(
+        data.name, max_agents=data.maxAgents, enabled_features=data.enabledFeatures,
+        subscription_tier=data.subscriptionTier, notification_preferences=data.notificationPreferences)
+    tenant_id = tenant_doc["id"]
     
     await mongodb.db.tenants.insert_one(tenant_doc)
 
-    # The new tenant gets an explicit Autonomous Ops level now; startup's ensure_all_tenants
-    # is the backstop, so a failure here never blocks tenant creation.
-    try:
-        from autonomous_ops import settings as autonomy_settings
-        await autonomy_settings.ensure_tenant(mongodb.db, tenant_id)
-    except Exception as exc:
-        logger.warning("autonomy settings for new tenant %s were not created: %s", tenant_id, exc)
+    await tenant_docs.ensure_tenant_extras(mongodb.db, tenant_id)
 
     # Notify tenant admin creation
     try:
@@ -304,6 +287,8 @@ async def delete_tenant(tenant_id: str, current_user = Depends(get_current_user)
     tenant = await mongodb.db.tenants.find_one({"id": tenant_id})
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if tenant.get("type") == "partner" and await mongodb.db.tenants.find_one({"partnerId": tenant_id}, {"_id": 1}):
+        raise HTTPException(status_code=409, detail="Move this partner's customers first.")
     
     # Delete all users associated with this tenant
     # Using raw db to be safe and explicit
@@ -320,6 +305,10 @@ async def delete_tenant(tenant_id: str, current_user = Depends(get_current_user)
     
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # A partner's customer gives its seats back to the pool (after the delete, so a crash only leaks).
+    if tenant.get("partnerId"):
+        await partner_pool.release(mongodb.db, tenant["partnerId"], licensing.license_of(tenant)["maxAgents"])
 
     # Notify tenant admin deletion
     try:
@@ -727,7 +716,8 @@ async def update_tenant_license(tenant_id: str, data: LicenseUpdate, current_use
     given = data.model_fields_set
     if not given:
         raise HTTPException(status_code=400, detail="Nothing to update")
-    if not await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1}):
+    tenant_row = await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1, "partnerId": 1})
+    if not tenant_row:
         raise HTTPException(status_code=404, detail="Tenant not found")
     controls: Dict[str, Any] = {}
     if "allowlistMode" in given and data.allowlistMode is not None:
@@ -743,7 +733,17 @@ async def update_tenant_license(tenant_id: str, data: LicenseUpdate, current_use
         controls["expires_at"] = (at if at.tzinfo else at.replace(tzinfo=timezone.utc)).astimezone(
             timezone.utc).isoformat() if at else None
     before = await licensing.license_summary(mongodb.db, tenant_id)
-    after = await licensing.update_license(mongodb.db, tenant_id, data.maxAgents, data.inactiveReclaimDays, **controls)
+    max_agents = data.maxAgents
+    if tenant_row.get("partnerId") and "maxAgents" in given and max_agents is not None:
+        # A partner customer's seats come from the partner's pool (D-05). Platform staff may go below the
+        # seats in use and may raise for a suspended or expired partner; the pool total still binds.
+        try:
+            await partner_pool.change_allotment(mongodb.db, tenant_id, max_agents, partner_id=tenant_row["partnerId"],
+                                                enforce_used_floor=False, require_active=False)
+        except partner_pool.PartnerError as err:
+            return partner_store.error_response(err)
+        max_agents = None
+    after = await licensing.update_license(mongodb.db, tenant_id, max_agents, data.inactiveReclaimDays, **controls)
     try:
         from audit_service import get_audit_service
         await get_audit_service().log_action_async(

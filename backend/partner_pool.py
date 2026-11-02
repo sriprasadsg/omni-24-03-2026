@@ -97,12 +97,13 @@ def _seats_filter(doc: Dict[str, Any], seats: int) -> Dict[str, Any]:
     return {"license.maxAgents": {"$exists": False}}
 
 
-async def _claim_refusal(db, partner_id: str) -> PartnerError:
-    """Why a claim that was refused was refused: a suspended partner, or a pool without room."""
+async def _claim_refusal(db, partner_id: str, require_active: bool = True) -> PartnerError:
+    """Why a claim that was refused was refused: a suspended partner (only when the claim demanded an
+    active one), or a pool without room."""
     doc = await _raw(db).tenants.find_one({"id": partner_id, "type": "partner"}, {"_id": 0, "partner": 1, "name": 1})
     if doc is None:
         return PartnerError(404, "not_found", "Partner not found")
-    if (doc.get("partner") or {}).get("status") != "active":
+    if require_active and (doc.get("partner") or {}).get("status") != "active":
         return PartnerError(409, "partner_suspended", "This partner account is suspended.")
     free = await free_seats(db, partner_id)
     return PartnerError(409, "pool_full", f"Only {free} seats are free in your pool.", free=free)
@@ -129,7 +130,7 @@ async def change_allotment(db, customer_id: str, new_seats: int, *, partner_id: 
     if new_seats > current:
         delta = new_seats - current
         if not await claim(db, partner_id, delta, require_active=require_active):
-            raise await _claim_refusal(db, partner_id)
+            raise await _claim_refusal(db, partner_id, require_active)
         if (await tenants.update_one(cas, changes)).modified_count != 1:
             await release(db, partner_id, delta)
             raise PartnerError(409, "changed", "The seats changed while you were saving. Try again.")
