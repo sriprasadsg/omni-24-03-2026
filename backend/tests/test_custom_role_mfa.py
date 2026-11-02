@@ -23,7 +23,7 @@ from tests.rbac_test_support import (
 EMAIL = "who@mfa.test"
 # D-07 (Phase 81): control:autonomous_ops is admin-tier, so the approve tier needs MFA too.
 BUILTIN_ADMIN_TIER = {"super_admin", "tenant_admin", "admin", "itam_admin", "platform_support", "platform_billing",
-                      "security_analyst", "incident_responder"}
+                      "security_analyst", "incident_responder", "partner_admin"}
 
 
 def _token(role, tenant="tenant-a", **claims):
@@ -75,7 +75,7 @@ def _mfa_refused(exc):
 def test_admin_tier_selects_exactly_the_builtin_admin_roles():
     got = {k for k in rbac_defaults.builtin_role_keys() if rbac_defaults.requires_mfa(rbac_defaults.defaults_for(k))}
     assert got == BUILTIN_ADMIN_TIER
-    for k in ("user", "analyst", "viewer", "itam_user", "itam_viewer"):
+    for k in ("user", "analyst", "viewer", "itam_user", "itam_viewer", "partner_viewer"):
         assert not rbac_defaults.requires_mfa(rbac_defaults.defaults_for(k)), k
 
 

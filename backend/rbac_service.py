@@ -84,6 +84,8 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     ``SUPER_ADMIN_ONLY_PERMISSIONS`` entry found in a document is ignored, so the
     super-admin tier stays reachable only through the super-admin role name (D-03/D-06);
     a ``PLATFORM_ONLY_PERMISSIONS`` entry is ignored on every non-platform role (spec C1).
+    A partner role (Phase 87 D-04) resolves to its table row alone and reads no document, and a
+    ``PARTNER_ONLY_PERMISSIONS`` entry found in any other role's document is ignored.
     Documents are matched under every spelling of a built-in role (see
     ``_role_document_names``), so a tenant override applies however the user's role
     was typed. Merging is union-only: a document adds permissions, never removes them.
@@ -97,8 +99,11 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
         return ["*"]
     if not key:
         return []
+    if rbac_defaults.is_partner_role(key):
+        # Phase 87 D-04: no role document, under any spelling, widens a partner role.
+        return list(rbac_defaults.defaults_for(key))
     perms: List[str] = list(rbac_defaults.defaults_for(key))
-    banned = rbac_defaults.SUPER_ADMIN_ONLY_PERMISSIONS | {"*"}
+    banned = rbac_defaults.SUPER_ADMIN_ONLY_PERMISSIONS | rbac_defaults.PARTNER_ONLY_PERMISSIONS | {"*"}
     if key not in rbac_defaults.PLATFORM_ROLE_KEYS:
         banned |= rbac_defaults.PLATFORM_ONLY_PERMISSIONS  # spec C1: never on a tenant role
     for name in _role_document_names(role, key):

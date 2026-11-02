@@ -186,10 +186,19 @@ PLATFORM_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
 })
 
 
+# Phase 87 D-04: held only by partner_admin and partner_viewer, never by any other role and never
+# added by a role document (effective_permissions drops them everywhere else and gives a partner
+# role its table row alone).
+PARTNER_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
+    "manage:partner_customers",
+    "view:partner_portal",
+})
+
+
 # D-14: the one admin-tier definition. A role whose effective permissions hold "*" or any of
 # these must pass MFA. Over the built-in table it selects exactly super_admin, tenant_admin
-# (and its alias admin), itam_admin, platform_support, platform_billing and, since Phase 81
-# D-07 (control:autonomous_ops), security_analyst and incident_responder.
+# (and its alias admin), itam_admin, platform_support, platform_billing, partner_admin (Phase 87
+# D-20) and, since Phase 81 D-07 (control:autonomous_ops), security_analyst and incident_responder.
 ADMIN_TIER_PERMISSIONS: FrozenSet[str] = frozenset({
     "manage:users",
     "manage:rbac",
@@ -198,6 +207,9 @@ ADMIN_TIER_PERMISSIONS: FrozenSet[str] = frozenset({
     "control:remote_access",
     # Phase 81 D-07: approving, denying, undoing and pressing a stop are admin actions.
     "control:autonomous_ops",
+    # Phase 87 D-20: partner admins create customers and hand out seats, so they enroll MFA;
+    # partner_viewer holds only view:partner_portal and does not.
+    "manage:partner_customers",
 }) | PLATFORM_ONLY_PERMISSIONS
 
 
