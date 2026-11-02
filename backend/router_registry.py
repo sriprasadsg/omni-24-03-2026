@@ -130,6 +130,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "role_endpoints",           "router")
     _load(app, "authentication_endpoints",       "router")
     _load(app, "auth_password_reset_endpoints",  "router")
+    _load(app, "invite_endpoints",               "router")  # Phase 87: public invite link status
     _load(app, "audit_endpoints",          "router")
     _load(app, "cache_endpoints",          "router")
     _load(app, "repo_endpoints",           "router")

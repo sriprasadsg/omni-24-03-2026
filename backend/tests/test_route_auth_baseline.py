@@ -18,6 +18,9 @@ REVIEWED_UNAUTHENTICATED = frozenset({
     # Sign-in, sign-up, token refresh, password reset, MFA, passkeys, LDAP, SSO
     ("POST", "/api/auth/login"), ("POST", "/api/auth/signup"), ("POST", "/api/auth/refresh"),
     ("POST", "/api/auth/reset-password/request"), ("POST", "/api/auth/reset-password/confirm"),
+    # Invite link status: the invitee has no session yet, the token is checked inside the handler
+    # (body only, never the URL) and the route is limited to 10 a minute
+    ("POST", "/api/auth/invite/status"),
     ("POST", "/api/mfa/verify"), ("POST", "/api/passkey/login/options"),
     ("POST", "/api/passkey/login/verify"), ("POST", "/api/auth/ldap/login"),
     ("POST", "/api/auth/saml/acs"), ("GET", "/api/auth/saml/login"),
