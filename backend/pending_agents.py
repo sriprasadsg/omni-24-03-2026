@@ -395,8 +395,23 @@ async def approve(db, agent_id: str, actor: str, raise_limit_by: int = 0) -> Dic
     tenant_id = agent["tenantId"]
     if raise_limit_by:
         await licensing.ensure_license(db, tenant_id)
-        await raw.tenants.update_one({"id": tenant_id},
-                                     {"$inc": {"license.maxAgents": raise_limit_by, "maxAgents": raise_limit_by}})
+        tenant = await raw.tenants.find_one({"id": tenant_id}, {"_id": 0, "partnerId": 1, "license": 1, "maxAgents": 1})
+        if (tenant or {}).get("partnerId"):
+            # A partner customer's extra seats come from the partner's pool (D-05). Platform staff may raise
+            # for a suspended or expired partner; the pool total still binds.
+            import partner_pool
+            try:
+                await partner_pool.change_allotment(
+                    db, tenant_id, licensing.license_of(tenant)["maxAgents"] + raise_limit_by,
+                    partner_id=tenant["partnerId"], enforce_used_floor=False, require_active=False)
+            except partner_pool.PartnerError as err:
+                if err.code != "pool_full":
+                    raise DecisionError(err.status, err.message)
+                raise DecisionError(409, "no_free_seat: the partner's seat pool has no room; enlarge the pool first",
+                                    await licensing.license_summary(db, tenant_id))
+        else:
+            await raw.tenants.update_one(
+                {"id": tenant_id}, {"$inc": {"license.maxAgents": raise_limit_by, "maxAgents": raise_limit_by}})
     if not await licensing.try_claim_seat(db, tenant_id):
         raise DecisionError(409, "no_free_seat: the tenant has no free agent seat; raise its limit to approve",
                             await licensing.license_summary(db, tenant_id))

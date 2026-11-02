@@ -6,7 +6,8 @@ the hardware allowlist (``not_allowlisted``), the OS-class sub-limit
 (``sublimit:group:<id>``). The first rule it fails holds it Pending with that reason;
 the total seat limit (licensing.try_claim_seat) still applies after all of them.
 Agents already enrolled are never re-checked: an expired license or a full sub-limit
-stops new machines, it does not suspend running ones.
+stops new machines, it does not suspend running ones. A partner's pool expiry counts as the
+licence expiry for its customers (D-08): their new machines wait for approval, running ones carry on.
 
 Sub-limits count seat-holding agents at the moment of enrollment. Unlike the total
 seat counter this check is not atomic, so concurrent installs of the same class can
@@ -127,6 +128,12 @@ async def hold_reason(db, tenant: Dict[str, Any], hardware: Dict[str, Any], plat
     lic = licensing.license_of(fresh)
     if expired(lic):
         return REASON_EXPIRED
+    if fresh.get("partnerId"):  # a partner's pool expiry counts as the licence expiry of its customers (D-08)
+        partner = await raw.tenants.find_one({"id": fresh["partnerId"], "type": "partner"},
+                                             {"_id": 0, "partner.expiresAt": 1})
+        pool_expiry = ((partner or {}).get("partner") or {}).get("expiresAt")
+        if isinstance(pool_expiry, str) and expired({"expiresAt": pool_expiry}):
+            return REASON_EXPIRED
     if lic["allowlistMode"] == "enforce" and not await agent_allowlist.matches(db, tenant["id"], hardware):
         return REASON_NOT_ALLOWLISTED
     cls = os_class(hardware, platform)
