@@ -151,3 +151,52 @@ async def test_deleting_a_partner_without_customers_works(wired):
     await _partner(wired, pool=100, allocated=0)
     await te.delete_tenant("p1", current_user=SUPER)
     assert await wired.tenants.find_one({"id": "p1"}) is None
+
+
+# ── approve-and-raise draws from the pool ────────────────────────────────────
+
+async def _pending(db, cid="c1", agent_id="a1"):
+    await db.agents.insert_one({"id": agent_id, "tenantId": cid, "hostname": f"host-{agent_id}",
+                                "status": "Pending", "pendingReason": "seat_limit"})
+
+
+async def test_approve_with_a_raise_claims_the_extra_seats_from_the_pool(wired):
+    import pending_agents
+    await _partner(wired, pool=100, allocated=98)
+    await _customer(wired, "p1", 10, used=10)
+    await _pending(wired)
+    out = await pending_agents.approve(wired, "a1", "root", raise_limit_by=2)
+    assert out["status"] == "Offline" and out["license"]["maxAgents"] == 12
+    assert (await _seats(wired), await _allocated(wired)) == (12, 100)
+    assert (await wired.tenants.find_one({"id": "c1"}))["license"]["seatsUsed"] == 11
+
+
+async def test_approve_with_a_raise_the_pool_cannot_fit_is_refused_and_changes_nothing(wired):
+    import pending_agents
+    await _partner(wired, pool=100, allocated=99)
+    await _customer(wired, "p1", 10, used=10)
+    await _pending(wired)
+    with pytest.raises(pending_agents.DecisionError) as exc:
+        await pending_agents.approve(wired, "a1", "root", raise_limit_by=2)
+    assert exc.value.status_code == 409 and exc.value.detail.startswith("no_free_seat")
+    assert exc.value.extra["maxAgents"] == 10
+    assert (await _seats(wired), await _allocated(wired)) == (10, 99)
+    assert (await wired.agents.find_one({"id": "a1"}))["status"] == "Pending"
+
+
+async def test_approve_with_a_raise_ignores_the_partners_suspension(wired):
+    import pending_agents
+    await _partner(wired, pool=100, allocated=90, status="suspended")
+    await _customer(wired, "p1", 10, used=10)
+    await _pending(wired)
+    await pending_agents.approve(wired, "a1", "root", raise_limit_by=1)
+    assert (await _seats(wired), await _allocated(wired)) == (11, 91)
+
+
+async def test_approve_with_a_raise_on_a_direct_customer_is_unchanged(wired):
+    import pending_agents
+    await _customer(wired, None, 10, used=10)
+    await _pending(wired)
+    out = await pending_agents.approve(wired, "a1", "root", raise_limit_by=3)
+    assert out["license"]["maxAgents"] == 13 and await _seats(wired) == 13
+    assert (await wired.tenants.find_one({"id": "c1"}))["maxAgents"] == 13
