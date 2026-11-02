@@ -251,6 +251,17 @@ async def test_an_approved_restart_card_reads_restarted_without_a_count(world):
     assert page.json()["items"][0]["resultText"] == "Restarted nginx. Healthy again after 4 s."
 
 
+async def test_a_range_card_says_why_two_sources_agree_not_the_refusal_sentence(world):
+    """The run notes (83-08): REASON_TEXT['range_block'] reads like a refusal on a card that asks for approval.
+    A range row carries its origins, so the card gives the Why of every block; only a row with no inputs would fall back."""
+    await row(world.db, "rng", "block_ip", "awaiting_approval", code="range_block", target="45.33.32.0/24",
+              params={"cidr": "45.33.32.0/24", "ttl_seconds": 86400}, reasonText=rm.REASON_TEXT["range_block"],
+              inputs={"origins": ["native", "feed:otx"], "twoSignal": True})
+    line = (await get(world))["items"][0]["actions"][0]
+    assert line["reason"] == "Two sources agree: agent verdict and OTX." and line["target"] == "45.33.32.0/24"
+    assert line["canApprove"] is True
+
+
 # ------------------------------------------------------------------ which rows count (A-83-LEVEL-SUGGEST)
 
 async def test_suggestion_only_rows_never_show_but_a_level_suggest_row_does(world):
