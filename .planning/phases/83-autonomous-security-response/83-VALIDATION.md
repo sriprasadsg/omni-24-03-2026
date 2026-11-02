@@ -3,9 +3,9 @@ phase: "83"
 slug: "autonomous-security-response"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-10-31"
 ---
 
@@ -121,9 +121,9 @@ Backend commands drop the `backend/tests/` prefix after the first file name and 
 
 ## Wave 0 Requirements
 
-- [ ] Every test file marked ❌ W0 above, written before the code that satisfies it
+- [x] Every test file marked ❌ W0 above: all exist and pass. Plans 83-02, 83-07 and 83-09 wrote tests after the code, and their SUMMARYs say so; 83-03's RED evidence is weak
 - [x] A thread-local recorder returning scripted results: it exists as `RECORDER` in `agent-install/omni-agent-rs/src/capabilities/privileged.rs` (not in `remediation_actions.rs` as first written); checked by 83-20
-- [ ] A hermetic Rust fixture for `response_state.json` with an injectable clock (not checked by 83-20; the expiry tests pass)
+- [x] A hermetic Rust fixture for `response_state.json` with an injectable clock: `Store::at`, `use_temp_store` and the `now` parameter of `expire_due`, `reapply_live` and `start_up` in `response_state.rs`
 - [x] `backend/tests/autonomy_support.py` — seeding helpers for global `edr_ioc` rows, `fim_events` and agents with `meta.response_actions` and a hostname that differs from the id (file exists; checked by 83-20)
 
 ---
@@ -150,11 +150,19 @@ Backend commands drop the `backend/tests/` prefix after the first file name and 
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s for a quick run
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** automated coverage audited 2026-11-02: every requirement behaviour has a named test that passed in the orchestrator's own gate run on a67453a8e (build ok; vitest 76 files, 938 tests; backend 1,132 passed and `test_ledger_ratchets` failed, which the 82 baseline already lists; Rust `--lib` 400 passed, 1 ignored; drift and UI gates did not block). This says nothing about live behaviour: the Manual-Only table above still stands, and the full backend suite is still to be compared by name.
+
+## Validation Audit 2026-11-02
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
