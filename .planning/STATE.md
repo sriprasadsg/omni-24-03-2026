@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 87
 current_phase_name: Partner and Reseller Channel
 status: executing
-stopped_at: Completed 87-04-PLAN.md
-last_updated: "2026-11-02T18:37:51.962Z"
+stopped_at: Completed 87-05-PLAN.md
+last_updated: "2026-11-02T21:54:17.782Z"
 last_activity: 2026-11-02
 last_activity_desc: Phase 87 execution started
-state_head: 708951f6838e60be0f9cd078a90ec7f68dc38b94
+state_head: af5e15a381720ad3257780d51b469bcb1e6798c8
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 70
-  completed_plans: 60
+  completed_plans: 61
   percent: 14
 ---
 
@@ -537,6 +537,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 87]: 87-02: partner roles resolve to their table row alone (no role document read); manage:partner_customers is admin-tier so partner admins enroll MFA; partner roles live only in type partner orgs and are Super-Admin-assigned
 - [Phase 87]: 87-03: reconcile_partner repairs a drift only if it survives a 1s settle pause (claim in flight precedes its customer write); refusal codes pool_full, partner_suspended, changed, below_used, pool_below_handed_out, move_does_not_fit, same_partner
 - [Phase 87]: 87-04: partner suspension is a per-request status read in verify_token_async (partner roles only, before revocation); missing document/other status = 403, unreadable = 503, sync verify_token refuses partner roles
+- [Phase 87]: 87-05: partner role wall reuses is_partner_role (all spellings); mounted next to PlatformReadOnlyMiddleware with the same 403 body shape; A-87-A5 websocket check still open
 
 ## Performance Metrics
 
@@ -752,6 +753,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 87 P02 | 20 min | 2 tasks | 6 files |
 | Phase 87 P03 | 15 min | 2 tasks | 6 files |
 | Phase 87 P04 | 25 min | 2 tasks | 5 files |
+| Phase 87 P05 | 25 min | 2 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -786,8 +788,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-02T18:37:51.491Z
-**Stopped at:** Completed 87-04-PLAN.md
+**Last session:** 2026-11-02T21:54:17.511Z
+**Stopped at:** Completed 87-05-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -814,7 +816,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 87 (Partner and Reseller Channel) — EXECUTING
-Plan: 6 of 15
+Plan: 7 of 15
 Status: Ready to execute
 Last activity: 2026-11-02 — Phase 87 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
