@@ -18,6 +18,7 @@ from agent_uninstall_endpoints import heartbeat_uninstall_protection
 import licensing
 import pending_agents
 import agent_capabilities
+from autonomous_ops import response_settings
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_heartbeat_endpoints")
@@ -527,5 +528,6 @@ async def report_heartbeat(
             logger.error("ERROR processing task feedback: %s", fb_err)
 
     # Verification data for the agent's uninstallers (see agent_uninstall_endpoints).
-    return {"success": True, "uninstall_protection": await heartbeat_uninstall_protection(db, _hb_agent_filter),
+    return {"success": True, **await response_settings.heartbeat_reply(db, _hb_tenant_id, (existing_agent or {}).get("id") or agent_id, permitted_caps),
+            "uninstall_protection": await heartbeat_uninstall_protection(db, _hb_agent_filter),
             "enabledCapabilities": sorted(permitted_caps)}

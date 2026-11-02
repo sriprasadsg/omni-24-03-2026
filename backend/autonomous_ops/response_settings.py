@@ -191,3 +191,24 @@ async def save(db, tenant_id: str, changes: Dict[str, Any], *, actor: Optional[D
         await settings.update(db, tenant_id, {"response": old_values}, actor=actor)
         raise
     return await load(db, tenant_id)
+
+
+# ---------------------------------------------------------------- the list, on its way to the agents
+
+WATCH_CAPABILITY = "remediation_executor"          # the tick that carries service-failure reporting and the restart
+
+
+async def heartbeat_reply(db, tenant_id: Optional[str], agent_id: Optional[str], permitted) -> Dict[str, Any]:
+    """What the heartbeat reply adds for one agent: ``watchedServices``, the tenant's list, only when the tenant
+    holds ``remediation_executor``. An empty list is sent as it is (the agent then stops every check). Anything
+    that cannot be read, or is not a well-formed list, leaves the key out, which changes nothing on the agent. Read
+    by the agent's own verified tenant id, one indexed ``find_one``, and never raises: a failed read never fails a
+    heartbeat. ``agent_id`` is the canonical ``agents.id`` of the caller (the confirmed-isolation list uses it)."""
+    try:
+        if not isinstance(tenant_id, str) or not tenant_id or WATCH_CAPABILITY not in permitted:
+            return {}
+        stored = await load(db, tenant_id)
+        return {"watchedServices": list(stored.watched_services)} if stored.readable else {}
+    except Exception as exc:
+        logger.warning("autonomous_ops: the watched services of %s were not added to a heartbeat reply: %s", tenant_id, exc)
+        return {}

@@ -44,7 +44,8 @@ CAPABILITY_IDS: FrozenSet[str] = frozenset(cap["id"] for cap in _ENTRIES)
 ALWAYS_ON: FrozenSet[str] = frozenset(cap["id"] for cap in _ENTRIES if cap.get("alwaysOn"))
 
 # Heartbeat keys that carry a capability's data under another name.
-_DATA_KEYS: Dict[str, str] = {"software_inventory": "software_management", "installed_software": "software_management"}
+_DATA_KEYS: Dict[str, str] = {"software_inventory": "software_management", "installed_software": "software_management",
+                               "service_failures": "remediation_executor"}
 
 # Instruction names (normalised: lower case, text before ":", spaces as "_") -> the capability
 # the agent uses to carry them out. Prefix entries end in "*".
