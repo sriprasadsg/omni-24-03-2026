@@ -247,8 +247,10 @@ BREAKER_FAILURES = ("verify_failed", "agent_failed", "blocked_by_local_security"
 # Plumbing and safeguards working are transparent: such a row neither counts nor breaks a run of three. An
 # old agent, an unticked capability, an offline host, a file that moved or is in use, a host that refused a
 # protected or unmatched target, and an instruction that was never delivered must never lower a level.
+# ``auto_reverted`` is an isolation that returned to the network on its own: a person approved it, so it was never
+# an automatic decision going wrong.
 BREAKER_IGNORED = ("not_delivered", "no_result", "capability_off", "agent_unsupported", "agent_offline",
-                   "hash_mismatch", "protected_path", "agent_refused", "locked", "dispatch_failed")
+                   "hash_mismatch", "protected_path", "agent_refused", "locked", "dispatch_failed", "auto_reverted")
 
 
 async def count_auto_since(db, tenant_id: str, since: datetime) -> int:
@@ -289,6 +291,25 @@ async def latest_undone(db, tenant_id: str, dedupe_key: str) -> Optional[Dict[st
     found = _actions(db).find({"tenantId": tenant_id, "dedupeKey": dedupe_key, "state": "undone"},
                               {"_id": 0}).sort([("finishedAt", -1), ("createdAt", -1)]).limit(1)
     return next(iter([_normalize(r) async for r in found]), None)
+
+
+async def mark_isolation_confirmed(db, tenant_id: str, action_id: str, actor: Optional[Dict[str, Any]],
+                                   now: datetime) -> Optional[Dict[str, Any]]:
+    """Record that a person kept an isolation (D-15): one compare-and-set on an isolate row that is done, not yet
+    confirmed and whose revert time is still ahead (``revertsAt`` strictly after ``now``, so a click at the very
+    instant it passes loses). Exactly one of two racing clicks gets the row back; the other gets None. The change
+    is mirrored to the audit chain as ``isolation_confirmed`` naming the person. No state changes."""
+    now = _aware(now)
+    doc = await _actions(db).find_one_and_update(
+        {"id": action_id, "tenantId": tenant_id, "command": "isolate_host", "state": {"$in": ["executed", "verified"]},
+         "isolation.confirmedAt": None, "isolation.revertsAt": {"$gt": now}},
+        {"$set": {"isolation.confirmedAt": now, "isolation.confirmedBy": dict(actor or {}), "updatedAt": now}},
+        return_document=ReturnDocument.AFTER)
+    if doc is None:
+        return None
+    doc = _normalize(doc)
+    await _mirror(db, tenant_id, "isolation_confirmed", doc, actor)
+    return doc
 
 
 async def count_host_auto_since(db, tenant_id: str, agent_id: str, commands: Iterable[str], since: datetime) -> int:

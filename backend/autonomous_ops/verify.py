@@ -27,7 +27,8 @@ undo block reset, so Undo is offered again and nothing reads as restored that wa
 What this module never does (PROH-83-06): it does not look at any finding, it does not start a
 re-scan, and it does not undo, compensate or repeat the action. A block whose address is still
 flagged stays in place; the only thing that ends a verified block is its expiry or a person's undo.
-Both transitions are compare-and-set, so two passes over one row write one audit event per change.
+An ``isolate_host`` row records ``isolation.revertsAt`` (when the host returns to the network on its own) instead
+of a block window. Both transitions are compare-and-set, so two passes over one row write one audit event per change.
 
 Raw Mongo handle with an explicit tenantId; the ambient tenant ContextVar is never used.
 """
@@ -45,6 +46,7 @@ _CHECKS = frozenset(CONTRACT["checks"])
 _CAP = int(CONTRACT["stillRunningCap"])
 _MAX_EXPIRES = int(CONTRACT["blockTtlSeconds"]["max"])
 _MAX_HEALTHY = 3600
+_REVERT_SECONDS = int(CONTRACT["isolationRevertSeconds"])
 _FAILED = frozenset({"failed", "failure", "refused", "error", "rejected"})
 _SUCCEEDED = frozenset({"completed", "success", "executed", "done"})
 _MAX_NAME = 128
@@ -159,7 +161,14 @@ async def settle(db, tenant_id: str, row: Dict[str, Any], doc: Optional[Dict[str
         if kept:
             fields["result"] = {**(row.get("result") or {}), **kept}
         expires = result.get("expires_in")
-        if isinstance(expires, int) and not isinstance(expires, bool):
+        if row.get("command") == "isolate_host":
+            # The host holds its own 4-hour revert (D-15). The contract's isolate body carries no expires_in, so the
+            # contract's length is used; the sweep later pulls the time in to what the host itself reports. An
+            # isolation that was already in place (another row owns it) has no revert of its own to confirm.
+            if result.get("outcome") != "already_applied":
+                length = expires if isinstance(expires, int) and not isinstance(expires, bool) else _REVERT_SECONDS
+                fields["isolation.revertsAt"] = now + timedelta(seconds=length)
+        elif isinstance(expires, int) and not isinstance(expires, bool):
             fields["blockedUntil"] = now + timedelta(seconds=expires)     # relative, so clock skew cannot matter
         moved = await ledger.transition(db, tenant_id, row["id"], ("executed",), "verified", **fields)
         return "verified" if moved else None

@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from . import PLATFORM_TENANT_ID, agent_support, ledger, messages, response_messages, settings
+from . import PLATFORM_TENANT_ID, agent_support, isolation, ledger, messages, response_messages, settings
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -199,16 +199,30 @@ WATCH_CAPABILITY = "remediation_executor"          # the tick that carries servi
 
 
 async def heartbeat_reply(db, tenant_id: Optional[str], agent_id: Optional[str], permitted) -> Dict[str, Any]:
-    """What the heartbeat reply adds for one agent: ``watchedServices``, the tenant's list, only when the tenant
-    holds ``remediation_executor``. An empty list is sent as it is (the agent then stops every check). Anything
-    that cannot be read, or is not a well-formed list, leaves the key out, which changes nothing on the agent. Read
-    by the agent's own verified tenant id, one indexed ``find_one``, and never raises: a failed read never fails a
-    heartbeat. ``agent_id`` is the canonical ``agents.id`` of the caller (the confirmed-isolation list uses it)."""
+    """What the heartbeat reply adds for one agent, the one place Autonomous Ops puts keys in it:
+
+    * ``watchedServices``: the tenant's list, only when the tenant holds ``remediation_executor``. An empty list is
+      sent as it is (the agent then stops every check). Anything that cannot be read, or is not a well-formed list,
+      leaves the key out, which changes nothing on the agent.
+    * ``isolationConfirmed``: the ids of isolations a person confirmed for THIS agent (83-18, D-15), only when there
+      are any so a reply stays small. It does not depend on the capability tick: it keeps an existing state.
+
+    Read by the agent's own verified tenant id; ``agent_id`` is the canonical ``agents.id`` of the caller. Never
+    raises: a failed read never fails a heartbeat, and each key is read on its own."""
+    out: Dict[str, Any] = {}
+    if not isinstance(tenant_id, str) or not tenant_id:
+        return out
     try:
-        if not isinstance(tenant_id, str) or not tenant_id or WATCH_CAPABILITY not in permitted:
-            return {}
-        stored = await load(db, tenant_id)
-        return {"watchedServices": list(stored.watched_services)} if stored.readable else {}
+        if WATCH_CAPABILITY in permitted:
+            stored = await load(db, tenant_id)
+            if stored.readable:
+                out["watchedServices"] = list(stored.watched_services)
     except Exception as exc:
         logger.warning("autonomous_ops: the watched services of %s were not added to a heartbeat reply: %s", tenant_id, exc)
-        return {}
+    try:
+        ids = await isolation.confirmed_ids(db, tenant_id, agent_id) if isinstance(agent_id, str) and agent_id else []
+        if ids:
+            out["isolationConfirmed"] = ids
+    except Exception as exc:
+        logger.warning("autonomous_ops: confirmed isolations of %s were not added to a heartbeat reply: %s", agent_id, exc)
+    return out

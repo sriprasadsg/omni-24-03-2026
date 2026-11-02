@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
-from . import (PLATFORM_TENANT_ID, SCREEN_PERMISSION, response_settings, scope, settings, sweep_restart,
+from . import (PLATFORM_TENANT_ID, SCREEN_PERMISSION, isolation, response_settings, scope, settings, sweep_restart,
                sweep_security, sweep_suggestions)
 from .scope import raw
 
@@ -41,7 +41,7 @@ LOCK_TTL_SECONDS = 120
 LOCK_RENEW_EVERY = 30
 _DEFAULT_INTERVAL_SEC = 60
 
-_STAGES = (sweep_security.run, sweep_suggestions.run, sweep_restart.run)
+_STAGES = (sweep_security.run, sweep_suggestions.run, sweep_restart.run, isolation.run)
 
 
 def _now(now: Optional[datetime]) -> datetime:

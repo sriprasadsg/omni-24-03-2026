@@ -8,6 +8,8 @@ refused.
 
 GET  /api/autonomous-ops/incidents                       the Needs your decision cards (view access; the flags on
                                                           every line say what the caller may do)
+POST /api/autonomous-ops/actions/{id}/confirm-isolation  keep an isolated computer isolated (control:autonomous_ops,
+                                                          signed-in session, single use, refused during a stop)
 The mount guard (catalogue_mounts_autonomous_ops) checks the catalogue strings; the dependencies below add
 the exact permission. A change takes effect for new decisions only (a block already in place keeps its
 length). Every value that changes leaves one control row in the activity list and one audit event, naming
@@ -19,14 +21,15 @@ organization at once, one organization at a time.
 import logging
 from typing import Annotated, Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, StrictBool, StrictInt, StringConstraints
 
 import agent_capabilities
 from api_key_auth import get_current_user_or_api_key
-from autonomous_ops import PLATFORM_TENANT_ID, incident_views, messages, response_settings, views
+from autonomous_ops import PLATFORM_TENANT_ID, incident_views, isolation, messages, response_settings, views
 from autonomous_ops.scope import raw
-from autonomous_ops_endpoints import _require_interactive_session, _require_manage, _tenant_for, _unavailable
+from autonomous_ops_endpoints import (_decision_error, _require_control, _require_interactive_session,
+                                      _require_manage, _tenant_for, _unavailable)
 from database import get_database
 
 logger = logging.getLogger(__name__)
@@ -122,7 +125,7 @@ async def put_response_settings(
         raise _unavailable(exc) from exc
 
 
-# ---------------------------------------------------------------- the cards
+# ---------------------------------------------------------------- the cards and the one new decision
 
 @router.get("/incidents", summary="Incidents that need a decision")
 async def get_incidents(
@@ -141,6 +144,32 @@ async def get_incidents(
         caller = await views.build_caller(user)
         return await incident_views.list_cards(db, tenant, offset=offset, limit=limit, staff=caller.staff,
                                                can_act=caller.can_control and caller.interactive)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/actions/{action_id}/confirm-isolation", summary="Keep an isolated computer isolated")
+async def post_confirm_isolation(
+    action_id: str = Path(..., max_length=128),
+    tenantId: Optional[str] = Query(None, max_length=views.TENANT_ID_MAX),
+    user=Depends(_require_control),
+    _session=Depends(_require_interactive_session),
+):
+    """Keeps the computer isolated until a person restores it; the agent hears at its next heartbeat. Needs
+    control:autonomous_ops in a signed-in session. Single use: a second click answers 409. Answers 409 during a
+    stop, once the computer has returned to the network (or is about to), and for an action that is not an
+    isolation."""
+    try:
+        db = get_database()
+        tenant = await _tenant_for(db, user, tenantId, write=True)
+        caller = await views.build_caller(user)
+        out = await isolation.confirm(db, tenant, action_id, await views.actor_for(db, caller))
+        if out.get("status") != "confirmed":
+            raise _decision_error(out)
+        return {"status": "confirmed", "action": await views.present_one(
+            db, tenant, action_id, caller, can_act=caller.can_control and caller.interactive)}
     except HTTPException:
         raise
     except Exception as exc:
