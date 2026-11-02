@@ -46,6 +46,10 @@ class SeatsBody(BaseModel):
     seats: int = Field(..., ge=0, le=licensing.MAX_AGENTS_CEILING)
 
 
+class FeaturesBody(BaseModel):
+    enabledFeatures: List[str] = Field(..., max_length=300)
+
+
 async def current_partner(current_user=Depends(get_current_user)) -> Tuple[object, dict]:
     """(user, partner organization) for a partner account, else 403."""
     if not rbac_defaults.is_partner_role(getattr(current_user, "role", None)):
@@ -94,5 +98,26 @@ async def put_customer_seats(customer_id: str, data: SeatsBody, ctx=Depends(curr
     _require_partner_admin(user)
     try:
         return await service.change_seats(mongodb.db, partner, customer_id, data.seats, user)
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.get("/customers/{customer_id}/features")
+async def get_customer_features(customer_id: str, ctx=Depends(current_partner)):
+    """The customer's screens, this partner's ceiling and the screens kept beyond it."""
+    _, partner = ctx
+    try:
+        return await service.customer_features(mongodb.db, partner, customer_id)
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.put("/customers/{customer_id}/features")
+async def put_customer_features(customer_id: str, data: FeaturesBody, ctx=Depends(current_partner)):
+    """Tick the customer's screens, only within the ceiling (D-10)."""
+    user, partner = ctx
+    _require_partner_admin(user)
+    try:
+        return await service.set_customer_features(mongodb.db, partner, customer_id, data.enabledFeatures, user)
     except PartnerError as err:
         return error_response(err)

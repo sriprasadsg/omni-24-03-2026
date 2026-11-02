@@ -62,6 +62,8 @@ _SWITCHES = _load_switches()
 _MANIFEST = _load_manifest()
 SWITCH_PARENTS: Dict[str, Optional[str]] = {f["permission"]: f.get("parent") for f in _SWITCHES}
 SWITCHABLE: FrozenSet[str] = frozenset(SWITCH_PARENTS)
+# The name a screen goes by in a refusal the partner reads (Phase 87).
+SWITCH_LABELS: Dict[str, str] = {f["permission"]: f["label"] for f in _SWITCHES}
 # Resources whose every permission goes with an off view:X switch.
 _VIEW_RESOURCES: FrozenSet[str] = frozenset(p[len("view:"):] for p in SWITCHABLE if p.startswith("view:"))
 
