@@ -33,11 +33,11 @@
 - [ ] **RESP-02**: At Undoable-auto a malicious single IP address is blocked automatically for a set time (default 24 h); the agent removes the block at expiry even if it has lost contact with the platform, an operator can undo it from the Activity view, and blocking a range needs approval.
 - [ ] **RESP-03**: At Undoable-auto a malicious file is quarantined automatically (moved, never deleted) and an operator can restore it with one click.
 - [ ] **RESP-04**: A failed service on an endpoint is restarted automatically within a restart budget; once the budget is used up further restarts need approval.
-- [ ] **RESP-05**: Kill process and isolate host appear as approval cards; isolation always keeps the agent's management connection open and reverts automatically after a set time unless an operator confirms it.
+- [x] **RESP-05**: Kill process and isolate host appear as approval cards; isolation always keeps the agent's management connection open and reverts automatically after a set time unless an operator confirms it.
 - [ ] **RESP-06**: Each action is verified by its own check (e.g. the firewall rule exists, the file is in quarantine), not by re-reading the original finding, so a successful block is never rolled back.
 - [ ] **RESP-07**: The same finding does not create a new action every cycle (dedupe per tenant, finding and action), and an action an operator undid is not redone for 24 hours.
 - [ ] **RESP-08**: By default an action runs on its own only when two independent signals agree (e.g. scan verdict and threat intel); a single signal becomes a suggestion (corroboration rule). A tenant admin can turn the rule off for their tenant and a Super Admin for any or all tenants.
-- [ ] **RESP-09**: A burst of related alerts on one host becomes one approval card per incident, not one per alert (incident grouping).
+- [x] **RESP-09**: A burst of related alerts on one host becomes one approval card per incident, not one per alert (incident grouping).
 - [ ] **RESP-10**: The Rust agent (with Python agent parity where that agent stays supported) gains restart service, quarantine and restore file, isolate and restore host, and reboot host; each new action is gated by the tenant's agent-capability ticks, and rules that need it stay dormant until the agent reports support.
 - [x] **RESP-11**: Existing fan-out paths that bypass the gate (swarm "propagate antibody", SOAR block/isolate plugins) are fenced so they cannot dispatch autonomous containment.
 
@@ -75,7 +75,7 @@
 ### 6. Activity View
 
 - [x] **ACTV-01**: An Autonomous Ops screen (catalogue entry, tenant switch and permissions) lists actions as Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result.
-- [ ] **ACTV-02**: An operator can approve or deny pending actions and undo done actions that have an inverse, from the same screen.
+- [x] **ACTV-02**: An operator can approve or deny pending actions and undo done actions that have an inverse, from the same screen.
 - [ ] **ACTV-03**: In shadow mode the screen shows "would have done" entries clearly labelled as a simulation.
 - [ ] **ACTV-04**: Each tenant gets one daily digest: what ran, what was undone, and what is waiting for approval.
 - [ ] **ACTV-05**: The operator can see per-rule statistics: how often each rule fired and was approved, denied or undone.
@@ -210,14 +210,14 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | RESP-02 | Phase 83 | Pending |
 | RESP-03 | Phase 83 | Pending |
 | RESP-04 | Phase 83 | Pending |
-| RESP-05 | Phase 83 | Pending |
+| RESP-05 | Phase 83 | Complete |
 | RESP-06 | Phase 83 | Pending |
 | RESP-07 | Phase 83 | Pending |
 | RESP-08 | Phase 83 | Pending |
-| RESP-09 | Phase 83 | Pending |
+| RESP-09 | Phase 83 | Complete |
 | RESP-10 | Phase 83 | Pending |
 | RESP-11 | Phase 83 | Complete |
-| ACTV-02 | Phase 83 | Pending |
+| ACTV-02 | Phase 83 | Complete |
 | PTCH-01 | Phase 84 | Pending |
 | PTCH-02 | Phase 84 | Pending |
 | PTCH-03 | Phase 84 | Pending |

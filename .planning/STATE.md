@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 83
 current_phase_name: Autonomous Security Response
 status: executing
-stopped_at: Completed 83-18-PLAN.md
-last_updated: "2026-11-02T03:20:14.593Z"
+stopped_at: Completed 83-19-PLAN.md
+last_updated: "2026-11-02T03:44:53.469Z"
 last_activity: 2026-10-31
 last_activity_desc: Phase 83 execution started
-state_head: 27e0f3697d3deeceb15f34ae598c29ec45487701
+state_head: eb8c4b8aef3f3a3c784450ef3bb49f858e7af1c1
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 55
-  completed_plans: 53
+  completed_plans: 54
   percent: 17
 ---
 
@@ -531,6 +531,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 83]: 83-17: a late accepted post never replaces SUCCESS, FAILURE or REFUSED on an agent instruction
 - [Phase 83]: 83-18: isolate result has no expires_in, so isolation.revertsAt is set from the contract's 4 hours at settle and pulled in (never out) to the agent's own revert_in_seconds; an isolate row takes no blockedUntil
 - [Phase 83]: 83-18: A-83-LEVEL-SUGGEST followed as written (level_suggest and settings_unreadable rows without suggestionOnly are approvable card lines), one tuple in incident_views, awaiting the user's confirmation
+- [Phase 83]: 83-19: incident client lives in services/autonomousOpsIncidentsApi.ts (autonomousOpsApi.ts was at 478 lines); a decided card stays from a snapshot until the next background read; a passed deadline disables every button on its card
 
 ## Performance Metrics
 
@@ -739,6 +740,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 83 P16 | 12min | 2 tasks | 6 files |
 | Phase 83 P17 | 28min | 2 tasks | 8 files |
 | Phase 83 P18 | 75min | 2 tasks | 11 files |
+| Phase 83 P19 | 50min | 2 tasks | 14 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -773,8 +775,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-02T03:20:14.363Z
-**Stopped at:** Completed 83-18-PLAN.md
+**Last session:** 2026-11-02T03:44:53.270Z
+**Stopped at:** Completed 83-19-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -800,7 +802,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 83 (Autonomous Security Response) — EXECUTING
-Plan: 19 of 20
+Plan: 20 of 20
 Status: Ready to execute
 Last activity: 2026-10-31 — Phase 83 execution started
 Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
