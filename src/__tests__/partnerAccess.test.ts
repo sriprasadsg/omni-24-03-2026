@@ -18,11 +18,6 @@ import {
 import { LoginPage } from '../../components/LoginPage';
 import type { User } from '../../types';
 
-// LoginPage asks the server for SSO providers on mount; everything else in apiService stays real.
-vi.mock('../../services/apiService', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../services/apiService')>()),
-  fetchSsoProviders: () => Promise.resolve({ providers: [] }),
-}));
 vi.mock('@simplewebauthn/browser', () => ({ startAuthentication: vi.fn() }));
 
 const mk = (role: string, permissions?: string[]): User =>
@@ -240,10 +235,15 @@ describe('a suspended partner session ends on the sign-in page (PART-01, T-87-21
 describe('LoginPage explains a suspended partner', () => {
   beforeEach(() => {
     sessionStorage.clear();
+    // LoginPage asks the server for SSO providers on mount.
+    vi.stubGlobal('fetch', vi.fn(async () => reply(200, { providers: [] })));
     (window as any).matchMedia ??= () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
     (window as any).IntersectionObserver ??= class { observe() {} unobserve() {} disconnect() {} };
   });
-  afterEach(() => window.history.replaceState(null, '', '/'));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.history.replaceState(null, '', '/');
+  });
 
   it('shows the suspended message for ?error=partner_suspended', () => {
     window.history.replaceState(null, '', '/login?error=partner_suspended');

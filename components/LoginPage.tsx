@@ -103,6 +103,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
         if (e === 'sso_failed') return 'Google sign-in failed. Please try again.';
         if (e === 'invalid_state') return 'Authentication session expired. Please try again.';
         if (e === 'account_disabled') return 'This account is disabled. Contact your administrator.';
+        if (e === 'partner_suspended') return 'This partner account is suspended. Contact your platform administrator to restore access.';
         return '';
     });
     // The session ended on its own (expired or revoked): say so once, then forget it.

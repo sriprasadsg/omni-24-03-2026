@@ -281,6 +281,20 @@ export async function endSessionForInactivity(): Promise<void> {
     window.location.href = '/login' + window.location.hash;
 }
 
+/**
+ * Phase 87 (T-87-21): a suspended partner's people are locked out on their next call. The server marks
+ * the refusal with a header; the tab goes to the sign-in page, which says why.
+ */
+function _endPartnerSession(): void {
+    if (_sessionEnding) return;
+    _sessionEnding = true;
+    stopTokenRefreshCycle();
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('refresh_token');
+    clearSessionCaches();
+    window.location.href = '/login?error=partner_suspended';
+}
+
 /** A sign-in failure whose message is meant for the user (lockout, disabled account). */
 export class LoginError extends Error {}
 
@@ -334,6 +348,11 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
             _expireSession();
             throw new Error('Session expired');
         }
+    }
+
+    if (response.status === 403 && response.headers.get('X-Partner-Suspended')) {
+        _endPartnerSession();
+        throw new Error('Partner suspended');
     }
 
     if (response.status === 403 && response.headers.get('X-MFA-Required') && !_mfaRequired) {
@@ -664,7 +683,7 @@ export const login = async (username: string, password: string): Promise<any> =>
     }
     if (res.status === 403) {
         const body = await res.json().catch(() => ({}));
-        throw new LoginError(body.detail || 'This account is disabled. Contact your administrator.');
+        throw new LoginError(body.error || body.detail || 'This account is disabled. Contact your administrator.');
     }
     if (!res.ok) {
         throw new Error('Invalid credentials');
