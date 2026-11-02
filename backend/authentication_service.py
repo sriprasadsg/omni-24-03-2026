@@ -333,6 +333,14 @@ def verify_token(token: str, allow_agent: bool = True, allow_mfa_pending: bool =
                 detail="Could not validate credentials - missing tenant_id",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        # Partner status cannot be read here; no partner route uses this path, so refuse (fail closed).
+        import rbac_defaults
+        if rbac_defaults.is_partner_role(role):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
         # Sync JTI revocation: use a cached in-process set populated by the async path.
         jti: str = payload.get("jti", "")
@@ -393,6 +401,8 @@ async def verify_token_async(token: str, allow_agent: bool = True, allow_mfa_pen
                 detail="Could not validate credentials - missing tenant_id",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        import partner_status  # D-15: a suspended partner's tokens stop working at once, fail closed
+        await partner_status.refuse_if_suspended(role, tenant_id)
 
         iat = float(payload.get("iat") or 0)  # tokens minted before iat existed predate any cutoff
         if (jti and jti in _revoked_jti_cache) or _cut_off(username, iat):
