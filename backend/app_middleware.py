@@ -209,10 +209,13 @@ def register_middleware(app: FastAPI, rate_limiter) -> None:
     )
 
     from tenant_middleware import PlatformReadOnlyMiddleware, ScreenSwitchMiddleware, TenantMiddleware
+    from partner_middleware import PartnerScopeMiddleware
     from usage_middleware import UsageTrackingMiddleware
     from audit_middleware import AuditMiddleware
     # Innermost of the three, so a write refused to Platform Support/Billing is still audited (spec C1).
     app.add_middleware(PlatformReadOnlyMiddleware)
+    # D-01: a partner token reaches only the portal and its own sign-in; inside Audit/Tenant so refusals are audited.
+    app.add_middleware(PartnerScopeMiddleware)
     # Also inside Audit/Tenant: refuses a switched-off Security/Compliance screen's routes (spec C6).
     app.add_middleware(ScreenSwitchMiddleware)
     # Added before TenantMiddleware, so it runs inside it and sees the tenant (spec C5).
