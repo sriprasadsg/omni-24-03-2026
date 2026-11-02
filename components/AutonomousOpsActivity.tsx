@@ -4,6 +4,7 @@ import { useUser } from '../contexts/UserContext';
 import { resolveAutonomousOpsScope, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { platformTier } from '../utils/permissions';
 import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
+import { AutonomousOpsDecisions } from './AutonomousOpsDecisions';
 import type { OpenViewHandlers } from './AutonomousOpsRowActions';
 import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
 import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
@@ -31,6 +32,9 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
     const { status, refresh } = useAutonomousOpsStatus();
     const [refreshing, setRefreshing] = useState(false);
     const [refreshSignal, setRefreshSignal] = useState(0);
+    // The incident cards on screen (the Review link on a Pending row needs one) and how many decisions were made here.
+    const [decisionIds, setDecisionIds] = useState<ReadonlySet<string>>(() => new Set());
+    const [decidedCount, setDecidedCount] = useState(0);
 
     const scope = resolveAutonomousOpsScope(currentUser?.role, tenantId);
     const readOnly = platformTier(currentUser?.role) === 'support';
@@ -53,6 +57,8 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
     }, [onOpenView, canPatch, canFim]);
 
     // Response settings (D-22): holders of manage in an organization that is not the platform one; never Platform Support.
+    // Needs your decision (ACTV-02): an organization's own cards; never in platform scope or for the platform organization.
+    const showDecisions = scope.kind === 'tenant' && !!status && !status.platformTenant;
     const showResponseSettings = scope.kind === 'tenant' && !readOnly && !!status && !status.platformTenant
         && hasPermission('manage:autonomous_ops');
 
@@ -102,6 +108,15 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                     <div data-slot="autonomous-ops-status">
                         <AutonomousOpsStatusCard tenantId={tenantId} />
                     </div>
+                    {showDecisions && (
+                        <AutonomousOpsDecisions
+                            key={`decisions-${scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}`}
+                            tenantId={scope.kind === 'tenant' ? scope.tenantId : null}
+                            refreshSignal={refreshSignal}
+                            onDecisionIds={setDecisionIds}
+                            onDecided={() => setDecidedCount(n => n + 1)}
+                        />
+                    )}
                     {scope.kind === 'platform' && hasPermission('control:platform_autonomous_ops') && (
                         <AutonomousOpsPlatformHealth refreshSignal={refreshSignal} />
                     )}
@@ -118,7 +133,7 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                             <h2 id="autonomous-ops-activity-title" className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Activity</h2>
                             <span className="text-xs text-gray-500 dark:text-gray-400">Newest first</span>
                         </div>
-                        <AutonomousOpsActivityList scope={scope} refreshSignal={refreshSignal} onOpenView={openers} />
+                        <AutonomousOpsActivityList scope={scope} refreshSignal={refreshSignal + decidedCount} decisionIds={decisionIds} onOpenView={openers} />
                     </section>
                 </>
             )}

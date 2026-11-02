@@ -285,7 +285,7 @@ export class AutonomousOpsApiError extends Error {
     }
 }
 
-async function failure(res: Response): Promise<AutonomousOpsApiError> {
+export async function failure(res: Response): Promise<AutonomousOpsApiError> {
     let detail = '';
     let by: string | null = null;
     try {
@@ -296,7 +296,7 @@ async function failure(res: Response): Promise<AutonomousOpsApiError> {
     return new AutonomousOpsApiError(res.status, detail, by);
 }
 
-const withTenant = (url: string, tenantId?: string | null) =>
+export const withTenant = (url: string, tenantId?: string | null) =>
     tenantId ? `${url}?tenantId=${encodeURIComponent(tenantId)}` : url;
 
 function actionsUrl(base: string, q: ActionsQuery, includeTenant: boolean): string {
@@ -308,7 +308,7 @@ function actionsUrl(base: string, q: ActionsQuery, includeTenant: boolean): stri
     return `${base}?${params.toString()}`;
 }
 
-async function getJson<T>(url: string): Promise<T> {
+export async function getJson<T>(url: string): Promise<T> {
     const res = await authFetch(url);
     if (!res.ok) throw await failure(res);
     return res.json();

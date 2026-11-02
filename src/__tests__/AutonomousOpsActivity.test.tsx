@@ -72,11 +72,15 @@ const jsonRes = (body: unknown, status = 200) =>
 type Handler = (url: string) => Response | Promise<Response>;
 
 /** Route authFetch by path; unknown paths fail loudly so a stray request shows up in the test. */
-function routeFetch(handlers: { status?: Handler; actions?: Handler; platformStatus?: Handler; platformActions?: Handler }) {
+function routeFetch(handlers: { status?: Handler; actions?: Handler; incidents?: Handler; platformStatus?: Handler; platformActions?: Handler }) {
   mockAuthFetch.mockImplementation(async (url: string) => {
     const path = url.split('?')[0];
     if (path === '/api/autonomous-ops/status') return (handlers.status ?? (() => jsonRes(statusPayload())))(url);
     if (path === '/api/autonomous-ops/actions') return (handlers.actions ?? (() => jsonRes({ items: [], nextCursor: null })))(url);
+    // 83-19: the Needs your decision section reads its own cards; this screen's tests are about the activity list.
+    if (path === '/api/autonomous-ops/incidents') {
+      return (handlers.incidents ?? (() => jsonRes({ items: [], total: 0, offset: 0, limit: 10, stopped: null })))(url);
+    }
     // 83-13: the Response settings panel reads its own settings; this screen's tests are about the activity list.
     if (path === '/api/autonomous-ops/response-settings') {
       return jsonRes({ twoSignal: true, blockHours: 24, watchedServices: [], readable: true, restartAvailable: true });
