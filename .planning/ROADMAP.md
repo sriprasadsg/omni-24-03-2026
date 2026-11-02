@@ -541,8 +541,13 @@ Plans:
 
 **Goal**: The platform can sell through partners the way a vendor appoints dealers: a Super Admin appoints partner organizations and gives each a pool of agent seats, a partner creates and manages its own customer organizations and assigns seats to each from its pool, a partner admin sees only that partner's customers, and usage rolls up per partner.
 **Depends on**: Nothing in v4.3. It builds on the per-tenant seat licence (C2), the enrollment controls (C4) and the Phase 77 tenant roles, all complete.
-**Requirements**: TBD (set at discuss-phase)
-**Success Criteria**: TBD (set at discuss-phase)
+**Requirements**: PART-01, PART-02, PART-03, PART-04, PART-05, PART-06, PART-07, PART-08
+**Success Criteria** (what must be TRUE):
+  1. A Super Admin appoints a partner with a seat pool (for example 1,000 seats), an expiry date and a screen ceiling from a Partners screen, sees every partner's pool used and free, and can suspend a partner, which locks its users out while its customers keep running.
+  2. A partner admin creates a customer organization with seats from the pool and invites its first admin, who then runs it like any direct customer; screens can be ticked for that customer only within the partner's ceiling.
+  3. Seats handed out never exceed the pool, even under concurrent requests; a customer's seats can be lowered only to what it uses; a pool cannot shrink below what is handed out; after a pool expires no customer can be created and no seat handed out.
+  4. Partner admins and partner viewers reach only their own customers' seats and usage through every route, and a two-partner test shows that no partner sees another partner's customers or any customer's security data.
+  5. A Super Admin can move a customer to another partner or back to direct, with its seats returned and the move audited; organizations that existed before this phase stay direct; each partner has a per-customer usage list with a CSV export.
 
 **Plans**: TBD
 **UI hint**: yes

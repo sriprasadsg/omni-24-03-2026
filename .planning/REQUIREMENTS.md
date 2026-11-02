@@ -83,6 +83,17 @@
 - [ ] **ACTV-07**: The screen shows an estimate of operator time saved, labelled as an estimate.
 - [ ] **ACTV-08**: A copy check fails the build if Autonomous Ops screens or docs use "ASI", "Autopilot", "fully autonomous" or an unqualified "rollback".
 
+### 7. Partner Channel
+
+- [ ] **PART-01**: A Super Admin appoints a partner organization (its own users, login, MFA and audit trail, no endpoints and no seats of its own) from a Partners screen, sets its seat pool, pool expiry and screen ceiling, sees every partner's pool used and free, and can suspend or reinstate it; a suspended partner's users cannot sign in or move seats, and its customers keep running.
+- [ ] **PART-02**: A partner admin creates a customer organization, assigns it seats from the partner's pool and invites the customer's first admin by email, who then runs the organization with the same rights as the admin of a directly created organization.
+- [ ] **PART-03**: Seats handed out never exceed the partner's pool, enforced atomically under concurrent requests; a partner can lower a customer's seats only down to what that customer uses, and a Super Admin cannot shrink a pool below what is handed out.
+- [ ] **PART-04**: After a pool's expiry date the partner can neither create customers nor hand out seats, and its customers' licences follow the existing expiry rule (new agents held, running agents keep working).
+- [ ] **PART-05**: Partner admins and partner viewers reach only their own partner's customers, and only seats and usage (name, seats assigned and used, agents online and total, licence expiry), through every route; partner roles never gain a tenant or platform permission, and a partner viewer cannot change anything.
+- [ ] **PART-06**: A partner ticks screens for each customer only within the screen ceiling the Super Admin set for that partner; the server refuses any screen outside it.
+- [ ] **PART-07**: Only a Super Admin moves a customer to another partner or back to a direct customer; its seats return to the old partner's pool and the move is recorded in the audit ledger; every organization that existed before this phase stays a direct customer.
+- [ ] **PART-08**: A partner sees a usage roll-up: pool size, seats handed out and free, and per customer the seats assigned and used, agents online and licence expiry, with a CSV export; no invoicing.
+
 ## v2 Requirements (v4.3 deferred)
 
 - **AOPS-F1**: Per-tenant custom autonomy rules authored in the UI.
@@ -236,9 +247,17 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | ACTV-05 | Phase 86 | Pending |
 | ACTV-06 | Phase 86 | Pending |
 | ACTV-07 | Phase 86 | Pending |
+| PART-01 | Phase 87 | Pending |
+| PART-02 | Phase 87 | Pending |
+| PART-03 | Phase 87 | Pending |
+| PART-04 | Phase 87 | Pending |
+| PART-05 | Phase 87 | Pending |
+| PART-06 | Phase 87 | Pending |
+| PART-07 | Phase 87 | Pending |
+| PART-08 | Phase 87 | Pending |
 
 **Coverage:**
-- v4.3 v1 requirements: 55 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8) — 55/55 mapped to Phases 81–86 by the v4.3 roadmap (2026-10-25), no orphans, no duplicates
+- v4.3 v1 requirements: 63 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8, PART 8) — 55 mapped to Phases 81–86 by the v4.3 roadmap (2026-10-25); PART-01..08 added 2026-11-02 for Phase 87 from 87-CONTEXT.md D-01..D-16; no orphans, no duplicates
 - v4.2 v1 requirements: 17 total (ACC 9, COST 8) — mapped to Phases 75–80, unchanged
 
 **Per phase (v4.3):** Phase 81 = 17 (GATE-01..14, ACTV-01, ACTV-03, ACTV-08) | Phase 82 = 8 (HEAL-01..08) | Phase 83 = 12 (RESP-01..11, ACTV-02) | Phase 84 = 7 (PTCH-01..07) | Phase 85 = 7 (DESK-01..07) | Phase 86 = 4 (ACTV-04..07)
