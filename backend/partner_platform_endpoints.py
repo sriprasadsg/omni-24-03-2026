@@ -46,6 +46,11 @@ class PartnerUpdate(BaseModel):
     screenCeiling: Optional[List[str]] = Field(None, max_length=300)
 
 
+class MoveBody(BaseModel):
+    """The target is required on purpose: ``null`` means direct, so an empty body must not mean it."""
+    targetPartnerId: Optional[str] = Field(..., max_length=64)
+
+
 def _require_super_admin(user) -> None:
     if not is_super_admin(getattr(user, "role", "")):
         raise HTTPException(status_code=403, detail="Only the Super Admin manages partners")
@@ -56,6 +61,13 @@ async def list_partners(current_user=Depends(get_current_user)):
     """Every partner with its pool used and free."""
     _require_super_admin(current_user)
     return {"partners": await service.list_partners(mongodb.db)}
+
+
+@router.get("/direct-customers")
+async def get_direct_customers(current_user=Depends(get_current_user)):
+    """Organizations with no partner, for the Add existing customer picker."""
+    _require_super_admin(current_user)
+    return {"customers": await service.direct_customers(mongodb.db)}
 
 
 @router.post("", status_code=201)
@@ -102,5 +114,25 @@ async def reinstate_partner(partner_id: str, current_user=Depends(get_current_us
     _require_super_admin(current_user)
     try:
         return {"partner": await service.reinstate(mongodb.db, partner_id, current_user)}
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.get("/{partner_id}/customers")
+async def get_partner_customers(partner_id: str, current_user=Depends(get_current_user)):
+    """One partner's customers: the same rows the partner sees."""
+    _require_super_admin(current_user)
+    try:
+        return {"customers": await service.partner_customers(mongodb.db, partner_id)}
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.post("/customers/{customer_id}/move")
+async def move_customer(customer_id: str, data: MoveBody, current_user=Depends(get_current_user)):
+    """Move a customer, with its seats, to another partner or to direct (null target)."""
+    _require_super_admin(current_user)
+    try:
+        return {"customer": await service.move(mongodb.db, customer_id, data.targetPartnerId, current_user)}
     except PartnerError as err:
         return error_response(err)

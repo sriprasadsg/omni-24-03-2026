@@ -15,7 +15,7 @@ import partner_pool
 import rbac_defaults
 import tenant_features
 from partner_pool import PartnerError, _raw
-from partner_store import PARTNER_TYPE, audit, name_taken, partner_summary
+from partner_store import PARTNER_TYPE, audit, customer_rows, find_partner, name_taken, partner_summary
 
 ALL_SCREENS = "all"
 _NAME_UNAVAILABLE = "That name isn't available."
@@ -209,3 +209,37 @@ async def list_partners(db) -> List[Dict[str, Any]]:
     out = [partner_summary(p, counts.get(p["id"], 0)) for p in partners]
     out.sort(key=lambda s: (str(s["name"] or "").casefold(), s["id"]))
     return out
+
+
+async def partner_customers(db, partner_id: str) -> List[Dict[str, Any]]:
+    """The partner's customers as the D-01 rows; a missing partner (or a customer's id) is a 404."""
+    partner = await find_partner(db, partner_id)
+    if partner is None:
+        raise PartnerError(404, "not_found", "Partner not found")
+    return await customer_rows(db, partner)
+
+
+async def direct_customers(db) -> List[Dict[str, Any]]:
+    """Organizations that belong to no partner (never a partner organization or the platform), by name."""
+    docs = await _raw(db).tenants.find(
+        {"partnerId": {"$exists": False}, "type": {"$ne": PARTNER_TYPE}, "id": {"$ne": "platform-admin"}},
+        {"_id": 0, "id": 1, "name": 1, "license": 1, "maxAgents": 1},
+    ).to_list(length=None)
+    rows = [{"id": d["id"], "name": d.get("name"), "seatsAssigned": licensing.license_of(d)["maxAgents"]}
+            for d in docs if d.get("id")]
+    rows.sort(key=lambda r: (str(r["name"] or "").casefold(), r["id"]))
+    return rows
+
+
+async def move(db, customer_id: str, target_partner_id: Optional[str], actor: Any) -> Dict[str, Any]:
+    """Move a customer to another partner's pool, or to direct (``None``), keeping its seats (D-11, D-18).
+    The pool arithmetic is partner_pool's one atomic path; this adds the audit under the platform and
+    each partner involved."""
+    customer = await _raw(db).tenants.find_one({"id": customer_id, "type": {"$ne": PARTNER_TYPE}}, {"_id": 0, "name": 1})
+    moved = await partner_pool.move_customer(db, customer_id, target_partner_id)
+    involved = [pid for pid in (moved["from"], moved["to"]) if pid]
+    for index, pid in enumerate(involved):
+        await audit("partner.customer_moved", actor=actor, partner_id=pid, platform=index == 0,
+                    customerId=customer_id, customerName=(customer or {}).get("name"), seats=moved["seats"],
+                    **{"from": moved["from"], "to": moved["to"]})
+    return {"id": customer_id, "name": (customer or {}).get("name"), "partnerId": target_partner_id}
