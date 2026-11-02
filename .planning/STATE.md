@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 87
 current_phase_name: Partner and Reseller Channel
 status: executing
-stopped_at: Completed 87-08-PLAN.md
-last_updated: "2026-11-02T22:38:21.974Z"
+stopped_at: Completed 87-09-PLAN.md
+last_updated: "2026-11-02T22:50:42.687Z"
 last_activity: 2026-11-02
 last_activity_desc: Phase 87 execution started
-state_head: 72464e8c3128ea9301e60185a845377feffc9716
+state_head: 35053f72c4787a1ee4e7c6ec2f72f1426fb2f59d
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 70
-  completed_plans: 64
+  completed_plans: 65
   percent: 14
 ---
 
@@ -542,6 +542,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 87]: 87-06: invite link lives in password_reset_tokens with no creation-time field (its 1 h TTL index keys on it); invites keeps only the SHA-256 of the secret
 - [Phase 87]: 87-07: the Partner portal view is denied by role (PARTNER_ONLY_VIEWS) before the owner short-circuit, so the Super Admin does not see it; the screen picker hides switches outside the ceiling and locks kept screens
 - [Phase 87]: 87-08: a failed appointment invite removes the new organization and everything the invite stored; suspend audits before it revokes sessions and always re-revokes so a retry after a 503 finishes; the move target is a required nullable field so an empty body never means direct
+- [Phase 87]: 87-09: kept screens may be re-sent and skip the parent check; 'all' is always refused; the screens write is a compare-and-set on the list read
+- [Phase 87]: 87-09: GET /api/partner/team and all team writes need a partner admin; customer admin invite uses role Tenant Admin / roleKind customer_admin
 
 ## Performance Metrics
 
@@ -761,6 +763,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 87 P06 | 22 min | 2 tasks | 5 files |
 | Phase 87 P07 | 21 min | 3 tasks | 11 files |
 | Phase 87 P08 | 27 min | 3 tasks | 5 files |
+| Phase 87 P09 | 35 min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -795,8 +798,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-02T22:38:21.730Z
-**Stopped at:** Completed 87-08-PLAN.md
+**Last session:** 2026-11-02T22:50:42.243Z
+**Stopped at:** Completed 87-09-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -823,7 +826,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 87 (Partner and Reseller Channel) — EXECUTING
-Plan: 10 of 15
+Plan: 11 of 15
 Status: Ready to execute
 Last activity: 2026-11-02 — Phase 87 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
