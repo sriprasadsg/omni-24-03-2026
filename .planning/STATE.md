@@ -6,16 +6,16 @@ current_phase: 83
 current_phase_name: Autonomous Security Response
 status: verifying
 stopped_at: Completed 83-20-PLAN.md
-last_updated: "2026-11-02T04:33:21.556Z"
-last_activity: 2026-10-31
+last_updated: "2026-11-02T13:29:58.485Z"
+last_activity: 2026-11-02
 last_activity_desc: Phase 83 execution started
-state_head: 08c4683d2fe3936c734e9dcfd42327a046e3229c
+state_head: 3e5db94d5d288755246e259a845e2f162c7a67f8
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 1
   total_plans: 55
   completed_plans: 55
-  percent: 17
+  percent: 14
 ---
 
 # Project State
@@ -794,6 +794,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - v4.2 milestone added 2026-10-12: 6 new phases (75-80) roadmapped from 17 v1 requirements (ACC-01..09, COST-01..08), continuing numbering from Phase 74. Two largely independent tracks: access control (75 resolver -> 76 manifest + backend guards + parity test -> 77 fail-closed sidebar/ViewGate/role view) and asset costing (78 org/endpoint cost API -> 79 license cost + allocation -> 80 Costs tab). The cost API sits on Phase 76's hardened guards (cost routes gated by `view:itam`). Backend enforcement deliberately precedes any UI claim; Phase 79 is isolated so license spend can be descoped (open decision D-1) without disturbing the hardware-cost slice. All 17 requirements mapped 1:1, no orphans.
 - v4.3 Autonomous Ops started 2026-10-25 AHEAD of v4.2's open phases, by the user's choice: v4.2 is paused, not complete (77 complete; 75–76 deployed, awaiting verification; 78–80 costing not started) and resumes after v4.3. Its phase folders were deliberately NOT archived (`phases.clear` skipped), its requirements stay in REQUIREMENTS.md, and its milestone research was copied to `milestones/v4.2-research/` before v4.3 research reused `.planning/research/`. v4.3 phases start at 81 so 78–80 keep their numbers. The user asked for "ASI"; agreed scope is Autonomous Ops — never label it ASI or "Autopilot" (Windows Autopilot already exists).
 - Phase 74 added 2026-08-26: Interactive Remote Desktop Control (Zoho Assist parity) — upgrades the existing view-only screenshot-stream remote access feature to attended interactive control (input relay, consent gate, control:remote_access permission, audit log). First phase of a new post-v4.1 cycle; no milestone version assigned yet.
+- Phase 87 added: Partner and Reseller Channel (user request 2026-11-02: appoint retailers/dealers, seat pools of 100 or 1000)
 
 ### Pending Todos
 
@@ -806,7 +807,7 @@ Phase: 83 (Autonomous Security Response) — EXECUTING
 Plan: 20 of 20
 Status: Verification human_needed (83-VERIFICATION.md 5/5); 13 items in 83-UAT.md; security blocked by T-83-12 (code review CR-02, fix before publishing agent 2.1.16)
 Last activity: 2026-11-02 — Phase 83 executed 20/20; gates run; verification human_needed
-Progress: 0/6 phases complete ([██░░░░░░░░] 17%)
+Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
 
 ## Deferred Items
 

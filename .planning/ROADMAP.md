@@ -321,6 +321,7 @@ Plans:
 - [ ] **Phase 84: Staged Patch Rollouts** - Ring-based patch rollouts with soak, a real health gate, maintenance windows and one approval per stage; halts on failure and reverts where supported
 - [ ] **Phase 85: First-Line Service Desk** - New tickets are answered from the knowledge base with citations or escalated by fixed rules, and never answered when the model is unavailable
 - [ ] **Phase 86: Activity Reporting, Hardening & Live Validation** - Daily digest, per-rule statistics, export and a time-saved estimate, plus stop drills, two-tenant isolation checks and live validation across every automatic actor
+- [ ] **Phase 87: Partner and Reseller Channel** - Partners appointed by the Super Admin hold a seat pool, create their own customer organizations and assign seats to them; partner admins see only their customers
 
 ### Phase 81: Autonomy Gate, Stop Switch & Activity Ledger
 
@@ -536,6 +537,16 @@ Plans:
 **Live-only verification** (operator steps): kill-switch drills on the live server (queued instructions, pending approvals, rollouts, AI ticket replies); the observe-first soak and per-tenant lift out of shadow mode; digest delivery; CSV and PDF export download.
 **Decisions to settle**: D2 (who lifts shadow mode, and when) and D19 gate go-live (see `.planning/research/SUMMARY.md`).
 
+### Phase 87: Partner and Reseller Channel
+
+**Goal**: The platform can sell through partners the way a vendor appoints dealers: a Super Admin appoints partner organizations and gives each a pool of agent seats, a partner creates and manages its own customer organizations and assigns seats to each from its pool, a partner admin sees only that partner's customers, and usage rolls up per partner.
+**Depends on**: Nothing in v4.3. It builds on the per-tenant seat licence (C2), the enrollment controls (C4) and the Phase 77 tenant roles, all complete.
+**Requirements**: TBD (set at discuss-phase)
+**Success Criteria**: TBD (set at discuss-phase)
+
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -552,3 +563,4 @@ Plans:
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
+| 87. Partner and Reseller Channel | 0/TBD | Not started | - |
