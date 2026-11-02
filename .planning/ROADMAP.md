@@ -549,7 +549,7 @@ Plans:
   4. Partner admins and partner viewers reach only their own customers' seats and usage through every route, and a two-partner test shows that no partner sees another partner's customers or any customer's security data.
   5. A Super Admin can move a customer to another partner or back to direct, with its seats returned and the move audited; organizations that existed before this phase stay direct; each partner has a per-customer usage list with a CSV export.
 
-**Plans**: 6/15 plans executed
+**Plans**: 7/15 plans executed
 
 Plans:
 **Wave 1**
@@ -563,7 +563,7 @@ Plans:
 - [x] 87-03-PLAN.md — Pool completed: allotment floor, pool floor, moves, reconcile, migration 029
 - [x] 87-04-PLAN.md — Suspension chokepoint in the token verifier, login and refresh
 - [x] 87-05-PLAN.md — Partner allowlist middleware and route-walk proof
-- [ ] 87-06-PLAN.md — Invites: seven-day single-use links and the public status route
+- [x] 87-06-PLAN.md — Invites: seven-day single-use links and the public status route
 - [ ] 87-07-PLAN.md — Frontend ground: partner client, portal role gate, suspended exit, chips, screen picker
 
 **Wave 4** *(blocked on Wave 3 completion)*
@@ -595,4 +595,4 @@ Plans:
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
-| 87. Partner and Reseller Channel | 6/15 | In Progress | - |
+| 87. Partner and Reseller Channel | 7/15 | In Progress | - |
