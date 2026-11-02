@@ -140,3 +140,79 @@ def test_the_sync_verifier_refuses_every_partner_role(role):
         auth_svc.verify_token(_token(role=role))
     assert caught.value.status_code == 401
     assert caught.value.detail == "Could not validate credentials"
+
+
+# -- sign-in and refresh over the real auth router --------------------------------------------
+
+from tests.rbac_test_support import (  # noqa: E402
+    login, make_auth_client, make_user, reset_shared_limiter, role_store, shared_role_docs)
+
+PARTNER_EMAIL = "pat@partner.example"
+
+
+@pytest.fixture
+def _reset_limiter():
+    reset_shared_limiter()
+    yield
+    reset_shared_limiter()
+
+
+def _auth_client(monkeypatch, status="suspended", role="partner_admin"):
+    partner = {"id": PARTNER_ID, "type": "partner", "name": "Suspend Co",
+               "partner": {"status": status, "poolSize": 10, "allocated": 0}}
+    user = make_user(PARTNER_EMAIL, role, PARTNER_ID)
+    db, raw = role_store(users=[user], roles=shared_role_docs(), tenants=[partner])
+    monkeypatch.setattr(partner_status, "_raw_db", lambda: raw)
+    import authentication_endpoints as auth_ep
+    audit = AsyncMock()
+    monkeypatch.setattr(auth_ep, "_audit_login", audit)
+    return make_auth_client(db, monkeypatch), raw, audit
+
+
+def test_login_with_the_right_password_for_a_suspended_partner_is_refused_and_audited(monkeypatch, _reset_limiter):
+    """protects=a suspended partner's users learn why they cannot sign in;
+    fails_when=a session is issued, or the refusal is not audited with partner_suspended;
+    no_claim=the MFA branch (never reached)."""
+    client, _raw, audit = _auth_client(monkeypatch)
+    resp = login(client, PARTNER_EMAIL)
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == MESSAGE
+    assert resp.headers["X-Partner-Suspended"] == "1"
+    assert "access_token" not in resp.json()
+    reasons = [c.kwargs.get("reason") for c in audit.await_args_list if c.args[1] == "login.failure"]
+    assert "partner_suspended" in reasons
+
+
+def test_login_with_a_wrong_password_keeps_the_generic_refusal(monkeypatch, _reset_limiter):
+    """protects=the message reveals nothing without valid credentials;
+    fails_when=a wrong password answers 403 or the suspended message;
+    no_claim=lockout counting."""
+    client, _raw, audit = _auth_client(monkeypatch)
+    resp = login(client, PARTNER_EMAIL, password="Wrong-Password9!")
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid credentials"
+    assert "X-Partner-Suspended" not in resp.headers
+    assert all(c.kwargs.get("reason") != "partner_suspended" for c in audit.await_args_list)
+
+
+def test_refresh_for_a_suspended_partner_is_refused_with_the_header(monkeypatch, _reset_limiter):
+    """protects=a refresh cookie cannot extend a suspended partner's session;
+    fails_when=refresh issues a new access token for a suspended partner;
+    no_claim=refresh for other users."""
+    client, _raw, _audit = _auth_client(monkeypatch)
+    cookie = auth_svc.create_refresh_token(data={"sub": PARTNER_EMAIL})
+    resp = client.post("/api/auth/refresh", cookies={auth_svc.REFRESH_COOKIE: cookie})
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == MESSAGE
+    assert resp.headers["X-Partner-Suspended"] == "1"
+
+
+def test_reinstating_the_partner_restores_sign_in(monkeypatch, _reset_limiter):
+    """protects=suspension is reversible by the status alone; fails_when=login stays refused once active;
+    no_claim=the Super Admin reinstate route (plan 08)."""
+    client, raw, _audit = _auth_client(monkeypatch)
+    assert login(client, PARTNER_EMAIL).status_code == 403
+    next(t for t in raw.tenants.docs if t["id"] == PARTNER_ID)["partner"]["status"] = "active"
+    resp = login(client, PARTNER_EMAIL)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["access_token"]
