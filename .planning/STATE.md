@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 87
 current_phase_name: Partner and Reseller Channel
 status: executing
-stopped_at: Completed 87-15-PLAN.md
-last_updated: "2026-11-02T17:51:20.679Z"
+stopped_at: Completed 87-02-PLAN.md
+last_updated: "2026-11-02T18:21:12.400Z"
 last_activity: 2026-11-02
 last_activity_desc: Phase 87 execution started
-state_head: 5bf8077091af3e30991c3e06099dc0e3e8698f3e
+state_head: c3a2817a080a7b3e70c112242d3584b44d9f823c
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 70
-  completed_plans: 57
+  completed_plans: 58
   percent: 14
 ---
 
@@ -534,6 +534,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 83]: 83-19: incident client lives in services/autonomousOpsIncidentsApi.ts (autonomousOpsApi.ts was at 478 lines); a decided card stays from a snapshot until the next background read; a passed deadline disables every button on its card
 - [Phase 87]: 87-01 Task 1: option-a selected by the user - partner sub-document on tenants, counter advanced by conditional update
 - [Phase 87]: 87-15: partner roles are tenantId platform and non-editable seed documents; drift tests exclude them from TENANT_PERMS by role key
+- [Phase 87]: 87-02: partner roles resolve to their table row alone (no role document read); manage:partner_customers is admin-tier so partner admins enroll MFA; partner roles live only in type partner orgs and are Super-Admin-assigned
 
 ## Performance Metrics
 
@@ -746,6 +747,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 83 P20 | 20min | 2 tasks | 3 files |
 | Phase 87 P01 | 5 min | 2 tasks | 12 files |
 | Phase 87 P15 | 14 min | 2 tasks | 8 files |
+| Phase 87 P02 | 20 min | 2 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -780,8 +782,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-02T17:51:20.366Z
-**Stopped at:** Completed 87-15-PLAN.md
+**Last session:** 2026-11-02T18:21:12.118Z
+**Stopped at:** Completed 87-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -808,7 +810,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 87 (Partner and Reseller Channel) — EXECUTING
-Plan: 3 of 15
+Plan: 4 of 15
 Status: Ready to execute
 Last activity: 2026-11-02 — Phase 87 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
