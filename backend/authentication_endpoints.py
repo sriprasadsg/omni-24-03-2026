@@ -24,6 +24,7 @@ from authentication_service import create_access_token, create_refresh_token, AC
 from authentication_service import REFRESH_COOKIE, set_refresh_cookie, clear_refresh_cookie, _oauth2_optional, _revoked_jti_cache
 from authentication_service import get_current_user_mfa_pending, mfa_action_for, resolve_mfa_required
 from database import get_database
+import partner_status
 from rbac_service import session_permissions
 
 # WHY db._db.* IS USED IN THIS FILE
@@ -196,6 +197,12 @@ async def login_for_access_token(request: Request, response: Response, login_req
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SIGNUP_PENDING_MESSAGE)
         await _audit_login(request, "login.failure", identifier, user, "denied", reason="account_disabled")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is disabled. Contact your administrator.")
+    try:  # D-15: a suspended partner's users get no session; only reachable with the right password
+        await partner_status.refuse_if_suspended(user.get("role"), user.get("tenantId"))
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_403_FORBIDDEN:
+            await _audit_login(request, "login.failure", identifier, user, "denied", reason="partner_suspended")
+        raise
 
     # 3. If MFA is enabled — return short-lived session token instead of full JWT
     mfa = user.get("mfa", {})
@@ -435,6 +442,7 @@ async def refresh_access_token(request: Request, response: Response, data: dict[
     user = await db._db.users.find_one({"email": email})
     if not account_is_active(user):
         raise HTTPException(status_code=401, detail="Could not validate credentials")
+    await partner_status.refuse_if_suspended(user.get("role"), user.get("tenantId"))  # D-15
     # Disabling, re-roling or a password change ends refresh tokens too.
     if await refresh_token_cut_off(db, email, float(payload.get("iat") or 0)):
         raise HTTPException(status_code=401, detail="Could not validate credentials")
