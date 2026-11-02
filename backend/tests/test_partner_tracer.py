@@ -37,13 +37,15 @@ def wired(mongo_db):
     """Both endpoint modules read the test database; the audit ledger never reaches a real one."""
     handle = SimpleNamespace(db=mongo_db)
     with patch.object(pe, "mongodb", handle), patch.object(ppe, "mongodb", handle), \
-            patch("audit_ledger.event", new=AsyncMock()) as audit:
+            patch("audit_ledger.event", new=AsyncMock()) as audit, \
+            patch("partner_invites.send_invite_email", new=AsyncMock(return_value=False)):
         yield SimpleNamespace(db=mongo_db, audit=audit)
 
 
 async def _appoint(pool_size=100, name="Retailer A"):
-    out = await ppe.create_partner(ppe.PartnerCreate(name=name, poolSize=pool_size, screenCeiling=["all"]),
-                                   current_user=SUPER)
+    email = f"boss@{name.lower().replace(' ', '')}.example"
+    out = await ppe.create_partner(ppe.PartnerCreate(name=name, poolSize=pool_size, screenCeiling=["all"],
+                                                     adminName="Boss", adminEmail=email), current_user=SUPER)
     return out["partner"]["id"]
 
 
@@ -66,7 +68,8 @@ async def test_appoint_stores_the_partner_shape(wired):
 
 async def test_a_partner_admin_cannot_appoint(wired):
     with pytest.raises(HTTPException) as exc:
-        await ppe.create_partner(ppe.PartnerCreate(name="X", poolSize=5, screenCeiling=[]),
+        await ppe.create_partner(ppe.PartnerCreate(name="X", poolSize=5, screenCeiling=[], adminName="B",
+                                                   adminEmail="b@x.example"),
                                  current_user=_partner_user("partner_x"))
     assert exc.value.status_code == 403
 

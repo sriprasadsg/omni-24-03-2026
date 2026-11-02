@@ -9,6 +9,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
 import licensing
+import partner_invites
+import partner_pool
+import rbac_defaults
 import tenant_features
 from partner_pool import PartnerError, _raw
 from partner_store import PARTNER_TYPE, audit, name_taken, partner_summary
@@ -36,13 +39,34 @@ def _utc_iso(value: Optional[datetime]) -> Optional[str]:
     return value.astimezone(timezone.utc).isoformat()
 
 
+def _actor_email(actor: Any) -> str:
+    if isinstance(actor, dict):
+        return str(actor.get("email") or "system")
+    return getattr(actor, "username", None) or "system"
+
+
+async def _remove_half_appointed(db, partner_id: str, address: str) -> None:
+    """Undo a failed appointment: the new organization and whatever the invite stored for it."""
+    raw = _raw(db)
+    await raw.tenants.delete_one({"id": partner_id, "type": PARTNER_TYPE})
+    await raw.users.delete_many({"tenantId": partner_id})
+    await raw.invites.delete_many({"tenantId": partner_id})
+    await raw.password_reset_tokens.delete_many({"email": address, "invite": True})
+
+
 async def appoint(db, *, name: str, pool_size: int, expires_at: Optional[datetime],
-                  screen_ceiling: Iterable[str], actor: Any) -> Dict[str, Any]:
-    """Create the partner organization; returns its summary."""
+                  screen_ceiling: Iterable[str], admin_name: str, admin_email: str,
+                  actor: Any) -> Dict[str, Any]:
+    """Create the partner organization and invite its first admin; returns ``{partner, emailSent}``.
+    Every refusal (name, ceiling, email) comes before the first write."""
     name = name.strip()
+    admin_name = admin_name.strip()
     ceiling = validate_ceiling(screen_ceiling)
+    address = partner_invites.normalize_email(admin_email)
     if await name_taken(db, name):
         raise PartnerError(409, "name_unavailable", _NAME_UNAVAILABLE)
+    if await partner_invites.email_in_use(db, address):
+        raise partner_invites._unavailable()
     now = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": f"partner_{uuid.uuid4().hex[:12]}",
@@ -63,9 +87,68 @@ async def appoint(db, *, name: str, pool_size: int, expires_at: Optional[datetim
         "updatedAt": now,
     }
     await _raw(db).tenants.insert_one(dict(doc))
+    try:
+        invited = await partner_invites.invite(
+            db, tenant_id=doc["id"], organization_name=name, email=address, name=admin_name,
+            role=rbac_defaults.PARTNER_ADMIN_KEY, role_kind="partner_admin", invited_by=_actor_email(actor))
+    except Exception:
+        await _remove_half_appointed(db, doc["id"], address)
+        raise
     await audit("partner.appointed", actor=actor, partner_id=doc["id"], platform=True,
-                poolSize=pool_size, expiresAt=doc["partner"]["expiresAt"])
-    return partner_summary(doc, 0)
+                poolSize=pool_size, expiresAt=doc["partner"]["expiresAt"], ceilingSize=len(ceiling),
+                adminEmail=address)
+    return {"partner": partner_summary(doc, 0), "emailSent": bool(invited.get("emailSent"))}
+
+
+async def _summary_of(db, partner_id: str) -> Dict[str, Any]:
+    raw = _raw(db)
+    doc = await raw.tenants.find_one({"id": partner_id, "type": PARTNER_TYPE}, {"_id": 0})
+    if doc is None:
+        raise PartnerError(404, "not_found", "Partner not found")
+    return partner_summary(doc, await raw.tenants.count_documents({"partnerId": partner_id}))
+
+
+async def update_partner(db, partner_id: str, *, changes: Dict[str, Any], actor: Any) -> Dict[str, Any]:
+    """Apply only the fields the caller sent: name, poolSize (never below what is handed out, D-07),
+    expiresAt (``None`` clears it, D-08) and screenCeiling (D-10). Everything is validated, and the
+    pool resize (the one step that can be refused by the data) runs, before any other field is written.
+    A customer's screens are never touched (D-19). Returns the new summary."""
+    raw = _raw(db)
+    doc = await raw.tenants.find_one({"id": partner_id, "type": PARTNER_TYPE}, {"_id": 0})
+    if doc is None:
+        raise PartnerError(404, "not_found", "Partner not found")
+    pool = doc.get("partner") or {}
+    sets: Dict[str, Any] = {}
+    events: List[tuple] = []
+    if "name" in changes:
+        name = str(changes["name"] or "").strip()
+        if not name:
+            raise PartnerError(422, "invalid_name", "Enter a name.")
+        if name != doc.get("name"):
+            if await name_taken(db, name, exclude_id=partner_id):
+                raise PartnerError(409, "name_unavailable", _NAME_UNAVAILABLE)
+            sets["name"] = name
+            events.append(("partner.renamed", doc.get("name"), name))
+    if "screenCeiling" in changes:
+        ceiling = validate_ceiling(changes["screenCeiling"])
+        before = [s for s in pool.get("screenCeiling") or [] if isinstance(s, str)]
+        if ceiling != before:
+            sets["partner.screenCeiling"] = ceiling
+            events.append(("partner.ceiling_changed", before, ceiling))
+    if "expiresAt" in changes:
+        expiry = _utc_iso(changes["expiresAt"])
+        if expiry != pool.get("expiresAt"):
+            sets["partner.expiresAt"] = expiry
+            events.append(("partner.expiry_changed", pool.get("expiresAt"), expiry))
+    if "poolSize" in changes and changes["poolSize"] != pool.get("poolSize"):
+        await partner_pool.set_pool_size(db, partner_id, changes["poolSize"])
+        events.append(("partner.pool_changed", pool.get("poolSize"), changes["poolSize"]))
+    if sets:
+        sets["updatedAt"] = datetime.now(timezone.utc).isoformat()
+        await raw.tenants.update_one({"id": partner_id, "type": PARTNER_TYPE}, {"$set": sets})
+    for action, before, after in events:
+        await audit(action, actor=actor, partner_id=partner_id, platform=True, before=before, after=after)
+    return await _summary_of(db, partner_id)
 
 
 async def list_partners(db) -> List[Dict[str, Any]]:
