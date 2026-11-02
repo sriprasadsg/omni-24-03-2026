@@ -30,6 +30,8 @@ export type AppView =
   | 'auditLog'
   | 'settings'
   | 'tenantManagement'
+  | 'partners'
+  | 'partnerPortal'
   | 'userManagement'
   | 'roleManagement'
   | 'apiKeys'
@@ -233,6 +235,9 @@ export type Permission =
   | 'manage:ai_risks'
   | 'manage:settings'
   | 'manage:tenants'
+  | 'manage:partners'
+  | 'view:partner_portal'
+  | 'manage:partner_customers'
   | 'view:cloud_security'
   | 'view:finops'
   | 'view:audit_log'
@@ -409,6 +414,9 @@ export type Tenant = {
   assignedBundles?: string[];
   customFeatures?: string[];
   blockedFeatures?: string[];
+  // Partner channel: a partner is an organization marked type partner; an absent partnerId means a direct customer.
+  type?: 'partner';
+  partnerId?: string;
 };
 
 // ── Feature Bundles ───────────────────────────────────────────────────────────

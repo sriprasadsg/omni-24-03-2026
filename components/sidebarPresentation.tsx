@@ -199,6 +199,8 @@ export const SIDEBAR_PRESENTATION: Partial<Record<AppView, SidebarPresentation>>
     apiStatus: { icon: <RadioTower size={20} /> },
     settings: { icon: <SettingsIcon size={20} /> },
     tenantManagement: { icon: <BuildingIcon size={20} /> },
+    partners: { icon: <BuildingIcon size={20} /> },
+    partnerPortal: { icon: <BuildingIcon size={20} /> },
     bundleManagement: { icon: <PuzzleIcon size={20} /> },
     webhooks: { icon: <Share2Icon size={20} /> },
     ticketing: { icon: <Share2Icon size={20} /> },
