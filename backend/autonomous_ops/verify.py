@@ -19,6 +19,11 @@ target and changed nothing, (``failed``, ``blocked_by_local_security``), (``fail
 longer ticked, and otherwise (``failed``, ``agent_failed``). The circuit breaker counts only some of these
 (``ledger.BREAKER_FAILURES``).
 
+``settle_undo`` is the honest half of an undo: a person's undo marks the row ``undone`` the moment the
+instruction is written, and this reads the host's answer. A host that reports a failure (or says nothing within
+the no-result bound) gives the row back its earlier Done state with ``undoFailed`` {at, reason} recorded and the
+undo block reset, so Undo is offered again and nothing reads as restored that was not.
+
 What this module never does (PROH-83-06): it does not look at any finding, it does not start a
 re-scan, and it does not undo, compensate or repeat the action. A block whose address is still
 flagged stays in place; the only thing that ends a verified block is its expiry or a person's undo.
@@ -40,6 +45,8 @@ _CHECKS = frozenset(CONTRACT["checks"])
 _CAP = int(CONTRACT["stillRunningCap"])
 _MAX_EXPIRES = int(CONTRACT["blockTtlSeconds"]["max"])
 _MAX_HEALTHY = 3600
+_FAILED = frozenset({"failed", "failure", "refused", "error", "rejected"})
+_SUCCEEDED = frozenset({"completed", "success", "executed", "done"})
 _MAX_NAME = 128
 
 
@@ -153,3 +160,35 @@ async def settle(db, tenant_id: str, row: Dict[str, Any], doc: Optional[Dict[str
         moved = await ledger.transition(db, tenant_id, row["id"], ("executed",), "verified", **fields)
         return "verified" if moved else None
     return None
+
+
+async def settle_undo(db, tenant_id: str, row: Dict[str, Any], doc: Optional[Dict[str, Any]], *,
+                      no_result_before: Optional[datetime] = None, now: Optional[datetime] = None) -> Optional[str]:
+    """Give an ``undone`` security_response row back its Done state when its undo instruction (the row's last)
+    failed, or, with ``no_result_before`` given, when it was undone at or before that moment and the host has
+    still not answered. Returns "verified" or "executed" (the state it went back to) or None (nothing changed:
+    not this dispatcher, no undo instruction, a good answer, still waiting, or another pass won).
+    Compensates nothing and sends nothing (RESP-06)."""
+    ids = row.get("instructionIds") if isinstance(row.get("instructionIds"), list) else []
+    undo = row.get("undo") if isinstance(row.get("undo"), dict) else {}
+    if row.get("state") != "undone" or row.get("dispatcher") != "security_response" or len(ids) < 2:
+        return None                                      # the first instruction is the action itself
+    status = doc.get("status") if isinstance(doc, dict) else None
+    status = status.strip().lower() if isinstance(status, str) else None
+    if status in _SUCCEEDED:
+        return None
+    if status in _FAILED:
+        reason = failure_outcome(doc)[1]
+    else:
+        began = undo.get("undoneAt")
+        if began is not None and began.tzinfo is None:
+            began = began.replace(tzinfo=timezone.utc)
+        if no_result_before is None or began is None or began > no_result_before:
+            return None
+        reason = "no_result"
+    back = "verified" if row.get("verifiedAt") else "executed"
+    moved = await ledger.transition(
+        db, tenant_id, row["id"], ("undone",), back, where={"instructionIds": {"$size": len(ids)}},
+        undoFailed={"at": _now(now), "reason": reason},
+        undo={**undo, "available": True, "undoneAt": None, "undoneBy": None})
+    return back if moved else None

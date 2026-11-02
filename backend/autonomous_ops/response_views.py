@@ -13,6 +13,7 @@ remain the guard. Every string is plain text; the browser renders it as text (T-
 
 Row fields read, besides the ledger's own: ``blockedFrom`` / ``blockedUntil`` (block window),
 ``result.healthy_after`` and ``result.still_running`` (the agent's own verify result, stored bounded),
+``stillRunning`` (the row's own list, which a kill card clears) and ``undoFailed`` (an undo the host did not confirm),
 ``reason.inputs`` keys ``origins``, ``twoSignal``, ``suggestion``, ``suggestionOnly``, ``incidentId``,
 ``service``, ``attempt``, ``overBudget``, ``protectedPath``, ``detail`` and ``undoneAt``.
 """
@@ -238,6 +239,9 @@ def row_extras(row: Dict[str, Any], *, host: Optional[str] = None, can_act: bool
         if reason:
             out["reasonText"] = reason
     result = _result_text(row, inputs, until, now, host)
+    if row.get("dispatcher") == SECURITY_DISPATCHER and isinstance(row.get("undoFailed"), dict):
+        failed = rm.REASON_TEXT["undo_failed"]               # the undo did not take: say so before anything else
+        result = f"{failed} {result}" if result else failed
     if result:
         out["resultText"] = result
     return out

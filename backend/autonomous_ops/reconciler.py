@@ -15,7 +15,9 @@ tick, per tenant in sorted tenantId order:
    status that is not pending / queued / a final outcome) that reports nothing within
    ``AUTONOMOUS_OPS_NO_RESULT_MIN`` (default 1440, never shorter than the not-delivered bound)
    -> ``failed`` with reason ``no_result``;
-3. asks the circuit breaker to look at the tenant when any of its rows changed.
+3. gives an undone security_response row back its Done state when its undo failed or went unanswered
+   (``verify.settle_undo``), and runs what follows a settled row (``followups``);
+4. asks the circuit breaker to look at the tenant when any of its rows changed.
 
 A failure for one tenant is logged and does not stop the others. Each tenant is processed inside
 ``scope.tenant_scope`` and the ContextVar is back to None after every tick. All reads and writes
@@ -158,14 +160,39 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
     return done
 
 
+async def _reconcile_undos(db, tenant_id: str, now: datetime) -> int:
+    """An undone security_response row whose undo instruction failed (or never answered within the
+    no-result bound) goes back to Done with the failure recorded; see ``verify.settle_undo``."""
+    back = 0
+    for row in await _undone_rows(db, tenant_id, now):
+        ids = row.get("instructionIds") or []
+        if len(ids) < 2:
+            continue
+        moved = await verify.settle_undo(db, tenant_id, row, await _instruction(db, tenant_id, ids[-1]),
+                                         no_result_before=now - _no_result_after(), now=now)
+        back += 1 if moved else 0
+    return back
+
+
+async def _undone_rows(db, tenant_id: Optional[str], now: datetime):
+    """Rows a person undid recently enough for the host's answer to still matter (the no-result bound and
+    an hour), for one tenant or, with ``tenant_id`` None, for any."""
+    flt = {"state": "undone", "dispatcher": "security_response",
+           "undo.undoneAt": {"$gte": now - _no_result_after() - timedelta(hours=1)}}
+    if tenant_id is not None:
+        flt["tenantId"] = tenant_id
+    return [r async for r in raw(db).autonomy_actions.find(flt, {"_id": 0})]
+
+
 async def tick(db, *, now: Optional[datetime] = None,
                lost: Optional[Callable[[], bool]] = None) -> Dict[str, int]:
     """One reconciliation pass. Returns counts {expired, executed, failed, tripped}. ``lost`` is
     polled between tenants; when it returns True the pass stops (the lock was lost)."""
     now = _now(now)
     counts = {"expired": 0, "executed": 0, "failed": 0, "tripped": 0}
-    tenants = sorted(t for t in await raw(db).autonomy_actions.distinct(
-        "tenantId", {"state": {"$in": list(OPEN_STATES)}}) if isinstance(t, str) and t)
+    tenants = sorted({t for t in await raw(db).autonomy_actions.distinct(
+        "tenantId", {"state": {"$in": list(OPEN_STATES)}}) if isinstance(t, str) and t}
+        | {r.get("tenantId") for r in await _undone_rows(db, None, now) if isinstance(r.get("tenantId"), str)})
     for tenant_id in tenants:
         if lost is not None and lost():
             logger.warning("autonomous_ops: reconciler lost its lock, stopping this pass")
@@ -174,6 +201,7 @@ async def tick(db, *, now: Optional[datetime] = None,
             with scope.tenant_scope(tenant_id):
                 counts["expired"] += await approvals.expire_due(db, now=now, tenant_id=tenant_id)
                 moved = await _reconcile_dispatches(db, tenant_id, now)
+                await _reconcile_undos(db, tenant_id, now)
                 counts["executed"] += moved["executed"]
                 counts["failed"] += moved["failed"]
                 if moved["executed"] or moved["failed"]:
