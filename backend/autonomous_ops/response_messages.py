@@ -34,6 +34,9 @@ WHAT_HAPPENS = {
     "kill_process": "Ends this process right away. Unsaved work in it is lost.",
     "isolate_host": ("Cuts this computer off from the network except its connection to the platform. It returns "
                      "to the network automatically after 4 hours unless you confirm it."),
+    # After the isolation is done and nobody confirmed it yet: {at} is filled by the browser, in the viewer's time.
+    "isolation_unconfirmed": ("Confirming keeps this computer isolated until you restore it. Without it, the "
+                              "computer returns to the network automatically at {at}."),
     "reboot_host": "Restarts this computer. Anyone using it loses unsaved work.",
     "restart_over_budget": "Restarts {service} on this computer. If it fails again it stays down until you act.",
     "kill_then_quarantine": "Ends the process, then moves the file to quarantine. Nothing is deleted.",
@@ -48,6 +51,19 @@ NOTICES = {
     "kill_only": ("The file was moved to quarantine, but its process is still running. Approving ends the "
                   "process."),
 }
+
+# The one label a kill line carries when approving it also retries the quarantine (D-06).
+CHAIN_LABELS = {"kill_then_quarantine": "Kill process, then quarantine file"}
+
+# Why the second step of a kill line failed, for "The process was ended but the file is still in place: {reason}."
+CHAIN_FAIL_REASONS = {
+    "locked": "the file is still in use",
+    "hash_mismatch": "the file no longer matches what was flagged",
+    "protected_path": "the file is a protected system file",
+    "agent_refused": "the computer refused it",
+    "blocked_by_local_security": "security software on the computer blocked it",
+}
+CHAIN_FAIL_DEFAULT = "the computer could not move it"
 
 UNDO_HINTS = {
     "unblock_ip": "Removes the block on {ip}.",
@@ -65,9 +81,19 @@ RESULT_TEMPLATES = {
     "block_check_failed": "The host did not confirm the firewall rule, so this is marked failed.",
     "quarantine_done": "Moved {path} to quarantine. It was not deleted. Verified: the file is in quarantine.",
     "quarantine_still_running": "The process is still running. See Needs your decision.",
+    # The same first sentence, for a quarantine whose kill line is no longer waiting: nothing to point at.
+    "quarantine_still_running_plain": "The process is still running.",
     "restart_done": "Restarted {service}. Healthy again after {seconds} s. Restart {attempt} of 3 this hour.",
+    # An approved card has no attempt number to count (it is past the budget), so it says only this much.
+    "restart_done_card": "Restarted {service}. Healthy again after {seconds} s.",
     "isolation_done": "{host} is isolated. The connection to the platform stays open.",
     "isolation_reverted": "Returned to the network automatically after 4 hours. Nobody confirmed the isolation.",
+    "isolation_confirmed": "Confirmed by {name} at {at}. The computer stays isolated until a person restores it.",
+    # Lines of an incident card that a person decided (83-UI-SPEC section 2a).
+    "card_approved": "Approved. Sent to {host}.",
+    "card_denied": "Denied by {name}.",
+    "card_expired": "Expired after 24 hours, counted as denied.",
+    "chain_quarantine_failed": "The process was ended but the file is still in place: {reason}.",
     "suggestion_vulnerability": "No action was taken. Patching is where you apply fixes.",
     "suggestion_file_change": "No action was taken. Check whether these changes were expected.",
     "suggestion_one_source": ("Nothing was done. If a second source agrees within 24 hours this runs on its own. "

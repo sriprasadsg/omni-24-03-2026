@@ -3,7 +3,11 @@
 GET /api/autonomous-ops/response-settings   the three settings of the caller's organization
 PUT /api/autonomous-ops/response-settings   change any of them: twoSignal, blockHours, watchedServices
 
-Both routes need manage:autonomous_ops in a signed-in session; an API key and Platform Support are refused.
+The two settings routes need manage:autonomous_ops in a signed-in session; an API key and Platform Support are
+refused.
+
+GET  /api/autonomous-ops/incidents                       the Needs your decision cards (view access; the flags on
+                                                          every line say what the caller may do)
 The mount guard (catalogue_mounts_autonomous_ops) checks the catalogue strings; the dependencies below add
 the exact permission. A change takes effect for new decisions only (a block already in place keeps its
 length). Every value that changes leaves one control row in the activity list and one audit event, naming
@@ -19,7 +23,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, StrictBool, StrictInt, StringConstraints
 
 import agent_capabilities
-from autonomous_ops import PLATFORM_TENANT_ID, messages, response_settings, views
+from api_key_auth import get_current_user_or_api_key
+from autonomous_ops import PLATFORM_TENANT_ID, incident_views, messages, response_settings, views
 from autonomous_ops.scope import raw
 from autonomous_ops_endpoints import _require_interactive_session, _require_manage, _tenant_for, _unavailable
 from database import get_database
@@ -111,6 +116,31 @@ async def put_response_settings(
         except response_settings.SettingsError as exc:
             raise refuse(exc) from exc
         return settings_payload(s, restart_available=await restart_available(db, tenant))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
+# ---------------------------------------------------------------- the cards
+
+@router.get("/incidents", summary="Incidents that need a decision")
+async def get_incidents(
+    offset: int = Query(0, ge=0, le=100000),
+    limit: int = Query(10, ge=1, le=50),
+    tenantId: Optional[str] = Query(None, max_length=views.TENANT_ID_MAX),
+    user=Depends(get_current_user_or_api_key),
+):
+    """One card per incident that has an action waiting for a person or an isolation nobody confirmed yet,
+    soonest deadline first (ties: the newer incident first), 10 a page. Every line carries canApprove,
+    canDeny and canConfirmIsolation, all false for a view-only role, Platform Support or an API key. `stopped`
+    names the stop that disables Approve. Platform staff name an organization with tenantId."""
+    try:
+        db = get_database()
+        tenant = await _tenant_for(db, user, tenantId, write=False)
+        caller = await views.build_caller(user)
+        return await incident_views.list_cards(db, tenant, offset=offset, limit=limit, staff=caller.staff,
+                                               can_act=caller.can_control and caller.interactive)
     except HTTPException:
         raise
     except Exception as exc:

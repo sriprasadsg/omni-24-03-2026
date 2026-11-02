@@ -18,9 +18,10 @@ Row fields read, besides the ledger's own: ``blockedFrom`` / ``blockedUntil`` (b
 ``service``, ``attempt``, ``overBudget``, ``protectedPath``, ``detail`` and ``undoneAt``.
 """
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from . import dispatch_check, registry, response_messages as rm
+from .scope import raw
 
 ITEM_CAP = 10                # D-07: a grouped row lists at most this many items
 TEXT_CAP = 300               # one item's text; agent-reported text is never trusted to be short
@@ -170,7 +171,7 @@ def _block_result(row: Dict[str, Any], until: Optional[datetime], now: datetime)
 
 
 def _result_text(row: Dict[str, Any], inputs: Dict[str, Any], until: Optional[datetime], now: datetime,
-                 host: Optional[str]) -> Optional[str]:
+                 host: Optional[str], kill_card: Optional[bool] = None) -> Optional[str]:
     command, state = row.get("command"), row.get("state")
     if row.get("reasonCode") == "suppressed_by_undo" and inputs.get("undoneAt"):
         return rm.RESULT_TEMPLATES["not_repeated"]
@@ -187,12 +188,16 @@ def _result_text(row: Dict[str, Any], inputs: Dict[str, Any], until: Optional[da
         # The row's own list (cleared when the kill-only card ends the process) wins over what the host reported.
         still = row["stillRunning"] if "stillRunning" in row else result.get("still_running")
         if still and not inputs.get("parentActionId"):       # a retry has no card to point at (D-06)
-            text += " " + rm.RESULT_TEMPLATES["quarantine_still_running"]
+            # Only a lookup that found no waiting kill line drops the pointer; None (not looked up) keeps it.
+            pointer = "quarantine_still_running_plain" if kill_card is False else "quarantine_still_running"
+            text += " " + rm.RESULT_TEMPLATES[pointer]
         return text
     if command == "restart_service" and state in UNDOABLE_STATES:
         service, attempt, seconds = _text(inputs.get("service")), _int(inputs.get("attempt")), _int(result.get("healthy_after"))
         if service and attempt and seconds is not None:
             return rm.fill(rm.RESULT_TEMPLATES["restart_done"], service=service, seconds=seconds, attempt=attempt)
+        if service and seconds is not None and not attempt:       # an approved card past the budget has no attempt
+            return rm.fill(rm.RESULT_TEMPLATES["restart_done_card"], service=service, seconds=seconds)
     if command == "isolate_host":
         if state in ("undone", "rolled_back") and row.get("reasonCode") == "auto_reverted":
             return rm.RESULT_TEMPLATES["isolation_reverted"]
@@ -214,8 +219,9 @@ def _can_undo(row: Dict[str, Any], spec: Optional[registry.ActionSpec], until: O
 
 
 def row_extras(row: Dict[str, Any], *, host: Optional[str] = None, can_act: bool = False,
-               now: Optional[datetime] = None) -> Dict[str, Any]:
-    """The extra fields for one Activity row (see the module docstring)."""
+               now: Optional[datetime] = None, kill_card: Optional[bool] = None) -> Dict[str, Any]:
+    """The extra fields for one Activity row (see the module docstring). ``kill_card`` says whether a kill
+    line for this quarantine is still waiting on the screen (None: not looked up)."""
     out = dict(EMPTY_EXTRAS)
     if row.get("kind") == "control":
         return out
@@ -238,10 +244,25 @@ def row_extras(row: Dict[str, Any], *, host: Optional[str] = None, can_act: bool
         reason = _reason_text(row, inputs)
         if reason:
             out["reasonText"] = reason
-    result = _result_text(row, inputs, until, now, host)
+    result = _result_text(row, inputs, until, now, host, kill_card)
     if row.get("dispatcher") == SECURITY_DISPATCHER and isinstance(row.get("undoFailed"), dict):
         failed = rm.REASON_TEXT["undo_failed"]               # the undo did not take: say so before anything else
         result = f"{failed} {result}" if result else failed
     if result:
         out["resultText"] = result
     return out
+
+
+KILL_CARD_STATES = ("awaiting_approval", "approved", "dispatching")
+
+
+async def open_kill_cards(db, tenant_id: str, rows: Iterable[Dict[str, Any]]) -> Set[str]:
+    """Ids of the given quarantine rows whose kill line (D-06, D-27) is still on the screen, so the Activity
+    row points at Needs your decision only while there is something there. One indexed read."""
+    ids = [r["id"] for r in rows if r.get("command") == "quarantine_file" and r.get("stillRunning")]
+    if not ids:
+        return set()
+    found = raw(db).autonomy_actions.find(
+        {"tenantId": tenant_id, "command": "kill_process", "state": {"$in": list(KILL_CARD_STATES)},
+         "reason.inputs.chain.quarantineActionId": {"$in": ids}}, {"_id": 0, "reason.inputs.chain": 1})
+    return {((r.get("reason") or {}).get("inputs") or {}).get("chain", {}).get("quarantineActionId") async for r in found}

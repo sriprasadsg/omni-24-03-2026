@@ -23,6 +23,7 @@ EXPECTED_FILES = [
     "backend/autonomous_ops/views.py",
     "backend/autonomous_ops/response_messages.py",
     "backend/autonomous_ops/response_views.py",
+    "backend/autonomous_ops/incident_views.py",
     "backend/autonomous_ops/health_messages.py",
     "backend/autonomous_ops/selfheal.py",
     "backend/autonomous_ops_endpoints.py",

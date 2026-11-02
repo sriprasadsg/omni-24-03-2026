@@ -203,7 +203,8 @@ def _result_text(row: Dict[str, Any], label: str, host: Optional[str]) -> Option
 
 
 def present_row(row: Dict[str, Any], *, viewer_is_platform_staff: bool, host: Optional[str] = None,
-                can_act: bool = False, now: Optional[datetime] = None) -> Dict[str, Any]:
+                can_act: bool = False, now: Optional[datetime] = None,
+                kill_card: Optional[bool] = None) -> Dict[str, Any]:
     """One ledger row as the Activity list shows it. ``can_act`` is True for a person holding
     control:autonomous_ops in an interactive session; it only decides whether Undo may be offered."""
     if row.get("kind") == "platform_health":
@@ -232,7 +233,7 @@ def present_row(row: Dict[str, Any], *, viewer_is_platform_staff: bool, host: Op
         "healthChip": None,
         "source": None,
     }
-    shown.update(response_views.row_extras(row, host=host, can_act=can_act, now=now))
+    shown.update(response_views.row_extras(row, host=host, can_act=can_act, now=now, kill_card=kill_card))
     return shown
 
 
@@ -295,10 +296,13 @@ async def list_page(db, tenant_id: str, *, bucket: str, limit: int, cursor: Opti
     rows = [ledger._normalize(r) async for r in found]
     page = rows[:limit]
     hosts = await _host_names(db, tenant_id, page)
+    waiting = await response_views.open_kill_cards(db, tenant_id, page)
     now = datetime.now(timezone.utc)
     out: Dict[str, Any] = {
         "items": [present_row(r, viewer_is_platform_staff=viewer_is_platform_staff, can_act=can_act, now=now,
-                              host=hosts.get(str(r["targets"][0])) if r.get("targets") else None) for r in page],
+                              host=hosts.get(str(r["targets"][0])) if r.get("targets") else None,
+                              kill_card=(r["id"] in waiting) if r.get("command") == "quarantine_file" else None)
+                  for r in page],
         "nextCursor": ledger._encode_cursor(page[-1]) if len(rows) > limit else None,
     }
     if not cursor:
@@ -377,7 +381,9 @@ async def present_one(db, tenant_id: str, action_id: str, caller: Caller, *,
         return None
     hosts = await _host_names(db, tenant_id, [row])
     host = hosts.get(str(row["targets"][0])) if row.get("targets") else None
-    return present_row(row, viewer_is_platform_staff=caller.staff, host=host, can_act=can_act)
+    waiting = await response_views.open_kill_cards(db, tenant_id, [row])
+    return present_row(row, viewer_is_platform_staff=caller.staff, host=host, can_act=can_act,
+                       kill_card=(row["id"] in waiting) if row.get("command") == "quarantine_file" else None)
 
 
 def entry_view(entry) -> Dict[str, Any]:
