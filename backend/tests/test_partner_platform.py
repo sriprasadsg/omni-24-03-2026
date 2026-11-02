@@ -247,3 +247,110 @@ async def test_only_the_super_admin_reaches_the_routes(wired):
         with pytest.raises(HTTPException) as exc:
             await ppe.update_partner(partner_id, ppe.PartnerUpdate(poolSize=5), current_user=user)
         assert exc.value.status_code == 403
+
+
+# --- Task 2: suspend and reinstate -------------------------------------------------------------
+
+async def _partner_with_world(wired):
+    """A partner with two users, one customer, and agents; returns the partner id."""
+    partner_id = await _appoint(name="Retailer A", pool=100)
+    await wired.db.users.insert_one({"id": "u2", "email": "viewer@retailer.test", "role": "partner_viewer",
+                                     "tenantId": partner_id, "status": "Active"})
+    await wired.db.users.insert_one({"id": "u9", "email": "other@else.test", "role": "Tenant Admin",
+                                     "tenantId": "tenant_other", "status": "Active"})
+    await wired.db.tenants.insert_one({"id": "cust1", "name": "Cafe", "partnerId": partner_id,
+                                       "license": {"maxAgents": 5, "seatsUsed": 2}, "maxAgents": 5,
+                                       "enabledFeatures": ["view:agents"]})
+    await wired.db.tenants.update_one({"id": partner_id}, {"$set": {"partner.allocated": 5}})
+    await wired.db.agents.insert_many([
+        {"id": "a1", "hostname": "h1", "tenantId": "cust1", "status": "Online"},
+        {"id": "a2", "hostname": "h2", "tenantId": "cust1", "status": "Offline"},
+    ])
+    return partner_id
+
+
+async def test_suspend_locks_the_partner_and_signs_its_users_out(wired):
+    # protects=D-15 lock; fails_when=a partner user keeps a session, or the partner can still sell seats
+    import partner_pool
+    import partner_status
+    partner_id = await _partner_with_world(wired)
+    out = await ppe.suspend_partner(partner_id, current_user=SUPER)
+    assert out["partner"]["status"] == "suspended"
+    doc = await wired.db.tenants.find_one({"id": partner_id})
+    assert doc["partner"]["status"] == "suspended" and doc["partner"]["suspendedBy"] == "root@example.com"
+    assert isinstance(doc["partner"]["suspendedAt"], str)
+    revoked = sorted(c.args[0] for c in wired.revoke.await_args_list)
+    assert revoked == ["boss@retailera.test", "viewer@retailer.test"]
+    assert all(c.args[1] == "partner suspended" for c in wired.revoke.await_args_list)
+    assert await partner_pool.claim(wired.db, partner_id, 1, require_active=True) is False
+    with patch.object(partner_status, "_raw_db", lambda: wired.db):
+        with pytest.raises(HTTPException) as exc:
+            await partner_status.refuse_if_suspended("partner_admin", partner_id)
+    assert exc.value.status_code == 403
+    suspended = _actions(wired, "partner.suspended")
+    assert {c.args[1] for c in suspended} == {partner_id, "platform-admin"}
+
+
+async def test_suspend_leaves_every_customer_and_agent_byte_for_byte(wired):
+    # protects=D-15 / T-87-25; fails_when=a customer, its agents or the pool counter change
+    partner_id = await _partner_with_world(wired)
+    before = (await wired.db.tenants.find({"id": "cust1"}).to_list(None),
+              await wired.db.agents.find({}).sort("id", 1).to_list(None))
+    await ppe.suspend_partner(partner_id, current_user=SUPER)
+    after = (await wired.db.tenants.find({"id": "cust1"}).to_list(None),
+             await wired.db.agents.find({}).sort("id", 1).to_list(None))
+    assert after == before
+    assert (await wired.db.tenants.find_one({"id": partner_id}))["partner"]["allocated"] == 5
+    await ppe.reinstate_partner(partner_id, current_user=SUPER)
+    assert await wired.db.tenants.find({"id": "cust1"}).to_list(None) == before[0]
+
+
+async def test_a_failed_sign_out_answers_503_and_the_partner_stays_suspended(wired):
+    partner_id = await _partner_with_world(wired)
+    wired.revoke.side_effect = RuntimeError("store down")
+    refused = await ppe.suspend_partner(partner_id, current_user=SUPER)
+    body = _body(refused)
+    assert refused.status_code == 503 and body["error"] == "Couldn't sign this partner's users out. Try again."
+    assert (await wired.db.tenants.find_one({"id": partner_id}))["partner"]["status"] == "suspended"
+    wired.revoke.side_effect = None  # a retry finishes the sign-out
+    again = await ppe.suspend_partner(partner_id, current_user=SUPER)
+    assert again["partner"]["status"] == "suspended"
+    assert wired.revoke.await_count >= 4
+
+
+async def test_suspending_twice_or_reinstating_an_active_partner_changes_nothing(wired):
+    partner_id = await _partner_with_world(wired)
+    first = await ppe.suspend_partner(partner_id, current_user=SUPER)
+    stamp = (await wired.db.tenants.find_one({"id": partner_id}))["partner"]["suspendedAt"]
+    second = await ppe.suspend_partner(partner_id, current_user=SUPER)
+    assert second == first
+    assert (await wired.db.tenants.find_one({"id": partner_id}))["partner"]["suspendedAt"] == stamp
+    assert len(_actions(wired, "partner.suspended", partner_id)) == 1
+    await ppe.reinstate_partner(partner_id, current_user=SUPER)
+    active = await ppe.reinstate_partner(partner_id, current_user=SUPER)
+    assert active["partner"]["status"] == "active"
+    assert len(_actions(wired, "partner.reinstated", partner_id)) == 1
+
+
+async def test_reinstate_restores_selling_and_clears_the_suspension_fields(wired):
+    import partner_pool
+    partner_id = await _partner_with_world(wired)
+    await ppe.suspend_partner(partner_id, current_user=SUPER)
+    out = await ppe.reinstate_partner(partner_id, current_user=SUPER)
+    doc = await wired.db.tenants.find_one({"id": partner_id})
+    assert out["partner"]["status"] == "active"
+    assert doc["partner"]["status"] == "active" and "suspendedAt" not in doc["partner"] and "suspendedBy" not in doc["partner"]
+    assert await partner_pool.claim(wired.db, partner_id, 1, require_active=True) is True
+
+
+async def test_suspend_and_reinstate_refuse_unknown_ids_and_other_callers(wired):
+    partner_id = await _partner_with_world(wired)
+    for handler in (ppe.suspend_partner, ppe.reinstate_partner):
+        for missing in ("nope", "cust1"):
+            refused = await handler(missing, current_user=SUPER)
+            assert refused.status_code == 404 and _body(refused)["code"] == "not_found"
+        for user in (PARTNER_ADMIN, SUPPORT):
+            with pytest.raises(HTTPException) as exc:
+                await handler(partner_id, current_user=user)
+            assert exc.value.status_code == 403
+    assert (await wired.db.tenants.find_one({"id": "cust1"}))["partnerId"] == partner_id
