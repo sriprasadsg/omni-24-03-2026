@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
-from . import OPEN_STATES, approvals, breaker, ledger, messages, scope, verify
+from . import OPEN_STATES, approvals, breaker, followups, ledger, messages, scope, verify
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,17 @@ async def _instruction(db, tenant_id: str, instruction_id: str):
                                                      {"_id": 0, "status": 1, "result": 1})
 
 
+async def _follow_up(db, tenant_id: str, action_id: str, doc, now: datetime) -> None:
+    """What follows a settled security_response row (D-06, D-27). Its own try: a follow-up that fails is
+    logged and never undoes the change that was just made to the row."""
+    try:
+        row = await ledger.get(db, tenant_id, action_id)
+        if row is not None:
+            await followups.after(db, tenant_id, row, doc, now=now)
+    except Exception as exc:
+        logger.error("autonomous_ops: follow-up of %s failed: %s", action_id, exc)
+
+
 async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, int]:
     """Map this tenant's dispatching (and stuck approved) rows to their outcome."""
     done = {"executed": 0, "failed": 0}
@@ -113,18 +124,23 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
             done["executed"] += 1 if moved else 0
             if moved and moved.get("dispatcher") == "security_response":
                 # The agent's own verify result decides verified / failed; nothing is re-scanned or undone (RESP-06).
-                settled = await verify.settle(db, tenant_id, moved, await _instruction(db, tenant_id, ids[-1]), now=now)
+                doc = await _instruction(db, tenant_id, ids[-1])
+                settled = await verify.settle(db, tenant_id, moved, doc, now=now)
                 done["failed"] += 1 if settled == "failed" else 0
+                await _follow_up(db, tenant_id, row["id"], doc, now)
         elif status in _FAILURE:
-            to_state, code = "failed", "agent_failed"
+            to_state, code, doc = "failed", "agent_failed", None
             if row.get("dispatcher") == "security_response":
                 # Each ending has its own name; the breaker counts only some of them.
-                to_state, code = verify.failure_outcome(await _instruction(db, tenant_id, ids[-1]))
+                doc = await _instruction(db, tenant_id, ids[-1])
+                to_state, code = verify.failure_outcome(doc)
             moved = await ledger.transition(
                 db, tenant_id, row["id"], ("dispatching",), to_state, reasonCode=code,
                 reasonText=messages.REASON_TEXT[code],
                 result={"instructionId": ids[-1], "instructionStatus": status})
             done["failed"] += 1 if moved else 0
+            if moved and doc is not None:
+                await _follow_up(db, tenant_id, row["id"], doc, now)
         elif old and (status is None or status in _UNDELIVERED):
             moved = await ledger.transition(
                 db, tenant_id, row["id"], ("approved", "dispatching"), "failed", reasonCode="not_delivered",

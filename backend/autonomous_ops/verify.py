@@ -64,6 +64,14 @@ def _entry(item: Any) -> Optional[Dict[str, Any]]:
     return {"pid": pid, "name": name, "start_time": start}
 
 
+def process_entries(value: Any) -> list:
+    """The well-formed still-running entries of a stored list, at most the contract's cap."""
+    if not isinstance(value, list):
+        return []
+    entries = (_entry(item) for item in value)
+    return [e for e in entries if e is not None][:_CAP]
+
+
 def bounded_result(nested: Any) -> Dict[str, Any]:
     """Only the keys below, each inside its range; anything else is dropped. A list key that is
     present keeps at most the contract's cap of well-formed entries."""
@@ -86,8 +94,7 @@ def bounded_result(nested: Any) -> Dict[str, Any]:
         out["healthy_after"] = healthy
     running = nested.get("still_running")
     if isinstance(running, list):
-        entries = (_entry(item) for item in running)
-        out["still_running"] = [e for e in entries if e is not None][:_CAP]
+        out["still_running"] = process_entries(running)
     return out
 
 
@@ -124,14 +131,22 @@ async def settle(db, tenant_id: str, row: Dict[str, Any], doc: Optional[Dict[str
     block = result.get("verify")
     ok = block.get("ok") if isinstance(block, dict) else None
     now = _now(now)
+    running = result.get("still_running")
+    seen: Dict[str, Any] = {}
+    if isinstance(running, list):
+        # What the host still saw running: the row keeps it (a kill card reads it, the Activity row words it).
+        seen = {"stillRunning": process_entries(running)}
     if ok is False:
         moved = await ledger.transition(
             db, tenant_id, row["id"], ("executed",), "failed", reasonCode="verify_failed",
             reasonText=messages.REASON_TEXT["verify_failed"],
-            result={**(row.get("result") or {}), "verify": block, "outcome": result.get("outcome")})
+            result={**(row.get("result") or {}), "verify": block, "outcome": result.get("outcome"),
+                    **({"still_running": seen["stillRunning"]} if seen else {})}, **seen)
         return "failed" if moved else None
     if ok is True or result.get("outcome") == "already_applied":
-        fields: Dict[str, Any] = {"verifiedAt": now}
+        fields: Dict[str, Any] = {"verifiedAt": now, **seen}
+        if seen:
+            fields["result"] = {**(row.get("result") or {}), "still_running": seen["stillRunning"]}
         expires = result.get("expires_in")
         if isinstance(expires, int) and not isinstance(expires, bool):
             fields["blockedUntil"] = now + timedelta(seconds=expires)     # relative, so clock skew cannot matter

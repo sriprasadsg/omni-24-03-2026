@@ -183,7 +183,9 @@ def _result_text(row: Dict[str, Any], inputs: Dict[str, Any], until: Optional[da
         if not path:
             return None
         text = rm.fill(rm.RESULT_TEMPLATES["quarantine_done"], path=path)
-        if result.get("still_running"):
+        # The row's own list (cleared when the kill-only card ends the process) wins over what the host reported.
+        still = row["stillRunning"] if "stillRunning" in row else result.get("still_running")
+        if still and not inputs.get("parentActionId"):       # a retry has no card to point at (D-06)
             text += " " + rm.RESULT_TEMPLATES["quarantine_still_running"]
         return text
     if command == "restart_service" and state in UNDOABLE_STATES:
