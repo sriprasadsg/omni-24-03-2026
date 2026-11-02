@@ -30,14 +30,20 @@ class CustomerCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     seats: int = Field(..., ge=1, le=licensing.MAX_AGENTS_CEILING)
     enabledFeatures: Optional[List[str]] = Field(default=None, max_length=300)
+    adminName: str = Field(..., min_length=1, max_length=100)
+    adminEmail: str = Field(..., min_length=1, max_length=254)
 
-    @field_validator("name")
+    @field_validator("name", "adminName")
     @classmethod
     def _stripped(cls, value: str) -> str:
         value = value.strip()
         if not value:
-            raise ValueError("name must not be blank")
+            raise ValueError("must not be blank")
         return value
+
+
+class SeatsBody(BaseModel):
+    seats: int = Field(..., ge=0, le=licensing.MAX_AGENTS_CEILING)
 
 
 async def current_partner(current_user=Depends(get_current_user)) -> Tuple[object, dict]:
@@ -73,10 +79,20 @@ async def post_customer(data: CustomerCreate, ctx=Depends(current_partner)):
     user, partner = ctx
     _require_partner_admin(user)
     try:
-        row = await service.create_customer(
-            mongodb.db, partner, name=data.name, seats=data.seats,
-            enabled_features=data.enabledFeatures, actor=user,
+        return await service.create_customer(
+            mongodb.db, partner, name=data.name, seats=data.seats, enabled_features=data.enabledFeatures,
+            admin_name=data.adminName, admin_email=data.adminEmail, actor=user,
         )
     except PartnerError as err:
         return error_response(err)
-    return {"customer": row}
+
+
+@router.put("/customers/{customer_id}/seats")
+async def put_customer_seats(customer_id: str, data: SeatsBody, ctx=Depends(current_partner)):
+    """Change one customer's seats within the seats in use and the pool's free seats (D-06)."""
+    user, partner = ctx
+    _require_partner_admin(user)
+    try:
+        return await service.change_seats(mongodb.db, partner, customer_id, data.seats, user)
+    except PartnerError as err:
+        return error_response(err)

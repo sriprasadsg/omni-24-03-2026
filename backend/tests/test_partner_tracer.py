@@ -7,6 +7,7 @@ D-01, or a partner route is mounted without its catalogue guard; no_claim=JWT ha
 frontend (route functions are called with a TokenData, the audit writer is mocked).
 """
 import asyncio
+import itertools
 import json
 import os
 import sys
@@ -25,6 +26,7 @@ import partner_store
 from auth_types import TokenData
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
+_EMAILS = itertools.count(1)
 SUPER = TokenData(username="root@example.com", role="Super Admin", tenant_id="platform-admin", mfa_verified=True)
 
 
@@ -47,6 +49,12 @@ async def _appoint(pool_size=100, name="Retailer A"):
     out = await ppe.create_partner(ppe.PartnerCreate(name=name, poolSize=pool_size, screenCeiling=["all"],
                                                      adminName="Boss", adminEmail=email), current_user=SUPER)
     return out["partner"]["id"]
+
+
+def _new(name, seats):
+    """A creation request; every customer needs its first admin's name and a distinct email (D-09)."""
+    return pe.CustomerCreate(name=name, seats=seats, adminName="Owner",
+                             adminEmail=f"owner{next(_EMAILS)}@customer.example")
 
 
 async def _admin_ctx(partner_id, role="partner_admin"):
@@ -77,7 +85,7 @@ async def test_a_partner_admin_cannot_appoint(wired):
 async def test_customer_creation_draws_from_the_pool(wired):
     partner_id = await _appoint()
     ctx = await _admin_ctx(partner_id)
-    out = await pe.post_customer(pe.CustomerCreate(name="Cafe One", seats=30), ctx=ctx)
+    out = await pe.post_customer(_new("Cafe One", 30), ctx=ctx)
     customer = await wired.db.tenants.find_one({"id": out["customer"]["id"]})
     assert customer["partnerId"] == partner_id
     assert customer["license"]["maxAgents"] == 30 and customer["maxAgents"] == 30
@@ -90,8 +98,8 @@ async def test_customer_creation_draws_from_the_pool(wired):
 async def test_a_full_pool_refuses_with_the_free_count(wired):
     partner_id = await _appoint()
     ctx = await _admin_ctx(partner_id)
-    await pe.post_customer(pe.CustomerCreate(name="Cafe One", seats=30), ctx=ctx)
-    refused = await pe.post_customer(pe.CustomerCreate(name="Cafe Two", seats=80), ctx=ctx)
+    await pe.post_customer(_new("Cafe One", 30), ctx=ctx)
+    refused = await pe.post_customer(_new("Cafe Two", 80), ctx=ctx)
     assert refused.status_code == 409
     body = json.loads(refused.body)
     assert body["code"] == "pool_full" and body["free"] == 70 and body["status_code"] == 409
@@ -104,7 +112,7 @@ async def test_concurrent_creations_never_exceed_the_pool(wired):
     partner_id = await _appoint(pool_size=50)
     ctx = await _admin_ctx(partner_id)
     results = await asyncio.gather(*(
-        pe.post_customer(pe.CustomerCreate(name=f"Shop {i}", seats=10), ctx=ctx) for i in range(12)))
+        pe.post_customer(_new(f"Shop {i}", 10), ctx=ctx) for i in range(12)))
     made = [r for r in results if isinstance(r, dict)]
     assert len(made) == 5
     doc = await wired.db.tenants.find_one({"id": partner_id})
@@ -115,8 +123,8 @@ async def test_concurrent_creations_never_exceed_the_pool(wired):
 async def test_a_taken_name_is_refused_without_a_claim(wired):
     partner_id = await _appoint()
     ctx = await _admin_ctx(partner_id)
-    await pe.post_customer(pe.CustomerCreate(name="Cafe One", seats=5), ctx=ctx)
-    refused = await pe.post_customer(pe.CustomerCreate(name="  cafe one ", seats=5), ctx=ctx)
+    await pe.post_customer(_new("Cafe One", 5), ctx=ctx)
+    refused = await pe.post_customer(_new("  cafe one ", 5), ctx=ctx)
     assert refused.status_code == 409 and json.loads(refused.body)["code"] == "name_unavailable"
     assert (await wired.db.tenants.find_one({"id": partner_id}))["partner"]["allocated"] == 5
 
@@ -124,7 +132,7 @@ async def test_a_taken_name_is_refused_without_a_claim(wired):
 async def test_overview_carries_only_the_d01_fields(wired):
     partner_id = await _appoint()
     ctx = await _admin_ctx(partner_id)
-    made = await pe.post_customer(pe.CustomerCreate(name="Cafe One", seats=30), ctx=ctx)
+    made = await pe.post_customer(_new("Cafe One", 30), ctx=ctx)
     await wired.db.agents.insert_many([
         {"id": "a1", "hostname": "h1", "tenantId": made["customer"]["id"], "status": "Online"},
         {"id": "a2", "hostname": "h2", "tenantId": made["customer"]["id"], "status": "Offline"},
@@ -133,7 +141,7 @@ async def test_overview_carries_only_the_d01_fields(wired):
     # A direct customer and another partner's customer must never show up.
     await wired.db.tenants.insert_one({"id": "tenant_direct", "name": "Direct", "license": {"maxAgents": 9}})
     other = await _appoint(name="Retailer B")
-    await pe.post_customer(pe.CustomerCreate(name="Other Shop", seats=5), ctx=await _admin_ctx(other))
+    await pe.post_customer(_new("Other Shop", 5), ctx=await _admin_ctx(other))
     out = await pe.get_overview(ctx=await _admin_ctx(partner_id))  # each request loads the partner afresh
     assert out["pool"] == {"size": 100, "handedOut": 30, "free": 70, "expiresAt": None, "expired": False}
     assert len(out["customers"]) == 1
@@ -162,7 +170,7 @@ async def test_a_partner_viewer_reads_but_cannot_create(wired):
     ctx = await _admin_ctx(partner_id, role="partner_viewer")
     assert (await pe.get_overview(ctx=ctx))["role"] == "viewer"
     with pytest.raises(HTTPException) as exc:
-        await pe.post_customer(pe.CustomerCreate(name="Nope", seats=1), ctx=ctx)
+        await pe.post_customer(_new("Nope", 1), ctx=ctx)
     assert exc.value.status_code == 403
 
 
