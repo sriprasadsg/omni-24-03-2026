@@ -107,6 +107,9 @@ async def test_automatic_lines_of_the_incident_are_context_with_no_flags_and_sor
     assert ctx["needsPerson"] is False and ctx["bucket"] == "done"
     assert not (ctx["canApprove"] or ctx["canDeny"] or ctx["canConfirmIsolation"])
     assert ctx["label"] == "Block IP address" and ctx["target"] == "45.33.32.156"
+    # The block's result carries {until}; the browser fills it from this time (83-19), so it must be on the line.
+    assert "{until}" in ctx["result"] and ctx["blockedUntil"] == (NOW + timedelta(hours=3)).isoformat()
+    assert lines(card)["wait"]["blockedUntil"] is None
 
 
 async def test_an_incident_with_only_finished_rows_gives_no_card(world):

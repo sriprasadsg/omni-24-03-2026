@@ -203,6 +203,7 @@ def _line(row: Dict[str, Any], *, host: Optional[str], retry: Optional[Dict[str,
         "confirmedAt": _iso(iso.get("confirmedAt")),
         "confirmedBy": (_dict(iso.get("confirmedBy")).get("display") or _dict(iso.get("confirmedBy")).get("username"))
         if iso.get("confirmedAt") else None,
+        "blockedUntil": _iso(row.get("blockedUntil")),          # a block line's result carries {until}, filled in the browser
     }
 
 
