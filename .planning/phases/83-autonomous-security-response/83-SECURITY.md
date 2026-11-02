@@ -1,9 +1,9 @@
 ---
 phase: "83"
 slug: "autonomous-security-response"
-status: verified
+status: open
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 0
+threats_open: 1
 asvs_level: 1
 created: "2026-11-02"
 ---
@@ -76,7 +76,7 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | T-83-09 | Tampering | row text from agent data | medium | mitigate | Plain strings only, length caps at ingest, React text rendering; no HTML in any template (R11) | closed |
 | T-83-10 | Elevation of Privilege | canUndo flag | medium | mitigate | The flag is display only; approvals.undo and _require_control remain the guard, and Platform Support gets false | closed |
 | T-83-11 | Repudiation | one origin shown as two | high | mitigate | why_two_sources refuses fewer than two different origin ids, so the sentence cannot be built from one | closed |
-| T-83-12 | Denial of Service | block of platform, gateway or DNS | high | mitigate | Agent-side refusal independent of the backend never-touch list, non-global refusal, range containment check (R4) | closed |
+| T-83-12 | Denial of Service | block of platform, gateway or DNS | high | mitigate | Agent-side refusal independent of the backend never-touch list, non-global refusal, range containment check (R4) | open — reopened 2026-11-02 by the code review (83-REVIEW.md CR-02) and confirmed by the verifier: `net_safety.rs` `refuse_reason` tests `is_global_address` only on the network's first address, so a range such as `172.0.0.0/8` or `192.0.0.0/8` that contains private space passes (the backend's `signals.global_range` has the same gap). Every range block needs a person's approval and the agent is not published, so nothing is exposed today; fix both layers before publishing 2.1.16 |
 | T-83-13 | Elevation of Privilege | address and CIDR text | high | mitigate | Parsed to typed values before use, passed as one argv element (R3) | closed |
 | T-83-14 | Tampering | host clock moved to keep a block | low | accept | Only a host admin can do it, and that admin can already change the firewall (R13) | closed |
 | T-83-15 | Denial of Service | local AV blocks netsh | medium | mitigate | Distinct outcome, no automatic retry, documented exclusions in UAT (R12) | open — below high threshold (non-blocking): the code half exists (`blocked_by_local_security`, no retry); the written exclusion guidance does not, pending live item 14 of the 83-20 list |
@@ -185,10 +185,10 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [x] `threats_open: 0` confirmed (T-83-15 and T-83-27 stay open below the high threshold)
-- [x] `status: verified` set in frontmatter
+- [ ] `threats_open: 0` confirmed: T-83-12 (high) reopened 2026-11-02 by code review CR-02; T-83-15 and T-83-27 stay open below the high threshold
+- [ ] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-02 at code level only. Nothing here was observed on a real host; the 83-20 live list still stands.
+**Approval:** blocked 2026-11-02 by T-83-12 (code review CR-02). The 2026-11-02 audit had verified the rest at code level only. Nothing here was observed on a real host; the 83-20 live list still stands.
 
 ## Security Audit 2026-11-02
 
@@ -197,3 +197,11 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | Threats found | 76 |
 | Closed | 74 |
 | Open | 2 |
+
+## Security Audit 2026-11-02
+
+| Metric | Count |
+|---|---|
+| Threats found | 76 |
+| Closed | 73 |
+| Open | 3 |
