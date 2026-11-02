@@ -152,8 +152,12 @@ async def settle(db, tenant_id: str, row: Dict[str, Any], doc: Optional[Dict[str
         return "failed" if moved else None
     if ok is True or result.get("outcome") == "already_applied":
         fields: Dict[str, Any] = {"verifiedAt": now, **seen}
-        if seen:
-            fields["result"] = {**(row.get("result") or {}), "still_running": seen["stillRunning"]}
+        kept: Dict[str, Any] = {"still_running": seen["stillRunning"]} if seen else {}
+        healthy = result.get("healthy_after")             # a restart: how long the service took to come back (D-12)
+        if isinstance(healthy, int) and not isinstance(healthy, bool):
+            kept["healthy_after"] = healthy
+        if kept:
+            fields["result"] = {**(row.get("result") or {}), **kept}
         expires = result.get("expires_in")
         if isinstance(expires, int) and not isinstance(expires, bool):
             fields["blockedUntil"] = now + timedelta(seconds=expires)     # relative, so clock skew cannot matter

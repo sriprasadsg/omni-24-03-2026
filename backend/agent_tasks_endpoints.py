@@ -99,8 +99,11 @@ async def report_instruction_result(
                         or nested.get("output") or nested.get("message") or "")
         if error_msg and "Unknown instruction" in error_msg:
             error_msg = f"Agent binary is outdated — URL install requires agent v2.0+. Update the agent from the Agent Installation page. (detail: {error_msg})"
+        # A response action answers "accepted" first and its final body later, and the two posts can arrive in
+        # either order: an "accepted" never replaces a status that is already final.
+        late_ok = {**own_task, "status": {"$nin": ["SUCCESS", "FAILURE", "REFUSED"]}} if mapped == "ACCEPTED" else own_task
         await db.agent_instructions.update_one(
-            own_task,
+            late_ok,
             {"$set": {
                 "status": mapped,
                 "result": {
