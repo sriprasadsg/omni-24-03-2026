@@ -3,6 +3,7 @@ phase: "87"
 slug: partner-and-reseller-channel
 status: approved
 reviewed_at: 2026-11-02
+revised_at: 2026-11-02
 shadcn_initialized: false
 preset: none
 created: "2026-11-02"
@@ -24,7 +25,7 @@ created: "2026-11-02"
 | Tool | none (no `components.json` in the repo root, re-confirmed 2026-11-02; hand-rolled Tailwind components, consistent with 81, 82 and 83; shadcn gate not applicable) |
 | Preset | not applicable |
 | Component library | none (in-house primitives) |
-| Icon library | `components/icons.tsx` local SVG set only. Confirmed present by grep on 2026-11-02: `BuildingIcon`, `UsersIcon`, `MailIcon`, `PlusIcon`, `PlusCircleIcon`, `XIcon`, `CheckIcon`, `CheckCircleIcon`, `XCircleIcon`, `ClockIcon`, `DownloadIcon`, `LockIcon`, `KeyIcon`, `ShieldLockIcon`, `SearchIcon`, `RefreshCwIcon`, `RefreshCcwIcon`, `PlayCircleIcon`, `PauseCircleIcon`, `AlertTriangleIcon`, `InfoIcon`, `SettingsIcon`, `PencilIcon`, `ChevronDownIcon`, `ChevronRightIcon`, `ArrowRightIcon`, `EyeIcon`, `EyeOffIcon`, `SendIcon`, `NetworkIcon`. Not present, do not import: `HandshakeIcon`, `StoreIcon`, `BriefcaseIcon`, `MoveIcon`, `ArrowLeftRightIcon`, `LinkIcon`, `BanIcon`. Navigation icon for Partners and for Partner portal: `BuildingIcon` (the Partners and Partner portal sidebar entries use the same glyph; they never appear for the same viewer). |
+| Icon library | `components/icons.tsx` local SVG set only. Enumerated by `grep -cE "^export (const|function) [A-Za-z0-9]+Icon\b" components/icons.tsx` — 145 icons — components/icons.tsx@local-file (no package version; last changed in git 2026-07-22) — 2026-11-02. The list below is a non-exhaustive set of known-good icons, not a closed allowlist: another glyph in that file may be used when a surface needs one, after the same grep confirms it exists. Known-good, each confirmed by grep on 2026-11-02: `BuildingIcon`, `UsersIcon`, `MailIcon`, `PlusIcon`, `PlusCircleIcon`, `XIcon`, `CheckIcon`, `CheckCircleIcon`, `XCircleIcon`, `ClockIcon`, `DownloadIcon`, `LockIcon`, `KeyIcon`, `ShieldLockIcon`, `SearchIcon`, `RefreshCwIcon`, `RefreshCcwIcon`, `PlayCircleIcon`, `PauseCircleIcon`, `AlertTriangleIcon`, `InfoIcon`, `SettingsIcon`, `PencilIcon`, `ChevronDownIcon`, `ChevronRightIcon`, `ArrowRightIcon`, `EyeIcon`, `EyeOffIcon`, `SendIcon`, `NetworkIcon`. Confirmed absent by the same grep, do not import (add to the file first if truly needed): `HandshakeIcon`, `StoreIcon`, `BriefcaseIcon`, `MoveIcon`, `ArrowLeftRightIcon`, `LinkIcon`, `BanIcon`. Navigation icon for Partners and for Partner portal: `BuildingIcon` (the Partners and Partner portal sidebar entries use the same glyph; they never appear for the same viewer). |
 | Font | Inter variable; `font-mono` is not used on these screens (numbers use `tabular-nums`) |
 | Styling | Tailwind 3.4, Spatial Glass tokens (`design-system/omni-agent-2030/MASTER.md`), light and `dark:` on every new element, no hard-coded hex or rgba |
 | Reference | `83-UI-SPEC.md` (source of truth for everything not redeclared below) |
@@ -68,7 +69,9 @@ Inherited unchanged from 81-UI-SPEC (4, 8, 16, 24, 32, 48; 64 unused).
 
 Exceptions (all multiples of 4):
 - Every consequential control (`Appoint partner`, `Create customer`, `Save seats`, `Save screens`, `Send invite`, `Move customer`, `Suspend partner`, `Reinstate partner`, `Set password`, `Export CSV`) is `min-h-10` (40px, `px-4`).
-- Row action text buttons in tables (`Change seats`, `Choose screens`, `Move`, `Edit`, `Resend invite`) are `min-h-8` (32px hit area, `px-2`), declared as in 83 for the 32px remove button.
+- Row action text buttons in tables (`Change seats`, `Choose screens`, `Move customer`, `Edit partner`, `Show customers`, `Suspend partner`, `Resend invite`) are `min-h-8` (32px hit area, `px-2`), declared as in 83 for the 32px remove button.
+- Inherited exception, 40px controls (`min-h-10`): not on the 4/8/16/24/32/48 scale as a layout step, but it is the control height Phases 81 and 83 already declared for every consequential control (83-UI-SPEC, "Approve, Deny, Confirm isolation, Undo, Save settings and every dialog confirm are `min-h-10`"). Phase 87 keeps one control height across the product rather than introducing a second; it is a size of a control, not a spacing step between elements.
+- Inherited exception, 12px input padding (`px-3`): the existing `TenantLicensePanel.tsx` input class is `px-3 py-2`, used by every tenant form today. A 12px horizontal inset is a multiple of 4 but sits between the 8 and 16 steps. Phase 87 reuses that class unchanged (only `min-h-10` is added) so the new forms look identical to the forms beside them; moving to `px-2` or `px-4` would make them differ from every other input in the product. Not for use on any element other than text, number, date, email, password and select inputs.
 - Stat tile: `p-6`, label and value stacked with `gap-1`.
 - Pool bar: `h-2` (8px) track, full tile width.
 - Accept-invite card: `max-w-md` (448px), centred.
@@ -141,6 +144,8 @@ Meaning never relies on colour alone: every chip carries a 12px `aria-hidden` ic
 
 ### 0. Placement, roles and the sign-in contract
 
+**Primary visual anchor:** for a partner user, the single `Partner portal` sidebar entry in its active state (accent, nothing else in the sidebar competes with it); at sign-in refusal, the red error block above the form.
+
 | Viewer | Sidebar | Lands on | Can open |
 |--------|---------|----------|----------|
 | Super Admin (holds `manage:partners`) | existing groups; new entry `Partners` in the management group directly under `Tenants` | unchanged (their current landing) | `Partners`; never `Partner portal` (the owner passes every view check, so the entry is hidden by a role gate, not by permission: R1) |
@@ -160,6 +165,8 @@ Partner users see nothing else: no dashboard, no notification bell data, no sear
 
 Route/view id `partners`, group `mgmt`, permission `manage:partners` (Super Admin only). `<main>` with `container mx-auto p-6`, `space-y-6` between sections.
 
+**Primary visual anchor:** the Partners table, specifically each row's pool bar (the accent fill is the only accent-coloured mass on the screen besides the `Appoint partner` button, so the eye lands on which partners are nearly out of seats). The 30px page title names the screen; it is not the anchor.
+
 **Header.** Left: `h1` 30/600 `Partners`; under it a 14/400 muted line `Appoint partners, give each a pool of agent seats and set which screens they may sell.` Right: `Appoint partner` (accent, `PlusIcon` 16px left, `min-h-10`). Below the header, a `{n} partners` 12/400 muted count and, when there are more than 10 partners, a search input (`SearchIcon`, `aria-label="Search partners"`, filters by name client-side, placeholder `Search partners`).
 
 **Partners table** (`.card overflow-hidden`; `<table>` inside `overflow-x-auto`; column minimums sum to 1,008px, scrolling horizontally below `xl` is accepted for a back-office table, and below `lg` rows collapse to stacked cards, one per partner, with each field as a labelled `dl` row, the Phase 81 stacked-card pattern).
@@ -171,11 +178,11 @@ Route/view id `partners`, group `mgmt`, permission `manage:partners` (Super Admi
 | Expires | Date `Mon D, YYYY` 14/400 with the expiry chip beside it when within 30 days or past; `No expiry` muted otherwise | `min-w-[160px]` |
 | Screens | `{n} screens` 14/400 (`All screens` when the ceiling is unrestricted; `1 screen`) | `min-w-[120px]` |
 | Status | `Active` or `Suspended` chip | `min-w-[120px]` |
-| Actions | `Edit`, `Customers` (disclosure toggle), `Suspend` or `Reinstate` as 32px text buttons, left to right, `flex flex-wrap gap-2` | `min-w-[200px]` |
+| Actions | `Edit partner`, `Show customers` (disclosure toggle; reads `Hide customers` when open), `Suspend partner` or `Reinstate partner` as 32px text buttons, left to right, `flex flex-wrap gap-2` | `min-w-[200px]` |
 
 Ordering: name ascending. No pagination below 50 partners; at 50 or more, 25 per page with a `Show more partners` secondary button (`min-h-10`, pending `Loading...`).
 
-**Customers disclosure (per partner).** The `Customers` button (`aria-expanded`, `aria-controls`, `ChevronRightIcon` that rotates) expands a full-width row under the partner: a compact inner table of that partner's customers with columns `Customer`, `Seats used`, `Seats assigned`, `Agents online`, `Licence expires`, and a row action `Move`. A header strip above it carries `Add an existing organization` (secondary, `PlusIcon`) which opens the move dialog in its "add" mode. This is the Super Admin's view of seats and usage only; it carries the same D-01 fields as the portal, no more.
+**Customers disclosure (per partner).** The `Show customers` button (`aria-expanded`, `aria-controls`, `ChevronRightIcon` that rotates; the label becomes `Hide customers` when open) expands a full-width row under the partner: a compact inner table of that partner's customers with columns `Customer`, `Seats used`, `Seats assigned`, `Agents online`, `Licence expires`, and a row action `Move customer` (`aria-label="Move {customer}"`). A header strip above it carries `Add an existing organization` (secondary, `PlusIcon`) which opens the move dialog in its "add" mode. This is the Super Admin's view of seats and usage only; it carries the same D-01 fields as the portal, no more.
 
 Table states:
 
@@ -194,7 +201,7 @@ Fields, in order:
 1. `Partner name` (text, required, 1 to 100 characters, autofocus on appoint). Helper: `The name staff and customers recognise.` Edit mode: editable.
 2. `Seat pool` (number, `inputMode="numeric"`, required, whole number 1 to 1,000,000). Helper: `How many agent seats this partner can hand out in total.` In edit mode a second helper line: `{handedOut} seats are handed out, so the pool can't go below {handedOut}.` The field's `min` is `handedOut`. Inline error below `handedOut`: `The pool can't be smaller than the {handedOut} seats already handed out. Ask the partner to take seats back first.` (D-07; the server's 409 text is shown verbatim as well, since it carries the authoritative count).
 3. `Pool expires on` (date, optional). Helper: `Leave empty for no expiry. After this date the partner can't create customers or hand out seats. Customers keep their seats: agents already enrolled keep working and new agents wait for approval.` (D-08).
-4. `Screens this partner may sell` (screen ceiling): a checklist of the platform's screens grouped as `ManageTenantModal.tsx` groups them (same group names and labels from `shared/tenant-feature-switches.json`), with `Select all` and `Clear all` text buttons, and a count `{n} of {total} selected`. Helper: `A partner can only switch these screens on for its customers. Screens a customer already has stay on if you remove them here.` (D-19). A parent/child screen follows the same parent rule as the customer feature picker. The Dashboard entry is shown checked and disabled with `Always included`.
+4. `Screens this partner may sell` (screen ceiling): a checklist of the platform's screens grouped as `ManageTenantModal.tsx` groups them (same group names and labels from `shared/tenant-feature-switches.json`), with `Select all screens` and `Clear all screens` text buttons, and a count `{n} of {total} selected`. Helper: `A partner can only switch these screens on for its customers. Screens a customer already has stay on if you remove them here.` (D-19). A parent/child screen follows the same parent rule as the customer feature picker. The Dashboard entry is shown checked and disabled with `Always included`.
 5. Appoint mode only, group `First partner administrator`: `Name` (text, required) and `Email address` (email, required). Helper: `We email this person a link to set a password. The link works for 7 days. They then invite their own colleagues.` (D-17).
 
 Validation (inline, 12/400 `text-red-600 dark:text-red-400`, `role="alert"`, on blur and on submit; submit disabled while any field is invalid or, in edit mode, nothing has changed): `Enter a partner name.`; `Enter a pool between 1 and 1,000,000 seats.`; `Enter a valid email address.`; `Enter a name for the administrator.`
@@ -209,15 +216,17 @@ Success (appoint): modal closes, toast `Partner appointed. An invite was sent to
 - Failure for both: red block `Couldn't suspend this partner: {server message}. Try again.` / `Couldn't reinstate this partner: {server message}. Try again.` with fallbacks.
 
 **Move customer modal** (`Modal size="lg"`, same conventions). Two modes.
-- Move: opened from a customer's `Move` button. Title `Move {customer name}`. Read-only summary block (`rounded-lg bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 p-4`): `Currently with {partner name}`, `{assigned} seats assigned, {used} in use`. Field `Move to` (`<select>`): every other active partner (each option `{name} ({free} free)`) and last the option `No partner (direct customer)`. Under the select, once a partner is chosen, a 14/400 line: `{customer} keeps its {assigned} seats. They are taken from {target}'s pool ({free} free) and returned to {current}'s pool.` If the target cannot fit them: red inline `role="alert"` `{target} has {free} seats free and {customer} needs {assigned}. Increase {target}'s pool first.` and submit disabled (D-18; the server's 409 with the free count is shown verbatim if the race is lost). For `No partner (direct customer)`: `{customer} becomes a direct customer and keeps its {assigned} seats as its own licence. The seats return to {current}'s pool.`
+- Move: opened from a customer's `Move customer` button. Title `Move {customer name}`. Read-only summary block (`rounded-lg bg-gray-50 dark:bg-white/[0.04] border border-gray-200 dark:border-white/10 p-4`): `Currently with {partner name}`, `{assigned} seats assigned, {used} in use`. Field `Move to` (`<select>`): every other active partner (each option `{name} ({free} free)`) and last the option `No partner (direct customer)`. Under the select, once a partner is chosen, a 14/400 line: `{customer} keeps its {assigned} seats. They are taken from {target}'s pool ({free} free) and returned to {current}'s pool.` If the target cannot fit them: red inline `role="alert"` `{target} has {free} seats free and {customer} needs {assigned}. Increase {target}'s pool first.` and submit disabled (D-18; the server's 409 with the free count is shown verbatim if the race is lost). For `No partner (direct customer)`: `{customer} becomes a direct customer and keeps its {assigned} seats as its own licence. The seats return to {current}'s pool.`
 - Add (`Add an existing organization`, opened from a partner's disclosure strip): Title `Add an organization to {partner name}`. Field `Organization` (`<select>` listing direct customers only, option `{name} ({assigned} seats)`, with a text filter above it when there are more than 20). The same summary and fit check run against the partner being added to. Empty list: 12/400 muted `Every organization already has a partner.`
 - Both modes: amber block `This is recorded in the audit log with your name. Screens the customer already has stay on, even if this partner may not sell them.` (D-19). Submit accent `Move customer` (pending `Moving...`); success toast `{customer} moved to {target}.` or `{customer} is now a direct customer.`; failure red block `Couldn't move this customer: {server message}. Try again.`
 
-Focus: a modal's initial focus is the first field; after success the opener (button) regains focus via `Modal`'s restore; after a table refetch the focus stays on the row's `Customers` or `Edit` button when it still exists.
+Focus: a modal's initial focus is the first field; after success the opener (button) regains focus via `Modal`'s restore; after a table refetch the focus stays on the row's `Show customers` or `Edit partner` button when it still exists.
 
 ### 2. Partner portal (PART-02, PART-05, PART-06, PART-08; D-01, D-04, D-09, D-10, D-16, D-17)
 
-Route/view id `partnerPortal`, permission `view:partner_portal`, writes `manage:partner_customers`. `container mx-auto p-6`, `space-y-6`. The page shows only the viewer's own partner. No tenant switcher, no organization selector, no link to any customer: a customer name is plain text, never a link (there is nothing to open: D-01).
+Route/view id `partnerPortal`, permission `view:partner_portal`, writes `manage:partner_customers`. `container mx-auto p-6`, `space-y-6`. **Primary visual anchor:** the Seat pool summary, led by the `Free` tile and the pool bar directly under the tiles (the partner's first question is how many seats it can still hand out); the Customers table is the second read.
+
+The page shows only the viewer's own partner. No tenant switcher, no organization selector, no link to any customer: a customer name is plain text, never a link (there is nothing to open: D-01).
 
 **Header.** Left: `h1` 30/600 `Partner portal`; under it 14/400 muted the partner's name. Right (`flex flex-wrap gap-2`): `Export CSV` (secondary, `DownloadIcon` 16px, `min-h-10`) for admin and viewer; `Create customer` (accent, `PlusIcon`) for the admin only. Both are `disabled` while the first load is in flight. `Create customer` is also `disabled` (with the reason line from the expiry banner, referenced by `aria-describedby`) when the pool is expired or has no free seats.
 
@@ -260,7 +269,7 @@ Customers states:
 | Empty (viewer) | Same card, heading `No customers yet`, body `Your customers appear here once a partner administrator creates them.`, no action. |
 | Empty search | `No customers match "{query}".` with `Clear search`. |
 | Error | Red block (`AlertTriangleIcon`, `role="alert"`) above the sections: `Couldn't load your customers. Check your connection and try again.` + `Try again`. The header stays; the summary and table are not shown stale. |
-| Refresh | The page reloads after each change; a background reload shows no skeleton. A `Refresh` text button (`RefreshCwIcon`) sits beside the count for a manual reload. |
+| Refresh | The page reloads after each change; a background reload shows no skeleton. A `Refresh customers` text button (`RefreshCwIcon`) sits beside the count for a manual reload. |
 
 **Change seats modal** (admin; `Modal size="sm"`, modelled on `TenantLicensePanel`; title `Change seats for {customer name}`).
 - Read-only facts (14/400): `{used} seats in use` and `{free} free in your pool`, and `{assigned} assigned now`.
@@ -274,7 +283,7 @@ Customers states:
 - Only screens inside the ceiling are shown as tickable checkboxes. `Dashboard` is shown checked and disabled with `Always included`.
 - A screen the customer already has that is outside the ceiling (D-19) is shown checked and disabled with 12/400 muted `Kept from before. You can't add it again.` (Open Question 3 decides whether it may be unticked.)
 - Parent and child screens behave as in `ManageTenantModal.tsx` (ticking a child ticks its parent; unticking a parent unticks its children).
-- Count line `{n} screens selected` and `Select all` / `Clear all` text buttons that act only on tickable rows.
+- Count line `{n} screens selected` and `Select all screens` / `Clear all screens` text buttons that act only on tickable rows.
 - A partner whose ceiling is empty shows 14/400 muted `Your platform administrator hasn't made any screens available to sell yet. Ask them to set your screen list.` in place of the list, submit disabled.
 - Submit accent `Save screens` (pending `Saving...`), disabled when unchanged. Success toast `Screens saved for {customer}.` Failure red block `Couldn't save screens: {server message}. Try again.`; the server's refusal of a screen outside the ceiling is shown verbatim and the picker refetches (the UI is advisory, the server enforces: D-10).
 
@@ -296,6 +305,8 @@ Focus and live regions: after a modal succeeds, `Modal` restores focus to the op
 ### 3. Accept-invite page (PART-02; D-09, D-17, D-20)
 
 Public route `/accept-invite?token={token}` (outside the signed-in shell: no sidebar, no header, no organization data). Same canvas and centred single-card layout as `LoginPage` (`.card`, `max-w-md`, `p-8`, `mx-auto`, `mt-12` on narrow screens, vertically centred from `md`). The brand mark and product name sit above the card as on the sign-in page.
+
+**Primary visual anchor:** the card heading (`Set your password`, or the state's heading), the only 18/600 text on the page, with the accent `Set password` button as the single action below it.
 
 On load the page reads the token from the query string, keeps it in memory and removes it from the address bar with `history.replaceState` so it is not left in history or a referrer. No token in the URL: shows the `Invalid` state below.
 
@@ -333,7 +344,7 @@ Naming rule: the partner organization is a `partner`, its staff are `partner adm
 | Primary CTA, partner admin | `Create customer` (pending `Creating...`) |
 | Primary CTAs, modals | `Save partner`, `Save seats`, `Save screens`, `Send invite`, `Move customer`, `Reinstate partner`, `Set password` (pending forms: `Saving...`, `Sending...`, `Moving...`, `Reinstating...`, `Setting password...`) |
 | Destructive CTA | `Suspend partner` (pending `Suspending...`) |
-| Secondary CTAs | `Export CSV` (pending `Exporting...`), `Invite colleague`, `Resend invite`, `Edit`, `Customers`, `Move`, `Add an existing organization`, `Change seats`, `Choose screens`, `Select all`, `Clear all`, `Show more partners`, `Show more customers`, `Refresh`, `Try again`, `Clear search`, `Done`, `Cancel`, `Go to sign in` |
+| Secondary CTAs | `Export CSV` (pending `Exporting...`), `Invite colleague`, `Resend invite`, `Edit partner`, `Show customers` (open: `Hide customers`), `Move customer`, `Add an existing organization`, `Change seats`, `Choose screens`, `Select all screens`, `Clear all screens`, `Show more partners`, `Show more customers`, `Refresh customers`, `Try again`, `Clear search`, `Done`, `Cancel`, `Go to sign in` |
 | Page titles | `Partners`; `Partner portal`; `Set your password` |
 | Section titles | `Seat pool`; `Customers`; `Team` |
 | Empty state, no partners (heading and body) | `No partners yet` / `Appoint a partner to give a dealer or reseller its own pool of seats. Its staff then create and manage their own customers.` + action `Appoint partner` |
@@ -383,7 +394,7 @@ Applicable state considerations resolved: 49 covered, 3 backstop, 0 unresolved.
 | empty | S1 | ✅ covered | With no partners the screen shows the `No partners yet` empty state with the `Appoint partner` action (Copywriting Contract). |
 | loading | S1 | ✅ covered | The header renders and the table body shows four skeleton rows with `aria-busy="true"`; a pending row action disables only that row's buttons. |
 | error | S1 | ✅ covered | A failed load renders the red `role="alert"` block with `Try again` and no stale table. |
-| populated | S1 | ✅ covered | One row per partner with pool bar, expiry, ceiling count and status; ordered by name; a `Customers` disclosure per row. |
+| populated | S1 | ✅ covered | One row per partner with pool bar, expiry, ceiling count and status; ordered by name; a `Show customers` disclosure per row. |
 | partial | S1 | ✅ covered | A partner with no expiry shows `No expiry`; a partner with an unrestricted ceiling shows `All screens`; a missing count renders `—`. |
 | overflow | S1 | ✅ covered | The table scrolls horizontally inside its card below `xl` and becomes stacked cards below `lg`; names wrap with `break-words`. |
 | zero-one-many | S1 | ✅ covered | `0 customers`, `1 customer`, `{n} customers`; `1 screen` and `{n} screens`; 50 or more partners page at 25. |
@@ -444,7 +455,7 @@ Applicable state considerations resolved: 49 covered, 3 backstop, 0 unresolved.
 - Focus: global `:focus-visible` ring only. `Modal` handles focus trap, restore and Esc as built. After a table refetch the focus stays where it was; it is never left on a removed node.
 - Live regions: errors are `role="alert"`; banners and success summaries are `role="status"`; toasts are polite; counts and polls are silent.
 - Tables: real `<table>` with `<th scope="col">`; stacked cards below `lg` use a `<dl>` per customer, and each card has an accessible name (the customer or partner name).
-- Disclosures (`Customers`, `Choose screens` in Create customer): real `<button>` with `aria-expanded` and `aria-controls`.
+- Disclosures (`Show customers`, `Choose screens` in Create customer): real `<button>` with `aria-expanded` and `aria-controls`.
 - Buttons name their target where the page has many of them: `aria-label="Change seats for {customer}"`, `"Choose screens for {customer}"`, `"Move {customer}"`, `"Edit {partner}"`, `"Suspend {partner}"`, `"Resend invite to {email}"`.
 - A disabled `Create customer` is explained by visible text referenced with `aria-describedby` (the expiry banner or `You have no free seats. Ask the platform administrator for a larger pool.`).
 - Forms: every field has a visible `<label>`; helper and error text are linked with `aria-describedby`; required fields carry `aria-required`; the pool, seats and password fields use `inputMode` and `autoComplete` appropriately (`new-password`, `email`, `off` for names).
@@ -516,15 +527,15 @@ Server shapes the contract assumes (names are the planner's; the UI treats every
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS (`Tool: none`; no Component Inventory section)
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS (`Tool: none`; no Component Inventory section)
 
-**Approval:** pending
+**Approval:** approved 2026-11-02 after re-check (checker: 0 blocks; one non-blocking FLAG on the inherited 40px control height and 12px input padding, both justified in the Spacing section). User Confirmations section verified unchanged against the previous commit.
 
 ## User Confirmations (2026-11-02)
 
