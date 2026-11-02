@@ -40,6 +40,12 @@ The user's own motivation (2026-11-02): appoint retailers and dealers, give each
 - **D-15:** Suspending a partner locks the partner only. Its users cannot log in or move seats. Its customers keep running with the seats they hold, and nothing is taken away.
 - **D-16:** The partner's usage roll-up shows the pool size, seats handed out and seats free. Per customer it shows seats assigned, seats used, agents online and licence expiry, with a CSV export. There is no invoicing and no monthly history.
 
+### Settled after research (2026-11-02, user answers to 87-RESEARCH.md open questions)
+- **D-17:** When the Super Admin appoints a partner, it invites the partner's first partner admin. That partner admin then invites its own colleagues as partner admins or partner viewers. No one else creates partner users.
+- **D-18:** Moving a customer to another partner (D-11) keeps its seat count. The seats are claimed atomically from the new partner's pool and returned to the old one. The move is refused, with the free count shown, if the new pool cannot fit them.
+- **D-19:** When a partner's screen ceiling shrinks, or a customer moves to a partner with a smaller ceiling, screens the customer already has stay on. The ceiling limits only what the partner can tick from then on.
+- **D-20:** Partner admins must enroll MFA, like other admin roles. Partner viewers may sign in without it.
+
 ### Claude's Discretion
 - Field names, collection layout and the migration number, as long as D-05's atomic guarantee and D-12's "existing organizations untouched" hold.
 - Whether the Partner portal is a new sidebar section or a separate view, as long as partner users reach nothing else.
