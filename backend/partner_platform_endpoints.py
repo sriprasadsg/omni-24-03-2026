@@ -84,3 +84,23 @@ async def update_partner(partner_id: str, data: PartnerUpdate, current_user=Depe
         return {"partner": await service.update_partner(mongodb.db, partner_id, changes=changes, actor=current_user)}
     except PartnerError as err:
         return error_response(err)
+
+
+@router.post("/{partner_id}/suspend")
+async def suspend_partner(partner_id: str, current_user=Depends(get_current_user)):
+    """Lock a partner and sign out its people; its customers keep running."""
+    _require_super_admin(current_user)
+    try:
+        return {"partner": await service.suspend(mongodb.db, partner_id, current_user)}
+    except PartnerError as err:
+        return error_response(err)
+
+
+@router.post("/{partner_id}/reinstate")
+async def reinstate_partner(partner_id: str, current_user=Depends(get_current_user)):
+    """Lift a suspension."""
+    _require_super_admin(current_user)
+    try:
+        return {"partner": await service.reinstate(mongodb.db, partner_id, current_user)}
+    except PartnerError as err:
+        return error_response(err)

@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
+import authentication_service
 import licensing
 import partner_invites
 import partner_pool
@@ -148,6 +149,50 @@ async def update_partner(db, partner_id: str, *, changes: Dict[str, Any], actor:
         await raw.tenants.update_one({"id": partner_id, "type": PARTNER_TYPE}, {"$set": sets})
     for action, before, after in events:
         await audit(action, actor=actor, partner_id=partner_id, platform=True, before=before, after=after)
+    return await _summary_of(db, partner_id)
+
+
+_SIGN_OUT_FAILED = "Couldn't sign this partner's users out. Try again."
+
+
+async def suspend(db, partner_id: str, actor: Any) -> Dict[str, Any]:
+    """Lock a partner (D-15): its status flips to suspended and every one of its users is signed out.
+    Only the partner's own document and its users are read or written; customers, their seats and
+    their agents are never touched. Repeating it records nothing new but signs the users out again,
+    so a retry after a failed sign-out finishes the job."""
+    raw = _raw(db)
+    now = datetime.now(timezone.utc).isoformat()
+    res = await raw.tenants.update_one(
+        {"id": partner_id, "type": PARTNER_TYPE, "partner.status": {"$ne": "suspended"}},
+        {"$set": {"partner.status": "suspended", "partner.suspendedAt": now,
+                  "partner.suspendedBy": _actor_email(actor), "updatedAt": now}})
+    if res.matched_count == 0 and await raw.tenants.find_one({"id": partner_id, "type": PARTNER_TYPE}, {"_id": 1}) is None:
+        raise PartnerError(404, "not_found", "Partner not found")
+    if res.matched_count == 1:
+        await audit("partner.suspended", actor=actor, partner_id=partner_id, platform=True,
+                    before="active", after="suspended")
+    failed = False
+    async for user in raw.users.find({"tenantId": partner_id}, {"_id": 0, "email": 1}):
+        try:
+            await authentication_service.revoke_user_sessions(user.get("email"), "partner suspended")
+        except Exception:
+            failed = True
+    if failed:
+        # The status is already suspended, so the chokepoint refuses these users either way.
+        raise PartnerError(503, "sign_out_failed", _SIGN_OUT_FAILED)
+    return await _summary_of(db, partner_id)
+
+
+async def reinstate(db, partner_id: str, actor: Any) -> Dict[str, Any]:
+    """Lift a suspension: status active again, the suspension stamp removed. Nothing else changes."""
+    raw = _raw(db)
+    res = await raw.tenants.update_one(
+        {"id": partner_id, "type": PARTNER_TYPE, "partner.status": "suspended"},
+        {"$set": {"partner.status": "active", "updatedAt": datetime.now(timezone.utc).isoformat()},
+         "$unset": {"partner.suspendedAt": "", "partner.suspendedBy": ""}})
+    if res.matched_count == 1:
+        await audit("partner.reinstated", actor=actor, partner_id=partner_id, platform=True,
+                    before="suspended", after="active")
     return await _summary_of(db, partner_id)
 
 
