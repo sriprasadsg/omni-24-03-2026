@@ -29,7 +29,7 @@
 
 ### 2. Security Response
 
-- [ ] **RESP-01**: A security sweep turns native findings (malicious scan verdict, agent vulnerability, file-integrity change) into playbook actions through the gate, replacing the legacy remediation loop.
+- [x] **RESP-01**: A security sweep turns native findings (malicious scan verdict, agent vulnerability, file-integrity change) into playbook actions through the gate, replacing the legacy remediation loop.
 - [ ] **RESP-02**: At Undoable-auto a malicious single IP address is blocked automatically for a set time (default 24 h); the agent removes the block at expiry even if it has lost contact with the platform, an operator can undo it from the Activity view, and blocking a range needs approval.
 - [ ] **RESP-03**: At Undoable-auto a malicious file is quarantined automatically (moved, never deleted) and an operator can restore it with one click.
 - [ ] **RESP-04**: A failed service on an endpoint is restarted automatically within a restart budget; once the budget is used up further restarts need approval.
@@ -206,7 +206,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | HEAL-06 | Phase 82 | Gaps Found |
 | HEAL-07 | Phase 82 | Gaps Found |
 | HEAL-08 | Phase 82 | Gaps Found |
-| RESP-01 | Phase 83 | Pending |
+| RESP-01 | Phase 83 | Complete |
 | RESP-02 | Phase 83 | Pending |
 | RESP-03 | Phase 83 | Pending |
 | RESP-04 | Phase 83 | Pending |
