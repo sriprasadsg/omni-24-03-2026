@@ -2,7 +2,9 @@
  * Phase 87 (PART-01, PART-05): the partner client, the role gate that keeps the Partner portal for
  * partner users only, and the suspended-partner exit.
  */
+import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { canReadView, evaluateViewAccess, landingView, PARTNER_ONLY_VIEWS } from '../../utils/viewAccess';
 import { derivePermissionState, isPartnerAdminRoleName, isPartnerRoleName, partnerRoleLabel, platformTier } from '../../utils/permissions';
 import {
@@ -13,7 +15,15 @@ import {
   inviteColleague,
   moveCustomer,
 } from '../../services/partnerApi';
+import { LoginPage } from '../../components/LoginPage';
 import type { User } from '../../types';
+
+// LoginPage asks the server for SSO providers on mount; everything else in apiService stays real.
+vi.mock('../../services/apiService', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../services/apiService')>()),
+  fetchSsoProviders: () => Promise.resolve({ providers: [] }),
+}));
+vi.mock('@simplewebauthn/browser', () => ({ startAuthentication: vi.fn() }));
 
 const mk = (role: string, permissions?: string[]): User =>
   ({ id: 'u1', name: 'U', email: 'u@x.test', role, tenantId: 't1', permissions }) as unknown as User;
@@ -157,5 +167,92 @@ describe('partner API client', () => {
   it('surfaces the server text when an invite cannot be accepted', async () => {
     fetchMock.mockResolvedValueOnce(reply(400, { detail: 'Password is too short' }));
     await expect(acceptInvite('tok', 'x')).rejects.toMatchObject({ message: 'Password is too short', status: 400 });
+  });
+});
+
+const SUSPENDED_MESSAGE = 'This partner account is suspended. Contact your platform administrator to restore access.';
+const LIVE_TOKEN = 'header.eyJleHAiOjk5OTk5OTk5OTl9.sig';
+
+describe('a suspended partner session ends on the sign-in page (PART-01, T-87-21)', () => {
+  const realLocation = window.location;
+  const fetchMock = vi.fn();
+  let api: typeof import('../../services/apiService');
+
+  beforeEach(async () => {
+    // _sessionEnding is module state: each test gets its own copy of apiService.
+    vi.resetModules();
+    api = await import('../../services/apiService');
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    sessionStorage.clear();
+    sessionStorage.setItem('token', LIVE_TOKEN);
+    sessionStorage.setItem('refresh_token', 'refresh');
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { href: 'http://localhost/#partnerPortal', hash: '#partnerPortal', search: '', pathname: '/' },
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(window, 'location', { configurable: true, value: realLocation });
+  });
+
+  it('clears the tokens, goes to the sign-in page with the reason, and throws on a 403 carrying X-Partner-Suspended', async () => {
+    fetchMock.mockResolvedValueOnce(reply(403, { detail: SUSPENDED_MESSAGE }, { 'X-Partner-Suspended': '1' }));
+    await expect(api.authFetch('/api/partner/overview')).rejects.toThrow('Partner suspended');
+    expect(sessionStorage.getItem('token')).toBeNull();
+    expect(sessionStorage.getItem('refresh_token')).toBeNull();
+    expect(window.location.href).toBe('/login?error=partner_suspended');
+    // The generic "session ended" notice would contradict the one message the contract allows.
+    expect(sessionStorage.getItem(api.SESSION_ENDED_KEY)).toBeNull();
+  });
+
+  it('leaves a 403 without that header exactly as before', async () => {
+    fetchMock.mockResolvedValueOnce(reply(403, { detail: 'Not allowed' }));
+    const res = await api.authFetch('/api/partner/overview');
+    expect(res.status).toBe(403);
+    expect(sessionStorage.getItem('token')).toBe(LIVE_TOKEN);
+    expect(window.location.href).toBe('http://localhost/#partnerPortal');
+  });
+
+  it('refuses every later call once the session has ended', async () => {
+    fetchMock.mockResolvedValueOnce(reply(403, {}, { 'X-Partner-Suspended': '1' }));
+    await api.authFetch('/api/partner/overview').catch(() => undefined);
+    await expect(api.authFetch('/api/partner/team')).rejects.toThrow('Session ended');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the server wording when sign-in answers 403 with body.error', async () => {
+    fetchMock.mockResolvedValueOnce(reply(403, { error: SUSPENDED_MESSAGE }));
+    const err = await api.login('p@x.test', 'pw').catch(e => e);
+    expect(err).toBeInstanceOf(api.LoginError);
+    expect(err.message).toBe(SUSPENDED_MESSAGE);
+  });
+
+  it('still shows body.detail, then the disabled-account fallback, for other 403s', async () => {
+    fetchMock.mockResolvedValueOnce(reply(403, { detail: 'Account locked' }));
+    await expect(api.login('a@x.test', 'pw')).rejects.toThrow('Account locked');
+    fetchMock.mockResolvedValueOnce(reply(403, {}));
+    await expect(api.login('a@x.test', 'pw')).rejects.toThrow('This account is disabled. Contact your administrator.');
+  });
+});
+
+describe('LoginPage explains a suspended partner', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    (window as any).matchMedia ??= () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+    (window as any).IntersectionObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+  });
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('shows the suspended message for ?error=partner_suspended', () => {
+    window.history.replaceState(null, '', '/login?error=partner_suspended');
+    render(React.createElement(LoginPage, { users: [] }));
+    expect(screen.getByText(SUSPENDED_MESSAGE)).toBeTruthy();
+  });
+
+  it('shows no error on an ordinary visit', () => {
+    render(React.createElement(LoginPage, { users: [] }));
+    expect(screen.queryByText(SUSPENDED_MESSAGE)).toBeNull();
   });
 });
