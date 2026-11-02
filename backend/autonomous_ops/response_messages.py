@@ -130,6 +130,7 @@ REASON_TEXT = {
     "agent_offline": "The computer is offline, so nothing was done.",
     "range_block": "The request named a range of addresses. Only a single IP address is blocked automatically.",
     "superseded": "A second source agreed, so this suggestion became an action.",
+    "suggestion_gone": "Nothing is reported on this computer any more, so this suggestion ended.",
     "hash_mismatch": "The file does not match what was flagged, so it was not moved.",
     "locked": "The file is in use and could not be moved, so a person has to decide.",
     "protected_path": "This is a protected system file, so it isn't moved automatically.",
