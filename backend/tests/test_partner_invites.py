@@ -271,3 +271,69 @@ async def test_a_mail_failure_reports_false_and_still_keeps_the_invite(wired, mo
     token = (await _token_row(wired))["token"]
     assert (await inv.invite_state(wired, token))["state"] == "valid"
     assert token not in _app_log(caplog)
+
+
+# --- Task 2: the public, rate-limited status route -------------------------------------------
+
+@pytest.fixture
+def status_app(wired):
+    """The status router over the test database, with the limiter wired the way the app wires it."""
+    import invite_endpoints
+    from fastapi import FastAPI
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+    from slowapi.util import get_remote_address
+
+    app = FastAPI()
+    app.state.limiter = Limiter(key_func=get_remote_address)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+    app.include_router(invite_endpoints.router)
+    with patch.object(invite_endpoints, "mongodb", SimpleNamespace(db=wired)):
+        yield app
+
+
+async def _post_status(app, payload):
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.post("/api/auth/invite/status", json=payload)
+
+
+async def test_status_route_answers_valid_without_a_session_and_never_echoes_the_token(status_app, wired):
+    await _invite(wired)
+    token = (await _token_row(wired))["token"]
+    response = await _post_status(status_app, {"token": token})
+    assert response.status_code == 200
+    assert response.json() == {"state": "valid", "organizationName": "Acme", "email": "ada@example.com",
+                               "roleKind": "customer_admin"}
+    assert token not in response.text
+
+
+async def test_status_route_classifies_unknown_and_used_links(status_app, wired):
+    await _invite(wired)
+    token = (await _token_row(wired))["token"]
+    assert (await _post_status(status_app, {"token": "nope"})).json() == {"state": "invalid"}
+    assert (await _confirm(token)).status_code == 200
+    used = await _post_status(status_app, {"token": token})
+    assert used.json() == {"state": "used"} and token not in used.text
+
+
+async def test_status_route_rejects_an_empty_missing_or_oversized_token(status_app):
+    assert (await _post_status(status_app, {"token": ""})).status_code == 422
+    assert (await _post_status(status_app, {})).status_code == 422
+    assert (await _post_status(status_app, {"token": "x" * 513})).status_code == 422
+
+
+async def test_status_route_is_limited_to_ten_a_minute(status_app):
+    codes = [(await _post_status(status_app, {"token": "nope"})).status_code for _ in range(11)]
+    assert codes[:10] == [200] * 10 and codes[10] == 429
+
+
+def test_status_route_takes_the_token_in_the_body_and_has_no_auth_dependency():
+    import invite_endpoints
+    routes = [r for r in invite_endpoints.router.routes if r.path == "/api/auth/invite/status"]
+    assert len(routes) == 1 and routes[0].methods == {"POST"}
+    assert routes[0].dependant.dependencies == []
+    assert routes[0].dependant.query_params == []
+    assert [p.name for p in routes[0].dependant.body_params] == ["body"]
