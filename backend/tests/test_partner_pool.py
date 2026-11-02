@@ -19,6 +19,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import licensing
 import partner_pool
 from partner_pool import PartnerError
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -325,3 +326,44 @@ async def test_pool_expiry_compares_parsed_datetimes():
     assert partner_pool.pool_expired(doc("2026-11-02T14:00:00+02:00"), now) is True  # 12:00 UTC, at the instant
     assert partner_pool.pool_expired(doc("2026-11-02T14:00:01+02:00"), now) is False  # 12:00:01 UTC
     assert importlib.import_module("partner_pool").pool_expired({}, now) is False
+
+
+# --- migration 029 and the licensing loops ------------------------------------------------------
+
+async def test_migration_029_adds_indexes_only_and_a_second_run_changes_nothing(mongo_db):
+    migration = importlib.import_module("migrations.029_partner_channel")
+    await mongo_db.tenants.insert_many([
+        {"id": "old-a", "name": "Old A", "license": {"maxAgents": 5}},
+        {"id": "old-b", "name": "Old B", "maxAgents": 3},
+    ])
+    before = await _snap(mongo_db, "old-a", "old-b")
+    await migration.up(mongo_db)
+    assert await _snap(mongo_db, "old-a", "old-b") == before  # no partnerId and no type were added
+    assert await mongo_db.tenants.count_documents({"$or": [{"partnerId": {"$exists": True}},
+                                                           {"type": {"$exists": True}}]}) == 0
+    tenant_ix = await mongo_db.tenants.index_information()
+    assert tenant_ix["partnerId_1"]["partialFilterExpression"] == {"partnerId": {"$type": "string"}}
+    assert tenant_ix["type_1"]["partialFilterExpression"] == {"type": {"$type": "string"}}
+    invite_ix = await mongo_db.invites.index_information()
+    assert invite_ix["tokenHash_1"]["unique"] is True and "email_1_createdAt_-1" in invite_ix
+    snapshot = (tenant_ix, invite_ix)
+    await migration.up(mongo_db)
+    assert (await mongo_db.tenants.index_information(), await mongo_db.invites.index_information()) == snapshot
+    assert await _snap(mongo_db, "old-a", "old-b") == before
+    assert migration.DESCRIPTION
+
+
+async def test_the_licensing_loops_never_read_a_partner_organization(mongo_db):
+    await _partner(mongo_db, pool=50, allocated=5)
+    await _customer(mongo_db, "p1", 5, cid="c1")
+    await mongo_db.tenants.update_one({"id": "c1"}, {"$unset": {"license.seatsUsed": ""}})
+    stale = (datetime.now(timezone.utc) - timedelta(days=400)).isoformat()
+    await mongo_db.agents.insert_one({"id": "a1", "hostname": "h1", "tenantId": "p1", "status": "Online",
+                                      "lastSeen": stale})
+    before = await _snap(mongo_db, "p1")
+    assert await licensing.reclaim_inactive_agents(mongo_db) == 0
+    assert await licensing.reconcile_all(mongo_db) == []
+    assert await _snap(mongo_db, "p1") == before  # no license.seatsUsed, no invented seats
+    assert "seatsUsed" not in (before[0].get("license") or {})
+    assert (await mongo_db.agents.find_one({"id": "a1"}))["status"] == "Online"
+    assert (await _snap(mongo_db, "c1"))[0]["license"]["seatsUsed"] == 0  # customers are still counted

@@ -193,7 +193,8 @@ async def reclaim_inactive_agents(db, now: Optional[datetime] = None) -> int:
     raw = _raw(db)
     now = now or datetime.now(timezone.utc)
     total = 0
-    async for tenant in raw.tenants.find({}, {"_id": 0, "id": 1, "license": 1, "maxAgents": 1}):
+    # A partner organization holds no seats of its own (D-13); only its customers do.
+    async for tenant in raw.tenants.find({"type": {"$ne": "partner"}}, {"_id": 0, "id": 1, "license": 1, "maxAgents": 1}):
         tenant_id = tenant.get("id")
         if not tenant_id:
             continue
@@ -220,7 +221,8 @@ async def reclaim_inactive_agents(db, now: Optional[datetime] = None) -> int:
 async def reconcile_all(db) -> List[Dict[str, Any]]:
     """Recompute every tenant's seatsUsed; returns the tenants whose counter had drifted."""
     drifts = []
-    async for tenant in _raw(db).tenants.find({}, {"_id": 0, "id": 1}):
+    # A partner organization holds no seats of its own (D-13); its pool counter is partner_pool's to repair.
+    async for tenant in _raw(db).tenants.find({"type": {"$ne": "partner"}}, {"_id": 0, "id": 1}):
         tenant_id = tenant.get("id")
         if not tenant_id:
             continue

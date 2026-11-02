@@ -326,6 +326,7 @@ async def license_seat_maintenance_loop():
     licenses 30/7/1 days from expiry raise a reminder (spec C4)."""
     import license_rules
     import licensing
+    import partner_pool
     from database import get_database
 
     _log = logging.getLogger(__name__ + ".license_seats")
@@ -336,6 +337,7 @@ async def license_seat_maintenance_loop():
             db = get_database()
             if runs % 24 == 0:
                 await licensing.reconcile_all(db)
+                await partner_pool.reconcile_pools(db)
             await licensing.reclaim_inactive_agents(db)
             await license_rules.send_expiry_reminders(db)
         except Exception as exc:
