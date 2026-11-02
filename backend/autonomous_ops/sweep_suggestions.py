@@ -6,6 +6,10 @@ and kind there is at most ONE open ``suggested`` row, grouped by the server:
 * ``vulnerability`` (D-07): every open vulnerability an agent reported, with or without a CVE. The row holds
   the count, the highest severity and at most 10 items (highest severity first, then the id). Nothing is
   patched and there is no approval card: the row is ``suggestionOnly`` and links to patching.
+* ``file_change`` (D-08): paths with a ``Changed`` file-integrity event in the last 24 hours (Added and
+  Removed are not counted, as in the legacy filter). A path whose hash is flagged as an origin for that
+  computer (an ``autonomy_signals`` file signal) is left out: it takes the quarantine path. The change itself
+  is never an origin: nothing here writes a signal's origins, only the one refusal memory described below.
 
 A newer sweep updates the row's count, items and time in place (``ledger.refresh_suggestion``: no state
 change, so no audit event, and ``createdAt`` becomes the time of the latest sweep). A tick that learned
@@ -34,8 +38,12 @@ from .settings import TenantSettings
 
 logger = logging.getLogger(__name__)
 
-RULE_IDS = {"vulnerability": "sweep:suggest_vulnerability"}
-_COMMANDS = {"vulnerability": "upgrade_software"}
+RULE_IDS = {"vulnerability": "sweep:suggest_vulnerability", "file_change": "sweep:suggest_file_change"}
+_COMMANDS = {"vulnerability": "upgrade_software", "file_change": "restore_file"}
+FILE_WINDOW = timedelta(hours=24)         # a changed file counts for this long after the event
+FILE_EVENT_LIMIT = 2000
+PATH_CAP = 300
+_HASH_CHUNK = 500
 EXTEND_UNDER = timedelta(hours=12)       # the expiry is pushed out only when less than this remains
 VULNERABILITY_LIMIT = 5000               # T-83-56: one pass never reads more than this many findings
 PACKAGE_CAP = 200
@@ -111,6 +119,47 @@ async def _vulnerability_groups(db, tenant_id: str, index) -> Dict[str, Group]:
     if total >= VULNERABILITY_LIMIT:
         logger.warning("autonomous_ops: tenant %s has at least %d open vulnerabilities, counting the first %d",
                        tenant_id, VULNERABILITY_LIMIT, VULNERABILITY_LIMIT)
+    return groups
+
+
+def _hashes_of(doc: Dict[str, Any]) -> List[str]:
+    return [h for h in (signals.sha256_of(doc.get("hash_after")), signals.sha256_of(doc.get("sha256"))) if h]
+
+
+async def _flagged(db, tenant_id: str, hashes: List[str]) -> set:
+    """(agent id, sha256) of every file signal of this tenant on one of these hashes."""
+    out = set()
+    ordered = sorted(set(hashes))
+    for i in range(0, len(ordered), _HASH_CHUNK):
+        found = raw(db).autonomy_signals.find(
+            {"tenantId": tenant_id, "kind": "file", "indicator": {"$in": ordered[i:i + _HASH_CHUNK]}},
+            {"_id": 0, "agentId": 1, "indicator": 1})
+        out.update([(doc.get("agentId"), doc.get("indicator")) async for doc in found])
+    return out
+
+
+async def _file_change_groups(db, tenant_id: str, index, now: datetime) -> Dict[str, Group]:
+    """Distinct changed paths per computer in the last 24 hours, minus paths whose hash is flagged there."""
+    cut = (now - FILE_WINDOW).isoformat()
+    found = raw(db).fim_events.find(
+        {"tenantId": tenant_id, "change_type": "Changed", "received_at": {"$gte": cut}},
+        {"_id": 0, "agent_id": 1, "path": 1, "hash_after": 1, "sha256": 1}
+    ).sort("received_at", -1).limit(FILE_EVENT_LIMIT)
+    paths: Dict[str, Dict[str, set]] = {}
+    agents: Dict[str, Dict[str, Any]] = {}
+    async for doc in found:
+        agent, path = signals.resolve(index, doc.get("agent_id")), _clean(doc.get("path"), PATH_CAP)
+        if agent is None or path is None:
+            continue
+        agents[agent["id"]] = agent
+        paths.setdefault(agent["id"], {}).setdefault(path, set()).update(_hashes_of(doc))
+    flagged = await _flagged(db, tenant_id, [h for per in paths.values() for hs in per.values() for h in hs])
+    groups: Dict[str, Group] = {}
+    for agent_id, per_path in paths.items():
+        for path, hashes in per_path.items():
+            if any((agent_id, h) in flagged for h in hashes):
+                continue
+            groups.setdefault(agent_id, Group(agents[agent_id])).add((path,), {"path": path})
     return groups
 
 
@@ -222,7 +271,9 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
     findings cannot be read is left exactly as it is: an unreadable list never closes a row."""
     counts = {"suggested": 0, "refreshed": 0, "closed": 0, "shadow": 0, "refused": 0, "skipped": 0}
     index = signals.index_agents(await signals.agents_of(db, tenant_id))
-    for kind, read in (("vulnerability", lambda: _vulnerability_groups(db, tenant_id, index)),):
+    reads = (("vulnerability", lambda: _vulnerability_groups(db, tenant_id, index)),
+             ("file_change", lambda: _file_change_groups(db, tenant_id, index, now)))
+    for kind, read in reads:
         try:
             groups = await read()
         except Exception as exc:
