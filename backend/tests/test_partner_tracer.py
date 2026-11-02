@@ -165,6 +165,9 @@ async def test_a_partner_viewer_reads_but_cannot_create(wired):
 
 async def test_claim_and_release_are_bounded(wired):
     partner_id = await _appoint(pool_size=10)
+    # A release the counter cannot cover is repaired to the true sum (87-03), so the customers hold 6.
+    await wired.db.tenants.insert_one({"id": "held", "name": "Held", "partnerId": partner_id,
+                                       "license": {"maxAgents": 6}})
     assert await partner_pool.claim(wired.db, partner_id, 10) is True
     assert await partner_pool.claim(wired.db, partner_id, 1) is False
     await partner_pool.release(wired.db, partner_id, 4)
