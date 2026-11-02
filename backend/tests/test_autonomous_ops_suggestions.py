@@ -251,3 +251,107 @@ async def test_the_approve_route_would_refuse_the_row_because_it_is_suggestion_o
     await _tick(mongo_db)
     (row,) = await _rows(mongo_db)
     assert row["reason"]["inputs"]["suggestionOnly"] is True and row["undo"]["available"] is False
+
+
+# ------------------------------------------------------------------ file changes (D-08)
+
+async def _change(db, path, *, change="Changed", at=None, hash_after=None, tenant="t1", agent="host-t1"):
+    stamp = (at or NOW - timedelta(minutes=5)).isoformat()
+    await db.fim_events.insert_one({"id": f"{path}-{stamp}-{change}", "agent_id": agent, "tenantId": tenant,
+                                    "path": path, "change_type": change, "hash_after": hash_after,
+                                    "sha256": None, "received_at": stamp})
+
+
+async def test_three_changed_paths_in_a_day_are_one_row_with_the_paths(mongo_db):
+    await _world(mongo_db)
+    for path in ("/etc/ssh/sshd_config", "/etc/hosts", "/etc/passwd"):
+        await _change(mongo_db, path)
+    await _tick(mongo_db)
+    (row,) = await _rows(mongo_db)
+    suggestion = row["reason"]["inputs"]["suggestion"]
+    assert row["state"] == "suggested" and row["command"] == "restore_file" and row["targets"] == ["a-t1"]
+    assert row["reason"]["ruleId"] == "sweep:suggest_file_change" and row["reason"]["inputs"]["suggestionOnly"] is True
+    assert suggestion["kind"] == "file_change" and suggestion["count"] == 3
+    assert [i["path"] for i in suggestion["items"]] == ["/etc/hosts", "/etc/passwd", "/etc/ssh/sshd_config"]
+    view = response_views.row_extras(row, host="host-t1", now=NOW)["suggestion"]
+    assert view["openView"] == "fimMonitoring" and view["count"] == 3
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
+
+
+async def test_duplicate_events_on_one_path_count_once_and_hostnames_resolve(mongo_db):
+    await _world(mongo_db)
+    for minute in range(4):
+        await _change(mongo_db, "/etc/hosts", at=NOW - timedelta(minutes=minute + 1))
+    await _change(mongo_db, "/etc/hosts", agent="a-t1")
+    await _tick(mongo_db)
+    (row,) = await _rows(mongo_db)
+    assert row["reason"]["inputs"]["suggestion"]["count"] == 1
+
+
+async def test_an_added_or_removed_event_is_not_a_change(mongo_db):
+    await _world(mongo_db)
+    await _change(mongo_db, "/etc/new", change="Added")
+    await _change(mongo_db, "/etc/gone", change="Removed")
+    await _change(mongo_db, "/etc/odd", change=None)
+    await _tick(mongo_db)
+    assert await _rows(mongo_db) == []
+    await _change(mongo_db, "/etc/real")
+    await _tick(mongo_db, NOW + timedelta(minutes=1))
+    (row,) = await _rows(mongo_db)
+    assert row["reason"]["inputs"]["suggestion"]["count"] == 1
+
+
+async def test_a_path_whose_hash_is_flagged_leaves_the_row_and_without_others_there_is_no_row(mongo_db):
+    await _world(mongo_db)
+    await seed_feed_ioc(mongo_db, ioc_type="hash", value=SHA, feed="malwarebazaar")
+    await _change(mongo_db, "/tmp/evil", hash_after=SHA)
+    await _tick(mongo_db)
+    assert await mongo_db.autonomy_signals.count_documents({"kind": "file", "indicator": SHA, "agentId": "a-t1"}) == 1
+    assert [r for r in await _rows(mongo_db) if r["command"] == "restore_file"] == []
+    await _change(mongo_db, "/etc/hosts", hash_after="cd" * 32)
+    await _tick(mongo_db, NOW + timedelta(minutes=1))
+    (row,) = [r for r in await _rows(mongo_db) if r["command"] == "restore_file"]
+    assert [i["path"] for i in row["reason"]["inputs"]["suggestion"]["items"]] == ["/etc/hosts"]
+
+
+async def test_the_same_hash_flagged_on_another_computer_does_not_remove_this_ones_path(mongo_db):
+    await _world(mongo_db)
+    await seed_agent(mongo_db, "t1", "a-other", hostname="host-other")
+    await mongo_db.autonomy_signals.insert_one({"tenantId": "t1", "agentId": "a-other", "kind": "file", "indicator": SHA,
+                                                "origins": {}, "lastSeenAt": NOW})
+    await _change(mongo_db, "/etc/hosts", hash_after=SHA)
+    await _tick(mongo_db)
+    (row,) = await _rows(mongo_db)
+    assert row["reason"]["inputs"]["suggestion"]["count"] == 1
+
+
+async def test_a_file_change_tick_writes_no_signal_and_no_origin(mongo_db):
+    await _world(mongo_db)
+    for path in ("/etc/a", "/etc/b"):
+        await _change(mongo_db, path, hash_after="ef" * 32)
+    before = await mongo_db.autonomy_signals.find({}, {"_id": 0}).to_list(50)
+    await _tick(mongo_db)
+    await _tick(mongo_db, NOW + timedelta(minutes=1))
+    assert len(await _rows(mongo_db)) == 1
+    assert await mongo_db.autonomy_signals.find({}, {"_id": 0}).to_list(50) == before == []
+
+
+async def test_events_older_than_a_day_are_ignored_and_the_row_closes_when_none_remain(mongo_db):
+    await _world(mongo_db)
+    await _change(mongo_db, "/etc/hosts", at=NOW - timedelta(hours=23))
+    await _change(mongo_db, "/etc/old", at=NOW - timedelta(hours=30))
+    await _tick(mongo_db)
+    (row,) = await _rows(mongo_db)
+    assert row["reason"]["inputs"]["suggestion"]["count"] == 1
+    await _tick(mongo_db, NOW + timedelta(hours=2))
+    (row,) = await _rows(mongo_db)
+    assert row["state"] == "expired" and row["reasonCode"] == "superseded"
+
+
+async def test_vulnerabilities_and_file_changes_are_two_rows_for_one_computer(mongo_db):
+    await _world(mongo_db)
+    await _vulns(mongo_db, 3)
+    await _change(mongo_db, "/etc/hosts")
+    await _tick(mongo_db)
+    await _tick(mongo_db, NOW + timedelta(minutes=1))
+    assert sorted(r["command"] for r in await _rows(mongo_db)) == ["restore_file", "upgrade_software"]
