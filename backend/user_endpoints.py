@@ -18,7 +18,7 @@ from itam_asset_endpoints import _require_itam_admin_session_only as _require_it
 from rbac_service import rbac_service
 import rbac_defaults
 from role_assignment import (assert_can_assign_role, assert_can_manage_account, assert_not_last_platform_owner,
-                             assert_role_fits_tenant, resolve_assignable_role)
+                             assert_role_fits_tenant, assert_role_fits_tenant_type, resolve_assignable_role)
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from audit_service import get_audit_service
@@ -286,6 +286,7 @@ async def create_user(user: UserCreate, current_user: TokenData = Depends(_requi
     if not target_tenant_id or not await _tenant_exists(db, target_tenant_id):
         raise HTTPException(status_code=400, detail=f"Tenant '{target_tenant_id}' does not exist")
     assert_role_fits_tenant(role, target_tenant_id)
+    await assert_role_fits_tenant_type(db, role, target_tenant_id)
 
     # Check existing
     existing = await db.users.find_one({"email": user.email, "tenantId": target_tenant_id})
@@ -412,6 +413,8 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
     if "role" in update_data or "tenantId" in update_data:
         assert_role_fits_tenant(update_data.get("role", target_user.get("role")),
                                 update_data.get("tenantId", target_user.get("tenantId")))
+        await assert_role_fits_tenant_type(db, update_data.get("role", target_user.get("role")),
+                                           update_data.get("tenantId", target_user.get("tenantId")))
     await assert_not_last_platform_owner(db, target_user, new_role=update_data.get("role"),
                                          new_status=update_data.get("status"),
                                          new_tenant_id=update_data.get("tenantId"))

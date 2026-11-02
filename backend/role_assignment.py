@@ -71,12 +71,38 @@ def assert_role_fits_tenant(role: Optional[str], tenant_id: Optional[str]) -> No
                             detail="Users in the Platform tenant must hold a platform role")
 
 
+async def assert_role_fits_tenant_type(db, role: Optional[str], tenant_id: Optional[str]) -> None:
+    """400 unless a partner role is held in a partner organization and no other role is (Phase 87 D-04).
+
+    Reads only the ``type`` of the target tenant from the raw handle (the platform check above
+    decides the Platform tenant). A tenant that does not exist passes through: the callers refuse
+    unknown tenants themselves.
+    """
+    if not tenant_id:
+        return
+    tenant = await getattr(db, "_db", db).tenants.find_one({"id": tenant_id}, {"type": 1})
+    if tenant is None:
+        return
+    in_partner_org = tenant.get("type") == "partner"
+    is_partner = rbac_defaults.is_partner_role(role)
+    if is_partner and not in_partner_org:
+        raise HTTPException(status_code=400,
+                            detail=f"Role '{role}' is a partner role and can only be held in a partner organization")
+    if in_partner_org and not is_partner:
+        raise HTTPException(status_code=400,
+                            detail="Users of a partner organization must hold a partner role")
+
+
 def refuse_directory_platform_role(role: Optional[str]) -> None:
-    """400 for an LDAP/SAML mapping to a platform role: directory sync writes users into a
-    customer tenant, and platform roles are only held in the Platform tenant (spec C1)."""
+    """400 for an LDAP/SAML mapping to a platform or partner role: directory sync writes users into a
+    customer tenant, platform roles are only held in the Platform tenant (spec C1) and partner roles
+    only in a partner organization (Phase 87 D-04)."""
     if rbac_defaults.is_platform_role(role):
         raise HTTPException(status_code=400,
                             detail=f"Role '{role}' is a platform role and cannot be mapped from a directory")
+    if rbac_defaults.is_partner_role(role):
+        raise HTTPException(status_code=400,
+                            detail=f"Role '{role}' is a partner role and cannot be mapped from a directory")
 
 
 def _is_active_owner(user: Dict[str, Any]) -> bool:
@@ -128,8 +154,8 @@ async def assert_can_assign_role(
     """Raise ``HTTPException`` unless ``caller`` may give ``target_role`` to the target user.
 
     Rules, in order:
-      1. The platform roles (super-admin tier, Platform Support, Platform Billing) are
-         assignable only by a super-admin, decided by role-name normalization and never
+      1. The platform roles (super-admin tier, Platform Support, Platform Billing) and the
+         partner roles (Phase 87) are assignable only by a super-admin, decided by role-name normalization and never
          by a ``*`` inside a role document.
       2. Nobody changes their own account's role (re-sending the same role is not a change).
       3. A super-admin caller may assign any other role.
@@ -142,7 +168,8 @@ async def assert_can_assign_role(
     target_key = normalize(target_role or "")
     caller_is_super = normalize(caller.role or "") == super_key
 
-    if target_key in rbac_defaults.PLATFORM_ROLE_KEYS and not caller_is_super:
+    if ((target_key in rbac_defaults.PLATFORM_ROLE_KEYS or rbac_defaults.is_partner_role(target_key))
+            and not caller_is_super):
         raise HTTPException(status_code=403,
                             detail=f"Only a platform super-admin can assign role '{target_role}'")
 
@@ -184,8 +211,8 @@ async def assert_can_manage_account(
     handing out its role, so the same ceiling applies to the account's
     *current* role. Rules, in order:
       1. A super-admin caller may manage any account.
-      2. A platform-role account (owner, support, billing) is managed only by a
-         super-admin, decided by role-name normalization, never by a ``*`` in a document.
+      2. A platform-role account (owner, support, billing) or a partner-role account
+         is managed only by a super-admin, decided by role-name normalization, never by a ``*`` in a document.
       3. Otherwise the account's effective permissions must be a subset of the
          caller's under the manage:X implies view:X and request:X closure
          (an account of an equal role is manageable; a higher one is not).
@@ -196,7 +223,8 @@ async def assert_can_manage_account(
     if normalize(caller.role or "") == super_key:
         return
 
-    if normalize(target_role or "") in rbac_defaults.PLATFORM_ROLE_KEYS:
+    if (normalize(target_role or "") in rbac_defaults.PLATFORM_ROLE_KEYS
+            or rbac_defaults.is_partner_role(target_role)):
         raise HTTPException(status_code=403,
                             detail="Only a platform super-admin can modify a platform account")
 
