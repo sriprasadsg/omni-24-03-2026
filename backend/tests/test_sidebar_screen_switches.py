@@ -26,8 +26,12 @@ pytestmark = pytest.mark.real_tenant_features
 
 MANIFEST = json.load(open(tf._MANIFEST_PATH))
 NAV = [c for c in MANIFEST["catalogues"] if c.get("nav")]
+# Phase 87 D-13: the Partner portal is never a customer-tenant screen, so the partner roles stay out of
+# the tenant permission set and need no feature switch. Excluded by role key, never by permission string:
+# a tenant role that ever gained a partner permission would then fail the switch test below.
 TENANT_PERMS = {p for key, perms in rbac_defaults.ROLE_DEFAULTS.items()
-                if key not in rbac_defaults.PLATFORM_ROLE_KEYS and key != rbac_defaults.SUPER_ADMIN_KEY for p in perms}
+                if key not in rbac_defaults.PLATFORM_ROLE_KEYS | rbac_defaults.PARTNER_ROLE_KEYS
+                and key != rbac_defaults.SUPER_ADMIN_KEY for p in perms}
 
 
 class _Tenants:

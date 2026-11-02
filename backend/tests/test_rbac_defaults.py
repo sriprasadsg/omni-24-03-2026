@@ -108,11 +108,15 @@ GOLDEN = {
         "manage:pending_agents", "manage:tenant_license", "view:audit_log", "view:platform_alerts",
         "view:platform_cost", "view:profile", "view:tenants",
     }),
+    # Phase 87 D-04: partner staff hold no tenant and no platform permission.
+    "partner_admin": frozenset({"manage:partner_customers", "view:partner_portal"}),
+    "partner_viewer": frozenset({"view:partner_portal"}),
 }
 
 GOLDEN_SIZES = {"tenant_admin": 133, "user": 22, "analyst": 20, "security_analyst": 19,
                 "incident_responder": 14, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4,
-                "platform_support": 77, "platform_billing": 7}
+                "platform_support": 77, "platform_billing": 7,
+                "partner_admin": 2, "partner_viewer": 1}
 
 D02_VIEW = [
     "view:zero_trust", "view:attack_timeline", "view:geographic_map", "view:analytics", "view:web_monitoring",
@@ -144,7 +148,7 @@ def test_role_set_matches_golden(key):
     assert len(actual) == GOLDEN_SIZES[key], f"{key}: size {len(actual)} != {GOLDEN_SIZES[key]}"
 
 
-def test_table_has_exactly_the_eleven_golden_keys():
+def test_table_has_exactly_the_thirteen_golden_keys():
     assert set(d.ROLE_DEFAULTS) == set(GOLDEN)
 
 
@@ -173,7 +177,7 @@ def test_d02_catalogues_belong_to_tenant_admin_only():
 
 def test_super_admin_only_catalogues_and_manage_tenants_are_never_granted():
     """D-03 / D-06"""
-    assert len(d.SUPER_ADMIN_ONLY_PERMISSIONS) == 10  # + manage:pricing (QA ISSUE-005), view/manage:backups (HA/DR)
+    assert len(d.SUPER_ADMIN_ONLY_PERMISSIONS) == 11  # + manage:pricing (QA ISSUE-005), view/manage:backups (HA/DR), manage:partners (Phase 87)
     assert "manage:tenants" in d.SUPER_ADMIN_ONLY_PERMISSIONS
     for key, perms in d.ROLE_DEFAULTS.items():
         assert not (d.SUPER_ADMIN_ONLY_PERMISSIONS & set(perms)), key
@@ -222,15 +226,15 @@ def test_remote_access_view_and_control_are_independent():
 def test_seed_role_documents_mirror_the_table():
     docs = d.seed_role_documents()
     assert [doc["name"] for doc in docs] == [r.name for r in d.BUILTIN_ROLES]
-    assert len(docs) == 13
-    assert len({doc["id"] for doc in docs}) == 13
+    assert len(docs) == 15
+    assert len({doc["id"] for doc in docs}) == 15
     by_name = {doc["name"]: doc for doc in docs}
     assert by_name["Super Admin"]["tenantId"] == "platform"
     assert by_name["Super Admin"]["permissions"] == ["*"]
-    platform_names = {"Super Admin", "Platform Support", "Platform Billing"}
+    platform_names = {"Super Admin", "Platform Support", "Platform Billing", "Partner Admin", "Partner Viewer"}
     assert all(doc["tenantId"] == ("platform" if doc["name"] in platform_names else "all") for doc in docs)
     non_editable = {"Super Admin", "Tenant Admin", "admin", "itam_admin", "itam_user", "itam_viewer",
-                    "Platform Support", "Platform Billing"}
+                    "Platform Support", "Platform Billing", "Partner Admin", "Partner Viewer"}
     for doc in docs:
         assert doc["isEditable"] is (doc["name"] not in non_editable), doc["name"]
     for role in d.BUILTIN_ROLES:
@@ -243,7 +247,7 @@ def test_builtin_role_keys():
     assert d.builtin_role_keys() == frozenset({
         "super_admin", "tenant_admin", "admin", "user", "analyst", "security_analyst",
         "incident_responder", "viewer", "itam_admin", "itam_user", "itam_viewer",
-        "platform_support", "platform_billing"})
+        "platform_support", "platform_billing", "partner_admin", "partner_viewer"})
 
 
 def test_unknown_key_has_no_defaults():

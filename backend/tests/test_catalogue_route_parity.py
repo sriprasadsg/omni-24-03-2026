@@ -79,7 +79,7 @@ def test_longest_prefix_wins():
 
 def test_slices_partition_every_in_scope_catalogue_once():
     views = [view for group in SLICES.values() for view in group]
-    assert len(views) == len(set(views)) == 110  # 98 sidebar catalogues + 12 enforced views with no sidebar item
+    assert len(views) == len(set(views)) == 112  # 100 sidebar catalogues (98 + the two partner catalogues) + 12 enforced views with no sidebar item
     # 76-03 moved the per-view sidebar entries into the presentation map (one key per nav view).
     sidebar = open(os.path.join(REPO_ROOT, "components", "sidebarPresentation.tsx"), encoding="utf-8").read()
     sidebar_views = set(re.findall(r"^\s+(\w+): \{ icon:", sidebar, re.M))

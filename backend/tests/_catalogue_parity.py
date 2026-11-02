@@ -17,7 +17,7 @@ MANIFEST_PATH = os.path.join(REPO_ROOT, "shared", "catalogue-access.json")
 LEDGER_PATH = os.path.join(REPO_ROOT, "shared", "catalogue-gaps.json")
 MIN_EXEMPT_REASON = 10
 
-# 98 in-scope sidebar catalogues (RESEARCH Appendix A) plus twelve enforced views with
+# 100 in-scope sidebar catalogues (RESEARCH Appendix A, plus the two Phase 87 partner catalogues) plus twelve enforced views with
 # no sidebar item (six identity views, two chat aliases, four security aliases). Slice
 # order breaks ties in slice_modules().
 SLICES: Dict[str, Tuple[str, ...]] = {
@@ -59,6 +59,7 @@ SLICES: Dict[str, Tuple[str, ...]] = {
         "ticketing", "ticketWebhooks", "notificationPrefs", "dataWarehouse",
         "notifications", "integrations",
     ),
+    "partners": ("partners", "partnerPortal"),
 }
 
 
