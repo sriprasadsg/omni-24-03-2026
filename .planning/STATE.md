@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 87
 current_phase_name: Partner and Reseller Channel
-status: verifying
-stopped_at: Phase 87 UI-SPEC approved (revised)
-last_updated: "2026-11-02T17:23:39.943Z"
+status: executing
+stopped_at: Completed 87-01-PLAN.md
+last_updated: "2026-11-02T17:36:28.350Z"
 last_activity: 2026-11-02
-last_activity_desc: Phase 83 execution started
-state_head: 2fce8a21bce884eddfacac157c65333197f6de6d
+last_activity_desc: Phase 87 execution started
+state_head: 00d2644376b35f1eb0b376a06445c3a4f2eaeebb
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 70
-  completed_plans: 55
+  completed_plans: 56
   percent: 14
 ---
 
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 83 — Autonomous Security Response
+**Current focus:** Phase 87 — Partner and Reseller Channel
 
 ## Current Phase
 
@@ -532,6 +532,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 83]: 83-18: isolate result has no expires_in, so isolation.revertsAt is set from the contract's 4 hours at settle and pulled in (never out) to the agent's own revert_in_seconds; an isolate row takes no blockedUntil
 - [Phase 83]: 83-18: A-83-LEVEL-SUGGEST followed as written (level_suggest and settings_unreadable rows without suggestionOnly are approvable card lines), one tuple in incident_views, awaiting the user's confirmation
 - [Phase 83]: 83-19: incident client lives in services/autonomousOpsIncidentsApi.ts (autonomousOpsApi.ts was at 478 lines); a decided card stays from a snapshot until the next background read; a passed deadline disables every button on its card
+- [Phase 87]: 87-01 Task 1: option-a selected by the user - partner sub-document on tenants, counter advanced by conditional update
 
 ## Performance Metrics
 
@@ -742,6 +743,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 83 P18 | 75min | 2 tasks | 11 files |
 | Phase 83 P19 | 50min | 2 tasks | 14 files |
 | Phase 83 P20 | 20min | 2 tasks | 3 files |
+| Phase 87 P01 | 5 min | 2 tasks | 12 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -776,9 +778,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-02T15:15:06.056Z
-**Stopped at:** Phase 87 UI-SPEC approved (revised)
-**Resume file:** .planning/phases/87-partner-and-reseller-channel/87-UI-SPEC.md
+**Last session:** 2026-11-02T17:36:28.059Z
+**Stopped at:** Completed 87-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -803,10 +805,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 87 (Partner and Reseller Channel) — READY TO EXECUTE
-Plan: 20 of 20
-Status: Verification human_needed (83-VERIFICATION.md 5/5); 13 items in 83-UAT.md; security blocked by T-83-12 (code review CR-02, fix before publishing agent 2.1.16)
-Last activity: 2026-11-02 — Phase 83 executed 20/20; gates run; verification human_needed
+Phase: 87 (Partner and Reseller Channel) — EXECUTING
+Plan: 2 of 15
+Status: Ready to execute
+Last activity: 2026-11-02 — Phase 87 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
 
 ## Deferred Items

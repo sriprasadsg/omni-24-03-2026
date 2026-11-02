@@ -549,11 +549,11 @@ Plans:
   4. Partner admins and partner viewers reach only their own customers' seats and usage through every route, and a two-partner test shows that no partner sees another partner's customers or any customer's security data.
   5. A Super Admin can move a customer to another partner or back to direct, with its seats returned and the move audited; organizations that existed before this phase stay direct; each partner has a per-customer usage list with a CSV export.
 
-**Plans**: 15 plans
+**Plans**: 1/15 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 87-01-PLAN.md — Stored-shape decision and tracer (appoint, customer from pool, overview)
+- [x] 87-01-PLAN.md — Stored-shape decision and tracer (appoint, customer from pool, overview)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 87-15-PLAN.md — Registration drift: frontend unions, sidebar icons and pinned counts (wave 2, before every expansion plan)
@@ -595,4 +595,4 @@ Plans:
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
-| 87. Partner and Reseller Channel | 0/15 | Planned | - |
+| 87. Partner and Reseller Channel | 1/15 | In Progress | - |
