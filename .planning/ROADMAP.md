@@ -549,7 +549,34 @@ Plans:
   4. Partner admins and partner viewers reach only their own customers' seats and usage through every route, and a two-partner test shows that no partner sees another partner's customers or any customer's security data.
   5. A Super Admin can move a customer to another partner or back to direct, with its seats returned and the move audited; organizations that existed before this phase stay direct; each partner has a per-customer usage list with a CSV export.
 
-**Plans**: TBD
+**Plans**: 15 plans
+
+Plans:
+**Wave 1**
+- [ ] 87-01-PLAN.md — Stored-shape decision and tracer (appoint, customer from pool, overview)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 87-15-PLAN.md — Registration drift: frontend unions, sidebar icons and pinned counts (wave 2, before every expansion plan)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 87-02-PLAN.md — Partner roles fenced: own permissions only, MFA for admins, partner orgs only
+- [ ] 87-03-PLAN.md — Pool completed: allotment floor, pool floor, moves, reconcile, migration 029
+- [ ] 87-04-PLAN.md — Suspension chokepoint in the token verifier, login and refresh
+- [ ] 87-05-PLAN.md — Partner allowlist middleware and route-walk proof
+- [ ] 87-06-PLAN.md — Invites: seven-day single-use links and the public status route
+- [ ] 87-07-PLAN.md — Frontend ground: partner client, portal role gate, suspended exit, chips, screen picker
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 87-08-PLAN.md — Super Admin partner management: appoint, edit, suspend, moves
+- [ ] 87-09-PLAN.md — Partner portal API: customers, seats, screens, team, isolated usage
+- [ ] 87-10-PLAN.md — Licence writers pool-aware, pool expiry holds new agents, MSSP filters
+- [ ] 87-11-PLAN.md — Partners screen and its dialogs
+- [ ] 87-12-PLAN.md — Partner portal page, modals, team and CSV
+- [ ] 87-13-PLAN.md — Accept invite page
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 87-14-PLAN.md — Shell wiring and phase gates
+
 **UI hint**: yes
 
 ## Progress
@@ -568,4 +595,4 @@ Plans:
 | 84. Staged Patch Rollouts | 0/TBD | Not started | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
-| 87. Partner and Reseller Channel | 0/TBD | Not started | - |
+| 87. Partner and Reseller Channel | 0/15 | Planned | - |
