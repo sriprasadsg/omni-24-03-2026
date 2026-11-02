@@ -195,6 +195,8 @@
     {"view": "apiStatus", "label": "API Status", "group": "mgmt", "nav": true, "permission": "manage:settings", "write": ["manage:settings"], "routes": ["/api/system/routes"]},
     {"view": "settings", "label": "Settings", "group": "mgmt", "nav": true, "permission": "manage:settings", "write": ["manage:settings"], "routes": ["/api/settings", "/api/ai/config", "/api/ai/test-connection", "/api/data-sources", "/api/email", "/api/tenants/{tenant_id}/email", "/api/tenants/{tenant_id}/license", "/api/tenants/{tenant_id}/allowlist", "/api/tenants/{tenant_id}/enrollment-keys"]},
     {"view": "tenantManagement", "label": "Tenants", "group": "mgmt", "nav": true, "permission": "manage:tenants", "write": ["manage:tenants", "manage:settings"], "routes": ["/api/tenants"]},
+    {"view": "partners", "label": "Partners", "group": "mgmt", "nav": true, "permission": "manage:partners", "write": ["manage:partners"], "routes": ["/api/platform/partners"]},
+    {"view": "partnerPortal", "label": "Partner portal", "group": "mgmt", "nav": true, "permission": "view:partner_portal", "write": ["manage:partner_customers"], "routes": ["/api/partner"]},
     {"view": "bundleManagement", "label": "Feature Bundles", "group": "mgmt", "nav": true, "permission": "manage:tenants", "write": ["manage:tenants"], "routes": ["/api/bundles"]},
     {"view": "webhooks", "label": "Webhooks", "group": "mgmt", "nav": true, "permission": "manage:settings", "write": ["manage:settings"], "routes": ["/api/webhooks"]},
     {"view": "ticketing", "label": "Ticketing Integration", "group": "mgmt", "nav": true, "permission": "manage:settings", "write": ["investigate:security", "manage:settings"], "routes": ["/api/ticketing"]},

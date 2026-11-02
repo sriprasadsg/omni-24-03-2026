@@ -1,0 +1,82 @@
+"""Partner portal routes (Phase 87): /api/partner.
+
+Who the partner is: only the verified token's tenant, and only after that organization is confirmed
+to be a partner (``type: "partner"``) and active. A partner id is never read from a path, a body or
+a query string, and a Super Admin token gets 403 here (the portal is for partner accounts). The
+mounted ``partnerPortal`` catalogue guard checks the permission; this module pins the partner.
+
+``tenants`` is exempt from the tenant wrapper, so every read and write here uses the raw handle with
+an explicit filter on the partner taken from the token, and answers with the D-01 allowlist only.
+"""
+from typing import List, Optional, Tuple
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
+
+import licensing
+import partner_portal_service as service
+import rbac_defaults
+from authentication_service import get_current_user
+from database import mongodb
+from partner_pool import PartnerError, _raw
+from partner_store import error_response, find_partner
+
+router = APIRouter(prefix="/api/partner", tags=["Partner portal"])
+
+SUSPENDED_MESSAGE = "This partner account is suspended. Contact your platform administrator to restore access."
+
+
+class CustomerCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    seats: int = Field(..., ge=1, le=licensing.MAX_AGENTS_CEILING)
+    enabledFeatures: Optional[List[str]] = Field(default=None, max_length=300)
+
+    @field_validator("name")
+    @classmethod
+    def _stripped(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("name must not be blank")
+        return value
+
+
+async def current_partner(current_user=Depends(get_current_user)) -> Tuple[object, dict]:
+    """(user, partner organization) for a partner account, else 403."""
+    if not rbac_defaults.is_partner_role(getattr(current_user, "role", None)):
+        raise HTTPException(status_code=403, detail="The Partner portal is for partner accounts")
+    partner = await find_partner(_raw(mongodb.db), getattr(current_user, "tenant_id", None))
+    if partner is None or (partner.get("partner") or {}).get("status") != "active":
+        raise HTTPException(status_code=403, detail=SUSPENDED_MESSAGE)
+    return current_user, partner
+
+
+def _is_partner_admin(user) -> bool:
+    return rbac_defaults.canonical_key(rbac_defaults.normalize_role(getattr(user, "role", None))) \
+        == rbac_defaults.PARTNER_ADMIN_KEY
+
+
+def _require_partner_admin(user) -> None:
+    if not _is_partner_admin(user):
+        raise HTTPException(status_code=403, detail="Only a partner admin can change the partner's customers")
+
+
+@router.get("/overview")
+async def get_overview(ctx=Depends(current_partner)):
+    """The pool and, per customer, seats and usage only (D-01, D-16)."""
+    user, partner = ctx
+    return await service.overview(mongodb.db, partner, "admin" if _is_partner_admin(user) else "viewer")
+
+
+@router.post("/customers", status_code=201)
+async def post_customer(data: CustomerCreate, ctx=Depends(current_partner)):
+    """Create a customer organization with seats drawn from the partner's pool."""
+    user, partner = ctx
+    _require_partner_admin(user)
+    try:
+        row = await service.create_customer(
+            mongodb.db, partner, name=data.name, seats=data.seats,
+            enabled_features=data.enabledFeatures, actor=user,
+        )
+    except PartnerError as err:
+        return error_response(err)
+    return {"customer": row}

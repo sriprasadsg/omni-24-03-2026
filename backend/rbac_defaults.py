@@ -24,6 +24,11 @@ SUPER_ADMIN_KEY = "super_admin"
 PLATFORM_SUPPORT_KEY = "platform_support"
 PLATFORM_BILLING_KEY = "platform_billing"
 PLATFORM_ROLE_KEYS: FrozenSet[str] = frozenset({SUPER_ADMIN_KEY, PLATFORM_SUPPORT_KEY, PLATFORM_BILLING_KEY})
+# Phase 87 D-04: partner staff hold no tenant and no platform permission. These keys stay out of
+# PLATFORM_ROLE_KEYS, _PLATFORM_TIERS and every super-admin set.
+PARTNER_ADMIN_KEY = "partner_admin"
+PARTNER_VIEWER_KEY = "partner_viewer"
+PARTNER_ROLE_KEYS: FrozenSet[str] = frozenset({PARTNER_ADMIN_KEY, PARTNER_VIEWER_KEY})
 _PLATFORM_TIERS: Dict[str, str] = {
     SUPER_ADMIN_KEY: "owner", PLATFORM_SUPPORT_KEY: "support", PLATFORM_BILLING_KEY: "billing",
 }
@@ -142,6 +147,9 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
         "manage:pending_agents", "manage:tenant_license", "view:audit_log", "view:platform_alerts",
         "view:platform_cost", "view:profile", "view:tenants",
     ),
+    # Phase 87 D-04: partner staff. Creating customers and handing out seats, or only reading them.
+    "partner_admin": ("manage:partner_customers", "view:partner_portal"),
+    "partner_viewer": ("view:partner_portal",),
 }
 
 # D-01: `admin` and `Tenant Admin` carry the identical permission set.
@@ -152,6 +160,7 @@ ROLE_ALIASES: Dict[str, str] = {"admin": "tenant_admin"}
 SUPER_ADMIN_ONLY_PERMISSIONS: FrozenSet[str] = frozenset({
     # HA/DR backs up and restores the platform database itself, so it is never a tenant screen.
     "manage:backups",
+    "manage:partners",  # Phase 87: appointing partners and their pools is a Super Admin action
     "manage:pricing",  # service pricing applies to every tenant (QA ISSUE-005, user decision D6)
     "manage:tenants",
     "view:backups",
@@ -238,6 +247,11 @@ BUILTIN_ROLES: Tuple[BuiltinRole, ...] = (
     BuiltinRole("platform_billing", "Platform Billing", "role-platform-billing", None,
                 "Platform staff: reads tenants and manages agent seat licenses and Pending agents.",
                 False, "platform"),
+    BuiltinRole("partner_admin", "Partner Admin", "role-partner-admin", "Partner Administrator",
+                "Partner staff: creates the partner's customers, hands out seats from its pool and invites colleagues.",
+                False, "platform"),
+    BuiltinRole("partner_viewer", "Partner Viewer", "role-partner-viewer", "Partner Viewer",
+                "Partner staff: reads the partner's customers, pool and usage.", False, "platform"),
 )
 
 
@@ -261,6 +275,11 @@ def platform_tier(role: Optional[str]) -> Optional[str]:
 
 def is_platform_role(role: Optional[str]) -> bool:
     return platform_tier(role) is not None
+
+
+def is_partner_role(role: Optional[str]) -> bool:
+    """True for partner_admin and partner_viewer under any spelling (Phase 87)."""
+    return canonical_key(normalize_role(role)) in PARTNER_ROLE_KEYS
 
 
 def is_tenant_admin(role: Optional[str]) -> bool:
