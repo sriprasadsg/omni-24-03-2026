@@ -154,6 +154,96 @@ def test_mounted_middleware_walls_a_partner_token_and_leaves_everyone_else_alone
     assert client.get("/api/tenants", headers={"Authorization": "Bearer not-a-jwt"}).status_code == 200
 
 
+# Header spellings get_current_user (OAuth2PasswordBearer) accepts besides the exact "Bearer <token>".
+_SPELLINGS = ("bearer {t}", "BEARER {t}", "bEaReR {t}", "Bearer  {t}", "Bearer {t} ")
+
+
+def _auth(spelling, token):
+    return {"Authorization": spelling.format(t=token)}
+
+
+def test_the_edge_role_reader_accepts_exactly_the_headers_the_route_auth_accepts():
+    """protects=T-87-13: _bearer_role, which feeds the partner, platform read-only and screen-switch walls, reads a
+    role from exactly the Authorization headers OAuth2PasswordBearer accepts; fails_when=any header that gets a token
+    past get_current_user is invisible to the walls, or the walls read one the route would refuse; no_claim=nginx."""
+    from fastapi import Depends
+    from fastapi.security import OAuth2PasswordBearer
+    from tenant_middleware import _bearer_role
+
+    app = FastAPI()
+    scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+    @app.get("/echo")
+    async def echo(token=Depends(scheme)):
+        return {"token": token}
+
+    route_auth = TestClient(app)
+    t = _token("partner_admin")
+    headers = [s.format(t=t) for s in ("Bearer {t}",) + _SPELLINGS]
+    headers += [f"Basic {t}", f"Bearer{t}", f"Bearer\t{t}", t, "Bearer", "Bearer ", ""]
+    for header in headers:
+        accepted = route_auth.get("/echo", headers={"Authorization": header}).json()["token"] == t
+        role = _bearer_role({"headers": [(b"authorization", header.encode("latin-1"))]})
+        assert (role == "partner_admin") == accepted, repr(header)
+
+
+def test_mounted_wall_refuses_a_partner_token_in_every_spelling_the_route_auth_accepts(client):
+    """protects=T-87-13 as mounted: a lower-case scheme or extra spaces get the same 403 as "Bearer <token>" and the
+    handler never runs; fails_when=a spelling variant passes PartnerScopeMiddleware; no_claim=the routes' own auth."""
+    t = _token("partner_admin")
+    for spelling in _SPELLINGS:
+        response = client.get("/api/tenants", headers=_auth(spelling, t))
+        assert response.status_code == 403, spelling
+        assert response.json() == {"error": PARTNER_REFUSAL, "status_code": 403}
+    assert client.seen == []
+
+
+def test_read_only_platform_wall_refuses_a_write_in_every_spelling():
+    """protects=PlatformReadOnlyMiddleware shares the role reader, so T-87-13 reached it too; fails_when=Platform
+    Support writes past the wall with a lower-case scheme; no_claim=the support role's own permissions."""
+    from tenant_middleware import PlatformReadOnlyMiddleware
+
+    app = FastAPI()
+    seen = []
+
+    @app.post("/api/tenants")
+    async def write():
+        seen.append(1)
+        return {"ok": True}
+
+    app.add_middleware(PlatformReadOnlyMiddleware)
+    c = TestClient(app)
+    t = _token("platform_support", "platform-admin")
+    for spelling in ("Bearer {t}",) + _SPELLINGS:
+        assert c.post("/api/tenants", headers=_auth(spelling, t)).status_code == 403, spelling
+    assert seen == []
+
+
+def test_tenant_context_and_audit_actor_are_read_from_every_spelling():
+    """protects=TenantMiddleware and the audit actor read the same headers as the walls, so a spelling variant
+    neither runs without its tenant context nor goes into the ledger without an actor; fails_when=either parser
+    keeps the exact-prefix check; no_claim=the DB wrapper's own fail-closed behaviour."""
+    from audit_middleware import actor_of
+    from tenant_context import get_tenant_id
+
+    app = FastAPI()
+
+    @app.get("/api/whose-tenant")
+    async def whose_tenant():
+        return {"tenant": get_tenant_id()}
+
+    app.add_middleware(TenantMiddleware)
+    t = _token("Admin", "t-7")
+    with patch("ip_ban_service.is_banned", AsyncMock(return_value=False)):
+        c = TestClient(app)
+        for spelling in ("Bearer {t}",) + _SPELLINGS:
+            assert c.get("/api/whose-tenant", headers=_auth(spelling, t)).json() == {"tenant": "t-7"}, spelling
+    for spelling in ("Bearer {t}",) + _SPELLINGS:
+        actor, is_agent = actor_of({"headers": [(b"authorization", spelling.format(t=t).encode("latin-1"))]})
+        assert actor and actor["email"] == "who@example.com" and actor["tenantId"] == "t-7", spelling
+        assert is_agent is False
+
+
 def test_the_wall_ignores_non_http_scopes():
     """protects=websocket and lifespan scopes pass straight through (A-87-A5 is a live check, not this wall);
     fails_when=the middleware inspects a non-http scope; no_claim=websocket delivery."""
