@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import audit_exempt
 import audit_ledger
 import rbac_defaults
+from tenant_middleware import bearer_token
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +61,13 @@ def _header(scope, name: bytes) -> str:
 
 def actor_of(scope) -> Tuple[Optional[Dict[str, Any]], bool]:
     """(actor, is_agent) from the bearer token; (None, False) when there is none."""
-    auth = _header(scope, b"authorization")
-    if not auth.startswith("Bearer "):
+    token = bearer_token(_header(scope, b"authorization"))
+    if not token:
         return None, False
     try:
         import jwt
         from authentication_service import ALGORITHM, SECRET_KEY, is_agent_payload
-        payload = jwt.decode(auth[7:], SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
     except Exception:
         return {"userId": None, "email": None, "role": None, "tenantId": None, "tokenValid": False}, False
     if is_agent_payload(payload):

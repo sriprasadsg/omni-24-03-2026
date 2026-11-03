@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from fastapi.security.utils import get_authorization_scheme_param
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import rbac_defaults
@@ -98,15 +99,23 @@ class ScreenSwitchMiddleware:
         await send({"type": "http.response.body", "body": body})
 
 
+def bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """The token of an Authorization header, parsed by FastAPI's own helper with the same scheme test
+    OAuth2PasswordBearer applies (any case, surrounding spaces stripped). Every edge wall reads the header
+    this way, so no spelling that get_current_user accepts slips past them (T-87-13)."""
+    scheme, param = get_authorization_scheme_param(authorization)
+    return param if scheme.lower() == "bearer" and param else None
+
+
 def _bearer_role(scope) -> Optional[str]:
     """The role claim of a valid bearer JWT; None for no token or an invalid one (the route rejects it)."""
-    auth = next((v.decode("latin-1") for k, v in scope.get("headers") or [] if k == b"authorization"), "")
-    if not auth.startswith("Bearer "):
+    token = bearer_token(next((v.decode("latin-1") for k, v in scope.get("headers") or [] if k == b"authorization"), ""))
+    if not token:
         return None
     try:
         import jwt
         from authentication_service import ALGORITHM, SECRET_KEY
-        return jwt.decode(auth[7:], SECRET_KEY, algorithms=[ALGORITHM]).get("role")
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]).get("role")
     except Exception:
         return None
 
@@ -172,11 +181,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             if any(request.url.path.startswith(p) for p in self._PUBLIC_PATHS):
                 return await call_next(request)
 
-            auth_header = request.headers.get("Authorization")
-            if not auth_header or not auth_header.startswith("Bearer "):
+            token = bearer_token(request.headers.get("Authorization"))
+            if not token:
                 return await call_next(request)
 
-            token = auth_header.split(" ")[1]
             try:
                 import jwt
                 from authentication_service import SECRET_KEY, ALGORITHM
