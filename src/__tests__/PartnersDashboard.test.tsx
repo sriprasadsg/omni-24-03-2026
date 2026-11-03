@@ -293,3 +293,43 @@ describe('PartnersDashboard customers disclosure', () => {
     expect(within(globex).getByText('Expired')).toBeTruthy();
   });
 });
+
+describe('PartnersDashboard opens its dialogs and refetches after a success', () => {
+  it('opens the Appoint a partner form from the header button', async () => {
+    fetchPartners.mockResolvedValue([partner()]);
+    render(<PartnersDashboard />);
+    await screen.findByText('Acme Resale');
+    fireEvent.click(screen.getByRole('button', { name: 'Appoint partner' }));
+    expect(await screen.findByRole('heading', { name: 'Appoint a partner' })).toBeTruthy();
+  });
+
+  it('opens Edit for the row, and Suspend then refetches the table after confirming', async () => {
+    fetchPartners.mockResolvedValue([partner()]);
+    (api.suspendPartner as ReturnType<typeof vi.fn>).mockResolvedValue(partner({ status: 'suspended' }));
+    render(<PartnersDashboard />);
+    await screen.findByText('Acme Resale');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Acme Resale' }));
+    expect(await screen.findByRole('heading', { name: 'Edit Acme Resale' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Edit Acme Resale' })).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend Acme Resale' }));
+    expect(await screen.findByRole('heading', { name: 'Suspend Acme Resale?' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Suspend partner', hidden: false }));
+    await waitFor(() => expect(fetchPartners).toHaveBeenCalledTimes(2));
+  });
+
+  it('opens Move customer from the disclosure and Add an existing organization for the partner', async () => {
+    fetchPartners.mockResolvedValue([partner()]);
+    fetchPartnerCustomers.mockResolvedValue([customer()]);
+    (api.fetchDirectCustomers as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    render(<PartnersDashboard />);
+    await screen.findByText('Acme Resale');
+    fireEvent.click(within(row('Acme Resale')).getByRole('button', { name: /Show customers/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Move Globex' }));
+    expect(await screen.findByRole('heading', { name: 'Move Globex' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Move Globex' })).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Add an existing organization' }));
+    expect(await screen.findByRole('heading', { name: 'Add an organization to Acme Resale' })).toBeTruthy();
+  });
+});
