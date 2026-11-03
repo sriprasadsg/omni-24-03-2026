@@ -211,7 +211,7 @@ describe('PartnerPortal customers table (S5)', () => {
     expect(cells[1].textContent).toBe('12');
     expect(cells[2].textContent).toBe('10');
     expect((cells[1].querySelector('[role="img"]')?.firstElementChild as HTMLElement).style.width).toBe('100%');
-    expect(within(row).queryByText(/overs|exceed|warning|too many/i)).toBeNull();
+    expect(within(row).queryByText(/over|exceed|warning|too many/i)).toBeNull();
   });
 
   it('orders customers by name, wraps long names and counts 1 customer / n customers', async () => {
