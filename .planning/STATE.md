@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 87
 current_phase_name: Partner and Reseller Channel
 status: executing
-stopped_at: Completed 87-11-PLAN.md
-last_updated: "2026-11-03T16:16:10.951Z"
+stopped_at: Completed 87-12-PLAN.md
+last_updated: "2026-11-03T18:43:23.909Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 87 execution started
-state_head: 30ce9dfbb2e88878bfa8e7abfba453f7f89988a5
+state_head: 77ad1a82ba6fd607b3c68af82640d4b35b6d2366
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 70
-  completed_plans: 67
+  completed_plans: 68
   percent: 14
 ---
 
@@ -547,6 +547,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 87]: 87-10: seat-writer drift test scans backend/ top level by AST and ignores a literal 0 (partner org has no seats); Platform raises on a partner customer ignore suspension/expiry but not the pool total
 - [Phase 87]: 87-11: only 409 refusals are shown verbatim in the partner dialogs; other failures are wrapped as Couldn't {action}: {message}. Try again.
 - [Phase 87]: 87-11: a partner ceiling containing all is edited as every screen ticked and sent as [all] only when changed
+- [Phase 87]: 87-12: Create customer and Change seats are disabled with a stated reason (expired banner or no free seats) rather than hidden
+- [Phase 87]: 87-12: the Team panel owns fetchPartnerTeam, so a viewer's portal never requests the team
 
 ## Performance Metrics
 
@@ -769,6 +771,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 87 P09 | 35 min | 3 tasks | 8 files |
 | Phase 87 P10 | about 1 h | 3 tasks | 7 files |
 | Phase 87 P11 | 13 min | 3 tasks | 6 files |
+| Phase 87 P12 | 26min | 3 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -803,8 +806,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-03T16:16:10.663Z
-**Stopped at:** Completed 87-11-PLAN.md
+**Last session:** 2026-11-03T18:43:23.633Z
+**Stopped at:** Completed 87-12-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -831,7 +834,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 87 (Partner and Reseller Channel) — EXECUTING
-Plan: 12 of 15
+Plan: 13 of 15
 Status: Ready to execute
 Last activity: 2026-11-03 — Phase 87 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
