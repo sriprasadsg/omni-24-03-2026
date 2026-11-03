@@ -99,7 +99,7 @@ created: "2026-11-03"
   - Four new tests in `backend/tests/test_partner_route_walk.py` pass. One compares the walls' role reader with the real `OAuth2PasswordBearer` dependency across 12 header spellings.
   - The auditor's probe now gets 403 for all five spellings, where four previously reached the app.
   - A suite of 613 tests on a private mongod, covering partners, parity, middleware and audit, gave 610 passed. The 3 failures are the 2 baseline names plus `test_platform_roles::test_user_endpoints_apply_the_last_owner_guard`. That last one already failed before this fix: its fake database lacks `tenants`, which the Phase 87 tenant-type check reads.
-- **Not covered by this fix:** `backend/export_controls.py` has the same exact-prefix parser, but it is uncommitted user work and was left untouched.
+- **`backend/export_controls.py`:** it had the same exact-prefix parser, so a `bearer` request skipped the daily export allowance. Its `_caller` now uses `bearer_token()` too. The file is uncommitted user work, so the change stays in the working tree and is not committed.
 
 The original finding follows.
 
@@ -119,7 +119,17 @@ The original finding follows.
   - Check whether nginx passes the header unchanged.
   - Then re-run `/gsd-secure-phase 87`.
 
-### Note on T-87-15 (accepted, medium): premise contradicted for `/api/stream/live`
+### Note on T-87-15 (accepted, medium): `/api/stream/live` fixed 2026-11-03
+
+**Fixed.**
+- **Tests:** cab219d81 adds them, fixed in e693da59e.
+- **Partners:** the live feed now refuses partner roles at the handshake (close code 4403).
+- **Everyone else:** they receive the platform-wide `system_stats` window counts. `logs` and `security_events` reach them only when the event is tagged with their own tenant.
+- **Untagged events:** UEBA's platform-wide IP bans and super-admin broadcasts go to platform staff only (`can_read_all_tenants`), who still receive everything.
+- **Evidence:** four live-feed tests in `backend/tests/test_tenant_boundary_hardening.py`.
+- **Still to do:** the live check A-87-A5 remains for Socket.IO.
+
+The original note follows.
 
 `backend/stream_processing_endpoints.py:66-110` accepts any active JWT, an active partner's included. It subscribes every client to the global `system_stats`, `logs` and `security_events` topics with no tenant filter or role check. Two services publish tenant-tagged data to those topics:
 - `backend/log_endpoints.py:69` publishes logs.
@@ -138,7 +148,7 @@ The leak exists for every tenant today, so it is not new in Phase 87. T-87-15 is
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
 | AR-87-01 | T-87-12 | If the partner-status lookup fails, only partner sessions stop (503), and non-partner tokens cause no lookup. Planned in 87-04-PLAN.md | Phase 87 plan (user-approved plan set) | 2026-11-02 |
-| AR-87-02 | T-87-15 | WebSocket and Socket.IO reach for partner sessions is accepted pending the live check A-87-A5. See the note above: `/api/stream/live` contradicts the premise and should get a partner refusal before shipping | Phase 87 plan (user-approved plan set) | 2026-11-02 |
+| AR-87-02 | T-87-15 | Socket.IO reach for partner sessions is accepted pending the live check A-87-A5. `/api/stream/live` was fixed on 2026-11-03 (e693da59e): it refuses partners and filters by tenant | Phase 87 plan (user-approved plan set) | 2026-11-02 |
 | AR-87-03 | T-87-35 | The Partners screen's UI rules are advisory. The server enforces D-07 (`backend/partner_pool.py:157`) and D-18 (`:188`) | Phase 87 plan (user-approved plan set) | 2026-11-02 |
 | AR-87-04 | T-87-43 | Opening /accept-invite while signed in replaces the tab's session, and the page shows nothing of the previous session | Phase 87 plan (user-approved plan set) | 2026-11-02 |
 | AR-87-05 | T-87-SC | No package was installed. No Phase 87 commit changes package.json, package-lock.json, backend/requirements*.txt or Cargo.toml | Phase 87 plan (user-approved plan set) | 2026-11-02 |
