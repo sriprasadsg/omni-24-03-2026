@@ -16,6 +16,7 @@ vi.mock('../../components/PartnersDashboard', () => {
   const Screen = () => <div>PARTNERS SCREEN</div>;
   return { PartnersDashboard: Screen, default: Screen };
 });
+vi.mock('../../components/NotificationCenter', () => ({ default: () => <div>NOTIFICATION CENTRE</div> }));
 vi.mock('../../components/AcceptInvitePage', () => ({ default: () => <div>ACCEPT INVITE PAGE</div> }));
 vi.mock('../../components/TenantManagementDashboard', () => ({
   TenantManagementDashboard: (p: { tenants: { name: string }[] }) => (
@@ -24,6 +25,11 @@ vi.mock('../../components/TenantManagementDashboard', () => ({
 }));
 
 import App from '../../App';
+import { Header } from '../../components/Header';
+import { Sidebar } from '../../components/Sidebar';
+import { ThemeProvider } from '../../contexts/ThemeProvider';
+import { TimeZoneProvider } from '../../contexts/TimeZoneContext';
+import { UserContext } from '../../contexts/UserContext';
 
 const jwt = (role: string) => `h.${btoa(JSON.stringify({ role }))}.s`;
 
@@ -143,6 +149,108 @@ describe('partner user shell (PART-05, T-87-42)', () => {
     });
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByPlaceholderText(/search/i)).toBeNull();
+  });
+});
+
+const PARTNER_VIEWER = { ...PARTNER_ADMIN, id: 'u-pv', role: 'partner_viewer', permissions: ['view:partner_portal'] };
+
+function renderHeader(user: object, restricted?: boolean) {
+  const onOpenSearch = vi.fn();
+  render(
+    <TimeZoneProvider>
+      <ThemeProvider>
+        <UserContext.Provider value={{ currentUser: user, hasPermission: () => false, logout: vi.fn() } as never}>
+          <Header
+            allUsers={[]}
+            onToggleSidebar={() => {}}
+            onOpenCommandBar={() => {}}
+            onOpenSearch={onOpenSearch}
+            setCurrentView={() => {}}
+            onStartTour={() => {}}
+            currentView="partnerPortal"
+            restricted={restricted}
+          />
+        </UserContext.Provider>
+      </ThemeProvider>
+    </TimeZoneProvider>,
+  );
+}
+
+function renderSidebar(user: any, has: (p: string) => boolean) {
+  return render(
+    <UserContext.Provider value={{ currentUser: user, hasPermission: has } as never}>
+      <Sidebar
+        isOpen
+        currentView="partnerPortal"
+        setCurrentView={() => {}}
+        isViewingTenant={false}
+        onBackToTenants={() => {}}
+      />
+    </UserContext.Provider>,
+  );
+}
+
+const navLabels = (c: HTMLElement) =>
+  Array.from(c.querySelectorAll('nav button')).map(b => b.textContent?.trim() ?? '').filter(Boolean);
+
+describe('Header for a partner user (PART-05, T-87-42)', () => {
+  it('shows the theme toggle and the account menu and none of the customer-facing widgets', () => {
+    stubFetch(null);
+    renderHeader(PARTNER_ADMIN, true);
+    expect(screen.getByRole('button', { name: 'Toggle dark mode' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Account and appearance' })).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: 'Open command palette' })).toEqual([]);
+    expect(screen.queryByRole('button', { name: 'Open Global Search' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Start guided tour' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Feature help' })).toBeNull();
+    expect(screen.queryByText('NOTIFICATION CENTRE')).toBeNull();
+  });
+
+  it('keeps every widget for everyone else', () => {
+    stubFetch(null);
+    renderHeader(SUPER_ADMIN);
+    expect(screen.getAllByRole('button', { name: 'Open command palette' }).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Open Global Search' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Start guided tour' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Feature help' })).toBeTruthy();
+    expect(screen.getByText('NOTIFICATION CENTRE')).toBeTruthy();
+  });
+});
+
+describe('Sidebar for partner users and the Super Admin (PART-05, R1)', () => {
+  it('gives a partner viewer exactly one entry and no group heading', () => {
+    stubFetch(null);
+    const { container } = renderSidebar(PARTNER_VIEWER, p => PARTNER_VIEWER.permissions.includes(p));
+    expect(navLabels(container)).toEqual(['Partner portal']);
+    expect(container.querySelectorAll('button[aria-expanded]').length).toBe(0);
+    expect(screen.queryByText('Management & Settings')).toBeNull();
+  });
+
+  it('keeps the single entry visible without opening an accordion', () => {
+    stubFetch(null);
+    const { container } = renderSidebar(PARTNER_ADMIN, p => PARTNER_ADMIN.permissions.includes(p));
+    const link = Array.from(container.querySelectorAll('nav button')).find(b => b.textContent?.includes('Partner portal')) as HTMLElement;
+    expect(link).toBeTruthy();
+    let el: HTMLElement | null = link;
+    while (el && el.tagName !== 'NAV') {
+      expect(el.style.maxHeight === '0px').toBe(false);
+      el = el.parentElement;
+    }
+  });
+
+  it('does not poll the support unread count for a partner user', async () => {
+    stubFetch(null);
+    renderSidebar(PARTNER_VIEWER, p => PARTNER_VIEWER.permissions.includes(p));
+    await act(async () => { await new Promise(r => setTimeout(r, 30)); });
+    expect(calls.filter(c => !ALLOWED.test(c))).toEqual([]);
+  });
+
+  it('shows the Super Admin Partners right after Tenants and never Partner portal', () => {
+    stubFetch(null);
+    const { container } = renderSidebar(SUPER_ADMIN, () => true);
+    const labels = navLabels(container);
+    expect(labels).not.toContain('Partner portal');
+    expect(labels[labels.indexOf('Tenants') + 1]).toBe('Partners');
   });
 });
 
