@@ -224,6 +224,90 @@ def test_live_feed_rejects_missing_token():
     assert exc.value.code == 4401
 
 
+class _FakeBroker:
+    def __init__(self):
+        self.topics = {}
+
+    def subscribe(self, topic, callback):
+        self.topics.setdefault(topic, []).append(callback)
+
+    def unsubscribe(self, topic, callback):
+        self.topics[topic].remove(callback)
+
+    async def publish(self, topic, event):
+        for callback in list(self.topics.get(topic, [])):
+            await callback(event)
+
+
+def _live_feed_receives(user, published):
+    """Run the live feed for one user, publish (topic, event) pairs, and return what it sent."""
+    import asyncio
+    import stream_processing_endpoints as spe
+
+    broker, sent = _FakeBroker(), []
+
+    class _Socket:
+        query_params = {"token": "t"}
+
+        async def accept(self):
+            sent.append(("accepted",))
+
+        async def close(self, code=1000):
+            sent.append(("closed", code))
+
+        async def send_json(self, event):
+            if event.get("end"):
+                raise WebSocketDisconnect()
+            sent.append(event)
+
+    async def scenario():
+        with patch.object(spe, "broker", broker), \
+                patch.object(spe, "verify_token_async", AsyncMock(return_value=user)):
+            task = asyncio.create_task(spe.websocket_endpoint(_Socket()))
+            for _ in range(20):
+                if broker.topics:
+                    break
+                await asyncio.sleep(0)
+            for topic, event in published + [("system_stats", {"end": True})]:
+                await broker.publish(topic, event)
+            await asyncio.wait_for(task, 2)
+        assert all(not callbacks for callbacks in broker.topics.values())   # unsubscribed on disconnect
+        return sent
+
+    return asyncio.run(scenario())
+
+
+_FEED = [
+    ("logs", {"tenantId": "tenant-b", "n": 1}),
+    ("security_events", {"type": "ip_auto_ban", "metadata": {"ip": "203.0.113.9"}, "n": 2}),
+    ("logs", {"tenantId": "tenant-a", "n": 3}),
+    ("security_events", {"tenantId": "tenant-a", "n": 4}),
+    ("logs", {"n": 5}),
+    ("system_stats", {"type": "window_stats", "n": 6}),
+]
+
+
+def _numbers(sent):
+    return [e["n"] for e in sent if isinstance(e, dict)]
+
+
+def test_live_feed_refuses_partner_roles():
+    """A partner sees only its portal (Phase 87 D-01), so the live feed closes before it accepts or subscribes."""
+    for role in ("partner_admin", "partner_viewer"):
+        assert _live_feed_receives(_user(role, tenant="p-1"), _FEED) == [("closed", 4403)], role
+
+
+def test_live_feed_sends_a_tenant_only_its_own_logs_and_security_events():
+    """Logs and security events reach only their own tenant; untagged ones (UEBA's platform-wide
+    IP bans) are platform data; the platform-wide window counts still reach every tenant user."""
+    assert _numbers(_live_feed_receives(_user("Tenant Admin"), _FEED)) == [3, 4, 6]
+
+
+def test_live_feed_sends_platform_staff_every_event():
+    for user in (_user("Super Admin", tenant="platform-admin"), _user("platform_support", tenant="platform-admin")):
+        assert _numbers(_live_feed_receives(user, _FEED)) == [1, 2, 3, 4, 5, 6], user.role
+
+
 # ── Inbound ticket webhooks ──────────────────────────────────────────────────
 
 class _Cursor:
