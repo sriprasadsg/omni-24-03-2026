@@ -1,9 +1,9 @@
 ---
 phase: "87"
 slug: "partner-and-reseller-channel"
-status: open
+status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 1
+threats_open: 0
 asvs_level: 1
 created: "2026-11-03"
 ---
@@ -51,7 +51,7 @@ created: "2026-11-03"
 | T-87-10 | Elevation of privilege | verify_token_async | high | mitigate | Per-request partner status check for partner roles, before revocation, fail closed with 503 on lookup error | closed |
 | T-87-11 | Information disclosure | login refusal | medium | mitigate | Suspension checked only after the password verified; wrong password keeps the generic 401 | closed |
 | T-87-12 | Denial of service | partner status lookup | low | accept | A database outage stops partner sessions only (503); other roles are not looked up | closed |
-| T-87-13 | Information disclosure | routes authenticated with get_current_user only | high | mitigate | PartnerScopeMiddleware allowlist; route-walk test over every mounted route | **open** |
+| T-87-13 | Information disclosure | routes authenticated with get_current_user only | high | mitigate | PartnerScopeMiddleware allowlist; route-walk test over every mounted route; shared `bearer_token()` parser (FastAPI's own `get_authorization_scheme_param`) in every edge parser, fixed 2ae92b5d2 | closed |
 | T-87-14 | Tampering | partner_viewer writes | medium | mitigate | Catalogue guard write string manage:partner_customers plus the middleware viewer refusal | closed |
 | T-87-15 | Information disclosure | websocket and Socket.IO | medium | accept | Per-tenant delivery and no partner emitters (A-87-A5); flagged for a live check | closed |
 | T-87-16 | Elevation of privilege | invite() return value | high | mitigate | Token and link never returned or logged; only emailed; resend refused after the first password is set | closed |
@@ -90,7 +90,18 @@ created: "2026-11-03"
 *Severity: critical > high > medium > low. Only open threats at or above workflow.security_block_on (high) count toward threats_open.*
 *Disposition: mitigate (implementation required) · accept (documented risk) · transfer (third-party)*
 
-### Open threat T-87-13: partner wall bypassed by the Authorization scheme spelling
+### Closed threat T-87-13: partner wall bypassed by the Authorization scheme spelling
+
+**Fixed 2026-11-03.**
+- **Tests:** 92aa01b57 adds the tests, fixed in 2ae92b5d2.
+- **Change:** `bearer_token()` in `backend/tenant_middleware.py` parses the header with FastAPI's own `get_authorization_scheme_param` and the same case-insensitive scheme test `OAuth2PasswordBearer` applies. Three readers use it: `_bearer_role` (the partner, platform read-only and screen-switch walls), `TenantMiddleware`, and the audit actor (`audit_middleware.actor_of`).
+- **Evidence:**
+  - Four new tests in `backend/tests/test_partner_route_walk.py` pass. One compares the walls' role reader with the real `OAuth2PasswordBearer` dependency across 12 header spellings.
+  - The auditor's probe now gets 403 for all five spellings, where four previously reached the app.
+  - A suite of 613 tests on a private mongod, covering partners, parity, middleware and audit, gave 610 passed. The 3 failures are the 2 baseline names plus `test_platform_roles::test_user_endpoints_apply_the_last_owner_guard`. That last one already failed before this fix: its fake database lacks `tenants`, which the Phase 87 tenant-type check reads.
+- **Not covered by this fix:** `backend/export_controls.py` has the same exact-prefix parser, but it is uncommitted user work and was left untouched.
+
+The original finding follows.
 
 - **What the auditor found (2026-11-03):** `PartnerScopeMiddleware` (`backend/partner_middleware.py:62`) reads the role through `_bearer_role` (`backend/tenant_middleware.py:101-111`). That function only recognizes the exact prefix `"Bearer "` and decodes `auth[7:]`.
 - **Why that is a bypass:** FastAPI 0.141.1 `OAuth2PasswordBearer`, which `get_current_user` uses, matches the scheme case-insensitively (`scheme.lower() != "bearer"`) and strips the parameter.
@@ -141,6 +152,7 @@ The leak exists for every tenant today, so it is not new in Phase 87. T-87-15 is
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-03 | 46 | 45 | 1 (T-87-13, high, blocking) | gsd-security-auditor (sonnet), orchestrator confirmed T-87-13 in code |
+| 2026-11-03 | 46 | 46 | 0 | orchestrator, after the T-87-13 fix 2ae92b5d2 (tests and the auditor's probe) |
 
 The auditor checked every closed threat at L1 depth: the code is present and a test is cited. It ran 236 partner and catalogue tests on a private mongod (all passed), and modified no implementation files.
 
@@ -150,10 +162,10 @@ The auditor checked every closed threat at L1 depth: the code is present and a t
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed (blocked by T-87-13)
-- [ ] `status: verified` set in frontmatter
+- [x] `threats_open: 0` confirmed (T-87-13 fixed in 2ae92b5d2)
+- [x] `status: verified` set in frontmatter
 
-**Approval:** pending (blocked by T-87-13)
+**Approval:** verified 2026-11-03. The orchestrator closed T-87-13 after the fix; re-run `/gsd-secure-phase 87` for an independent check.
 
 ## Security Audit 2026-11-03
 
@@ -162,3 +174,11 @@ The auditor checked every closed threat at L1 depth: the code is present and a t
 | Threats found | 46 |
 | Closed | 45 |
 | Open | 1 |
+
+## Security Audit 2026-11-03
+
+| Metric | Count |
+|---|---|
+| Threats found | 46 |
+| Closed | 46 |
+| Open | 0 |
