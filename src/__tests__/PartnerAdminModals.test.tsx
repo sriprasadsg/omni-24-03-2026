@@ -21,13 +21,19 @@ vi.mock('../../services/partnerApi', async () => {
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
 import * as api from '../../services/partnerApi';
-import { PartnerApiError, type PartnerSummary } from '../../services/partnerApi';
+import { PartnerApiError, type PartnerCustomerRow, type PartnerSummary } from '../../services/partnerApi';
 import { showToast } from '../../utils/toast';
 import { PartnerFormModal } from '../../components/PartnerFormModal';
+import { ReinstatePartnerDialog, SuspendPartnerDialog } from '../../components/PartnerStatusDialogs';
+import { PartnerMoveCustomerModal } from '../../components/PartnerMoveCustomerModal';
 
 const appointPartner = api.appointPartner as ReturnType<typeof vi.fn>;
 const updatePartner = api.updatePartner as ReturnType<typeof vi.fn>;
 const toast = showToast as ReturnType<typeof vi.fn>;
+const suspendPartner = api.suspendPartner as ReturnType<typeof vi.fn>;
+const reinstatePartner = api.reinstatePartner as ReturnType<typeof vi.fn>;
+const moveCustomer = api.moveCustomer as ReturnType<typeof vi.fn>;
+const fetchDirectCustomers = api.fetchDirectCustomers as ReturnType<typeof vi.fn>;
 
 const partner = (over: Partial<PartnerSummary> = {}): PartnerSummary => ({
   id: 'p1',
@@ -319,5 +325,286 @@ describe('PartnerFormModal, edit mode', () => {
     expect(screen.getByRole('button', { name: 'Saving...' })).toBeTruthy();
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('Suspend and Reinstate dialogs (D-15)', () => {
+  const openSuspend = () => {
+    const onClose = vi.fn();
+    const onDone = vi.fn();
+    render(<SuspendPartnerDialog partner={partner()} onClose={onClose} onDone={onDone} />);
+    return { onClose, onDone };
+  };
+  const openReinstate = () => {
+    const onClose = vi.fn();
+    const onDone = vi.fn();
+    render(<ReinstatePartnerDialog partner={partner({ status: 'suspended' })} onClose={onClose} onDone={onDone} />);
+    return { onClose, onDone };
+  };
+
+  it('asks Suspend {name}? with the body, the amber audit line and a red confirm', () => {
+    openSuspend();
+    expect(screen.getByRole('heading', { name: 'Suspend Acme Resale?' })).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Everyone at this partner is signed out now and can't sign in until you reinstate it. Its customers are not affected: they keep their seats and keep running.",
+      ),
+    ).toBeTruthy();
+    const audit = screen.getByText('This is recorded in the audit log with your name.');
+    expect(audit.closest('[role="status"]')).toBeTruthy();
+    expect(submitButton('Suspend partner').className).toContain('bg-red-600');
+    expect(screen.queryByRole('button', { name: 'Close dialog' })).toBeNull();
+  });
+
+  it('suspends, toasts, refreshes and closes', async () => {
+    suspendPartner.mockResolvedValue(partner({ status: 'suspended' }));
+    const { onClose, onDone } = openSuspend();
+    fireEvent.click(submitButton('Suspend partner'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(suspendPartner).toHaveBeenCalledWith('p1');
+    expect(onDone).toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Acme Resale is suspended.', 'success');
+  });
+
+  it('shows Suspending..., disables both buttons and ignores Esc and the backdrop in flight', async () => {
+    suspendPartner.mockReturnValue(new Promise(() => {}));
+    const { onClose } = openSuspend();
+    fireEvent.click(submitButton('Suspend partner'));
+    const pending = await screen.findByRole('button', { name: 'Suspending...' });
+    expect((pending as HTMLButtonElement).disabled).toBe(true);
+    expect(submitButton('Cancel').disabled).toBe(true);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    fireEvent.mouseDown(screen.getByRole('dialog'));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dialog open with the server message when suspending fails', async () => {
+    suspendPartner.mockRejectedValue(new PartnerApiError("Couldn't sign this partner's users out", 500));
+    const { onClose } = openSuspend();
+    fireEvent.click(submitButton('Suspend partner'));
+    const block = await screen.findByText("Couldn't suspend this partner: Couldn't sign this partner's users out. Try again.");
+    expect(block.closest('[role="alert"]')).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(submitButton('Suspend partner').disabled).toBe(false);
+  });
+
+  it('falls back to the connection message when there is no server message', async () => {
+    suspendPartner.mockRejectedValue(new TypeError('Failed to fetch'));
+    openSuspend();
+    fireEvent.click(submitButton('Suspend partner'));
+    expect(await screen.findByText("Couldn't suspend this partner. Check your connection and try again.")).toBeTruthy();
+  });
+
+  it('asks Reinstate {name}? with an accent confirm and reinstates', async () => {
+    reinstatePartner.mockResolvedValue(partner());
+    const { onClose, onDone } = openReinstate();
+    expect(screen.getByRole('heading', { name: 'Reinstate Acme Resale?' })).toBeTruthy();
+    expect(screen.getByText('Its staff can sign in again. Seats, customers and the pool are unchanged.')).toBeTruthy();
+    expect(submitButton('Reinstate partner').className).toContain('bg-primary-600');
+    expect(submitButton('Reinstate partner').className).not.toContain('bg-red-600');
+    fireEvent.click(submitButton('Reinstate partner'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(reinstatePartner).toHaveBeenCalledWith('p1');
+    expect(onDone).toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Acme Resale is reinstated.', 'success');
+  });
+
+  it('shows Reinstating... in flight and the failure wording on error', async () => {
+    reinstatePartner.mockReturnValueOnce(new Promise(() => {}));
+    openReinstate();
+    fireEvent.click(submitButton('Reinstate partner'));
+    expect(await screen.findByRole('button', { name: 'Reinstating...' })).toBeTruthy();
+    cleanup();
+    reinstatePartner.mockRejectedValueOnce(new PartnerApiError('Partner not found', 404));
+    openReinstate();
+    fireEvent.click(submitButton('Reinstate partner'));
+    expect(await screen.findByText("Couldn't reinstate this partner: Partner not found. Try again.")).toBeTruthy();
+  });
+
+  it('wraps a long partner name in the title and body', () => {
+    const long = 'L'.repeat(120);
+    render(<SuspendPartnerDialog partner={partner({ name: long })} onClose={vi.fn()} onDone={vi.fn()} />);
+    const heading = screen.getByRole('heading', { name: `Suspend ${long}?` });
+    expect(heading.querySelector('.break-words')).toBeTruthy();
+  });
+});
+
+describe('PartnerMoveCustomerModal, move mode (D-11, D-18, D-19)', () => {
+  const globex: PartnerCustomerRow = {
+    id: 'c1', name: 'Globex', seatsAssigned: 25, seatsUsed: 10, agentsOnline: 4, agentsTotal: 9, licenseExpiresAt: null,
+  };
+  const partners = [
+    partner({ id: 'p1', name: 'Acme Resale', free: 60 }),
+    partner({ id: 'p2', name: 'Beta', free: 30 }),
+    partner({ id: 'p3', name: 'Gamma', free: 5 }),
+    partner({ id: 'p4', name: 'Dormant', free: 100, status: 'suspended' }),
+  ];
+  const open = () => {
+    const onClose = vi.fn();
+    const onMoved = vi.fn();
+    render(
+      <PartnerMoveCustomerModal mode="move" partner={partners[0]} customer={globex} partners={partners} onClose={onClose} onMoved={onMoved} />,
+    );
+    return { onClose, onMoved };
+  };
+  const choose = (value: string) => fireEvent.change(screen.getByLabelText('Move to'), { target: { value } });
+
+  it('shows the summary, the audit and D-19 block, and every other active partner then No partner', () => {
+    open();
+    expect(screen.getByRole('heading', { name: 'Move Globex' })).toBeTruthy();
+    expect(screen.getByText('Currently with Acme Resale')).toBeTruthy();
+    expect(screen.getByText('25 seats assigned, 10 in use')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'This is recorded in the audit log with your name. Screens the customer already has stay on, even if this partner may not sell them.',
+      ),
+    ).toBeTruthy();
+    const labels = Array.from((screen.getByLabelText('Move to') as HTMLSelectElement).options).map(o => o.textContent);
+    expect(labels).toContain('Beta (30 free)');
+    expect(labels).toContain('Gamma (5 free)');
+    expect(labels[labels.length - 1]).toBe('No partner (direct customer)');
+    expect(labels.some(l => l?.startsWith('Acme Resale'))).toBe(false);
+    expect(labels.some(l => l?.startsWith('Dormant'))).toBe(false);
+    expect(submitButton('Move customer').disabled).toBe(true);
+    expect(submitButton('Move customer').className).not.toContain('bg-red-600');
+  });
+
+  it('states the seat consequence for a partner that can take the seats, then moves', async () => {
+    moveCustomer.mockResolvedValue({});
+    const { onClose, onMoved } = open();
+    choose('p2');
+    expect(
+      screen.getByText("Globex keeps its 25 seats. They are taken from Beta's pool (30 free) and returned to Acme Resale's pool."),
+    ).toBeTruthy();
+    expect(submitButton('Move customer').disabled).toBe(false);
+    fireEvent.click(submitButton('Move customer'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(moveCustomer).toHaveBeenCalledWith('c1', 'p2');
+    expect(onMoved).toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Globex moved to Beta.', 'success');
+  });
+
+  it('refuses a target that cannot fit the seats and disables submit', () => {
+    open();
+    choose('p3');
+    const alert = screen.getByText("Gamma has 5 seats free and Globex needs 25. Increase Gamma's pool first.");
+    expect(alert.closest('[role="alert"]')).toBeTruthy();
+    expect(submitButton('Move customer').disabled).toBe(true);
+  });
+
+  it('turns the customer into a direct one with the direct consequence line', async () => {
+    moveCustomer.mockResolvedValue({});
+    const { onClose } = open();
+    choose('__direct__');
+    expect(
+      screen.getByText("Globex becomes a direct customer and keeps its 25 seats as its own licence. The seats return to Acme Resale's pool."),
+    ).toBeTruthy();
+    fireEvent.click(submitButton('Move customer'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(moveCustomer).toHaveBeenCalledWith('c1', null);
+    expect(toast).toHaveBeenCalledWith('Globex is now a direct customer.', 'success');
+  });
+
+  it('shows the server 409 verbatim when the seat race is lost, and stays open', async () => {
+    const refusal = "Beta has 3 seats free and Globex needs 25. Increase Beta's pool first.";
+    moveCustomer.mockRejectedValue(new PartnerApiError(refusal, 409, 'pool_full', { free: 3 }));
+    const { onClose } = open();
+    choose('p2');
+    fireEvent.click(submitButton('Move customer'));
+    const block = await screen.findByText(refusal);
+    expect(block.closest('[role="alert"]')).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('wraps other failures and falls back for a network error', async () => {
+    moveCustomer.mockRejectedValueOnce(new PartnerApiError('Customer not found', 404));
+    open();
+    choose('p2');
+    fireEvent.click(submitButton('Move customer'));
+    expect(await screen.findByText("Couldn't move this customer: Customer not found. Try again.")).toBeTruthy();
+    moveCustomer.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    fireEvent.click(submitButton('Move customer'));
+    await waitFor(() => expect(screen.getByText("Couldn't move this customer. Check your connection and try again.")).toBeTruthy());
+  });
+
+  it('shows Moving..., disables the fields and both buttons, and ignores Esc in flight', async () => {
+    moveCustomer.mockReturnValue(new Promise(() => {}));
+    const { onClose } = open();
+    choose('p2');
+    fireEvent.click(submitButton('Move customer'));
+    expect(await screen.findByRole('button', { name: 'Moving...' })).toBeTruthy();
+    expect((screen.getByLabelText('Move to') as HTMLSelectElement).disabled).toBe(true);
+    expect(submitButton('Cancel').disabled).toBe(true);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('PartnerMoveCustomerModal, add mode (D-19 Add an existing organization)', () => {
+  const beta = partner({ id: 'p2', name: 'Beta', free: 30 });
+  const open = () => {
+    const onClose = vi.fn();
+    const onMoved = vi.fn();
+    render(<PartnerMoveCustomerModal mode="add" partner={beta} partners={[beta]} onClose={onClose} onMoved={onMoved} />);
+    return { onClose, onMoved };
+  };
+
+  it('lists direct customers only, checks the fit against the partner and adds the organization', async () => {
+    fetchDirectCustomers.mockResolvedValue([
+      { id: 'd1', name: 'Direct One', seatsAssigned: 12 },
+      { id: 'd2', name: 'Direct Two', seatsAssigned: 40 },
+    ]);
+    moveCustomer.mockResolvedValue({});
+    const { onClose, onMoved } = open();
+    expect(screen.getByRole('heading', { name: 'Add an organization to Beta' })).toBeTruthy();
+    const select = (await screen.findByLabelText('Organization')) as HTMLSelectElement;
+    await waitFor(() => expect(Array.from(select.options).map(o => o.textContent)).toContain('Direct One (12 seats)'));
+    expect(Array.from(select.options).map(o => o.textContent)).toContain('Direct Two (40 seats)');
+    fireEvent.change(select, { target: { value: 'd2' } });
+    expect(screen.getByText("Beta has 30 seats free and Direct Two needs 40. Increase Beta's pool first.")).toBeTruthy();
+    expect(submitButton('Move customer').disabled).toBe(true);
+    fireEvent.change(select, { target: { value: 'd1' } });
+    expect(submitButton('Move customer').disabled).toBe(false);
+    fireEvent.click(submitButton('Move customer'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(moveCustomer).toHaveBeenCalledWith('d1', 'p2');
+    expect(onMoved).toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Direct One moved to Beta.', 'success');
+  });
+
+  it('says Every organization already has a partner. when there are no direct customers', async () => {
+    fetchDirectCustomers.mockResolvedValue([]);
+    open();
+    expect(await screen.findByText('Every organization already has a partner.')).toBeTruthy();
+    expect(submitButton('Move customer').disabled).toBe(true);
+  });
+
+  it('adds a text filter above 20 entries', async () => {
+    fetchDirectCustomers.mockResolvedValue(
+      Array.from({ length: 21 }, (_, i) => ({ id: `d${i}`, name: `Org ${String(i).padStart(2, '0')}`, seatsAssigned: 1 })),
+    );
+    open();
+    const filter = await screen.findByLabelText('Filter organizations');
+    fireEvent.change(filter, { target: { value: 'org 07' } });
+    const select = screen.getByLabelText('Organization') as HTMLSelectElement;
+    const labels = Array.from(select.options).map(o => o.textContent);
+    expect(labels).toContain('Org 07 (1 seat)');
+    expect(labels).not.toContain('Org 00 (1 seat)');
+  });
+
+  it('shows no filter at 20 entries or fewer', async () => {
+    fetchDirectCustomers.mockResolvedValue(
+      Array.from({ length: 20 }, (_, i) => ({ id: `d${i}`, name: `Org ${i}`, seatsAssigned: 1 })),
+    );
+    open();
+    await screen.findByLabelText('Organization');
+    await waitFor(() => expect(screen.getByLabelText('Organization')).toBeTruthy());
+    expect(screen.queryByLabelText('Filter organizations')).toBeNull();
+  });
+
+  it('shows a red block when the direct customers cannot be loaded', async () => {
+    fetchDirectCustomers.mockRejectedValue(new Error('down'));
+    open();
+    expect(await screen.findByText("Couldn't load the organizations. Check your connection and try again.")).toBeTruthy();
   });
 });
