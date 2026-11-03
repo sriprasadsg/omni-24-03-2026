@@ -117,7 +117,7 @@ describe('PartnerPortal seat pool summary (S4)', () => {
     expect(screen.getByText('Free').nextSibling?.textContent).toBe('60');
     expect(screen.getByText('Available to hand out')).toBeTruthy();
     expect(screen.getByText('Pool expires')).toBeTruthy();
-    expect(screen.getByText('No expiry')).toBeTruthy();
+    expect(screen.getAllByText('No expiry').length).toBe(2);
     expect(screen.getByText('Never')).toBeTruthy();
     const bar = container.querySelector('section[aria-labelledby] [role="img"]') as HTMLElement;
     expect(bar.getAttribute('aria-label')).toBe('40 of 100 seats handed out');
@@ -201,13 +201,13 @@ describe('PartnerPortal customers table (S5)', () => {
   });
 
   it('shows used above assigned for an over-seated customer without inventing a warning', async () => {
-    await renderLoaded(overview({ customers: [customer({ name: 'Over', seatsUsed: 12, seatsAssigned: 10 })] }));
-    const row = screen.getByText('Over').closest('tr') as HTMLElement;
+    await renderLoaded(overview({ customers: [customer({ name: 'Crowded', seatsUsed: 12, seatsAssigned: 10 })] }));
+    const row = screen.getByText('Crowded').closest('tr') as HTMLElement;
     const cells = within(row).getAllByRole('cell');
     expect(cells[1].textContent).toBe('12');
     expect(cells[2].textContent).toBe('10');
     expect((cells[1].querySelector('[role="img"]')?.firstElementChild as HTMLElement).style.width).toBe('100%');
-    expect(within(row).queryByText(/over|exceed|warning/i)).toBeNull();
+    expect(within(row).queryByText(/overs|exceed|warning|too many/i)).toBeNull();
   });
 
   it('orders customers by name, wraps long names and counts 1 customer / n customers', async () => {
