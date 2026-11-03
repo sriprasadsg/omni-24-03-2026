@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 87
 current_phase_name: Partner and Reseller Channel
 status: executing
-stopped_at: Completed 87-09-PLAN.md
-last_updated: "2026-11-02T22:50:42.687Z"
-last_activity: 2026-11-02
+stopped_at: Completed 87-10-PLAN.md
+last_updated: "2026-11-03T15:58:58.519Z"
+last_activity: 2026-11-03
 last_activity_desc: Phase 87 execution started
-state_head: 35053f72c4787a1ee4e7c6ec2f72f1426fb2f59d
+state_head: 9be8871d34783058decbf89cb7aed4d8590de493
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 70
-  completed_plans: 65
+  completed_plans: 66
   percent: 14
 ---
 
@@ -544,6 +544,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 87]: 87-08: a failed appointment invite removes the new organization and everything the invite stored; suspend audits before it revokes sessions and always re-revokes so a retry after a 503 finishes; the move target is a required nullable field so an empty body never means direct
 - [Phase 87]: 87-09: kept screens may be re-sent and skip the parent check; 'all' is always refused; the screens write is a compare-and-set on the list read
 - [Phase 87]: 87-09: GET /api/partner/team and all team writes need a partner admin; customer admin invite uses role Tenant Admin / roleKind customer_admin
+- [Phase 87]: 87-10: seat-writer drift test scans backend/ top level by AST and ignores a literal 0 (partner org has no seats); Platform raises on a partner customer ignore suspension/expiry but not the pool total
 
 ## Performance Metrics
 
@@ -764,6 +765,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 87 P07 | 21 min | 3 tasks | 11 files |
 | Phase 87 P08 | 27 min | 3 tasks | 5 files |
 | Phase 87 P09 | 35 min | 3 tasks | 8 files |
+| Phase 87 P10 | about 1 h | 3 tasks | 7 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -798,8 +800,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-02T22:50:42.243Z
-**Stopped at:** Completed 87-09-PLAN.md
+**Last session:** 2026-11-03T15:58:58.267Z
+**Stopped at:** Completed 87-10-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -828,7 +830,7 @@ Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged an
 Phase: 87 (Partner and Reseller Channel) — EXECUTING
 Plan: 11 of 15
 Status: Ready to execute
-Last activity: 2026-11-02 — Phase 87 execution started
+Last activity: 2026-11-03 — Phase 87 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
 
 ## Deferred Items
