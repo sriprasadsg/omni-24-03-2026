@@ -163,6 +163,7 @@ The leak exists for every tenant today, so it is not new in Phase 87. T-87-15 is
 |------------|---------------|--------|------|--------|
 | 2026-11-03 | 46 | 45 | 1 (T-87-13, high, blocking) | gsd-security-auditor (sonnet), orchestrator confirmed T-87-13 in code |
 | 2026-11-03 | 46 | 46 | 0 | orchestrator, after the T-87-13 fix 2ae92b5d2 (tests and the auditor's probe) |
+| 2026-11-03 | 46 | 46 | 0 | gsd-security-auditor (sonnet), independent re-check of T-87-13/14/15 after fixes 2ae92b5d2 and e693da59e. A differential test of 23 header shapes found 0 bypasses. A backend-wide parser search found no parser looser than FastAPI. The other 43 closures stand |
 
 The auditor checked every closed threat at L1 depth: the code is present and a test is cited. It ran 236 partner and catalogue tests on a private mongod (all passed), and modified no implementation files.
 
@@ -175,7 +176,7 @@ The auditor checked every closed threat at L1 depth: the code is present and a t
 - [x] `threats_open: 0` confirmed (T-87-13 fixed in 2ae92b5d2)
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-03. The orchestrator closed T-87-13 after the fix; re-run `/gsd-secure-phase 87` for an independent check.
+**Approval:** verified 2026-11-03. The orchestrator closed T-87-13 after the fix, and `/gsd-secure-phase 87` re-checked it independently (SECURED, threats_open 0).
 
 ## Security Audit 2026-11-03
 
