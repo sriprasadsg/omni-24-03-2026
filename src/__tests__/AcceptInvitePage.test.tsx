@@ -398,7 +398,7 @@ describe('AcceptInvitePage submit and sign-in (D-20)', () => {
     fill(GOOD);
     fireEvent.click(submit());
     await waitFor(() => expect(window.location.replace).toHaveBeenCalled());
-    const everything = JSON.stringify([log.mock.calls, err.mock.calls, setItem.mock.calls, replaceState.mock.calls, window.location.search]);
+    const everything = JSON.stringify([log.mock.calls, err.mock.calls, setItem.mock.calls, replaceState.mock.calls, originalLocation.href]);
     expect(everything).not.toContain(GOOD);
     expect(everything).not.toContain('abc123');
     expect(document.body.innerHTML).not.toContain('abc123');
