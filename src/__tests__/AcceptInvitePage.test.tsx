@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 vi.mock('../../services/partnerApi', async () => {
   const actual = await vi.importActual<typeof import('../../services/partnerApi')>('../../services/partnerApi');
@@ -126,6 +126,17 @@ describe('AcceptInvitePage link check (PART-02, D-17)', () => {
     render(<AcceptInvitePage />);
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain("Couldn't reach the platform. Check your connection and try again.");
+  });
+
+  it('Try again after a network failure asks the status again with the token kept in memory', async () => {
+    fetchInviteStatus.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(validStatus);
+    render(<AcceptInvitePage />);
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByRole('heading', { name: 'Set your password' });
+    expect(fetchInviteStatus).toHaveBeenCalledTimes(2);
+    expect(fetchInviteStatus).toHaveBeenLastCalledWith('abc123');
+    expect(replaceState).toHaveBeenCalledTimes(1);
   });
 
   it('moves focus to the state heading when the state changes', async () => {
