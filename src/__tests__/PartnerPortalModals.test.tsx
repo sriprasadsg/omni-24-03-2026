@@ -24,10 +24,11 @@ vi.mock('../../services/partnerApi', async () => {
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
 import * as api from '../../services/partnerApi';
-import { PartnerApiError, type CustomerFeatures, type PartnerCustomerRow, type PartnerOverview } from '../../services/partnerApi';
+import { PartnerApiError, type CustomerFeatures, type PartnerCustomerRow, type PartnerOverview, type PartnerTeamMember } from '../../services/partnerApi';
 import { showToast } from '../../utils/toast';
 import { ChangeSeatsModal, ChooseScreensModal, CreateCustomerModal } from '../../components/PartnerCustomerModals';
 import { PartnerPortal } from '../../components/PartnerPortal';
+import { InviteColleagueModal, PartnerTeamPanel } from '../../components/PartnerTeamPanel';
 
 const createPartnerCustomer = api.createPartnerCustomer as ReturnType<typeof vi.fn>;
 const changeCustomerSeats = api.changeCustomerSeats as ReturnType<typeof vi.fn>;
@@ -36,6 +37,8 @@ const saveCustomerFeatures = api.saveCustomerFeatures as ReturnType<typeof vi.fn
 const fetchPartnerOverview = api.fetchPartnerOverview as ReturnType<typeof vi.fn>;
 const fetchPartnerTeam = api.fetchPartnerTeam as ReturnType<typeof vi.fn>;
 const toast = showToast as ReturnType<typeof vi.fn>;
+const inviteColleague = api.inviteColleague as ReturnType<typeof vi.fn>;
+const resendColleagueInvite = api.resendColleagueInvite as ReturnType<typeof vi.fn>;
 
 const customer = (over: Partial<PartnerCustomerRow> = {}): PartnerCustomerRow => ({
   id: 'c1',
@@ -443,5 +446,189 @@ describe('PartnerPortal wiring of the customer modals', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change seats for Globex' }));
     expect((screen.getByRole('button', { name: 'Change seats for Globex', hidden: true }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Change seats for Initech', hidden: true }) as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+const member = (over: Partial<PartnerTeamMember> = {}): PartnerTeamMember => ({
+  id: 'u1', name: 'Ada Admin', email: 'ada@acme.example', role: 'partner_admin', status: 'active', ...over,
+});
+
+describe('PartnerTeamPanel (PART-02, D-17; S7)', () => {
+  it('shows skeleton rows while loading, then name, email, role and status chip per row', async () => {
+    fetchPartnerTeam.mockResolvedValue([
+      member(),
+      member({ id: 'u2', name: 'Vic Viewer', email: 'vic@acme.example', role: 'partner_viewer', status: 'invited' }),
+    ]);
+    const { container } = render(<PartnerTeamPanel />);
+    expect(screen.getByRole('heading', { name: 'Team' })).toBeTruthy();
+    expect(container.querySelectorAll('tr[data-skeleton]').length).toBeGreaterThan(0);
+    await screen.findByText('Ada Admin');
+    expect(screen.getByText('Partner administrators create customers and change seats. Partner viewers can only look.')).toBeTruthy();
+    const vic = screen.getByText('Vic Viewer').closest('tr') as HTMLElement;
+    expect(within(vic).getByText('Partner viewer')).toBeTruthy();
+    expect(within(vic).getByText('Invited')).toBeTruthy();
+    const ada = screen.getByText('Ada Admin').closest('tr') as HTMLElement;
+    expect(within(ada).getByText('Partner administrator')).toBeTruthy();
+    expect(within(ada).getByText('Active')).toBeTruthy();
+    expect(screen.getByText('vic@acme.example').className).toContain('break-all');
+  });
+
+  it('offers Resend invite only for Invited and Invite expired', async () => {
+    fetchPartnerTeam.mockResolvedValue([
+      member(),
+      member({ id: 'u2', name: 'Inv', email: 'inv@acme.example', status: 'invited' }),
+      member({ id: 'u3', name: 'Exp', email: 'exp@acme.example', status: 'invite_expired' }),
+    ]);
+    render(<PartnerTeamPanel />);
+    await screen.findByText('Inv');
+    expect(screen.getByRole('button', { name: 'Resend invite to inv@acme.example' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resend invite to exp@acme.example' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Resend invite to ada@acme.example' })).toBeNull();
+    expect(screen.getByText('Invite expired')).toBeTruthy();
+  });
+
+  it('Resend invite shows Sending... then toasts and recovers', async () => {
+    fetchPartnerTeam.mockResolvedValue([member({ id: 'u2', name: 'Inv', email: 'inv@acme.example', status: 'invited' })]);
+    let resolve: (v: unknown) => void = () => {};
+    resendColleagueInvite.mockReturnValue(new Promise(r => { resolve = r; }));
+    render(<PartnerTeamPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Resend invite to inv@acme.example' }));
+    const busy = screen.getByRole('button', { name: 'Resend invite to inv@acme.example' }) as HTMLButtonElement;
+    expect(busy.textContent).toBe('Sending...');
+    expect(busy.disabled).toBe(true);
+    await act(async () => { resolve({ emailSent: true }); });
+    expect(resendColleagueInvite).toHaveBeenCalledWith('u2');
+    expect(toast).toHaveBeenCalledWith('Invite sent to inv@acme.example.', 'success');
+    expect((screen.getByRole('button', { name: 'Resend invite to inv@acme.example' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('Resend invite failure toasts an error and does not claim success', async () => {
+    fetchPartnerTeam.mockResolvedValue([member({ id: 'u2', email: 'inv@acme.example', status: 'invited' })]);
+    resendColleagueInvite.mockRejectedValue(new PartnerApiError('Nope', 500));
+    render(<PartnerTeamPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Resend invite to inv@acme.example' }));
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(toast.mock.calls[0][1]).toBe('error');
+    expect(toast.mock.calls[0][0]).not.toMatch(/^Invite sent/);
+  });
+
+  it('shows a red inline block with Try again when the load fails', async () => {
+    fetchPartnerTeam.mockRejectedValueOnce(new Error('down'));
+    render(<PartnerTeamPanel />);
+    expect((await screen.findByRole('alert')).textContent).toContain("Couldn't load your team. Check your connection and try again.");
+    fetchPartnerTeam.mockResolvedValue([member()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByText('Ada Admin');
+  });
+
+  it('opens Invite colleague, and reloads the list after a successful invite', async () => {
+    fetchPartnerTeam.mockResolvedValue([member()]);
+    inviteColleague.mockResolvedValue({ member: member({ id: 'u9' }), emailSent: true });
+    render(<PartnerTeamPanel />);
+    await screen.findByText('Ada Admin');
+    fireEvent.click(screen.getByRole('button', { name: /Invite colleague/ }));
+    type('Name', 'New Person');
+    type('Email address', 'new@acme.example');
+    fetchPartnerTeam.mockClear();
+    click('Send invite');
+    await waitFor(() => expect(fetchPartnerTeam).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+});
+
+describe('InviteColleagueModal (PART-02, D-17)', () => {
+  const mount = () => {
+    const props = { onClose: vi.fn(), onInvited: vi.fn() };
+    render(<InviteColleagueModal {...props} />);
+    return props;
+  };
+
+  it('offers the two roles and changes the helper with the value', () => {
+    mount();
+    expect(screen.getByRole('heading', { name: 'Invite a colleague' })).toBeTruthy();
+    const role = within(dialog()).getByLabelText('Role') as HTMLSelectElement;
+    expect(Array.from(role.options).map(o => o.textContent)).toEqual(['Partner administrator', 'Partner viewer']);
+    expect(within(dialog()).getByText('Can create customers, change seats and invite colleagues. Must set up two-step verification.')).toBeTruthy();
+    fireEvent.change(role, { target: { value: 'partner_viewer' } });
+    expect(within(dialog()).getByText("Can look at the pool, customers and usage. Can't change anything.")).toBeTruthy();
+    expect(within(dialog()).queryByText(/Must set up two-step/)).toBeNull();
+  });
+
+  it('validates name and email, with Send invite disabled until valid', () => {
+    mount();
+    const send = within(dialog()).getByRole('button', { name: 'Send invite' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.blur(within(dialog()).getByLabelText('Name'));
+    fireEvent.blur(within(dialog()).getByLabelText('Email address'));
+    expect(within(dialog()).getByText('Enter a name for your colleague.')).toBeTruthy();
+    expect(within(dialog()).getByText('Enter a valid email address.')).toBeTruthy();
+    type('Name', 'Vic');
+    type('Email address', 'vic@acme.example');
+    expect(send.disabled).toBe(false);
+  });
+
+  it('sends the role, toasts with the 7 day line and closes', async () => {
+    inviteColleague.mockResolvedValue({ member: member(), emailSent: true });
+    const props = mount();
+    type('Name', 'Vic');
+    type('Email address', 'vic@acme.example');
+    fireEvent.change(within(dialog()).getByLabelText('Role'), { target: { value: 'partner_viewer' } });
+    click('Send invite');
+    expect(within(dialog()).getByRole('button', { name: 'Sending...' })).toBeTruthy();
+    await waitFor(() => expect(props.onClose).toHaveBeenCalled());
+    expect(inviteColleague).toHaveBeenCalledWith({ name: 'Vic', email: 'vic@acme.example', role: 'partner_viewer' });
+    expect(toast).toHaveBeenCalledWith('Invite sent to vic@acme.example. The link works for 7 days.', 'success');
+    expect(props.onInvited).toHaveBeenCalled();
+  });
+
+  it('shows the amber block and stays open when the email was not sent, never a link or token', async () => {
+    inviteColleague.mockResolvedValue({ member: member(), emailSent: false, inviteLink: 'https://x/a?token=SECRET', token: 'SECRET' });
+    const props = mount();
+    type('Name', 'Vic');
+    type('Email address', 'vic@acme.example');
+    click('Send invite');
+    expect(await within(dialog()).findByText("The invite email couldn't be sent. Ask your platform administrator for help.")).toBeTruthy();
+    expect(dialog().textContent).not.toMatch(/SECRET|token|http/i);
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(props.onInvited).toHaveBeenCalled();
+  });
+
+  it('shows the generic email refusal verbatim and keeps the modal open', async () => {
+    inviteColleague.mockRejectedValue(new PartnerApiError("That email address can't be used. Use a different one.", 409, 'email_unavailable'));
+    const props = mount();
+    type('Name', 'Vic');
+    type('Email address', 'vic@acme.example');
+    click('Send invite');
+    expect((await within(dialog()).findByRole('alert')).textContent).toBe("That email address can't be used. Use a different one.");
+    expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  it('falls back for a network failure', async () => {
+    inviteColleague.mockRejectedValue(new TypeError('Failed to fetch'));
+    mount();
+    type('Name', 'Vic');
+    type('Email address', 'vic@acme.example');
+    click('Send invite');
+    expect((await within(dialog()).findByRole('alert')).textContent).toBe("Couldn't send this invite. Check your connection and try again.");
+  });
+});
+
+describe('PartnerPortal Team section (admin only)', () => {
+  it('mounts the Team panel for an admin, which loads the team itself', async () => {
+    fetchPartnerOverview.mockResolvedValue(overview());
+    fetchPartnerTeam.mockResolvedValue([member()]);
+    render(<PartnerPortal />);
+    expect(await screen.findByRole('heading', { name: 'Team' })).toBeTruthy();
+    await screen.findByText('Ada Admin');
+    expect(fetchPartnerTeam).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not mount the Team panel or call fetchPartnerTeam for a viewer', async () => {
+    fetchPartnerOverview.mockResolvedValue(overview({ role: 'viewer' }));
+    render(<PartnerPortal />);
+    await screen.findByText('Seat pool');
+    expect(screen.queryByRole('heading', { name: 'Team' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Invite colleague/ })).toBeNull();
+    expect(fetchPartnerTeam).not.toHaveBeenCalled();
   });
 });
