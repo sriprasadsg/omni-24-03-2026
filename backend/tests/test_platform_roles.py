@@ -369,7 +369,9 @@ async def test_user_endpoints_apply_the_last_owner_guard():
     users.find_one = AsyncMock(return_value=dict(me))
     users.update_one = AsyncMock()
     users.delete_one = AsyncMock()
-    db = SimpleNamespace(users=users, roles=None)
+    # The Phase 87 tenant-type check (role_assignment.assert_role_fits_tenant_type) reads the target's tenant.
+    tenants = SimpleNamespace(find_one=AsyncMock(return_value={"id": "platform-admin"}))
+    db = SimpleNamespace(users=users, roles=None, tenants=tenants)
     caller = TokenData(username="other@platform", role="Super Admin", tenant_id="platform-admin")
     with patch.object(user_endpoints, "get_database", return_value=db), \
             patch.object(user_endpoints, "revoke_user_sessions", AsyncMock()), \
