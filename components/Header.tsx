@@ -26,16 +26,22 @@ interface HeaderProps {
     setCurrentView: (view: AppView) => void;
     onStartTour: () => void;
     currentView?: string;
+    /**
+     * Phase 87 (T-87-42): a partner user's header. The command palette, global search, guided tour,
+     * feature help, notification centre and pin star are not rendered, so none of their requests run.
+     */
+    restricted?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpenCommandBar, onOpenSearch, setCurrentView, onStartTour, currentView = 'dashboard' }) => {
+export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpenCommandBar, onOpenSearch, setCurrentView, onStartTour, currentView = 'dashboard', restricted = false }) => {
     const { themeId, setThemeId, isDarkMode, toggleDarkMode } = useTheme();
     const { timeZone, setTimeZone, availableTimeZones } = useTimeZone();
     const [isHelpOpen, setIsHelpOpen] = useState(false);
     const currentUser = useUser()?.currentUser;
     const { pinned, togglePin } = useNavMemory(navMemoryKey(currentUser));
     const visibleNav = useVisibleNav(false);
-    const canPin = useMemo(() => openNavItems(visibleNav).some(i => i.view === currentView), [visibleNav, currentView]);
+    const isOpenNavView = useMemo(() => openNavItems(visibleNav).some(i => i.view === currentView), [visibleNav, currentView]);
+    const canPin = isOpenNavView && !restricted;
     const isPinned = pinned.includes(currentView as View);
 
     // Theme selector removed
@@ -77,6 +83,7 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                     })()}
                 </div>
 
+                {!restricted && (
                 <button
                     onClick={onOpenCommandBar}
                     className="group hidden md:flex items-center gap-3 flex-1 min-w-[10rem] max-w-md h-10 px-3.5 rounded-xl text-sm text-gray-500 dark:text-gray-400 bg-gray-900/[0.04] dark:bg-white/[0.04] border border-gray-900/[0.06] dark:border-white/[0.08] hover:border-primary-500/40 dark:hover:border-primary-400/40 hover:shadow-[0_0_0_4px_rgb(34_211_238/0.08)] transition-all"
@@ -89,18 +96,21 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                     <span className="flex-1 text-left truncate">Go to a page or ask AI…</span>
                     <kbd className="font-mono text-[11px] px-1.5 py-0.5 rounded-md text-gray-500 dark:text-gray-400 border border-gray-900/10 dark:border-white/10">⌘K</kbd>
                 </button>
+                )}
 
                 <div className="flex flex-shrink-0 items-center gap-1">
-                    {onOpenSearch && (
+                    {onOpenSearch && !restricted && (
                         <button onClick={onOpenSearch} className={`${ICON_BUTTON} hidden sm:grid`} aria-label="Open Global Search" title="Search (⌘/)">
                             <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
                                 <circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="m20 20-3.5-3.5" />
                             </svg>
                         </button>
                     )}
-                    <button onClick={onOpenCommandBar} className={`${ICON_BUTTON} md:hidden`} aria-label="Open command palette">
-                        <BotIcon size={17} />
-                    </button>
+                    {!restricted && (
+                        <button onClick={onOpenCommandBar} className={`${ICON_BUTTON} md:hidden`} aria-label="Open command palette">
+                            <BotIcon size={17} />
+                        </button>
+                    )}
                     <div className="hidden lg:block">
                         <select
                             value={timeZone}
@@ -116,24 +126,30 @@ export const Header: React.FC<HeaderProps> = ({ allUsers, onToggleSidebar, onOpe
                     <button onClick={toggleDarkMode} className={ICON_BUTTON} aria-label="Toggle dark mode" title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                         {isDarkMode ? <MoonIcon size={17} /> : <SunIcon size={17} />}
                     </button>
-                    <button onClick={onStartTour} className={`${ICON_BUTTON} hidden sm:grid`} aria-label="Start guided tour">
-                        <HelpCircleIcon size={17} />
-                    </button>
-                    <button onClick={() => setIsHelpOpen(true)} className={ICON_BUTTON} aria-label="Feature help" title="What does this page do?">
-                        <InfoIcon size={17} />
-                    </button>
-                    <NotificationCenter />
+                    {!restricted && (
+                        <>
+                            <button onClick={onStartTour} className={`${ICON_BUTTON} hidden sm:grid`} aria-label="Start guided tour">
+                                <HelpCircleIcon size={17} />
+                            </button>
+                            <button onClick={() => setIsHelpOpen(true)} className={ICON_BUTTON} aria-label="Feature help" title="What does this page do?">
+                                <InfoIcon size={17} />
+                            </button>
+                            <NotificationCenter />
+                        </>
+                    )}
                     <div aria-hidden="true" className="h-6 w-px mx-1 bg-gray-900/10 dark:bg-white/10 hidden sm:block" />
                     <UserMenu allUsers={allUsers} setCurrentView={setCurrentView} />
                 </div>
             </div>
         </header>
         <ToastContainer />
-        <FeatureHelpModal
-            isOpen={isHelpOpen}
-            onClose={() => setIsHelpOpen(false)}
-            featureKey={currentView}
-        />
+        {!restricted && (
+            <FeatureHelpModal
+                isOpen={isHelpOpen}
+                onClose={() => setIsHelpOpen(false)}
+                featureKey={currentView}
+            />
+        )}
         </>
     );
 };

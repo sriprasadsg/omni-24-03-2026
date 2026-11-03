@@ -13,6 +13,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { PlatformFeature, TenantFeatures } from '../types';
 import { useUser } from './UserContext';
 import { API_BASE } from '../services/apiService';
+import { isPartnerRoleName } from '../utils/permissions';
 
 // ── Core-tier features always available regardless of backend response ──────
 const ALWAYS_ON = new Set([
@@ -53,7 +54,8 @@ export const FeaturesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const fetchFeatures = useCallback(async () => {
     const tid = currentUser?.tenantId;
-    if (!tid) return;
+    // Phase 87 (T-87-42): a partner user's organization has no bundles and the route is a customer one.
+    if (!tid || isPartnerRoleName(currentUser?.role)) return;
     setLoading(true);
     try {
       const token = sessionStorage.getItem('token') || '';
@@ -70,7 +72,7 @@ export const FeaturesProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.tenantId]);
+  }, [currentUser?.tenantId, currentUser?.role]);
 
   useEffect(() => {
     fetchFeatures();

@@ -5,7 +5,7 @@ import { AppView } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { fetchSupportUnreadCount } from '../services/apiService';
 import { socketService } from '../services/socketService';
-import { isSuperAdminRoleName } from '../utils/permissions';
+import { isPartnerRoleName, isSuperAdminRoleName } from '../utils/permissions';
 import { permissionsKnown } from '../utils/viewAccess';
 import { useVisibleNav, openNavItems, NavGroup } from '../hooks/useVisibleNav';
 import { useNavMemory, navMemoryKey } from '../hooks/useNavMemory';
@@ -84,8 +84,10 @@ const SidebarGroup: React.FC<{
     expandedGroup: string | null;
     setExpandedGroup: (title: string | null) => void;
     badgeCounts?: Record<string, number>;
-}> = ({ group, groupIndex, isOpen, currentView, setCurrentView, expandedGroup, setExpandedGroup, badgeCounts }) => {
-    const isExpanded = expandedGroup === group.title;
+    /** Phase 87: a partner user's single entry has no group heading and is never collapsed. */
+    headerless?: boolean;
+}> = ({ group, groupIndex, isOpen, currentView, setCurrentView, expandedGroup, setExpandedGroup, badgeCounts, headerless = false }) => {
+    const isExpanded = headerless || expandedGroup === group.title;
     const hasActiveItem = group.items.some(i => i.view === currentView);
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -99,7 +101,7 @@ const SidebarGroup: React.FC<{
     return (
         <div className="overflow-hidden">
             {/* ── Group Header (accordion toggle) ─────────────────────── */}
-            {isOpen ? (
+            {headerless ? null : isOpen ? (
                 <button
                     onClick={toggle}
                     aria-expanded={isExpanded}
@@ -156,6 +158,7 @@ const SidebarGroup: React.FC<{
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurrentView, isViewingTenant, onBackToTenants, branding }) => {
     const userContext = useUser();
     const currentUser = userContext?.currentUser;
+    const isPartner = isPartnerRoleName(currentUser?.role);
 
     // ── Accordion state: which group header is currently open ──────────────
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
@@ -164,11 +167,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     const [supportUnread, setSupportUnread]   = useState(0);
     const [endpointUnread, setEndpointUnread] = useState(0);
     useEffect(() => {
+        // Phase 87 (T-87-42): the support unread count is a customer route; a partner user never asks.
+        if (isPartner) return;
         const fetch = () => fetchSupportUnreadCount().then(setSupportUnread).catch(() => {});
         fetch();
         const id = setInterval(fetch, 30_000);
         return () => clearInterval(id);
-    }, []);
+    }, [isPartner]);
     useEffect(() => {
         const handler = (data: any) => {
             if (data.event === 'agent_chat_message' || data.event === 'agent_chat_initiated') {
@@ -186,9 +191,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     // Pinned pages, in the order they were pinned; only pages still open to the user show.
     const { pinned } = useNavMemory(navMemoryKey(currentUser));
     const pinnedItems = useMemo(() => {
+        if (isPartner) return [];
         const open = new Map(openNavItems(visibleGroups).map(i => [i.view, i]));
         return pinned.map(v => open.get(v)).filter((i): i is NonNullable<typeof i> => !!i);
-    }, [pinned, visibleGroups]);
+    }, [pinned, visibleGroups, isPartner]);
 
     return (
         <aside aria-label="Main navigation" className={`flex-shrink-0 glass-panel rounded-3xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out z-40 ${isOpen ? 'w-64 max-md:fixed max-md:inset-y-2 max-md:left-2 max-md:shadow-2xl' : 'w-[76px]'} `} >
@@ -291,6 +297,7 @@ hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors border border-am
                             expandedGroup={expandedGroup}
                             setExpandedGroup={setExpandedGroup}
                             badgeCounts={{ chat: supportUnread + endpointUnread }}
+                            headerless={isPartner}
                         />
                     ))
                 }
