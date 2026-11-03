@@ -5,6 +5,7 @@ import { showToast } from '../utils/toast';
 import { AlertTriangleIcon, BuildingIcon, DownloadIcon, InfoIcon, PlusIcon, RefreshCwIcon, SearchIcon } from './icons';
 import { EmptyStateCard } from './AutonomousOpsActivityList';
 import { PoolExpiryChip, daysUntil, formatDay } from './PartnerStatusChip';
+import { ChangeSeatsModal, ChooseScreensModal, CreateCustomerModal } from './PartnerCustomerModals';
 
 /**
  * Phase 87 (PART-02, PART-04, PART-05, PART-06, PART-08; 87-UI-SPEC section 2): the Partner portal, the only
@@ -381,6 +382,22 @@ export const PartnerPortal: React.FC = () => {
             <button type="button" className={SECONDARY_BUTTON} onClick={() => setLimit(l => l + PAGE_SIZE)}>Show more customers</button>
           )}
         </section>
+      )}
+
+      {modal?.kind === 'create' && (
+        <CreateCustomerModal
+          free={pool?.free ?? 0}
+          ceiling={data?.ceiling ?? []}
+          unrestricted={!!data?.unrestricted}
+          onClose={() => setModal(null)}
+          onRefetch={refetch}
+        />
+      )}
+      {modal?.kind === 'seats' && (
+        <ChangeSeatsModal customer={modal.customer} free={pool?.free ?? 0} expired={expired} onClose={() => setModal(null)} onRefetch={refetch} />
+      )}
+      {modal?.kind === 'screens' && (
+        <ChooseScreensModal customer={modal.customer} onClose={() => setModal(null)} onRefetch={refetch} />
       )}
     </main>
   );
