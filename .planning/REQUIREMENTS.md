@@ -86,7 +86,7 @@
 ### 7. Partner Channel
 
 - [ ] **PART-01**: A Super Admin appoints a partner organization (its own users, login, MFA and audit trail, no endpoints and no seats of its own) from a Partners screen, sets its seat pool, pool expiry and screen ceiling, sees every partner's pool used and free, and can suspend or reinstate it; a suspended partner's users cannot sign in or move seats, and its customers keep running.
-- [ ] **PART-02**: A partner admin creates a customer organization, assigns it seats from the partner's pool and invites the customer's first admin by email, who then runs the organization with the same rights as the admin of a directly created organization.
+- [x] **PART-02**: A partner admin creates a customer organization, assigns it seats from the partner's pool and invites the customer's first admin by email, who then runs the organization with the same rights as the admin of a directly created organization.
 - [ ] **PART-03**: Seats handed out never exceed the partner's pool, enforced atomically under concurrent requests; a partner can lower a customer's seats only down to what that customer uses, and a Super Admin cannot shrink a pool below what is handed out.
 - [ ] **PART-04**: After a pool's expiry date the partner can neither create customers nor hand out seats, and its customers' licences follow the existing expiry rule (new agents held, running agents keep working).
 - [ ] **PART-05**: Partner admins and partner viewers reach only their own partner's customers, and only seats and usage (name, seats assigned and used, agents online and total, licence expiry), through every route; partner roles never gain a tenant or platform permission, and a partner viewer cannot change anything.
@@ -248,7 +248,7 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | ACTV-06 | Phase 86 | Pending |
 | ACTV-07 | Phase 86 | Pending |
 | PART-01 | Phase 87 | Pending |
-| PART-02 | Phase 87 | Pending |
+| PART-02 | Phase 87 | Complete |
 | PART-03 | Phase 87 | Pending |
 | PART-04 | Phase 87 | Pending |
 | PART-05 | Phase 87 | Pending |
