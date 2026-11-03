@@ -8,6 +8,9 @@ import uuid
 
 router = APIRouter(prefix="/api/mssp", tags=["MSSP"])
 
+# A partner organization is a reseller account, not a managed customer: it never appears in MSSP lists (D-11).
+_NOT_PARTNER = {"type": {"$ne": "partner"}}
+
 
 def _strip_id(doc: dict) -> dict:
     doc.pop("_id", None)
@@ -21,7 +24,7 @@ async def list_managed_tenants(current_user: TokenData = Depends(get_current_use
         raise HTTPException(status_code=403, detail="Super Admin access required")
     db = get_database()
     tenants = []
-    async for doc in db.tenants.find({}):
+    async for doc in db.tenants.find(_NOT_PARTNER):
         _strip_id(doc)
         tenants.append({
             "id": doc.get("id"),
@@ -123,7 +126,7 @@ async def mssp_overview(current_user: TokenData = Depends(get_current_user)):
 
     tenants = []
     healthy = warning = critical = total_agents = 0
-    async for doc in db.tenants.find({}):
+    async for doc in db.tenants.find(_NOT_PARTNER):
         tid = doc.get("id")
         agent_count = agent_counts.get(tid, 0)
         comp = compliance.get(tid, 100)
@@ -177,7 +180,7 @@ async def aggregated_alerts(
         query["severity"] = {"$regex": f"^{severity}$", "$options": "i"}
 
     tenant_names: dict = {}
-    async for t in db.tenants.find({}, {"id": 1, "name": 1}):
+    async for t in db.tenants.find(_NOT_PARTNER, {"id": 1, "name": 1}):
         tenant_names[t.get("id")] = t.get("name", "")
 
     results = []
