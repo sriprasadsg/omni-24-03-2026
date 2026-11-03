@@ -7,6 +7,7 @@ changes a document, deleting a customer leaks its seats, a partner with customer
 a new seat writer appears outside the allowlist; no_claim=the HTTP layer (route functions are called
 directly with a TokenData, the audit writers are mocked).
 """
+import ast
 import json
 import os
 import sys
@@ -200,3 +201,98 @@ async def test_approve_with_a_raise_on_a_direct_customer_is_unchanged(wired):
     out = await pending_agents.approve(wired, "a1", "root", raise_limit_by=3)
     assert out["license"]["maxAgents"] == 13 and await _seats(wired) == 13
     assert (await wired.tenants.find_one({"id": "c1"}))["maxAgents"] == 13
+
+
+# ── MSSP lists skip partner organizations ────────────────────────────────────
+
+async def test_mssp_listings_never_show_a_partner_organization(mongo_db):
+    import mssp_endpoints as mssp
+    await _partner(mongo_db, pid="p1")
+    await _customer(mongo_db, "p1", 5, cid="c1")
+    await _customer(mongo_db, None, 5, cid="c2")
+    await mongo_db.alerts.insert_one({"id": "al1", "tenantId": "c1", "severity": "High", "timestamp": "2026-01-01"})
+    with patch.object(mssp, "get_database", return_value=mongo_db):
+        listed = await mssp.list_managed_tenants(current_user=SUPER)
+        overview = await mssp.mssp_overview(current_user=SUPER)
+        alerts = await mssp.aggregated_alerts(severity=None, limit=50, current_user=SUPER)
+    assert sorted(t["id"] for t in listed) == ["c1", "c2"]
+    assert sorted(t["id"] for t in overview["tenants"]) == ["c1", "c2"] and overview["total_tenants"] == 2
+    assert [a["tenant_name"] for a in alerts] == ["Customer c1"]
+
+
+async def test_mssp_alert_feed_does_not_resolve_a_partner_name(mongo_db):
+    """An alert whose tenantId is a partner organization falls back to the id, never the partner's name."""
+    import mssp_endpoints as mssp
+    await _partner(mongo_db, pid="p1")
+    await mongo_db.alerts.insert_one({"id": "al2", "tenantId": "p1", "severity": "High", "timestamp": "2026-01-01"})
+    with patch.object(mssp, "get_database", return_value=mongo_db):
+        alerts = await mssp.aggregated_alerts(severity=None, limit=50, current_user=SUPER)
+    assert all(a["tenant_name"] != "Partner p1" for a in alerts)
+
+
+# ── drift guard: only the allowlisted modules write a customer's seats ───────
+
+BACKEND_DIR = os.path.join(os.path.dirname(__file__), "..")
+SEAT_WRITER_ALLOWLIST = {"licensing.py", "partner_pool.py", "tenant_docs.py", "pending_agents.py",
+                         "authentication_endpoints.py"}
+# Modules the scanner must always see, so a scanner that goes blind cannot pass the test.
+SEAT_WRITERS_KNOWN = {"licensing.py", "partner_pool.py", "tenant_docs.py", "pending_agents.py"}
+_SKIP_FILES = {"database_migrations.py"}
+
+
+def _str_key(node):
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def writes_license_max_agents(source: str) -> bool:
+    """True when the source builds a dict that sets license.maxAgents: a "license.maxAgents" key (the
+    $set / $inc form) or a "license": {"maxAgents": ...} literal. A literal 0 is not a seat grant (the
+    partner organization carries no seats of its own) and is ignored."""
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Dict):
+            continue
+        for key, value in zip(node.keys, node.values):
+            name = _str_key(key)
+            if name == "license.maxAgents":
+                return True
+            if name == "license" and isinstance(value, ast.Dict):
+                for k2, v2 in zip(value.keys, value.values):
+                    if _str_key(k2) == "maxAgents" and not (isinstance(v2, ast.Constant) and v2.value == 0):
+                        return True
+    return False
+
+
+def seat_writer_modules(root: str) -> set:
+    """Backend modules are flat files in backend/ (tests, scripts and migrations live in sub-folders,
+    and the folder also holds virtualenvs that must not be walked), so only its top level is scanned."""
+    found = set()
+    for fn in sorted(os.listdir(root)):
+        path = os.path.join(root, fn)
+        if not fn.endswith(".py") or fn in _SKIP_FILES or not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            try:
+                if writes_license_max_agents(fh.read()):
+                    found.add(fn)
+            except (SyntaxError, ValueError):
+                continue
+    return found
+
+
+def test_only_the_allowlisted_modules_write_license_max_agents():
+    found = seat_writer_modules(BACKEND_DIR)
+    assert found - SEAT_WRITER_ALLOWLIST == set(), (
+        f"{sorted(found - SEAT_WRITER_ALLOWLIST)} write license.maxAgents outside the partner pool's reach; "
+        "route the change through partner_pool.change_allotment (or licensing.update_license for a direct customer)")
+    assert SEAT_WRITERS_KNOWN <= found, f"the scanner no longer sees {sorted(SEAT_WRITERS_KNOWN - found)}"
+
+
+def test_the_drift_scanner_catches_a_new_writer_and_ignores_a_zero_literal(tmp_path):
+    (tmp_path / "rogue_set.py").write_text(
+        "async def f(db):\n    await db.tenants.update_one({'id': 1}, {'$set': {'license.maxAgents': 99}})\n")
+    (tmp_path / "rogue_inc.py").write_text(
+        "async def f(db):\n    await db.tenants.update_one({'id': 1}, {'$inc': {'license.maxAgents': 5}})\n")
+    (tmp_path / "rogue_literal.py").write_text("DOC = {'id': 1, 'license': {'maxAgents': 50, 'seatsUsed': 0}}\n")
+    (tmp_path / "zero_literal.py").write_text("DOC = {'id': 1, 'license': {'maxAgents': 0}}\n")
+    (tmp_path / "unrelated.py").write_text("X = {'maxAgents': 5}\n")
+    assert seat_writer_modules(str(tmp_path)) == {"rogue_set.py", "rogue_inc.py", "rogue_literal.py"}
