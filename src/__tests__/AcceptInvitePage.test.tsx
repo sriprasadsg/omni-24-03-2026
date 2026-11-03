@@ -5,18 +5,27 @@
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 vi.mock('../../services/partnerApi', async () => {
   const actual = await vi.importActual<typeof import('../../services/partnerApi')>('../../services/partnerApi');
   return { ...actual, fetchInviteStatus: vi.fn(), acceptInvite: vi.fn() };
 });
 
+vi.mock('../../services/apiService', async () => {
+  const actual = await vi.importActual<typeof import('../../services/apiService')>('../../services/apiService');
+  return { ...actual, login: vi.fn() };
+});
+
 import * as api from '../../services/partnerApi';
-import type { InviteStatus } from '../../services/partnerApi';
+import * as apiService from '../../services/apiService';
+import { PartnerApiError, type InviteStatus } from '../../services/partnerApi';
 import AcceptInvitePage from '../../components/AcceptInvitePage';
 
 const fetchInviteStatus = api.fetchInviteStatus as ReturnType<typeof vi.fn>;
+const acceptInvite = api.acceptInvite as ReturnType<typeof vi.fn>;
+const login = apiService.login as ReturnType<typeof vi.fn>;
+const GOOD = 'Str0ng!pass';
 
 const validStatus: InviteStatus = {
   state: 'valid',
@@ -38,6 +47,8 @@ function openLink(search = '?token=abc123') {
 
 beforeEach(() => {
   fetchInviteStatus.mockReset();
+  acceptInvite.mockReset();
+  login.mockReset();
   replaceState = vi.spyOn(window.history, 'replaceState');
   openLink();
 });
@@ -156,5 +167,243 @@ describe('AcceptInvitePage link check (PART-02, D-17)', () => {
     expect(welcome.className).toContain('break-words');
     expect(welcome.querySelector('b')).toBeNull();
     expect(screen.getByText(email).className).toContain('break-all');
+  });
+});
+
+async function openForm(status: InviteStatus = validStatus) {
+  fetchInviteStatus.mockResolvedValue(status);
+  render(<AcceptInvitePage />);
+  await screen.findByRole('heading', { name: 'Set your password' });
+}
+
+const newPassword = () => screen.getByLabelText('New password') as HTMLInputElement;
+const confirmPassword = () => screen.getByLabelText('Confirm password') as HTMLInputElement;
+const submit = () => screen.getByRole('button', { name: /^Set password$|^Setting password\.\.\.$/ }) as HTMLButtonElement;
+
+function fill(password: string, confirm = password) {
+  fireEvent.change(newPassword(), { target: { value: password } });
+  fireEvent.change(confirmPassword(), { target: { value: confirm } });
+}
+
+describe('AcceptInvitePage password form (PART-02, D-20)', () => {
+  it('has two new-password fields, a visible label for each, and focus starts on the heading', async () => {
+    await openForm();
+    expect(newPassword().type).toBe('password');
+    expect(newPassword().getAttribute('autocomplete')).toBe('new-password');
+    expect(confirmPassword().type).toBe('password');
+    expect(confirmPassword().getAttribute('autocomplete')).toBe('new-password');
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
+  });
+
+  it('shows the five rules, each meeting live as the password is typed', async () => {
+    await openForm();
+    const rules = ['At least 8 characters', 'An uppercase letter', 'A lowercase letter', 'A digit', 'A special character'];
+    const list = screen.getByRole('list', { name: 'Password rules' });
+    expect(within(list).getAllByRole('listitem').map(li => li.textContent)).toEqual(rules);
+    const met = (label: string) => screen.getByText(label).closest('li')!.getAttribute('data-met');
+    expect(rules.map(met)).toEqual(['false', 'false', 'false', 'false', 'false']);
+    fireEvent.change(newPassword(), { target: { value: 'abcdefgh' } });
+    expect(rules.map(met)).toEqual(['true', 'false', 'true', 'false', 'false']);
+    fireEvent.change(newPassword(), { target: { value: GOOD } });
+    expect(rules.map(met)).toEqual(['true', 'true', 'true', 'true', 'true']);
+  });
+
+  it('announces rule changes politely only after the field was touched', async () => {
+    await openForm();
+    const list = screen.getByRole('list', { name: 'Password rules' });
+    expect(list.getAttribute('aria-live')).toBeNull();
+    fireEvent.change(newPassword(), { target: { value: 'a' } });
+    expect(list.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('keeps Set password disabled until every rule is met and both fields match', async () => {
+    await openForm();
+    expect(submit().disabled).toBe(true);
+    fill('abcdefgh');
+    expect(submit().disabled).toBe(true);
+    fill(GOOD, 'Different1!');
+    expect(submit().disabled).toBe(true);
+    expect(screen.getByText("The passwords don't match.")).toBeTruthy();
+    fill(GOOD);
+    expect(submit().disabled).toBe(false);
+    expect(screen.queryByText("The passwords don't match.")).toBeNull();
+  });
+
+  it('does not show the mismatch message before the confirm field has something in it', async () => {
+    await openForm();
+    fireEvent.change(newPassword(), { target: { value: GOOD } });
+    expect(screen.queryByText("The passwords don't match.")).toBeNull();
+  });
+
+  it('each field has a show/hide toggle with aria-pressed', async () => {
+    await openForm();
+    const toggles = screen.getAllByRole('button', { name: 'Show password' });
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0].getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggles[0]);
+    expect(newPassword().type).toBe('text');
+    expect(confirmPassword().type).toBe('password');
+    const hide = screen.getByRole('button', { name: 'Hide password' });
+    expect(hide.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(hide);
+    expect(newPassword().type).toBe('password');
+  });
+
+  it('allows paste into both fields', async () => {
+    await openForm();
+    expect(fireEvent.paste(newPassword(), { clipboardData: { getData: () => GOOD } })).toBe(true);
+    expect(fireEvent.paste(confirmPassword(), { clipboardData: { getData: () => GOOD } })).toBe(true);
+  });
+});
+
+describe('AcceptInvitePage submit and sign-in (D-20)', () => {
+  it('sets the password, shows Signing you in, signs in once with the email and password, then loads the app shell', async () => {
+    let finishAccept: () => void = () => {};
+    acceptInvite.mockReturnValue(new Promise<void>(resolve => { finishAccept = resolve; }));
+    login.mockResolvedValue({ access_token: 'session-token' });
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+
+    expect(submit().textContent).toBe('Setting password...');
+    expect(submit().disabled).toBe(true);
+    expect(newPassword().disabled).toBe(true);
+    expect(confirmPassword().disabled).toBe(true);
+    expect(acceptInvite).toHaveBeenCalledTimes(1);
+    expect(acceptInvite).toHaveBeenCalledWith('abc123', GOOD);
+
+    await act(async () => { finishAccept(); });
+    await waitFor(() => expect(login).toHaveBeenCalledTimes(1));
+    expect(login).toHaveBeenCalledWith('jo@northwind.example', GOOD);
+    await waitFor(() => expect((window.location.replace as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('/'));
+    expect(screen.getByRole('heading', { name: 'Password set' })).toBeTruthy();
+  });
+
+  it('shows Password set with a Signing you in... status spinner while the sign-in is in flight', async () => {
+    acceptInvite.mockResolvedValue(undefined);
+    login.mockReturnValue(new Promise(() => {}));
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByRole('heading', { name: 'Password set' });
+    const status = screen.getByRole('status');
+    expect(status.textContent).toContain('Signing you in...');
+    expect(status.querySelector('.animate-spin')).not.toBeNull();
+    expect(screen.queryByLabelText('New password')).toBeNull();
+  });
+
+  it('sends one request for a double click', async () => {
+    acceptInvite.mockReturnValue(new Promise(() => {}));
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+    fireEvent.click(submit());
+    fireEvent.submit(submit().closest('form')!);
+    expect(acceptInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to Password set with Go to sign in when the sign-in is refused', async () => {
+    acceptInvite.mockResolvedValue(undefined);
+    login.mockRejectedValue(new Error('Invalid credentials'));
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByText('Your password is set. Sign in to continue.');
+    expect(screen.getByRole('heading', { name: 'Password set' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Go to sign in' }).getAttribute('href')).toBe('/login');
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it('falls back when the sign-in answer has no access_token (for example a required challenge)', async () => {
+    acceptInvite.mockResolvedValue(undefined);
+    login.mockResolvedValue({ mfa_required: true });
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByText('Your password is set. Sign in to continue.');
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it('falls back when the status gave no email to sign in with', async () => {
+    acceptInvite.mockResolvedValue(undefined);
+    await openForm({ state: 'valid', organizationName: 'Northwind Traders' });
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByText('Your password is set. Sign in to continue.');
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('re-asks the status after a 400 and moves to Used', async () => {
+    acceptInvite.mockRejectedValue(new PartnerApiError('Reset token has already been used', 400));
+    await openForm();
+    fetchInviteStatus.mockResolvedValue({ state: 'used' });
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByRole('heading', { name: 'This invite was already used' });
+    expect(fetchInviteStatus).toHaveBeenCalledTimes(2);
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('re-asks the status after a 400 and moves to Expired', async () => {
+    acceptInvite.mockRejectedValue(new PartnerApiError('Reset token has expired', 400));
+    await openForm();
+    fetchInviteStatus.mockResolvedValue({ state: 'expired' });
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByRole('heading', { name: 'This invite has expired' });
+  });
+
+  it('shows a complexity refusal verbatim above the button and keeps the typed values', async () => {
+    acceptInvite.mockRejectedValue(new PartnerApiError('Password must contain at least one special character', 400));
+    await openForm();
+    fetchInviteStatus.mockResolvedValue(validStatus);
+    fill(GOOD);
+    fireEvent.click(submit());
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Password must contain at least one special character');
+    expect(alert.compareDocumentPosition(submit()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(newPassword().value).toBe(GOOD);
+    expect(newPassword().disabled).toBe(false);
+  });
+
+  it('words any other server refusal as Could not set your password', async () => {
+    acceptInvite.mockRejectedValue(new PartnerApiError('Too many requests.', 429));
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe("Couldn't set your password: Too many requests. Try again.");
+    expect(fetchInviteStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the typed values and shows the red block on a network failure', async () => {
+    acceptInvite.mockRejectedValue(new TypeError('Failed to fetch'));
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe("Couldn't set your password. Check your connection and try again.");
+    expect(newPassword().value).toBe(GOOD);
+    expect(confirmPassword().value).toBe(GOOD);
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('never logs, stores or puts the password or token in the address bar', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    acceptInvite.mockResolvedValue(undefined);
+    login.mockResolvedValue({ access_token: 'session-token' });
+    await openForm();
+    fill(GOOD);
+    fireEvent.click(submit());
+    await waitFor(() => expect(window.location.replace).toHaveBeenCalled());
+    const everything = JSON.stringify([log.mock.calls, err.mock.calls, setItem.mock.calls, replaceState.mock.calls, window.location.search]);
+    expect(everything).not.toContain(GOOD);
+    expect(everything).not.toContain('abc123');
+    expect(document.body.innerHTML).not.toContain('abc123');
+    log.mockRestore();
+    err.mockRestore();
+    setItem.mockRestore();
   });
 });
