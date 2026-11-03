@@ -5,6 +5,7 @@ import { showToast } from '../utils/toast';
 import { AlertTriangleIcon, BuildingIcon, DownloadIcon, InfoIcon, PlusIcon, RefreshCwIcon, SearchIcon } from './icons';
 import { EmptyStateCard } from './AutonomousOpsActivityList';
 import { PoolExpiryChip, daysUntil, formatDay } from './PartnerStatusChip';
+import PartnerTeamPanel from './PartnerTeamPanel';
 import { ChangeSeatsModal, ChooseScreensModal, CreateCustomerModal } from './PartnerCustomerModals';
 
 /**
@@ -383,6 +384,8 @@ export const PartnerPortal: React.FC = () => {
           )}
         </section>
       )}
+
+      {data && isAdmin && <PartnerTeamPanel />}
 
       {modal?.kind === 'create' && (
         <CreateCustomerModal

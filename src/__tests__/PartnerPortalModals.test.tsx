@@ -410,6 +410,7 @@ describe('PartnerPortal wiring of the customer modals', () => {
     fetchPartnerOverview.mockResolvedValue(data);
     render(<PartnerPortal />);
     await screen.findByText('Seat pool');
+    await waitFor(() => expect(document.querySelector('[data-skeleton]')).toBeNull());
   };
 
   it('opens Create customer from the header, then refetches the overview after a success', async () => {

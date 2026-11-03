@@ -62,11 +62,15 @@ const overview = (over: Partial<PartnerOverview> = {}, pool: Partial<PartnerOver
   ...over,
 });
 
+/** The Team panel (admin only) has its own table; the customers assertions look only inside the Customers section. */
+const customersSection = () => screen.getByRole('heading', { name: 'Customers' }).closest('section') as HTMLElement;
+
 const renderLoaded = async (data: PartnerOverview) => {
   fetchPartnerOverview.mockResolvedValue(data);
   fetchPartnerTeam.mockResolvedValue([]);
   const view = render(<PartnerPortal />);
   await screen.findByText('Seat pool');
+  await waitFor(() => expect(document.querySelector('[data-skeleton]')).toBeNull());
   return view;
 };
 
@@ -213,7 +217,7 @@ describe('PartnerPortal customers table (S5)', () => {
   it('orders customers by name, wraps long names and counts 1 customer / n customers', async () => {
     const long = 'Z'.repeat(100);
     await renderLoaded(overview({ customers: [customer({ id: 'z', name: long }), customer({ id: 'b', name: 'Beta' }), customer({ id: 'a', name: 'Alpha' })] }));
-    const names = screen.getAllByRole('row').slice(1).map(r => within(r).getAllByRole('cell')[0].textContent);
+    const names = within(customersSection()).getAllByRole('row').slice(1).map(r => within(r).getAllByRole('cell')[0].textContent);
     expect(names).toEqual(['Alpha', 'Beta', long]);
     expect(screen.getByText(long).className).toContain('break-words');
     expect(screen.getByText('3 customers')).toBeTruthy();
@@ -225,7 +229,7 @@ describe('PartnerPortal customers table (S5)', () => {
   it('renders the column headers and an Actions column for the admin only', async () => {
     await renderLoaded(overview());
     for (const h of ['Customer', 'Seats used', 'Seats assigned', 'Agents', 'Licence expires', 'Actions']) {
-      expect(screen.getByRole('columnheader', { name: h })).toBeTruthy();
+      expect(within(customersSection()).getByRole('columnheader', { name: h })).toBeTruthy();
     }
     expect(screen.getByRole('button', { name: 'Change seats for Globex' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Choose screens for Globex' })).toBeTruthy();
@@ -234,12 +238,12 @@ describe('PartnerPortal customers table (S5)', () => {
   it('pages at 25 rows with Show more customers, and searches above 10 customers', async () => {
     const many = Array.from({ length: 30 }, (_, i) => customer({ id: `c${i}`, name: `Cust ${String(i).padStart(2, '0')}` }));
     await renderLoaded(overview({ customers: many }));
-    expect(screen.getAllByRole('row').length).toBe(26);
+    expect(within(customersSection()).getAllByRole('row').length).toBe(26);
     fireEvent.click(screen.getByRole('button', { name: 'Show more customers' }));
-    expect(screen.getAllByRole('row').length).toBe(31);
+    expect(within(customersSection()).getAllByRole('row').length).toBe(31);
     expect(screen.queryByRole('button', { name: 'Show more customers' })).toBeNull();
     fireEvent.change(screen.getByLabelText('Search customers'), { target: { value: 'cust 07' } });
-    expect(screen.getAllByRole('row').length).toBe(2);
+    expect(within(customersSection()).getAllByRole('row').length).toBe(2);
     fireEvent.change(screen.getByLabelText('Search customers'), { target: { value: 'nomatch' } });
     expect(screen.getByText('No customers match "nomatch".')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
@@ -259,10 +263,10 @@ describe('PartnerPortal customers table (S5)', () => {
   });
 
   it('refreshes quietly (no skeleton) with Refresh customers', async () => {
-    const { container } = await renderLoaded(overview());
+    await renderLoaded(overview());
     fetchPartnerOverview.mockClear();
     fireEvent.click(screen.getByRole('button', { name: /Refresh customers/ }));
-    expect(container.querySelectorAll('tr[data-skeleton]').length).toBe(0);
+    expect(customersSection().querySelectorAll('tr[data-skeleton]').length).toBe(0);
     await waitFor(() => expect(fetchPartnerOverview).toHaveBeenCalledTimes(1));
     expect(screen.getByText('Globex')).toBeTruthy();
   });
