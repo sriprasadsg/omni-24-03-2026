@@ -46,7 +46,11 @@ const TENANTS = [
   { id: 'org-retail', name: 'Retailer Partner Org', type: 'partner' },
 ];
 
-const ALLOWED = /^\/api\/(partner|auth|mfa|passkey)(\/|$)|^\/api\/platform\/features$|^\/api\/health$/;
+// /api/health is the unauthenticated liveness probe and /api/sso/providers is the sign-in page's own
+// list, which shows for a moment before the session is restored (the user is not yet known to be a partner).
+const ALLOWED = /^\/api\/(partner|auth|mfa|passkey)(\/|$)|^\/api\/platform\/features$|^\/api\/health$|^\/api\/sso\/providers$/;
+// The first render of the whole shell loads its lazy chunks.
+const WAIT = { timeout: 10000 };
 
 let calls: string[] = [];
 
@@ -94,7 +98,7 @@ describe('public /accept-invite route (PART-02)', () => {
     stubFetch(null);
     window.history.replaceState(null, '', '/accept-invite?token=abc');
     render(<App />);
-    expect(await screen.findByText('ACCEPT INVITE PAGE')).toBeTruthy();
+    expect(await screen.findByText('ACCEPT INVITE PAGE', {}, WAIT)).toBeTruthy();
     expect(screen.queryByText(/sign in to/i)).toBeNull();
     expect(screen.queryByLabelText(/password/i)).toBeNull();
   });
@@ -106,7 +110,7 @@ describe('Super Admin views (PART-01)', () => {
     signIn('Super Admin');
     window.history.replaceState(null, '', '/#partners');
     render(<App />);
-    expect(await screen.findByText('PARTNERS SCREEN')).toBeTruthy();
+    expect(await screen.findByText('PARTNERS SCREEN', {}, WAIT)).toBeTruthy();
   });
 
   it('lists no partner organization on the Tenants screen', async () => {
@@ -114,7 +118,7 @@ describe('Super Admin views (PART-01)', () => {
     signIn('Super Admin');
     window.history.replaceState(null, '', '/#tenantmanagement');
     render(<App />);
-    const list = await screen.findByTestId('tenant-list');
+    const list = await screen.findByTestId('tenant-list', {}, WAIT);
     await waitFor(() => expect(list.textContent).toContain('Acme Customer'));
     expect(list.textContent).not.toContain('Retailer Partner Org');
   });
@@ -125,14 +129,14 @@ describe('partner user shell (PART-05, T-87-42)', () => {
     stubFetch(PARTNER_ADMIN);
     signIn('partner_admin');
     render(<App />);
-    expect(await screen.findByText('PARTNER PORTAL SCREEN')).toBeTruthy();
+    expect(await screen.findByText('PARTNER PORTAL SCREEN', {}, WAIT)).toBeTruthy();
   });
 
   it('makes no request outside the partner, auth, mfa, passkey and features routes', async () => {
     stubFetch(PARTNER_ADMIN);
     signIn('partner_admin');
     render(<App />);
-    await screen.findByText('PARTNER PORTAL SCREEN');
+    await screen.findByText('PARTNER PORTAL SCREEN', {}, WAIT);
     await act(async () => { await new Promise(r => setTimeout(r, 100)); });
     const outside = calls.filter(p => !ALLOWED.test(p));
     expect(outside).toEqual([]);
@@ -142,7 +146,7 @@ describe('partner user shell (PART-05, T-87-42)', () => {
     stubFetch(PARTNER_ADMIN);
     signIn('partner_admin');
     render(<App />);
-    await screen.findByText('PARTNER PORTAL SCREEN');
+    await screen.findByText('PARTNER PORTAL SCREEN', {}, WAIT);
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '/', ctrlKey: true, bubbles: true }));
@@ -261,7 +265,7 @@ describe('public /accept-invite route and the MFA gate (PART-02)', () => {
     signIn('partner_admin');
     window.history.replaceState(null, '', '/accept-invite?token=abc');
     render(<App />);
-    expect(await screen.findByText('ACCEPT INVITE PAGE')).toBeTruthy();
+    expect(await screen.findByText('ACCEPT INVITE PAGE', {}, WAIT)).toBeTruthy();
     await act(async () => { await new Promise(r => setTimeout(r, 30)); });
     expect(screen.getByText('ACCEPT INVITE PAGE')).toBeTruthy();
   });

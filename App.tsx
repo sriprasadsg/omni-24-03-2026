@@ -229,6 +229,10 @@ const YaraRuleEditor = lazy(() => import('./components/YaraRuleEditor').then(m =
 const BundleManagementDashboard = lazy(() => import('./components/BundleManagementDashboard').then(m => ({ default: m.default })));
 const SwarmDashboard = lazy(() => import('./components/SwarmDashboard').then(m => ({ default: m.default })));
 const SystemHealthDashboard = lazy(() => import('./components/SystemHealthDashboard').then(m => ({ default: m.SystemHealthDashboard })));
+// Phase 87: the Super Admin's Partners screen, the partner users' own portal and the public invite page.
+const PartnersDashboard = lazy(() => import('./components/PartnersDashboard').then(m => ({ default: m.PartnersDashboard })));
+const PartnerPortal = lazy(() => import('./components/PartnerPortal').then(m => ({ default: m.default })));
+const AcceptInvitePage = lazy(() => import('./components/AcceptInvitePage').then(m => ({ default: m.default })));
 
 
 
@@ -240,7 +244,7 @@ import { AppView, User, Role, Tenant, Metric, Alert, ComplianceFramework, AiSyst
 import { SUBSCRIPTION_TIERS } from './constants';
 import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
-import { derivePermissionState, isSuperAdminRoleName, roleLabel } from './utils/permissions';
+import { derivePermissionState, isPartnerRoleName, isSuperAdminRoleName, roleLabel } from './utils/permissions';
 import { NAV_GROUPS, catalogueFor, viewForHash } from './utils/catalogueAccess';
 import { canReadView, evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
@@ -283,6 +287,8 @@ const App: React.FC = () => {
   // The latest signed-in user for loadAllData (a stable callback); sign-in paths set it before loading.
   const currentUserRef = useRef<User | null>(null);
   currentUserRef.current = currentUser;
+  // Phase 87 (PART-05): a partner user's shell calls only its own routes; see loadAllData and Header.
+  const isPartnerUser = isPartnerRoleName(currentUser?.role);
   // Admin-tier sessions that haven't passed MFA see only the MFA screen:
   // 'enroll' to set it up, 'verify' to confirm a code for this session.
   const [mfaGate, setMfaGate] = useState<'enroll' | 'verify' | null>(null);
@@ -458,6 +464,8 @@ const App: React.FC = () => {
   // Command Bar key listener
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // A partner user has no command palette and no global search (both would call customer routes).
+      if (isPartnerRoleName(currentUserRef.current?.role)) return;
       if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
         event.preventDefault();
         setIsCommandBarOpen(prev => !prev);
@@ -485,6 +493,9 @@ const App: React.FC = () => {
 
     // Only super-admins can list all tenants; skip the call to avoid repeated 403s
     const _jwtPayload = (() => { try { return JSON.parse(atob(token.split('.')[1])); } catch { return {}; } })();
+    // Phase 87 (T-87-42): a partner user's session may call only /api/partner, auth and its own
+    // features read; every customer fetch below would be refused, so none is started.
+    if (isPartnerRoleName(_jwtPayload.role)) return;
     const _isSuperAdmin = isSuperAdminRoleName(_jwtPayload.role);
 
     // A feature the Super Admin switched off for this tenant (spec C6) is not requested at all: each
@@ -1621,6 +1632,18 @@ const App: React.FC = () => {
     );
   }
 
+  // Phase 87 (PART-02, D-17): the invite link opens without a session, outside the shell, ahead of
+  // the MFA gate and the sign-in page. Every hook above has already run, so hook order is unchanged.
+  if (window.location.pathname === '/accept-invite') {
+    return (
+      <ThemeProvider>
+        <Suspense fallback={<SkeletonDashboard />}>
+          <AcceptInvitePage />
+        </Suspense>
+      </ThemeProvider>
+    );
+  }
+
   if (mfaGate) {
     return (
       <ThemeProvider>
@@ -1719,7 +1742,7 @@ const App: React.FC = () => {
       case 'auditLog': return <ErrorBoundary name="AuditLogDashboard"><AuditLogDashboard logs={tenantData.auditLogs} /></ErrorBoundary>;
       case 'settings': return <ErrorBoundary name="SettingsDashboard"><SettingsDashboard viewingTenantId={viewingTenantId} integrations={tenantData.integrations} alertRules={tenantData.alertRules} roles={roles} users={isSuperAdminRoleName(currentUser.role) ? users : users.filter(u => activeTenantId ? u.tenantId === activeTenantId : true)} apiKeys={tenants.find(t => t.id === activeTenantId)?.apiKeys || []} newlyGeneratedKey={newlyGeneratedKey} onAcknowledgeNewKey={() => setNewlyGeneratedKey(null)} onGenerateApiKey={handleGenerateApiKey} onRevokeApiKey={handleRevokeApiKey} onSaveAlertRule={(rule) => api.saveAlertRule(rule).then(saved => setAlertRules(prev => { const exists = prev.some(r => r.id === saved.id); return exists ? prev.map(r => r.id === saved.id ? saved : r) : [...prev, saved]; }))} onDeleteAlertRule={(id) => api.deleteAlertRule(id).then(() => setAlertRules(prev => prev.filter(r => r.id !== id)))} onSaveIntegration={(int) => api.saveIntegration(int).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i)))} onToggleIntegration={(id) => { const int = integrations.find(i => i.id === id); if (int) api.saveIntegration({ ...int, isEnabled: !int.isEnabled }).then(saved => setIntegrations(prev => prev.map(i => i.id === saved.id ? saved : i))) }} onSaveRole={handleSaveRole} onDeleteRole={handleDeleteRole} tenants={tenants} onAddNewUser={handleAddNewUser} onUpdateUser={handleUpdateUser} onResetPassword={handleResetPassword} databaseSettings={databaseSettings} llmSettings={llmSettings} onSaveInfrastructure={(updates) => api.saveInfrastructure(updates).then(res => { if (res.db) setDatabaseSettings(res.db); if (res.llm) setLlmSettings(res.llm); })} dataSources={tenantData.dataSources} onSaveDataSource={(source) => api.saveDataSource({ ...source, tenantId: activeTenantId! }).then(saved => { setDataSources(prev => { const exists = prev.some(s => s.id === saved.id); if (exists) return prev.map(s => s.id === saved.id ? saved : s); return [...prev, saved]; }) })} onDeleteDataSource={(id) => api.deleteDataSource(id).then(() => setDataSources(prev => prev.filter(s => s.id !== id)))} onTestDataSource={(id) => api.testDataSourceConnection(dataSources.find(ds => ds.id === id)!).then(() => api.fetchDataSources().then(setDataSources))} onSaveTenantFeatures={handleTenantAdminFeatureSave} onSaveTenantVoiceBotSettings={(settings) => activeTenantId ? api.updateTenantVoiceBotSettings(activeTenantId, settings).then(updated => { setTenants(prev => prev.map(t => t.id === updated.id ? updated : t)); }) : Promise.resolve()} onDeleteUser={handleDeleteUser} /></ErrorBoundary>;
       case 'bundleManagement': return <ErrorBoundary name="BundleManagementDashboard"><Suspense fallback={<SkeletonDashboard />}><BundleManagementDashboard /></Suspense></ErrorBoundary>;
-      case 'tenantManagement': return <ErrorBoundary name="TenantManagementDashboard"><TenantManagementDashboard tenants={tenants.filter(t => t.id !== 'platform-admin')} onAddNewTenant={() => setIsAddTenantModalOpen(true)} onViewTenant={(id) => { setViewingTenantId(id); handleSetCurrentView('agents'); }} onManageTenant={(t) => setManagingTenant(tenants.find(T => T.id === t.id) || null)} handleDelete={handleDeleteTenant} handleUpdateTenant={async (id, data) => { await api.updateTenantFeatures(id, data.enabledFeatures || [], data.subscriptionTier || 'Free'); loadAllData(); }} /></ErrorBoundary>;
+      case 'tenantManagement': return <ErrorBoundary name="TenantManagementDashboard"><TenantManagementDashboard tenants={tenants.filter(t => t.id !== 'platform-admin' && t.type !== 'partner')} onAddNewTenant={() => setIsAddTenantModalOpen(true)} onViewTenant={(id) => { setViewingTenantId(id); handleSetCurrentView('agents'); }} onManageTenant={(t) => setManagingTenant(tenants.find(T => T.id === t.id) || null)} handleDelete={handleDeleteTenant} handleUpdateTenant={async (id, data) => { await api.updateTenantFeatures(id, data.enabledFeatures || [], data.subscriptionTier || 'Free'); loadAllData(); }} /></ErrorBoundary>;
       case 'siem': return <ErrorBoundary name="ThreatDashboard"><ThreatDashboard /></ErrorBoundary>;
       case 'siemRules': return <ErrorBoundary name="SiemRulesDashboard"><SiemRulesDashboard /></ErrorBoundary>;
       case 'incidentResponse': return <ErrorBoundary name="IncidentResponseDashboard"><IncidentResponseDashboard /></ErrorBoundary>;
@@ -1855,6 +1878,8 @@ const App: React.FC = () => {
       case 'detectionRules': return <ErrorBoundary name="DetectionRulesDashboard"><Suspense fallback={<SkeletonDashboard />}><DetectionRulesDashboard /></Suspense></ErrorBoundary>;
       case 'connectorsHub': return <ErrorBoundary name="ConnectorsHubDashboard"><Suspense fallback={<SkeletonDashboard />}><ConnectorsHubDashboard /></Suspense></ErrorBoundary>;
       case 'securityCopilot': return <ErrorBoundary name="SecurityCopilotDashboard"><Suspense fallback={<SkeletonDashboard />}><SecurityCopilotDashboard /></Suspense></ErrorBoundary>;
+      case 'partners': return <ErrorBoundary name="PartnersDashboard"><Suspense fallback={<SkeletonDashboard />}><PartnersDashboard /></Suspense></ErrorBoundary>;
+      case 'partnerPortal': return <ErrorBoundary name="PartnerPortal"><Suspense fallback={<SkeletonDashboard />}><PartnerPortal /></Suspense></ErrorBoundary>;
       case 'msspMonitoring': return <ErrorBoundary name="MSSPDashboard"><Suspense fallback={<SkeletonDashboard />}><MSSPDashboard /></Suspense></ErrorBoundary>;
       case 'attackTimeline': return <ErrorBoundary name="AttackTimelineDashboard"><Suspense fallback={<SkeletonDashboard />}><AttackTimelineDashboard /></Suspense></ErrorBoundary>;
       case 'geographicMap': return <ErrorBoundary name="GeographicAttackMap"><Suspense fallback={<SkeletonDashboard />}><GeographicAttackMap /></Suspense></ErrorBoundary>;
@@ -1965,7 +1990,8 @@ const App: React.FC = () => {
                   allUsers={users}
                   onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                   onOpenCommandBar={() => setIsCommandBarOpen(true)}
-                  onOpenSearch={() => setIsGlobalSearchOpen(true)}
+                  onOpenSearch={isPartnerUser ? undefined : () => setIsGlobalSearchOpen(true)}
+                  restricted={isPartnerUser}
                   setCurrentView={handleSetCurrentView}
                   onStartTour={() => window.dispatchEvent(new Event('start-genesis-tour'))}
                   currentView={currentView}
@@ -1985,8 +2011,9 @@ const App: React.FC = () => {
             )}
           </ErrorBoundary>
 
+          {/* Phase 87 (T-87-42): none of the floating assistants mounts for a partner user. */}
           <ErrorBoundary name="CharacterTourBot">
-            {currentUser && (
+            {currentUser && !isPartnerUser && (
                <CharacterTourBot
                   currentUser={currentUser}
                   currentView={currentView}
@@ -1996,7 +2023,7 @@ const App: React.FC = () => {
           </ErrorBoundary>
 
           <ErrorBoundary name="InteractiveVoiceBot">
-            {currentUser && (
+            {currentUser && !isPartnerUser && (
               <InteractiveVoiceBot
                 currentUser={currentUser}
                 currentView={currentView}
@@ -2005,10 +2032,10 @@ const App: React.FC = () => {
               />
             )}
           </ErrorBoundary>
-          <ChatFab onClick={() => setIsChatOpen(true)} />
+          {!isPartnerUser && <ChatFab onClick={() => setIsChatOpen(true)} />}
 
           {/* Global audio/video call overlay (incoming ring + in-call window) */}
-          {currentUser && (
+          {currentUser && !isPartnerUser && (
             <ErrorBoundary name="CallOverlay">
               <CallOverlay />
             </ErrorBoundary>
