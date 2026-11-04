@@ -388,7 +388,9 @@ class TestSAMLUserProvisioner:
     def test_provision_user_revokes_before_writing_a_role_change(self):
         """WR-05: a failed cutoff write must not leave the new role persisted."""
         db = MagicMock()
-        db.users.find_one = AsyncMock(return_value={"_id": "existing-id", "role": "itam_admin"})
+        # A directory-managed account (WR-04): the mapping may demote the role the directory gave.
+        db.users.find_one = AsyncMock(return_value={"_id": "existing-id", "role": "itam_admin",
+                                                    "source": "saml", "directoryRole": "itam_admin"})
         db.users.update_one = AsyncMock()
         mapped = {"email": "existing@example.com", "full_name": "Existing",
                   "nameid": "existing@example.com", "groups": []}
@@ -897,6 +899,20 @@ class TestSAMLAttributeMappingEndpoint:
             })
         assert resp.status_code == 403
         assert ep_db.saml_group_mappings.docs == []
+
+    @pytest.mark.asyncio
+    async def test_create_mapping_records_its_writer(self, ep_app, ep_db):
+        """WR-04: the writer is stored so the apply time can re-check their ceiling."""
+        _override_user(ep_app, make_token_data(username="ia@tenant-a.com", role="itam_admin",
+                                               tenant_id="tenant-a"))
+        async with await _ep_client(ep_app) as client:
+            resp = await client.post("/api/admin/sso/saml/attribute-mapping", json={
+                "group_value": "Users", "role": "itam_user",
+            })
+        assert resp.status_code == 200, resp.text
+        stored = ep_db.saml_group_mappings.docs[0]
+        assert (stored["writtenBy"], stored["writtenByRole"], stored["writtenByTenantId"]) == \
+            ("ia@tenant-a.com", "itam_admin", "tenant-a")
 
     @pytest.mark.asyncio
     async def test_itam_admin_cannot_delete_a_mapping_above_its_role(self, ep_app, ep_db):

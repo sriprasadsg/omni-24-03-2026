@@ -385,6 +385,7 @@ async def upsert_attribute_mapping(mapping: SAMLAttributeMappingIn, current_user
     try:
         return await SAMLGroupMapper.upsert_mapping(
             mapping.group_value, role, tenant_id=tenant_id, priority=mapping.priority or 100,
+            writer=current_user,  # WR-04: re-checked when the mapping is applied
         )
     except SAMLMappingError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

@@ -317,6 +317,7 @@ def test_user_delete_revokes_sessions():
 def _directory_db(existing):
     db = MagicMock()
     db.users.find_one = AsyncMock(return_value=existing)
+    db._db.roles.find_one = AsyncMock(return_value=None)  # built-in roles only (75 WR-04 apply check)
     db.sets = []  # copies: the code reuses the $set dict for its return value
 
     async def _update(_filter, update):

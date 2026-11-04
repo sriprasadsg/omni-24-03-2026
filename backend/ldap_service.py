@@ -42,6 +42,7 @@ from ldap3.core.exceptions import (
 from ldap3.utils.conv import escape_filter_chars
 from pymongo.errors import DuplicateKeyError
 
+import directory_role_guard
 from database import get_database
 from tenant_context import get_tenant_id, set_tenant_id
 
@@ -452,6 +453,7 @@ class LDAPUserSyncer:
         db = get_database()
         now = datetime.now(timezone.utc).isoformat()
         existing = await db.users.find_one({"email": mapped["email"], "tenantId": tenant_id})
+        offered = role
         if role and existing and _is_super_admin_tier(existing.get("role")):
             # A directory mapping may not replace the role of a platform super-admin account.
             logger.warning(
@@ -459,6 +461,8 @@ class LDAPUserSyncer:
                 "keeping its role", mapped["email"], role,
             )
             role = None
+        # WR-04 apply time: nor the role of an account that holds more, unless the directory gave it.
+        role = await directory_role_guard.role_to_apply(db, existing, role, tenant_id, "ldap")
         doc = {
             "email": mapped["email"],
             "full_name": mapped["full_name"],
@@ -467,6 +471,7 @@ class LDAPUserSyncer:
             "ldap_dn": mapped["ldap_dn"],
             "ldap_groups": mapped["groups"],
             "updatedAt": now,
+            **directory_role_guard.directory_role_update(existing, offered, "ldap"),
         }
         if existing:
             if role:
@@ -485,6 +490,7 @@ class LDAPUserSyncer:
         else:
             doc["status"] = "Active"
             doc["role"] = role or default_role
+            doc[directory_role_guard.DIRECTORY_ROLE_FIELD] = doc["role"]  # the directory created it
             doc["createdAt"] = now
             # DB-F09 (2026-08-25 audit): users.email has a *global* unique
             # index (database.py), but this lookup is tenant-scoped, so a
@@ -560,7 +566,9 @@ class LDAPGroupMapper:
 
     async def resolve_role(self, group_dns: list[str], tenant_id: Optional[str] = None) -> Optional[str]:
         """Given the group DNs a user belongs to (memberOf), return the
-        highest-priority mapped ITAM role, or None if no mapping matches."""
+        highest-priority mapped ITAM role, or None if no mapping matches.
+        A mapping whose recorded writer can no longer assign its role is
+        skipped (WR-04), so the next matching mapping decides."""
         if not group_dns:
             return None
         db = get_database()
@@ -568,8 +576,9 @@ class LDAPGroupMapper:
         if tenant_id:
             query["tenant_id"] = tenant_id
         mappings = await db.ldap_group_mappings.find(query).sort("priority", 1).to_list(100)
-        if mappings:
-            return mappings[0].get("role")
+        for mapping in mappings:
+            if await directory_role_guard.mapping_still_assignable(db, mapping, tenant_id, "ldap"):
+                return mapping.get("role")
         return None
 
     @staticmethod
@@ -584,7 +593,10 @@ class LDAPGroupMapper:
     @staticmethod
     async def upsert_mapping(
         group_dn: str, role: str, tenant_id: Optional[str] = None, priority: int = 100,
+        writer: Optional[Any] = None,
     ) -> dict:
+        """Store a mapping. ``writer`` (the caller's TokenData) is recorded on it so the
+        apply time can re-check that they may still assign ``role`` (WR-04)."""
         from rbac_service import RBACService
         import rbac_defaults
         normalized = RBACService._normalize_role(role)
@@ -603,7 +615,8 @@ class LDAPGroupMapper:
             role = custom["name"]
 
         db = get_database()
-        doc = {"group_dn": group_dn, "role": role, "tenant_id": tenant_id, "priority": priority}
+        doc = {"group_dn": group_dn, "role": role, "tenant_id": tenant_id, "priority": priority,
+               **directory_role_guard.writer_fields(writer)}
         result = await db.ldap_group_mappings.update_one(
             {"group_dn": group_dn, "tenant_id": tenant_id},
             {"$set": doc},

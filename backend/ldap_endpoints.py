@@ -185,6 +185,7 @@ async def upsert_group_mapping(mapping: GroupMappingIn, current_user: TokenData 
     try:
         return await LDAPGroupMapper.upsert_mapping(
             mapping.group_dn, role, tenant_id=tenant_id, priority=mapping.priority or 100,
+            writer=current_user,  # WR-04: re-checked when the mapping is applied
         )
     except LDAPConfigError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
