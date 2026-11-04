@@ -188,7 +188,10 @@ def test_sidebar_and_app_agree_with_manifest(manifest, by_view):
             ), item["view"]
     else:
         text = _read("components/Sidebar.tsx")
-        assert "utils/catalogueAccess" in text, "Sidebar must read the shared manifest"
+        # Since d91ebaf53 the Sidebar takes its groups from hooks/useVisibleNav, which reads NAV_GROUPS.
+        reads_manifest = "utils/catalogueAccess" in text or (
+            "hooks/useVisibleNav" in text and "utils/catalogueAccess" in _read("hooks/useVisibleNav.ts"))
+        assert reads_manifest, "Sidebar must read the shared manifest"
         assert not re.search(r"permission: '(view|manage|investigate):", text), "item-level permission literal left in Sidebar"
     if app_map:
         allowed = set(NINE_MISMATCHED) | set(D08_TRIO)
