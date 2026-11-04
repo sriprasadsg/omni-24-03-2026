@@ -2,11 +2,16 @@ from datetime import datetime, timedelta, timezone
 
 class RetentionService:
     """
-    Handles data retention policies and cleanup of old records.
+    Retired (82 WR-04): its delete methods sweep every tenant with no tenant filter and no
+    confirmation gate. Retention runs through ``retention_job`` (the nightly job and
+    POST /api/retention/run), so constructing this class refuses.
     """
     def __init__(self, db):
-        self.db = db
-        
+        raise RuntimeError(
+            "RetentionService is retired: retention runs through retention_job "
+            "(the nightly job and POST /api/retention/run)"
+        )
+
     async def cleanup_system_metrics(self, retention_days: int = 30) -> int:
         """Delete metrics older than retention_days"""
         cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)

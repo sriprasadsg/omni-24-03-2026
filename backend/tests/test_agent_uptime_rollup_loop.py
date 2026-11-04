@@ -1,7 +1,8 @@
 """
 Tests for Phase 48 Plan 02 (Fleet Observability & Uptime Rollups, FOBS-02,
 D-01b) — the daily `agent_uptime_rollup_loop()` background sweep (Task 1)
-and `retention_service.cleanup_agent_uptime_rollups()` wiring (Task 2).
+and `retention_service.cleanup_agent_uptime_rollups()` wiring (Task 2), which
+82 WR-04 retired: that retention now runs through retention_job.
 
 Hermetic: no real Mongo, no network. Drives the factored single-pass helper
 `_run_agent_uptime_rollup_once(db)` directly rather than the infinite
@@ -201,97 +202,35 @@ class TestAgentUptimeRollupSweep:
         assert asyncio.iscoroutinefunction(app_background_tasks.agent_uptime_rollup_loop)
 
 
-class _DeleteResult:
-    def __init__(self, deleted_count):
-        self.deleted_count = deleted_count
 
+class TestRetiredRetentionService:
+    """82 WR-04: agent_uptime_rollups retention runs through retention_job (the nightly job and
+    POST /api/retention/run, tenant-scoped and gated; see test_retention_job). The legacy
+    RetentionService swept every tenant with no gate, so it now refuses to run at all."""
 
-class _FakeRollupsRetentionCollection:
-    """Minimal in-memory stand-in for db.agent_uptime_rollups supporting the
-    one delete_many shape cleanup_agent_uptime_rollups needs:
-    {"timestamp": {"$lt": cutoff}} evaluated against native datetime rows."""
+    def test_the_legacy_service_refuses_to_run(self):
+        db = MagicMock()
+        db.agent_uptime_rollups.delete_many = AsyncMock()
+        try:
+            retention_service_mod.RetentionService(db)
+        except RuntimeError as exc:
+            assert "retention_job" in str(exc)
+        else:
+            raise AssertionError("RetentionService must refuse to run")
+        db.agent_uptime_rollups.delete_many.assert_not_awaited()
 
-    def __init__(self, docs):
-        self._docs = list(docs)
-        self.last_filter = None
+    def test_the_legacy_factory_refuses_too(self):
+        try:
+            retention_service_mod.get_retention_service(MagicMock())
+        except RuntimeError as exc:
+            assert "retention_job" in str(exc)
+        else:
+            raise AssertionError("get_retention_service must refuse to run")
 
-    async def delete_many(self, filt):
-        self.last_filter = filt
-        cutoff = filt["timestamp"]["$lt"]
-        assert isinstance(cutoff, datetime), (
-            "cutoff must be a real datetime object, not an .isoformat() string"
-        )
-        before = len(self._docs)
-        self._docs = [d for d in self._docs if d["timestamp"] >= cutoff]
-        return _DeleteResult(before - len(self._docs))
+    def test_uptime_rollups_are_in_the_gated_registry(self):
+        import retention_gate
+        assert "agent_uptime_rollups" in retention_gate.BY_ID
 
-
-def _make_retention_db(rollup_docs):
-    db = MagicMock()
-    db.agent_uptime_rollups = _FakeRollupsRetentionCollection(rollup_docs)
-    for name in ("audit_logs", "metrics", "notifications", "agent_location_history"):
-        col = MagicMock()
-        col.delete_many = AsyncMock(return_value=_DeleteResult(0))
-        setattr(db, name, col)
-    return db
-
-
-class TestCleanupAgentUptimeRollups:
-    def test_90_day_old_row_deleted_1_day_old_row_retained(self):
-        now = datetime.now(timezone.utc)
-        old_row = {"timestamp": now - timedelta(days=91), "agent_id": "agent-1"}
-        recent_row = {"timestamp": now - timedelta(days=1), "agent_id": "agent-2"}
-        db = _make_retention_db([old_row, recent_row])
-        svc = retention_service_mod.RetentionService(db)
-
-        deleted = _run(svc.cleanup_agent_uptime_rollups(retention_days=90))
-
-        assert deleted == 1
-        assert db.agent_uptime_rollups._docs == [recent_row]
-
-    def test_cutoff_uses_native_datetime_not_isoformat_string(self):
-        now = datetime.now(timezone.utc)
-        db = _make_retention_db([{"timestamp": now - timedelta(days=120), "agent_id": "a1"}])
-        svc = retention_service_mod.RetentionService(db)
-
-        _run(svc.cleanup_agent_uptime_rollups(retention_days=90))
-
-        cutoff = db.agent_uptime_rollups.last_filter["timestamp"]["$lt"]
-        assert isinstance(cutoff, datetime)
-
-
-class TestRunCleanupWiringForUptimeRollups:
-    def test_run_cleanup_report_includes_agent_uptime_rollups_deleted_key(self):
-        now = datetime.now(timezone.utc)
-        old_row = {"timestamp": now - timedelta(days=91), "agent_id": "agent-1"}
-        recent_row = {"timestamp": now - timedelta(days=1), "agent_id": "agent-2"}
-        db = _make_retention_db([old_row, recent_row])
-        svc = retention_service_mod.RetentionService(db)
-
-        report = _run(svc.run_cleanup(policies={"agent_uptime_rollups": 90}))
-
-        assert "agent_uptime_rollups_deleted" in report
-        assert report["agent_uptime_rollups_deleted"] == 1
-
-    def test_run_cleanup_defaults_agent_uptime_rollups_to_90_when_no_policy_passed(self):
-        now = datetime.now(timezone.utc)
-        old_row = {"timestamp": now - timedelta(days=91), "agent_id": "agent-1"}
-        recent_row = {"timestamp": now - timedelta(days=1), "agent_id": "agent-2"}
-        db = _make_retention_db([old_row, recent_row])
-        svc = retention_service_mod.RetentionService(db)
-
-        report = _run(svc.run_cleanup(policies={}))
-
-        assert report["agent_uptime_rollups_deleted"] == 1
-
-    def test_run_cleanup_does_not_add_agent_metrics_retention(self):
-        """Pitfall 4 / D-02 out-of-scope guard: agent_metrics retention must
-        NOT be added by this plan."""
-        now = datetime.now(timezone.utc)
-        db = _make_retention_db([{"timestamp": now - timedelta(days=91), "agent_id": "a1"}])
-        svc = retention_service_mod.RetentionService(db)
-
-        report = _run(svc.run_cleanup(policies={}))
-
-        assert "agent_metrics_deleted" not in report
-        assert not hasattr(svc, "cleanup_agent_metrics")
+    def test_no_agent_metrics_cleanup_was_added(self):
+        """Pitfall 4 / D-02 out-of-scope guard, kept from the old wiring tests."""
+        assert not hasattr(retention_service_mod.RetentionService, "cleanup_agent_metrics")
