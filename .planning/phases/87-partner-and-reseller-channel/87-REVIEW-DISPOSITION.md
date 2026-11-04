@@ -25,27 +25,27 @@ findings:
     title: "[backend] A 0-seat customer can be moved into a suspended partner (claim returns True for n == 0 without any check)"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend] A losing compare-and-set transiently over-claims the pool and can refuse an unrelated, valid request"
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend] Pool reconcile is placed ahead of the other seat upkeep in the same try and sleeps inside request paths"
   - id: WR-08
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[frontend] Partners screen keeps a stale customer list for any partner that is collapsed during a refresh"
   - id: WR-09
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[frontend] Expiry dates display in the browser's time zone but are saved and edited as UTC days"
   - id: WR-10
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[frontend] Seat, screen and move modals work from a row snapshot that a refusal-triggered refetch does not update"
   - id: WR-11
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[frontend] A failed quiet reload empties the whole screen, and overlapping reloads can land out of order"
   - id: IN-01
     severity: info
@@ -87,7 +87,7 @@ findings:
     severity: info
     disposition: open
     title: "[frontend] Appoint, Move and Suspend/Reinstate submit guards are state-only, unlike the portal modals"
-open: 16
+open: 10
 total: 21
 recorded: 2026-11-03T20:02:09.391Z
 ---
@@ -101,12 +101,12 @@ recorded: 2026-11-03T20:02:09.391Z
 | WR-03 | warning | fixed | a1a845740 |
 | WR-04 | warning | fixed | a1a845740 |
 | WR-05 | warning | fixed | a1a845740 |
-| WR-06 | warning | open | - |
-| WR-07 | warning | open | - |
-| WR-08 | warning | open | - |
-| WR-09 | warning | open | - |
-| WR-10 | warning | open | - |
-| WR-11 | warning | open | - |
+| WR-06 | warning | fixed | 668056bef |
+| WR-07 | warning | fixed | 668056bef |
+| WR-08 | warning | fixed | d9543f351 |
+| WR-09 | warning | fixed | d9543f351 |
+| WR-10 | warning | fixed | d9543f351 |
+| WR-11 | warning | fixed | d9543f351 |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
