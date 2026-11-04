@@ -1,20 +1,10 @@
 ---
 phase: "02"
-status: fail
+status: human_needed
 verified_at: 2026-06-17
 requirements_verified: EVID-01, EVID-02, EVID-03, EVID-04, EVID-05
-gaps:
-  - truth: "User can click attach, upload a PDF/PNG/JPEG/DOCX/XLSX, and see it appear in the control detail view"
-    status: partial
-    reason: "Two sub-gaps: (1) The browser file picker's accept attribute in AssetComplianceList.tsx only lists .txt/.md/.json/.csv/.log/.pdf — PNG, JPEG, DOCX, and XLSX are excluded from the OS dialog filter, preventing casual selection of those types; (2) After a successful upload no onRefresh() or optimistic state update occurs, so the newly uploaded evidence does not appear in the control detail view until the user manually reloads the page."
-    artifacts:
-      - path: "components/AssetComplianceList.tsx"
-        issue: "Line 213: <input accept=\".txt,.md,.json,.csv,.log,.pdf\"> omits .png, .jpeg, .jpg, .docx, .xlsx"
-      - path: "components/FrameworkDetail.tsx"
-        issue: "Lines 580-591: onUploadEvidence handler calls api.uploadComplianceEvidence and shows toast on success but never calls onRefresh() — assetComplianceData prop is not re-fetched, so the new evidence row is invisible until App.tsx reloads"
-    missing:
-      - "Add .png,.jpg,.jpeg,.docx,.xlsx to the <input accept> attribute in AssetComplianceList.tsx (line 213)"
-      - "Call onRefresh() (or equivalent re-fetch) inside the onUploadEvidence success branch in FrameworkDetail.tsx (line 585 area)"
+gaps: []
+gaps_closed_by: "15e7a5a17 (2026-06-17): accept list now .pdf,.png,.jpg,.jpeg,.docx,.xlsx and refreshAssetCompliance after upload; re-checked in code 2026-11-04"
 human_verification:
   - test: "Upload a PNG and a DOCX via the UI without selecting 'All Files' in the OS dialog"
     expected: "Both file types appear in the file picker's allowed list and can be selected without workaround"
@@ -28,7 +18,7 @@ human_verification:
 
 **Phase Goal:** Authenticated users can attach files to specific compliance controls, view those files alongside automated evidence, and delete them.
 **Verified:** 2026-06-17
-**Status:** FAIL (2 blockers under EVID-01 / EVID-03)
+**Status:** FAIL (2 blockers under EVID-01 / EVID-03) at verification time. **2026-11-04:** both gaps were fixed the same day in 15e7a5a17 and are present in the committed code; the two browser checks under Human Verification remain, so the status is now human_needed.
 **Re-verification:** No — initial verification
 
 ---
