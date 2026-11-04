@@ -9,11 +9,11 @@ findings:
     title: "`GET /api/tenants/me` returns the whole tenant document to every signed-in role, bypassing the WR-05 gating and leaking the tenant registration key"
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The new self-service exemption rule (PROH-76-08) is lexical and does not catch the case it was written for"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`agent_tolerant()` silently drops `platform_read`"
   - id: IN-01
     severity: info
@@ -29,11 +29,11 @@ findings:
     title: "The `agentCapableRoutes` and `exemptRoutes` reasons are prose that nothing verifies"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "ITAM guard read rule drops the `manage:assets` read compatibility that the handlers and the scope check keep"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Secrets catalogue is internally incoherent (read needs `manage:settings`, write accepts the read permission)"
   - id: WR-05
     severity: warning
@@ -41,7 +41,7 @@ findings:
     title: "`catalogue_exempt` on tenant GET routes lets any tenant role read the hardware allowlist, install-key list, SMTP config and license"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`test_tracer_mdm_enforced_on_real_app` and several slice probes assert only `!= 403` for the allowed case"
   - id: IN-04
     severity: info
@@ -57,15 +57,15 @@ recorded: 2026-10-18T17:19:38.535Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | CR-01 | critical | fixed | b2712aef0 (red test) + 665b41941: GET /api/tenants/me returns id, name, subscriptionTier, branding only; test_tenants_me_returns_display_fields_only. Live until the user deploys; registration-key rotation is the user's call |
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
+| WR-01 | warning | fixed | af43d66bf (behavioural probe of every exempt GET in test_catalogue_exempt_reads) |
+| WR-02 | warning | fixed | af43d66bf (agent_tolerant carries platform_read) |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |
-| WR-03 | warning | open | - (not in the current review) |
-| WR-04 | warning | open | - (not in the current review) |
+| WR-03 | warning | fixed | af43d66bf (ITAM read accepts manage:assets, guard and manifest) (not in the current review) |
+| WR-04 | warning | fixed | af43d66bf (secrets read manage:settings or view:secrets, write manage:secrets only) (not in the current review) |
 | WR-05 | warning | fixed | 76-15 role-gated the five tenant GETs (commits eba652996, 683e6fc0c); the residual exposure of the same data through GET /api/tenants/me is CR-01 |
-| WR-06 | warning | open | - (not in the current review) |
+| WR-06 | warning | fixed | af43d66bf (positive-outcome probes, walker-based dataplane check) (not in the current review) |
 | IN-04 | info | open | - (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.

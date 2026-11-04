@@ -21,7 +21,7 @@ findings:
     title: "PATCH bundle assignment skips the validation PUT performs"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Role-mapping ceiling is write-time only; apply time checks nothing but the super-admin tier"
   - id: WR-05
     severity: warning
@@ -29,7 +29,7 @@ findings:
     title: "Session revocation after a role change runs after the write and can fail open"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Role documents are matched by exact spelling, so tenant overrides and the ceiling are spelling-dependent"
   - id: WR-07
     severity: warning
@@ -72,9 +72,9 @@ recorded: 2026-10-12T23:14:47.131Z
 | WR-01 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-02 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-03 | warning | fixed | 75-REVIEW-FIX.md |
-| WR-04 | warning | open | - |
+| WR-04 | warning | fixed | 85d841c3a (directory_role_guard: writer re-checked and no downgrade of a richer local account at apply time; delete ceiling was already D-22) |
 | WR-05 | warning | fixed | 75-REVIEW-FIX.md |
-| WR-06 | warning | open | - |
+| WR-06 | warning | fixed | 996186a04 (custom roles also matched by nameKey; isEditable documented as display metadata) |
 | WR-07 | warning | fixed | 75-REVIEW-FIX.md |
 | WR-08 | warning | fixed | 75-REVIEW-FIX.md |
 | IN-01 | info | open | - |

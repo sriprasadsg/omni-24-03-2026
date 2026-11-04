@@ -17,19 +17,19 @@ findings:
     title: "MFA role cache is never invalidated; the 60s promotion window is per worker, and the helper is dead code"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A role holding any now-unknown or banned permission string can never be edited"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`role_usage` caps the holder and mapping scan at 5000, so a role in use can be deleted"
   - id: WR-06
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`resolveHashView` returns inherited `Object.prototype` members for `#constructor` and `#__proto__`"
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A Super Admin cannot pick a tenant's custom roles when creating or editing a user"
   - id: WR-08
     severity: warning
@@ -45,15 +45,15 @@ findings:
     title: "An aborted `/auth/me` retry after a 401 token refresh signs the user out"
   - id: WR-11
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`authFetch` still signs the user out when a caller's `AbortSignal` fires during the post-401 retry"
   - id: WR-12
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Approving a sign-up is not atomic; a failure between the two writes strands the admin as `Pending` and cannot be retried"
   - id: WR-13
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A pending sign-up claims its email address with no verification and no expiry"
   - id: IN-01
     severity: info
@@ -135,16 +135,16 @@ recorded: 2026-10-21T13:45:06.124Z
 | WR-01 | warning | fixed | a1f4488d1 (ref set before loadAllData; guard in catalogueAccess.test.ts) |
 | WR-02 | warning | fixed | bee9299ce (socket connect awaits verify_token_async; tests in test_custom_role_mfa.py) |
 | WR-03 | warning | fixed | bee9299ce (role writes invalidate the tenant cache; store error never less strict than last answer; 60 s TTL kept for other workers) |
-| WR-04 | warning | open | - |
-| WR-05 | warning | open | - |
-| WR-06 | warning | open | - |
-| WR-07 | warning | open | - |
+| WR-04 | warning | fixed | 996186a04 (only added strings validated; dropping a never-granted string skips the ceiling) |
+| WR-05 | warning | fixed | 996186a04 (store counts under every spelling; unreadable count refuses the delete) |
+| WR-06 | warning | fixed | fded4eca1 (aliases in a Map) |
+| WR-07 | warning | fixed | fded4eca1 (Super Admin reads the chosen tenant's custom roles) |
 | WR-08 | warning | fixed | b76b8af8d (refreshThenLoad; confirmed resolved in incremental review pass 2) |
 | WR-09 | warning | fixed | 41fb29db5 (timeout + catch; confirmed resolved in review pass 3), timeout reworked in 3bb575186 |
 | WR-10 | warning | fixed | 3bb575186 (race instead of abort; regression test reproduces the sign-out; not re-reviewed) |
-| WR-11 | warning | open | - |
-| WR-12 | warning | open | - |
-| WR-13 | warning | open | - |
+| WR-11 | warning | fixed | fded4eca1 (abort or network error on the retry reaches the caller) |
+| WR-12 | warning | fixed | 38bfe2ea8 (users first, tenant last; sign-in refused while the tenant is pending) |
+| WR-13 | warning | fixed | 38bfe2ea8 (7-day expiry, replaceable, unverified label); a confirmation mail still needs SMTP |
 | IN-01 | info | open | - |
 | IN-02 | info | open | - |
 | IN-03 | info | open | - |

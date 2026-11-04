@@ -37,7 +37,7 @@ findings:
     title: "A single un-renderable event wedges the whole watchdog sync permanently"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Un-gated platform-wide delete paths remain in `retention_service.py`"
   - id: WR-05
     severity: warning
@@ -80,7 +80,7 @@ recorded: 2026-10-31T10:22:43.312Z
 | WR-01 | warning | fixed | 82-17 c157feb10, confirmed by the gap-round review |
 | WR-02 | warning | fixed | 82-16 14d343740, confirmed by the gap-round review |
 | WR-03 | warning | fixed | 82-16 ab2907a7c, cbdb97708, confirmed by the gap-round review |
-| WR-04 | warning | open | - (not in the current review) |
+| WR-04 | warning | fixed | 1ff293e66 (RetentionService refuses to run; retention_job is the only path) (not in the current review) |
 | WR-05 | warning | fixed | 82-17 57705c85a, confirmed by the gap-round review |
 | IN-01 | info | open | - (not in the current review) |
 | IN-02 | info | open | - (not in the current review) |
