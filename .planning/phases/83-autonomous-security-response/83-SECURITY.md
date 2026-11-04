@@ -87,7 +87,7 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | T-83-20 | Information Disclosure | ABUSE_CH_AUTH_KEY | high | mitigate | Read from the environment, sent only as a header to abuse.ch, never logged, never committed | closed |
 | T-83-25 | Elevation of Privilege | unstamped gate-only command | high | mitigate | delivery refuses it at every poll, whatever wrote it, and a test covers both stamped and unstamped rows | closed |
 | T-83-26 | Tampering | swarm mission plan from an LLM | high | mitigate | isolate_host filtered from every plan just before dispatch | closed |
-| T-83-27 | Repudiation | a success answer for nothing sent | medium | mitigate | not_sent status everywhere, agents.isolated no longer set, UI cannot show the green style | open — below high threshold (non-blocking), re-audited 2026-11-04: `remediation_service.py` `approve_and_execute` still marks the vulnerability Patched and the request Executed after a worker task that answers `not_sent` (A-83-PATCHED, 83-UAT test 13) |
+| T-83-27 | Repudiation | a success answer for nothing sent | medium | mitigate | not_sent status everywhere, agents.isolated no longer set, UI cannot show the green style | closed — 2026-11-04 re-audit: fixed in 6ca7c7cb2. `remediation_service.py` `approve_and_execute` records the request as Not sent with the fence message and no longer marks the vulnerability Patched or the request Executed; Vulnerability Management shows that message as information, never the success toast. Tests: `test_autonomous_ops_remediation_truth.py` (last test) and `VulnerabilityManagement.test.tsx` |
 | T-83-28 | Elevation of Privilege | XDR skipping the two-source rule | high | mitigate | Automatic executors only reach gate.suggest (D-25) | closed |
 | T-83-21 | Tampering | twoSignal off | high | mitigate | Manage permission plus interactive session; control row and audit event per change; bulk needs the platform permission (R8) | closed |
 | T-83-22 | Elevation of Privilege | watched service names | high | mitigate | Server regex, 50 limit, critical service refusal; the agent validates again (R3) | closed |
@@ -179,6 +179,7 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 |------------|---------------|--------|------|--------|
 | 2026-11-02 | 76 | 74 | 2 (medium, below threshold) | gsd-security-auditor (sonnet), execute-phase orchestrator |
 | 2026-11-04 | 76 | 74 | 2 (medium, below threshold); T-83-12 closed after ca2df5530 | gsd-security-auditor (sonnet), secure-phase |
+| 2026-11-04 | 76 | 75 | 1 (T-83-15, medium, below threshold); T-83-27 closed after 6ca7c7cb2 | gsd-security-auditor (sonnet), secure-phase |
 
 ---
 
@@ -186,7 +187,7 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [x] `threats_open: 0` confirmed 2026-11-04: T-83-12 closed after ca2df5530; T-83-15 and T-83-27 stay open below the high threshold
+- [x] `threats_open: 0` confirmed 2026-11-04: T-83-12 closed after ca2df5530 and T-83-27 after 6ca7c7cb2; T-83-15 stays open below the high threshold
 - [x] `status: verified` set in frontmatter
 
 **Approval:** verified 2026-11-04 at code level (T-83-12 closed after ca2df5530; it was blocked 2026-11-02 by code review CR-02). Nothing here was observed on a real host; the 83-20 live list still stands.
@@ -214,3 +215,11 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | Threats found | 76 |
 | Closed | 74 |
 | Open | 2 |
+
+## Security Audit 2026-11-04
+
+| Metric | Count |
+|---|---|
+| Threats found | 76 |
+| Closed | 75 |
+| Open | 1 |
