@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role } from '../types';
 import { useUser } from '../contexts/UserContext';
-import { isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
+import { isPartnerRoleName, isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
 import { Modal } from './Modal';
 
 interface EditUserModalProps {
@@ -40,8 +40,11 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClo
     // Platform accounts take only platform roles and tenant accounts only tenant roles (spec C1);
     // platform roles are offered only to a Platform Owner.
     const inPlatformTenant = user.tenantId === PLATFORM_TENANT_ID;
+    // A partner organization's users hold only partner roles and nobody else holds one (the server refuses it).
+    const inPartnerOrg = isPartnerRoleName(user.role);
     const roleOptions = roles.filter(r => isPlatformRoleName(r.name) === inPlatformTenant
-        && (!inPlatformTenant || isSuperAdminRoleName(currentUser?.role)));
+        && (!inPlatformTenant || isSuperAdminRoleName(currentUser?.role))
+        && isPartnerRoleName(r.name) === inPartnerOrg);
 
     const footer = (
         <>

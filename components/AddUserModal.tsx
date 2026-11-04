@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Role, Tenant } from '../types';
 import { showToast } from '../utils/toast';
 import { useUser } from '../contexts/UserContext';
-import { isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
+import { isPartnerRoleName, isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
 import { Modal } from './Modal';
 
 interface AddUserModalProps {
@@ -37,6 +37,13 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
         }
     }, [isOpen, assignableRoles, availableTenants]);
 
+    // A partner organization's users hold partner roles and nobody else holds one (the server refuses
+    // the rest), so the list follows the chosen tenant.
+    const partnerTenant = availableTenants.find(t => t.id === selectedTenantId)?.type === 'partner';
+    const roleOptions = assignableRoles.filter(r => isPartnerRoleName(r.name) === partnerTenant);
+    useEffect(() => {
+        if (selectedRole && !roleOptions.some(r => r.name === selectedRole)) setSelectedRole(roleOptions[0]?.name || '');
+    }, [roleOptions, selectedRole]);
 
     // A platform role lives only in the Platform tenant; a tenant role never does.
     const isPlatformRole = isPlatformRoleName(selectedRole);
@@ -82,7 +89,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
                 <div>
                     <label htmlFor="add-user-role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
                     <select id="add-user-role" value={selectedRole} onChange={e => setSelectedRole(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm">
-                        {assignableRoles.map(r => <option key={r.id} value={r.name}>{roleLabel(r.name)}</option>)}
+                        {roleOptions.map(r => <option key={r.id} value={r.name}>{roleLabel(r.name)}</option>)}
                     </select>
                 </div>
                 <div>
