@@ -5,11 +5,11 @@ titles: json
 findings:
   - id: CR-01
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "[agent] No child-process timeout while process-wide locks are held: one hung firewall command stops the isolation revert, every block expiry and the agent loop"
   - id: CR-02
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "[agent] The agent's \"never block a non-public network\" guard only tests the CIDR's base address, so `172.0.0.0/8` or `192.0.0.0/8` passes and drops the LAN"
   - id: WR-01
     severity: warning
@@ -37,7 +37,7 @@ findings:
     title: "[backend core] Approving a card while the host is briefly offline burns the single-use decision"
   - id: WR-07
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend core] One failing sweep stage skips every later stage for that tenant, including restarts and the isolation revert bookkeeping"
   - id: WR-08
     severity: warning
@@ -77,7 +77,7 @@ findings:
     title: "[agent] A second `isolate_host` while isolated answers `already_applied` / `verify.ok = true` without checking the rules or the id"
   - id: WR-17
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[agent] `restore_host` with no record answers `not_found` / `network_restored ok` without looking at the firewall"
   - id: WR-18
     severity: warning
@@ -223,7 +223,7 @@ findings:
     severity: info
     disposition: open
     title: "[frontend] Smaller race and robustness points"
-open: 55
+open: 51
 total: 55
 recorded: 2026-11-02T11:53:11.579Z
 ---
@@ -232,15 +232,15 @@ recorded: 2026-11-02T11:53:11.579Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | open | - |
-| CR-02 | critical | open | - |
+| CR-01 | critical | fixed | ca2df5530 |
+| CR-02 | critical | fixed | ca2df5530 |
 | WR-01 | warning | open | - |
 | WR-02 | warning | open | - |
 | WR-03 | warning | open | - |
 | WR-04 | warning | open | - |
 | WR-05 | warning | open | - |
 | WR-06 | warning | open | - |
-| WR-07 | warning | open | - |
+| WR-07 | warning | fixed | ca2df5530 |
 | WR-08 | warning | open | - |
 | WR-09 | warning | open | - |
 | WR-10 | warning | open | - |
@@ -250,7 +250,7 @@ recorded: 2026-11-02T11:53:11.579Z
 | WR-14 | warning | open | - |
 | WR-15 | warning | open | - |
 | WR-16 | warning | open | - |
-| WR-17 | warning | open | - |
+| WR-17 | warning | fixed | ca2df5530 |
 | WR-18 | warning | open | - |
 | WR-19 | warning | open | - |
 | WR-20 | warning | open | - |
