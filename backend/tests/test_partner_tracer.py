@@ -182,8 +182,10 @@ async def test_claim_and_release_are_bounded(wired):
     assert await partner_pool.claim(wired.db, partner_id, 10) is True
     assert await partner_pool.claim(wired.db, partner_id, 1) is False
     await partner_pool.release(wired.db, partner_id, 4)
+    await partner_pool.settle_repairs()  # the repair runs off the request path (WR-07)
     assert await partner_pool.free_seats(wired.db, partner_id) == 4
     await partner_pool.release(wired.db, partner_id, 99)  # never below zero
+    await partner_pool.settle_repairs()
     assert await partner_pool.free_seats(wired.db, partner_id) == 4
 
 

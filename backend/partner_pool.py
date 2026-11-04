@@ -14,7 +14,7 @@ the tenant wrapper); nothing here switches the request to the platform tenant co
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import license_rules
 import licensing
@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 # A claim takes pool seats a moment before the customer document that uses them is written, so a
 # reconcile that sees a drift looks again after this pause and only repairs one that is still there.
 RECONCILE_SETTLE_SECONDS = 1.0
+
+# A refused claim is tried once more after this pause (WR-06), so a raise is not refused for seats
+# that a concurrent, losing compare-and-set held for a moment.
+CLAIM_RETRY_SECONDS = 0.05
 
 
 class PartnerError(Exception):
@@ -52,8 +56,13 @@ async def claim(db, partner_id: str, n: int, *, require_active: bool = True) -> 
     if n == 0:  # nothing to take, but the partner must still be one that may take a customer (WR-05)
         return await _raw(db).tenants.count_documents(query, limit=1) == 1
     query["$expr"] = {"$lte": [{"$add": ["$partner.allocated", n]}, "$partner.poolSize"]}
-    res = await _raw(db).tenants.update_one(query, {"$inc": {"partner.allocated": n}})
-    return res.modified_count == 1
+    tenants = _raw(db).tenants
+    if (await tenants.update_one(query, {"$inc": {"partner.allocated": n}})).modified_count == 1:
+        return True
+    # Another request may hold seats it is about to give back (its compare-and-set lost, WR-06):
+    # look once more before refusing. The update stays atomic, so this never over-sells.
+    await asyncio.sleep(CLAIM_RETRY_SECONDS)
+    return (await tenants.update_one(query, {"$inc": {"partner.allocated": n}})).modified_count == 1
 
 
 async def release(db, partner_id: str, n: int) -> None:
@@ -67,7 +76,31 @@ async def release(db, partner_id: str, n: int) -> None:
     if res.modified_count == 0:
         logger.warning("partner %s: could not release %s seats (counter lower than that or no such partner)",
                        partner_id, n)
+        _repair_later(db, partner_id)
+
+
+# Counter repairs release() started. They run off the request path (WR-07): reconcile_partner waits
+# RECONCILE_SETTLE_SECONDS before it repairs, which must not stall a seats change or a delete.
+_REPAIRS: Set["asyncio.Task[None]"] = set()
+
+
+async def _repair(db, partner_id: str) -> None:
+    try:
         await reconcile_partner(db, partner_id)
+    except Exception as exc:
+        logger.error("partner %s: seat counter repair failed: %s", partner_id, exc)
+
+
+def _repair_later(db, partner_id: str) -> None:
+    task = asyncio.get_running_loop().create_task(_repair(db, partner_id))
+    _REPAIRS.add(task)
+    task.add_done_callback(_REPAIRS.discard)
+
+
+async def settle_repairs() -> None:
+    """Wait for every counter repair release() started."""
+    while _REPAIRS:
+        await asyncio.gather(*list(_REPAIRS), return_exceptions=True)
 
 
 async def free_seats(db, partner_id: str) -> int:

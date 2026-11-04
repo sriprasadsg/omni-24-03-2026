@@ -324,9 +324,6 @@ async def license_seat_maintenance_loop():
     window become Inactive and free their seats; at startup and every 24 h after,
     each tenant's seatsUsed is recomputed from its agents to repair drift. Hourly too,
     licenses 30/7/1 days from expiry raise a reminder (spec C4)."""
-    import license_rules
-    import licensing
-    import partner_pool
     from database import get_database
 
     _log = logging.getLogger(__name__ + ".license_seats")
@@ -334,16 +331,27 @@ async def license_seat_maintenance_loop():
     runs = 0
     while True:
         try:
-            db = get_database()
-            if runs % 24 == 0:
-                await licensing.reconcile_all(db)
-                await partner_pool.reconcile_pools(db)
-            await licensing.reclaim_inactive_agents(db)
-            await license_rules.send_expiry_reminders(db)
+            await license_seat_tick(get_database(), runs)
         except Exception as exc:
             _log.error("License seat maintenance failed: %s", exc)
         runs += 1
         await asyncio.sleep(3600)
+
+
+async def license_seat_tick(db, runs: int) -> None:
+    """One hour of seat upkeep; every 24th also reconciles. Each step has its own guard, so a failing
+    partner pool repair never skips the reclaim or the expiry reminders (87 WR-07)."""
+    import license_rules
+    import licensing
+    import partner_pool
+
+    _log = logging.getLogger(__name__ + ".license_seats")
+    steps = [licensing.reconcile_all, partner_pool.reconcile_pools] if runs % 24 == 0 else []
+    for step in steps + [licensing.reclaim_inactive_agents, license_rules.send_expiry_reminders]:
+        try:
+            await step(db)
+        except Exception as exc:
+            _log.error("License seat maintenance failed in %s: %s", step.__name__, exc)
 
 
 async def audit_maintenance_loop():

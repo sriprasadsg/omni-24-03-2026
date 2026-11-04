@@ -310,6 +310,7 @@ async def test_release_of_more_than_is_held_repairs_the_counter(mongo_db):
     await _partner(mongo_db, pool=50, allocated=5)
     await _customer(mongo_db, "p1", 3)
     await partner_pool.release(mongo_db, "p1", 9)
+    await partner_pool.settle_repairs()  # the repair runs off the request path (WR-07)
     assert await _allocated(mongo_db, "p1") == 3
 
 
@@ -367,3 +368,48 @@ async def test_the_licensing_loops_never_read_a_partner_organization(mongo_db):
     assert "seatsUsed" not in (before[0].get("license") or {})
     assert (await mongo_db.agents.find_one({"id": "a1"}))["status"] == "Online"
     assert (await _snap(mongo_db, "c1"))[0]["license"]["seatsUsed"] == 0  # customers are still counted
+
+
+async def test_a_failing_pool_repair_never_skips_the_other_seat_upkeep(monkeypatch):
+    """87 WR-07: protects=agent-seat reclaim and expiry reminders run every hour; fails_when=a raising
+    partner pool repair ends the whole hourly pass; no_claim=why the repair raised."""
+    import app_background_tasks
+    import license_rules
+    import licensing
+
+    ran = []
+
+    def step(name, fail=False):
+        async def run(db):
+            ran.append(name)
+            if fail:
+                raise RuntimeError("a malformed partner document")
+        return run
+
+    monkeypatch.setattr(licensing, "reconcile_all", step("reconcile_all"))
+    monkeypatch.setattr(partner_pool, "reconcile_pools", step("reconcile_pools", fail=True))
+    monkeypatch.setattr(licensing, "reclaim_inactive_agents", step("reclaim"))
+    monkeypatch.setattr(license_rules, "send_expiry_reminders", step("reminders"))
+    await app_background_tasks.license_seat_tick(object(), 0)
+    assert ran == ["reconcile_all", "reconcile_pools", "reclaim", "reminders"]
+    ran.clear()
+    await app_background_tasks.license_seat_tick(object(), 1)
+    assert ran == ["reclaim", "reminders"]  # reconcile only every 24th hour
+
+
+async def test_a_claim_refused_by_seats_another_request_is_giving_back_succeeds(mongo_db):
+    """87 WR-06: protects=a valid raise is not refused because a concurrent request briefly held seats
+    it was about to return (a losing compare-and-set); fails_when=the claim answers pool_full at once;
+    no_claim=a real concurrent request (the give-back is scheduled instead)."""
+    import asyncio
+
+    await _partner(mongo_db, pool=10, allocated=10)
+
+    async def give_back():
+        await asyncio.sleep(0.01)
+        await partner_pool.release(mongo_db, "p1", 2)
+
+    giver = asyncio.create_task(give_back())
+    assert await partner_pool.claim(mongo_db, "p1", 2) is True
+    await giver
+    assert await _allocated(mongo_db, "p1") == 10
