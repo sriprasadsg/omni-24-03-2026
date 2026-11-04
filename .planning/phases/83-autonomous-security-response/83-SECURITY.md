@@ -1,9 +1,9 @@
 ---
 phase: "83"
 slug: "autonomous-security-response"
-status: open
+status: verified
 # threats_open = count of OPEN threats at or above workflow.security_block_on severity (the blocking gate)
-threats_open: 1
+threats_open: 0
 asvs_level: 1
 created: "2026-11-02"
 ---
@@ -76,10 +76,10 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | T-83-09 | Tampering | row text from agent data | medium | mitigate | Plain strings only, length caps at ingest, React text rendering; no HTML in any template (R11) | closed |
 | T-83-10 | Elevation of Privilege | canUndo flag | medium | mitigate | The flag is display only; approvals.undo and _require_control remain the guard, and Platform Support gets false | closed |
 | T-83-11 | Repudiation | one origin shown as two | high | mitigate | why_two_sources refuses fewer than two different origin ids, so the sentence cannot be built from one | closed |
-| T-83-12 | Denial of Service | block of platform, gateway or DNS | high | mitigate | Agent-side refusal independent of the backend never-touch list, non-global refusal, range containment check (R4) | open — reopened 2026-11-02 by the code review (83-REVIEW.md CR-02) and confirmed by the verifier: `net_safety.rs` `refuse_reason` tests `is_global_address` only on the network's first address, so a range such as `172.0.0.0/8` or `192.0.0.0/8` that contains private space passes (the backend's `signals.global_range` has the same gap). Every range block needs a person's approval and the agent is not published, so nothing is exposed today; fix both layers before publishing 2.1.16 |
+| T-83-12 | Denial of Service | block of platform, gateway or DNS | high | mitigate | Agent-side refusal independent of the backend never-touch list, non-global refusal, range containment check (R4) | closed — 2026-11-04 re-audit: fixed in ca2df5530. The agent's `refuse_reason` refuses a network that overlaps any of the 19 `NON_GLOBAL` classes (`net_safety.rs` `overlaps_non_global`), and the backend `global_range` (now in `protected.py`) applies the same list. A differential check against Python `ipaddress.overlaps` over 254,694 networks found 0 mismatches. Every block path still runs `refuse_reason` before any state write or firewall command (`response_actions.rs` block) |
 | T-83-13 | Elevation of Privilege | address and CIDR text | high | mitigate | Parsed to typed values before use, passed as one argv element (R3) | closed |
 | T-83-14 | Tampering | host clock moved to keep a block | low | accept | Only a host admin can do it, and that admin can already change the firewall (R13) | closed |
-| T-83-15 | Denial of Service | local AV blocks netsh | medium | mitigate | Distinct outcome, no automatic retry, documented exclusions in UAT (R12) | open — below high threshold (non-blocking): the code half exists (`blocked_by_local_security`, no retry); the written exclusion guidance does not, pending live item 14 of the 83-20 list |
+| T-83-15 | Denial of Service | local AV blocks netsh | medium | mitigate | Distinct outcome, no automatic retry, documented exclusions in UAT (R12) | open — below high threshold (non-blocking), re-audited 2026-11-04: the distinct `blocked_by_local_security` outcome and no retry are in place; the written exclusion guidance is still missing (83-UAT test 10) |
 | T-83-16 | Tampering | feed false positive blocks a good address | high | mitigate | Two different origins by default, is_global filter, 48-hour freshness, host binding, TTL, rate limit, breaker (R1) | closed |
 | T-83-17 | Spoofing | one host reporting both origins | medium | mitigate | Mirrored alerts collapse to their source, per-host cap of 3 an hour, actions bound to the reporting host; residual: a compromised host can spend its own 3 actions (R2) | closed |
 | T-83-18 | Information Disclosure | global versus tenant IOC rows | high | mitigate | Raw handle, tenantId absent filter, two-tenant tests (R7) | closed |
@@ -87,7 +87,7 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | T-83-20 | Information Disclosure | ABUSE_CH_AUTH_KEY | high | mitigate | Read from the environment, sent only as a header to abuse.ch, never logged, never committed | closed |
 | T-83-25 | Elevation of Privilege | unstamped gate-only command | high | mitigate | delivery refuses it at every poll, whatever wrote it, and a test covers both stamped and unstamped rows | closed |
 | T-83-26 | Tampering | swarm mission plan from an LLM | high | mitigate | isolate_host filtered from every plan just before dispatch | closed |
-| T-83-27 | Repudiation | a success answer for nothing sent | medium | mitigate | not_sent status everywhere, agents.isolated no longer set, UI cannot show the green style | open — below high threshold (non-blocking): `remediation_service.py` `approve_and_execute` still marks the vulnerability Patched and the request Executed after a worker task that now answers `not_sent` (A-83-PATCHED, a known defect left for the user) |
+| T-83-27 | Repudiation | a success answer for nothing sent | medium | mitigate | not_sent status everywhere, agents.isolated no longer set, UI cannot show the green style | open — below high threshold (non-blocking), re-audited 2026-11-04: `remediation_service.py` `approve_and_execute` still marks the vulnerability Patched and the request Executed after a worker task that answers `not_sent` (A-83-PATCHED, 83-UAT test 13) |
 | T-83-28 | Elevation of Privilege | XDR skipping the two-source rule | high | mitigate | Automatic executors only reach gate.suggest (D-25) | closed |
 | T-83-21 | Tampering | twoSignal off | high | mitigate | Manage permission plus interactive session; control row and audit event per change; bulk needs the platform permission (R8) | closed |
 | T-83-22 | Elevation of Privilege | watched service names | high | mitigate | Server regex, 50 limit, critical service refusal; the agent validates again (R3) | closed |
@@ -178,6 +178,7 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-02 | 76 | 74 | 2 (medium, below threshold) | gsd-security-auditor (sonnet), execute-phase orchestrator |
+| 2026-11-04 | 76 | 74 | 2 (medium, below threshold); T-83-12 closed after ca2df5530 | gsd-security-auditor (sonnet), secure-phase |
 
 ---
 
@@ -185,10 +186,10 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in Accepted Risks Log
-- [ ] `threats_open: 0` confirmed: T-83-12 (high) reopened 2026-11-02 by code review CR-02; T-83-15 and T-83-27 stay open below the high threshold
-- [ ] `status: verified` set in frontmatter
+- [x] `threats_open: 0` confirmed 2026-11-04: T-83-12 closed after ca2df5530; T-83-15 and T-83-27 stay open below the high threshold
+- [x] `status: verified` set in frontmatter
 
-**Approval:** blocked 2026-11-02 by T-83-12 (code review CR-02). The 2026-11-02 audit had verified the rest at code level only. Nothing here was observed on a real host; the 83-20 live list still stands.
+**Approval:** verified 2026-11-04 at code level (T-83-12 closed after ca2df5530; it was blocked 2026-11-02 by code review CR-02). Nothing here was observed on a real host; the 83-20 live list still stands.
 
 ## Security Audit 2026-11-02
 
@@ -205,3 +206,11 @@ Built from the `<threat_model>` blocks of all 20 plans (76 unique ids; T-83-SC r
 | Threats found | 76 |
 | Closed | 73 |
 | Open | 3 |
+
+## Security Audit 2026-11-04
+
+| Metric | Count |
+|---|---|
+| Threats found | 76 |
+| Closed | 74 |
+| Open | 2 |
