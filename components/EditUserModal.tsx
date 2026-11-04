@@ -3,6 +3,7 @@ import { User, Role } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { isPartnerRoleName, isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
 import { Modal } from './Modal';
+import { useTenantCustomRoles, withCustomRoles } from './AddUserModal';
 
 interface EditUserModalProps {
     user: User;
@@ -42,7 +43,10 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClo
     const inPlatformTenant = user.tenantId === PLATFORM_TENANT_ID;
     // A partner organization's users hold only partner roles and nobody else holds one (the server refuses it).
     const inPartnerOrg = isPartnerRoleName(user.role);
-    const roleOptions = roles.filter(r => isPlatformRoleName(r.name) === inPlatformTenant
+    // 77 WR-07: a Super Admin's list has no tenant custom roles, so read the user's tenant's.
+    const tenantCustomRoles = useTenantCustomRoles(user.tenantId,
+        isSuperAdminRoleName(currentUser?.role) && !inPlatformTenant && !inPartnerOrg);
+    const roleOptions = withCustomRoles(roles, tenantCustomRoles).filter(r => isPlatformRoleName(r.name) === inPlatformTenant
         && (!inPlatformTenant || isSuperAdminRoleName(currentUser?.role))
         && isPartnerRoleName(r.name) === inPartnerOrg);
 

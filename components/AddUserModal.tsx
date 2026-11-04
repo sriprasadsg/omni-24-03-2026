@@ -3,7 +3,31 @@ import { Role, Tenant } from '../types';
 import { showToast } from '../utils/toast';
 import { useUser } from '../contexts/UserContext';
 import { isPartnerRoleName, isPlatformRoleName, isSuperAdminRoleName, PLATFORM_TENANT_ID, roleLabel } from '../utils/permissions';
+import { fetchRoles } from '../services/roleApi';
 import { Modal } from './Modal';
+
+/**
+ * 77 WR-07: for a Super Admin the App role list holds the built-in roles only, so the user forms read
+ * the chosen tenant's custom roles themselves. Other callers already have their own tenant's roles.
+ * A failed read leaves the built-in roles; the server still checks the role on save.
+ */
+export function useTenantCustomRoles(tenantId: string | null | undefined, enabled: boolean): Role[] {
+    const [custom, setCustom] = useState<Role[]>([]);
+    useEffect(() => {
+        setCustom([]);
+        if (!enabled || !tenantId || tenantId === PLATFORM_TENANT_ID) return;
+        let cancelled = false;
+        fetchRoles(tenantId)
+            .then(list => { if (!cancelled) setCustom(list.filter(r => r.builtIn === false)); })
+            .catch(() => { /* built-in roles stay offered */ });
+        return () => { cancelled = true; };
+    }, [tenantId, enabled]);
+    return custom;
+}
+
+/** `roles` plus the custom roles it does not already name. */
+export const withCustomRoles = (roles: Role[], custom: Role[]): Role[] =>
+    custom.length === 0 ? roles : [...roles, ...custom.filter(c => !roles.some(r => r.name === c.name))];
 
 interface AddUserModalProps {
     isOpen: boolean;
@@ -40,7 +64,8 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
     // A partner organization's users hold partner roles and nobody else holds one (the server refuses
     // the rest), so the list follows the chosen tenant.
     const partnerTenant = availableTenants.find(t => t.id === selectedTenantId)?.type === 'partner';
-    const roleOptions = assignableRoles.filter(r => isPartnerRoleName(r.name) === partnerTenant);
+    const tenantCustomRoles = useTenantCustomRoles(selectedTenantId, isSuperAdminRoleName(currentUser?.role) && !partnerTenant);
+    const roleOptions = withCustomRoles(assignableRoles, tenantCustomRoles).filter(r => isPartnerRoleName(r.name) === partnerTenant);
     useEffect(() => {
         if (selectedRole && !roleOptions.some(r => r.name === selectedRole)) setSelectedRole(roleOptions[0]?.name || '');
     }, [roleOptions, selectedRole]);

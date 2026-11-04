@@ -93,21 +93,22 @@ export function hasAnyScreen(user: User | null, has: Has): boolean {
   return landingView(user, has) !== null;
 }
 
-// Friendlier URL aliases (#assets, #helpdesk, ...) that differ from the view name.
-const HASH_ALIASES: Record<string, AppView> = {
-  assets: 'assetManagement',
-  agents: 'agents',
-  patching: 'patchManagement',
-  security: 'security',
-  compliance: 'compliance',
-  aigovernance: 'aiGovernance',
-  tickets: 'internalTickets',
-  helpdesk: 'internalTickets',
-};
+// Friendlier URL aliases (#assets, #helpdesk, ...) that differ from the view name. A Map, so a crafted
+// hash such as #constructor or #__proto__ never reads an inherited Object member (77 WR-06).
+const HASH_ALIASES = new Map<string, AppView>([
+  ['assets', 'assetManagement'],
+  ['agents', 'agents'],
+  ['patching', 'patchManagement'],
+  ['security', 'security'],
+  ['compliance', 'compliance'],
+  ['aigovernance', 'aiGovernance'],
+  ['tickets', 'internalTickets'],
+  ['helpdesk', 'internalTickets'],
+]);
 
 /** The view a URL hash names (alias first, then the manifest, case-insensitive), or undefined. */
 export function resolveHashView(hash: string): AppView | undefined {
   const wanted = (hash ?? '').replace(/^#/, '').toLowerCase();
   if (!wanted) return undefined;
-  return HASH_ALIASES[wanted] ?? viewForHash(wanted);
+  return HASH_ALIASES.get(wanted) ?? viewForHash(wanted);
 }

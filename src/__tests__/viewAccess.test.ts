@@ -143,4 +143,10 @@ describe('resolveHashView (friendly URLs, D-05)', () => {
     expect(resolveHashView('')).toBeUndefined();
     expect(resolveHashView('nope')).toBeUndefined();
   });
+
+  it('never returns an inherited Object member for a crafted hash (77 WR-06)', () => {
+    for (const hash of ['constructor', '#constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+      expect(resolveHashView(hash)).toBeUndefined();
+    }
+  });
 });

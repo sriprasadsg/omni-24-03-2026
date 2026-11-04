@@ -341,13 +341,16 @@ export async function authFetch(url: string, options: RequestInit & { tenantId?:
             _expireSession();
             throw new Error('Session expired');
         }
+        let newToken: string;
         try {
-            const newToken = await refreshAccessToken();
-            response = await makeRequest(newToken);
+            newToken = await refreshAccessToken();
         } catch {
             _expireSession();
             throw new Error('Session expired');
         }
+        // 77 WR-11: only a failed refresh ends the session. An abort (the caller's signal) or a
+        // network error on the retry reaches the caller, and the refreshed token stays.
+        response = await makeRequest(newToken);
     }
 
     if (response.status === 403 && response.headers.get('X-Partner-Suspended')) {
