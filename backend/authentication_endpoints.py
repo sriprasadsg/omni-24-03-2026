@@ -46,7 +46,7 @@ from auth_utils import verify_password, hash_password, validate_password_complex
 from rate_limiter import limiter
 from pydantic import BaseModel, Field
 from datetime import timedelta, timezone
-from pymongo.errors import PyMongoError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 import uuid
 import datetime
 import jwt
@@ -58,6 +58,8 @@ PENDING_TENANT_STATUS = "pending_approval"
 PENDING_USER_STATUS = "Pending"
 SIGNUP_PENDING_MESSAGE = ("Your organization's sign-up is waiting for approval by the platform administrator. "
                           "You can sign in once it is approved.")
+TAKEN_COMPANY_NAME = ("This company name is already registered. Choose a different name, "
+                      "or ask your organization's administrator to add you.")
 import agent_capabilities
 
 logger = logging.getLogger(__name__)
@@ -330,6 +332,10 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     existing_user = await db.users.find_one({"email": email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    # tenants.name is unique: a name a Super Admin already added (or another sign-up took) is refused
+    # here rather than surfacing as the index's duplicate-key 500.
+    if await db.tenants.find_one({"name": company_name}):
+        raise HTTPException(status_code=400, detail=TAKEN_COMPANY_NAME)
     tenant_id = f"tenant_{uuid.uuid4().hex[:12]}"
     registration_key = f"reg_{uuid.uuid4().hex[:16]}"
     
@@ -354,7 +360,10 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
         "signupRequestedAt": now,
         "createdAt": now,
     }
-    await db.tenants.insert_one(tenant_doc)
+    try:
+        await db.tenants.insert_one(tenant_doc)
+    except DuplicateKeyError:
+        raise HTTPException(status_code=400, detail=TAKEN_COMPANY_NAME)
 
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     user_doc = {

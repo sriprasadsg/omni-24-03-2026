@@ -169,6 +169,35 @@ def test_signup_waits_for_approval_without_a_session(monkeypatch):
     assert tenant["enabledFeatures"] == ["view:dashboard", "view:profile", "screen:dashboard"]
 
 
+def test_signup_with_a_taken_company_name_is_refused_not_a_500(monkeypatch):
+    """2026-11-03: a Super Admin had already added "shieldforgetech"; signing up with the same
+    company name hit the unique tenants.name index and surfaced as a bare 500."""
+    db, raw = role_store(users=[], roles=shared_role_docs(),
+                         tenants=[{"id": "tenant_taken", "name": SIGNUP_BODY["companyName"]}], user_consents=[])
+    client = make_auth_client(db, monkeypatch)
+    resp = client.post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 400, resp.text
+    assert "company name is already registered" in resp.json()["detail"]
+    assert [t["id"] for t in raw.tenants.docs] == ["tenant_taken"]
+    assert raw.users.docs == [] and raw.user_consents.docs == []
+
+
+def test_a_concurrent_signup_for_the_same_company_name_is_refused(monkeypatch):
+    """The pre-check can lose a race; the unique index's duplicate-key error still becomes a 400."""
+    from pymongo.errors import DuplicateKeyError
+
+    class _RacingTenants(StoreCollection):
+        async def insert_one(self, doc, **k):
+            raise DuplicateKeyError("E11000 duplicate key error collection: omni_platform.tenants index: name_1")
+
+    db, raw = role_store(users=[], roles=shared_role_docs(), tenants=_RacingTenants([]), user_consents=[])
+    client = make_auth_client(db, monkeypatch)
+    resp = client.post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 400, resp.text
+    assert "company name is already registered" in resp.json()["detail"]
+    assert raw.users.docs == []
+
+
 def test_a_pending_signup_cannot_sign_in_and_is_told_why(monkeypatch):
     db, raw = role_store(users=[], roles=shared_role_docs(), tenants=[], user_consents=[])
     client = make_auth_client(db, monkeypatch)
