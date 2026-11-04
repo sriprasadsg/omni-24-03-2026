@@ -3,22 +3,22 @@ status: testing
 phase: 83-autonomous-security-response
 source: [83-VERIFICATION.md]
 started: 2026-11-02T12:55:00Z
-updated: 2026-11-02T12:55:00Z
+updated: 2026-11-04T22:55:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: DECISION BEFORE PUBLISHING 2.1.16: fix Rust CR-01 (no child-process timeout while WRITE_LOCK / isolation LOCK are held, privileged.rs:58-68) and CR-02 (net_safety.rs:281-302 tests only a CIDR's base address, so 172.0.0.0/8 and 192.0.0.0/8 pass), or consciously accept them
+number: 2
+name: Read the sentences the UI-SPEC does not word (83-20 Live list item 1) and confirm A-83-LEVEL-SUGGEST (item 2: which Suggest-level rows appear as approvable lines)
 expected: |
-  A gap-closure plan (or a quick fix) lands both, with tests: a hung child is killed after a deadline and the pass returns an error; a network that overlaps any non-global range is refused by the agent (and by backend signals.global_range, which has the same flaw)
+  Wording accepted, or edited, before the UI is published
 awaiting: user response
 
 ## Tests
 
 ### 1. DECISION BEFORE PUBLISHING 2.1.16: fix Rust CR-01 (no child-process timeout while WRITE_LOCK / isolation LOCK are held, privileged.rs:58-68) and CR-02 (net_safety.rs:281-302 tests only a CIDR's base address, so 172.0.0.0/8 and 192.0.0.0/8 pass), or consciously accept them
 expected: A gap-closure plan (or a quick fix) lands both, with tests: a hung child is killed after a deadline and the pass returns an error; a network that overlaps any non-global range is refused by the agent (and by backend signals.global_range, which has the same flaw)
-result: [pending]
+result: pass
 
 ### 2. Read the sentences the UI-SPEC does not word (83-20 Live list item 1) and confirm A-83-LEVEL-SUGGEST (item 2: which Suggest-level rows appear as approvable lines)
 expected: Wording accepted, or edited, before the UI is published
@@ -66,14 +66,14 @@ result: [pending]
 
 ### 13. Decide the open known defects (items 16-17): the over-budget restart card stays approvable after the service recovers (WR-03); remediation_service.py still marks a vulnerability Patched after a worker task answering not_sent (A-83-PATCHED, T-83-27)
 expected: Fixed, deferred to a later phase, or accepted
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 13
-passed: 0
+passed: 2
 issues: 0
-pending: 13
+pending: 11
 skipped: 0
 blocked: 0
 
