@@ -395,16 +395,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
                             Create Account
                        </button>
                    </div>
-
-                    {/* Demo Credentials */}
-                    <div className="mt-5 p-4 rounded-xl" style={{ background: 'rgba(34,211,238,0.06)', border: '1px solid rgba(34,211,238,0.15)' }}>
-                        <p className="text-xs font-semibold text-primary-400 mb-2 uppercase tracking-wider">Demo Credentials</p>
-                        <div className="space-y-1 text-xs text-slate-400">
-                            <p>Super Admin: <span className="font-mono text-slate-300">super@omni.ai</span></p>
-                            <p>Tenant Admin: <span className="font-mono text-slate-300">admin@acmecorp.com</span></p>
-                            <p>Analyst: <span className="font-mono text-slate-300">analyst@acmecorp.com</span></p>
-                       </div>
-                   </div>
                </div>
            </div>
        </div>
