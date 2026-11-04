@@ -27,11 +27,29 @@ fn a_confirmed_isolation_never_reverts() {
 }
 
 #[test]
-fn with_no_isolation_recorded_a_pass_issues_no_command() {
+fn with_no_isolation_recorded_a_revert_pass_issues_no_command() {
     let (_d, store) = fresh();
     assert_eq!(revert_due(&store, Os::Linux, T0), PassOutcome::default());
-    assert_eq!(start_up(&store, Os::Linux, T0), PassOutcome::default());
     assert!(lines().is_empty());
+}
+
+#[test]
+fn start_up_with_no_record_only_looks_for_isolation_rules_left_behind() {
+    let (_d, store) = fresh();
+    with_recorder(|r| r.fail_next(2)); // neither family has the hook
+    assert_eq!(start_up(&store, Os::Linux, T0), PassOutcome::default());
+    let got = lines();
+    assert_eq!(got.len(), 2, "{got:?}");
+    assert!(got.iter().all(|l| l.ends_with("-C INPUT -j OMNI_ISOLATE_IN")), "{got:?}");
+}
+
+#[test]
+fn start_up_takes_out_isolation_rules_that_have_no_record() {
+    // WR-17: the state file was lost (a reinstall or a cleanup); the recorder's default success
+    // makes the hook read as present, so the rules must come out rather than stay forever.
+    let (_d, store) = fresh();
+    assert!(start_up(&store, Os::Linux, T0).reverted);
+    assert!(lines().contains(&"iptables -w -D INPUT -j OMNI_ISOLATE_IN".to_string()), "{:?}", lines());
 }
 
 #[test]
@@ -141,11 +159,24 @@ fn restore_ends_the_isolation_and_equals_the_contract_example() {
 }
 
 #[test]
-fn a_repeat_restore_answers_not_found_with_no_command() {
+fn a_repeat_restore_looks_at_the_firewall_and_answers_not_found() {
     let (_d, store) = fresh();
+    with_recorder(|r| r.fail_next(2)); // neither family has the hook
     let body = restore(&store, Os::Linux, "iso-1", T0);
     assert_eq!(body, json!({"status": "success", "outcome": "not_found", "verify": {"ok": true, "check": "network_restored"}}));
-    assert!(lines().is_empty());
+    let got = lines();
+    assert_eq!(got.len(), 2, "{got:?}");
+    assert!(got.iter().all(|l| l.ends_with("-C INPUT -j OMNI_ISOLATE_IN")), "{got:?}");
+}
+
+#[test]
+fn a_restore_with_no_record_takes_out_isolation_rules_left_behind() {
+    // WR-17: answering not_found with a green check while the rules still cut the host off is the
+    // defect; the recorder's default success makes the Windows allow rule read as present.
+    let (_d, store) = fresh();
+    let body = restore(&store, Os::Windows, "iso-1", T0);
+    assert_eq!(body["outcome"], "restored", "{body}");
+    assert!(lines().contains(&"netsh advfirewall firewall delete rule name=OmniAgent_Isolate_Allow_Out".to_string()), "{:?}", lines());
 }
 
 #[test]

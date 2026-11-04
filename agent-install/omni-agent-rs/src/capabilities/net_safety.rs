@@ -23,37 +23,53 @@ pub struct HostAddrs {
     pub dns: Vec<IpAddr>,
 }
 
-/// True for an address on the public internet. `IpAddr::is_global` is not stable, so the classes
-/// are written out: for IPv4 0/8, 10/8, 100.64/10, 127/8, 169.254/16, 172.16/12, 192.0.0/24,
-/// 192.0.2/24, 192.168/16, 198.18/15, 198.51.100/24, 203.0.113/24 and 224/3 (multicast and
-/// reserved); for IPv6 `::`, `::1`, fc00::/7, fe80::/10, ff00::/8 and 2001:db8::/32.
+const fn v4(a: u8, b: u8, c: u8, d: u8, prefix: u8) -> (IpAddr, u8) {
+    (IpAddr::V4(Ipv4Addr::new(a, b, c, d)), prefix)
+}
+
+const fn v6(s0: u16, s1: u16, last: u16, prefix: u8) -> (IpAddr, u8) {
+    (IpAddr::V6(Ipv6Addr::new(s0, s1, 0, 0, 0, 0, 0, last)), prefix)
+}
+
+/// Every network that is not on the public internet. `IpAddr::is_global` is not stable, so the
+/// classes are written out: for IPv4 0/8, 10/8, 100.64/10, 127/8, 169.254/16, 172.16/12,
+/// 192.0.0/24, 192.0.2/24, 192.168/16, 198.18/15, 198.51.100/24, 203.0.113/24 and 224/3
+/// (multicast and reserved); for IPv6 `::`, `::1`, fc00::/7, fe80::/10, ff00::/8 and 2001:db8::/32.
+const NON_GLOBAL: [(IpAddr, u8); 19] = [
+    v4(0, 0, 0, 0, 8),
+    v4(10, 0, 0, 0, 8),
+    v4(100, 64, 0, 0, 10),
+    v4(127, 0, 0, 0, 8),
+    v4(169, 254, 0, 0, 16),
+    v4(172, 16, 0, 0, 12),
+    v4(192, 0, 0, 0, 24),
+    v4(192, 0, 2, 0, 24),
+    v4(192, 168, 0, 0, 16),
+    v4(198, 18, 0, 0, 15),
+    v4(198, 51, 100, 0, 24),
+    v4(203, 0, 113, 0, 24),
+    v4(224, 0, 0, 0, 3),
+    v6(0, 0, 0, 128),
+    v6(0, 0, 1, 128),
+    v6(0xfc00, 0, 0, 7),
+    v6(0xfe80, 0, 0, 10),
+    v6(0xff00, 0, 0, 8),
+    v6(0x2001, 0x0db8, 0, 32),
+];
+
+/// True for an address on the public internet.
 pub fn is_global_address(ip: IpAddr) -> bool {
-    match ip.to_canonical() {
-        IpAddr::V4(a) => {
-            let [a0, a1, a2, _] = a.octets();
-            !(a0 == 0
-                || a0 == 10
-                || (a0 == 100 && (a1 & 0xc0) == 64)
-                || a0 == 127
-                || (a0 == 169 && a1 == 254)
-                || (a0 == 172 && (a1 & 0xf0) == 16)
-                || (a0 == 192 && a1 == 0 && (a2 == 0 || a2 == 2))
-                || (a0 == 192 && a1 == 168)
-                || (a0 == 198 && (a1 & 0xfe) == 18)
-                || (a0 == 198 && a1 == 51 && a2 == 100)
-                || (a0 == 203 && a1 == 0 && a2 == 113)
-                || a0 >= 224)
-        }
-        IpAddr::V6(a) => {
-            let s0 = a.segments()[0];
-            !(a.is_unspecified()
-                || a.is_loopback()
-                || (s0 & 0xfe00) == 0xfc00
-                || (s0 & 0xffc0) == 0xfe80
-                || (s0 & 0xff00) == 0xff00
-                || (s0 == 0x2001 && a.segments()[1] == 0x0db8))
-        }
-    }
+    !NON_GLOBAL.iter().any(|class| network_contains(*class, ip))
+}
+
+/// True when the network shares any address with a class that is not on the public internet.
+/// A network is judged by every address it covers, not by its first one (CR-02): 172.0.0.0/8
+/// starts at a public address but holds all of 172.16/12.
+fn overlaps_non_global(net: (IpAddr, u8)) -> bool {
+    NON_GLOBAL.iter().any(|&(base, prefix)| {
+        let common = net.1.min(prefix);
+        base.is_ipv4() == net.0.is_ipv4() && mask(base, common) == mask(net.0, common)
+    })
 }
 
 fn max_prefix(ip: IpAddr) -> u8 {
@@ -284,7 +300,11 @@ pub fn refuse_reason(
     os: Os,
     lookup: &dyn Fn(&str) -> Vec<IpAddr>,
 ) -> Option<&'static str> {
-    if !is_global_address(target.addr) {
+    let non_global = match target.prefix {
+        Some(prefix) => overlaps_non_global((target.addr, prefix)),
+        None => !is_global_address(target.addr),
+    };
+    if non_global {
         return Some("That address is not on the public internet and is never blocked.");
     }
     let widest = if target.addr.is_ipv4() { WIDEST_V4 } else { WIDEST_V6 };

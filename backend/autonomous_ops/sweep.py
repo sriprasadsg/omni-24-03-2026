@@ -78,8 +78,14 @@ async def tick(db, *, now: Optional[datetime] = None, lost: Optional[Callable[[]
             counts["tenants"] += 1
             with scope.tenant_scope(tenant_id):
                 for stage in _STAGES:
-                    for key, value in (await stage(db, tenant_id, tenant, response, now)).items():
-                        counts[key] = counts.get(key, 0) + value
+                    # One stage failing never skips the later ones (WR-07): restarts and the
+                    # isolation revert bookkeeping still run for this tenant.
+                    try:
+                        for key, value in (await stage(db, tenant_id, tenant, response, now)).items():
+                            counts[key] = counts.get(key, 0) + value
+                    except Exception as exc:
+                        logger.error("autonomous_ops: sweep stage %s failed for tenant %s: %s",
+                                     getattr(stage, "__module__", stage), tenant_id, exc)
         except Exception as exc:
             logger.error("autonomous_ops: sweep failed for tenant %s: %s", tenant_id, exc)
     return counts

@@ -334,6 +334,12 @@ pub fn restore(store: &Store, os: Os, id: &str, now: i64) -> Value {
     };
     if found {
         restored_body(!rules_present(os))
+    } else if rules_present(os) {
+        // No record but the rules are there: the state file was lost (WR-17), so they come out now.
+        match force_revert(os) {
+            Ok(_) => restored_body(!rules_present(os)),
+            Err(e) => step_failed(&format!("The host could not be taken out of isolation yet. {e}")),
+        }
     } else {
         json!({"status": "success", "outcome": "not_found", "verify": {"ok": true, "check": "network_restored"}})
     }
@@ -379,12 +385,19 @@ pub fn revert_due(store: &Store, os: Os, now: i64) -> PassOutcome {
     due_pass(store, os, now)
 }
 
-/// The pass at start-up: `revert_due`, and on Linux an isolation whose rules a reboot dropped is
-/// forgotten, because the host is no longer isolated and the report must not say it is.
+/// The pass at start-up: `revert_due`; on Linux an isolation whose rules a reboot dropped is
+/// forgotten, because the host is no longer isolated and the report must not say it is; and
+/// isolation rules with no record (the state file was lost, WR-17) are taken out.
 pub fn start_up(store: &Store, os: Os, now: i64) -> PassOutcome {
     let _guard = lock();
     let mut outcome = due_pass(store, os, now);
     let recorded = store.load().is_ok_and(|s| s.isolation.is_some());
+    if !outcome.reverted && store.load().is_ok_and(|s| s.isolation.is_none()) {
+        match force_revert(os) {
+            Ok(removed) => outcome.reverted |= removed,
+            Err(e) => outcome.error = Some(e),
+        }
+    }
     if os == Os::Linux && !outcome.reverted && recorded && !rules_present(os) {
         let dropped = store.update(|s| s.isolation.take().is_some()).unwrap_or(false);
         if dropped {

@@ -343,3 +343,43 @@ async def check_network(db, tenant_id: Optional[str], cidr) -> Optional[str]:
             if other is not None and other.version == net.version and net.overlaps(other):
                 return "protected_target"
     return None
+
+
+# ---------------------------------------------------------------- what counts as the public internet
+
+def global_ip(value: Any) -> Optional[str]:
+    """The canonical text of a strictly parsed, globally routable address, else None (IPv4-mapped IPv6 is
+    unwrapped; private, loopback, link-local, multicast, reserved and documentation ranges never count)."""
+    if not isinstance(value, str):
+        return None
+    try:
+        addr = ipaddress.ip_address(value.strip())
+    except ValueError:
+        return None
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+    return str(addr) if addr.is_global else None
+
+
+# The classes the agent never blocks (net_safety.rs NON_GLOBAL). ip_network(...).is_global looks at
+# the first address only, so a range is also checked against each of these (83 CR-02).
+_NON_GLOBAL = tuple(ipaddress.ip_network(text) for text in (
+    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12",
+    "192.0.0.0/24", "192.0.2.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24",
+    "203.0.113.0/24", "224.0.0.0/3", "::/128", "::1/128", "fc00::/7", "fe80::/10", "ff00::/8",
+    "2001:db8::/32",
+))
+
+
+def global_range(value: Any) -> Optional[ipaddress._BaseNetwork]:
+    """A parsable, globally routable network wider than one host, else None. Every address counts:
+    172.0.0.0/8 starts at a public address but holds all of 172.16/12, so it is not global."""
+    if not isinstance(value, str) or "/" not in value:
+        return None
+    try:
+        net = ipaddress.ip_network(value.strip(), strict=False)
+    except ValueError:
+        return None
+    if net.num_addresses <= 1 or not net.is_global:
+        return None
+    return None if any(net.version == c.version and net.overlaps(c) for c in _NON_GLOBAL) else net

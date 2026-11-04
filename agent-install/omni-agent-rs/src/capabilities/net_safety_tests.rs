@@ -233,6 +233,22 @@ fn a_network_wider_than_slash_8_or_slash_32_for_ipv6_is_refused() {
 }
 
 #[test]
+fn a_network_that_starts_public_but_holds_a_private_class_is_refused() {
+    // CR-02: the guard looked only at the network's first address.
+    for text in [
+        "172.0.0.0/8", "192.0.0.0/8", "100.0.0.0/8", "169.0.0.0/8", "198.0.0.0/8", "203.0.0.0/8",
+        "192.128.0.0/9", "172.0.0.0/11", "100.64.0.0/9",
+    ] {
+        let t = parse_target(text).unwrap();
+        assert!(refuse_reason(&t, &test_cfg(), Os::Linux, &no_lookup).is_some(), "{text}");
+    }
+    for text in ["172.32.0.0/11", "100.128.0.0/9", "192.169.0.0/16"] {
+        let t = parse_target(text).unwrap();
+        assert_eq!(refuse_reason(&t, &test_cfg(), Os::Linux, &no_lookup), None, "{text}");
+    }
+}
+
+#[test]
 fn the_refusals_are_plain_sentences() {
     let reasons: Vec<&str> = ["10.0.0.1", "64.0.0.0/7"]
         .iter()

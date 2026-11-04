@@ -258,3 +258,18 @@ async def test_after_a_block_expires_one_fresh_origin_is_only_a_suggestion(mongo
 
 def test_the_agent_token_for_quarantine_is_what_the_file_test_seeds():
     assert agent_support.token_for("quarantine_file") == "quarantine_file"
+
+
+# ---------------------------------------------------------------- 83 CR-02: a range is judged by every address
+
+@pytest.mark.parametrize("text", ["172.0.0.0/8", "192.0.0.0/8", "100.0.0.0/8", "169.0.0.0/8", "198.0.0.0/8",
+                                  "203.0.0.0/8", "192.128.0.0/9", "172.0.0.0/11", "100.64.0.0/9"])
+def test_a_range_that_holds_a_non_public_class_is_not_global(text):
+    """protects=the agent and the backend agree on what may be blocked; fails_when=a range is judged by its
+    first address, so 172.0.0.0/8 (which holds all of 172.16/12) reads as global; no_claim=the agent side."""
+    assert signals.global_range(text) is None
+
+
+def test_a_public_range_still_reads_as_global():
+    for text in ["45.33.32.0/24", "172.32.0.0/11", "100.128.0.0/9", "192.169.0.0/16", "2600:1f18::/32"]:
+        assert signals.global_range(text) is not None, text

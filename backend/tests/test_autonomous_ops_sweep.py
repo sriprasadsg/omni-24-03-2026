@@ -61,6 +61,24 @@ async def test_one_tick_acts_once_per_ticked_tenant_and_leaves_the_context_clear
     assert len(await _rows(mongo_db, "t1")) == 1 and tenant_context.get_tenant_id() is None
 
 
+async def test_a_failing_stage_does_not_skip_the_later_stages(mongo_db, monkeypatch):
+    """83 WR-07: protects=restarts and the isolation revert bookkeeping keep running for a tenant whose
+    security stage raises; fails_when=one exception ends the tenant's whole tick; no_claim=why it raised."""
+    await _world(mongo_db, "t1")
+    ran = []
+
+    async def broken(db, tenant_id, tenant, response, now):
+        raise RuntimeError("a malformed signal document")
+
+    async def later(db, tenant_id, tenant, response, now):
+        ran.append(tenant_id)
+        return {"later": 1}
+
+    monkeypatch.setattr(sweep, "_STAGES", (broken, later))
+    counts = await sweep.tick(mongo_db)
+    assert ran == ["t1"] and counts["later"] == 1 and tenant_context.get_tenant_id() is None
+
+
 @pytest.mark.parametrize("kw", [{"ticked": False}, {"level": "off"}, {"stop": {"active": True}}])
 async def test_an_unticked_off_or_stopped_tenant_gets_nothing(mongo_db, kw):
     await _world(mongo_db, "t1", **kw)

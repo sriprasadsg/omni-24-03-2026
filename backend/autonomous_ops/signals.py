@@ -36,6 +36,7 @@ from urllib.parse import urlparse
 
 from pymongo.errors import DuplicateKeyError
 
+from .protected import global_ip, global_range  # noqa: F401  (re-exported: signals.global_ip)
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -138,35 +139,10 @@ def resolve(hosts_by_key: Mapping[str, List[Dict[str, Any]]], name: Any) -> Opti
 
 # ---------------------------------------------------------------- indicators
 
-def global_ip(value: Any) -> Optional[str]:
-    """The canonical text of a strictly parsed, globally routable address, else None (IPv4-mapped IPv6 is
-    unwrapped; private, loopback, link-local, multicast, reserved and documentation ranges never count)."""
-    if not isinstance(value, str):
-        return None
-    try:
-        addr = ipaddress.ip_address(value.strip())
-    except ValueError:
-        return None
-    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
-        addr = addr.ipv4_mapped
-    return str(addr) if addr.is_global else None
-
-
 def sha256_of(value: Any) -> Optional[str]:
     """A lower-case sha256 from 64 hex characters, else None."""
     text = value.strip().lower() if isinstance(value, str) else ""
     return text if _SHA256.match(text) else None
-
-
-def global_range(value: Any) -> Optional[ipaddress._BaseNetwork]:
-    """A parsable, globally routable network wider than one host, else None."""
-    if not isinstance(value, str) or "/" not in value:
-        return None
-    try:
-        net = ipaddress.ip_network(value.strip(), strict=False)
-    except ValueError:
-        return None
-    return net if net.num_addresses > 1 and net.is_global else None
 
 
 def remote_host(text: Any) -> Optional[str]:
