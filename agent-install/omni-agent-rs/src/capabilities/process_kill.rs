@@ -5,9 +5,11 @@
 //! running it when the card was made (`processes`: pid and start time). `plan_kill` is a pure
 //! function that sorts a process list into three groups:
 //!
-//! - `kill`: a process that is running the approved image;
+//! - `kill`: a listed process (same pid and start time) that is running the approved image, or any
+//!   process running the quarantined image from its stored path;
 //! - `unconfirmed`: a process the plan cannot bind to the approval, which is never signalled and
-//!   never reported gone;
+//!   never reported gone. With nothing moved, an unlisted process on the approved image is one:
+//!   it may be another user's run of a shared program the person never saw on the card;
 //! - everything else, which is left alone (a pid that now belongs to an unrelated program).
 //!
 //! After a quarantine the file has moved, so the image shows up under its stored path on Linux
@@ -77,7 +79,7 @@ pub fn plan_kill(list: &[RunningProcess], req: &KillRequest, windows_style: bool
         } else {
             match (listed, req.moved_exe.is_some()) {
                 (None, true) => None, // a new file may stand at the original path now
-                (None, false) => on_original.then_some(true),
+                (None, false) => on_original.then_some(false), // another instance the card never named (WR-15)
                 (Some(l), moved) => {
                     let same_start = same_process(p.pid, p.start_time, l.pid, l.start_time);
                     match (same_start, on_original, exe.is_some()) {

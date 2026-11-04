@@ -347,7 +347,8 @@ fn the_critical_service_list_equals_the_contract() {
 #[tokio::test]
 async fn the_instruction_refuses_bad_input_at_once_and_otherwise_answers_accepted() {
     let client = reqwest::Client::new();
-    let cfg = test_cfg();
+    let mut cfg = test_cfg();
+    cfg.watched_services = Some(names(&["nginx"]));
     for item in [
         json!({"task_id": "t-1", "parameters": {"service_name": "sshd"}}),
         json!({"task_id": "t-1", "parameters": {"service_name": "a b"}}),
@@ -369,4 +370,37 @@ fn the_failure_id_is_built_from_the_name_and_the_time_it_started() {
     assert_eq!(failure_id("nginx", 1_000), failure_id("nginx", 1_000));
     assert_ne!(failure_id("nginx", 1_000), failure_id("nginx", 1_240));
     assert_ne!(failure_id("nginx", 1_000), failure_id("cron", 1_000));
+}
+
+// ── WR-21: only a watched service, and only a service unit ─────────────────
+
+#[test]
+fn restart_refuses_a_unit_that_is_not_a_service_and_the_session_and_network_daemons() {
+    // `systemctl restart reboot.target` reboots the host; a socket or logind ends every session.
+    for name in [
+        "reboot.target", "poweroff.target", "halt.target", "rescue.target", "emergency.target", "Reboot.Target",
+        "sshd.socket", "ssh.socket", "dbus.socket", "home.mount", "x.timer", "network.target",
+        "systemd-logind", "systemd-networkd.service", "network", "networking",
+    ] {
+        script(&[]);
+        assert_eq!(restart(Os::Linux, name, &|| {})["outcome"], "refused", "{name}");
+        assert!(calls().is_empty(), "{name}: {:?}", calls());
+    }
+    for name in ["nginx.service", "php7.4-fpm", "nginx"] {
+        assert!(remediation_actions::validate_service_name(name).is_ok(), "{name}");
+    }
+}
+
+#[tokio::test]
+async fn the_instruction_restarts_only_a_service_the_tenant_watches() {
+    let client = reqwest::Client::new();
+    let mut cfg = test_cfg();
+    let item = |name: &str| json!({"task_id": "t-21", "parameters": {"service_name": name}});
+    script(&[]);
+    assert_eq!(restart_arm(&item("nginx"), &cfg, &client)["outcome"], "refused", "nothing is watched");
+    cfg.watched_services = Some(names(&["nginx", "Postgresql"]));
+    assert_eq!(restart_arm(&item("cron"), &cfg, &client)["outcome"], "refused");
+    for name in ["nginx", "NGINX", "nginx.service", "postgresql"] {
+        assert_eq!(restart_arm(&item(name), &cfg, &client), json!({"status": "accepted"}), "{name}");
+    }
 }

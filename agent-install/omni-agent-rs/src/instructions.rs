@@ -78,43 +78,15 @@ async fn execute_instruction(
     };
 
     report_result(client, cfg, task_id, action, &result).await;
+    // A command still running off the loop posts its final body only after this one (WR-22).
+    report::accepted_posted(task_id);
 }
 
-/// Post one instruction's result to the platform. A command that finishes later than its
-/// poll (isolation) calls this a second time with the same `task_id`.
-pub(crate) async fn report_result(
-    client: &reqwest::Client,
-    cfg: &Config,
-    task_id: &str,
-    action: &str,
-    result: &Value,
-) {
-    let report_url = format!(
-        "{}/api/agents/{}/instructions/result",
-        cfg.api_base_url.trim_end_matches('/'),
-        hostname_str()
-    );
-    // Backend (agent_tasks_endpoints.report_instruction_result) keys the
-    // instruction-status update on task_id and reads status at the top level.
-    let status = result
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-    let _ = client
-        .post(&report_url)
-        .bearer_auth(&cfg.agent_token)
-        .json(&serde_json::json!({
-            "task_id": task_id,
-            "action": action,
-            "type": action,
-            "status": status,
-            "result": result,
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-        }))
-        .send()
-        .await;
-}
+#[path = "instruction_report.rs"]
+mod report;
+#[cfg(test)]
+pub(crate) use report::final_body;
+pub(crate) use report::{after_accepted, report_result};
 
 /// Pure dispatch: matches `action` against every supported instruction and
 /// returns the resulting status JSON, with no network side effect of its

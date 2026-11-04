@@ -13,15 +13,16 @@
 //!   direction. The output is read by its numbers (`STATE : 1`, `WIN32_EXIT_CODE : 1066`,
 //!   `START_TYPE : 4`) because the words around them are localised.
 //!
-//! `restart` validates the name again, refuses the agent's own service and every critical
-//! service, runs fixed argv through `privileged`, and waits for the running state. It has no
+//! `restart` validates the name again, refuses the agent's own service, every critical service and
+//! any systemd unit that is not a service (`reboot.target`), runs fixed argv through `privileged`,
+//! and waits for the running state. The instruction is refused for a name not on the watched list. It has no
 //! undo (D-12). Everything that starts a command goes through `privileged`, so tests use its
 //! recorder and never touch a real service.
 
 use crate::capabilities::firewall::Os;
 use crate::capabilities::privileged;
 use crate::capabilities::remediation_actions::{self, RemediationError};
-use crate::capabilities::response_actions::{failed, refused, valid_id, ACCEPTED_HEAD_START};
+use crate::capabilities::response_actions::{blocking, failed, in_background, refused, valid_id};
 use crate::config::Config;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -244,6 +245,15 @@ fn stop_then_start(name: &str, pause: &dyn Fn()) -> Result<(), RemediationError>
     privileged::run("sc", &["start", name])
 }
 
+/// `name` is on the watched list, without regard to case or a `.service` suffix.
+pub(crate) fn is_watched(watched: &[String], name: &str) -> bool {
+    let bare = |n: &str| {
+        let lower = n.to_ascii_lowercase();
+        lower.strip_suffix(".service").map(str::to_string).unwrap_or(lower)
+    };
+    watched.iter().any(|w| bare(w) == bare(name))
+}
+
 /// The `restart_service` instruction: check the input, answer `accepted`, and restart off the
 /// poll loop (the wait would delay heartbeats). The final body is posted with the same task id.
 pub(crate) fn restart_arm(item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
@@ -259,16 +269,12 @@ pub(crate) fn restart_arm(item: &Value, cfg: &Config, client: &reqwest::Client) 
     if let Err(why) = remediation_actions::validate_service_name(&name) {
         return refused(&why.to_string());
     }
-    let (cfg, client) = (cfg.clone(), client.clone());
-    tokio::spawn(async move {
-        tokio::time::sleep(ACCEPTED_HEAD_START).await;
-        let work = move || restart(os, &name, &|| std::thread::sleep(std::time::Duration::from_secs(1)));
-        let body = tokio::task::spawn_blocking(work)
-            .await
-            .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The restart task stopped unexpectedly.".into())));
-        crate::instructions::report_result(&client, &cfg, &task_id, "restart_service", &body).await;
-    });
-    json!({"status": "accepted"})
+    // Only a service the tenant lists is touched, whatever the platform sends (WR-21).
+    if !is_watched(cfg.watched_services.as_deref().unwrap_or(&[]), &name) {
+        return refused("The service is not on this computer's list of watched services.");
+    }
+    let work = move || restart(os, &name, &|| std::thread::sleep(std::time::Duration::from_secs(1)));
+    in_background(&task_id, "restart_service", cfg, client, blocking("restart", work))
 }
 
 #[cfg(test)]

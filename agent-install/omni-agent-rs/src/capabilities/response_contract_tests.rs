@@ -190,16 +190,19 @@ async fn the_real_dispatch_answers_a_quarantine_with_the_contract_example() {
     let file = work.path().join("evil.bin");
     std::fs::write(&file, b"bytes").unwrap();
     let sha = hex::encode(<sha2::Sha256 as sha2::Digest>::digest(b"bytes"));
-    let item = json!({"task_id": "task-1", "parameters": {"path": file.to_string_lossy(), "sha256": sha}});
+    let item = json!({"task_id": "task-c1", "parameters": {"path": file.to_string_lossy(), "sha256": sha}});
     let client = reqwest::Client::new();
     let body = crate::instructions::compute_instruction_result("quarantine_file", "quarantine_file", &item, &test_cfg(), &client)
         .await
         .expect("quarantine_file answers");
+    assert_eq!(body, json!({"status": "accepted"}), "the work runs off the poll loop");
+    let body = crate::instructions::final_body("task-c1").await.expect("a final body");
     assert_eq!(body, c["examples"]["quarantine_moved"]);
-    let undo = json!({"parameters": {"quarantine_id": "task-1"}});
-    let restored = crate::instructions::compute_instruction_result("unquarantine_file", "unquarantine_file", &undo, &test_cfg(), &client)
+    let undo = json!({"task_id": "task-c1u", "parameters": {"quarantine_id": "task-c1"}});
+    crate::instructions::compute_instruction_result("unquarantine_file", "unquarantine_file", &undo, &test_cfg(), &client)
         .await
         .expect("unquarantine_file answers");
+    let restored = crate::instructions::final_body("task-c1u").await.expect("a final body");
     assert_eq!(restored["outcome"], "restored");
     assert_eq!(restored["verify"]["check"], "restored_to_path");
 }

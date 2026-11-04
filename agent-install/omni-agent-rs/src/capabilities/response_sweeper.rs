@@ -43,6 +43,12 @@ pub(crate) fn sweep(store: &Store, os: Os, now: i64, first: bool, pending: &Atom
     }
     let report = expire_due(store, os, now);
     log_report("expiry", &report);
+    if report.recovered.is_some() {
+        // The isolation record went with the set-aside file: as at start-up, isolation rules with
+        // no record come out, so the host keeps its network (WR-18).
+        log_isolation(&isolation::start_up(store, os, now));
+        return;
+    }
     log_isolation(&isolation::revert_due(store, os, now));
     if pending.load(Ordering::SeqCst) {
         let again = reapply_live(store, os, now);
@@ -157,6 +163,18 @@ mod tests {
         }
         task.abort();
         assert!(calls.load(Ordering::SeqCst) >= 2);
+    }
+
+    #[test]
+    fn after_a_damaged_state_file_is_set_aside_isolation_rules_with_no_record_come_out() {
+        // WR-18: the isolation record went with the file; as at start-up, the host keeps its network.
+        use crate::capabilities::privileged::with_recorder;
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::at(dir.path().join("response_state.json"));
+        std::fs::write(store.path(), "{ not json").unwrap();
+        sweep(&store, Os::Linux, 100, false, &AtomicBool::new(false));
+        assert!(store.load().is_ok(), "the state is usable again");
+        assert!(with_recorder(|r| r.lines()).contains(&"iptables -w -D INPUT -j OMNI_ISOLATE_IN".to_string()));
     }
 
     #[test]

@@ -230,3 +230,27 @@ fn the_self_test_reaches_a_listener_and_fails_when_nothing_listens() {
     drop(listener);
     assert!(!tcp_self_test(&up));
 }
+
+#[test]
+fn something_outside_that_answers_or_refuses_means_the_host_is_not_isolated() {
+    use std::time::Duration;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let open = listener.local_addr().unwrap();
+    assert!(probe::answered(&std::net::TcpStream::connect_timeout(&open, Duration::from_secs(2))));
+    drop(listener);
+    // A closed port answers with a reset: the packet left the host and came back.
+    assert!(probe::answered(&std::net::TcpStream::connect_timeout(&open, Duration::from_secs(2))));
+    for kind in [std::io::ErrorKind::PermissionDenied, std::io::ErrorKind::TimedOut] {
+        assert!(!probe::answered(&Err(std::io::Error::from(kind))), "{kind:?}: a local block or silence proves nothing");
+    }
+}
+
+#[test]
+fn the_outside_probe_tries_each_gateway_once_and_never_the_platform_or_loopback() {
+    let carve = CarveOut { addresses: vec!["57.154.210.55".parse().unwrap()], dns: vec![], port: 443 };
+    let gateways: Vec<IpAddr> =
+        ["10.0.0.1", "57.154.210.55", "127.0.0.1", "10.0.0.1", "::ffff:10.0.0.2"].iter().map(|a| a.parse().unwrap()).collect();
+    let got = probe::outside_targets(&carve, &gateways);
+    let want: Vec<std::net::SocketAddr> = vec!["10.0.0.1:443".parse().unwrap(), "10.0.0.2:443".parse().unwrap()];
+    assert_eq!(got, want);
+}

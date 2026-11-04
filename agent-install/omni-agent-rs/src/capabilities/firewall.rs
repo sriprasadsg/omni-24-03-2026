@@ -74,13 +74,27 @@ impl Cmd {
         privileged::run(self.program, &args)
     }
 
-    /// True when the command exits 0 and, for `netsh show rule`, does not say nothing matched.
-    pub(crate) fn passes(&self) -> bool {
+    /// Whether what this check asks about is there (WR-19). Only a definite "no" is `Ok(false)`:
+    /// iptables exit code 1, and for netsh "No rules match" or exit code 1 (netsh says it in the
+    /// local language). A check that cannot start, runs out of time or fails any other way is an
+    /// error, so a caller neither adds a second copy of a rule nor forgets one still in place.
+    pub(crate) fn probe(&self) -> Result<bool, RemediationError> {
         let args: Vec<&str> = self.args.iter().map(String::as_str).collect();
-        match privileged::run_output(self.program, &args) {
-            Ok(out) => !out.contains("No rules match"),
-            Err(_) => false,
+        let done = privileged::run_status(self.program, &args)?;
+        let netsh = self.program == "netsh";
+        if netsh && (done.stdout.contains("No rules match") || done.code == Some(1)) {
+            return Ok(false);
         }
+        match done.code {
+            Some(0) => Ok(true),
+            Some(1) if !netsh => Ok(false),
+            code => Err(privileged::exit_failure(self.program, code, done.stderr.trim())),
+        }
+    }
+
+    /// True only when the check says it is there; a check that could not be made is a no.
+    pub(crate) fn passes(&self) -> bool {
+        matches!(self.probe(), Ok(true))
     }
 }
 
@@ -261,10 +275,10 @@ pub fn unblock_plan(os: Os, target: impl Into<Target>) -> Vec<Remove> {
 }
 
 /// Add every missing rule for `ip`. Rules that already exist are left alone, so this is safe to
-/// repeat and never creates a second rule.
+/// repeat and never creates a second rule. A check that cannot be made fails the step.
 pub fn apply_block(os: Os, target: impl Into<Target>) -> Result<(), RemediationError> {
     for step in block_plan(os, target) {
-        if !step.check.passes() {
+        if !step.check.probe()? {
             step.add.run()?;
         }
     }
@@ -272,12 +286,16 @@ pub fn apply_block(os: Os, target: impl Into<Target>) -> Result<(), RemediationE
 }
 
 /// Remove every rule for `ip`. Returns true when at least one rule was removed. A rule that is
-/// already gone is not an error.
+/// already gone is not an error; a check that cannot be made is, so the caller keeps its claim
+/// and tries again (a legacy step's never fails the removal).
 pub fn remove_block(os: Os, target: impl Into<Target>) -> Result<bool, RemediationError> {
     let mut removed = false;
     for step in unblock_plan(os, target) {
-        if !step.check.passes() {
-            continue;
+        match step.check.probe() {
+            Ok(true) => {}
+            Ok(false) => continue,
+            Err(_) if step.legacy => continue,
+            Err(e) => return Err(e),
         }
         match step.delete.run() {
             Ok(()) => removed = true,
@@ -288,9 +306,15 @@ pub fn remove_block(os: Os, target: impl Into<Target>) -> Result<bool, Remediati
     Ok(removed)
 }
 
-/// True when the firewall holds every rule that blocks `ip` in both directions.
+/// True when the firewall holds every rule that blocks `ip` in both directions; an error when a
+/// check could not be made.
 pub fn rule_present(os: Os, target: impl Into<Target>) -> Result<bool, RemediationError> {
-    Ok(present_plan(os, target).iter().all(Cmd::passes))
+    for check in present_plan(os, target) {
+        if !check.probe()? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -298,198 +322,5 @@ pub fn rule_present(os: Os, target: impl Into<Target>) -> Result<bool, Remediati
 mod range_tests;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::capabilities::privileged::with_recorder;
-
-    fn v4() -> IpAddr {
-        "45.33.32.156".parse().unwrap()
-    }
-
-    fn lines() -> Vec<String> {
-        with_recorder(|r| r.lines())
-    }
-
-    /// Scripts an empty firewall: every check fails once, every add succeeds.
-    fn empty_linux_firewall() {
-        with_recorder(|r| {
-            // chain: -L fails, -N ok; hooks: -C fails, -I ok (twice); rules: -C fails, -A ok (twice)
-            for _ in 0..5 {
-                r.fail_next(1);
-                r.answer_next("");
-            }
-        });
-    }
-
-    #[test]
-    fn linux_block_creates_the_chain_hooks_and_both_directions_with_wait_flag() {
-        empty_linux_firewall();
-        apply_block(Os::Linux, v4()).unwrap();
-        let got = lines();
-        assert_eq!(
-            got,
-            vec![
-                "iptables -w -n -L OMNI_BLOCK",
-                "iptables -w -N OMNI_BLOCK",
-                "iptables -w -C INPUT -j OMNI_BLOCK",
-                "iptables -w -I INPUT 1 -j OMNI_BLOCK",
-                "iptables -w -C OUTPUT -j OMNI_BLOCK",
-                "iptables -w -I OUTPUT 1 -j OMNI_BLOCK",
-                "iptables -w -C OMNI_BLOCK -s 45.33.32.156 -j DROP",
-                "iptables -w -A OMNI_BLOCK -s 45.33.32.156 -j DROP",
-                "iptables -w -C OMNI_BLOCK -d 45.33.32.156 -j DROP",
-                "iptables -w -A OMNI_BLOCK -d 45.33.32.156 -j DROP",
-            ]
-        );
-        assert!(got.iter().all(|l| l.contains(" -w ")));
-    }
-
-    #[test]
-    fn a_second_apply_adds_nothing_because_every_check_passes() {
-        apply_block(Os::Linux, v4()).unwrap();
-        let got = lines();
-        assert_eq!(got.len(), 5);
-        assert!(got.iter().all(|l| !l.contains(" -A ") && !l.contains(" -I ") && !l.contains(" -N ")));
-    }
-
-    #[test]
-    fn the_final_check_asks_for_both_hooks_and_both_rules() {
-        assert!(rule_present(Os::Linux, v4()).unwrap());
-        assert_eq!(
-            lines(),
-            vec![
-                "iptables -w -C INPUT -j OMNI_BLOCK",
-                "iptables -w -C OUTPUT -j OMNI_BLOCK",
-                "iptables -w -C OMNI_BLOCK -s 45.33.32.156 -j DROP",
-                "iptables -w -C OMNI_BLOCK -d 45.33.32.156 -j DROP",
-            ]
-        );
-    }
-
-    #[test]
-    fn a_missing_rule_is_reported_as_not_present() {
-        with_recorder(|r| {
-            r.answer_next("");
-            r.answer_next("");
-            r.answer_next("");
-            r.fail_next(1);
-        });
-        assert!(!rule_present(Os::Linux, v4()).unwrap());
-    }
-
-    #[test]
-    fn ipv6_uses_ip6tables_for_every_call() {
-        empty_linux_firewall();
-        let v6: IpAddr = "2600:1f18::1".parse().unwrap();
-        apply_block(Os::Linux, v6).unwrap();
-        let got = lines();
-        assert_eq!(got.len(), 10);
-        assert!(got.iter().all(|l| l.starts_with("ip6tables ")));
-        assert!(got.contains(&"ip6tables -w -A OMNI_BLOCK -s 2600:1f18::1 -j DROP".to_string()));
-    }
-
-    #[test]
-    fn an_ipv4_mapped_address_is_treated_as_the_ipv4_address() {
-        let mapped: IpAddr = "::ffff:45.33.32.156".parse().unwrap();
-        apply_block(Os::Linux, mapped).unwrap();
-        assert!(lines().iter().all(|l| l.starts_with("iptables ")));
-        assert!(lines().iter().any(|l| l.contains("45.33.32.156")));
-    }
-
-    #[test]
-    fn windows_block_adds_one_inbound_and_one_outbound_rule() {
-        with_recorder(|r| {
-            r.fail_next(1);
-            r.answer_next("");
-            r.fail_next(1);
-            r.answer_next("");
-        });
-        apply_block(Os::Windows, v4()).unwrap();
-        assert_eq!(
-            lines(),
-            vec![
-                "netsh advfirewall firewall show rule name=OmniAgent_Block_45.33.32.156_in",
-                "netsh advfirewall firewall add rule name=OmniAgent_Block_45.33.32.156_in dir=in action=block remoteip=45.33.32.156",
-                "netsh advfirewall firewall show rule name=OmniAgent_Block_45.33.32.156_out",
-                "netsh advfirewall firewall add rule name=OmniAgent_Block_45.33.32.156_out dir=out action=block remoteip=45.33.32.156",
-            ]
-        );
-    }
-
-    #[test]
-    fn windows_treats_no_rules_match_as_absent_even_when_netsh_exits_zero() {
-        with_recorder(|r| r.answer_next("No rules match the specified criteria.\n"));
-        assert!(!rule_present(Os::Windows, v4()).unwrap());
-    }
-
-    #[test]
-    fn windows_present_check_shows_both_rules() {
-        assert!(rule_present(Os::Windows, v4()).unwrap());
-        assert_eq!(lines().len(), 2);
-    }
-
-    #[test]
-    fn windows_removal_deletes_both_names_and_tries_the_legacy_name() {
-        let removed = remove_block(Os::Windows, v4()).unwrap();
-        assert!(removed);
-        let got = lines();
-        assert!(got.contains(&"netsh advfirewall firewall delete rule name=OmniAgent_Block_45.33.32.156_in".to_string()));
-        assert!(got.contains(&"netsh advfirewall firewall delete rule name=OmniAgent_Block_45.33.32.156_out".to_string()));
-        assert!(got.contains(&"netsh advfirewall firewall delete rule name=OmniAgent_Block_45.33.32.156".to_string()));
-    }
-
-    #[test]
-    fn removal_of_an_address_that_is_not_blocked_deletes_nothing() {
-        with_recorder(|r| r.fail_next(3));
-        assert!(!remove_block(Os::Linux, v4()).unwrap());
-        assert!(lines().iter().all(|l| !l.contains(" -D ")));
-    }
-
-    #[test]
-    fn a_legacy_rule_that_will_not_delete_does_not_fail_the_removal() {
-        with_recorder(|r| {
-            r.fail_next(2); // the chain rules are not there
-            r.answer_next(""); // legacy check passes
-            r.fail_next(1); // legacy delete fails
-        });
-        assert!(remove_block(Os::Linux, v4()).is_ok());
-    }
-
-    #[test]
-    fn a_real_delete_failure_is_returned() {
-        with_recorder(|r| {
-            r.answer_next(""); // -s check passes
-            r.fail_next(1); // -s delete fails
-        });
-        assert!(remove_block(Os::Linux, v4()).is_err());
-    }
-
-    #[test]
-    fn an_address_is_always_its_own_argv_element() {
-        for os in [Os::Linux, Os::Windows] {
-            let addr = "45.33.32.156";
-            for step in block_plan(os, v4()) {
-                for cmd in [&step.check, &step.add] {
-                    let joined_inside = cmd.args.iter().any(|a| a.contains(addr) && a.contains(' '));
-                    assert!(!joined_inside, "{:?}", cmd);
-                    assert!(cmd.args.iter().all(|a| !a.contains(' ')));
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn the_current_os_is_linux_on_the_test_machine() {
-        #[cfg(target_os = "linux")]
-        assert_eq!(Os::current(), Some(Os::Linux));
-    }
-
-    #[test]
-    fn an_apply_error_is_returned() {
-        with_recorder(|r| {
-            r.fail_next(1); // chain missing
-            r.fail_next(1); // and creating it fails
-        });
-        assert!(apply_block(Os::Linux, v4()).is_err());
-    }
-}
+#[path = "firewall_tests.rs"]
+mod tests;

@@ -6,6 +6,7 @@
 //! test compares them.
 
 use crate::capabilities::response_state::Store;
+use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 /// How many running processes one result may name. Equals `stillRunningCap` in the contract.
@@ -90,6 +91,24 @@ impl QuarantinePaths {
             windows_style,
             store,
         }
+    }
+}
+
+/// Serialises every quarantine and restore in this process.
+static FILE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+pub(crate) fn file_lock() -> std::sync::MutexGuard<'static, ()> {
+    FILE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Replace `id`'s index entry with `entry` (or drop it) under the state lock, best effort.
+pub(crate) fn update_index(paths: &QuarantinePaths, id: &str, entry: Option<Value>) {
+    let done = paths.store.update(|state| {
+        state.quarantine_index.retain(|e| e.get("id").and_then(Value::as_str) != Some(id));
+        state.quarantine_index.extend(entry);
+    });
+    if let Err(e) = done {
+        log::warn!("The quarantine index could not be updated for {id}: {e}");
     }
 }
 
@@ -211,10 +230,73 @@ pub(crate) fn unix_owner(_: &std::fs::Metadata) -> Option<(u32, u32)> {
     None
 }
 
-/// The agent's own files and folders contain `normalized`.
+/// The agent's own files and folders contain `normalized`, by their text or where they really are.
 pub fn is_own_file(paths: &QuarantinePaths, normalized: &str) -> bool {
     let ws = paths.windows_style;
-    paths.own_paths.iter().any(|own| is_under(normalized, &normalize(&own.to_string_lossy(), ws), ws))
+    paths.own_paths.iter().any(|own| {
+        let real = std::fs::canonicalize(own).ok().map(|r| normalize(&r.to_string_lossy(), ws));
+        is_under(normalized, &normalize(&own.to_string_lossy(), ws), ws) || real.is_some_and(|r| is_under(normalized, &r, ws))
+    })
+}
+
+const WINDOWS_FORM: &str = "The path uses a form that cannot be checked safely (a network or device path, a stream name, \
+or a folder name that is empty or ends in a dot or a space), so nothing was moved.";
+const UNRESOLVED: &str = "The file's folder could not be resolved, so nothing was moved.";
+
+/// Windows forms the text checks cannot judge (WR-13): a path that is not on a drive letter (UNC,
+/// `\\.\` device paths), a stream name (`:` past the drive), and a part that is empty or ends in a
+/// dot or a space, because Win32 merges or drops those (`System32.` is `System32`). `normalized`
+/// comes from `normalize(.., true)`.
+pub fn windows_form_refused(normalized: &str) -> bool {
+    let b = normalized.as_bytes();
+    if !(b.len() > 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && b[2] == b'\\') {
+        return true;
+    }
+    let rest = &normalized[3..];
+    rest.contains(':') || rest.split('\\').any(|part| part.is_empty() || part.ends_with('.') || part.ends_with(' '))
+}
+
+/// Where the file system says `raw` is: its folder resolved (links, junctions, `.`, repeated
+/// separators and, on Windows, 8.3 names and trailing dots), the file name joined back, normalised.
+/// None when the folder cannot be resolved.
+pub fn resolved(raw: &str, windows_style: bool) -> Option<String> {
+    let path = Path::new(raw);
+    let folder = std::fs::canonicalize(path.parent()?).ok()?;
+    Some(normalize(&folder.join(path.file_name()?).to_string_lossy(), windows_style))
+}
+
+/// The protected prefixes and, on Linux, where each one really is (`/lib64` is `/usr/lib64`).
+fn protected_resolved(paths: &QuarantinePaths) -> Vec<String> {
+    let mut all = paths.protected.clone();
+    if !paths.windows_style {
+        let real = paths.protected.iter().filter_map(|p| std::fs::canonicalize(p).ok());
+        all.extend(real.map(|r| format!("{}/", r.to_string_lossy().trim_end_matches('/'))).filter(|r| r.len() > 1));
+    }
+    all
+}
+
+/// True when `raw` is one of the agent's own files, or a protected system path unless
+/// `allow_protected`. It is judged on the text as given and then on where the file system says it
+/// really is, so a linked folder, a junction or another spelling does not get past (WR-13). Err
+/// when the form cannot be judged or the folder cannot be resolved: a path the agent cannot place
+/// is refused, never trusted.
+pub fn protected_target(paths: &QuarantinePaths, raw: &str, allow_protected: bool) -> Result<bool, &'static str> {
+    let ws = paths.windows_style;
+    let hit = |p: &str, protected: &[String]| {
+        is_own_file(paths, p) || (!allow_protected && under_protected(p, protected, ws))
+    };
+    let given = normalize(raw, ws);
+    if hit(&given, &paths.protected) {
+        return Ok(true);
+    }
+    if ws && windows_form_refused(&given) {
+        return Err(WINDOWS_FORM);
+    }
+    let real = resolved(raw, ws).ok_or(UNRESOLVED)?;
+    if ws && windows_form_refused(&real) {
+        return Err(WINDOWS_FORM);
+    }
+    Ok(hit(&real, &protected_resolved(paths)))
 }
 
 /// The processes of `list` whose executable is the file at `path`.

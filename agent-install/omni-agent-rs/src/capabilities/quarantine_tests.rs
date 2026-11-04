@@ -8,7 +8,7 @@ use crate::capabilities::quarantine_paths::{
 use crate::capabilities::response_state::Store;
 use std::path::PathBuf;
 
-const T0: i64 = 1_761_900_000;
+pub(super) const T0: i64 = 1_761_900_000;
 
 fn contract() -> Option<Value> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../shared/agent-response-contract.json");
@@ -16,12 +16,12 @@ fn contract() -> Option<Value> {
     Some(serde_json::from_str(&text).expect("the contract file is valid JSON"))
 }
 
-struct Fixture {
-    root: tempfile::TempDir,
-    paths: QuarantinePaths,
+pub(super) struct Fixture {
+    pub(super) root: tempfile::TempDir,
+    pub(super) paths: QuarantinePaths,
 }
 
-fn fixture() -> Fixture {
+pub(super) fn fixture() -> Fixture {
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir(root.path().join("data")).unwrap();
     let paths = QuarantinePaths::with(
@@ -33,13 +33,13 @@ fn fixture() -> Fixture {
 }
 
 impl Fixture {
-    fn file(&self, name: &str, body: &[u8]) -> (PathBuf, String) {
+    pub(super) fn file(&self, name: &str, body: &[u8]) -> (PathBuf, String) {
         let path = self.root.path().join("data").join(name);
         std::fs::write(&path, body).unwrap();
         let sha = hash_file(&path).unwrap();
         (path, sha)
     }
-    fn request(&self, path: &Path, sha: &str, id: &str) -> QuarantineRequest {
+    pub(super) fn request(&self, path: &Path, sha: &str, id: &str) -> QuarantineRequest {
         QuarantineRequest {
             path: path.to_string_lossy().into_owned(),
             sha256: sha.to_string(),
@@ -47,12 +47,12 @@ impl Fixture {
             id: id.to_string(),
         }
     }
-    fn quarantine(&self, req: &QuarantineRequest) -> Value {
+    pub(super) fn quarantine(&self, req: &QuarantineRequest) -> Value {
         quarantine_at(&self.paths, req, T0, &[])
     }
 }
 
-fn outcome(body: &Value) -> &str {
+pub(super) fn outcome(body: &Value) -> &str {
     body["outcome"].as_str().unwrap_or("")
 }
 
@@ -414,11 +414,16 @@ async fn the_dispatch_arms_move_and_restore_with_the_overridden_paths() {
     let cfg = crate::capabilities::response_contract_tests::test_cfg();
     let client = reqwest::Client::new();
     let item = json!({"task_id": "task-9", "parameters": {"path": path.to_string_lossy(), "sha256": sha}});
+    // The work runs off the poll loop (WR-22): `accepted` now, the final body once that was posted.
     let body = crate::capabilities::response_actions::handle("quarantine_file", &item, &cfg, &client).await;
+    assert_eq!(body, json!({"status": "accepted"}));
+    let body = crate::instructions::final_body("task-9").await.expect("a final body");
     assert_eq!(outcome(&body), "quarantined", "{body}");
     assert!(!path.exists());
-    let undo = json!({"parameters": {"quarantine_id": "task-9"}});
+    let undo = json!({"task_id": "task-9u", "parameters": {"quarantine_id": "task-9"}});
     let body = crate::capabilities::response_actions::handle("unquarantine_file", &undo, &cfg, &client).await;
+    assert_eq!(body, json!({"status": "accepted"}));
+    let body = crate::instructions::final_body("task-9u").await.expect("a final body");
     assert_eq!(outcome(&body), "restored", "{body}");
     assert_eq!(std::fs::read(&path).unwrap(), b"dispatch");
     // A missing parameter is a refusal, not a panic.
@@ -436,4 +441,26 @@ fn running_now_lists_this_process_once_with_its_start_time_and_exe() {
     assert!(own[0].start_time > 0);
     assert!(own[0].exe.is_some());
     assert!(list.iter().all(|p| p.pid > 0));
+}
+
+#[test]
+fn a_quarantine_does_not_hold_the_state_lock_while_it_moves_the_file() {
+    // WR-22: block expiry and the isolation revert must never wait behind a large file.
+    let f = fixture();
+    let (path, sha) = f.file("evil.bin", b"x");
+    let other = Store::at(f.root.path().join("other.json"));
+    let free = std::cell::Cell::new(false);
+    let later = || {
+        let other = other.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = other.update(|s| s.add_claim("45.33.32.156", "a", 2, 1));
+            let _ = tx.send(());
+        });
+        free.set(rx.recv_timeout(std::time::Duration::from_secs(2)).is_ok());
+        Vec::new()
+    };
+    let body = quarantine_with(&f.paths, &f.request(&path, &sha, "task-1"), T0, &[], &later, &FileOps::REAL);
+    assert_eq!(outcome(&body), "quarantined");
+    assert!(free.get(), "the state lock was held while the file was moved");
 }

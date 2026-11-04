@@ -113,16 +113,18 @@ fn one_failing_address_does_not_hold_back_another() {
 }
 
 #[test]
-fn a_corrupt_state_file_is_reported_and_left_exactly_as_it_was() {
+fn a_corrupt_state_file_whose_blocks_cannot_be_read_from_the_firewall_is_left_as_it_was() {
+    // WR-18: without the firewall's list the live blocks would be forgotten, so nothing moves.
     let (_d, store) = store_with(&[]);
     std::fs::write(store.path(), "{ not json").unwrap();
+    with_recorder(|r| (0..4).for_each(|_| r.fail_spawn(5)));
     let report = expire_due(&store, Os::Linux, T0);
     assert!(report.error.is_some());
     assert_eq!(std::fs::read_to_string(store.path()).unwrap(), "{ not json");
     let report = start_up(&store, Os::Linux, T0);
     assert!(report.error.is_some());
     assert_eq!(std::fs::read_to_string(store.path()).unwrap(), "{ not json");
-    assert!(lines().is_empty());
+    assert!(lines().iter().all(|l| l.contains(" -S OMNI_BLOCK")), "only the firewall was read: {:?}", lines());
 }
 
 #[test]
@@ -236,4 +238,104 @@ fn a_network_claim_expires_on_windows_by_the_underscore_name() {
     let (_d, store) = store_with(&[("45.33.32.0/24", "a", T0 + 10)]);
     expire_due(&store, Os::Windows, T0 + 10);
     assert!(lines().contains(&"netsh advfirewall firewall delete rule name=OmniAgent_Block_45.33.32.0_24_in".to_string()), "{:?}", lines());
+}
+
+#[test]
+fn a_check_that_cannot_run_keeps_the_expired_claim_for_the_next_pass() {
+    // WR-19: "could not ask" is not "not there"; dropping the claim would leave the rule forever.
+    let (_d, store) = store_with(&[(A, "a", T0 + 10)]);
+    with_recorder(|r| r.fail_spawn(2));
+    let report = expire_due(&store, Os::Linux, T0 + 11);
+    assert_eq!(report.failed, vec![A.to_string()]);
+    assert_eq!(store.load().unwrap().claims.len(), 1);
+    assert!(lines().iter().all(|l| !l.contains(" -D ")));
+}
+
+// ── WR-18: a state file this release cannot use is set aside, nothing forgotten ──
+
+fn set_aside(dir: &std::path::Path, kind: &str) -> Vec<std::path::PathBuf> {
+    let prefix = format!("response_state.json.{kind}-");
+    std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.file_name().unwrap().to_string_lossy().starts_with(&prefix))
+        .collect()
+}
+
+fn claims_of(store: &Store) -> Vec<(String, String, i64)> {
+    store.load().expect("a usable state").claims.into_iter().map(|c| (c.target, c.block_id, c.expires_at)).collect()
+}
+
+#[test]
+fn a_corrupt_state_file_is_set_aside_and_the_agents_own_block_rules_become_claims() {
+    let (d, store) = store_with(&[]);
+    std::fs::write(store.path(), "{ not json").unwrap();
+    with_recorder(|r| {
+        r.answer_next(&format!("-N OMNI_BLOCK\n-A OMNI_BLOCK -s {A}/32 -j DROP\n-A OMNI_BLOCK -d {A}/32 -j DROP\n-A OMNI_BLOCK -s 45.34.0.0/16 -j DROP\n"));
+        r.fail_exit(1, "ip6tables: No chain/target/match by that name.");
+    });
+    let report = expire_due(&store, Os::Linux, T0);
+    assert!(report.error.is_none(), "{report:?}");
+    let day = T0 + 86_400;
+    assert_eq!(claims_of(&store), vec![(A.into(), "recovered".into(), day), ("45.34.0.0/16".into(), "recovered".into(), day)]);
+    let aside = set_aside(d.path(), "corrupt");
+    assert_eq!(aside.len(), 1);
+    assert_eq!(std::fs::read_to_string(&aside[0]).unwrap(), "{ not json", "the damaged file is kept for a person to look at");
+    // A recovered claim still runs out and takes its rule with it.
+    with_recorder(|r| r.clear_calls());
+    expire_due(&store, Os::Linux, day);
+    assert!(claims_of(&store).is_empty());
+    assert!(lines().contains(&format!("iptables -w -D OMNI_BLOCK -s {A} -j DROP")), "{:?}", lines());
+}
+
+#[test]
+fn a_file_from_a_newer_agent_is_set_aside_under_its_version() {
+    let (d, store) = store_with(&[]);
+    std::fs::write(store.path(), r#"{"v": 99, "claims": []}"#).unwrap();
+    with_recorder(|r| {
+        r.answer_next(&format!("-A OMNI_BLOCK -s {B}/32 -j DROP\n"));
+        r.answer_next("");
+    });
+    expire_due(&store, Os::Linux, T0);
+    assert_eq!(claims_of(&store), vec![(B.into(), "recovered".into(), T0 + 86_400)]);
+    assert_eq!(set_aside(d.path(), "v99").len(), 1);
+}
+
+#[test]
+fn on_windows_the_block_rules_are_found_by_their_names() {
+    let (_d, store) = store_with(&[]);
+    std::fs::write(store.path(), "{ not json").unwrap();
+    let listing = format!(
+        "\nRule Name:                            OmniAgent_Block_{A}_in\n----------\nEnabled:  Yes\n\n\
+         Regelname:                            OmniAgent_Block_{A}_out\n\
+         Rule Name:                            OmniAgent_Block_45.33.32.0_24_in\n\
+         Rule Name:                            Core Networking - DNS (UDP-Out)\n"
+    );
+    with_recorder(|r| r.answer_next(&listing));
+    expire_due(&store, Os::Windows, T0);
+    let targets: Vec<String> = claims_of(&store).into_iter().map(|c| c.0).collect();
+    assert_eq!(targets, vec![A.to_string(), "45.33.32.0/24".to_string()]);
+}
+
+#[test]
+fn a_state_file_that_only_cannot_be_read_is_never_set_aside() {
+    // An I/O error is not damage: the file may be fine a moment later.
+    let (d, store) = store_with(&[]);
+    std::fs::create_dir(store.path()).unwrap();
+    let report = expire_due(&store, Os::Linux, T0);
+    assert!(report.error.is_some());
+    assert!(store.path().is_dir());
+    assert!(set_aside(d.path(), "corrupt").is_empty());
+    assert!(lines().is_empty(), "{:?}", lines());
+}
+
+#[test]
+fn an_unblock_with_any_id_removes_a_recovered_claim() {
+    // The recovered claim stands for claims the damaged file lost, so the platform's unblock ends it.
+    let mut s = ResponseState::default();
+    s.add_claim(A, "recovered", T0 + 100, T0);
+    s.add_claim(A, "task-7", T0 + 100, T0);
+    assert_eq!(s.remove_claims(A, Some("task-9")), 1);
+    assert_eq!(s.claims.len(), 1);
+    assert_eq!(s.claims[0].block_id, "task-7");
 }

@@ -7,8 +7,13 @@
 //! 3. check that every one of those rules exists;
 //! 4. only then block everything else;
 //! 5. check that the block took effect (`not_effective` when a Group Policy firewall or a firewall
-//!    manager overrode it);
+//!    manager overrode it, or when a gateway outside the carve-out still answers, see `probe`);
 //! 6. connect to the platform from this very process (`self_test_failed` when it cannot).
+//!
+//! A second `isolate_host` while isolated (WR-16) adopts the new id, so the platform's confirmation
+//! finds it, and a new id or a revert already due starts a new 4-hour window. It answers
+//! `already_applied` only when every allow rule and the block are really there; otherwise the
+//! steps above run again under the record, which keeps the policy saved by the first apply.
 //!
 //! The agent holds its own revert. `revert_due` (called by the sweeper every 15 seconds and once
 //! at start-up) ends an isolation whose `revertAt` has come unless a person confirmed it, with no
@@ -20,7 +25,7 @@
 //! through the state file's own lock, so it is either processed before a revert pass (and cancels
 //! it) or finds the isolation gone (and changes nothing).
 
-use crate::capabilities::firewall::{Cmd, Os};
+use crate::capabilities::firewall::{Cmd, Ensure, Os};
 use crate::capabilities::isolation_plan::{self as plan, ApplyPlan, CarveOut, Do, Undo, REVERT_SECONDS};
 use crate::capabilities::net_safety;
 use crate::capabilities::privileged;
@@ -31,6 +36,10 @@ use crate::config::Config;
 use serde_json::{json, Value};
 use std::net::IpAddr;
 use std::sync::{Mutex, MutexGuard};
+
+#[path = "isolation_probe.rs"]
+mod probe;
+pub use probe::{reach, tcp_self_test, Reach};
 
 static LOCK: Mutex<()> = Mutex::new(());
 
@@ -45,8 +54,15 @@ fn check(ok: bool) -> Value {
     json!({"ok": ok, "check": "management_connection_open"})
 }
 
-fn isolated_body() -> Value {
-    json!({"status": "success", "outcome": "isolated", "verify": check(true)})
+/// What a default-block policy cannot close on Windows (WR-20); the result route keeps `message`.
+pub const WINDOWS_LIMIT: &str = "Firewall allow rules that were already turned on, for example for Remote Desktop, still apply while this computer is isolated.";
+
+fn isolated_body(os: Os) -> Value {
+    let mut body = json!({"status": "success", "outcome": "isolated", "verify": check(true)});
+    if os == Os::Windows {
+        body["message"] = json!(WINDOWS_LIMIT);
+    }
+    body
 }
 
 fn already_applied_body() -> Value {
@@ -117,17 +133,22 @@ fn output(cmd: &Cmd) -> Result<String, RemediationError> {
     privileged::run_output(cmd.program, &args)
 }
 
+/// Add the rule unless the check says it is there; a check that cannot be made fails the step.
+fn ensure(e: &Ensure) -> Result<(), RemediationError> {
+    if e.check.probe()? { Ok(()) } else { e.add.run() }
+}
+
 fn run_do(step: &Do) -> Result<(), RemediationError> {
     match step {
-        Do::Ensure(e) if e.check.passes() => Ok(()),
-        Do::Ensure(e) => e.add.run(),
+        Do::Ensure(e) => ensure(e),
         Do::Run(cmd) => cmd.run(),
     }
 }
 
 fn run_undo(step: &Undo) -> Result<(), RemediationError> {
     match step {
-        Undo::Remove(r) if !r.check.passes() => Ok(()),
+        // Only a definite "not there" skips the delete; a check that could not be made tries it.
+        Undo::Remove(r) if matches!(r.check.probe(), Ok(false)) => Ok(()),
         Undo::Remove(r) => r.delete.run(),
         Undo::Run(cmd) => cmd.run(),
     }
@@ -145,8 +166,14 @@ fn revert_rules(os: Os, saved: &Value, default_when_unknown: bool) -> Result<(),
     if clear.is_empty() { Ok(()) } else { Err(clear.join("; ")) }
 }
 
+/// Any isolation rule is in place, or a check could not tell (WR-19), so callers try the revert or
+/// keep the record rather than trust a guess. A firewall tool that is not installed holds no rules.
 fn rules_present(os: Os) -> bool {
-    plan::present_checks(os).iter().any(Cmd::passes)
+    plan::present_checks(os).iter().any(|c| match c.probe() {
+        Ok(found) => found,
+        Err(RemediationError::FileNotFound(_)) => false,
+        Err(_) => true,
+    })
 }
 
 /// The state is lost: remove whatever isolation rules are there. Ok(true) when rules were found
@@ -194,41 +221,32 @@ fn abort(store: &Store, os: Os, now: i64, mut body: Value) -> Value {
     body
 }
 
-/// Connect to the platform from this process: three tries over at most 5 seconds.
-pub fn tcp_self_test(carve: &CarveOut) -> bool {
-    use std::time::{Duration, Instant};
-    let deadline = Instant::now() + Duration::from_secs(5);
-    for attempt in 0..3 {
-        for ip in &carve.addresses {
-            let left = deadline.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                return false;
-            }
-            let addr = std::net::SocketAddr::new(*ip, carve.port);
-            if std::net::TcpStream::connect_timeout(&addr, left.min(Duration::from_millis(1500))).is_ok() {
-                return true;
-            }
-        }
-        if attempt < 2 {
-            std::thread::sleep(Duration::from_millis(300));
-        }
-    }
-    false
-}
-
-fn is_effective(os: Os, steps: &ApplyPlan) -> bool {
-    match os {
-        Os::Linux => steps.effective.iter().all(Cmd::passes),
-        Os::Windows => steps.effective.first().and_then(|c| output(c).ok()).is_some_and(|out| plan::all_blocked(&out)),
+/// The block is in place (the hooks on Linux, the policy read back on Windows); an error when a
+/// check could not be made.
+fn effective(os: Os, steps: &ApplyPlan) -> Result<bool, RemediationError> {
+    match (os, steps.effective.first()) {
+        (Os::Linux, _) => Ok(steps.effective.iter().map(Cmd::probe).collect::<Result<Vec<_>, _>>()?.into_iter().all(|ok| ok)),
+        (Os::Windows, Some(read)) => Ok(plan::all_blocked(&output(read)?)),
+        (Os::Windows, None) => Ok(false),
     }
 }
 
-/// Isolate the host with the real name lookup, resolvers and the given self-test.
-pub fn apply(store: &Store, os: Os, cfg: &Config, id: &str, now: i64, connect: &dyn Fn(&CarveOut) -> bool) -> Value {
-    apply_with(store, os, cfg, id, now, &net_safety::system_lookup, &|| net_safety::host_addrs(os).dns, connect)
+/// Every allow rule and the block are in place right now.
+fn in_place(os: Os, steps: &ApplyPlan) -> Result<bool, RemediationError> {
+    for check in steps.verify() {
+        if !check.probe()? {
+            return Ok(false);
+        }
+    }
+    effective(os, steps)
 }
 
-/// `apply` with the name lookup, the resolver list and the self-test supplied.
+/// Isolate the host with the real name lookup, resolvers, self-test and outside probe.
+pub fn apply(store: &Store, os: Os, cfg: &Config, id: &str, now: i64) -> Value {
+    apply_with(store, os, cfg, id, now, &net_safety::system_lookup, &|| net_safety::host_addrs(os).dns, &|c| reach(os, c))
+}
+
+/// `apply` with the name lookup, the resolver list and the reach checks supplied.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_with(
     store: &Store,
@@ -238,7 +256,7 @@ pub fn apply_with(
     now: i64,
     lookup: &dyn Fn(&str) -> Vec<IpAddr>,
     resolvers: &dyn Fn() -> Vec<IpAddr>,
-    connect: &dyn Fn(&CarveOut) -> bool,
+    probe: &dyn Fn(&CarveOut) -> Reach,
 ) -> Value {
     if !valid_id(id) {
         return refused("The instruction id is missing or not valid.");
@@ -250,22 +268,34 @@ pub fn apply_with(
     let _guard = lock();
     let steps = plan::apply_plan(os, &carve);
 
-    // 1. The record goes to disk before the firewall changes. An isolation already recorded wins.
+    // 1. The record goes to disk before the firewall changes. A repeat adopts the new id; a new id
+    //    or a revert already due starts a new window (WR-16).
     let record = Isolation { id: id.to_string(), started_at: now, revert_at: now + REVERT_SECONDS, confirmed: false, saved_policy: Value::Null };
-    let existing = store.update(|s| {
-        if s.isolation.is_some() {
-            return true;
+    let held = store.update(|s| match s.isolation.as_mut() {
+        None => {
+            s.isolation = Some(record);
+            None
         }
-        s.isolation = Some(record);
-        false
+        Some(i) => {
+            if !i.confirmed && (i.id != id || i.revert_at <= now) {
+                i.revert_at = now + REVERT_SECONDS;
+            }
+            i.id = id.to_string();
+            Some(i.saved_policy.clone())
+        }
     });
-    match existing {
-        Ok(true) => return already_applied_body(),
-        Ok(false) => {}
+    let saved = match held {
+        Ok(None) => Value::Null,
+        // Rules removed by hand, by a policy refresh or left by a failed back-out are put back.
+        Ok(Some(saved)) => match in_place(os, &steps) {
+            Ok(true) => return already_applied_body(),
+            Ok(false) => saved,
+            Err(e) => return failed(e),
+        },
         Err(e) => return failed(e),
-    }
-    // Windows: keep the policy each profile has now, to put it back.
-    if os == Os::Windows {
+    };
+    // Windows: keep the policy each profile has now, to put it back (a repeat keeps the first one).
+    if os == Os::Windows && saved.is_null() {
         let saved = output(&plan::read_policy_cmd()).map(|out| plan::saved_policy(&out));
         let kept = saved.map_err(failed).and_then(|saved| {
             store.update(|s| s.isolation.iter_mut().for_each(|i| i.saved_policy = saved.clone())).map_err(failed)
@@ -276,10 +306,8 @@ pub fn apply_with(
     }
     // 2. The management path opens. 3. Every rule is checked before anything closes.
     for rule in &steps.allow {
-        if !rule.check.passes() {
-            if let Err(e) = rule.add.run() {
-                return abort(store, os, now, failed(e));
-            }
+        if let Err(e) = ensure(rule) {
+            return abort(store, os, now, failed(e));
         }
     }
     if !steps.verify().iter().all(Cmd::passes) {
@@ -291,14 +319,18 @@ pub fn apply_with(
             return abort(store, os, now, failed(e));
         }
     }
-    if !is_effective(os, &steps) {
+    if !effective(os, &steps).unwrap_or(false) {
         return abort(store, os, now, not_effective_body());
     }
-    // 5. The connection to the platform still works from this process.
-    if !connect(&carve) {
+    // 5. Nothing outside the carve-out answers any more, and the platform still does.
+    let seen = probe(&carve);
+    if seen.outside {
+        return abort(store, os, now, not_effective_body());
+    }
+    if !seen.platform {
         return abort(store, os, now, self_test_failed_body());
     }
-    isolated_body()
+    isolated_body(os)
 }
 
 /// End the isolation. Any isolation on this host is ended whatever id it carries: failing open

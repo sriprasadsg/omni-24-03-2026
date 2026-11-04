@@ -8,7 +8,9 @@
 //!
 //! Writes are atomic: a temp file in the same directory, flushed, then renamed over the old one.
 //! A file that cannot be read or parsed is an error, never silently an empty state: an empty
-//! state would forget live blocks.
+//! state would forget live blocks. The expiry pass sets a file that does not parse, or that a
+//! newer agent wrote, aside and starts again from the firewall's own block rules
+//! (`response_state_recovery.rs`, WR-18); a read error is tried again, never set aside.
 
 use crate::capabilities::firewall::Os;
 use crate::capabilities::remediation_actions::RemediationError;
@@ -19,6 +21,11 @@ use std::sync::Mutex;
 
 pub const STATE_VERSION: u32 = 1;
 const FILE_NAME: &str = "response_state.json";
+/// The claim a recovered block rule gets; it stands for claims a damaged state file lost.
+pub const RECOVERED_BLOCK_ID: &str = "recovered";
+
+#[path = "response_state_recovery.rs"]
+mod recovery;
 
 /// One block instruction's claim on an address. `expires_at` is epoch seconds.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -107,11 +114,12 @@ impl ResponseState {
         ClaimAdded::New
     }
 
-    /// Remove `block_id`'s claim on `target`, or every claim on `target` when `block_id` is None.
-    /// Returns how many were removed.
+    /// Remove `block_id`'s claim on `target` and any recovered one (its own id was lost), or every
+    /// claim on `target` when `block_id` is None. Returns how many were removed.
     pub fn remove_claims(&mut self, target: &str, block_id: Option<&str>) -> usize {
         let before = self.claims.len();
-        self.claims.retain(|c| !(c.target == target && block_id.map_or(true, |id| c.block_id == id)));
+        let named = |c: &Claim, id: &str| c.block_id == id || c.block_id == RECOVERED_BLOCK_ID;
+        self.claims.retain(|c| !(c.target == target && block_id.map_or(true, |id| named(c, id))));
         before - self.claims.len()
     }
 
@@ -159,7 +167,7 @@ impl Store {
     /// The state on disk. A missing file is an empty state; an unreadable, unparseable or newer
     /// file is an error.
     pub fn load(&self) -> Result<ResponseState, RemediationError> {
-        let text = match std::fs::read_to_string(&self.path) {
+        let text = match read_retrying(&self.path) {
             Ok(text) => text,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(ResponseState::default()),
             Err(e) => return Err(state_error(&self.path, &e.to_string())),
@@ -219,6 +227,22 @@ impl Store {
     }
 }
 
+/// The file's text. A read error other than "not there" or "not text" is tried twice more, 100 ms
+/// apart, so a moment's sharing violation is not taken for a lost state (WR-18).
+fn read_retrying(path: &Path) -> std::io::Result<String> {
+    use std::io::ErrorKind::{InvalidData, NotFound};
+    let mut tries = 0;
+    loop {
+        match std::fs::read_to_string(path) {
+            Err(e) if !matches!(e.kind(), NotFound | InvalidData) && tries < 2 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            other => return other,
+        }
+    }
+}
+
 fn state_error(path: &Path, why: &str) -> RemediationError {
     RemediationError::OperationFailed(format!("{} cannot be used: {why}", path.display()))
 }
@@ -236,6 +260,8 @@ pub struct PassReport {
     pub failed: Vec<String>,
     /// The state file could not be used; nothing was changed.
     pub error: Option<String>,
+    /// A damaged state file was set aside under this path and the state started again.
+    pub recovered: Option<String>,
 }
 
 /// Run one pass under the state lock. A state file that cannot be used is logged and reported,
@@ -269,7 +295,8 @@ fn targets_where(state: &ResponseState, wanted: impl Fn(&Claim) -> bool) -> Vec<
 /// A claim whose removal failed stays, so the next pass tries again; an address that another
 /// unexpired claim still holds keeps its rule. A claim expires when `expires_at <= now`.
 pub fn expire_due(store: &Store, os: Os, now: i64) -> PassReport {
-    run_pass(store, "expiry", |state, report| {
+    let recovered = recovery::recover_damaged(store, os, now);
+    let mut report = run_pass(store, "expiry", |state, report| {
         for target in targets_where(state, |c| c.expires_at <= now) {
             let Some(ip) = address_of(&target) else {
                 log::warn!("Dropping a block claim whose target {target:?} is not an address");
@@ -291,7 +318,9 @@ pub fn expire_due(store: &Store, os: Os, now: i64) -> PassReport {
                 }
             }
         }
-    })
+    });
+    report.recovered = recovered;
+    report
 }
 
 /// Put the rules of unexpired claims back. Linux loses its rules on reboot; Windows keeps them,

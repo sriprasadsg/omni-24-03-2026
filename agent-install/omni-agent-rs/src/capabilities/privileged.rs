@@ -114,17 +114,20 @@ pub(crate) fn output_within(
     }))
 }
 
+#[cfg_attr(test, allow(dead_code))]
+fn timed_out(program: &str) -> RemediationError {
+    RemediationError::OperationFailed(format!(
+        "{program} did not finish within {} seconds and was stopped",
+        COMMAND_DEADLINE.as_secs()
+    ))
+}
+
 /// Like [`run`], and returns what the command wrote to standard output.
 #[cfg(not(test))]
 pub(crate) fn run_output(program: &str, args: &[&str]) -> Result<String, RemediationError> {
     let output = output_within(program, args, COMMAND_DEADLINE)
         .map_err(|e| spawn_failure(program, e.raw_os_error(), cfg!(windows), &e.to_string()))?
-        .ok_or_else(|| {
-            RemediationError::OperationFailed(format!(
-                "{program} did not finish within {} seconds and was stopped",
-                COMMAND_DEADLINE.as_secs()
-            ))
-        })?;
+        .ok_or_else(|| timed_out(program))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
@@ -132,19 +135,80 @@ pub(crate) fn run_output(program: &str, args: &[&str]) -> Result<String, Remedia
     }
 }
 
+/// How a command that ran to its end exited, whatever the exit code.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Finished {
+    pub code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// Runs a check and returns how it exited, success or not, because only the caller knows which
+/// exit code means "not there" (WR-19). Err when the program could not be started (a missing
+/// program is `FileNotFound`) or did not finish within the deadline.
+#[cfg(not(test))]
+pub(crate) fn run_status(program: &str, args: &[&str]) -> Result<Finished, RemediationError> {
+    let output = output_within(program, args, COMMAND_DEADLINE)
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => RemediationError::FileNotFound(program.to_string()),
+            _ => spawn_failure(program, e.raw_os_error(), cfg!(windows), &e.to_string()),
+        })?
+        .ok_or_else(|| timed_out(program))?;
+    Ok(Finished {
+        code: output.status.code(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+    })
+}
+
+/// The test seam's `run_status`: scripted output exits 0, a scripted failure exits with its code
+/// and prints its text, and a scripted spawn failure with code 2 is a missing program.
+#[cfg(test)]
+pub(crate) fn run_status(program: &str, args: &[&str]) -> Result<Finished, RemediationError> {
+    match next_scripted(program, args) {
+        Scripted::Out(stdout) => Ok(Finished { code: Some(0), stdout, stderr: String::new() }),
+        Scripted::Exit(code, text) => Ok(Finished { code: Some(code), stdout: text.clone(), stderr: text }),
+        Scripted::Spawn(2) => Err(RemediationError::FileNotFound(program.to_string())),
+        Scripted::Spawn(code) => Err(spawn_failure(program, Some(code), true, "scripted spawn failure")),
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn run_output(program: &str, args: &[&str]) -> Result<String, RemediationError> {
+    match next_scripted(program, args) {
+        Scripted::Out(out) => Ok(out),
+        Scripted::Exit(code, text) => Err(exit_failure(program, Some(code), &text)),
+        Scripted::Spawn(code) => Err(spawn_failure(program, Some(code), true, "scripted spawn failure")),
+    }
+}
+
+/// One scripted answer: printed output (exit 0), an exit code with its text, or a spawn failure.
+#[cfg(test)]
+enum Scripted {
+    Out(String),
+    Exit(i32, String),
+    Spawn(i32),
+}
+
+#[cfg(test)]
+fn next_scripted(program: &str, args: &[&str]) -> Scripted {
     with_recorder(|rec| {
         let mut call = vec![program.to_string()];
         call.extend(args.iter().map(|a| a.to_string()));
         rec.calls.push(call);
         match rec.script.pop_front() {
-            Some(Ok(out)) => Ok(out),
-            Some(Err(msg)) => match msg.strip_prefix(SPAWN_MARK).and_then(|c| c.parse::<i32>().ok()) {
-                Some(code) => Err(spawn_failure(program, Some(code), true, "scripted spawn failure")),
-                None => Err(exit_failure(program, Some(1), &msg)),
-            },
-            None => Ok(String::new()),
+            Some(Ok(out)) => Scripted::Out(out),
+            Some(Err(msg)) => {
+                if let Some(code) = msg.strip_prefix(SPAWN_MARK).and_then(|c| c.parse::<i32>().ok()) {
+                    return Scripted::Spawn(code);
+                }
+                let exit = msg.strip_prefix(EXIT_MARK).and_then(|rest| rest.split_once(':'));
+                match exit.and_then(|(code, text)| Some((code.parse::<i32>().ok()?, text.to_string()))) {
+                    Some((code, text)) => Scripted::Exit(code, text),
+                    None => Scripted::Exit(1, msg),
+                }
+            }
+            None => Scripted::Out(String::new()),
         }
     })
 }
@@ -152,6 +216,9 @@ pub(crate) fn run_output(program: &str, args: &[&str]) -> Result<String, Remedia
 /// Marks a scripted failure as "the program could not be started, with this raw OS code".
 #[cfg(test)]
 const SPAWN_MARK: &str = "\u{1}spawn:";
+/// Marks a scripted failure as "the program exited with this code and printed this text".
+#[cfg(test)]
+const EXIT_MARK: &str = "\u{1}exit:";
 
 /// What the test seam saw and what it will answer next.
 #[cfg(test)]
@@ -175,6 +242,11 @@ impl Recorder {
     /// Queue one call that cannot start the program, with this raw OS error code.
     pub fn fail_spawn(&mut self, code: i32) {
         self.script.push_back(Err(format!("{SPAWN_MARK}{code}")));
+    }
+
+    /// Queue one call that exits with `code` and prints `text` (on both pipes).
+    pub fn fail_exit(&mut self, code: i32, text: &str) {
+        self.script.push_back(Err(format!("{EXIT_MARK}{code}:{text}")));
     }
 
     /// Queue one successful call that prints `out`.

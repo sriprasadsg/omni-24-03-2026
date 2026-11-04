@@ -2,7 +2,8 @@
 //! be put back with one instruction. Nothing here ever deletes a person's file.
 //!
 //! A move runs in this order: check the instruction id and the path (full path, no `..`, not the
-//! agent's own files, not a protected system path unless allowed), refuse a folder or a link,
+//! agent's own files, not a protected system path unless allowed, judged on the text and on where
+//! the folder really is; a folder that cannot be resolved is refused), refuse a folder or a link,
 //! hash the file and compare it with the hash the backend flagged (`hash_mismatch` leaves it
 //! untouched), write the manifest, then rename the file into the quarantine folder. Across two
 //! volumes the file is copied, flushed and hashed again, and only then is the original removed;
@@ -11,14 +12,17 @@
 //! The stored file is `<id>` (mode 000) on Linux and `<id>.q` on Windows, with `<id>.json` beside
 //! it holding where it came from. A restore reads that manifest and nothing else: the instruction
 //! names only the id. It refuses an existing destination, a linked destination folder and a stored
-//! file whose hash no longer matches. Whole operations run under the response-state lock.
+//! file whose hash no longer matches. Whole operations run under this module's own lock; the
+//! response-state lock is taken only for the index entry, so hashing and copying a large file
+//! never holds up block expiry or the isolation revert (WR-22). The index is a convenience: the
+//! manifest is what a restore reads, so a state file that cannot be used costs only the entry.
 
 use crate::capabilities::process_kill::same_process;
 pub use crate::capabilities::quarantine_paths::{
     is_absolute, manifest_path, normalize, running_from, running_now, same_exe, stored_path,
     QuarantinePaths, RunningProcess, PROTECTED_LINUX, PROTECTED_WINDOWS, STILL_RUNNING_CAP,
 };
-use crate::capabilities::quarantine_paths::{has_dotdot, is_own_file, under_protected, unix_mode, unix_owner};
+use crate::capabilities::quarantine_paths::{file_lock, has_dotdot, protected_target, unix_mode, unix_owner, update_index};
 use crate::capabilities::response_actions::valid_id;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -26,6 +30,7 @@ use std::io;
 use std::path::Path;
 
 const MANIFEST_VERSION: u32 = 1;
+
 const IN_QUARANTINE: &str = "in_quarantine";
 const RESTORED: &str = "restored_to_path";
 
@@ -315,8 +320,10 @@ pub(crate) fn quarantine_with(
     if req.path.is_empty() || !is_absolute(&normal, ws) || has_dotdot(&req.path, ws) {
         return refused("The path must be a full path with no '..' part.");
     }
-    if is_own_file(paths, &normal) || (!req.allow_protected && under_protected(&normal, &paths.protected, ws)) {
-        return protected_body();
+    match protected_target(paths, &req.path, req.allow_protected) {
+        Ok(true) => return protected_body(),
+        Ok(false) => {}
+        Err(why) => return refused(why),
     }
     if let Some(answer) = already_held(paths, req, &sha) {
         return answer; // a repeat: the file is already in quarantine and the original path is empty
@@ -341,54 +348,54 @@ pub(crate) fn quarantine_with(
     if let Err(why) = ensure_dir(&paths.dir) {
         return failed(&why);
     }
-    let result = paths.store.update(|state| {
-        let stored = stored_path(paths, &req.id);
-        if let Some(answer) = already_held(paths, req, &sha) {
-            return answer;
-        }
-        if std::fs::symlink_metadata(&stored).is_ok() {
-            return refused("The quarantine folder already holds a file for this instruction id.");
-        }
-        let manifest = Manifest {
-            v: MANIFEST_VERSION,
-            id: req.id.clone(),
-            original_path: req.path.clone(),
-            sha256: sha.clone(),
-            size: meta.len(),
-            quarantined_at: now,
-            mode: unix_mode(&meta),
-            uid: unix_owner(&meta).map(|o| o.0),
-            gid: unix_owner(&meta).map(|o| o.1),
+    let _files = file_lock();
+    let stored = stored_path(paths, &req.id);
+    if let Some(answer) = already_held(paths, req, &sha) {
+        return answer;
+    }
+    if std::fs::symlink_metadata(&stored).is_ok() {
+        return refused("The quarantine folder already holds a file for this instruction id.");
+    }
+    // Judged again just before the move, so a folder link swapped in while hashing is caught.
+    if protected_target(paths, &req.path, req.allow_protected) != Ok(false) {
+        return protected_body();
+    }
+    let manifest = Manifest {
+        v: MANIFEST_VERSION,
+        id: req.id.clone(),
+        original_path: req.path.clone(),
+        sha256: sha.clone(),
+        size: meta.len(),
+        quarantined_at: now,
+        mode: unix_mode(&meta),
+        uid: unix_owner(&meta).map(|o| o.0),
+        gid: unix_owner(&meta).map(|o| o.1),
+    };
+    let manifest_file = manifest_path(paths, &req.id);
+    if let Err(e) = write_manifest(&manifest_file, &manifest) {
+        return failed(&format!("The manifest cannot be written: {e}"));
+    }
+    if let Err(moved) = move_file(ops, src, &stored, &sha) {
+        discard_own(&manifest_file);
+        return match moved {
+            MoveError::Locked => locked_body(&matched),
+            MoveError::Mismatch => {
+                error_body("hash_mismatch", "The file no longer matches the hash that was flagged.", &[])
+            }
+            MoveError::Other(why) => failed(&format!("The file could not be moved: {why}")),
         };
-        let manifest_file = manifest_path(paths, &req.id);
-        if let Err(e) = write_manifest(&manifest_file, &manifest) {
-            return failed(&format!("The manifest cannot be written: {e}"));
-        }
-        if let Err(moved) = move_file(ops, src, &stored, &sha) {
-            discard_own(&manifest_file);
-            return match moved {
-                MoveError::Locked => locked_body(&matched),
-                MoveError::Mismatch => {
-                    error_body("hash_mismatch", "The file no longer matches the hash that was flagged.", &[])
-                }
-                MoveError::Other(why) => failed(&format!("The file could not be moved: {why}")),
-            };
-        }
-        #[cfg(unix)]
-        let _ = set_mode(&stored, 0o000);
-        state.quarantine_index.retain(|e| e.get("id").and_then(Value::as_str) != Some(req.id.as_str()));
-        state.quarantine_index.push(json!({
-            "id": req.id, "originalPath": req.path, "sha256": sha, "quarantinedAt": now,
-        }));
-        let after = later();
-        let survivors: Vec<RunningProcess> = matched
-            .iter()
-            .filter(|m| after.iter().any(|a| same_process(a.pid, a.start_time, m.pid, m.start_time)))
-            .cloned()
-            .collect();
-        quarantined_body("quarantined", verify_in_quarantine(paths, &req.id, &sha, &req.path), &survivors)
-    });
-    result.unwrap_or_else(|e| failed(&e.to_string()))
+    }
+    #[cfg(unix)]
+    let _ = set_mode(&stored, 0o000);
+    let after = later();
+    let survivors: Vec<RunningProcess> = matched
+        .iter()
+        .filter(|m| after.iter().any(|a| same_process(a.pid, a.start_time, m.pid, m.start_time)))
+        .cloned()
+        .collect();
+    let verified = verify_in_quarantine(paths, &req.id, &sha, &req.path);
+    update_index(paths, &req.id, Some(json!({"id": req.id, "originalPath": req.path, "sha256": sha, "quarantinedAt": now})));
+    quarantined_body("quarantined", verified, &survivors)
 }
 
 fn restore_error(outcome: &str, why: &str) -> Value {
@@ -400,58 +407,56 @@ pub fn restore_at(paths: &QuarantinePaths, id: &str) -> Value {
     if !valid_id(id) {
         return refused("quarantine_id is missing or not valid.");
     }
-    let result = paths.store.update(|state| {
-        let m = match read_manifest(paths, id) {
-            Ok(Some(m)) => m,
-            Ok(None) => return restore_error("not_found", "Nothing is quarantined under that id."),
-            Err(why) => return restore_error("refused", &why),
-        };
-        let stored = stored_path(paths, id);
-        if std::fs::symlink_metadata(&stored).is_err() {
-            return restore_error("not_found", "The stored file is not in the quarantine folder.");
+    let _files = file_lock();
+    let m = match read_manifest(paths, id) {
+        Ok(Some(m)) => m,
+        Ok(None) => return restore_error("not_found", "Nothing is quarantined under that id."),
+        Err(why) => return restore_error("refused", &why),
+    };
+    let stored = stored_path(paths, id);
+    if std::fs::symlink_metadata(&stored).is_err() {
+        return restore_error("not_found", "The stored file is not in the quarantine folder.");
+    }
+    let ws = paths.windows_style;
+    let normal = normalize(&m.original_path, ws);
+    if !is_absolute(&normal, ws) || has_dotdot(&m.original_path, ws) {
+        return restore_error("refused", "The manifest does not hold a usable path.");
+    }
+    let dest = Path::new(&m.original_path);
+    if std::fs::symlink_metadata(dest).is_ok() {
+        return restore_error("refused", "A file is already at the original path, so nothing was restored.");
+    }
+    match dest.parent().map(std::fs::symlink_metadata) {
+        Some(Ok(dir)) if !is_link_like(&dir) && dir.is_dir() => {}
+        Some(Ok(_)) => return restore_error("refused", "The original folder is a link, so nothing was restored."),
+        _ => return restore_error("refused", "The original folder is gone, so nothing was restored."),
+    }
+    if hash_stored(&stored).ok().as_deref() != Some(m.sha256.as_str()) {
+        return restore_error("refused", "The stored file has changed since it was quarantined.");
+    }
+    if let Err(why) = place_back(&stored, dest) {
+        return restore_error("refused", &why);
+    }
+    #[cfg(unix)]
+    {
+        // A hard link shares the stored file's mode (000), so set it before reading.
+        let _ = set_mode(dest, m.mode.unwrap_or(0o600));
+        if let (Some(uid), Some(gid)) = (m.uid, m.gid) {
+            let _ = std::os::unix::fs::chown(dest, Some(uid), Some(gid)); // fails without root: ignored
         }
-        let ws = paths.windows_style;
-        let normal = normalize(&m.original_path, ws);
-        if !is_absolute(&normal, ws) || has_dotdot(&m.original_path, ws) {
-            return restore_error("refused", "The manifest does not hold a usable path.");
-        }
-        let dest = Path::new(&m.original_path);
-        if std::fs::symlink_metadata(dest).is_ok() {
-            return restore_error("refused", "A file is already at the original path, so nothing was restored.");
-        }
-        match dest.parent().map(std::fs::symlink_metadata) {
-            Some(Ok(dir)) if !is_link_like(&dir) && dir.is_dir() => {}
-            Some(Ok(_)) => return restore_error("refused", "The original folder is a link, so nothing was restored."),
-            _ => return restore_error("refused", "The original folder is gone, so nothing was restored."),
-        }
-        if hash_stored(&stored).ok().as_deref() != Some(m.sha256.as_str()) {
-            return restore_error("refused", "The stored file has changed since it was quarantined.");
-        }
-        if let Err(why) = place_back(&stored, dest) {
-            return restore_error("refused", &why);
-        }
+    }
+    if hash_file(dest).ok().as_deref() != Some(m.sha256.as_str()) {
+        discard_own(dest); // the name place_back just created; the stored file stays
         #[cfg(unix)]
-        {
-            // A hard link shares the stored file's mode (000), so set it before reading.
-            let _ = set_mode(dest, m.mode.unwrap_or(0o600));
-            if let (Some(uid), Some(gid)) = (m.uid, m.gid) {
-                let _ = std::os::unix::fs::chown(dest, Some(uid), Some(gid)); // fails without root: ignored
-            }
-        }
-        if hash_file(dest).ok().as_deref() != Some(m.sha256.as_str()) {
-            discard_own(dest); // the name place_back just created; the stored file stays
-            #[cfg(unix)]
-            let _ = set_mode(&stored, 0o000);
-            return restore_error("refused", "The restored copy did not match, so it was taken out again.");
-        }
-        // remove_file: the stored name, in the restore branch, after the file is back and hashed.
-        let _ = std::fs::remove_file(&stored);
-        discard_own(&manifest_path(paths, id));
-        state.quarantine_index.retain(|e| e.get("id").and_then(Value::as_str) != Some(id));
-        let back = hash_file(dest).ok().as_deref() == Some(m.sha256.as_str()) && std::fs::symlink_metadata(&stored).is_err();
-        json!({"status": "success", "outcome": "restored", "verify": verify(back, RESTORED)})
-    });
-    result.unwrap_or_else(|e| failed(&e.to_string()))
+        let _ = set_mode(&stored, 0o000);
+        return restore_error("refused", "The restored copy did not match, so it was taken out again.");
+    }
+    // remove_file: the stored name, in the restore branch, after the file is back and hashed.
+    let _ = std::fs::remove_file(&stored);
+    discard_own(&manifest_path(paths, id));
+    update_index(paths, id, None);
+    let back = hash_file(dest).ok().as_deref() == Some(m.sha256.as_str()) && std::fs::symlink_metadata(&stored).is_err();
+    json!({"status": "success", "outcome": "restored", "verify": verify(back, RESTORED)})
 }
 
 /// A hard link never replaces a file that appeared meanwhile; where links are not possible the
@@ -483,3 +488,6 @@ fn place_back(stored: &Path, dest: &Path) -> Result<(), String> {
 #[cfg(test)]
 #[path = "quarantine_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "quarantine_path_tests.rs"]
+mod path_tests;

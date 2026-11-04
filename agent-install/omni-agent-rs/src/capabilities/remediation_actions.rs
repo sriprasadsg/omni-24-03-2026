@@ -19,10 +19,19 @@ use std::path::Path;
 // approval gate (53-04) is the primary control, the agent itself refuses
 // to touch a short list of single-instance, OS-critical targets so a
 // malformed or overly broad playbook can never brick or lock out the host.
+/// Lower case. Also the processes that end every session or stop the host from working (WR-14);
+/// Linux reports the 15-character `comm`, so `systemd-journald` is listed as `systemd-journal` too.
 pub(crate) const CRITICAL_PROCESS_NAMES: &[&str] = &[
     "init", "systemd", "launchd", "kernel_task",
     "wininit.exe", "winlogon.exe", "csrss.exe", "smss.exe", "services.exe", "lsass.exe",
+    "sshd", "dbus-daemon", "networkmanager", "systemd-journald", "systemd-journal",
+    "svchost.exe", "explorer.exe", "lsm.exe",
 ];
+
+fn is_critical_process(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    CRITICAL_PROCESS_NAMES.iter().any(|n| *n == lower)
+}
 /// Lower case. The same list as `criticalServices` in `shared/agent-response-contract.json`
 /// (a test compares them): the platform refuses these names when an admin lists them, and the
 /// agent refuses them again, so neither side alone can restart one.
@@ -33,6 +42,12 @@ pub(crate) const CRITICAL_SERVICE_NAMES: &[&str] = &[
 ];
 /// Other names the agent itself runs under (the installer's Windows service and the Rust unit).
 const OWN_SERVICE_NAMES: &[&str] = &["omniagentrust", "omni-agent-rs"];
+/// Agent-only additions (WR-21): restarting them ends every session or the network. They are not
+/// in the contract's `criticalServices`, so the platform does not refuse them yet.
+const MORE_CRITICAL_SERVICE_NAMES: &[&str] = &["systemd-logind", "systemd-networkd", "network", "networking"];
+/// systemd unit types other than a service: `systemctl restart reboot.target` reboots the host.
+const OTHER_UNIT_TYPES: &[&str] =
+    &["target", "socket", "mount", "automount", "swap", "path", "timer", "slice", "scope", "device"];
 /// The longest service name the platform lets an admin list.
 const MAX_SERVICE_NAME: usize = 128;
 
@@ -95,6 +110,10 @@ pub async fn kill_process(target: &str) -> Result<(), RemediationError> {
         let sys = sysinfo::System::new_all();
         let pid = sysinfo::Pid::from(pid_num as usize);
         return match sys.process(pid) {
+            // A PID can be reused by the time an old approval runs, so the name is checked too.
+            Some(proc) if is_critical_process(&proc.name().to_string_lossy()) => Err(RemediationError::InvalidTarget(
+                format!("Refusing to kill OS-critical process '{}' (PID {pid_num}).", proc.name().to_string_lossy()),
+            )),
             Some(proc) => {
                 if proc.kill() {
                     Ok(())
@@ -107,7 +126,7 @@ pub async fn kill_process(target: &str) -> Result<(), RemediationError> {
     }
 
     let lower = target.to_ascii_lowercase();
-    if CRITICAL_PROCESS_NAMES.iter().any(|n| *n == lower) {
+    if is_critical_process(target) {
         return Err(RemediationError::InvalidTarget(format!("Refusing to kill OS-critical process '{target}'.")));
     }
 
@@ -220,7 +239,10 @@ pub(crate) fn validate_service_name(service_name: &str) -> Result<(), Remediatio
     // `sshd.service` is `sshd` to systemd, so the suffix does not get a name past the list.
     let lower = service_name.to_ascii_lowercase();
     let bare = lower.strip_suffix(".service").unwrap_or(&lower);
-    if CRITICAL_SERVICE_NAMES.iter().chain(OWN_SERVICE_NAMES).any(|n| *n == bare) {
+    if lower.rsplit_once('.').is_some_and(|(_, kind)| OTHER_UNIT_TYPES.contains(&kind)) {
+        return Err(RemediationError::InvalidTarget(format!("'{service_name}' is not a service.")));
+    }
+    if CRITICAL_SERVICE_NAMES.iter().chain(OWN_SERVICE_NAMES).chain(MORE_CRITICAL_SERVICE_NAMES).any(|n| *n == bare) {
         return Err(RemediationError::ServiceNotFound(format!("Refusing to touch OS-critical service '{service_name}'.")));
     }
     Ok(())
@@ -284,6 +306,42 @@ mod tests {
         // A PID astronomically unlikely to exist on any real system.
         let result = kill_process("4000000000").await;
         assert!(matches!(result, Err(RemediationError::ProcessNotFound(_))));
+    }
+
+    #[test]
+    fn the_critical_names_cover_the_session_and_system_daemons() {
+        // WR-14: `sshd` ends every session, `lsass.exe` / `csrss.exe` restart Windows.
+        for name in ["sshd", "dbus-daemon", "NetworkManager", "systemd-journald", "systemd-journal", "svchost.exe", "explorer.exe", "lsm.exe", "services.exe", "lsass.exe"] {
+            assert!(CRITICAL_PROCESS_NAMES.contains(&name.to_ascii_lowercase().as_str()), "{name}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn a_pid_whose_process_has_a_critical_name_is_refused() {
+        // WR-14: the PID path checks the name too. The only process this test could ever signal
+        // is its own child: a copy of `sleep` named `sshd`.
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join("sshd");
+        std::fs::copy("/bin/sleep", &fake).unwrap();
+        let mut spawned = None;
+        for _ in 0..20 {
+            match std::process::Command::new(&fake).arg("30").spawn() {
+                Ok(child) => {
+                    spawned = Some(child);
+                    break;
+                }
+                // Another test thread's fork may briefly hold the copy open ("text file busy").
+                Err(_) => std::thread::sleep(std::time::Duration::from_millis(50)),
+            }
+        }
+        let mut child = spawned.expect("the copy starts");
+        let result = kill_process(&child.id().to_string()).await;
+        let alive = child.try_wait().unwrap().is_none();
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(matches!(result, Err(RemediationError::InvalidTarget(_))), "{result:?}");
+        assert!(alive, "the process was signalled");
     }
 
     // ── restore_file ──────────────────────────────────────────────────────

@@ -15,9 +15,10 @@
 //! on the public internet, too wide, the platform, the gateway, a DNS server). A network goes in
 //! `cidr` and is one rule under the same claim rules; the token `block_ip_range` says so.
 //!
-//! `isolate_host` and `restore_host` change the host's whole network, so they run off the poll
-//! loop: the instruction answers `accepted`, and `isolation` posts the final body to the same
-//! result route under the same task id (see `background_arm`).
+//! `isolate_host`, `restore_host`, `restart_service`, the quarantine pair and the bound kill can
+//! take seconds to minutes, so they run off the poll loop and heartbeats go on (WR-22): the
+//! instruction answers `accepted`, and the final body goes to the same result route under the
+//! same task id once the `accepted` answer was posted (see `in_background`).
 
 use crate::capabilities::firewall::{self, Os, Target};
 use crate::capabilities::host_power;
@@ -82,25 +83,48 @@ pub async fn handle(action: &str, item: &Value, cfg: &Config, client: &reqwest::
     match action {
         "isolate_host" | "restore_host" => return background_arm(action, item, cfg, client),
         "restart_service" => return service_watch::restart_arm(item, cfg, client),
-        "quarantine_file" => return quarantine_arm(item).await,
-        "unquarantine_file" => return unquarantine_arm(item).await,
-        "kill_process" => return kill_arm(item).await,
+        "quarantine_file" => return quarantine_arm(item, cfg, client),
+        "unquarantine_file" => return unquarantine_arm(item, cfg, client),
+        "kill_process" => return kill_arm(item, cfg, client).await,
         _ => {}
     }
     handle_at(action, item, cfg, Os::current(), &Store::default(), now_epoch())
 }
 
-/// How long the final isolation body waits, so the `accepted` answer is posted first and the
-/// final body is the last word the platform hears for the task.
-pub(crate) const ACCEPTED_HEAD_START: std::time::Duration = std::time::Duration::from_secs(2);
+/// Answer `accepted` and finish `work` off the poll loop. Its body is posted under the same task
+/// id once the `accepted` answer has gone out, so it is the last word the platform hears (WR-22).
+pub(crate) fn in_background<F>(task_id: &str, action: &str, cfg: &Config, client: &reqwest::Client, work: F) -> Value
+where
+    F: std::future::Future<Output = Value> + Send + 'static,
+{
+    let posted = crate::instructions::after_accepted(task_id);
+    let (cfg, client, task_id, action) = (cfg.clone(), client.clone(), task_id.to_string(), action.to_string());
+    tokio::spawn(async move {
+        let body = work.await;
+        posted.await;
+        crate::instructions::report_result(&client, &cfg, &task_id, &action, &body).await;
+    });
+    json!({"status": "accepted"})
+}
 
-/// `isolate_host` / `restore_host`: check the input, answer `accepted`, and do the work on a
-/// blocking thread. The final body is posted with the same task id as the `accepted` one.
+/// `work` on a blocking thread; a panic there is an error body.
+pub(crate) async fn blocking(what: &'static str, work: impl FnOnce() -> Value + Send + 'static) -> Value {
+    tokio::task::spawn_blocking(work)
+        .await
+        .unwrap_or_else(|_| failed(RemediationError::OperationFailed(format!("The {what} task stopped unexpectedly."))))
+}
+
+/// The instruction's task id, when it is one the agent accepts.
+fn task_of(item: &Value) -> Option<&str> {
+    item.get("task_id").and_then(Value::as_str).filter(|id| valid_id(id))
+}
+
+/// `isolate_host` / `restore_host`: check the input, then do the work off the loop.
 fn background_arm(action: &str, item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
     let Some(os) = Os::current() else {
         return refused("This platform does not support isolating a host.");
     };
-    let Some(task_id) = item.get("task_id").and_then(Value::as_str).filter(|id| valid_id(id)).map(str::to_string) else {
+    let Some(task_id) = task_of(item) else {
         return refused("The instruction id is missing or not valid.");
     };
     let restoring = action == "restore_host";
@@ -113,73 +137,67 @@ fn background_arm(action: &str, item: &Value, cfg: &Config, client: &reqwest::Cl
         if !isolation::platform_has_host(cfg) {
             return refused("The platform address has no host, so no way to it can be kept open and the host is not isolated.");
         }
-        task_id.clone()
+        task_id.to_string()
     };
-    let (cfg, client, action) = (cfg.clone(), client.clone(), action.to_string());
-    tokio::spawn(async move {
-        tokio::time::sleep(ACCEPTED_HEAD_START).await;
-        let work = {
-            let cfg = cfg.clone();
-            move || {
-                let store = Store::default();
-                if restoring {
-                    isolation::restore(&store, os, &id, now_epoch())
-                } else {
-                    isolation::apply(&store, os, &cfg, &id, now_epoch(), &isolation::tcp_self_test)
-                }
-            }
-        };
-        let body = tokio::task::spawn_blocking(work)
-            .await
-            .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The isolation task stopped unexpectedly.".into())));
-        crate::instructions::report_result(&client, &cfg, &task_id, &action, &body).await;
-    });
-    json!({"status": "accepted"})
+    let (store, work_cfg) = (Store::default(), cfg.clone());
+    in_background(task_id, action, cfg, client, blocking("isolation", move || {
+        if restoring {
+            isolation::restore(&store, os, &id, now_epoch())
+        } else {
+            isolation::apply(&store, os, &work_cfg, &id, now_epoch())
+        }
+    }))
 }
 
 /// Move a flagged file into quarantine. The process list is read just before the move so the
-/// answer can name what still runs from the file afterwards. File work runs off the async
-/// threads, and the paths are read here, on the calling thread.
-async fn quarantine_arm(item: &Value) -> Value {
+/// answer can name what still runs from the file afterwards. File work runs off the loop, and the
+/// paths are read here, on the calling thread.
+fn quarantine_arm(item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
     let (Some(path), Some(sha256)) = (
         param(item, "path").and_then(Value::as_str),
         param(item, "sha256").and_then(Value::as_str),
     ) else {
         return refused("path and sha256 are required.");
     };
+    let Some(task_id) = task_of(item) else {
+        return refused("The instruction id is missing or not valid.");
+    };
     let req = quarantine::QuarantineRequest {
         path: path.to_string(),
         sha256: sha256.to_string(),
         allow_protected: param(item, "allow_protected").and_then(Value::as_bool).unwrap_or(false),
-        id: item.get("task_id").and_then(Value::as_str).unwrap_or("").to_string(),
+        id: task_id.to_string(),
     };
     let paths = quarantine::QuarantinePaths::system();
-    tokio::task::spawn_blocking(move || {
+    in_background(task_id, "quarantine_file", cfg, client, blocking("quarantine", move || {
         let running = quarantine::running_now();
         quarantine::quarantine_at(&paths, &req, now_epoch(), &running)
-    })
-    .await
-    .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The quarantine task stopped unexpectedly.".into())))
+    }))
 }
 
 /// Put a quarantined file back. Only the id travels in the instruction; the destination comes
 /// from the manifest the agent wrote.
-async fn unquarantine_arm(item: &Value) -> Value {
+fn unquarantine_arm(item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
     let Some(id) = param(item, "quarantine_id").and_then(Value::as_str).map(str::to_string) else {
         return refused("quarantine_id is required.");
     };
+    let Some(task_id) = task_of(item) else {
+        return refused("The instruction id is missing or not valid.");
+    };
     let paths = quarantine::QuarantinePaths::system();
-    tokio::task::spawn_blocking(move || quarantine::restore_at(&paths, &id))
-        .await
-        .unwrap_or_else(|_| failed(RemediationError::OperationFailed("The restore task stopped unexpectedly.".into())))
+    in_background(task_id, "unquarantine_file", cfg, client, blocking("restore", move || quarantine::restore_at(&paths, &id)))
 }
 
 /// `kill_process`. With `expected_exe` it ends only the approved program (see `process_kill`);
 /// with `quarantine_id` it also ends the quarantined image, whose stored path the agent works out
 /// itself, because the instruction never carries one. With only `target` it is the Phase 53 kill
 /// that the UEBA path uses, with the same result body as before.
-async fn kill_arm(item: &Value) -> Value {
+async fn kill_arm(item: &Value, cfg: &Config, client: &reqwest::Client) -> Value {
     if param(item, "expected_exe").is_none() {
+        // A sender that bound the kill to processes or a quarantine meant that binding (WR-14).
+        if param(item, "processes").is_some() || param(item, "quarantine_id").is_some() {
+            return process_kill::refused_body("expected_exe is required with processes or quarantine_id.");
+        }
         let target = param(item, "target").and_then(Value::as_str).unwrap_or("");
         return match remediation_actions::kill_process(target).await {
             Ok(()) => json!({"status": "success", "message": "Process kill initiated"}),
@@ -198,7 +216,11 @@ async fn kill_arm(item: &Value) -> Value {
             None => return process_kill::refused_body("quarantine_id is not valid."),
         },
     };
-    process_kill::kill_by_exe(process_kill::KillRequest { expected_exe, moved_exe, listed }).await
+    let Some(task_id) = task_of(item) else {
+        return process_kill::refused_body("The instruction id is missing or not valid.");
+    };
+    let req = process_kill::KillRequest { expected_exe, moved_exe, listed };
+    in_background(task_id, "kill_process", cfg, client, process_kill::kill_by_exe(req))
 }
 
 pub(crate) fn now_epoch() -> i64 {

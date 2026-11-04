@@ -50,7 +50,7 @@ pub(super) fn no_resolvers() -> Vec<IpAddr> {
 }
 
 pub(super) fn isolate(store: &Store, os: Os, id: &str, now: i64, connect_ok: bool) -> Value {
-    apply_with(store, os, &cfg(PLATFORM), id, now, &no_lookup, &no_resolvers, &|_| connect_ok)
+    apply_with(store, os, &cfg(PLATFORM), id, now, &no_lookup, &no_resolvers, &|_| Reach { platform: connect_ok, outside: false })
 }
 
 /// `n` checks that fail, each followed by the add that succeeds (an empty firewall).
@@ -150,7 +150,7 @@ fn the_record_with_revert_at_is_on_disk_before_the_first_firewall_command() {
     let seen = std::cell::RefCell::new(None);
     let body = apply_with(&store, Os::Linux, &cfg(PLATFORM), "iso-1", T0, &no_lookup, &no_resolvers, &|_| {
         *seen.borrow_mut() = state_isolation(&store);
-        true
+        Reach { platform: true, outside: false }
     });
     assert_eq!(body["outcome"], "isolated");
     let iso = seen.into_inner().expect("the record existed when the self-test ran");
@@ -333,25 +333,60 @@ fn the_record_uses_the_names_later_releases_read() {
 }
 
 #[test]
-fn a_repeat_with_the_same_id_or_another_id_changes_nothing() {
+fn a_repeat_while_the_rules_are_in_place_changes_no_rule_and_adopts_a_new_id() {
+    // WR-16: the platform stores the second task's id, so its confirmation must find the record.
     let (_d, store) = fresh();
     script_linux_apply();
     isolate(&store, Os::Linux, "iso-1", T0, true);
-    let after_first = lines().len();
+    with_recorder(|r| r.clear_calls());
     let same = isolate(&store, Os::Linux, "iso-1", T0 + 60, true);
+    assert_eq!((same["outcome"].as_str(), same["verify"]["ok"].as_bool()), (Some("already_applied"), Some(true)));
+    assert_eq!(state_isolation(&store).unwrap().revert_at, T0 + 14_400, "the same instruction keeps its window");
     let other = isolate(&store, Os::Linux, "iso-2", T0 + 120, true);
-    assert_eq!(same["outcome"], "already_applied");
     assert_eq!(other["outcome"], "already_applied");
-    assert_eq!(lines().len(), after_first, "no firewall command for a repeat");
+    assert!(!lines().is_empty(), "the rules were looked at");
+    assert!(lines().iter().all(|l| !is_allow(l) && !is_block(l)), "only checks: {:?}", lines());
     let iso = state_isolation(&store).unwrap();
-    assert_eq!((iso.id.as_str(), iso.revert_at), ("iso-1", T0 + 14_400), "the first revert time is kept");
+    assert_eq!((iso.id.as_str(), iso.revert_at), ("iso-2", T0 + 120 + 14_400));
+    assert!(apply_confirmations(&store, &["iso-2".to_string()]).unwrap());
+}
+
+#[test]
+fn a_repeat_after_the_rules_went_missing_puts_them_back() {
+    let (_d, store) = fresh();
+    script_linux_apply();
+    isolate(&store, Os::Linux, "iso-1", T0, true);
+    with_recorder(|r| r.clear_calls());
+    with_recorder(|r| r.fail_next(1)); // a policy refresh took the first allow rule out
+    script_linux_apply();
+    let again = isolate(&store, Os::Linux, "iso-1", T0 + 60, true);
+    assert_eq!(again["outcome"], "isolated", "{again}");
+    assert!(lines().iter().any(|l| l.contains(" -I INPUT 1 ")), "the block was put back: {:?}", lines());
+}
+
+#[test]
+fn a_repeat_on_a_record_whose_revert_is_due_starts_a_new_window_and_keeps_the_saved_policy() {
+    let (_d, store) = fresh();
+    let saved = json!({"domain": "blockinbound,allowoutbound", "private": "blockinbound,allowoutbound", "public": "allowinbound,allowoutbound"});
+    seed(&store, Isolation { saved_policy: saved.clone(), ..record("iso-1", T0, false) });
+    // The rules are gone (a back-out that failed), so the whole apply runs; the policy is not read again.
+    with_recorder(|r| r.fail_next(1));
+    empty_pairs(4);
+    oks(5);
+    with_recorder(|r| r.answer_next(BLOCKED));
+    let body = isolate(&store, Os::Windows, "iso-2", T0 + 5, true);
+    assert_eq!(body["outcome"], "isolated", "{body}");
+    let iso = state_isolation(&store).unwrap();
+    assert_eq!((iso.id.as_str(), iso.revert_at), ("iso-2", T0 + 5 + 14_400));
+    assert_eq!(iso.saved_policy, saved, "the policy from before the first isolation is what goes back");
+    assert!(lines().iter().all(|l| !l.ends_with("show allprofiles firewallpolicy") || l == lines().last().unwrap()));
 }
 
 #[test]
 fn a_platform_url_with_no_host_or_an_unresolvable_name_refuses_and_changes_nothing() {
     for url in ["not a url", "file:///etc/hosts", "https://platform.example"] {
         let (_d, store) = fresh();
-        let body = apply_with(&store, Os::Linux, &cfg(url), "iso-1", T0, &no_lookup, &no_resolvers, &|_| true);
+        let body = apply_with(&store, Os::Linux, &cfg(url), "iso-1", T0, &no_lookup, &no_resolvers, &|_| Reach { platform: true, outside: false });
         assert_eq!((body["status"].as_str(), body["outcome"].as_str()), (Some("error"), Some("refused")), "{url}");
         assert!(lines().is_empty());
         assert!(!store.path().exists());
@@ -386,7 +421,7 @@ fn a_platform_given_by_name_keeps_every_address_and_the_resolvers_open() {
     let (_d, store) = fresh();
     // Two platform addresses and one resolver: 15 allow steps for IPv4, 9 for IPv6.
     script_linux_apply_with(24);
-    let body = apply_with(&store, Os::Linux, &cfg("https://platform.example"), "iso-1", T0, &lookup, &resolvers, &|_| true);
+    let body = apply_with(&store, Os::Linux, &cfg("https://platform.example"), "iso-1", T0, &lookup, &resolvers, &|_| Reach { platform: true, outside: false });
     assert_eq!(body["outcome"], "isolated");
     let got = lines();
     for expected in [
@@ -417,4 +452,28 @@ fn a_revert_that_fails_keeps_the_record_and_makes_it_due_now_until_it_works() {
     let pass = revert_due(&store, Os::Linux, T0 + 15);
     assert!(pass.reverted);
     assert!(state_isolation(&store).is_none());
+}
+
+// ── WR-20: the isolation is tested from outside the carve-out too ───────────
+
+#[test]
+fn a_gateway_that_still_answers_after_the_block_is_not_effective_and_reverts() {
+    let (_d, store) = fresh();
+    script_linux_apply();
+    let body = apply_with(&store, Os::Linux, &cfg(PLATFORM), "iso-1", T0, &no_lookup, &no_resolvers, &|_| Reach { platform: true, outside: true });
+    assert_eq!(body["outcome"], "not_effective", "{body}");
+    assert_eq!(body["verify"]["ok"], false);
+    assert!(lines().contains(&"iptables -w -D INPUT -j OMNI_ISOLATE_IN".to_string()));
+    assert!(state_isolation(&store).is_none());
+}
+
+#[test]
+fn on_windows_the_isolated_answer_states_what_the_policy_cannot_close() {
+    let (_d, store) = fresh();
+    script_windows_apply(BLOCKED);
+    let body = isolate(&store, Os::Windows, "iso-1", T0, true);
+    assert_eq!((body["outcome"].as_str(), body["message"].as_str()), (Some("isolated"), Some(WINDOWS_LIMIT)));
+    script_linux_apply();
+    let (_d2, store2) = fresh();
+    assert!(isolate(&store2, Os::Linux, "iso-1", T0, true).get("message").is_none());
 }

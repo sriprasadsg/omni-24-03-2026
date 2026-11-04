@@ -123,16 +123,20 @@ fn start_times_two_seconds_apart_are_one_process_and_three_are_not() {
 // ── nothing moved ───────────────────────────────────────────────────────────
 
 #[test]
-fn with_nothing_moved_every_process_running_the_image_is_killed_listed_or_not() {
+fn with_nothing_moved_an_unlisted_process_on_the_image_is_unconfirmed_not_killed() {
+    // WR-15: only the processes the card named are ended; another instance of the same program
+    // (a shared interpreter, a second copy) is reported, never signalled.
     let list = [proc(100, T, Some(ORIGINAL)), proc(200, T + 77, Some(ORIGINAL)), proc(300, T, Some("/bin/sh"))];
     let p = plan(&list, &request(None, &[(100, T)]));
-    assert_eq!(pids(&p.kill), [100, 200]);
-    assert!(p.unconfirmed.is_empty());
+    assert_eq!(pids(&p.kill), [100]);
+    assert_eq!(pids(&p.unconfirmed), [200]);
+    assert_eq!(kill_body(&p, &[])["verify"]["ok"], false, "the other instance keeps the answer from saying gone");
 }
 
 #[test]
 fn with_nothing_moved_windows_style_compares_the_image_without_case() {
-    let req = KillRequest { expected_exe: "C:\\Temp\\Evil.exe".into(), moved_exe: None, listed: Vec::new() };
+    let listed = vec![ListedProcess { pid: 100, start_time: T }, ListedProcess { pid: 200, start_time: T }];
+    let req = KillRequest { expected_exe: "C:\\Temp\\Evil.exe".into(), moved_exe: None, listed };
     let list = [proc(100, T, Some("c:/temp/EVIL.EXE")), proc(200, T, Some("\\\\?\\C:\\Temp\\evil.exe"))];
     assert_eq!(pids(&plan_kill(&list, &req, true, SELF_PID).kill), [100, 200]);
     assert!(plan_kill(&list, &req, false, SELF_PID).kill.is_empty());
@@ -151,7 +155,7 @@ fn the_agent_itself_and_critical_names_are_unconfirmed_never_dropped() {
     let mut critical = proc(400, T, Some(ORIGINAL));
     critical.name = "SYSTEMD".into();
     let list = [proc(SELF_PID, T, Some(ORIGINAL)), critical, proc(1, T, Some(ORIGINAL)), proc(500, T, Some(ORIGINAL))];
-    let p = plan(&list, &request(None, &[]));
+    let p = plan(&list, &request(None, &[(SELF_PID, T), (400, T), (1, T), (500, T)]));
     assert_eq!(pids(&p.kill), [500]);
     assert_eq!(pids(&p.unconfirmed), [SELF_PID, 400, 1]);
     let body = kill_body(&p, &[]);
@@ -264,4 +268,20 @@ async fn a_request_for_a_program_that_is_not_running_is_a_clean_no_op() {
     let body = kill_by_exe(req).await;
     assert_eq!(body["outcome"], "process_gone");
     assert_eq!(body["verify"], json!({"ok": true, "check": "process_gone"}));
+}
+
+#[tokio::test]
+async fn a_kill_that_names_processes_or_a_quarantine_but_no_program_is_refused() {
+    // WR-14: a binding the sender asked for is never dropped for the name-only kill.
+    use crate::capabilities::response_actions::handle;
+    let cfg = crate::capabilities::response_contract_tests::test_cfg();
+    let client = reqwest::Client::new();
+    let target = "definitely_not_a_real_process_xyz123";
+    for params in [
+        json!({"target": target, "processes": [{"pid": 100, "start_time": T}]}),
+        json!({"target": target, "quarantine_id": "task-1"}),
+    ] {
+        let body = handle("kill_process", &json!({"task_id": "task-3", "parameters": params.clone()}), &cfg, &client).await;
+        assert_eq!(body["outcome"], "refused", "{params}: {body}");
+    }
 }
