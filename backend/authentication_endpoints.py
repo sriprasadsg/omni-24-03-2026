@@ -172,6 +172,23 @@ async def _audit_login(request: Request, action: str, identifier: str, user, out
         userAgent=(request.headers.get("user-agent") or "")[:300] or None, **fields)
 
 
+async def _tenant_signup_pending(db, tenant_id) -> bool:
+    """True while the account's tenant is a sign-up still waiting for approval (77 WR-12).
+
+    Read through the raw handle with an explicit id (/login has no tenant context). A read
+    error refuses the sign-in (503) rather than letting an unapproved tenant's account in.
+    """
+    if not tenant_id:
+        return False
+    try:
+        tenant = await db._db.tenants.find_one({"id": tenant_id}, {"_id": 0, "status": 1})
+    except Exception as exc:
+        logger.error("Tenant status lookup failed at sign-in for %s: %s", tenant_id, exc)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="Sign-in is unavailable right now. Try again shortly.")
+    return isinstance(tenant, dict) and tenant.get("status") == PENDING_TENANT_STATUS
+
+
 @router.post("/login")
 @limiter.limit("10/minute")
 async def login_for_access_token(request: Request, response: Response, login_request: LoginRequest):  # noqa: ARG001
@@ -211,6 +228,11 @@ async def login_for_access_token(request: Request, response: Response, login_req
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SIGNUP_PENDING_MESSAGE)
         await _audit_login(request, "login.failure", identifier, user, "denied", reason="account_disabled")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is disabled. Contact your administrator.")
+    # 77 WR-12: approval activates the users before the tenant, so an active account alone opens
+    # no session while its tenant still waits for approval.
+    if await _tenant_signup_pending(db, user.get("tenantId")):
+        await _audit_login(request, "login.failure", identifier, user, "denied", reason="signup_pending")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SIGNUP_PENDING_MESSAGE)
     try:  # D-15: a suspended partner's users get no session; only reachable with the right password
         await partner_status.refuse_if_suspended(user.get("role"), user.get("tenantId"))
     except HTTPException as exc:
@@ -341,13 +363,27 @@ async def signup(request: Request, response: Response, data: dict[str, Any] = Bo
     if complexity_error:
         raise HTTPException(status_code=400, detail=complexity_error)
     db = get_database()
+    # 77 WR-13: an expired pending sign-up no longer claims its email or company name. Both are
+    # checked before anything is removed, so a refused sign-up changes nothing.
+    from tenant_signup_endpoints import expired_signup_tenant, remove_pending_signup  # lazy: it imports this module
+    stale = set()
     existing_user = await db.users.find_one({"email": email})
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        stale_id = await expired_signup_tenant(db, existing_user.get("tenantId"), existing_user)
+        if not stale_id:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        stale.add(stale_id)
     # tenants.name is unique: a name a Super Admin already added (or another sign-up took) is refused
     # here rather than surfacing as the index's duplicate-key 500.
-    if await db.tenants.find_one({"name": company_name}):
-        raise HTTPException(status_code=400, detail=TAKEN_COMPANY_NAME)
+    existing_tenant = await db.tenants.find_one({"name": company_name})
+    if existing_tenant:
+        stale_id = await expired_signup_tenant(db, existing_tenant.get("id"))
+        if not stale_id:
+            raise HTTPException(status_code=400, detail=TAKEN_COMPANY_NAME)
+        stale.add(stale_id)
+    for stale_id in stale:
+        await remove_pending_signup(db, stale_id)
+        logger.info("Expired pending sign-up %s replaced by a new sign-up", stale_id)
     tenant_id = f"tenant_{uuid.uuid4().hex[:12]}"
     registration_key = f"reg_{uuid.uuid4().hex[:16]}"
     

@@ -8,6 +8,8 @@ export interface PendingSignup {
   requestedAt?: string | null;
   adminEmail?: string | null;
   adminName?: string | null;
+  /** False while nobody has confirmed owning adminEmail (sign-up sends no mail yet, 77 WR-13). */
+  adminEmailVerified?: boolean;
 }
 
 const when = (iso?: string | null) => {
@@ -62,6 +64,8 @@ export function PendingSignupsPanel({ onChanged }: { onChanged?: () => void }) {
       </h2>
       <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-300">
         Organizations that signed themselves up. Nobody from them can sign in until you approve.
+        {signups.some(s => s.adminEmailVerified !== true) &&
+          ' Nobody has confirmed they own the admin address, so check the organization before you approve.'}
       </p>
       {message && (
         <p role={message.tone === 'error' ? 'alert' : 'status'}
@@ -74,7 +78,14 @@ export function PendingSignupsPanel({ onChanged }: { onChanged?: () => void }) {
           {signups.map(s => (
             <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div className="min-w-0">
-                <p className="font-medium text-gray-900 dark:text-white">{s.name}</p>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {s.name}
+                  {s.adminEmailVerified !== true && (
+                    <span className="ml-2 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-800 dark:text-amber-200">
+                      Email not verified
+                    </span>
+                  )}
+                </p>
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   {[s.adminName, s.adminEmail].filter(Boolean).join(' · ') || 'No admin recorded'}
                   {when(s.requestedAt) && ` · requested ${when(s.requestedAt)}`}

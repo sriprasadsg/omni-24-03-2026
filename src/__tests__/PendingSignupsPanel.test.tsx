@@ -34,6 +34,20 @@ describe('PendingSignupsPanel', () => {
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
+  it('marks the admin email as unverified (77 WR-13: sign-up sends no confirmation mail)', async () => {
+    authFetch.mockImplementation(() => ok({ signups: [{ ...PENDING.signups[0], adminEmailVerified: false }] }));
+    render(<PendingSignupsPanel />);
+    expect(await screen.findByText('Email not verified')).toBeTruthy();
+    expect(screen.getByText(/nobody has confirmed they own the admin address/i)).toBeTruthy();
+  });
+
+  it('drops the label for an address the server reports as verified', async () => {
+    authFetch.mockImplementation(() => ok({ signups: [{ ...PENDING.signups[0], adminEmailVerified: true }] }));
+    render(<PendingSignupsPanel />);
+    expect(await screen.findByText('ABC')).toBeTruthy();
+    expect(screen.queryByText('Email not verified')).toBeNull();
+  });
+
   it('asks before rejecting and shows the server refusal', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     authFetch.mockImplementation((url: string = '') => String(url).endsWith('/pending') ? ok(PENDING)

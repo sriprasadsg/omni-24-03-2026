@@ -119,6 +119,7 @@ def _db(user):
     db._db.login_attempts.update_one = AsyncMock()
     db._db.login_attempts.delete_one = AsyncMock()
     db._db.roles.find_one = AsyncMock(return_value=None)
+    db._db.tenants.find_one = AsyncMock(return_value=None)  # 77 WR-12: sign-in reads the tenant's sign-up status
     db.roles.find_one = AsyncMock(return_value=None)
     return db
 

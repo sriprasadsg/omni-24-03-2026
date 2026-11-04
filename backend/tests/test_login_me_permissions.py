@@ -5,6 +5,7 @@ Both endpoints call rbac_service.session_permissions -> effective_permissions.
 tenant context to prove tenant-scoped role documents are still visible (D-23).
 """
 import logging
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -205,6 +206,95 @@ def test_a_pending_signup_cannot_sign_in_and_is_told_why(monkeypatch):
     resp = client.post("/api/auth/login", json={"email": SIGNUP_BODY["email"], "password": SIGNUP_BODY["password"]})
     assert resp.status_code == 403
     assert "waiting for approval" in resp.json()["detail"]
+
+
+# ── 77 WR-12: an activated admin of a tenant that is still pending gets no session ──
+
+def test_an_active_user_of_a_still_pending_tenant_cannot_sign_in(monkeypatch):
+    """Approval activates the users first; until the tenant write lands, no session opens."""
+    user = make_user("half@acme.test", "Tenant Admin", "tenant_half")
+    db, _raw = role_store(users=[user], roles=shared_role_docs(),
+                          tenants=[{"id": "tenant_half", "name": "Half", "status": "pending_approval"}])
+    resp = login(make_auth_client(db, monkeypatch), user["email"])
+    assert resp.status_code == 403, resp.text
+    assert "waiting for approval" in resp.json()["detail"]
+
+
+def test_an_active_tenant_still_signs_in(monkeypatch):
+    user = make_user("ok@acme.test", "viewer", "tenant_ok")
+    db, _raw = role_store(users=[user], roles=shared_role_docs(),
+                          tenants=[{"id": "tenant_ok", "name": "Ok", "status": "active"}])
+    assert login(make_auth_client(db, monkeypatch), user["email"]).status_code == 200
+
+
+# ── 77 WR-13: an unconfirmed sign-up expires and stops claiming its email and company name ──
+
+class _Deletable(StoreCollection):
+    async def delete_many(self, flt, **k):
+        from tests.agent_identity_test_support import matches
+        before = len(self.docs)
+        self.docs = [d for d in self.docs if not matches(d, flt)]
+        return MagicMock(deleted_count=before - len(self.docs))
+
+
+def _ago(**delta):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(**delta)).isoformat()
+
+
+def _earlier_signup(requested_at, *, email=SIGNUP_BODY["email"], company="Squatter Ltd", tenant_status="pending_approval",
+                    user_status="Pending"):
+    tenant = {"id": "tenant_old", "name": company, "status": tenant_status, "signupRequestedAt": requested_at,
+              "createdAt": requested_at}
+    user = {"id": "user_old", "email": email, "password": "x", "name": "Old", "role": "Tenant Admin",
+            "tenantId": "tenant_old", "status": user_status, "createdAt": requested_at}
+    consent = {"user_id": "user_old", "email": email, "tenantId": "tenant_old"}
+    db, raw = role_store(users=_Deletable([user]), roles=shared_role_docs(), tenants=_Deletable([tenant]),
+                         user_consents=_Deletable([consent]))
+    return db, raw
+
+
+def _signup_days():
+    import tenant_signup_endpoints as signups
+    return signups.SIGNUP_PENDING_DAYS
+
+
+def test_a_new_signup_replaces_an_expired_pending_one_with_the_same_email(monkeypatch):
+    db, raw = _earlier_signup(_ago(days=_signup_days(), minutes=5))
+    resp = make_auth_client(db, monkeypatch).post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 200, resp.text
+    new_tenant = resp.json()["tenant"]["id"]
+    assert [t["id"] for t in raw.tenants.docs] == [new_tenant]
+    assert [(u["email"], u["tenantId"]) for u in raw.users.docs] == [(SIGNUP_BODY["email"], new_tenant)]
+    assert [c["tenantId"] for c in raw.user_consents.docs] == [new_tenant]
+
+
+def test_an_expired_pending_signup_frees_its_company_name(monkeypatch):
+    db, raw = _earlier_signup(_ago(days=_signup_days() + 1), email="someone@else.test",
+                              company=SIGNUP_BODY["companyName"])
+    resp = make_auth_client(db, monkeypatch).post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 200, resp.text
+    assert all(u["email"] != "someone@else.test" for u in raw.users.docs)
+    assert [t["name"] for t in raw.tenants.docs] == [SIGNUP_BODY["companyName"]]
+
+
+@pytest.mark.parametrize("company", ["Squatter Ltd", SIGNUP_BODY["companyName"]])
+def test_a_still_pending_signup_is_never_displaced(monkeypatch, company):
+    db, raw = _earlier_signup(_ago(days=_signup_days() - 1), company=company)
+    resp = make_auth_client(db, monkeypatch).post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 400
+    assert [t["id"] for t in raw.tenants.docs] == ["tenant_old"]
+    assert [u["id"] for u in raw.users.docs] == ["user_old"] and len(raw.user_consents.docs) == 1
+
+
+@pytest.mark.parametrize("tenant_status,user_status", [("active", "Active"), ("pending_approval", "Active"),
+                                                       ("active", "Pending")])
+def test_an_old_signup_that_was_approved_or_activated_is_never_displaced(monkeypatch, tenant_status, user_status):
+    db, raw = _earlier_signup(_ago(days=60), tenant_status=tenant_status, user_status=user_status)
+    resp = make_auth_client(db, monkeypatch).post("/api/auth/signup", json=SIGNUP_BODY)
+    assert resp.status_code == 400 and resp.json()["detail"] == "Email already registered"
+    assert [u["id"] for u in raw.users.docs] == ["user_old"]
+    assert [t["id"] for t in raw.tenants.docs] == ["tenant_old"]
 
 
 # ── 87 WR-04: invites store the address lower-cased, so sign-in ignores the case typed ──

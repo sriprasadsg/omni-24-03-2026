@@ -52,6 +52,8 @@ def _make_db_mock(user=None, role_obj=None, login_record=None):
     raw_db.login_attempts.delete_one = AsyncMock()
     raw_db.roles = MagicMock()
     raw_db.roles.find_one = AsyncMock(return_value=role_obj)  # DB-F10: rbac_service.find_role_doc's global-role fallback goes through db._db
+    raw_db.tenants = MagicMock()
+    raw_db.tenants.find_one = AsyncMock(return_value=None)  # 77 WR-12: sign-in reads the tenant's sign-up status
 
     db = MagicMock()
     db._db = raw_db
