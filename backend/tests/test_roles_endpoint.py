@@ -17,8 +17,10 @@ from auth_types import TokenData
 from authentication_service import get_current_user
 from tests.rbac_test_support import role_store, shared_role_docs
 
-BUILTIN_NAMES = [r.name for r in rbac_defaults.BUILTIN_ROLES if r.key not in rbac_defaults.PLATFORM_ROLE_KEYS]
+_OWNER_ONLY = rbac_defaults.PLATFORM_ROLE_KEYS | rbac_defaults.PARTNER_ROLE_KEYS
+BUILTIN_NAMES = [r.name for r in rbac_defaults.BUILTIN_ROLES if r.key not in _OWNER_ONLY]
 PLATFORM_NAMES = [r.name for r in rbac_defaults.BUILTIN_ROLES if r.key in rbac_defaults.PLATFORM_ROLE_KEYS]
+PARTNER_ROLES = [r for r in rbac_defaults.BUILTIN_ROLES if r.key in rbac_defaults.PARTNER_ROLE_KEYS]
 
 
 def _custom(name, tenant, permissions, **extra):
@@ -72,6 +74,20 @@ def test_tenant_admin_lists_every_builtin_role_including_itam(client):
         assert itam in names
     for platform in PLATFORM_NAMES:  # spec C1: platform roles are listed for the owner only
         assert platform not in names
+
+
+def test_partner_roles_are_listed_to_the_owner_only(client):
+    """87 WR-01 / D-04: a tenant admin's role list carries neither partner role."""
+    names = [r["name"] for r in _get(client, "Tenant Admin").json()]
+    assert PARTNER_ROLES and not [r.name for r in PARTNER_ROLES if r.name in names]
+    owner = [r["name"] for r in _get_path(client, "/api/roles", "Super Admin", "platform-admin").json()]
+    assert all(r.name in owner for r in PARTNER_ROLES)
+
+
+@pytest.mark.parametrize("role", PARTNER_ROLES, ids=lambda r: r.key)
+def test_a_partner_role_detail_is_not_found_for_a_tenant_admin(client, role):
+    res = _get_path(client, f"/api/roles/{role.role_id}/visibility", "Tenant Admin", "tenant-a")
+    assert res.status_code == 404, res.text
 
 
 @pytest.mark.asyncio

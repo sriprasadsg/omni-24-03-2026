@@ -259,6 +259,17 @@ async def test_with_mail_configured_the_link_goes_only_to_the_invitee_and_never_
     assert token not in _app_log(caplog) and "accept-invite?token" not in _app_log(caplog)
 
 
+async def test_a_failure_to_issue_the_link_leaves_no_user_and_the_address_stays_invitable(wired):
+    """87 WR-03: protects=a failed invite can be retried; fails_when=the user row outlives a failed link
+    write, so the address reads as in use and resend refuses it; no_claim=which store failed."""
+    with patch.object(inv, "issue_invite", new=AsyncMock(side_effect=RuntimeError("store down"))):
+        with pytest.raises(RuntimeError):
+            await _invite(wired)
+    assert await wired.users.count_documents({"email": "ada@example.com"}) == 0
+    out = await _invite(wired)
+    assert out["user"]["email"] == "ada@example.com"
+
+
 async def test_a_mail_failure_reports_false_and_still_keeps_the_invite(wired, monkeypatch, caplog):
     monkeypatch.setenv("FRONTEND_URL", "https://omni.example.com")
     caplog.set_level(logging.DEBUG)

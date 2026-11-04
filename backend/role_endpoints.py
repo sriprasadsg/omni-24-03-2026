@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/roles", tags=["Role Management"])
 
+# Built-in roles only a Super Admin lists or reads: the platform roles and the reseller roles.
+_OWNER_ONLY_ROLE_KEYS = rbac_defaults.PLATFORM_ROLE_KEYS | rbac_defaults.PARTNER_ROLE_KEYS
+
 RENAME_REFUSED = "A role's name can't be changed. To rename, create a new role and reassign its users."
 
 
@@ -128,8 +131,8 @@ async def list_roles(tenantId: Optional[str] = None,
                 raise HTTPException(status_code=403, detail="You can only list roles of your own tenant")
             tenant_id = current_user.tenant_id
         for builtin in rbac_defaults.BUILTIN_ROLES:
-            if builtin.key in rbac_defaults.PLATFORM_ROLE_KEYS and not caller_is_super:
-                continue  # platform roles (spec C1) are listed and assignable by the owner only
+            if builtin.key in _OWNER_ONLY_ROLE_KEYS and not caller_is_super:
+                continue  # platform (spec C1) and partner (87 D-04) roles are listed and assignable by the owner only
             roles.append({
                 "id": builtin.role_id,
                 "name": builtin.name,
@@ -324,6 +327,8 @@ async def role_visibility_view(role_id: str, tenantId: Optional[str] = None,
             if not tenant_id:
                 raise HTTPException(status_code=403, detail="No tenant for this account")
         builtin = next((b for b in rbac_defaults.BUILTIN_ROLES if b.role_id == role_id), None)
+        if builtin is not None and builtin.key in rbac_defaults.PARTNER_ROLE_KEYS and not caller_is_super:
+            raise HTTPException(status_code=404, detail="Role not found")
         enabled: List[str] = []
         if builtin is not None and builtin.key in rbac_defaults.PLATFORM_ROLE_KEYS:
             if not caller_is_super:

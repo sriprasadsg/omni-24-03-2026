@@ -144,8 +144,13 @@ async def invite(db, *, tenant_id: str, organization_name: str, email: str, name
         })
     except DuplicateKeyError:
         raise _unavailable()
-    token = await issue_invite(db, email=address, tenant_id=tenant_id, organization_name=organization_name,
-                               role_kind=role_kind, invited_by=invited_by)
+    try:
+        token = await issue_invite(db, email=address, tenant_id=tenant_id, organization_name=organization_name,
+                                   role_kind=role_kind, invited_by=invited_by)
+    except Exception:
+        # Without its link the person can never sign in or be invited again (WR-03), so they go too.
+        await _raw(db).users.delete_one({"id": user_id})
+        raise
     sent = await send_invite_email(email=address, name=name, organization_name=organization_name,
                                    token=token, tenant_id=tenant_id)
     return {"user": {"id": user_id, "name": name, "email": address, "role": role}, "emailSent": sent}

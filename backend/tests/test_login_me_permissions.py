@@ -207,6 +207,36 @@ def test_a_pending_signup_cannot_sign_in_and_is_told_why(monkeypatch):
     assert "waiting for approval" in resp.json()["detail"]
 
 
+# ── 87 WR-04: invites store the address lower-cased, so sign-in ignores the case typed ──
+
+def _invited(email):
+    user = make_user(email, "viewer", "t1")
+    user.pop("username")  # an invited person has no username, only the stored address
+    return user
+
+
+def test_an_invited_address_signs_in_whatever_case_is_typed(monkeypatch):
+    """protects=an invitee signs in typing their mailbox's own capitals; fails_when=login matches the
+    lower-cased stored address case-sensitively; no_claim=usernames, which still match exactly."""
+    client = _client(monkeypatch, shared_role_docs(), _invited("jane.doe@corp.test"))
+    assert login(client, "Jane.Doe@Corp.TEST").status_code == 200
+    assert login(client, " jane.doe@corp.test ").status_code == 200
+
+
+def test_an_address_stored_as_typed_still_signs_in_as_before(monkeypatch):
+    client = _client(monkeypatch, shared_role_docs(), _invited("Legacy.User@Corp.test"))
+    assert login(client, "Legacy.User@Corp.test").status_code == 200
+
+
+def test_case_variants_of_an_address_share_one_lockout(monkeypatch):
+    """protects=the five-attempt lock-out; fails_when=each capitalization gets its own failure counter."""
+    client = _client(monkeypatch, shared_role_docs(), _invited("jane.doe@corp.test"))
+    for typed in ("Jane.Doe@corp.test", "JANE.DOE@corp.test", "jane.Doe@corp.test",
+                  "Jane.DOE@corp.test", "jane.doe@CORP.test"):
+        assert login(client, typed, password="Wrong1!pass").status_code == 401
+    assert login(client, "jane.doe@corp.test").status_code == 429
+
+
 def _mfa_client(monkeypatch, db, email):
     from unittest.mock import AsyncMock
     from fastapi import FastAPI

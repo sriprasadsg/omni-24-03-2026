@@ -174,6 +174,17 @@ async def test_a_customer_with_no_seats_moves_with_the_counters_unchanged(wired)
     assert (await wired.db.tenants.find_one({"id": "c0"}))["partnerId"] == "partner_b"
 
 
+async def test_a_customer_with_no_seats_cannot_move_into_a_suspended_partner(wired):
+    # protects=87 WR-05, a suspended partner takes no new customer whatever its seats; fails_when=a 0-seat
+    # claim skips the suspension check and partnerId is written; no_claim=the partner portal's own routes
+    await _partner(wired, "partner_a", "A", 5, allocated=0)
+    await _partner(wired, "partner_s", "Susp", 50, status="suspended")
+    await _customer(wired, "c0", "Empty", 0, "partner_a")
+    refused = await _move("c0", "partner_s")
+    assert (refused.status_code, _body(refused)["code"]) == (409, "partner_suspended")
+    assert (await wired.db.tenants.find_one({"id": "c0"}))["partnerId"] == "partner_a"
+
+
 async def test_a_move_is_refused_for_the_wrong_target_or_customer(wired):
     await _partner(wired, "partner_a", "A", 50, allocated=2)
     await _partner(wired, "partner_s", "Susp", 50, status="suspended")

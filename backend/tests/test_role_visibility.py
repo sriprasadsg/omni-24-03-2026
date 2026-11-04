@@ -21,7 +21,8 @@ from auth_types import TokenData
 from authentication_service import get_current_user
 from tests.rbac_test_support import role_store, shared_role_docs
 
-TENANT_ROLE_KEYS = [b.key for b in rbac_defaults.BUILTIN_ROLES if b.key not in rbac_defaults.PLATFORM_ROLE_KEYS]
+TENANT_ROLE_KEYS = [b.key for b in rbac_defaults.BUILTIN_ROLES
+                    if b.key not in rbac_defaults.PLATFORM_ROLE_KEYS | rbac_defaults.PARTNER_ROLE_KEYS]
 BUILTIN_ID = {b.key: b.role_id for b in rbac_defaults.BUILTIN_ROLES}
 BUILTIN_NAME = {b.key: b.name for b in rbac_defaults.BUILTIN_ROLES}
 
@@ -84,7 +85,7 @@ def test_payload_shape_groups_in_manifest_order_and_totals(client):
     assert res.status_code == 200
     body = res.json()
     assert [g["id"] for g in body["groups"]] == [g[0] for g in tenant_features.NAV_GROUPS]
-    assert sum(g["total"] for g in body["groups"]) == body["totalCount"] == len(tenant_features.NAV_SCREENS) == 190
+    assert sum(g["total"] for g in body["groups"]) == body["totalCount"] == len(tenant_features.NAV_SCREENS) == 192
     assert body["roleId"] == "role-viewer" and body["builtIn"] is True
     assert body["basis"] == {"kind": "tenant", "tenantId": "tenant-a", "tenantName": "Tenant A"}
     assert body["visibleCount"] == sum(g["visibleCount"] for g in body["groups"])

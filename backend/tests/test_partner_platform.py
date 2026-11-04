@@ -202,6 +202,37 @@ async def test_a_ceiling_change_never_alters_a_customers_screens(wired):
     assert (await wired.db.tenants.find_one({"id": "cust1"}))["enabledFeatures"] == features
 
 
+async def test_a_name_taken_between_the_check_and_the_write_is_refused_and_changes_nothing(wired):
+    # protects=87 WR-02, the 409 name contract when a concurrent write wins the race; fails_when=the unique
+    # index's duplicate-key error surfaces as a 500, a user is left behind, or the pool resize of a refused
+    # rename stays applied; no_claim=two real concurrent requests (the pre-check is made to miss instead)
+    await wired.db.tenants.create_index("name", unique=True)
+    a = await _appoint(name="Retailer A")
+    await wired.db.tenants.insert_one({"id": "tenant_acme", "name": "Acme"})
+    with patch("partner_platform_service.name_taken", new=AsyncMock(return_value=False)):
+        appointed = await ppe.create_partner(
+            ppe.PartnerCreate(name="Acme", poolSize=10, screenCeiling=["all"], adminName="X", adminEmail="x@acme.test"),
+            current_user=SUPER)
+        renamed = await _patch(a, name="Acme", poolSize=50)
+    assert appointed.status_code == 409 and _body(appointed)["code"] == "name_unavailable"
+    assert await wired.db.users.count_documents({"email": "x@acme.test"}) == 0
+    assert renamed.status_code == 409 and _body(renamed)["code"] == "name_unavailable"
+    partner = await wired.db.tenants.find_one({"id": a})
+    assert partner["name"] == "Retailer A" and partner["partner"]["poolSize"] == 100
+    assert not _actions(wired, "partner.pool_changed", a) and not _actions(wired, "partner.renamed", a)
+
+
+async def test_a_refused_pool_resize_keeps_the_old_name(wired):
+    # protects=87 WR-02, an edit is applied whole or not at all; fails_when=the rename stays after the pool
+    # resize in the same request is refused; no_claim=a crash between the two writes
+    a = await _appoint(name="Retailer A")
+    await wired.db.tenants.update_one({"id": a}, {"$set": {"partner.allocated": 30}})
+    refused = await _patch(a, name="Retailer Renamed", poolSize=10)
+    assert refused.status_code == 409
+    assert (await wired.db.tenants.find_one({"id": a}))["name"] == "Retailer A"
+    assert not _actions(wired, "partner.renamed", a)
+
+
 async def test_rename_checks_other_names_only_and_is_audited(wired):
     a = await _appoint(name="Retailer A")
     await _appoint(name="Retailer B", email="b@x.test")

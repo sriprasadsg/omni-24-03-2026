@@ -8,6 +8,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
+from pymongo.errors import DuplicateKeyError
+
 import authentication_service
 import licensing
 import partner_invites
@@ -87,7 +89,10 @@ async def appoint(db, *, name: str, pool_size: int, expires_at: Optional[datetim
         "createdAt": now,
         "updatedAt": now,
     }
-    await _raw(db).tenants.insert_one(dict(doc))
+    try:
+        await _raw(db).tenants.insert_one(dict(doc))
+    except DuplicateKeyError:  # the name was taken after name_taken looked (WR-02); nothing is written yet
+        raise PartnerError(409, "name_unavailable", _NAME_UNAVAILABLE)
     try:
         invited = await partner_invites.invite(
             db, tenant_id=doc["id"], organization_name=name, email=address, name=admin_name,
@@ -141,9 +146,24 @@ async def update_partner(db, partner_id: str, *, changes: Dict[str, Any], actor:
         if expiry != pool.get("expiresAt"):
             sets["partner.expiresAt"] = expiry
             events.append(("partner.expiry_changed", pool.get("expiresAt"), expiry))
+    # The name is the one write the unique index can refuse (WR-02), so it goes first; a pool resize
+    # refused after it puts the old name back, so a refusal never leaves half an update.
+    renamed = sets.pop("name", None)
+    if renamed is not None:
+        try:
+            await raw.tenants.update_one({"id": partner_id, "type": PARTNER_TYPE}, {"$set": {"name": renamed}})
+        except DuplicateKeyError:
+            raise PartnerError(409, "name_unavailable", _NAME_UNAVAILABLE)
     if "poolSize" in changes and changes["poolSize"] != pool.get("poolSize"):
-        await partner_pool.set_pool_size(db, partner_id, changes["poolSize"])
+        try:
+            await partner_pool.set_pool_size(db, partner_id, changes["poolSize"])
+        except Exception:
+            if renamed is not None:
+                await raw.tenants.update_one({"id": partner_id, "type": PARTNER_TYPE}, {"$set": {"name": doc.get("name")}})
+            raise
         events.append(("partner.pool_changed", pool.get("poolSize"), changes["poolSize"]))
+    if renamed is not None:
+        sets["name"] = renamed
     if sets:
         sets["updatedAt"] = datetime.now(timezone.utc).isoformat()
         await raw.tenants.update_one({"id": partner_id, "type": PARTNER_TYPE}, {"$set": sets})

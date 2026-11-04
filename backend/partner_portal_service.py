@@ -8,6 +8,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
+from pymongo.errors import DuplicateKeyError
+
 import licensing
 import partner_invites
 import partner_pool
@@ -109,8 +111,10 @@ async def create_customer(db, partner_doc: Dict[str, Any], *, name: str, seats: 
     doc = tenant_docs.build_tenant_doc(name, max_agents=seats, enabled_features=features, partner_id=partner_id)
     try:
         await _raw(db).tenants.insert_one(dict(doc))
-    except Exception:
+    except Exception as exc:
         await partner_pool.release(db, partner_id, seats)
+        if isinstance(exc, DuplicateKeyError):  # the name was taken after name_taken looked (WR-02)
+            raise PartnerError(409, "name_unavailable", NAME_UNAVAILABLE)
         raise
     try:
         invited = await partner_invites.invite(

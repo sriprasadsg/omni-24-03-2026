@@ -162,6 +162,20 @@ async def test_a_name_in_use_by_any_organization_is_refused_generically(wired):
     assert await _allocated(wired) == 0
 
 
+async def test_a_name_taken_between_the_check_and_the_insert_is_refused_and_returns_the_seats(wired):
+    """87 WR-02: protects=the 409 name contract when a concurrent create wins the race; fails_when=the
+    unique index's duplicate-key error surfaces as a 500 or the claimed seats stay allocated;
+    no_claim=two real concurrent requests (the pre-check is made to miss instead)."""
+    await _partner(wired)
+    await wired.db.tenants.create_index("name", unique=True)
+    await wired.db.tenants.insert_one({"id": "tenant_acme", "name": "Acme", "license": {"maxAgents": 1}})
+    with patch("partner_portal_service.name_taken", new=AsyncMock(return_value=False)):
+        refused = await pe.post_customer(_new(name="Acme", email="a@acme.test"), ctx=await _ctx())
+    assert refused.status_code == 409 and _body(refused)["code"] == "name_unavailable"
+    assert await _allocated(wired) == 0
+    assert await wired.db.users.count_documents({"email": "a@acme.test"}) == 0
+
+
 async def test_non_ascii_names_are_stored_with_their_own_letters_and_collide_ignoring_case(wired):
     """protects=PART-05 encoding; fails_when=the stored name is folded or altered, or a case variant of a
     non-ASCII name is accepted as a different name."""

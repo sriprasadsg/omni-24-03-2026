@@ -46,15 +46,12 @@ async def claim(db, partner_id: str, n: int, *, require_active: bool = True) -> 
     ``require_active``, when the partner is not an active partner)."""
     if not isinstance(n, int) or isinstance(n, bool) or n < 0:
         raise ValueError("seat count must be a non-negative integer")
-    if n == 0:
-        return True
-    query: Dict[str, Any] = {
-        "id": partner_id,
-        "type": "partner",
-        "$expr": {"$lte": [{"$add": ["$partner.allocated", n]}, "$partner.poolSize"]},
-    }
+    query: Dict[str, Any] = {"id": partner_id, "type": "partner"}
     if require_active:
         query["partner.status"] = "active"
+    if n == 0:  # nothing to take, but the partner must still be one that may take a customer (WR-05)
+        return await _raw(db).tenants.count_documents(query, limit=1) == 1
+    query["$expr"] = {"$lte": [{"$add": ["$partner.allocated", n]}, "$partner.poolSize"]}
     res = await _raw(db).tenants.update_one(query, {"$inc": {"partner.allocated": n}})
     return res.modified_count == 1
 

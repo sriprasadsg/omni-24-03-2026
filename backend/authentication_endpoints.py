@@ -69,8 +69,17 @@ _LOCKOUT_MINUTES = 30
 _ATTEMPT_WINDOW_MINUTES = 15
 
 
+def _login_key(identifier: str | None) -> str:
+    """An email address is looked up and locked out ignoring case and surrounding spaces (87 WR-04):
+    invites store addresses lower-cased, and case variants must not each get their own failure counter.
+    Anything without an @ (a username) is kept as typed."""
+    text = (identifier or "").strip()
+    return text.lower() if "@" in text else text
+
+
 async def _check_login_lockout(db, identifier: str) -> None:
     """Raise 429 if the identifier is currently locked out."""
+    identifier = _login_key(identifier)
     record = await db._db.login_attempts.find_one({"identifier": identifier})
     if not record:
         return
@@ -92,6 +101,7 @@ async def _check_login_lockout(db, identifier: str) -> None:
 
 async def _record_login_failure(db, identifier: str) -> None:
     """Atomically increment failure counter; lock the account if threshold is reached."""
+    identifier = _login_key(identifier)
     now = datetime.datetime.now(timezone.utc)
     window_start = (now - timedelta(minutes=_ATTEMPT_WINDOW_MINUTES)).isoformat()
     # Atomic push + set — avoids TOCTOU race between concurrent requests
@@ -114,7 +124,7 @@ async def _record_login_failure(db, identifier: str) -> None:
 
 
 async def _clear_login_failures(db, identifier: str) -> None:
-    await db._db.login_attempts.delete_one({"identifier": identifier})
+    await db._db.login_attempts.delete_one({"identifier": _login_key(identifier)})
 
 
 class LoginRequest(BaseModel):
@@ -172,10 +182,12 @@ async def login_for_access_token(request: Request, response: Response, login_req
     # Bypass tenant isolation for initial auth lookup since tenant might not be known yet
     await _check_login_lockout(db, identifier)
 
+    # The address as typed (accounts stored before invites lower-cased them) or lower-cased (WR-04).
     user = await db._db.users.find_one({
         "$or": [
             {"username": identifier},
-            {"email": identifier}
+            {"email": identifier},
+            {"email": _login_key(identifier)},
         ]
     })
 
