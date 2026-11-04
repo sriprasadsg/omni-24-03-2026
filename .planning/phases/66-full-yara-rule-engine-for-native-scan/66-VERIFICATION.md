@@ -1,7 +1,7 @@
 ---
 phase: 66-full-yara-rule-engine-for-native-scan
 verified: 2026-08-24T14:00:00Z
-status: gaps_found
+status: human_needed
 score: 7/9 must-haves verified (2 accepted by override)
 behavior_unverified: 2
 overrides_applied: 2
@@ -50,7 +50,7 @@ gaps:
     resolved: "2026-08-24 (partial) — override accepted for the module-placement deviation (see frontmatter). The dead legacy `agent-rust/` twin was deliberately NOT removed this session: it is deeply wired into agent-rust's own internal dispatch (poll.rs, agent.rs, caps.rs, lib.rs — not just the two named files), so deleting it is a legacy-crate refactor disproportionate to a doc-debt cleanup pass, and `agent-rust/` is already a known, separately-tracked accepted-debt tree (unshipped, confirmed referenced by nothing outside itself except one pytest --ignore). Left as open cleanup debt, not silently dropped — flagged to the user."
 
   - truth: "Phase 66's acceptance evidence tests the code that ships"
-    status: failed
+    status: resolved
     reason: "`.planning/phases/66-UAT.md` records two PASSED tests, both against `run_yara_scan`. `run_yara_scan` is defined in `agent-rust/src/caps.rs:309` and `agent-rust/src/yara_scan.rs:40` and appears nowhere in `agent-install/omni-agent-rs/`. Both UAT results therefore certify the legacy, unshipped tree. The UAT is void as evidence for the shipped agent."
     artifacts:
 
@@ -62,7 +62,7 @@ gaps:
     resolved: "2026-08-24 — 66-UAT.md rewritten against the shipped path: 5 real security_scan unit tests (independently re-run this session, 5/5 pass) plus the Windows cross-compile/link proof, replacing the two void run_yara_scan results. True end-to-end scan_file-instruction verification (live agent + real cached feed bundle) remains genuinely outstanding — feed_bundle::open_cache() has no test-injectable path override, so closing it for real needs either a live agent or a feed_bundle refactor, not a same-session doc fix. Still tracked as behavior_unverified below and in 66-UAT.md's own Outstanding section, not claimed as passed."
 
   - truth: "Phase 66 completion is recorded in the project's requirement and state tracking"
-    status: failed
+    status: resolved
     reason: "NSCAN-01 is defined only in `.planning/milestones/v3.4-REQUIREMENTS.md`, where it is still worded as \"hash-sig/YARA-fallback matching\" and traced to `Phase 50 | Complete`. The ROADMAP says Phase 66 *completes* NSCAN-01 with full YARA rules, but no requirement row records that. `.planning/STATE.md` contains no Phase 66 entry at all. The top-level `.planning/REQUIREMENTS.md` covers the ITAM-Backlog milestone only and does not carry NSCAN-01."
     artifacts:
 
@@ -78,7 +78,7 @@ gaps:
     resolved: "2026-08-24 — v3.4-REQUIREMENTS.md's NSCAN-01 entry annotated to point at this file; STATE.md's Phases table and narrative both gained a Phase 66 entry."
 
   - truth: "The shipped crate contains no stale planning artifacts contradicting the implementation"
-    status: failed
+    status: resolved
     reason: "`agent-install/omni-agent-rs/.planning/` is a second, git-tracked planning tree living inside the shipped crate. Its Phase 66 artifacts still describe the abandoned placeholder execution — 66-01-PLAN.md declares `src/a.txt`, `src/b.txt`, `src/c.txt` as the deliverables and 66-01-SUMMARY.md reports `status: complete`, `PASSED - All files exist and contain correct content`. The .txt files were deleted in 8f2d96f24 but these records were not."
     artifacts:
 
@@ -111,6 +111,10 @@ audit_acknowledged:
   milestone: v4.1
   at: 2026-08-26
   status: gaps_found
+human_verification:
+  - test: "Send a scan_file instruction to a live Rust agent that holds a real cached feed bundle, for a test file one YARA rule matches"
+    expected: "The result carries verdict, confidence, matched (naming that rule) and sha256, from capabilities::security_scan::scan_file"
+    why_human: "feed_bundle::open_cache() has no test-injectable path, so only a live agent with a real bundle exercises the whole path (noted in the 2026-08-24 resolution)"
 ---
 
 # Phase 66: Full YARA-rule engine for native scan — Verification Report
