@@ -203,14 +203,19 @@ export const PartnerTeamPanel: React.FC = () => {
     return () => { alive.current = false; };
   }, []);
 
+  // Only the newest request applies, and a quiet reload that fails keeps what is on screen (87 WR-11).
+  const loadSeq = useRef(0);
   const load = useCallback(async (showSkeleton: boolean) => {
+    const mine = ++loadSeq.current;
     if (showSkeleton) setMembers(null);
     setLoadError(false);
     try {
       const list = await fetchPartnerTeam();
-      if (alive.current) setMembers(list);
+      if (alive.current && mine === loadSeq.current) setMembers(list);
     } catch {
-      if (alive.current) { setLoadError(true); setMembers(null); }
+      if (!alive.current || mine !== loadSeq.current) return;
+      setLoadError(true);
+      if (showSkeleton) setMembers(null);
     }
   }, []);
 
@@ -270,7 +275,7 @@ export const PartnerTeamPanel: React.FC = () => {
         </div>
       )}
 
-      {!loadError && (
+      {(!loadError || members !== null) && (
         <div className="card overflow-hidden">
           {wide ? (
           <div className="overflow-x-auto">

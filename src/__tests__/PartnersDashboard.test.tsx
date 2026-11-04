@@ -262,6 +262,36 @@ describe('PartnersDashboard customers disclosure', () => {
     expect(fetchPartnerCustomers).toHaveBeenCalledTimes(1);
   });
 
+  it('refetches a partner collapsed during a change instead of showing its old customers (87 WR-08)', async () => {
+    fetchPartners.mockResolvedValue([partner(), partner({ id: 'p2', name: 'Beta Resale' })]);
+    fetchPartnerCustomers.mockResolvedValue([customer({ name: 'Old Co' })]);
+    (api.suspendPartner as ReturnType<typeof vi.fn>).mockResolvedValue(partner({ status: 'suspended' }));
+    render(<PartnersDashboard />);
+    await screen.findByText('Beta Resale');
+    const beta = within(row('Beta Resale')).getByRole('button', { name: /Show customers/ });
+    fireEvent.click(beta);
+    await screen.findByText('Old Co');
+    fireEvent.click(beta); // collapsed while a change elsewhere moves seats
+    fetchPartnerCustomers.mockResolvedValue([customer({ name: 'New Co' })]);
+    fireEvent.click(within(row('Acme Resale')).getByRole('button', { name: 'Suspend Acme Resale' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Suspend partner' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    fireEvent.click(within(row('Beta Resale')).getByRole('button', { name: /Show customers/ }));
+    expect(await screen.findByText('New Co')).toBeTruthy();
+    expect(screen.queryByText('Old Co')).toBeNull();
+  });
+
+  it('keeps the partners on screen when the quiet reload after a change fails (87 WR-11)', async () => {
+    fetchPartners.mockResolvedValueOnce([partner()]).mockRejectedValueOnce(new Error('offline'));
+    (api.suspendPartner as ReturnType<typeof vi.fn>).mockResolvedValue(partner({ status: 'suspended' }));
+    render(<PartnersDashboard />);
+    await screen.findByText('Acme Resale');
+    fireEvent.click(within(row('Acme Resale')).getByRole('button', { name: 'Suspend Acme Resale' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Suspend partner' }));
+    expect(await screen.findByText(/Couldn't load partners/)).toBeTruthy();
+    expect(screen.getByText('Acme Resale')).toBeTruthy();
+  });
+
   it('says This partner has no customers yet. for an empty partner', async () => {
     fetchPartners.mockResolvedValue([partner({ customerCount: 0 })]);
     fetchPartnerCustomers.mockResolvedValue([]);

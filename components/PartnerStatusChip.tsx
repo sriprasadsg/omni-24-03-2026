@@ -44,12 +44,14 @@ export function daysUntil(iso: string | null | undefined, now: Date = new Date()
   return Math.ceil((when - now.getTime()) / DAY_MS);
 }
 
-/** 'Mon D, YYYY' for a stored date, '' when there is none. Callers wrap it in <time dateTime={iso}>. */
+/** 'Mon D, YYYY' for a stored date, '' when there is none. Callers wrap it in <time dateTime={iso}>.
+ *  The day is read in UTC: the form stores a chosen day as 23:59:59Z, and the edit form and the CSV
+ *  read it back as that UTC day, so every view shows the same day (87 WR-09). */
 export function formatDay(iso: string | null | undefined): string {
   if (!iso) return '';
   const when = new Date(iso);
   if (Number.isNaN(when.getTime())) return '';
-  return when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 /**

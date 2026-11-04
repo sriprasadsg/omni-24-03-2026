@@ -75,6 +75,17 @@ describe('date helpers', () => {
     expect(formatDay('2026-11-15T12:00:00Z')).toBe('Nov 15, 2026');
     expect(formatDay(null)).toBe('');
   });
+
+  it('shows the stored UTC day in any time zone (87 WR-09)', () => {
+    // The form stores a chosen day as 23:59:59Z; east of UTC that instant is already the next day.
+    const zone = process.env.TZ;
+    process.env.TZ = 'Asia/Kolkata';
+    try {
+      expect(formatDay('2026-12-31T23:59:59Z')).toBe('Dec 31, 2026');
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
 });
 
 /** The picker is controlled: this keeps its value so a click can be followed by the next one. */

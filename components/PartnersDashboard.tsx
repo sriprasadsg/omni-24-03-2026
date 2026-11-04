@@ -238,14 +238,19 @@ export const PartnersDashboard: React.FC = () => {
     return () => { alive.current = false; };
   }, []);
 
+  // Only the newest request applies, and a quiet reload that fails keeps what is on screen (87 WR-11).
+  const loadSeq = useRef(0);
   const load = useCallback(async (showSkeleton: boolean) => {
+    const mine = ++loadSeq.current;
     if (showSkeleton) setPartners(null);
     setLoadError(false);
     try {
       const list = await fetchPartners();
-      if (alive.current) setPartners(list);
+      if (alive.current && mine === loadSeq.current) setPartners(list);
     } catch {
-      if (alive.current) { setLoadError(true); setPartners(null); }
+      if (!alive.current || mine !== loadSeq.current) return;
+      setLoadError(true);
+      if (showSkeleton) setPartners(null);
     }
   }, []);
 
@@ -261,10 +266,13 @@ export const PartnersDashboard: React.FC = () => {
 
   useEffect(() => { void load(true); }, [load]);
 
-  /** After any success: refetch the table and the customers of every open partner (seats moved between them). */
+  /** After any success: refetch the table and the customers of every open partner (seats moved between them),
+   *  and forget the customers of closed ones, so opening one later loads it again (87 WR-08). */
   const refreshAll = useCallback(() => {
     void load(false);
-    expandedRef.current.forEach(id => { void loadCustomers(id); });
+    const open = expandedRef.current;
+    setCustomers(prev => Object.fromEntries(Object.entries(prev).filter(([id]) => open.has(id))));
+    open.forEach(id => { void loadCustomers(id); });
   }, [load, loadCustomers]);
 
   const toggle = (partner: PartnerSummary) => {
@@ -278,6 +286,12 @@ export const PartnersDashboard: React.FC = () => {
   };
 
   const closeModal = () => setModal(null);
+  // Dialogs show the live rows, so a refetch after a refusal updates their figures (87 WR-10).
+  const livePartner = (p: PartnerSummary) => partners?.find(x => x.id === p.id) ?? p;
+  const liveCustomer = (partnerId: string, c: PartnerCustomerRow) => {
+    const state = customers[partnerId];
+    return (state?.status === 'ready' ? state.rows.find(x => x.id === c.id) : undefined) ?? c;
+  };
   const appoint = () => setModal({ kind: 'form', mode: 'appoint' });
 
   const sorted = [...(partners ?? [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -421,7 +435,7 @@ export const PartnersDashboard: React.FC = () => {
         </div>
       )}
 
-      {!loadError && !empty && (
+      {(!loadError || partners !== null) && !empty && (
         <section className="space-y-4" aria-label="Partners">
           <div className="flex flex-wrap items-center gap-4">
             {partners !== null && (
@@ -455,18 +469,18 @@ export const PartnersDashboard: React.FC = () => {
       {modal?.kind === 'form' && (
         <PartnerFormModal
           mode={modal.mode}
-          partner={modal.mode === 'edit' ? modal.partner : undefined}
+          partner={modal.mode === 'edit' ? livePartner(modal.partner) : undefined}
           onClose={closeModal}
           onSaved={refreshAll}
         />
       )}
-      {modal?.kind === 'suspend' && <SuspendPartnerDialog partner={modal.partner} onClose={closeModal} onDone={refreshAll} />}
-      {modal?.kind === 'reinstate' && <ReinstatePartnerDialog partner={modal.partner} onClose={closeModal} onDone={refreshAll} />}
+      {modal?.kind === 'suspend' && <SuspendPartnerDialog partner={livePartner(modal.partner)} onClose={closeModal} onDone={refreshAll} />}
+      {modal?.kind === 'reinstate' && <ReinstatePartnerDialog partner={livePartner(modal.partner)} onClose={closeModal} onDone={refreshAll} />}
       {modal?.kind === 'move' && (
         <PartnerMoveCustomerModal
           mode={modal.mode}
-          partner={modal.partner}
-          customer={modal.mode === 'move' ? modal.customer : undefined}
+          partner={livePartner(modal.partner)}
+          customer={modal.mode === 'move' ? liveCustomer(modal.partner.id, modal.customer) : undefined}
           partners={partners ?? []}
           onClose={closeModal}
           onMoved={refreshAll}

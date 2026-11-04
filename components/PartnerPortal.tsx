@@ -139,14 +139,19 @@ export const PartnerPortal: React.FC = () => {
   }, []);
 
   /** The first load shows skeletons; every later reload is quiet and never moves focus. */
+  // Only the newest request applies, and a quiet reload that fails keeps what is on screen (87 WR-11).
+  const loadSeq = useRef(0);
   const load = useCallback(async (showSkeleton: boolean) => {
+    const mine = ++loadSeq.current;
     if (showSkeleton) setData(null);
     setLoadError(false);
     try {
       const next = await fetchPartnerOverview();
-      if (alive.current) setData(next);
+      if (alive.current && mine === loadSeq.current) setData(next);
     } catch {
-      if (alive.current) { setLoadError(true); setData(null); }
+      if (!alive.current || mine !== loadSeq.current) return;
+      setLoadError(true);
+      if (showSkeleton) setData(null);
     }
   }, []);
 
@@ -180,6 +185,8 @@ export const PartnerPortal: React.FC = () => {
   const createReason = expired ? bannerId : noFree ? noFreeId : undefined;
 
   const customers = [...(data?.customers ?? [])].sort(byName);
+  // A dialog shows the live row, so the refetch after a refusal updates its figures (87 WR-10).
+  const liveCustomer = (c: PartnerCustomerRow) => customers.find(x => x.id === c.id) ?? c;
   const needle = query.trim().toLowerCase();
   const matches = needle ? customers.filter(c => String(c.name).toLowerCase().includes(needle)) : customers;
   const visible = matches.slice(0, limit);
@@ -319,7 +326,7 @@ export const PartnerPortal: React.FC = () => {
         </div>
       )}
 
-      {!loadError && (
+      {(!loadError || data !== null) && (
         <section aria-labelledby={`${uid}-pool-title`} aria-busy={loading} className="space-y-4">
           <h2 id={`${uid}-pool-title`} className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Seat pool</h2>
           <div className="card space-y-6 p-6">
@@ -344,7 +351,7 @@ export const PartnerPortal: React.FC = () => {
         </section>
       )}
 
-      {!loadError && (
+      {(!loadError || data !== null) && (
         <section aria-labelledby={`${uid}-customers-title`} aria-busy={loading} className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h2 id={`${uid}-customers-title`} className="text-lg font-semibold leading-tight text-gray-900 dark:text-white">Customers</h2>
@@ -397,10 +404,10 @@ export const PartnerPortal: React.FC = () => {
         />
       )}
       {modal?.kind === 'seats' && (
-        <ChangeSeatsModal customer={modal.customer} free={pool?.free ?? 0} expired={expired} onClose={() => setModal(null)} onRefetch={refetch} />
+        <ChangeSeatsModal customer={liveCustomer(modal.customer)} free={pool?.free ?? 0} expired={expired} onClose={() => setModal(null)} onRefetch={refetch} />
       )}
       {modal?.kind === 'screens' && (
-        <ChooseScreensModal customer={modal.customer} onClose={() => setModal(null)} onRefetch={refetch} />
+        <ChooseScreensModal customer={liveCustomer(modal.customer)} onClose={() => setModal(null)} onRefetch={refetch} />
       )}
     </main>
   );

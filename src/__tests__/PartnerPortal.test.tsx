@@ -381,3 +381,18 @@ describe('PartnerPortal shows only the D-01 facts (PART-05, T-87-38)', () => {
     expect(container.querySelectorAll('[title]').length).toBeLessThanOrEqual(container.querySelectorAll('time[title]').length);
   });
 });
+
+describe('PartnerPortal dialogs follow the refreshed rows (87 WR-10)', () => {
+  it('the seats dialog validates against the row a refusal refetched, not the one it opened with', async () => {
+    await renderLoaded(overview({ customers: [customer({ name: 'Globex', seatsUsed: 10, seatsAssigned: 25 })] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change seats for Globex' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('10 seats in use')).toBeTruthy();
+    fetchPartnerOverview.mockResolvedValue(overview({ customers: [customer({ name: 'Globex', seatsUsed: 18, seatsAssigned: 25 })] }));
+    (api.changeCustomerSeats as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new api.PartnerApiError("Globex uses 18 seats now. You can't set fewer.", 409, 'below_used'));
+    fireEvent.change(within(dialog).getByLabelText('Seats'), { target: { value: '15' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save seats' }));
+    expect(await within(dialog).findByText('18 seats in use')).toBeTruthy();
+  });
+});
