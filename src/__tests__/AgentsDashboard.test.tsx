@@ -10,7 +10,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
@@ -85,7 +85,8 @@ describe('Agents screen', () => {
   it('the tiles count a stale agent as offline', async () => {
     renderScreen([fresh, stale], { summary: { totalAgents: 2, onlineAgents: 2 } });
     await screen.findAllByText('WKS-101');
-    expect(within(screen.getByRole('group', { name: 'Agents' })).getByText('2')).toBeTruthy();
+    // The tiles fill in after the summary request; the list renders from props before it (flaky under load).
+    await waitFor(() => expect(within(screen.getByRole('group', { name: 'Agents' })).getByText('2')).toBeTruthy());
     expect(within(screen.getByRole('group', { name: 'Online' })).getByText('1')).toBeTruthy();
     expect(within(screen.getByRole('group', { name: 'Offline' })).getByText('1')).toBeTruthy();
   });
