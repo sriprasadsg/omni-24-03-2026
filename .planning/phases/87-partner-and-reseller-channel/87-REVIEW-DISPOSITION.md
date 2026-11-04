@@ -5,23 +5,23 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend] Partner roles are listed and readable to every tenant admin"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend] Unique-index races on tenant name surface as HTTP 500 and (for appoint) are not cleaned up consistently"
   - id: WR-03
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend] `invite()` leaves an unreachable, un-resendable user when issuing the link fails"
   - id: WR-04
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend] Invited users are stored lower-cased but login matches the email exactly"
   - id: WR-05
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend] A 0-seat customer can be moved into a suspended partner (claim returns True for n == 0 without any check)"
   - id: WR-06
     severity: warning
@@ -87,7 +87,7 @@ findings:
     severity: info
     disposition: open
     title: "[frontend] Appoint, Move and Suspend/Reinstate submit guards are state-only, unlike the portal modals"
-open: 21
+open: 16
 total: 21
 recorded: 2026-11-03T20:02:09.391Z
 ---
@@ -96,11 +96,11 @@ recorded: 2026-11-03T20:02:09.391Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
-| WR-03 | warning | open | - |
-| WR-04 | warning | open | - |
-| WR-05 | warning | open | - |
+| WR-01 | warning | fixed | a1a845740 |
+| WR-02 | warning | fixed | a1a845740 |
+| WR-03 | warning | fixed | a1a845740 |
+| WR-04 | warning | fixed | a1a845740 |
+| WR-05 | warning | fixed | a1a845740 |
 | WR-06 | warning | open | - |
 | WR-07 | warning | open | - |
 | WR-08 | warning | open | - |
