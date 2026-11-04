@@ -297,7 +297,7 @@ class RemediationRequest(BaseModel):
     vulnerabilityId: str
     proposedAction: str # e.g. "update_package", "modify_config"
     scriptContent: str # PowerShell/Bash script
-    status: str = "Pending" # Pending, Approved, Rejected, Executed, Failed
+    status: str = "Pending" # Pending, Approved, Rejected, Executed, Failed, Not sent
     executionLog: str | None = None
     createdAt: str
     updatedAt: str

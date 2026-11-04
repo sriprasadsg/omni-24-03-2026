@@ -277,3 +277,27 @@ class TestTheBreakerSeesRemediationOutcomes:
 
 async def test_rollback_incomplete_text_exists():
     assert messages.REASON_TEXT["rollback_incomplete"]
+
+
+# ---------------------------------------------------------------- 83 T-83-27 (A-83-PATCHED)
+
+async def test_approving_a_script_remediation_marks_nothing_patched_or_executed(mongo_db):  # noqa: F811
+    """protects=no success answer for nothing sent (T-83-27); fails_when=approving marks the vulnerability
+    Patched or the request Executed although the worker task sends nothing (it answers not_sent);
+    no_claim=the Autonomous Ops path, which does send instructions through the gate."""
+    from models import RemediationRequest
+    from remediation_service import RemediationService
+
+    await mongo_db.vulnerabilities.insert_one({"id": "v1", "tenantId": "t-a", "status": "Open"})
+    req = RemediationRequest(id="r1", tenantId="t-a", assetId="a1", vulnerabilityId="v1",
+                             proposedAction="update_package", scriptContent="echo hi", status="Pending",
+                             createdAt="2026-11-04T00:00:00", updatedAt="2026-11-04T00:00:00")
+    with patch("database.get_database", return_value=mongo_db):
+        out = await RemediationService.approve_and_execute(req)
+    assert out.status == "Not sent" and out.executionLog == messages_fence_worker()
+    assert (await mongo_db.vulnerabilities.find_one({"id": "v1"}))["status"] == "Open"
+
+
+def messages_fence_worker():
+    from autonomous_ops.response_messages import FENCE
+    return FENCE["worker"]

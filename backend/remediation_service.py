@@ -2,7 +2,6 @@ import re
 import logging
 from datetime import datetime
 from models import RemediationRequest
-from tasks import execute_remediation_script  # Import Celery task reference
 
 logger = logging.getLogger(__name__)
 
@@ -87,46 +86,18 @@ class RemediationService:
     @staticmethod
     async def approve_and_execute(request: RemediationRequest):
         """
-        Approves a pending request and dispatches it to the Agent (via Celery).
-        Also updates the vulnerability status in the database.
+        Approves a pending request. Nothing is sent: the script path to agents is fenced (RESP-11,
+        D-18) and remediation is decided in Autonomous Ops, so the request reads "Not sent" and the
+        vulnerability keeps its status (T-83-27: never a success answer for nothing sent).
         """
-        from database import get_database
+        from autonomous_ops.response_messages import FENCE
 
         if request.status != "Pending":
             raise ValueError("Only Pending requests can be executed.")
 
-        logger.info("Approving remediation %s — dispatching to agent", request.id)
-        
-        # Update status
-        request.status = "In Progress"
+        logger.info("Remediation %s approved; nothing sent (script remediation is fenced)", request.id)
+        request.status = "Not sent"
+        request.executionLog = FENCE["worker"]
         request.updatedAt = datetime.now().isoformat()
-        
-        # Trigger Celery Task async
-        # In a real app, we'd pass the actual Agent ID
-        execute_remediation_script.delay(request.scriptContent, "powershell")
-        
-        # Update Database: Mark Vulnerability as Patched
-        db = get_database()
-        try:
-            # Match by string 'id' field first (seeded data), fall back to _id ObjectId
-            query: dict = {"id": request.vulnerabilityId}
-            try:
-                from bson import ObjectId
-                query = {"$or": [{"id": request.vulnerabilityId}, {"_id": ObjectId(request.vulnerabilityId)}]}
-            except Exception:
-                pass  # vulnerabilityId is not a valid ObjectId hex — use string id only
-
-            result = await db.vulnerabilities.update_one(
-                query,
-                {"$set": {"status": "Patched", "remediatedAt": datetime.now().isoformat()}}
-            )
-            if result.modified_count > 0:
-                logger.info("Vulnerability %s marked as PATCHED", request.vulnerabilityId)
-                request.status = "Executed"
-            else:
-                logger.warning("Vulnerability %s not found in DB — already patched or missing", request.vulnerabilityId)
-        except Exception as exc:
-            logger.error("Error updating vulnerability status: %s", exc)
-
         return request
 
