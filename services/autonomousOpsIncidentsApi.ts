@@ -74,6 +74,8 @@ export interface IncidentPage {
     limit: number;
     /** Set while automatic actions are stopped: the browser then disables Approve and Confirm isolation. */
     stopped: { scope: 'tenant' | 'platform' } | null;
+    /** The server's clock at the read (ISO), when sent: deadlines are compared against it, not the browser's (WR-27). */
+    serverNow?: string | null;
 }
 
 export interface IncidentQuery {

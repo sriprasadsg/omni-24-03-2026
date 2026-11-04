@@ -510,6 +510,25 @@ describe('pagination', () => {
     await waitFor(() => expect(screen.getByText('Showing 3 of 10 actions')).toBeInTheDocument());
   });
 
+  it('after Load more, Refresh still reloads the first page and starts again from page one (WR-23)', async () => {
+    let fresh = false;
+    routeFetch({ actions: (url) => {
+      if (url.includes('cursor=c2')) return jsonRes(page(['c'], { nextCursor: null }));
+      return jsonRes(page(fresh ? ['a', 'b2'] : ['a', 'b'], { nextCursor: 'c2' }));
+    } });
+    const { container } = render(screenFor('Tenant Admin'));
+    await waitFor(() => expect(tableRows(container).length).toBe(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(tableRows(container).length).toBe(3));
+
+    fresh = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(screen.getAllByText('Act b2').length).toBeGreaterThan(0));
+    expect(lastActionsUrl()).toBe('/api/autonomous-ops/actions?bucket=all&limit=25');
+    expect(tableRows(container).length).toBe(2);
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+  });
+
   it('a failed Load more keeps the loaded rows, shows its own alert and Try again retries', async () => {
     let failMore = true;
     routeFetch({ actions: (url) => {

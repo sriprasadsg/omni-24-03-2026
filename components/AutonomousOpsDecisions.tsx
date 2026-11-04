@@ -20,6 +20,7 @@ export const DECISIONS_POLL_MS = 30_000;
 const PAGE = 10;
 const MAX_PAGE = 50;
 const LOAD_ERROR = "Couldn't load approvals. Check your connection and try again.";
+const STALE_ERROR = "Couldn't refresh approvals. Showing the last result.";
 const STOP_TENANT = 'Approving is paused while automatic actions are stopped. You can still deny. Requests keep their 24-hour clock.';
 const STOP_PLATFORM =
     'Approving is paused while automatic actions are stopped for the whole platform. You can still deny. Requests keep their 24-hour clock.';
@@ -42,7 +43,7 @@ interface Props {
 }
 
 export const AutonomousOpsDecisions: React.FC<Props> = ({ tenantId, refreshSignal = 0, onDecisionIds, onDecided: onDecidedProp }) => {
-    const { status } = useAutonomousOpsStatus();
+    const { status, refresh } = useAutonomousOpsStatus();
     const [state, setState] = useState<Loaded | null>(null);
     const [failed, setFailed] = useState(false);
     const [patches, setPatches] = useState<Record<string, LinePatch>>({});
@@ -57,6 +58,8 @@ export const AutonomousOpsDecisions: React.FC<Props> = ({ tenantId, refreshSigna
     const previousTotal = useRef<number | null>(null);
     const moreBusy = useRef(false);
     const lastSignal = useRef(refreshSignal);
+    /** Server clock minus browser clock, from the newest read that carried `serverNow` (WR-27). */
+    const skew = useRef(0);
     const idsKey = useRef('');
     const callbacks = useRef({ onDecisionIds, onDecided: onDecidedProp });
     current.current = state;
@@ -73,10 +76,14 @@ export const AutonomousOpsDecisions: React.FC<Props> = ({ tenantId, refreshSigna
                 setAnnouncement(`${plural(next.total, 'incident needs', 'incidents need')} your decision`);
             }
             previousTotal.current = next.total;
+            const serverAt = next.serverNow ? Date.parse(next.serverNow) : NaN;
+            if (Number.isFinite(serverAt)) skew.current = serverAt - Date.now();
             setState({ items: next.items, total: next.total, stopped: next.stopped ?? null });
             setFailed(false);
-            setNow(Date.now());
+            setNow(Date.now() + skew.current);
             if (kind === 'poll') { setPatches({}); setHeld([]); }
+            // A held card still on the server follows its newest version, so lines resolved elsewhere settle (WR-30).
+            else setHeld(prev => prev.map(h => ({ ...h, card: next.items.find(c => c.id === h.card.id) ?? h.card })));
         } catch {
             if (alive.current && mine === seq.current) setFailed(true);
         }
@@ -110,7 +117,7 @@ export const AutonomousOpsDecisions: React.FC<Props> = ({ tenantId, refreshSigna
         void load('poll');
         // One timer for the whole section: it re-reads the cards and recomputes every countdown from the server's deadline.
         const timer = setInterval(() => {
-            setNow(Date.now());
+            setNow(Date.now() + skew.current);
             if (document.visibilityState !== 'hidden') void load('poll');
         }, DECISIONS_POLL_MS);
         const onFocus = () => { void load('poll'); };
@@ -127,11 +134,14 @@ export const AutonomousOpsDecisions: React.FC<Props> = ({ tenantId, refreshSigna
     const onDecided = useCallback((card: IncidentCard, actionId: string, patch: LinePatch) => {
         setPatches(prev => ({ ...prev, [actionId]: { ...prev[actionId], ...patch } }));
         setHeld(prev => (prev.some(h => h.card.id === card.id)
-            ? prev
+            ? prev.map(h => (h.card.id === card.id ? { ...h, card } : h))
             : [...prev, { card, index: Math.max(0, current.current?.items.findIndex(c => c.id === card.id) ?? 0) }]));
         callbacks.current.onDecided?.();
         void load('decision');
     }, [load]);
+
+    /** A decision the server refused for a lasting reason: re-read the cards and the stop state (WR-26). */
+    const onStale = useCallback(() => { void load('decision'); void refresh(); }, [load, refresh]);
 
     const cards = useMemo(() => {
         const list = state ? state.items.slice() : [];
@@ -189,6 +199,14 @@ export const AutonomousOpsDecisions: React.FC<Props> = ({ tenantId, refreshSigna
                     Approvals expire after 24 hours and then count as denied. An isolated computer returns to the network after 4 hours unless you confirm it.
                 </p>
             </div>
+            {failed && (
+                <HealthNotice tone="amber" role="status">
+                    <p>{STALE_ERROR}</p>
+                    <div>
+                        <button type="button" className={TEXT_BUTTON} onClick={() => void load('poll')}>Try again</button>
+                    </div>
+                </HealthNotice>
+            )}
             {stop !== null && (
                 <HealthNotice tone="amber" icon={PauseCircleIcon} role="status">
                     <p>{stop === 'platform' ? STOP_PLATFORM : STOP_TENANT}</p>
@@ -204,6 +222,7 @@ export const AutonomousOpsDecisions: React.FC<Props> = ({ tenantId, refreshSigna
                     tenantId={tenantId}
                     patches={patches}
                     onDecided={onDecided}
+                    onStale={onStale}
                 />
             ))}
             {state.items.length < state.total && (

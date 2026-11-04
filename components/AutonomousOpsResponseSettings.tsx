@@ -140,6 +140,12 @@ function compare(saved: ResponseSettings, draft: Draft) {
     return { changes, valid, dirty: !valid || Object.keys(changes).length > 0 };
 }
 
+/** This person's adds and removes, applied to the list read just before saving, so another administrator's edits survive (WR-28). */
+const mergeServices = (base: string[], draft: string[], fresh: string[]): string[] => {
+    const removed = new Set(base.filter(s => !draft.includes(s)));
+    return [...fresh.filter(s => !removed.has(s)), ...draft.filter(s => !base.includes(s) && !fresh.includes(s))];
+};
+
 interface PanelProps {
     /** The organization the platform administrator entered, else null (the viewer's own organization). */
     tenantId: string | null;
@@ -215,11 +221,16 @@ export const AutonomousOpsResponseSettings: React.FC<PanelProps> = ({ tenantId, 
         setPending(true);
         setSaveError(null);
         try {
-            const saved = await saveResponseSettings(changes, tenantId);
+            const body = { ...changes };
+            if (body.watchedServices && data && draft) {
+                const fresh = await fetchResponseSettings(tenantId).catch(() => null);
+                if (isSettings(fresh)) body.watchedServices = mergeServices(data.watchedServices, draft.services, fresh.watchedServices);
+            }
+            const saved = await saveResponseSettings(body, tenantId);
             showToast(ruleOff ? 'Response settings saved. The two-source rule is off.' : 'Response settings saved.', 'success');
             setDialogOpen(false);
-            if (isSettings(saved)) setData(saved);
-            void load();
+            // The PUT answers with what was saved; a second read would reset the form again a moment later (WR-28).
+            if (isSettings(saved)) setData(saved); else void load();
         } catch (e) {
             const err = e as Partial<AutonomousOpsApiError>;
             if (err.status === 403) {
@@ -298,7 +309,7 @@ export const AutonomousOpsResponseSettings: React.FC<PanelProps> = ({ tenantId, 
                                     <p className={HELPER}>Restarting a failed service doesn't need two sources.</p>
                                 </>
                             )}
-                            control={<OnOffSwitch checked={draft.twoSignal} labelledBy={switchLabelId} onChange={v => stage({ twoSignal: v })} />}
+                            control={<OnOffSwitch checked={draft.twoSignal} labelledBy={switchLabelId} disabled={pending} onChange={v => stage({ twoSignal: v })} />}
                         />
                         <Group
                             labelId={blockLabelId}
@@ -307,7 +318,7 @@ export const AutonomousOpsResponseSettings: React.FC<PanelProps> = ({ tenantId, 
                             control={(
                                 <div>
                                     <BlockLengthControl
-                                        value={draft.value} unit={draft.unit} invalid={blockInvalid} errorId={blockErrorId}
+                                        value={draft.value} unit={draft.unit} invalid={blockInvalid} errorId={blockErrorId} disabled={pending}
                                         onValue={value => stage({ value })}
                                         onUnit={unit => stage({ unit, value: convertUnit(draft.value, draft.unit, unit) })}
                                     />
@@ -335,12 +346,12 @@ export const AutonomousOpsResponseSettings: React.FC<PanelProps> = ({ tenantId, 
                                     <div className="flex items-start gap-2">
                                         <input
                                             type="text" aria-label="Service name" placeholder="Service name, for example nginx or Spooler"
-                                            value={svcInput} aria-invalid={svcError !== null} aria-describedby={svcError ? serviceErrorId : undefined}
+                                            value={svcInput} disabled={pending} aria-invalid={svcError !== null} aria-describedby={svcError ? serviceErrorId : undefined}
                                             onChange={e => { setSvcInput(e.target.value); setSvcError(null); }}
                                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); tryAdd(); } }}
                                             className={`${FIELD} w-full max-w-sm`}
                                         />
-                                        <button type="button" className={SECONDARY_BUTTON} onClick={tryAdd}>
+                                        <button type="button" className={SECONDARY_BUTTON} disabled={pending} onClick={tryAdd}>
                                             <PlusIcon size={16} aria-hidden="true" />
                                             Add
                                         </button>
@@ -354,7 +365,7 @@ export const AutonomousOpsResponseSettings: React.FC<PanelProps> = ({ tenantId, 
                                                 <li key={name} className="inline-flex items-center gap-1 rounded-full border border-gray-300 pl-3 pr-1 text-xs dark:border-gray-600">
                                                     <span className="break-all font-mono font-normal text-gray-900 dark:text-gray-100">{name}</span>
                                                     <button
-                                                        type="button" aria-label={`Remove ${name}`}
+                                                        type="button" aria-label={`Remove ${name}`} disabled={pending}
                                                         onClick={() => stage({ services: draft.services.filter(s => s !== name) })}
                                                         className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10"
                                                     >

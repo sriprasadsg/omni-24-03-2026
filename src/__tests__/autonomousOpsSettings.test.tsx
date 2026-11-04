@@ -224,6 +224,29 @@ describe('Response settings: the form', () => {
     expect(save()).toBeDisabled();
   });
 
+  it('locks every field while saving and keeps the saved answer, with no second read (WR-28)', async () => {
+    let release: (r: Response) => void = () => {};
+    await openPanel({ watchedServices: ['sshd'] }, { put: () => new Promise<Response>(r => { release = r; }) });
+    fireEvent.change(blockInput(), { target: { value: '12' } });
+    fireEvent.click(save());
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    for (const field of [screen.getByRole('switch', { name: SWITCH_NAME }), blockInput(), screen.getByLabelText('Service name'),
+      screen.getByRole('button', { name: 'Add' }), screen.getByRole('button', { name: 'Remove sshd' })]) expect(field).toBeDisabled();
+    await act(async () => { release(jsonRes(settings({ blockHours: 12, watchedServices: ['sshd'] }))); });
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Response settings saved.', 'success'));
+    expect(gets()).toHaveLength(1);
+    expect(blockInput()).toHaveValue(12);
+  });
+
+  it('a services save applies only the person\'s adds and removes to the list read just before it (WR-28)', async () => {
+    await openPanel({ watchedServices: ['sshd'] });
+    stored = { ...stored, watchedServices: ['sshd', 'cron'] }; // another administrator added cron meanwhile
+    fireEvent.click(screen.getByRole('button', { name: 'Remove sshd' }));
+    addService('nginx');
+    fireEvent.click(save());
+    await waitFor(() => expect(putBodies()).toEqual([{ watchedServices: ['cron', 'nginx'] }]));
+  });
+
   it('sends a block length chosen in days as hours', async () => {
     await openPanel();
     fireEvent.change(screen.getByLabelText('Block length unit'), { target: { value: 'days' } });
@@ -257,7 +280,8 @@ describe('Response settings: the form', () => {
     await waitFor(() => expect(mockToast).toHaveBeenCalledWith("You don't have permission to change these settings.", 'error'));
     expect(screen.queryByRole('switch')).toBeNull();
     expect(header()).toHaveAttribute('aria-expanded', 'false');
-    await waitFor(() => expect(gets().length).toBe(2));
+    // On mount, just before the services save (WR-28) and again after the 403.
+    await waitFor(() => expect(gets().length).toBe(3));
   });
 
   it('restartAvailable false shows the blue block and the list can still be built', async () => {
@@ -342,7 +366,7 @@ describe('Response settings: turning the two-source rule off', () => {
     await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Response settings saved. The two-source rule is off.', 'success'));
     expect(putBodies()).toEqual([{ twoSignal: false }]);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await waitFor(() => expect(gets().length).toBe(2));
+    expect(gets().length).toBe(1); // the PUT answer is the saved state: no second read (WR-28)
   });
 
   it('shows Saving..., ignores a second click and does not close on Esc while the request is in flight', async () => {

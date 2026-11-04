@@ -73,18 +73,21 @@ describe('Confirm isolation and the countdown', () => {
     expect(screen.getByText(`Confirmed by Sam at ${clock(confirmedAt)}. The computer stays isolated until a person restores it.`)).toBeInTheDocument();
   });
 
-  it('a failed confirm shows the alert, keeps the line and re-enables the button', async () => {
+  it('a failed confirm shows the alert, keeps the line, re-enables the button and (409) re-reads the card', async () => {
     const iso = isolated();
     routeFetch({
       incidents: () => jsonRes(page([card({ actions: [iso] })])),
       decision: () => jsonRes({ detail: 'The isolation was already returned to the network automatically.' }, 409),
     });
     await shown();
+    const before = incidentCalls().length;
     fireEvent.click(screen.getByRole('button', { name: 'Confirm isolation' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      "Couldn't confirm isolation: The isolation was already returned to the network automatically. Try again.",
+      "Couldn't confirm isolation: The isolation was already returned to the network automatically.",
     );
+    expect(screen.getByRole('alert').textContent).not.toMatch(/Try again/);
     expect(screen.getByRole('button', { name: 'Confirm isolation' })).toBeEnabled();
+    await waitFor(() => expect(incidentCalls().length).toBeGreaterThan(before));
   });
 
   it('a confirm failure with no message uses the fallback', async () => {
@@ -110,7 +113,7 @@ describe('Confirm isolation and the countdown', () => {
     expect(screen.getAllByText('Reverts in 3 h 12 min').length).toBeGreaterThan(0);
   });
 
-  it('a deadline in the past shows Expired and disables every button on the card', async () => {
+  it('a deadline past by the browser clock shows Expired and disables Approve on the card; Deny stays (WR-27)', async () => {
     const past = line({ id: 'AO-OLD', expiresAt: at(-MIN) });
     const live = line({ id: 'AO-LIVE', label: 'Reboot host', command: 'reboot_host', target: null, expiresAt: at(2 * HOUR) });
     routeFetch({ incidents: () => jsonRes(page([card({ deadlineAt: at(-MIN), actions: [past, live] })])) });
@@ -119,9 +122,21 @@ describe('Confirm isolation and the countdown', () => {
     expect(within(article).getAllByText('Expired').length).toBeGreaterThan(0);
     const old = document.querySelector('[data-action-id="AO-OLD"]') as HTMLElement;
     expect(within(old).getByText('This request has expired and counts as denied.')).toBeInTheDocument();
-    expect(within(old).queryByRole('button')).toBeNull();
+    expect(within(old).getByRole('button', { name: /^Approve:/ })).toBeDisabled();
+    expect(within(old).getByRole('button', { name: /^Deny:/ })).toBeEnabled();
     expect(screen.getByRole('button', { name: /^Approve: Reboot host/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^Deny: Reboot host/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Deny: Reboot host/ })).toBeEnabled();
+  });
+
+  it('deadlines follow the server clock when the read carries serverNow, and an unreadable time is not past (WR-27)', async () => {
+    // This browser runs two hours fast: by the server's clock the request still has about two hours left.
+    const ahead = line({ id: 'AO-AHEAD', expiresAt: at(-MIN) });
+    const unreadable = line({ id: 'AO-ODD', label: 'Reboot host', command: 'reboot_host', target: null, expiresAt: 'not a time' });
+    routeFetch({ incidents: () => jsonRes(page([card({ deadlineAt: at(-MIN), actions: [ahead, unreadable] })], { serverNow: at(-2 * HOUR) })) });
+    await shown();
+    const article = screen.getByRole('article', { name: 'web-01' });
+    expect(within(article).queryByText('This request has expired and counts as denied.')).toBeNull();
+    for (const button of within(article).getAllByRole('button', { name: /^(Approve|Deny):/ })) expect(button).toBeEnabled();
   });
 
   it('one timer recomputes the chips every 30 seconds, and the same timer re-reads the cards', async () => {

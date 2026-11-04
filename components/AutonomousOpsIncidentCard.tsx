@@ -54,7 +54,11 @@ export function formatReverts(iso: string, now: number = Date.now()): string {
     return minutes < 60 ? `Reverts in ${minutes} min` : `Reverts in ${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
-const isPast = (iso: string | null | undefined, now: number) => !!iso && !(Date.parse(iso) > now);
+/** An unreadable time is never treated as past: the server's 409 decides (WR-27). */
+const isPast = (iso: string | null | undefined, now: number) => {
+    const at = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(at) && at <= now;
+};
 const fullTime = (iso: string | null | undefined) => {
     const at = iso ? new Date(iso) : null;
     return at && !Number.isNaN(at.getTime()) ? at.toLocaleString() : undefined;
@@ -102,9 +106,11 @@ interface LineProps {
     cardExpired: boolean;
     tenantId: string | null;
     onDecided: (card: IncidentCard, actionId: string, patch: LinePatch) => void;
+    /** The server refused for a lasting reason (a 409 or 404): the section re-reads the cards and the status. */
+    onStale?: () => void;
 }
 
-const ActionLine: React.FC<LineProps> = ({ card, action, patch, now, stop, shadow, cardExpired, tenantId, onDecided }) => {
+const ActionLine: React.FC<LineProps> = ({ card, action, patch, now, stop, shadow, cardExpired, tenantId, onDecided, onStale }) => {
     const { currentUser } = useUser();
     const [busy, setBusy] = useState<Decision | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -117,7 +123,8 @@ const ActionLine: React.FC<LineProps> = ({ card, action, patch, now, stop, shado
     const waiting = action.needsPerson && !settled;
     const openIsolation = waiting && action.command === 'isolate_host' && !action.expiresAt && !!action.revertsAt;
     const lineExpired = waiting && !openIsolation && isPast(action.expiresAt, now);
-    const showControls = waiting && !lineExpired && !shadow;
+    // A deadline passed by this browser's clock only disables Approve and Confirm; Deny always stays (WR-27).
+    const showControls = waiting && !shadow;
     const hasButtons = openIsolation ? action.canConfirmIsolation : action.canApprove || action.canDeny;
     const blocked = stop !== null;
     const bucket = patch?.bucket ?? action.bucket;
@@ -127,7 +134,7 @@ const ActionLine: React.FC<LineProps> = ({ card, action, patch, now, stop, shado
     const result = resultText
         ? (fillBlockTimes(resultText, action.command === 'isolate_host' ? confirmedAt : action.blockedUntil) ?? resultText)
         : null;
-    const consequence = action.consequenceText
+    const consequence = action.consequenceText && !settled
         ? (fillBlockTimes(action.consequenceText, action.revertsAt) ?? action.consequenceText)
         : null;
 
@@ -169,7 +176,10 @@ const ActionLine: React.FC<LineProps> = ({ card, action, patch, now, stop, shado
             } else if (err instanceof AutonomousOpsApiError && err.status === 409 && plain(detail) === plain(ALREADY_MADE)) {
                 onDecided(card, action.id, { message: ALREADY_MADE });
             } else {
-                setError(detail ? `Couldn't ${VERB[kind]}: ${plain(detail)}. Try again.` : FALLBACK[kind]);
+                // A 409 or 404 will not change on a retry: say why and re-read the card and the stop state (WR-26).
+                const lasting = err instanceof AutonomousOpsApiError && (err.status === 409 || err.status === 404);
+                setError(detail ? `Couldn't ${VERB[kind]}: ${plain(detail)}.${lasting ? '' : ' Try again.'}` : FALLBACK[kind]);
+                if (lasting) onStale?.();
             }
         } finally {
             sent.current = false;
@@ -180,7 +190,7 @@ const ActionLine: React.FC<LineProps> = ({ card, action, patch, now, stop, shado
     const deadline = !waiting ? null
         : openIsolation ? { text: formatReverts(action.revertsAt as string, now), at: action.revertsAt }
             : action.expiresAt ? { text: formatExpires(action.expiresAt, now), at: action.expiresAt } : null;
-    const disabled = busy !== null || cardExpired;
+    const disabled = busy !== null || cardExpired || lineExpired;
     const steps = !waiting && action.chain && action.chain.steps.length > 0 ? action.chain.steps : null;
 
     return (
@@ -268,7 +278,7 @@ const ActionLine: React.FC<LineProps> = ({ card, action, patch, now, stop, shado
                                         <button
                                             type="button"
                                             className={SECONDARY_BUTTON}
-                                            disabled={disabled}
+                                            disabled={busy !== null}
                                             aria-label={`Deny: ${named}`}
                                             aria-describedby={consequence ? `${ids}-what` : undefined}
                                             onClick={() => void decide('deny')}
@@ -302,9 +312,10 @@ export interface CardProps {
     tenantId: string | null;
     patches: Record<string, LinePatch>;
     onDecided: (card: IncidentCard, actionId: string, patch: LinePatch) => void;
+    onStale?: () => void;
 }
 
-export const AutonomousOpsIncidentCard: React.FC<CardProps> = ({ card, now, stop, shadow, tenantId, patches, onDecided }) => {
+export const AutonomousOpsIncidentCard: React.FC<CardProps> = ({ card, now, stop, shadow, tenantId, patches, onDecided, onStale }) => {
     const titleId = useId();
     const listId = useId();
     const [open, setOpen] = useState(false);
@@ -348,6 +359,7 @@ export const AutonomousOpsIncidentCard: React.FC<CardProps> = ({ card, now, stop
                         cardExpired={cardExpired}
                         tenantId={tenantId}
                         onDecided={onDecided}
+                        onStale={onStale}
                     />
                 ))}
             </ul>

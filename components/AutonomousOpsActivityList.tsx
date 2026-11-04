@@ -290,6 +290,7 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
     const [moreFailed, setMoreFailed] = useState(false);
     const generation = useRef(0);
     const busy = useRef(false);
+    const loud = useRef(false);
     const pages = useRef(1);
 
     const request = useCallback((cursor: string | null): Promise<AutonomousOpsActionsPage> => (
@@ -298,36 +299,46 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
             : fetchAutonomousOpsActions({ bucket, limit: PAGE_SIZE, cursor, tenantId })
     ), [platform, tenantId, bucket]);
 
-    /** Loud: filter or scope change, Try again (skeleton). Silent: poll, focus, Refresh (no skeleton, rows kept). */
-    const loadFirst = useCallback((silent: boolean) => {
-        if (silent && (busy.current || pages.current > 1)) return;
+    /** Loud: filter or scope change, Try again (skeleton). Silent: poll, focus (no skeleton, rows kept; skipped
+     *  once Load more was used, so a timer never throws loaded pages away). Forced silent: Refresh, a decision and
+     *  a stale row (WR-23): always reads the first page, replaces any load in flight and starts again at page one. */
+    const loadFirst = useCallback((silent: boolean, force = false) => {
+        if (silent && !force && (busy.current || pages.current > 1)) return;
         const mine = ++generation.current;
         if (!silent) {
-            busy.current = true;
+            loud.current = true;
             pages.current = 1;
             setLoading(true);
             setFailed(false);
             setRows([]);
             setNextCursor(null);
+        }
+        if (!silent || force) {
+            busy.current = true;
             setLoadingMore(false);
             setMoreFailed(false);
         }
         request(null)
             .then(page => {
                 if (mine !== generation.current) return;
+                pages.current = 1;
                 setRows(page.items);
                 setNextCursor(page.nextCursor ?? null);
                 setCounts(page.counts ?? null);
                 setTotal(typeof page.total === 'number' ? page.total : null);
                 setFailed(false);
                 setLoading(false);
+                loud.current = false;
                 busy.current = false;
             })
             .catch(() => {
-                if (mine !== generation.current || silent) return;
+                if (mine !== generation.current) return;
+                busy.current = false;
+                // A quiet reload that fails keeps the rows; one that replaced a loud load shows that load's error.
+                if (!loud.current) return;
+                loud.current = false;
                 setFailed(true);
                 setLoading(false);
-                busy.current = false;
             });
     }, [request]);
 
@@ -337,7 +348,7 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
     useEffect(() => {
         if (seenSignal.current === refreshSignal) return;
         seenSignal.current = refreshSignal;
-        loadFirst(true);
+        loadFirst(true, true);
     }, [refreshSignal, loadFirst]);
 
     const latest = useRef(loadFirst);
@@ -373,7 +384,7 @@ export const AutonomousOpsActivityList: React.FC<ActivityListProps> = ({ scope, 
     // A simulation, control or platform-health row is shown only where the contract allows it, whatever the
     // server sent: platform-health rows never leave the platform scope (D-23, H11, T-82-44).
     const onRowChanged = useCallback((next: AutonomousOpsRow) => setRows(prev => prev.map(r => (r.id === next.id ? next : r))), []);
-    const onStale = useCallback(() => loadFirst(true), [loadFirst]);
+    const onStale = useCallback(() => loadFirst(true, true), [loadFirst]);
     const ctx: ResultContext = { tenantId, decisionIds, onOpenView, onRowChanged, onStale };
 
     const visible = useMemo(

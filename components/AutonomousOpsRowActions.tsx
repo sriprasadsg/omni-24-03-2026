@@ -96,11 +96,11 @@ export const RowActions: React.FC<{
         setError(null);
         try {
             const out = await undoAutonomousOpsAction(row.id, tenantId);
-            if (!out?.action?.id) throw new Error('empty answer');
+            // A 200 means the undo was sent; an answer without the row only means the list must be read again (WR-29).
             const cell = button.current?.closest<HTMLElement>('[data-result-cell]');
-            onRowChanged(out.action);
+            if (out?.action?.id) onRowChanged(out.action); else onStale?.();
             cell?.focus();
-            if (out.breakerTripped) {
+            if (out?.breakerTripped) {
                 showToast(`Undo sent to ${hostOf(row)}. ${BREAKER_TEXT}`, 'info');
                 void refresh();
             } else {

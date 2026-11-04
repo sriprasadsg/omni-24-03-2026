@@ -169,6 +169,17 @@ describe('Undo on Done rows', () => {
     expect(toast).not.toHaveBeenCalled();
   });
 
+  it('a 200 with no row is still a sent undo: the toast shows, no error, and the rows are read again (WR-29)', async () => {
+    route({ rows: [UNDOABLE], undo: () => jsonRes({ status: 'undone', action: null, breakerTripped: false }) });
+    render(shell(list()));
+    const [button] = await undoButtons();
+    const fetchesBefore = actionFetches().length;
+    fireEvent.click(button);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Undo sent to web-01.example.com.', 'success'));
+    await waitFor(() => expect(actionFetches().length).toBeGreaterThan(fetchesBefore));
+    expect(screen.queryByText(/Couldn't undo/)).toBeNull();
+  });
+
   it('a network failure shows the fallback and lets the button be used again', async () => {
     route({ rows: [UNDOABLE], undo: () => { throw new Error('offline'); } });
     render(shell(list()));

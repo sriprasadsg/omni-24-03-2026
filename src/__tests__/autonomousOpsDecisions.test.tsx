@@ -109,15 +109,18 @@ describe('Needs your decision: section states', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('a failed background read keeps the cards and shows nothing new', async () => {
+  it('a failed background read keeps the cards and says they are old; Try again clears it (WR-24)', async () => {
     let n = 0;
-    routeFetch({ incidents: () => (n++ === 0 ? jsonRes(page([card()])) : jsonRes({}, 500)) });
+    routeFetch({ incidents: () => (n++ === 1 ? jsonRes({}, 500) : jsonRes(page([card()]))) });
     await shown();
     await act(async () => { window.dispatchEvent(new Event('focus')); });
     await waitFor(() => expect(incidentCalls().length).toBe(2));
-    await flush();
+    expect(await screen.findByText("Couldn't refresh approvals. Showing the last result.")).toBeInTheDocument();
     expect(screen.getByRole('article', { name: 'web-01' })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(screen.queryByText("Couldn't refresh approvals. Showing the last result.")).toBeNull());
+    expect(incidentCalls().length).toBe(3);
   });
 
   it('pages ten cards, then Show more incidents loads the next page', async () => {
@@ -338,6 +341,67 @@ describe('Approve and Deny', () => {
     expect(within(ctx).getByText('Blocked for 24 hours. Verified: the firewall rule is in place.')).toBeInTheDocument();
     expect(within(ctx).queryByRole('button')).toBeNull();
     expect(screen.getAllByRole('button', { name: /^Approve:/ })).toHaveLength(1);
+  });
+});
+
+describe('review fixes (WR-25, WR-26, WR-30)', () => {
+  it('a decided line drops its "what happens" sentence (WR-25)', async () => {
+    routeFetch({
+      incidents: () => jsonRes(page([card()])),
+      decision: () => jsonRes({ status: 'denied', action: { id: 'AO-1', bucket: 'refused', state: 'denied', resultText: 'Denied by Pat.' } }),
+    });
+    await shown();
+    expect(screen.getByText('Ends this process right away. Unsaved work in it is lost.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Deny:/ }));
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(screen.getByText('Denied by Pat.')).toBeInTheDocument();
+    expect(screen.queryByText('Ends this process right away. Unsaved work in it is lost.')).toBeNull();
+  });
+
+  it('a 409 that is neither expired nor already made re-reads the cards and the status, without "Try again" (WR-26)', async () => {
+    routeFetch({
+      incidents: () => jsonRes(page([card()])),
+      decision: () => jsonRes({ detail: 'Automatic actions are stopped, so this cannot be done right now.' }, 409),
+    });
+    await shown();
+    await waitFor(() => expect(callsTo(/\/status$/).length).toBeGreaterThan(0));
+    const cardsBefore = incidentCalls().length;
+    const statusBefore = callsTo(/\/status$/).length;
+    fireEvent.click(screen.getByRole('button', { name: /^Approve:/ }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't approve this action: Automatic actions are stopped, so this cannot be done right now.");
+    expect(alert.textContent).not.toMatch(/Try again/);
+    await waitFor(() => expect(incidentCalls().length).toBeGreaterThan(cardsBefore));
+    await waitFor(() => expect(callsTo(/\/status$/).length).toBeGreaterThan(statusBefore));
+  });
+
+  it('a held card follows the newest read, so a line resolved elsewhere loses its buttons (WR-30)', async () => {
+    const waitingLine = (id: string) => line({ id, target: `proc-${id}.exe` });
+    const deniedElsewhere = line({
+      id: 'AO-2', target: 'proc-AO-2.exe', state: 'denied', bucket: 'refused', needsPerson: false,
+      canApprove: false, canDeny: false, result: 'Denied by Kim.', consequenceText: null,
+    });
+    const reads = [
+      page([card({ actions: [waitingLine('AO-1'), waitingLine('AO-2'), waitingLine('AO-3')] })]),
+      page([card({ actions: [{ ...waitingLine('AO-1'), needsPerson: false }, deniedElsewhere, waitingLine('AO-3')] })]),
+      page([]),
+    ];
+    let n = 0;
+    routeFetch({
+      incidents: () => jsonRes(reads[Math.min(n++, reads.length - 1)]),
+      decision: (url) => jsonRes({ status: 'dispatched', action: { id: url.split('/')[4], bucket: 'pending', state: 'approved' } }),
+    });
+    await shown();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve: Kill process proc-AO-1.exe on web-01' }));
+    await waitFor(() => expect(incidentCalls().length).toBe(2));
+    await waitFor(() => expect(screen.getByText('Denied by Kim.')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Approve: Kill process proc-AO-3.exe on web-01' }));
+    await waitFor(() => expect(incidentCalls().length).toBe(3));
+    await flush();
+    expect(screen.getByRole('article', { name: 'web-01' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Approve:/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Deny:/ })).toBeNull();
+    expect(screen.getByText('Denied by Kim.')).toBeInTheDocument();
   });
 });
 
