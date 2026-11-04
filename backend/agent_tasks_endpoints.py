@@ -22,6 +22,11 @@ logger = logging.getLogger("agent_tasks_endpoints")
 _TASK_SUPER_ROLES = platform_scope_roles()
 
 
+def _text(value: Any, cap: int = 2000) -> str:
+    """Agent free text as stored: a string of at most ``cap`` characters; any other type is empty (WR-10)."""
+    return value[:cap] if isinstance(value, str) else ""
+
+
 
 
 @router.get("/{hostname}/instructions")
@@ -91,12 +96,13 @@ async def report_instruction_result(
     if task_id:
         # Only this agent's own instructions (queued under its id or hostname).
         own_task = {"id": task_id, "agent_id": {"$in": [hostname, caller_agent_id(_tenant)]}}
-        raw_status = result.get("status", "unknown")
+        raw_status = result.get("status")
+        raw_status = raw_status if isinstance(raw_status, str) and 0 < len(raw_status) <= 32 else "unknown"
         mapped = "SUCCESS" if raw_status == "success" else ("FAILURE" if raw_status == "error" else raw_status.upper())
         nested = result.get("result") if isinstance(result.get("result"), dict) else {}
-        error_msg = result.get("error") or nested.get("error") or ""
-        message_text = (result.get("message") or result.get("details")
-                        or nested.get("output") or nested.get("message") or "")
+        error_msg = _text(result.get("error") or nested.get("error"))
+        message_text = _text(result.get("message") or result.get("details")
+                             or nested.get("output") or nested.get("message"))
         if error_msg and "Unknown instruction" in error_msg:
             error_msg = f"Agent binary is outdated — URL install requires agent v2.0+. Update the agent from the Agent Installation page. (detail: {error_msg})"
         # A response action answers "accepted" first and its final body later, and the two posts can arrive in

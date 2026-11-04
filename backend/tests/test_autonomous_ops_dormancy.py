@@ -187,11 +187,20 @@ async def test_a_card_whose_agent_lost_its_token_before_approval_ends_refused(wo
     assert (await ledger.get(world, "t1", card))["reasonText"] == "This computer's agent doesn't support this action yet."
 
 
-async def test_a_card_whose_agent_went_offline_before_approval_ends_refused(world):
+async def test_a_card_whose_agent_is_offline_at_approval_stays_open_for_a_later_approval(world):
+    """WR-06: a host briefly away answers agent_offline, sends nothing and does not spend the decision: the
+    card is back in awaiting_approval with the same expiry, and approving once the host is back dispatches."""
     await seed_response_agent(world, "t1", "a1", hostname="h1", tokens=TOKENS)
     card = await _card(world)
+    before = await ledger.get(world, "t1", card)
     await world.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()}})
-    await _refused(world, card, "agent_offline")
+    assert await approvals.approve(world, "t1", card, approver=APPROVER) == {"status": "refused", "reason": "agent_offline"}
+    row = await ledger.get(world, "t1", card)
+    assert row["state"] == "awaiting_approval" and row["approval"] == before["approval"]
+    assert row["reasonCode"] == before["reasonCode"] and await world.agent_instructions.count_documents({}) == 0
+    await world.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": datetime.now(timezone.utc).isoformat()}})
+    assert (await approvals.approve(world, "t1", card, approver=APPROVER))["status"] == "dispatched"
+    assert await world.agent_instructions.count_documents({}) == 1
 
 
 @pytest.mark.real_agent_capabilities

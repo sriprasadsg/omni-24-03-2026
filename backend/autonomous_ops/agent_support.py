@@ -106,6 +106,18 @@ async def check(db, tenant_id: str, agent: Optional[Dict[str, Any]], command: st
     return None
 
 
+async def reports_failing(db, tenant_id: str, agent_id: Any, service: Any) -> Optional[bool]:
+    """Whether this tenant's computer still lists ``service`` in ``meta.service_failures`` (case-insensitive),
+    or None when there is no such computer or no service name to look for."""
+    agent = await raw(db).agents.find_one({"id": agent_id, "tenantId": tenant_id}, {"_id": 0, "meta.service_failures": 1})
+    if agent is None or not isinstance(service, str):
+        return None
+    meta = agent.get("meta") if isinstance(agent.get("meta"), dict) else {}
+    items = meta.get("service_failures") if isinstance(meta.get("service_failures"), list) else []
+    return any(isinstance(i, dict) and isinstance(i.get("name"), str) and
+               i["name"].strip().casefold() == service.casefold() for i in items)
+
+
 async def agent_of(db, target: Any) -> Optional[Dict[str, Any]]:
     """The fields ``check`` reads for one agent id, or None when there is no such agent."""
     return await raw(db).agents.find_one({"id": target}, _AGENT_FIELDS)

@@ -30,8 +30,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
-from . import (PLATFORM_TENANT_ID, SCREEN_PERMISSION, isolation, response_settings, scope, settings, sweep_restart,
-               sweep_security, sweep_suggestions)
+from . import (PLATFORM_TENANT_ID, SCREEN_PERMISSION, incidents, isolation, response_settings, scope, settings,
+               signals, sweep_restart, sweep_security, sweep_suggestions)
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,8 @@ LOCK_RENEW_EVERY = 30
 _DEFAULT_INTERVAL_SEC = 60
 
 _STAGES = (sweep_security.run, sweep_suggestions.run, sweep_restart.run, isolation.run)
+# The unique indexes the signal upserts and incidents.attach rely on (migration 028).
+_REQUIRED_INDEXES = (("autonomy_signals", "signal_unique"), ("autonomy_incidents", "incident_one_open"))
 
 
 def _now(now: Optional[datetime]) -> datetime:
@@ -106,14 +108,33 @@ def _interval() -> float:
     return _env_number("AUTONOMOUS_OPS_SWEEP_INTERVAL_SEC", _DEFAULT_INTERVAL_SEC)
 
 
+async def _indexes_ready(db) -> bool:
+    """WR-12: a missing required index is made again (the call migration 028 makes). When that fails, for
+    example because duplicates already exist, the pass must not run unprotected and write more of them."""
+    try:
+        for coll, name in _REQUIRED_INDEXES:
+            if name not in await raw(db)[coll].index_information():
+                await signals.ensure_indexes(db)
+                await incidents.ensure_indexes(db)
+                break
+        return True
+    except Exception as exc:
+        logger.error("autonomous_ops: sweep skipped, the unique indexes it relies on (%s) are missing and "
+                     "could not be made: %s", ", ".join(n for _, n in _REQUIRED_INDEXES), exc)
+        return False
+
+
 async def run_once(db, *, now: Optional[datetime] = None) -> Optional[Dict[str, int]]:
-    """One tick under the single-runner lock; None when another runner holds it."""
+    """One tick under the single-runner lock; None when another runner holds it. Nothing runs while the
+    unique indexes are missing and cannot be made (``{"tenants": 0}``)."""
     import distributed_lock
     lock_db = SimpleNamespace(_db=raw(db))        # distributed_lock reads db._db
     async with distributed_lock.lock_with_renewal(lock_db, LOCK_NAME, ttl_seconds=LOCK_TTL_SECONDS,
                                                   renew_every=LOCK_RENEW_EVERY) as handle:
         if not handle.acquired:
             return None
+        if not await _indexes_ready(db):
+            return {"tenants": 0}
         return await tick(db, now=now, lost=lambda: handle.lost)
 
 

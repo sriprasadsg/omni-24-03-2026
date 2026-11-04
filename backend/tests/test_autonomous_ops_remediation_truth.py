@@ -223,7 +223,8 @@ class TestRolledBackMeansEveryStepWasConfirmed:
     async def test_no_rollback_still_escalates_as_verify_failed(self, live):
         finding = RemediationFinding(
             finding_id="f-ip-9", finding_type="nscan", severity="critical", tenant_id="t1", agent_id="a1",
-            resource_id="/tmp/evil.exe", details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z"})
+            resource_id="/tmp/evil.exe", details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z",
+                                                  "sha256": "a" * 64})
         # D-05: a malicious file is quarantined (automatic), so the tenant raises the playbook to an approval card.
         await live.remediation_playbooks.insert_one({
             "id": "op-q", "name": "quarantine_file", "finding_class": "nscan", "source": "operator", "tenantId": "t1",

@@ -261,9 +261,10 @@ async def count_auto_since(db, tenant_id: str, since: datetime) -> int:
 async def recent_finished_auto(db, tenant_id: str, n: int = 3) -> list:
     """The tenant's ``n`` most recently finished automatic rows that can count toward the breaker, newest
     first. A row whose reasonCode is in ``BREAKER_IGNORED`` is left out, so it is transparent; a row with no
-    reasonCode stays in (Phase 81)."""
+    reasonCode stays in (Phase 81). A restart is left out too: one dead service spends its budget of three
+    in minutes, and that budget and its card already bound restarts per service (WR-04)."""
     found = _actions(db).find({"tenantId": tenant_id, **_AUTO_ROWS, "finishedAt": {"$ne": None},
-                               "reasonCode": {"$nin": list(BREAKER_IGNORED)}},
+                               "reasonCode": {"$nin": list(BREAKER_IGNORED)}, "command": {"$ne": "restart_service"}},
                               {"_id": 0}).sort("finishedAt", -1).limit(n)
     return [_normalize(r) async for r in found]
 

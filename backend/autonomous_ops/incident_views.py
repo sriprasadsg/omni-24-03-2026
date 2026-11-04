@@ -278,9 +278,12 @@ async def stopped_view(db, tenant_id: str) -> Optional[Dict[str, str]]:
 
 async def list_cards(db, tenant_id: str, *, offset: int = 0, limit: int = 10, can_act: bool = False,
                      staff: bool = False, now: Optional[datetime] = None) -> Dict[str, Any]:
-    """One page of incident cards for the organization, with ``total`` and the stop state. ``can_act`` is True
-    for a person holding control:autonomous_ops in an interactive session; it only sets the line flags."""
+    """One page of incident cards for the organization, with ``total``, the stop state and ``serverNow`` (the
+    clock the deadlines were read against, ISO UTC: the browser compares with it, not its own, WR-27).
+    ``can_act`` is True for a person holding control:autonomous_ops in an interactive session; it only sets
+    the line flags."""
     now = _now(now)
+    clock = now.isoformat(timespec="milliseconds")
     actions = raw(db).autonomy_actions
     seeds = actions.find({"tenantId": tenant_id, "kind": {"$ne": "control"},
                           "reason.inputs.incidentId": {"$type": "string"}, "$or": _waiting_filter(now)},
@@ -288,7 +291,7 @@ async def list_cards(db, tenant_id: str, *, offset: int = 0, limit: int = 10, ca
     ids = list(dict.fromkeys([_inputs(r)["incidentId"] async for r in seeds]))
     stopped = await stopped_view(db, tenant_id)
     if not ids:
-        return {"items": [], "total": 0, "offset": offset, "limit": limit, "stopped": stopped}
+        return {"items": [], "total": 0, "offset": offset, "limit": limit, "stopped": stopped, "serverNow": clock}
     rows = [ledger._normalize(r) async for r in actions.find(
         {"tenantId": tenant_id, "kind": {"$ne": "control"}, "reason.inputs.incidentId": {"$in": ids}},
         {"_id": 0}).sort([("createdAt", -1), ("id", -1)]).limit(ROW_CAP)]
@@ -306,4 +309,4 @@ async def list_cards(db, tenant_id: str, *, offset: int = 0, limit: int = 10, ca
     cards.sort(key=lambda c: c["startedAt"] or "", reverse=True)               # ties: the newer incident first
     cards.sort(key=lambda c: c["deadlineAt"] or "9999")                         # soonest deadline first
     return {"items": cards[offset:offset + limit], "total": len(cards), "offset": offset, "limit": limit,
-            "stopped": stopped}
+            "stopped": stopped, "serverNow": clock}

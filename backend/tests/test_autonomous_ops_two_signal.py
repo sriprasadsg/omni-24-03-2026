@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from autonomous_ops import agent_support, ledger, protected, signals, sweep
+from autonomous_ops import agent_support, ledger, protected, signals, sweep, sweep_security
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import (seed_feed_ioc, seed_native_verdict, seed_response_agent, seed_telemetry,
                                     seed_tenant)
@@ -254,6 +254,37 @@ async def test_after_a_block_expires_one_fresh_origin_is_only_a_suggestion(mongo
     rows = await _rows(mongo_db)
     assert [r["state"] for r in rows] == ["verified", "suggested"] and rows[1]["dedupeKey"] == SUGGEST_KEY
     assert rows[1]["reason"]["inputs"]["origins"] == ["native"]
+
+
+# ------------------------------------------------------------------ an origin its source stopped naming (WR-01)
+
+async def test_a_pair_recorded_in_shadow_weeks_ago_does_not_back_one_fresh_origin(mongo_db):
+    # The pair agreed while the tenant sat in shadow; 17 days later shadow is lifted and only the feed
+    # still lists the address. The native verdict is still on the signal but its source no longer names it.
+    await _world(mongo_db, shadow=True)
+    await seed_telemetry(mongo_db, "a1", connections=[{"remote_address": f"{IP}:443"}])
+    await _native(mongo_db, NOW)
+    await _feed(mongo_db, NOW)
+    await _tick(mongo_db, NOW)
+    assert [r["state"] for r in await _rows(mongo_db, ACT_KEY)] == ["shadow"]
+    await mongo_db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
+    later = NOW + 17 * 24 * HOUR
+    await mongo_db.edr_ioc.update_many({}, {"$set": {"updated_at": later.isoformat()}})
+    await _tick(mongo_db, later)
+    assert [r["state"] for r in await _rows(mongo_db, ACT_KEY)] == ["shadow"] and await _instructions(mongo_db) == []
+    (suggestion,) = [r for r in await _rows(mongo_db, SUGGEST_KEY) if r["state"] == "suggested"]
+    assert suggestion["reason"]["inputs"]["origins"] == ["feed:urlhaus"]
+
+
+def test_the_recorded_origins_are_the_agreeing_pair_and_never_an_earlier_one():
+    # WR-05: A then, 30 hours later, B and C an hour apart. The pair that agreed is (B, C); A started
+    # before it and is not part of the "why".
+    live = {"native": {"firstSeenAt": NOW}, "feed:urlhaus": {"firstSeenAt": NOW + 30 * HOUR},
+            "feed:otx": {"firstSeenAt": NOW + 31 * HOUR}}
+    assert sweep_security._agreeing(live) == ["feed:otx", "feed:urlhaus"]
+    live["virustotal"] = {"firstSeenAt": NOW + 54 * HOUR}             # 24 hours after B: still inside
+    assert sweep_security._agreeing(live) == ["feed:otx", "feed:urlhaus", "virustotal"]
+    assert sweep_security._agreeing({"native": {"firstSeenAt": NOW}}) == ["native"]
 
 
 def test_the_agent_token_for_quarantine_is_what_the_file_test_seeds():

@@ -331,7 +331,8 @@ class AutonomousRemediationService:
                     tenant_id=tenant_id,
                     agent_id=s.get("agentId"),
                     resource_id=s.get("target"),
-                    details={"type": s.get("type"), "verdict": s.get("verdict"), "ts": s.get("created_at")},
+                    details={"type": s.get("type"), "verdict": s.get("verdict"), "ts": s.get("created_at"),
+                             "sha256": s["sha256"].lower() if isinstance(s.get("sha256"), str) else None},
                     raw_doc=s,
                 ))
         except Exception as e:

@@ -116,7 +116,9 @@ async def test_an_incident_with_only_finished_rows_gives_no_card(world):
     await row(world.db, "r1", "block_ip", "verified", code="class_auto")
     await row(world.db, "r2", "kill_process", "denied")
     await row(world.db, "r3", "reboot_host", "awaiting_approval", expires=NOW - timedelta(minutes=1))   # past its 24 hours
-    assert (await get(world)) == {"items": [], "total": 0, "offset": 0, "limit": 10, "stopped": None}
+    page = await get(world)
+    page.pop("serverNow")
+    assert page == {"items": [], "total": 0, "offset": 0, "limit": 10, "stopped": None}
 
 
 async def test_decided_lines_stay_on_a_card_that_still_has_one_waiting(world):
@@ -332,6 +334,7 @@ async def test_another_tenants_incident_never_leaks(world, api):
     await host(world.db, "t2", "b1", "host-b1")
     await incident(world.db, "INC-1", "t1")
     own = await get(world, role="security_analyst", tenant="t2")
+    own.pop("serverNow")
     assert own == {"items": [], "total": 0, "offset": 0, "limit": 10, "stopped": None}      # empty, not 403
     assert (await world.call("GET", PATH + "?tenantId=t1", role="security_analyst", tenant="t2")).status_code == 403
     # the same incident id on both tenants: each sees only its own row
@@ -347,6 +350,17 @@ async def test_platform_staff_must_name_a_tenant_and_a_missing_one_is_404(world)
     assert (await world.call("GET", PATH, role="super_admin")).status_code == 400
     assert (await world.call("GET", PATH + "?tenantId=nope", role="super_admin")).status_code == 404
     assert (await world.call("GET", PATH + f"?tenantId={PLATFORM}", role="super_admin")).json()["items"] == []
+
+
+async def test_the_page_carries_the_servers_clock_as_a_utc_iso_string(world):
+    """WR-27 (backend half): the browser compares deadlines with the server's clock, not its own, so every
+    page (empty or not) carries ``serverNow``: an ISO-8601 UTC time close to now."""
+    empty = await get(world)
+    await row(world.db, "w", "kill_process", "awaiting_approval")
+    for page in (empty, await get(world)):
+        stamp = datetime.fromisoformat(page["serverNow"])
+        assert stamp.utcoffset() == timedelta(0) and abs(datetime.now(timezone.utc) - stamp) < timedelta(seconds=30)
+    assert len(empty["items"]) == 0 and len((await get(world))["items"]) == 1
 
 
 async def test_the_stop_is_in_the_payload_with_its_scope(world):

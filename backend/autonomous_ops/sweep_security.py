@@ -39,7 +39,7 @@ Raw Mongo handle with an explicit tenantId; the ambient tenant ContextVar is nev
 """
 import logging
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from remediation_playbook_service import load_playbooks, select_playbook
@@ -68,12 +68,14 @@ def _ordered(live: Dict[str, Dict[str, Any]]) -> List[str]:
 
 def _agreeing(live: Dict[str, Dict[str, Any]]) -> List[str]:
     """The origins an action is decided on, in sorted order: those first seen within 24 hours of the
-    earliest pair that agreed, or just the earliest one when none did (the rule is off)."""
+    earliest pair that agreed, never one first seen before that pair, or just the earliest one when none
+    did (the rule is off)."""
     order = _ordered(live)
     for a, b in zip(order, order[1:]):
         if live[b]["firstSeenAt"] - live[a]["firstSeenAt"] <= signals.CORROBORATION_WINDOW:
             start = live[a]["firstSeenAt"]
-            return sorted(n for n in order if live[n]["firstSeenAt"] - start <= signals.CORROBORATION_WINDOW)
+            return sorted(n for n in order
+                          if timedelta(0) <= live[n]["firstSeenAt"] - start <= signals.CORROBORATION_WINDOW)
     return order[:1]
 
 
@@ -118,8 +120,10 @@ class _Playbooks:
             except Exception as exc:
                 logger.error("autonomous_ops: playbooks of %s unreadable, raising to a card: %s", self._tenant_id, exc)
                 return None, True
-        finding = {"finding_type": "nscan", "tenant_id": self._tenant_id,
-                   "details": {"type": "file" if candidate.kind == "file" else "ip"}}
+        # A file finding carries its path and sha256, as the selector requires for quarantine_file (WR-08).
+        finding = {"finding_type": "nscan", "tenant_id": self._tenant_id, "resource_id": candidate.path,
+                   "details": {"type": "file", "sha256": candidate.indicator} if candidate.kind == "file"
+                   else {"type": "ip"}}
         playbook = select_playbook(finding, self._loaded)
         if playbook is None:
             return None, False
@@ -337,11 +341,11 @@ async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetim
         row = await sweep_memory.latest_state(db, tenant_id, candidate.decision)
         began, until = sweep_memory.block_window(candidate.decision, row)
         after = began if began is not None and until is not None and until <= now else None      # D-14
-        live = {n: v for n, v in signals.counting_origins(candidate, after).items()
+        live = {n: v for n, v in signals.counting_origins(candidate, after, now=now).items()
                 if isinstance(v.get("firstSeenAt"), datetime)}
         if not live:
             continue
-        agree = signals.corroborated(candidate, two_signal=response.two_signal, evidence_after=after)
+        agree = signals.corroborated(candidate, two_signal=response.two_signal, evidence_after=after, now=now)
         if not agree and candidate.kind == "file" and not candidate.path:
             continue                                             # one source and nothing to point a quarantine at
         agent = by_id.get(candidate.agent_id)

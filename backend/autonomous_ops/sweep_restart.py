@@ -14,6 +14,8 @@ For one tenant per tick: an agent reports the services it watches that have been
   that card is open, and for 24 hours after a person denied it or let it lapse (``signals.remember``).
 * One open row per service and computer: any open row of any key (an automatic try or a card) keeps the stage
   quiet, so a card answered late can never start a second restart while one is open.
+* A card whose service the computer no longer reports failing is ended (``expired``, ``service_recovered``) and
+  holds nothing: a later failure starts fresh (WR-03; approving refuses it the same way).
 * A restart row offers no Undo (D-12; the registry has none) and does not count toward the per-computer cap on
   blocks and quarantines (``sweep_security._HOST_COMMANDS``). It does count toward the tenant's 20 automatic actions
   an hour, because the gate counts every automatic row.
@@ -131,7 +133,10 @@ async def _held(db, tenant_id: str, agent_id: str, service: str, now: datetime) 
     if not isinstance(decision, dict) or not decision:
         return False
     decision = {k: _aware(v) for k, v in decision.items()}
-    return sweep_memory.skip_reason(decision, await sweep_memory.latest_state(db, tenant_id, decision), [], now) in _HOLDS
+    row = await sweep_memory.latest_state(db, tenant_id, decision)
+    if (row or {}).get("reasonCode") == "service_recovered":
+        return False                                   # the service came back: a new failure is a new start
+    return sweep_memory.skip_reason(decision, row, [], now) in _HOLDS
 
 
 async def _first_sighting(db, tenant_id: str, agent_id: str, failure: Dict[str, Any], now: datetime) -> bool:
@@ -228,10 +233,27 @@ async def _failing_agents(db, tenant_id: str) -> List[Dict[str, Any]]:
     return [a async for a in found if a.get("id")]
 
 
+async def _close_recovered(db, tenant_id: str, counts: Dict[str, int]) -> None:
+    """End every open over-budget card whose service its computer no longer reports failing (WR-03)."""
+    cards = raw(db).autonomy_actions.find(
+        {"tenantId": tenant_id, "command": COMMAND, "state": "awaiting_approval", "reason.inputs.overBudget": True},
+        {"_id": 0, "id": 1, "targets": 1, "params": 1}).limit(_ID_CAP)
+    async for card in cards:
+        failing = await agent_support.reports_failing(db, tenant_id, (card.get("targets") or [None])[0],
+                                                      (card.get("params") or {}).get("service_name"))
+        if failing is not False:
+            continue                                   # still failing, or nothing to read: approval re-checks it
+        done = await ledger.transition(db, tenant_id, card["id"], ("awaiting_approval",), "expired",
+                                       reasonCode="service_recovered", reasonText=rm.REASON_TEXT["service_recovered"])
+        counts["recovered"] += 1 if done else 0
+
+
 async def run(db, tenant_id: str, tenant: TenantSettings, response, now: datetime) -> Dict[str, int]:
-    """One tenant's pass. Returns counts {restarted, cards, shadow, refused, failed, waiting, skipped}. A computer
-    that cannot be read is logged and does not stop the others."""
-    counts = {"restarted": 0, "cards": 0, "shadow": 0, "refused": 0, "failed": 0, "waiting": 0, "skipped": 0}
+    """One tenant's pass. Returns counts {restarted, cards, recovered, shadow, refused, failed, waiting, skipped}.
+    A computer that cannot be read is logged and does not stop the others."""
+    counts = {"restarted": 0, "cards": 0, "recovered": 0, "shadow": 0, "refused": 0, "failed": 0, "waiting": 0,
+              "skipped": 0}
+    await _close_recovered(db, tenant_id, counts)
     watched = _watched(response)
     if not watched:
         return counts                                  # D-10: an empty list means nothing restarts

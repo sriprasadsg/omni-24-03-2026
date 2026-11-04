@@ -105,9 +105,12 @@ class SOAREngine:
                 "duration_ms": (end_time - start_time).total_seconds() * 1000
             })
             
-            # Find next nodes
+            # Find next nodes. A step that sent nothing is not followed by its next step unless that edge
+            # opts in with data.after_not_sent: a notify step must not say the host was contained (WR-11).
             for edge in edges:
                 if edge['source'] == current_id:
+                    if node_status == "not_sent" and not (edge.get('data') or {}).get('after_not_sent'):
+                        continue
                     # Basic conditional edge support (e.g. only follow edge if VT score > 10)
                     condition = edge.get('data', {}).get('condition')
                     if condition:
@@ -115,6 +118,9 @@ class SOAREngine:
                             continue # Skip this edge
                             
                     queue.append(edge['target'])
+
+        if status == "completed" and any(entry["status"] == "not_sent" for entry in execution_log):
+            status = "partial"          # a fenced step sent nothing, so the run is never "completed" (WR-11)
 
         return {
             "run_id": run_id,

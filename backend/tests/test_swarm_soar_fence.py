@@ -89,21 +89,31 @@ async def test_isolate_plugin_sends_nothing_and_marks_no_agent_isolated(mongo_db
     assert await mongo_db.instructions.count_documents({}) == 0
 
 
-async def test_run_log_marks_the_node_not_sent_and_the_run_goes_on(mongo_db, monkeypatch):
-    import database
-    monkeypatch.setattr(database.mongodb, "db", mongo_db, raising=False)
-    playbook = {"name": "contain", "nodes": [
+def _contain(opt_in=False):
+    edge = {"source": "n2", "target": "n3", **({"data": {"after_not_sent": True}} if opt_in else {})}
+    return {"name": "contain", "nodes": [
         {"id": "n1", "type": "block_ip_firewall", "data": {"ip": IP, "agent_id": "a1"}},
         {"id": "n2", "type": "isolate_host", "data": {"host_id": "a1"}},
         {"id": "n3", "type": "send_slack_message", "data": {"message": "x"}},
-    ], "edges": [{"source": "n1", "target": "n2"}, {"source": "n2", "target": "n3"}]}
+    ], "edges": [{"source": "n1", "target": "n2", "data": {"after_not_sent": True}}, edge]}
+
+
+async def test_run_log_marks_the_node_not_sent_and_the_run_reads_partial(mongo_db, monkeypatch):
+    """WR-11: a run with a fenced step never reads "completed", and a step after one that sent nothing (an
+    email saying "IP blocked") runs only when its edge opts in with ``after_not_sent``."""
+    import database
+    monkeypatch.setattr(database.mongodb, "db", mongo_db, raising=False)
     engine = _engine()
     engine.plugins["send_slack_message"] = lambda data, ctx: asyncio.sleep(0, {"action": "skipped"})
-    run = await engine.execute_playbook(playbook, {"agent_id": "a1"})
+    run = await engine.execute_playbook(_contain(), {"agent_id": "a1"})
     by_node = {entry["node_id"]: entry for entry in run["log"]}
     assert by_node["n1"]["status"] == "not_sent" and by_node["n2"]["status"] == "not_sent"
+    assert "n3" not in by_node                             # never told the host was contained
+    assert run["status"] == "partial"
+    run = await engine.execute_playbook(_contain(opt_in=True), {"agent_id": "a1"})
+    by_node = {entry["node_id"]: entry for entry in run["log"]}
     assert by_node["n3"]["status"] == "success"            # a step that did something is still success
-    assert run["status"] != "failed" and run["status"] == "completed"
+    assert run["status"] == "partial"
     assert "success" not in (by_node["n1"]["status"], by_node["n2"]["status"])
     assert await mongo_db.instructions.count_documents({}) == 0
 

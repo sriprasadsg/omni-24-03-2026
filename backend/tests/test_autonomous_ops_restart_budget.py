@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import agent_capabilities
 import agent_tasks_endpoints
-from autonomous_ops import (approvals, ledger, protected, reconciler, response_messages as rm, response_settings,
+from autonomous_ops import (approvals, breaker, ledger, protected, reconciler, response_messages as rm, response_settings,
                             response_views, settings, signals, sweep, sweep_restart, sweep_security)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_response_agent, seed_tenant
@@ -298,6 +298,50 @@ async def test_a_card_answered_late_cannot_start_a_second_restart_while_one_is_o
     assert (await approvals.approve(mongo_db, T, card["id"], approver=APPROVER, now=at(3800)))["status"] == "dispatched"
     await tick(mongo_db, 3860)
     assert len(await rows(mongo_db)) == 4 and await mongo_db.agent_instructions.count_documents({}) == 4
+
+
+async def test_a_card_for_a_service_that_has_recovered_is_refused_and_restarts_nothing(mongo_db):
+    # WR-03: the service came back (by hand or on its own) after the card was raised; approving it late
+    # must not restart a healthy service.
+    await _world(mongo_db)
+    await three_tries(mongo_db)
+    await tick(mongo_db, 420)
+    card = (await rows(mongo_db))[-1]
+    sent = await mongo_db.agent_instructions.count_documents({})
+    await mongo_db.agents.update_one({"id": "a1"}, {"$set": {"meta.service_failures": []}})
+    await db_seen_now(mongo_db)
+    out = await approvals.approve(mongo_db, T, card["id"], approver=APPROVER, now=at(480))
+    assert out == {"status": "refused", "reason": "service_recovered"}
+    row = await ledger.get(mongo_db, T, card["id"])
+    assert row["state"] == "refused" and row["reasonText"] == rm.REASON_TEXT["service_recovered"]
+    assert await mongo_db.agent_instructions.count_documents({}) == sent
+
+
+async def test_the_sweep_ends_an_open_card_once_the_service_has_recovered(mongo_db):
+    # WR-03: the next tick that no longer sees the failure ends the card; a later failure starts fresh,
+    # not held quiet for 24 hours as a lapsed card would be.
+    await _world(mongo_db)
+    await three_tries(mongo_db)
+    await tick(mongo_db, 420)
+    card = (await rows(mongo_db))[-1]
+    await tick(mongo_db, 480, names=())
+    row = await ledger.get(mongo_db, T, card["id"])
+    assert row["state"] == "expired" and row["reasonCode"] == "service_recovered"
+    assert row["reasonText"] == rm.REASON_TEXT["service_recovered"]
+    await tick(mongo_db, 2 * 3600)
+    last = (await rows(mongo_db))[-1]
+    assert len(await rows(mongo_db)) == 5 and last["state"] == "dispatching" and last["reason"]["inputs"]["attempt"] == 1
+
+
+async def test_a_dead_service_spending_its_budget_does_not_trip_the_breaker(mongo_db):
+    # WR-04: three failed restarts of one service are the budget working, not the tenant's automation going wrong.
+    await _world(mongo_db)
+    await three_tries(mongo_db)
+    assert [r["reasonCode"] for r in await rows(mongo_db)] == ["verify_failed"] * 3
+    with patch("autonomous_ops.breaker.notify.notify") as notice:
+        assert await breaker.evaluate(mongo_db, T, now=at(240)) is False
+    notice.assert_not_called()
+    assert (await settings.load(mongo_db, T)).level == "undoable_auto"
 
 
 async def db_seen_now(db):

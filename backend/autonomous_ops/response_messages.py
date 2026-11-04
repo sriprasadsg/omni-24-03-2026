@@ -165,6 +165,7 @@ REASON_TEXT = {
     "suggestion_only": "This was only suggested. Nothing was done.",
     "auto_reverted": RESULT_TEMPLATES["isolation_reverted"],
     "undo_failed": "The host did not confirm the undo, so the action may still be in place.",
+    "service_recovered": "The service is running again, so it was not restarted.",
 }
 
 CONTROL_LABELS = {

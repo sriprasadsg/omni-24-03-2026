@@ -132,6 +132,22 @@ async def test_a_file_change_hash_and_a_feed_row_give_the_same_origin_with_the_c
     assert cand.path == "/etc/cron.d/evil" and set(cand.origins) == {"feed:malwarebazaar"}
 
 
+@pytest.mark.parametrize("fim_age, native_age, want", [
+    (20, 1, "C:\\Windows\\Temp\\evil.exe"), (1, 20, "C:\\Users\\a\\Downloads\\evil.exe")])
+async def test_the_newest_evidence_names_the_path_not_the_alphabetically_first(mongo_db, fim_age, native_age, want):
+    # WR-02: one sha256 at two paths; the path of the newer evidence is the one a quarantine points at.
+    await _world(mongo_db)
+    await seed_fim_event(mongo_db, "t1", "host-1", path="C:\\Users\\a\\Downloads\\evil.exe", hash_after=SHA,
+                         received_at=NOW - fim_age * HOUR)
+    await seed_native_verdict(mongo_db, "t1", "host-1", kind="file", target="C:\\Windows\\Temp\\evil.exe",
+                              sha256=SHA, created_at=NOW - native_age * HOUR)
+    await seed_feed_ioc(mongo_db, ioc_type="hash", value=SHA, feed="malwarebazaar", updated_at=NOW - HOUR)
+    (cand,) = await _observe(mongo_db)
+    assert cand.path == want and set(cand.origins) == {"native", "feed:malwarebazaar"}
+    doc = await mongo_db.autonomy_signals.find_one({"indicator": SHA})
+    assert doc["path"] == want
+
+
 async def test_a_connection_and_a_url_row_give_the_urlhaus_origin_for_the_address(mongo_db):
     await _world(mongo_db)
     await seed_telemetry(mongo_db, "a1", connections=[{"remote_address": f"{IP}:443"}, {"remote_address": "10.1.1.1:80"}])

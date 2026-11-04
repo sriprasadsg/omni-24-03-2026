@@ -80,6 +80,17 @@ class TestFindingSources:
         assert nscan[0].resource_id == "/tmp/evil.exe"
         assert nscan[0].agent_id == "agent-1"
 
+    async def test_a_scan_rows_sha256_reaches_the_finding_details(self):
+        # WR-08: the quarantine playbook renders {{finding.details.sha256}}; it must be the scan row's own field.
+        db = _mock_db()
+        db.security_scan_results.find.return_value.to_list = AsyncMock(return_value=[
+            {"agentId": "agent-1", "target": "/tmp/evil.exe", "type": "file", "verdict": "Malicious",
+             "sha256": "A" * 64, "created_at": "2026-08-01T00:00:00Z", "tenantId": "t1"},
+            {"agentId": "agent-1", "target": "http://x.example/", "type": "url", "verdict": "Malicious", "tenantId": "t1"}])
+        with patch("autonomous_remediation_service.get_database", return_value=db):
+            findings = await AutonomousRemediationService().scan_for_remediable_findings("t1")
+        assert [f.details.get("sha256") for f in findings if f.finding_type == "nscan"] == ["a" * 64, None]
+
     async def test_native_vuln_surfaces_as_vuln_finding(self):
         db = _mock_db()
         db.vulnerabilities.find.return_value.to_list = AsyncMock(return_value=[

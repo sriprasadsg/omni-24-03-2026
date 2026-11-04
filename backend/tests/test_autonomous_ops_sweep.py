@@ -133,6 +133,22 @@ def test_corroborated_needs_two_origins_within_a_day_unless_one_is_enough():
     assert not signals.corroborated({"origins": {}}, two_signal=False)
 
 
+def test_an_origin_counts_only_while_its_source_was_seen_inside_its_window():
+    # WR-01: with ``now`` given, a native-type origin last seen over 25 hours ago and a feed origin last
+    # seen over 48 hours ago no longer count, however close their first sightings were.
+    def doc(native_last, feed_last):
+        return {"origins": {"native": {"firstSeenAt": NOW, "lastSeenAt": native_last},
+                            "feed:urlhaus": {"firstSeenAt": NOW, "lastSeenAt": feed_last}}}
+    later = NOW + timedelta(days=17)
+    assert signals.corroborated(doc(later, later), two_signal=True, now=later)
+    assert not signals.corroborated(doc(NOW, later), two_signal=True, now=later)
+    assert set(signals.counting_origins(doc(later - timedelta(hours=25), later - timedelta(hours=48)), now=later)) == {
+        "native", "feed:urlhaus"}
+    assert set(signals.counting_origins(doc(later - timedelta(hours=26), later - timedelta(hours=49)), now=later)) == set()
+    assert signals.corroborated(doc(NOW, NOW), two_signal=True)          # no ``now``: the old reading
+    assert not signals.counting_origins({"origins": {"native": {"firstSeenAt": NOW}}}, now=later)
+
+
 async def test_observe_keeps_the_first_sighting_and_moves_the_last(mongo_db):
     await _world(mongo_db, "t1")
     agents = await signals.agents_of(mongo_db, "t1")
@@ -278,6 +294,25 @@ async def test_a_held_sweep_lock_makes_run_once_return_none_and_touch_nothing(mo
     assert await acquire_lock(SimpleNamespace(_db=mongo_db), sweep.LOCK_NAME, ttl_seconds=30)
     assert await sweep.run_once(mongo_db) is None
     assert await _rows(mongo_db, "t1") == []
+
+
+async def test_a_sweep_without_its_unique_indexes_makes_them_or_does_nothing(mongo_db, caplog):
+    """WR-12: signal upserts and incidents.attach rely on signal_unique and incident_one_open (migration 028).
+    A missing index is made before the pass; when it cannot be made (duplicates already exist) the pass
+    does nothing and says so, instead of writing more duplicates."""
+    await seed_tenant(mongo_db, "t1", shadow=False)
+    await seed_response_agent(mongo_db, "t1", "a-t1", hostname="host-t1", tokens=["block_ip_ttl"])
+    await seed_native_verdict(mongo_db, "t1", "host-t1", kind="ip", target=IP)
+    await seed_feed_ioc(mongo_db, ioc_type="url", value=f"http://{IP}/x", source_ip=IP, feed="urlhaus")
+    twin = {"tenantId": "t1", "agentId": "a-t1", "kind": "ip", "indicator": "198.51.100.7", "origins": {}}
+    await mongo_db.autonomy_signals.insert_many([dict(twin), dict(twin)])
+    assert await sweep.run_once(mongo_db) == {"tenants": 0}
+    assert await _rows(mongo_db, "t1") == [] and "unique indexes" in caplog.text
+    await mongo_db.autonomy_signals.delete_many({"indicator": "198.51.100.7"})
+    counts = await sweep.run_once(mongo_db)
+    assert counts["tenants"] == 1 and counts["blocked"] == 1
+    assert "signal_unique" in await mongo_db.autonomy_signals.index_information()
+    assert "incident_one_open" in await mongo_db.autonomy_incidents.index_information()
 
 
 async def test_a_lost_lock_stops_the_sweep_between_tenants(mongo_db):

@@ -70,6 +70,15 @@ def register_dispatcher(name: str, fn: Dispatcher) -> None:
 
 # ---------------------------------------------------------------- approve
 
+async def _service_recovered(db, tenant_id: str, row: Dict[str, Any], agent_id: str) -> bool:
+    """An over-budget restart card whose service the computer no longer reports failing (WR-03): approving it
+    would restart a healthy service. Unreadable counts as recovered (fail closed)."""
+    if row.get("command") != "restart_service" or not ((row.get("reason") or {}).get("inputs") or {}).get("overBudget"):
+        return False
+    service = (row.get("params") or {}).get("service_name")
+    return not await agent_support.reports_failing(db, tenant_id, agent_id, service)
+
+
 async def _revalidate(db, row: Dict[str, Any]) -> Optional[str]:
     """A reason code when the card must not be dispatched any more, else None. Anything
     unreadable refuses (fail closed)."""
@@ -102,6 +111,8 @@ async def _revalidate(db, row: Dict[str, Any]) -> Optional[str]:
         code = await dispatch_check.ip_refusal(db, tenant_id, dispatch_check.row_pairs(row))
         if code:
             return code        # every recorded step and compensation step, each with its own params
+        if await _service_recovered(db, tenant_id, row, targets[0]):
+            return "service_recovered"
         if row.get("dispatcher") == "security_response":
             # RESP-10: up to 24 hours passed since the decision, so the host is asked again whether it can
             # carry the action (capability, online, token); a card never fires at a host that lost support.
@@ -153,6 +164,13 @@ async def approve(db, tenant_id: str, action_id: str, *, approver: Dict[str, Any
         return {"status": "already_handled"}
 
     reason = await _revalidate(db, won)
+    if reason == "agent_offline":
+        # WR-06: a host briefly away does not spend the single-use decision. The card goes back as it was,
+        # same expiry, and can be approved again once the host is back.
+        await ledger.transition(db, tenant_id, action_id, ("approved",), row["state"], actor=approver,
+                                **{"approval.approver": (row.get("approval") or {}).get("approver"),
+                                   "approval.decidedAt": (row.get("approval") or {}).get("decidedAt")})
+        return {"status": "refused", "reason": reason}
     if reason:
         await ledger.transition(db, tenant_id, action_id, ("approved",), "refused", actor=approver,
                                 reasonCode=reason, reasonText=messages.REASON_TEXT.get(reason))

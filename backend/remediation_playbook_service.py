@@ -15,6 +15,7 @@ steps are never run for another tenant.
 """
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -22,6 +23,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 PLAYBOOKS_DIR = os.path.join(os.path.dirname(__file__), "playbooks")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 # Fixed action allowlist: action name -> agent instruction command. Every
 # playbook step/rollback action MUST resolve here or validate() rejects it.
@@ -113,8 +115,9 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
     finding_class mapping (grounded in the actual finding shapes; Phase 83 D-05, D-07, D-08):
       - fim  -> None (a suggestion only: the agent refuses a restore without a backup_path
         and nothing sets one)
-      - nscan + scan type "ip" -> block_ip; otherwise (a file or a hash) -> quarantine_file,
-        which moves the file and never deletes it (it used to be kill_process)
+      - nscan + scan type "ip" -> block_ip; a "file" verdict with its path and a sha256 ->
+        quarantine_file, which moves the file and never deletes it (it used to be kill_process);
+        any other verdict (a url, a bare hash, no sha256) -> None, as the agent would refuse it
       - vuln + playbook_ref rotate_key + fingerprint -> rotate_key; every other vuln, with or
         without a CVE id, -> None (a suggestion only: patching is Phase 84)
       - anomaly + anomaly_rule "shadow_ai_detected" + a real agent_id -> kill_process
@@ -137,7 +140,12 @@ def select_playbook(finding: Any, playbooks: Optional[List[Dict[str, Any]]] = No
         scan_type = details.get("type") or details.get("scan_type")
         if scan_type == "ip":
             return by_name.get("block_ip")
-        return by_name.get("quarantine_file")                # D-05
+        # D-05; WR-08: the agent refuses a quarantine without both a path and a sha256. Only a "file" verdict
+        # names a path, so a url, a bare hash or a row with no sha256 selects nothing (the sweep handles those).
+        path, sha = _finding_attr(finding, "resource_id"), details.get("sha256")
+        if scan_type == "file" and isinstance(path, str) and path and isinstance(sha, str) and _SHA256.fullmatch(sha):
+            return by_name.get("quarantine_file")
+        return None
 
     if finding_type == "vuln":
         if details.get("playbook_ref") == "rotate_key" and details.get("fingerprint"):

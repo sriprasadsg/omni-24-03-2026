@@ -70,15 +70,24 @@ def test_select_playbook_for_vuln_finding_with_cve():
 
 def test_select_playbook_for_malicious_file_nscan_finding():
     # D-05: a malicious file is quarantined (moved, never deleted); it used to route to kill_process.
-    finding = _Finding("nscan", resource_id="/tmp/evil.exe", details={"type": "file", "verdict": "Malicious"})
+    finding = _Finding("nscan", resource_id="/tmp/evil.exe",
+                       details={"type": "file", "verdict": "Malicious", "sha256": "a" * 64})
     playbook = select_playbook(finding)
     assert playbook is not None
     assert playbook["name"] == "quarantine_file"
 
 
-def test_select_playbook_for_malicious_hash_nscan_finding():
-    finding = _Finding("nscan", resource_id="a" * 64, details={"scan_type": "hash", "verdict": "Malicious"})
-    assert select_playbook(finding)["name"] == "quarantine_file"
+@pytest.mark.parametrize("resource_id, details", [
+    ("a" * 64, {"scan_type": "hash", "verdict": "Malicious", "sha256": "a" * 64}),     # a hash names no path
+    ("http://evil.example/x", {"type": "url", "verdict": "Malicious"}),              # a url names no file
+    ("/tmp/evil.exe", {"type": "file", "verdict": "Malicious"}),                    # no sha256 to check
+    ("/tmp/evil.exe", {"type": "file", "verdict": "Malicious", "sha256": "not-a-hash"}),
+    ("", {"type": "file", "verdict": "Malicious", "sha256": "a" * 64}),
+])
+def test_a_verdict_with_no_path_and_sha256_selects_no_quarantine(resource_id, details):
+    # WR-08: the agent refuses a quarantine without both a path and a sha256, so the legacy path would only
+    # ever raise a card that cannot work. It selects no playbook instead (no_playbook); the sweep handles it.
+    assert select_playbook(_Finding("nscan", resource_id=resource_id, details=details)) is None
 
 
 def test_select_playbook_for_fim_drift_finding():

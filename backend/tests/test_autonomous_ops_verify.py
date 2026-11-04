@@ -198,3 +198,24 @@ async def test_resp_06_a_failed_verify_writes_no_compensation_row_or_instruction
 async def test_a_confirmed_quarantine_is_verified_and_lists_no_process(world):
     q = await done_quarantine(world)
     assert q["verifiedAt"] is not None and q.get("stillRunning") in (None, [])
+
+
+# ------------------------------------------------------------------ what the result route stores (WR-10)
+
+@pytest.mark.parametrize("status", [None, 3, ["success"], {"a": 1}, "x" * 33])
+async def test_the_result_route_bounds_agent_free_text_and_a_status_that_is_not_text(mongo_db, status):
+    """A faulty agent build posts a status that is not short text and free text of any size or type: the
+    route answers, the instruction reads UNKNOWN, and each text is a string of at most 2000 characters."""
+    await mongo_db.agent_instructions.insert_one({"id": "i1", "agent_id": "a1", "tenantId": "t1", "status": "sent"})
+    payload = {"task_id": "i1", "status": status, "message": "m" * 50000, "error": {"x": 1},
+               "result": {"output": ["x"], "error": "e" * 3000}}
+    with patch.object(agent_tasks_endpoints, "get_database", return_value=mongo_db):
+        assert await agent_tasks_endpoints.report_instruction_result("a1", payload, _tenant={"id": "t1"}) == {"status": "ok"}
+    doc = await mongo_db.agent_instructions.find_one({"id": "i1"})
+    assert doc["status"] == "UNKNOWN" and doc["result"]["raw_status"] == "unknown"
+    assert doc["result"]["message"] == "m" * 2000 and doc["result"]["error"] == ""
+    payload = {"task_id": "i1", "status": "error", "result": {"error": "e" * 3000}}
+    with patch.object(agent_tasks_endpoints, "get_database", return_value=mongo_db):
+        await agent_tasks_endpoints.report_instruction_result("a1", payload, _tenant={"id": "t1"})
+    doc = await mongo_db.agent_instructions.find_one({"id": "i1"})
+    assert doc["status"] == "FAILURE" and doc["result"]["error"] == "e" * 2000 and doc["result"]["message"] == ""

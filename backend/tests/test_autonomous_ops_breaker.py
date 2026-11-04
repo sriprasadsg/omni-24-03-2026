@@ -251,14 +251,14 @@ async def test_a_failed_control_row_does_not_undo_the_level_change(live, notices
 # ---------------------------------------------------------------- Phase 83, plan 83-08 (RESP-10, PROH-83-11)
 # Added cases only: a failed row with no reasonCode keeps counting, exactly as in Phase 81.
 
-async def _ended(db, state, code, *, finished=None, n=[1000]):
+async def _ended(db, state, code, *, finished=None, command="block_ip", n=[1000]):
     """A finished automatic row that ended ``state`` for ``code`` (the way the reconciler writes it)."""
     n[0] += 1
     finished = finished or NOW - timedelta(minutes=n[0] % 50)
     await db.autonomy_actions.insert_one({
         "id": f"AO-r{n[0]}", "tenantId": "t1", "kind": "security", "state": state, "autoDispatched": True,
         "createdAt": finished - timedelta(seconds=30), "updatedAt": finished, "finishedAt": finished,
-        "command": "block_ip", "targets": ["a1"], "params": {}, "reasonCode": code,
+        "command": command, "targets": ["a1"], "params": {}, "reasonCode": code,
         "reason": {"ruleId": "t", "inputs": {}}})
     return f"AO-r{n[0]}"
 
@@ -326,3 +326,19 @@ async def test_three_undone_rows_still_trip_it(live, notices):
 async def test_a_failed_row_with_no_reason_code_still_counts(live, notices):
     await _bad(live, 3)
     assert await breaker.evaluate(live, "t1", now=NOW) is True
+
+
+async def test_failed_restarts_never_trip_it_and_never_break_a_run_of_three(live, notices):
+    """WR-04: one dead watched service spends its budget of 3 restarts within minutes, each verify_failed or
+    agent_failed. The per-service budget and the card already bound restarts, so they stay out of the breaker
+    and the tenant's blocks and quarantines stay automatic; real failures around them still count."""
+    for code in ("verify_failed", "agent_failed", "verify_failed"):
+        await _ended(live, "failed", code, command="restart_service", finished=NOW - timedelta(minutes=5))
+    assert await breaker.evaluate(live, "t1", now=NOW) is False
+    assert (await _tenant(live)).level == "undoable_auto"
+    notices.assert_not_awaited()
+    for minutes in (50, 40, 30):
+        await _ended(live, "failed", "verify_failed", finished=NOW - timedelta(minutes=minutes))
+    assert await breaker.evaluate(live, "t1", now=NOW) is True
+    assert all(i.startswith("AO-r") for i in (await _tenant(live)).breaker["actionIds"])
+    assert len((await _tenant(live)).breaker["actionIds"]) == 3

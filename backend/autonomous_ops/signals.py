@@ -50,6 +50,7 @@ ORIGIN_IDS = (NATIVE, "feed:urlhaus", "feed:malwarebazaar", "feed:otx", VIRUSTOT
 NATIVE_WINDOW = timedelta(hours=25)      # a native verdict, an alert or a file change counts for a little over a day
 FEED_WINDOW = timedelta(hours=48)        # a feed row counts while the feed's sync still lists it
 CORROBORATION_WINDOW = timedelta(hours=24)       # D-03
+_ORIGIN_WINDOW = {NATIVE: NATIVE_WINDOW, VIRUSTOTAL: NATIVE_WINDOW, ONHOST: NATIVE_WINDOW}     # feeds: FEED_WINDOW
 NATIVE_LIMIT = 500
 CANDIDATE_LIMIT = 500
 AGENT_LIMIT = 5000
@@ -210,27 +211,32 @@ class _Acc:
     def __init__(self, now: datetime):
         self.now = now
         self.obs: Dict[tuple, Dict[str, Dict[str, Any]]] = {}
-        self.paths: Dict[tuple, Optional[str]] = {}
-        self.hashes: Dict[str, Dict[str, Optional[str]]] = {}      # sha256 -> {agent id: path}
+        self.paths: Dict[tuple, tuple] = {}                        # key -> (evidence time, path), the newest
+        self.hashes: Dict[str, Dict[str, Optional[tuple]]] = {}    # sha256 -> {agent id: (time, path) or None}
         self.ips: Dict[str, set] = {}                              # address -> {agent id}
 
-    def origin(self, agent_id, kind, indicator, origin, evidence: datetime, ref: str, path: Optional[str] = None):
+    def origin(self, agent_id, kind, indicator, origin, evidence: datetime, ref: str, path: Optional[str] = None,
+               path_at: Optional[datetime] = None):
         key = (agent_id, kind, indicator)
         evidence = _ms(min(evidence, self.now))
         slot = self.obs.setdefault(key, {})
         cur = slot.get(origin)
         if cur is None or evidence > cur["evidenceAt"]:
             slot[origin] = {"evidenceAt": evidence, "ref": ref}
-        if path and (self.paths.get(key) is None or path < self.paths[key]):
-            self.paths[key] = path
+        self.paths[key] = _newest(self.paths.get(key), path, path_at or evidence)
 
-    def has_hash(self, agent_id, sha: str, path: Optional[str] = None):
+    def has_hash(self, agent_id, sha: str, path: Optional[str] = None, at: Optional[datetime] = None):
+        """``at``: when the host reported the file there (telemetry: now)."""
         have = self.hashes.setdefault(sha, {})
-        if agent_id not in have or (path and (have[agent_id] is None or path < have[agent_id])):
-            have[agent_id] = path or have.get(agent_id)
+        have[agent_id] = _newest(have.get(agent_id), path, min(at, self.now) if at else self.now)
 
     def has_ip(self, agent_id, ip: str):
         self.ips.setdefault(ip, set()).add(agent_id)
+
+
+def _newest(cur: Optional[tuple], path: Optional[str], at: datetime) -> Optional[tuple]:
+    """(time, path) of the newest evidence naming a path (A-83-ONE-PATH); a tie goes to the larger path."""
+    return (at, path) if path and (cur is None or (at, path) > cur) else cur
 
 
 async def _read_native(db, tenant_id: str, index, acc: _Acc) -> None:
@@ -262,7 +268,7 @@ async def _read_native(db, tenant_id: str, index, acc: _Acc) -> None:
             path = target if kind == "file" and isinstance(target, str) and 0 < len(target) <= 1024 else None
             if sha:
                 acc.origin(agent["id"], "file", sha, NATIVE, evidence, ref, path)
-                acc.has_hash(agent["id"], sha, path)
+                acc.has_hash(agent["id"], sha, path, evidence)
 
 
 async def _read_alerts(db, tenant_id: str, index, acc: _Acc) -> None:
@@ -278,7 +284,7 @@ async def _read_alerts(db, tenant_id: str, index, acc: _Acc) -> None:
         if agent is None or sha is None or evidence is None:
             continue
         acc.origin(agent["id"], "file", sha, alert_origin(row), evidence, str(row.get("id") or ""))
-        acc.has_hash(agent["id"], sha)
+        acc.has_hash(agent["id"], sha, at=evidence)
 
 
 def _read_telemetry(agents: List[Dict[str, Any]], acc: _Acc) -> None:
@@ -305,14 +311,15 @@ async def _read_fim(db, tenant_id: str, index, acc: _Acc) -> None:
     found = raw(db).fim_events.find(
         {"tenantId": tenant_id, "received_at": {"$gte": cut},
          "$or": [{"hash_after": {"$type": "string", "$ne": ""}}, {"sha256": {"$type": "string", "$ne": ""}}]},
-        {"_id": 0, "agent_id": 1, "path": 1, "hash_after": 1, "sha256": 1}
+        {"_id": 0, "agent_id": 1, "path": 1, "hash_after": 1, "sha256": 1, "received_at": 1}
     ).sort("received_at", -1).limit(NATIVE_LIMIT)
     async for row in found:
         agent = resolve(index, row.get("agent_id"))
         sha = sha256_of(row.get("hash_after")) or sha256_of(row.get("sha256"))
         path = row.get("path")
         if agent is not None and sha:
-            acc.has_hash(agent["id"], sha, path if isinstance(path, str) and 0 < len(path) <= 1024 else None)
+            acc.has_hash(agent["id"], sha, path if isinstance(path, str) and 0 < len(path) <= 1024 else None,
+                         _when(row.get("received_at")))
 
 
 def _chunks(values: List[str]):
@@ -329,8 +336,9 @@ async def _read_feeds(db, acc: _Acc) -> None:
         async for row in coll.find({**glob, "ioc_type": "hash", "ioc_value": {"$in": chunk}}, shown):
             sha = sha256_of(row.get("ioc_value"))
             for origin, evidence in feed_origins(row, acc.now):
-                for agent_id, path in sorted((acc.hashes.get(sha) or {}).items()):
-                    acc.origin(agent_id, "file", sha, origin, evidence, origin[5:], path)
+                for agent_id, seen in sorted((acc.hashes.get(sha) or {}).items()):
+                    at, path = seen or (None, None)
+                    acc.origin(agent_id, "file", sha, origin, evidence, origin[5:], path, at)
     for chunk in _chunks(sorted(acc.ips)):
         async for row in coll.find({**glob, "ioc_type": {"$in": ["ip", "url"]}, "source_ip": {"$in": chunk}}, shown):
             ip = global_ip(row.get("source_ip"))
@@ -417,7 +425,7 @@ async def observe(db, tenant_id: str, agents: List[Dict[str, Any]], now: datetim
     for key in keys:
         agent_id, kind, indicator = key
         flt = {"tenantId": tenant_id, "agentId": agent_id, "kind": kind, "indicator": indicator}
-        doc, new = await _record(db, flt, acc.obs[key], acc.paths.get(key), now)
+        doc, new = await _record(db, flt, acc.obs[key], (acc.paths.get(key) or (None, None))[1], now)
         if doc:
             out.append(_candidate(doc))
             out.new_evidence.extend({"agentId": agent_id, "kind": kind, "indicator": indicator, "origin": name,
@@ -439,9 +447,11 @@ def _candidate(doc: Dict[str, Any]) -> Candidate:
 
 # ---------------------------------------------------------------- the rule and the memory
 
-def counting_origins(doc: Any, evidence_after: Optional[datetime] = None) -> Dict[str, Dict[str, Any]]:
+def counting_origins(doc: Any, evidence_after: Optional[datetime] = None, *,
+                     now: Optional[datetime] = None) -> Dict[str, Dict[str, Any]]:
     """The origins that count: all, or (D-14) only those with evidence later than ``evidence_after`` (one
-    with no evidence time cannot prove it is fresh and is dropped)."""
+    with no evidence time cannot prove it is fresh and is dropped). With ``now``, only those the sweep last
+    saw inside their source's window (25 hours, a feed 48): an origin its source stopped naming is gone."""
     origins = doc.origins if isinstance(doc, Candidate) else (doc or {}).get("origins")
     out = {}
     for name, value in (origins or {}).items():
@@ -451,15 +461,20 @@ def counting_origins(doc: Any, evidence_after: Optional[datetime] = None) -> Dic
             evidence = _aware(value.get("evidenceAt"))
             if not isinstance(evidence, datetime) or evidence <= _aware(evidence_after):
                 continue
+        if now is not None:
+            seen = _aware(value.get("lastSeenAt"))
+            if not isinstance(seen, datetime) or now - seen > _ORIGIN_WINDOW.get(name, FEED_WINDOW):
+                continue
         out[name] = value
     return out
 
 
-def corroborated(doc: Any, *, two_signal: bool, evidence_after: Optional[datetime] = None) -> bool:
+def corroborated(doc: Any, *, two_signal: bool, evidence_after: Optional[datetime] = None,
+                 now: Optional[datetime] = None) -> bool:
     """D-03: two different origins whose firstSeenAt are at most 24 hours apart (inclusive, and no matter
     what a third did); with two_signal off (D-04) one is enough. ``doc`` is a Candidate or a mapping holding ``origins``."""
-    firsts = sorted(t for t in (_aware(v.get("firstSeenAt")) for v in counting_origins(doc, evidence_after).values())
-                    if isinstance(t, datetime))
+    counting = counting_origins(doc, evidence_after, now=now)
+    firsts = sorted(t for t in (_aware(v.get("firstSeenAt")) for v in counting.values()) if isinstance(t, datetime))
     if not firsts:
         return False
     if len(firsts) == 1:

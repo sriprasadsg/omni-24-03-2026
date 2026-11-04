@@ -461,7 +461,8 @@ def _findings():
                                        details={"type": "ip", "verdict": "Malicious"}, **base),
         # D-05: a malicious file is quarantined; kill_process is now reached by the shadow-AI anomaly only.
         "quarantine_file": RemediationFinding(finding_id="n-file", finding_type="nscan", resource_id="/tmp/evil.exe",
-                                              details={"type": "file", "verdict": "Malicious"}, **base),
+                                              details={"type": "file", "verdict": "Malicious", "sha256": "a" * 64},
+                                              **base),
         "kill_process": RemediationFinding(finding_id="ueba-1", finding_type="anomaly", resource_id="ollama.exe",
                                            details={"anomaly_rule": "shadow_ai_detected"}, **base),
         "rotate_key": RemediationFinding(finding_id="v-key", finding_type="vuln", resource_id="asset-1",

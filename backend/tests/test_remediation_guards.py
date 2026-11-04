@@ -63,7 +63,8 @@ def _finding(finding_type="nscan", **overrides):
 
 def _file_finding(**overrides):
     base = dict(finding_id="f-2", agent_id="a1", resource_id="/tmp/evil.exe",
-                details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z"})
+                details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z",
+                         "sha256": "a" * 64})
     base.update(overrides)
     return _finding(**base)
 
@@ -277,7 +278,8 @@ class TestRollbackAndEscalation:
 
     async def test_failed_verify_irreversible_escalates_no_rollback(self):
         db = _mock_db()
-        finding = _finding(finding_type="nscan", details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z"})
+        finding = _finding(finding_type="nscan", details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z",
+                                                          "sha256": "a" * 64})
         # kill_process has no rollback; force verify "failed" (still malicious)
         db.security_scan_results.find_one = AsyncMock(return_value={"verdict": "Malicious", "created_at": "2026-08-01T01:00:00Z"})
 
