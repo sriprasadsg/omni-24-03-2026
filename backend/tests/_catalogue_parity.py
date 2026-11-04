@@ -243,7 +243,18 @@ def _is_unguarded(record: Dict[str, Any]) -> bool:
 
 
 # WR-05 (PROH-76-08): a route whose path names a tenant or another user is not "the caller's own" data.
+# A cheap lexical pre-check only: the safeguard is the behavioural probe of every exempt read in
+# test_catalogue_exempt_reads (76 WR-01), which a reworded reason or another placeholder cannot pass.
 _NAMES_TENANT_OR_USER = re.compile(r"\{(?:tenant_id|tenantId|user_id|userId)\}")
+_PLACEHOLDER = re.compile(r"\{([^}]+)\}")
+
+
+def exempt_reads(records: Iterable[Dict[str, Any]], tenant_id: str) -> List[str]:
+    """Concrete paths of every catalogue_exempt GET route: tenant placeholders become ``tenant_id``,
+    any other placeholder a fixed probe id (76 WR-01)."""
+    def concrete(path: str) -> str:
+        return _PLACEHOLDER.sub(lambda m: tenant_id if m.group(1) in ("tenant_id", "tenantId") else "probe-id", path)
+    return sorted({concrete(r["path"]) for r in records if r.get("exempt") and "GET" in r["methods"]})
 
 
 def _ledger_group(records: Sequence[Dict[str, Any]], manifest: Dict[str, Any]) -> str:

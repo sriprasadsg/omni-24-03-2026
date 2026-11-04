@@ -174,6 +174,19 @@ def test_scope_for_the_platform_permission_is_enough():
     assert _platform_client("platform_support", PLATFORM, scopes=["view:tenants"]).get("/x").status_code == 200
 
 
+def test_agent_tolerant_keeps_platform_read():
+    """WR-02: the tolerant copy keeps the platform-staff read rule of the guard it wraps."""
+    guard = agent_tolerant(catalogue_guard("demo", platform_read=("view:tenants",), **DEMO))
+    assert guard.__catalogue_guard__ == {"catalogue": "demo", "read": ["manage:settings"],
+                                         "write": ["manage:settings"], "allow_agent": True,
+                                         "platform_read": ["view:tenants"]}
+    client = _demo_client(guard, _user("platform_support", PLATFORM))
+    assert client.get("/x").status_code == 200
+    assert client.post("/x").status_code == 403
+    assert _demo_client(guard, _user("platform_support", "t1")).get("/x").status_code == 403
+    assert _demo_client(guard, _user(AGENT_ROLE)).get("/x").status_code == 200
+
+
 @pytest.mark.asyncio
 async def test_check_catalogue_access_platform_read_keyword():
     from fastapi import HTTPException

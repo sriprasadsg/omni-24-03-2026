@@ -159,7 +159,10 @@ def catalogue_guard(
 
 
 def agent_tolerant(guard: Callable) -> Callable:
-    """The same catalogue guard for a route the endpoint agent also calls (WR-01, D-02)."""
+    """The same catalogue guard for a route the endpoint agent also calls (WR-01, D-02).
+
+    Every rule of the wrapped guard carries over, its platform-staff read included (76 WR-02).
+    """
     meta = getattr(guard, "__catalogue_guard__", None)
     if not meta:
         raise ValueError("agent_tolerant requires a catalogue_guard dependency")
@@ -169,6 +172,7 @@ def agent_tolerant(guard: Callable) -> Callable:
         write=tuple(meta["write"]),
         auth=get_current_user_or_agent,
         allow_agent=True,
+        platform_read=tuple(meta.get("platform_read", ())),
     )
 
 

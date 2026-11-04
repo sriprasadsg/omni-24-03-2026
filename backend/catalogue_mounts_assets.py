@@ -16,7 +16,8 @@ from catalogue_guards import catalogue_guard
 
 ASSETS_READ = ("view:assets",)
 ASSETS_WRITE = ("manage:assets", "manage:compliance_evidence")
-ITAM_READ = ("view:itam",)
+# manage:assets reads ITAM too, as the handlers' _require_itam_viewer allows (76 WR-03).
+ITAM_READ = ("view:itam", "manage:assets")
 ITAM_WRITE = ("manage:assets", "manage:procurement", "request:assets")
 CERTIFICATES_READ = ("view:assets",)
 CERTIFICATES_WRITE = ("manage:settings",)

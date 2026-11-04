@@ -127,3 +127,26 @@ def test_webhook_management_keeps_tenant_integration_keys():
     # A user-scoped key or session is checked against the catalogue: viewer is refused.
     viewer = {"role": "viewer", "tenant_id": TENANT, "auth": "api_key"}
     assert probe_real_app([{"method": "GET", "path": "/api/webhooks", **viewer}]) == [403]
+
+
+def test_secrets_reads_accept_view_secrets_and_writes_need_manage_secrets():
+    """76 WR-04: reads take manage:settings or view:secrets; writes take manage:secrets only."""
+    by_view = {c["view"]: c for c in load_manifest()["catalogues"]}
+    entry = by_view["secretsManagement"]
+    assert sorted(resolved_read(entry)) == ["manage:settings", "view:secrets"]
+    assert resolved_write(entry) == ["manage:secrets"]
+    meta = settings_ops.SECRETS_GUARD.__catalogue_guard__
+    assert sorted(meta["read"]) == sorted(resolved_read(entry))
+    assert meta["write"] == ["manage:secrets"]
+
+
+def test_secrets_guard_on_the_real_app():
+    """platform_support holds view:secrets only: it now reads the secrets screen and can no longer
+    start a scan, which the route allows a view:secrets holder but the guard reserves for manage:secrets."""
+    support = {"role": "platform_support", "tenant_id": rbac_defaults.PLATFORM_TENANT_ID, "auth": "session"}
+    reads = ["/api/secrets/list", "/api/secrets/stats", "/api/secrets/audit-log", "/api/secrets/rotation/check"]
+    statuses = probe_real_app([{"method": "GET", "path": p, **support} for p in reads])
+    assert 403 not in statuses and 401 not in statuses, dict(zip(reads, statuses))
+    assert probe_real_app([{"method": "POST", "path": "/api/secrets/scan", **support}]) == [403]
+    assert probe_real_app([_case("/api/secrets/scan", "viewer", method="POST")]) == [403]
+    assert probe_real_app([_case("/api/secrets/scan", "tenant_admin", method="POST")])[0] not in (401, 403)

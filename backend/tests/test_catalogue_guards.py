@@ -21,7 +21,35 @@ def test_tracer_mdm_enforced_on_real_app():
         {"method": "GET", "path": "/api/mdm/summary", "role": "admin", "tenant_id": "tenant-a", "auth": "session"},
     ])
     assert denied == 403, "a role without view:mdm / manage:mdm must be refused on /api/mdm"
-    assert allowed != 403, "a role holding view:mdm must not be refused by the catalogue guard"
+    # The probe has no database, so the handler itself may fail (500) once the guard lets the
+    # caller through; an authentication or permission refusal never may. The 200 path of the
+    # same mounted guard is proven by test_tracer_mdm_guard_reaches_the_handler.
+    assert allowed not in (401, 403), "a role holding view:mdm must not be refused by the catalogue guard"
+
+
+def test_tracer_mdm_guard_reaches_the_handler():
+    """76 WR-06: the guard mounted on the MDM router admits a permitted role all the way to a
+    handler that answers 200, and refuses the others with exactly 403."""
+    from authentication_service import get_current_user
+    from catalogue_mounts import MOUNT_GUARDS
+
+    guard = MOUNT_GUARDS[("mdm_endpoints", "router")]
+    router = APIRouter()
+
+    @router.get("/api/mdm/summary")
+    async def summary():
+        return {"ok": True}
+
+    def status_for(role):
+        app = FastAPI()
+        app.include_router(router, dependencies=[Depends(guard)])
+        app.dependency_overrides[get_current_user] = lambda: TokenData(
+            username="u@example.com", role=role, tenant_id="tenant-a", auth_source="session")
+        return TestClient(app, raise_server_exceptions=False).get("/api/mdm/summary").status_code
+
+    assert status_for("admin") == 200
+    assert status_for("super_admin") == 200
+    assert status_for("viewer") == 403
 
 
 # ---------------------------------------------------------------------------

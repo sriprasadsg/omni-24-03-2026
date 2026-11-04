@@ -36,8 +36,9 @@ RETENTION_POLICY_GUARD = catalogue_guard("retentionPolicy", read=_SETTINGS, writ
 RETENTION_POLICIES_GUARD = catalogue_guard(
     "retentionPolicies", read=("view:retention_policies",), write=_SETTINGS
 )
+# Reads follow the routes' own view:secrets check (or settings admin); only manage:secrets writes (76 WR-04).
 SECRETS_GUARD = catalogue_guard(
-    "secretsManagement", read=_SETTINGS, write=("manage:secrets", "view:secrets")
+    "secretsManagement", read=("manage:settings", "view:secrets"), write=("manage:secrets",)
 )
 
 # --- Integrations, ticketing, notifications, webhooks -----------------------------------
