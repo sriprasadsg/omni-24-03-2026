@@ -39,12 +39,11 @@ pub(crate) const CRITICAL_SERVICE_NAMES: &[&str] = &[
     "sshd", "ssh", "systemd", "dbus", "networkmanager", "init",
     "omniagent", "omni-agent", "rpcss", "dcomlaunch", "lsm", "samss", "eventlog", "winmgmt",
     "schedule", "bfe", "mpssvc", "windefend",
+    // Restarting these ends every session or the network (WR-21).
+    "systemd-logind", "systemd-networkd", "network", "networking",
 ];
 /// Other names the agent itself runs under (the installer's Windows service and the Rust unit).
 const OWN_SERVICE_NAMES: &[&str] = &["omniagentrust", "omni-agent-rs"];
-/// Agent-only additions (WR-21): restarting them ends every session or the network. They are not
-/// in the contract's `criticalServices`, so the platform does not refuse them yet.
-const MORE_CRITICAL_SERVICE_NAMES: &[&str] = &["systemd-logind", "systemd-networkd", "network", "networking"];
 /// systemd unit types other than a service: `systemctl restart reboot.target` reboots the host.
 const OTHER_UNIT_TYPES: &[&str] =
     &["target", "socket", "mount", "automount", "swap", "path", "timer", "slice", "scope", "device"];
@@ -242,7 +241,7 @@ pub(crate) fn validate_service_name(service_name: &str) -> Result<(), Remediatio
     if lower.rsplit_once('.').is_some_and(|(_, kind)| OTHER_UNIT_TYPES.contains(&kind)) {
         return Err(RemediationError::InvalidTarget(format!("'{service_name}' is not a service.")));
     }
-    if CRITICAL_SERVICE_NAMES.iter().chain(OWN_SERVICE_NAMES).chain(MORE_CRITICAL_SERVICE_NAMES).any(|n| *n == bare) {
+    if CRITICAL_SERVICE_NAMES.iter().chain(OWN_SERVICE_NAMES).any(|n| *n == bare) {
         return Err(RemediationError::ServiceNotFound(format!("Refusing to touch OS-critical service '{service_name}'.")));
     }
     Ok(())

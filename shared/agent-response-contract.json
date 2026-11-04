@@ -101,7 +101,11 @@
     "schedule",
     "bfe",
     "mpssvc",
-    "windefend"
+    "windefend",
+    "systemd-logind",
+    "systemd-networkd",
+    "network",
+    "networking"
   ],
   "examples": {
     "block_applied": {
