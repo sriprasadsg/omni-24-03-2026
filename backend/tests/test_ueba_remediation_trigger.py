@@ -4,9 +4,10 @@ remediation engine.
 
 Proves:
   - shadow_ai_detected + a real agent_id + a resolved tenant -> exactly one
-    fire-and-forget, deduped call to remediate() (Task 2).
-  - is_duplicate_task(...) is called BEFORE remediate() and a duplicate
-    short-circuits dispatch (Pitfall 2 / T-55-07).
+    fire-and-forget call to remediate() (Task 2).
+  - Phase 81 WR-07: the anomaly's finding id is stable per agent and rule, so the
+    gate's own open-row dedupe holds a repeated anomaly to one card (Pitfall 2 /
+    T-55-07); the old response_tasks lookup, which nothing ever matched, is gone.
   - a missing agent_id, a missing tenant, or a non-shadow-AI rule never
     reaches remediate() (fail-closed, T-55-09).
   - the dispatch is scheduled via background_tasks.add_task — never awaited
@@ -25,6 +26,7 @@ Proves:
 """
 import inspect
 import os
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -127,51 +129,43 @@ class TestReportShadowAiCallSite:
 
 
 class TestDispatchAnomalyRemediation:
-    """Unit-level coverage of the background-task body: dedup ordering,
-    finding shape, and duplicate short-circuiting."""
+    """Unit-level coverage of the background-task body: the finding shape, a stable finding id
+    (WR-07) and no response_tasks lookup that nothing writes."""
 
-    async def test_dedup_checked_before_remediate(self):
-        order = []
-
-        async def _dup(*a, **k):
-            order.append("is_duplicate_task")
-            return False
-
-        async def _remediate(self, finding):
-            order.append("remediate")
-            return {"status": "dry_run"}
-
+    async def test_no_response_task_lookup_runs_before_remediate(self):
         with patch(
-            "response_orchestrator.ResponseOrchestrator.is_duplicate_task",
-            new=AsyncMock(side_effect=_dup),
-        ), patch(
+            "response_orchestrator.ResponseOrchestrator.is_duplicate_task", new=AsyncMock(return_value=True),
+        ) as dup, patch(
             "autonomous_remediation_service.AutonomousRemediationService.remediate",
-            new=_remediate,
-        ):
-            await ueba_service._dispatch_anomaly_remediation(
-                "t1", "agent-1", "api.openai.com", "shadow_ai_detected", 100,
-            )
-
-        assert order == ["is_duplicate_task", "remediate"]
-
-    async def test_duplicate_skips_remediate(self):
-        with patch(
-            "response_orchestrator.ResponseOrchestrator.is_duplicate_task",
-            new=AsyncMock(return_value=True),
-        ), patch(
-            "autonomous_remediation_service.AutonomousRemediationService.remediate",
-            new=AsyncMock(),
+            new=AsyncMock(return_value={"status": "shadow"}),
         ) as mock_remediate:
             await ueba_service._dispatch_anomaly_remediation(
                 "t1", "agent-1", "api.openai.com", "shadow_ai_detected", 100,
             )
-        mock_remediate.assert_not_called()
+        dup.assert_not_called()
+        mock_remediate.assert_awaited_once()
+
+    async def test_the_finding_id_is_stable_per_agent_and_rule(self):
+        ticks = iter([datetime(2026, 8, 3, 0, 0, 0, tzinfo=timezone.utc), datetime(2026, 8, 3, 0, 0, 7, tzinfo=timezone.utc)])
+
+        class _Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return next(ticks)
+
+        with patch.object(ueba_service, "datetime", _Clock), patch(
+            "autonomous_remediation_service.AutonomousRemediationService.remediate",
+            new=AsyncMock(return_value={"status": "shadow"}),
+        ) as mock_remediate:
+            for _ in range(2):
+                await ueba_service._dispatch_anomaly_remediation(
+                    "t1", "agent-1", "api.openai.com", "shadow_ai_detected", 100,
+                )
+        ids = [c.args[0].finding_id for c in mock_remediate.call_args_list]
+        assert ids == ["UEBA-agent-1-shadow_ai_detected"] * 2
 
     async def test_builds_anomaly_finding_and_calls_remediate_once(self):
         with patch(
-            "response_orchestrator.ResponseOrchestrator.is_duplicate_task",
-            new=AsyncMock(return_value=False),
-        ), patch(
             "autonomous_remediation_service.AutonomousRemediationService.remediate",
             new=AsyncMock(return_value={"status": "dry_run"}),
         ) as mock_remediate:
@@ -331,6 +325,25 @@ class TestGatedAtShippedDefaults:
         assert result["status"] == "refused" and result["reason"] == "not_enabled"
         assert await live.autonomy_actions.count_documents({"tenantId": "t2"}) == 0
         assert await live.remediation_requests.count_documents({}) == 0
+        assert await live.agent_instructions.count_documents({}) == 0
+
+    async def test_a_repeated_anomaly_seconds_later_keeps_one_card(self, live):
+        """protects=WR-07; fails_when=each event (a new second) opens its own kill_process card."""
+        await live.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": False}})
+        ticks = iter(datetime(2026, 8, 3, 0, 0, s, tzinfo=timezone.utc) for s in range(0, 60, 3))
+
+        class _Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return next(ticks)
+
+        with patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
+             patch.object(ueba_service, "datetime", _Clock):
+            for _ in range(3):
+                await ueba_service._dispatch_anomaly_remediation("t1", "a1", "api.openai.com", "shadow_ai_detected", 100)
+        rows = [r async for r in live.autonomy_actions.find({"tenantId": "t1"})]
+        assert [(r["state"], r["command"]) for r in rows] == [("awaiting_approval", "kill_process")]
+        assert await live.remediation_requests.count_documents({}) == 1
         assert await live.agent_instructions.count_documents({}) == 0
 
     async def test_a_finding_with_no_host_is_refused_not_dispatched(self, live):

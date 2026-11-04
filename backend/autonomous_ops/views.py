@@ -20,12 +20,15 @@ from rbac_service import rbac_service as _rbac_service
 from rbac_utils import has_platform_permission, is_super_admin, verify_permission
 
 from . import (BUCKET_STATES, CONTROL_PERMISSION, LEVEL_RANK, MANAGE_PERMISSION, PLATFORM_CONTROL_PERMISSION,
-               PLATFORM_TENANT_ID, health_messages, ledger, messages, registry, response_views, selfheal, settings, stop)
+               PLATFORM_TENANT_ID, dispatch_check, health_messages, ledger, messages, registry, response_views,
+               selfheal, settings, stop)
 from .scope import raw
 
 logger = logging.getLogger(__name__)
 
 TENANT_ID_MAX = 128
+STEP_TEXT_CAP = 300             # one step's target as shown; a playbook value is never trusted to be short
+_STEP_TARGET_KEYS = ("path", "file_path", "target", "service_name", "package", "process")
 _STATE_BUCKET = {state: bucket for bucket, states in BUCKET_STATES.items() for state in states}
 _INTEGRATION_KEY_ROLE = "api-integration"      # the legacy tenant integration key (no person behind it)
 
@@ -179,16 +182,42 @@ def _class_line(row: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _action_label(row: Dict[str, Any]) -> str:
-    if row.get("kind") == "control":
-        return messages.CONTROL_LABELS.get(row.get("controlEvent"), "Control event")
-    command = row.get("command")
+def _command_label(command) -> str:
     label = messages.ACTION_LABELS.get(command)
     if label:
         return label
     if isinstance(command, str) and command:
         return command.replace("_", " ").capitalize()
     return "Action"
+
+
+def _action_label(row: Dict[str, Any]) -> str:
+    """The row's action; a row decided with several steps says how many more it runs (WR-10)."""
+    if row.get("kind") == "control":
+        return messages.CONTROL_LABELS.get(row.get("controlEvent"), "Control event")
+    label = _command_label(row.get("command"))
+    count = dispatch_check.step_count(row)
+    return messages.more_steps(label, count - 1) if count > 1 else label
+
+
+def _step_target(spec: Optional[registry.ActionSpec], params: Dict[str, Any]) -> Optional[str]:
+    """What one step acts on (an address, a network, a file, a service), else None: the host says it."""
+    keys = ((spec.ip_params + spec.cidr_params) if spec is not None else ()) + _STEP_TARGET_KEYS
+    for key in keys:
+        value = params.get(key)
+        if isinstance(value, (str, int)) and not isinstance(value, bool) and str(value).strip():
+            return str(value).strip()[:STEP_TEXT_CAP]
+    return None
+
+
+def _plan_view(items: List[Dict[str, Any]]) -> List[Dict[str, Optional[str]]]:
+    """Each recorded step as {label, target}, in order (WR-10: an approval shows everything it authorises)."""
+    out = []
+    for item in items:
+        params = item.get("params") if isinstance(item.get("params"), dict) else {}
+        out.append({"label": _command_label(item.get("command")),
+                    "target": _step_target(registry.resolve(item.get("command")), params)})
+    return out
 
 
 def _result_text(row: Dict[str, Any], label: str, host: Optional[str]) -> Optional[str]:
@@ -206,7 +235,8 @@ def present_row(row: Dict[str, Any], *, viewer_is_platform_staff: bool, host: Op
                 can_act: bool = False, now: Optional[datetime] = None,
                 kill_card: Optional[bool] = None) -> Dict[str, Any]:
     """One ledger row as the Activity list shows it. ``can_act`` is True for a person holding
-    control:autonomous_ops in an interactive session; it only decides whether Undo may be offered."""
+    control:autonomous_ops in an interactive session; it only decides whether Undo may be offered.
+    ``steps`` and ``compensationSteps`` list every recorded step ({label, target}) of the plan."""
     if row.get("kind") == "platform_health":
         return _present_health_row(row)
     control = row.get("kind") == "control"
@@ -216,6 +246,7 @@ def present_row(row: Dict[str, Any], *, viewer_is_platform_staff: bool, host: Op
         target = None                         # the host name already says it; never show an agent id beside it
     rule = (row.get("reason") or {}).get("ruleId")
     label = _action_label(row)
+    steps, put_back = ([], []) if control else dispatch_check.recorded_plan(row)
     shown = {
         "id": row.get("id"),
         "bucket": bucket_of(row),
@@ -232,6 +263,8 @@ def present_row(row: Dict[str, Any], *, viewer_is_platform_staff: bool, host: Op
         "by": display_actor(row.get("actor"), row.get("scope"), viewer_is_platform_staff) if control else None,
         "healthChip": None,
         "source": None,
+        "steps": _plan_view(steps),
+        "compensationSteps": _plan_view(put_back),
     }
     shown.update(response_views.row_extras(row, host=host, can_act=can_act, now=now, kill_card=kill_card))
     return shown
@@ -249,6 +282,7 @@ def _present_health_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "ruleId": words["ruleId"], "host": words["host"], "target": words["target"],
         "resultText": words["resultText"], "controlEvent": None, "by": None,
         "healthChip": row.get("healthChip") or health_messages.chip_for(event, params), "source": words["source"],
+        "steps": [], "compensationSteps": [],
     }
 
 
@@ -397,13 +431,15 @@ _INFRASTRUCTURE_ENTRY = {"id": "builtin:platform-infrastructure", "scope": "buil
 
 def visible_entries(entries, viewer_is_platform_staff: bool) -> List[Dict[str, Any]]:
     """The never-touch list as the viewer may read it. Built-in entries derived from this server's
-    own addresses, configuration and platform agents are shown to platform staff only; everyone else
-    sees the general ranges plus one line standing for the rest (no platform address is disclosed)."""
+    own addresses, configuration and platform agents, and the platform-wide entries a Super Admin
+    stored (WR-04), are shown to platform staff only; everyone else sees the general ranges, their
+    own organization's entries and one line standing for the rest (no platform address is disclosed)."""
     from . import protected
     general = {e.id for e in protected._special_networks()}
     shown, hidden = [], False
     for entry in entries:
-        if entry.builtin and entry.id not in general and not viewer_is_platform_staff:
+        platform_only = (entry.builtin and entry.id not in general) or entry.scope == "platform"
+        if platform_only and not viewer_is_platform_staff:
             hidden = True
             continue
         shown.append(entry_view(entry))

@@ -147,6 +147,14 @@ def step_count(row) -> int:
     return 1 if row.get("command") else 0
 
 
+def recorded_plan(row) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """(main steps, compensation steps) as recorded on a ledger row, each a ``{command, params}``
+    dict in order; a row written before the plan was recorded (no ``steps`` list) has neither. Pure."""
+    if not isinstance(row.get("steps"), list):
+        return [], []
+    return _items(row["steps"]), _items(row.get("rollback"))
+
+
 # ---------------------------------------------------------------- dispatch-time binding (81-15)
 
 _KIND_CLASSES = {"action": ("auto", "approve"), "compensate": ("undo_only",), "undo": ("undo_only",),

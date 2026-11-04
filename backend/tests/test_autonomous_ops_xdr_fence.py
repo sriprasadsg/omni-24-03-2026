@@ -185,6 +185,37 @@ async def test_repeated_correlation_for_the_same_target_does_not_add_a_second_ro
     assert "already" in out.lower()
 
 
+@pytest.mark.parametrize("finished", ["executed", "verified", "failed"])
+async def test_a_repeat_right_after_a_finished_action_is_never_automatic(monkeypatch, mongo_db, finished):
+    """Phase 81 review WR-08, not reproducible since 83-06 (D-25): the fence asks only gate.suggest, so a
+    correlation repeated minutes after the same action finished is a suggestion for a person, never an automatic
+    re-run. fails_when=a fenced repeat reaches allow_auto, writes a response task, or counts toward the breaker."""
+    from datetime import datetime, timedelta, timezone
+    from autonomous_ops import gate
+    monkeypatch.setenv(MASTER_ENV, "false")
+    await _setup(mongo_db, shadow=False)
+    trigger = {"source_ip": IP, "agent_id": "a1", "pattern_id": "p1"}
+    engine = PlaybookExecutionEngine(mongo_db)
+    await engine._action_block_ip({}, _context("xdr-auto", execution_id="EX-1", trigger=trigger))
+    (first,) = await _rows(mongo_db)
+    a_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
+    await mongo_db.autonomy_actions.update_one({"id": first["id"]}, {"$set": {
+        "state": finished, "autoDispatched": True, "finishedAt": a_minute_ago, "updatedAt": a_minute_ago}})
+    seen = []
+    real = gate.decide
+
+    async def spy(db, req, **kw):
+        decision = await real(db, req, **kw)
+        seen.append(decision.outcome)
+        return decision
+    monkeypatch.setattr(gate, "decide", spy)
+    out = await engine._action_block_ip({}, _context("xdr-auto", execution_id="EX-2", trigger=trigger))
+    assert seen == ["suggest"] and out.startswith("Suggested only")
+    second = [r for r in await _rows(mongo_db) if r["id"] != first["id"]]
+    assert len(second) == 1 and second[0]["state"] == "suggested" and not second[0].get("autoDispatched")
+    assert await mongo_db.response_tasks.count_documents({}) == 0
+
+
 async def test_validation_errors_are_kept_for_automatic_executors(mongo_db):
     await _setup(mongo_db)
     engine = PlaybookExecutionEngine(mongo_db)

@@ -8,6 +8,7 @@ real throwaway database, with a stand-in agent (``agent_that_completes``) so eve
 the gate wrote is checked for the stamp and for being a registry command. Console permission
 checks cover the approve tier (control:autonomous_ops) and the audit read tier.
 """
+import asyncio
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,6 +16,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import autonomous_remediation_service as service_module
 from autonomous_ops import ledger, protected, registry
 from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -153,8 +155,9 @@ class TestApprovalThroughTheLedger:
         assert row["state"] == "awaiting_approval"
         with agent_that_completes("Clean"):
             out = await svc.approve_remediation(rid, "t1", APPROVER)
+            assert out == {"remediation_id": rid, "status": "dispatching"}       # WR-05: answered at once
+            await service_module.settle_dispatches()
 
-        assert out["status"] == "resolved" and out["remediation_id"] == rid
         docs = await _instructions(live)
         assert [d["type"] for d in docs] == ["quarantine_file", "scan_file"]
         assert [d["autonomy"]["kind"] for d in docs] == ["action", "probe"]
@@ -171,6 +174,7 @@ class TestApprovalThroughTheLedger:
         svc, rid, row = await _card(live)
         with agent_that_completes("Clean"):
             await svc.approve_remediation(rid, "t1", APPROVER)
+            await service_module.settle_dispatches()
             before = len(await _instructions(live))
             again = await svc.approve_remediation(rid, "t1", APPROVER)
         assert again["status"] == "already_handled"
@@ -183,7 +187,9 @@ class TestApprovalThroughTheLedger:
         with agent_that_completes("Clean"):
             first = await svc.dispatch_approved_remediation(live, approved, APPROVER)
             second = await svc.dispatch_approved_remediation(live, approved, APPROVER)
-        assert first["status"] == "resolved"
+            await service_module.settle_dispatches()
+        assert first == {"status": "dispatching", "remediation_id": rid}
+        assert (await live.remediation_requests.find_one({"id": rid}))["status"] == "resolved"
         assert second == {"status": "refused", "reason": "request_not_pending"}
         assert len(await _instructions(live)) == 2            # one action and one probe, not four
 
@@ -214,6 +220,46 @@ class TestApprovalThroughTheLedger:
             assert (await svc.approve_remediation(rid, "t1", APPROVER))["status"] == "already_handled"
         assert await live.agent_instructions.count_documents({}) == 0
 
+    async def test_approving_answers_before_the_dispatch_and_verify_cycle_ends(self, live):
+        """protects=WR-05; fails_when=the approve call waits for the whole dispatch, poll and verify cycle (up to
+        minutes), so a proxy cuts the response and a second click answers already_handled."""
+        svc, rid, row = await _card(live)
+        release = asyncio.Event()
+
+        async def slow_cycle(self, remediation_id, finding, playbook, action_id=None):
+            await release.wait()
+            return {"status": "resolved", "remediation_id": remediation_id}
+
+        with patch.object(AutonomousRemediationService, "_dispatch_and_verify", slow_cycle):
+            out = await asyncio.wait_for(svc.approve_remediation(rid, "t1", APPROVER), timeout=5)
+            assert out == {"remediation_id": rid, "status": "dispatching"}
+            assert (await live.remediation_requests.find_one({"id": rid}))["status"] == "dispatching"
+            assert (await live.autonomy_actions.find_one({"id": row["id"]}))["state"] == "approved"
+            assert len(service_module._DISPATCHES) == 1
+            release.set()
+            await service_module.settle_dispatches()
+        assert not service_module._DISPATCHES
+
+    async def test_an_approved_dispatch_that_raises_fails_the_row_and_the_request(self, live):
+        svc, rid, row = await _card(live)
+        with patch.object(AutonomousRemediationService, "_dispatch_and_verify",
+                          AsyncMock(side_effect=RuntimeError("database went away"))):
+            out = await svc.approve_remediation(rid, "t1", APPROVER)
+            await service_module.settle_dispatches()
+        assert out["status"] == "dispatching"
+        after = await live.autonomy_actions.find_one({"id": row["id"]})
+        assert after["state"] == "failed" and after["reasonCode"] == "dispatch_failed"
+        assert (await live.remediation_requests.find_one({"id": rid}))["status"] == "failed"
+
+    async def test_the_approve_route_answers_dispatched_for_a_remediation_card(self, live):
+        from autonomous_ops import approvals
+        svc, rid, row = await _card(live)
+        with agent_that_completes("Clean"):
+            out = await approvals.approve(live, "t1", row["id"], approver=APPROVER)
+            await service_module.settle_dispatches()
+        assert out == {"status": "dispatched", "dispatch": {"status": "dispatching", "remediation_id": rid}}
+        assert (await live.autonomy_actions.find_one({"id": row["id"]}))["state"] == "verified"
+
     async def test_a_stop_freezes_the_approval(self, live):
         from tests.autonomy_support import seed_platform_stop
         svc, rid, row = await _card(live)
@@ -240,7 +286,9 @@ class TestLedgerFollowsTheAuditPoints:
         svc, rid, row = await _card(live)
         with agent_that_completes("Malicious"):
             out = await svc.approve_remediation(rid, "t1", APPROVER)
-        assert out["status"] == "failed" and out.get("escalated") is True
+            await service_module.settle_dispatches()
+        assert out["status"] == "dispatching"
+        assert (await live.remediation_requests.find_one({"id": rid}))["status"] == "failed"
         assert [d["type"] for d in await _instructions(live)] == ["quarantine_file", "scan_file"]
         assert (await live.autonomy_actions.find_one({"id": row["id"]}))["state"] == "failed"
         assert await live.alerts.count_documents({"type": "REMEDIATION_ESCALATION"}) == 1
@@ -299,6 +347,38 @@ class TestRollbackAndEscalation:
         assert result["status"] == "failed"
         assert result.get("escalated") is True
         db.alerts.insert_one.assert_called_once()
+        assert stack.ledger.rows[action_id]["state"] == "failed"
+
+    @pytest.mark.parametrize("broken", ["alert", "audit"])
+    async def test_an_escalation_that_cannot_be_written_skips_neither_the_breaker_nor_the_request_status(self, broken):
+        """protects=WR-13; fails_when=a database error while raising the alert escapes the remediation, so the
+        breaker is never asked and the request stays dispatching."""
+        from autonomous_ops import breaker
+        db = _mock_db()
+        finding = _finding(details={"type": "file", "verdict": "Malicious", "ts": "2026-08-01T00:00:00Z", "sha256": "a" * 64})
+        db.security_scan_results.find_one = AsyncMock(return_value={"verdict": "Malicious", "created_at": "2026-08-01T01:00:00Z"})
+        if broken == "alert":
+            db.alerts.insert_one = AsyncMock(side_effect=RuntimeError("alerts unavailable"))
+        else:
+            async def audit(doc):
+                if doc.get("stage") == "escalated":
+                    raise RuntimeError("audit unavailable")
+                return MagicMock(inserted_id="aud-1")
+            db.remediation_audit.insert_one = AsyncMock(side_effect=audit)
+        playbook = {"name": "kill_process", "rollback": [],
+                    "steps": [{"action": "kill_process", "params": {"target": "{{finding.resource_id}}"}}]}
+        with permissive_gate("allow_auto") as stack, \
+             patch("autonomous_remediation_service.get_database", return_value=db), \
+             patch.dict(os.environ, {"AUTONOMOUS_REMEDIATION_DRY_RUN": "false"}), \
+             patch.object(breaker, "evaluate", AsyncMock(return_value=False)) as evaluate:
+            action_id = await _row(stack, finding, playbook)
+            result = await AutonomousRemediationService()._dispatch_and_verify("REM-5", finding, playbook,
+                                                                               action_id=action_id)
+        assert result["status"] == "failed" and result["escalated"] is (broken == "audit")
+        evaluate.assert_awaited_once()
+        statuses = [c.args[1]["$set"]["status"] for c in db.remediation_requests.update_one.call_args_list]
+        assert statuses[-1] == "failed"
+        db.remediation_inflight.delete_one.assert_called_once()
         assert stack.ledger.rows[action_id]["state"] == "failed"
 
 
@@ -415,6 +495,24 @@ class TestControlEndpoints:
                 resp = client.post("/api/remediation/r1/deny", json={"reason": "fp"})
         assert resp.status_code == 200
         mock_deny.assert_called_once()
+
+    async def test_deny_reason_is_an_optional_stripped_string_of_at_most_500_characters(self):
+        """protects=WR-09 (validation at the boundary, the same rule as /api/autonomous-ops/actions/{id}/deny);
+        fails_when=a non-string or over-long reason reaches the immutable remediation_audit."""
+        db = _mock_db()
+        with patch("remediation_control_endpoints.get_database", return_value=db), \
+             patch("remediation_control_endpoints.verify_permission", new=self._holds("control:autonomous_ops")), \
+             patch("remediation_control_endpoints.AutonomousRemediationService.deny_remediation",
+                   new=AsyncMock(return_value={"status": "denied", "remediation_id": "r1"})) as mock_deny:
+            with TestClient(self._app(db)) as client:
+                for bad in ({"reason": "x" * 501}, {"reason": 5}, {"reason": ["a"]}, {"reason": {"$gt": ""}}):
+                    assert client.post("/api/remediation/r1/deny", json=bad).status_code == 422, bad
+                mock_deny.assert_not_called()
+                assert client.post("/api/remediation/r1/deny", json={"reason": "  fp  "}).status_code == 200
+                assert mock_deny.call_args.args[3] == "fp"
+                assert client.post("/api/remediation/r1/deny", json={"reason": "y" * 500}).status_code == 200
+                assert client.post("/api/remediation/r1/deny").status_code == 200
+                assert mock_deny.call_args.args[3] == ""
 
     async def test_approve_and_deny_refuse_a_caller_without_the_approve_tier(self):
         db = _mock_db()

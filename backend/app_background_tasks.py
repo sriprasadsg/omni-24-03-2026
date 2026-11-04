@@ -19,9 +19,11 @@ AGENT_OFFLINE_AFTER = timedelta(minutes=5)
 async def monitor_agent_status():
     """Background task to mark agents as Offline if inactive > AGENT_OFFLINE_AFTER.
 
-    The stale Online agents are selected first and then updated by id, so the websocket
-    event and the agent.offline notification name exactly the agents this pass flipped
-    (never agents that were already Offline).
+    The stale Online agents are selected first and then each one is flipped with one
+    compare-and-set that keeps the staleness condition (WR-06), so a heartbeat landing
+    between the read and the write keeps its agent Online, and the websocket event and the
+    agent.offline notification name exactly the agents this pass flipped (never agents
+    that checked in meanwhile or were already Offline).
     """
     import websocket_manager
     from database import get_database
@@ -41,15 +43,20 @@ async def monitor_agent_status():
             ).to_list(length=None)
             stale = [a for a in stale if a.get("id")]
 
-            if stale:
-                ids = [a["id"] for a in stale]
-                result = await db.agents.update_many(
-                    {"id": {"$in": ids}, "status": "Online"},
+            flipped = []
+            for agent in stale:
+                won = await db.agents.find_one_and_update(
+                    {"id": agent["id"], "status": "Online", "lastSeen": {"$lt": threshold}},
                     {"$set": {"status": "Offline"}},
+                    projection={"_id": 0, "id": 1},
                 )
-                logger.info("[Monitor] Marked %d stale agents as Offline", result.modified_count)
+                if won is not None:
+                    flipped.append(agent)
 
-                for agent in stale:
+            if flipped:
+                logger.info("[Monitor] Marked %d stale agents as Offline", len(flipped))
+
+                for agent in flipped:
                     tenant_id = agent.get("tenantId")
                     if tenant_id:
                         await websocket_manager.broadcast_agent_status_change(
@@ -61,7 +68,7 @@ async def monitor_agent_status():
 
                 from notification_manager import notification_manager
                 # Broadcast offline event per-tenant so each tenant's admins are notified
-                for agent in stale:
+                for agent in flipped:
                     tid = agent.get("tenantId") or "platform-admin"
                     await notification_manager.send_notification(
                         "agent.offline",

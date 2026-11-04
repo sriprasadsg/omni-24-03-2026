@@ -14,7 +14,10 @@ tick, per tenant in sorted tenantId order:
    with reason ``not_delivered``; an instruction an agent picked up (sent, delivered or any other
    status that is not pending / queued / a final outcome) that reports nothing within
    ``AUTONOMOUS_OPS_NO_RESULT_MIN`` (default 1440, never shorter than the not-delivered bound)
-   -> ``failed`` with reason ``no_result``;
+   -> ``failed`` with reason ``no_result``. A ``remediation`` row decided with several steps belongs to
+   the remediation that sends them one after another (WR-12): it is completed only once every step was
+   sent, and one left part-way for longer than the not-delivered bound (its owner is gone) is ``failed``
+   with reason ``partly_applied``;
 3. gives an undone security_response row back its Done state when its undo failed or went unanswered
    (``verify.settle_undo``), and runs what follows a settled row (``followups``);
 4. asks the circuit breaker to look at the tenant when any of its rows changed.
@@ -106,6 +109,14 @@ async def _follow_up(db, tenant_id: str, action_id: str, doc, now: datetime) -> 
         logger.error("autonomous_ops: follow-up of %s failed: %s", action_id, exc)
 
 
+def _steps_pending(row, ids) -> bool:
+    """True while a multi-step remediation row still has steps to send: the remediation writes them one after
+    another, each once the previous one succeeded, so a successful last instruction is not the end (WR-12)."""
+    steps = row.get("steps")
+    return (row.get("dispatcher") == "remediation" and isinstance(steps, list) and len(steps) > 1
+            and len(ids) < len(steps))
+
+
 async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, int]:
     """Map this tenant's dispatching (and stuck approved) rows to their outcome."""
     done = {"executed": 0, "failed": 0}
@@ -120,7 +131,15 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
         old = isinstance(updated, datetime) and updated <= stuck_before
         ids = row.get("instructionIds") or []
         status = await _latest_status(db, tenant_id, ids[-1]) if ids and row["state"] == "dispatching" else None
-        if status in _SUCCESS:
+        if status in _SUCCESS and _steps_pending(row, ids):
+            if old:                       # the remediation stopped part-way: the later steps were never sent
+                moved = await ledger.transition(
+                    db, tenant_id, row["id"], ("dispatching",), "failed", reasonCode="partly_applied",
+                    reasonText=messages.REASON_TEXT["partly_applied"],
+                    result={"instructionId": ids[-1], "instructionStatus": status, "stepsSent": len(ids)},
+                    where={"updatedAt": {"$lte": stuck_before}})
+                done["failed"] += 1 if moved else 0
+        elif status in _SUCCESS:
             moved = await ledger.transition(db, tenant_id, row["id"], ("dispatching",), "executed",
                                             result={"instructionId": ids[-1], "instructionStatus": status})
             done["executed"] += 1 if moved else 0

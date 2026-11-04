@@ -28,7 +28,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import STAMP_SOURCE, approvals, ledger, protected, registry
-from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
+from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding, settle_dispatches
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import agent_that_completes, seed_agent, seed_tenant
 
@@ -543,6 +543,7 @@ async def test_only_registry_actions_reach_the_queue(live, playbook):
         if result["status"] == "pending_approval":
             assert playbook not in AUTOMATIC, "a locked automatic action asked for a card"
             result = await svc.approve_remediation(result["remediation_id"], "t1", approver)
+            await settle_dispatches()                    # WR-05: the dispatch runs as a task
         else:
             assert playbook in AUTOMATIC, f"{playbook} dispatched without a card: {result}"
 

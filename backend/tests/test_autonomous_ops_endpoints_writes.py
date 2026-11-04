@@ -233,12 +233,32 @@ async def test_a_tenant_cannot_delete_another_tenants_or_a_platform_entry(api):
     for entry_id in (other.id, plat.json()["id"]):
         assert (await api.call("DELETE", f"{STOP_BASE}/never-touch/{entry_id}", role="tenant_admin")).status_code == 404
     mine = (await api.call("GET", f"{STOP_BASE}/never-touch", role="tenant_admin")).json()["items"]
-    assert plat.json()["id"] in [i["id"] for i in mine] and other.id not in [i["id"] for i in mine]
+    # WR-04: a platform entry is the platform's own infrastructure; a tenant sees only the line that stands for it.
+    assert plat.json()["id"] not in [i["id"] for i in mine] and other.id not in [i["id"] for i in mine]
+    assert "builtin:platform-infrastructure" in [i["id"] for i in mine]
     assert (await api.call("DELETE", f"{PLAT}/never-touch/{plat.json()['id']}", role="tenant_admin")).status_code == 403
     builtin = next(i for i in mine if i["builtin"])
     assert (await api.call("DELETE", f"{PLAT}/never-touch/{builtin['id']}", role="super_admin")).status_code == 403
     assert (await api.call("DELETE", f"{PLAT}/never-touch/{plat.json()['id']}", role="super_admin")).status_code == 200
     assert (await api.call("GET", f"{PLAT}/never-touch", role="super_admin")).status_code == 200
+
+
+async def test_a_stored_platform_entry_is_shown_to_platform_staff_only(api):
+    """protects=WR-04 (no platform address is disclosed to a tenant); fails_when=a tenant role holding only
+    view:autonomous_ops reads the value or note of an entry a Super Admin added for the whole platform."""
+    plat = await api.call("POST", f"{PLAT}/never-touch", role="super_admin",
+                          json={"kind": "ip", "value": "198.51.100.90", "note": "gateway"})
+    assert plat.status_code == 201
+    own = await protected.add_entry(api.db, scope="tenant", tenant_id="t1", kind="ip", value="198.51.100.91")
+    for role in ("analyst", "tenant_admin"):
+        listing = await api.call("GET", f"{STOP_BASE}/never-touch", role=role)
+        assert listing.status_code == 200, role
+        items = listing.json()["items"]
+        assert "198.51.100.90" not in str(items) and "gateway" not in str(items), role
+        assert own.id in [i["id"] for i in items], role                 # the tenant's own entry is still listed
+        assert [i["id"] for i in items].count("builtin:platform-infrastructure") == 1, role
+    staff = await api.call("GET", f"{STOP_BASE}/never-touch?tenantId=t1", role="platform_support")
+    assert staff.status_code == 200 and plat.json()["id"] in [i["id"] for i in staff.json()["items"]]
 
 
 # ------------------------------------------------------------------ approve, deny, undo

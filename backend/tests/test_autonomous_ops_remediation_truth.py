@@ -15,7 +15,7 @@ import pytest
 
 from autonomous_ops import ledger, messages, protected, settings, views
 from autonomous_ops.scope import raw
-from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
+from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding, settle_dispatches
 from remediation_playbook_service import (_belongs, load_default_playbooks, load_playbooks,
                                           select_playbook)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -237,7 +237,9 @@ class TestRolledBackMeansEveryStepWasConfirmed:
         with stand_in_agent():
             out = await svc.approve_remediation(pending["remediation_id"], "t1",
                                                 {"username": "alice", "display": "Alice", "tier": "tenant"})
-        assert out["status"] == "failed" and out["escalated"] is True
+            await settle_dispatches()                    # WR-05: the approval answers before the cycle ends
+        assert out["status"] == "dispatching"
+        assert await live.alerts.count_documents({"type": "REMEDIATION_ESCALATION"}) == 1
         row = await _row_of(live, 9)
         assert row["state"] == "failed" and row["reasonCode"] == "verify_failed"
 
@@ -274,6 +276,100 @@ class TestTheBreakerSeesRemediationOutcomes:
             out = await AutonomousRemediationService().remediate(_ip())
         assert out["status"] == "unverified"
         evaluate.assert_awaited_once()
+
+
+# ------------------------------------------------------------------ WR-11: a playbook that stops part-way
+
+OTHER = "203.0.113.50"
+OP_TWO_BLOCKS = {
+    "name": "block_ip", "finding_class": "nscan", "source": "operator", "tenantId": "t1",
+    "steps": [{"action": "block_ip", "params": {"ip_address": "{{finding.resource_id}}"}},
+              {"action": "block_ip", "params": {"ip_address": OTHER}}],
+    "rollback": [{"action": "unblock_ip", "params": {"ip_address": "{{finding.resource_id}}"}},
+                 {"action": "unblock_ip", "params": {"ip_address": OTHER}}]}
+
+
+def step_agent(actions=("SUCCESS", "FAILURE"), compensate=("SUCCESS",)):
+    """A stand-in agent whose n-th action instruction answers ``actions[n]`` and n-th compensation
+    ``compensate[n]`` (the last entry repeats); a confirmed instruction is marked SUCCESS."""
+    from autonomous_ops.scope import raw as _raw
+    seen = {"action": 0, "compensate": 0}
+
+    async def poll(self, db, task_id, timeout_sec, interval_sec, tenant_id=None):
+        handle = _raw(db)
+        doc = await handle.agent_instructions.find_one({"id": task_id})
+        kind = (doc.get("autonomy") or {}).get("kind")
+        answers = {"action": actions, "compensate": compensate}.get(kind, ("SUCCESS",))
+        answer = answers[min(seen.get(kind, 0), len(answers) - 1)]
+        seen[kind] = seen.get(kind, 0) + 1
+        await handle.agent_instructions.update_one({"id": task_id}, {"$set": {"status": answer}})
+        return answer
+
+    return patch.object(AutonomousRemediationService, "_poll_task_status", poll)
+
+
+async def _two_step_playbook(live, **changes):
+    await live.remediation_playbooks.insert_one(dict(OP_TWO_BLOCKS, id="op-two", **changes))
+
+
+class TestAPlaybookThatStopsPartWay:
+    """protects=WR-11 (ACTV-01, GATE-07); fails_when=step 1 stays applied after step 2 failed with no
+    put-back and no alert, or the row reads as a plain failure that hides that step 1 ran."""
+
+    async def test_the_steps_already_done_are_put_back_and_the_row_says_so(self, live):
+        await _two_step_playbook(live)
+        with step_agent(("SUCCESS", "FAILURE"), ("SUCCESS",)):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["status"] == "unverified" and out["partly_applied"] is True and out["rollback_dispatched"] is True
+        compensates = [d["payload"] async for d in live.agent_instructions.find({"autonomy.kind": "compensate"})]
+        assert compensates == [{"ip_address": "203.0.113.7"}, {"ip_address": OTHER}]
+        row = await _row_of(live)
+        assert row["state"] == "rolled_back" and row["reasonCode"] == "partly_applied"
+        assert "Block IP address ran" in row["reasonText"]
+        assert await live.alerts.count_documents({}) == 0
+        assert (await live.remediation_requests.find_one({"tenantId": "t1"}))["status"] == "unverified"
+
+    @pytest.mark.parametrize("answer", ["TIMEOUT", "FAILURE"])
+    async def test_a_put_back_that_was_not_confirmed_escalates_with_the_steps_that_ran(self, live, answer):
+        await _two_step_playbook(live)
+        with step_agent(("SUCCESS", "TIMEOUT"), (answer,)):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["partly_applied"] is True and out["rollback_dispatched"] is False and out["escalated"] is True
+        row = await _row_of(live)
+        assert row["state"] == "failed" and row["reasonCode"] == "rollback_incomplete"
+        assert "Block IP address ran" in row["reasonText"] and "putting it back" in row["reasonText"]
+        (alert,) = [a async for a in live.alerts.find({"type": "REMEDIATION_ESCALATION"})]
+        assert "block_ip" in alert["message"] and "part-way" in alert["message"]
+        escalated = await live.remediation_audit.find_one({"stage": "escalated"})
+        assert escalated["steps_applied"] == ["block_ip"]
+
+    async def test_without_a_put_back_a_person_is_alerted_with_the_steps_that_ran(self, live):
+        await _two_step_playbook(live, rollback=[])
+        with step_agent(("SUCCESS", "FAILURE")):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["partly_applied"] is True and out["escalated"] is True and "rollback_dispatched" not in out
+        row = await _row_of(live)
+        assert row["state"] == "failed" and row["reasonCode"] == "partly_applied"
+        assert await live.alerts.count_documents({"type": "REMEDIATION_ESCALATION"}) == 1
+        assert await live.agent_instructions.count_documents({"autonomy.kind": "compensate"}) == 0
+
+    async def test_a_first_step_that_fails_puts_nothing_back_and_reads_as_before(self, live):
+        await _two_step_playbook(live)
+        with step_agent(("FAILURE",)):
+            out = await AutonomousRemediationService().remediate(_ip())
+        assert out["status"] == "unverified" and "partly_applied" not in out
+        row = await _row_of(live)
+        assert row["state"] == "failed" and row["reasonCode"] == "dispatch_failed"
+        assert await live.agent_instructions.count_documents({"autonomy.kind": "compensate"}) == 0
+        assert await live.alerts.count_documents({}) == 0
+
+    async def test_three_partly_applied_remediations_trip_the_breaker(self, live):
+        await _two_step_playbook(live, rollback=[])
+        with step_agent(("SUCCESS", "FAILURE") * 3):          # step 1 confirmed, step 2 not, in each run
+            for n in (1, 2, 3):
+                await AutonomousRemediationService().remediate(_ip(n))
+        s = await settings.load(live, "t1")
+        assert s.level == "suggest" and s.breaker is not None
 
 
 async def test_rollback_incomplete_text_exists():

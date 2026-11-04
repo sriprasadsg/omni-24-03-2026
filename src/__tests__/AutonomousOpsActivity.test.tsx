@@ -688,6 +688,45 @@ describe('scope', () => {
   });
 });
 
+describe('a row that runs several steps (Phase 81 review WR-10)', () => {
+  const steps = (list: Element | undefined) => Array.from(list?.querySelectorAll('li') ?? []).map(li => li.textContent);
+
+  it('lists every step and every step that puts it back, as text, in the table and the stacked card', async () => {
+    const multi = row({
+      id: 'm1', bucket: 'pending', state: 'awaiting_approval', actionLabel: 'Restart service and 1 more step',
+      classLine: 'Needs approval', target: null, resultText: 'Waiting for a person to approve.',
+      steps: [{ label: 'Restart service', target: 'nginx' }, { label: 'Block IP address', target: '198.51.100.4' }],
+      compensationSteps: [{ label: 'Unblock IP address', target: '198.51.100.4' }],
+    });
+    const single = row({ steps: [{ label: 'Block IP address', target: '203.0.113.7' }], compensationSteps: [] });
+    routeFetch({ actions: () => jsonRes({ items: [multi, single], nextCursor: null }) });
+    const { container } = render(screenFor('Tenant Admin'));
+    await waitFor(() => expect(screen.getAllByText('Restart service and 1 more step').length).toBeGreaterThan(0));
+
+    const lists = container.querySelectorAll('ol[aria-label="Steps"]');
+    expect(lists.length).toBe(2);                          // the table row and the stacked card, never the single-step row
+    for (const list of Array.from(lists)) {
+      expect(steps(list)).toEqual(['Restart service nginx', 'Block IP address 198.51.100.4']);
+    }
+    const back = container.querySelectorAll('ol[aria-label="Steps that put it back"]');
+    expect(back.length).toBe(2);
+    expect(steps(back[0])).toEqual(['Unblock IP address 198.51.100.4']);
+  });
+
+  it('a step without a target, an older server without the lists and hostile text all stay plain', async () => {
+    const hostile = '<b>x</b>';
+    const multi = row({ id: 'm2', actionLabel: 'Kill process and 1 more step',
+                        steps: [{ label: 'Kill process', target: null }, { label: hostile, target: hostile }] });
+    routeFetch({ actions: () => jsonRes({ items: [multi, row({ id: 'old' })], nextCursor: null }) });
+    const { container } = render(screenFor('Tenant Admin'));
+    await waitFor(() => expect(screen.getAllByText('Kill process and 1 more step').length).toBeGreaterThan(0));
+    const first = container.querySelector('ol[aria-label="Steps"]') ?? undefined;
+    expect(steps(first)).toEqual(['Kill process', `${hostile} ${hostile}`]);
+    expect(container.querySelector('ol b')).toBeNull();
+    expect(container.querySelectorAll('ol[aria-label="Steps that put it back"]').length).toBe(0);
+  });
+});
+
 describe('screen source guards', () => {
   it('uses no dangerouslySetInnerHTML and no weights or clipping outside the contract', () => {
     for (const f of ['components/AutonomousOpsActivity.tsx', 'components/AutonomousOpsActivityList.tsx', 'contexts/AutonomousOpsStatusContext.tsx']) {

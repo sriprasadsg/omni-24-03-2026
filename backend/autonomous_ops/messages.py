@@ -81,6 +81,8 @@ REASON_TEXT = {
     "rollback_incomplete": "The check afterwards still found the problem, and putting it back was not confirmed by the host.",
     "agent_busy": "The host is busy with another remediation, so nothing was run.",
     "verify_failed": "The check afterwards still found the problem.",
+    # A playbook of several steps that stopped part-way (WR-11, WR-12); counted by the circuit breaker.
+    "partly_applied": "Some steps ran, but a later step was not confirmed by the host, so the action did not finish.",
     **response_messages.REASON_TEXT,
 }
 
@@ -137,6 +139,22 @@ API_DETAIL = {
 def simulation_result(text: str) -> str:
     """What a shadow-mode row says it would have done."""
     return f"Nothing was done. This is what would have happened: {str(text).rstrip('. ')}."
+
+
+def more_steps(label: str, more: int) -> str:
+    """The label of a row that runs several steps (WR-10): "Kill process and 1 more step"."""
+    return f"{label} and {more} more step{'' if more == 1 else 's'}"
+
+
+def _names(labels) -> str:
+    labels = [str(label) for label in labels] or ["A step"]
+    return labels[0] if len(labels) == 1 else f"{', '.join(labels[:-1])} and {labels[-1]}"
+
+
+def partly_applied(ran, stopped_at: str, *, put_back_failed: bool = False) -> str:
+    """Why a playbook of several steps ended part-way (WR-11), naming the steps that did run."""
+    end = "and putting it back was not confirmed either." if put_back_failed else "so the action did not finish."
+    return f"{_names(ran)} ran, but the next step ({stopped_at}) was not confirmed by the host, {end}"
 
 
 # In-app notices (title, message). Callers format the message with the named fields.

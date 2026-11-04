@@ -16,7 +16,7 @@ import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from autonomous_ops import approvals, messages
 from autonomous_ops.scope import raw, tenant_scope
@@ -45,6 +45,29 @@ REMEDIATION_LEASE_TTL_SEC = int(os.getenv("REMEDIATION_LEASE_TTL_SEC", "300"))
 
 # Severity order for ceiling check
 SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+
+# Approved cards being dispatched (WR-05): the dispatch, poll and verify cycle can take minutes, so it runs
+# off the request path. Held here so a task is never collected while it runs.
+_DISPATCHES: Set["asyncio.Task[None]"] = set()
+
+
+def _start_dispatch(coro) -> None:
+    task = asyncio.get_running_loop().create_task(coro)
+    _DISPATCHES.add(task)
+    task.add_done_callback(_DISPATCHES.discard)
+
+
+async def settle_dispatches() -> None:
+    """Wait for every approved remediation still being dispatched (tests, an orderly shutdown)."""
+    while _DISPATCHES:
+        await asyncio.gather(*list(_DISPATCHES), return_exceptions=True)
+
+
+def _step_label(action) -> str:
+    """A playbook step's action as the Activity names it."""
+    from autonomous_ops import registry
+    spec = registry.resolve(action)
+    return messages.ACTION_LABELS.get(spec.name if spec else action) or str(action).replace("_", " ").capitalize()
 
 
 @dataclass
@@ -572,8 +595,10 @@ class AutonomousRemediationService:
         """The "remediation" dispatcher registered with ``approvals.register_dispatcher``.
         Called with the ledger row already ``approved``. Compare-and-sets the request from
         ``pending_approval`` to ``dispatching`` (a double click, or a request already denied,
-        dispatches nothing) and then runs the same ``_dispatch_and_verify`` as an automatic
-        playbook: approval only removes the gate, never the lease, compensation or audit."""
+        dispatches nothing), then starts the same ``_dispatch_and_verify`` as an automatic
+        playbook as a task and answers ``dispatching`` at once (WR-05: the cycle can take
+        minutes, longer than a proxy waits); the ledger row and the request follow its outcome.
+        Approval only removes the gate, never the lease, compensation or audit."""
         from remediation_audit_service import write_audit
         from pymongo import ReturnDocument
 
@@ -590,7 +615,22 @@ class AutonomousRemediationService:
                 "approver": (approver or {}).get("username"),
             })
             finding = _finding_from_request_doc(req)
-            return await self._dispatch_and_verify(remediation_id, finding, req["playbook"], action_id=row["id"])
+            _start_dispatch(self._run_approved(db, remediation_id, finding, req["playbook"], row["id"]))
+        return {"status": "dispatching", "remediation_id": remediation_id}
+
+    async def _run_approved(self, db, remediation_id: str, finding: RemediationFinding, playbook: Dict[str, Any],
+                            action_id: str) -> None:
+        """An approved card's dispatch, run as a task (WR-05). Never raises: an unexpected error fails the row
+        (``dispatch_failed``) and the request, as the approval did when the cycle ran inside the request."""
+        try:
+            with tenant_scope(finding.tenant_id):
+                await self._dispatch_and_verify(remediation_id, finding, playbook, action_id=action_id)
+        except Exception as exc:
+            logger.error("[AutonomousRemediation] approved remediation %s failed: %s", remediation_id, exc)
+            with tenant_scope(finding.tenant_id):
+                await self._mark(db, finding.tenant_id, action_id, ("approved", "dispatching"), "failed",
+                                 reasonCode="dispatch_failed", reasonText=messages.REASON_TEXT["dispatch_failed"])
+                await self._set_request_status(db, remediation_id, finding.tenant_id, "failed", only_if="dispatching")
 
     async def _acquire_agent_lease(self, db, agent_id: str, remediation_id: str) -> bool:
         """DB-backed concurrency lease (AUTO-03) — a `remediation_inflight`
@@ -661,17 +701,7 @@ class AutonomousRemediationService:
                 dispatch_status = await self._dispatch_step(finding, step, action_id, "action")
                 steps_dispatched.append(dispatch_status)
                 if dispatch_status["status"] != "SUCCESS":
-                    await write_audit(db, tenant_id, {
-                        **base_record, "stage": "dispatch_incomplete", "steps_dispatched": steps_dispatched,
-                    })
-                    await db.remediation_requests.update_one(
-                        {"id": remediation_id, "tenantId": tenant_id}, {"$set": {"status": "unverified"}}
-                    )
-                    await self._mark(db, tenant_id, action_id, ("approved", "dispatching", "executed"), "failed",
-                                     reasonCode="dispatch_failed",
-                                     reasonText="The action was not confirmed by the host, so it is treated as failed.")
-                    await self._evaluate_breaker(db, tenant_id)
-                    return {"status": "unverified", "remediation_id": remediation_id, "steps_dispatched": steps_dispatched}
+                    return await self._stopped_part_way(db, base_record, finding, playbook, action_id, steps_dispatched)
 
             await write_audit(db, tenant_id, {**base_record, "stage": "dispatched", "steps_dispatched": steps_dispatched})
             await self._mark(db, tenant_id, action_id, ("dispatching",), "executed",
@@ -693,51 +723,123 @@ class AutonomousRemediationService:
                 await self._mark(db, tenant_id, action_id, ("executed", "dispatching"), "failed",
                                  reasonCode="verify_failed",
                                  reasonText="The check afterwards still found the problem.")
-                rollback_steps = playbook.get("rollback") or []
-                if rollback_steps:
-                    rollback_dispatched = []
-                    for step in rollback_steps:     # every step is attempted: put back as much as possible
-                        rollback_dispatched.append(await self._dispatch_step(finding, step, action_id, "compensate"))
-                    all_ok = all(r["status"] == "SUCCESS" for r in rollback_dispatched)
-                    await write_audit(db, tenant_id, {
-                        **base_record, "stage": "rollback_dispatched", "rollback_steps": rollback_dispatched,
-                        "complete": all_ok,
-                    })
-                    if all_ok:                      # Undone only when the host confirmed every step
-                        await self._mark(db, tenant_id, action_id, ("failed",), "rolled_back")
-                        result["rollback_dispatched"] = True
-                    else:
-                        await self._mark(db, tenant_id, action_id, ("failed",), "failed",
-                                         reasonCode="rollback_incomplete",
-                                         reasonText=messages.REASON_TEXT["rollback_incomplete"])
-                        result["rollback_dispatched"] = False
-                        await self._escalate(db, base_record, finding, playbook, result,
-                                             "failed verification and putting it back was not confirmed by the host")
-                else:
+                put_back = await self._compensate(db, base_record, finding, playbook, action_id, result)
+                if put_back is False:
+                    await self._mark(db, tenant_id, action_id, ("failed",), "failed",
+                                     reasonCode="rollback_incomplete",
+                                     reasonText=messages.REASON_TEXT["rollback_incomplete"])
+                await self._evaluate_breaker(db, tenant_id)        # WR-13: asked before the alert is written
+                if put_back is not True:
                     await self._escalate(db, base_record, finding, playbook, result,
-                                         "failed verification and has no rollback")
-                await self._evaluate_breaker(db, tenant_id)
+                                         "failed verification and putting it back was not confirmed by the host"
+                                         if put_back is False else "failed verification and has no rollback")
 
-            await db.remediation_requests.update_one(
-                {"id": remediation_id, "tenantId": tenant_id}, {"$set": {"status": verification_result}}
-            )
+            await self._set_request_status(db, remediation_id, tenant_id, verification_result)
             return result
         finally:
             await self._release_agent_lease(db, agent_id, remediation_id)
 
-    async def _escalate(self, db, base_record: Dict[str, Any], finding: RemediationFinding,
-                        playbook: Dict[str, Any], result: Dict[str, Any], what: str) -> None:
-        """Human-review alert plus the ``escalated`` audit stage; marks ``result`` escalated."""
+    async def _stopped_part_way(self, db, base_record: Dict[str, Any], finding: RemediationFinding,
+                                playbook: Dict[str, Any], action_id: Optional[str],
+                                steps_dispatched: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """A step the host did not confirm (refused, FAILURE or TIMEOUT) ends the playbook. With no step done
+        before it the row fails ``dispatch_failed``. When earlier steps ran (WR-11) the row fails
+        ``partly_applied`` naming them, every compensation step of the playbook is run (``rolled_back`` only
+        when the host confirmed each, CR-02; else ``rollback_incomplete``), and unless everything was put back
+        a person is alerted with the steps that ran. The breaker is asked first and the request is always
+        updated (WR-13)."""
         from remediation_audit_service import write_audit
-        await db.alerts.insert_one({
-            "alert_id": f"ESC-{base_record['remediation_id']}", "type": "REMEDIATION_ESCALATION",
-            "severity": "critical", "status": "open", "agent_id": finding.agent_id, "tenantId": finding.tenant_id,
-            "message": (f"Remediation '{playbook['name']}' for finding {finding.finding_id} {what} "
-                        "— human review required."),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-        await write_audit(db, finding.tenant_id, {**base_record, "stage": "escalated"})
-        result["escalated"] = True
+
+        tenant_id, remediation_id = finding.tenant_id, base_record["remediation_id"]
+        await write_audit(db, tenant_id, {**base_record, "stage": "dispatch_incomplete",
+                                          "steps_dispatched": steps_dispatched})
+        result: Dict[str, Any] = {"status": "unverified", "remediation_id": remediation_id,
+                                  "steps_dispatched": steps_dispatched}
+        ran = [s["action"] for s in steps_dispatched if s.get("status") == "SUCCESS"]
+        if not ran:
+            await self._mark(db, tenant_id, action_id, ("approved", "dispatching", "executed"), "failed",
+                             reasonCode="dispatch_failed",
+                             reasonText="The action was not confirmed by the host, so it is treated as failed.")
+            await self._evaluate_breaker(db, tenant_id)
+        else:
+            result["partly_applied"] = True
+            stopped = steps_dispatched[-1]["action"]
+            labels = [_step_label(a) for a in ran]
+            # "failed" too: the reconciler may already have read the host's failure of this step.
+            await self._mark(db, tenant_id, action_id, ("approved", "dispatching", "executed", "failed"), "failed",
+                             reasonCode="partly_applied", reasonText=messages.partly_applied(labels, _step_label(stopped)))
+            put_back = await self._compensate(db, base_record, finding, playbook, action_id, result)
+            if put_back is False:
+                await self._mark(db, tenant_id, action_id, ("failed",), "failed", reasonCode="rollback_incomplete",
+                                 reasonText=messages.partly_applied(labels, _step_label(stopped), put_back_failed=True))
+            await self._evaluate_breaker(db, tenant_id)
+            if put_back is not True:
+                how = "putting it back was not confirmed by the host" if put_back is False else "it has no rollback"
+                await self._escalate(db, base_record, finding, playbook, result,
+                                     f"stopped part-way: {', '.join(ran)} ran before {stopped} was not confirmed "
+                                     f"by the host, and {how}", steps_applied=ran)
+        await self._set_request_status(db, remediation_id, tenant_id, "unverified")
+        return result
+
+    async def _compensate(self, db, base_record: Dict[str, Any], finding: RemediationFinding,
+                          playbook: Dict[str, Any], action_id: Optional[str], result: Dict[str, Any]) -> Optional[bool]:
+        """Run every compensation step of the playbook against the ``failed`` row; each is attempted, so as much
+        as possible is put back. None when the playbook has none; True when the host confirmed every step (the
+        row is then ``rolled_back``); False otherwise (the row stays ``failed`` and the caller says why)."""
+        from remediation_audit_service import write_audit
+
+        rollback_steps = playbook.get("rollback") or []
+        if not rollback_steps:
+            return None
+        rollback_dispatched = []
+        for step in rollback_steps:
+            rollback_dispatched.append(await self._dispatch_step(finding, step, action_id, "compensate"))
+        all_ok = all(r["status"] == "SUCCESS" for r in rollback_dispatched)
+        await write_audit(db, finding.tenant_id, {**base_record, "stage": "rollback_dispatched",
+                                                  "rollback_steps": rollback_dispatched, "complete": all_ok})
+        if all_ok:                      # Undone only when the host confirmed every step
+            await self._mark(db, finding.tenant_id, action_id, ("failed",), "rolled_back")
+        result["rollback_dispatched"] = all_ok
+        return all_ok
+
+    async def _set_request_status(self, db, remediation_id: str, tenant_id: str, status: str, *,
+                                  only_if: Optional[str] = None) -> None:
+        """Record the request's outcome. Never raises into the remediation (WR-13)."""
+        flt: Dict[str, Any] = {"id": remediation_id, "tenantId": tenant_id}
+        if only_if:
+            flt["status"] = only_if
+        try:
+            await db.remediation_requests.update_one(flt, {"$set": {"status": status}})
+        except Exception as exc:
+            logger.error("[AutonomousRemediation] request %s not moved to %s: %s", remediation_id, status, exc)
+
+    async def _escalate(self, db, base_record: Dict[str, Any], finding: RemediationFinding,
+                        playbook: Dict[str, Any], result: Dict[str, Any], what: str,
+                        steps_applied: Optional[List[str]] = None) -> None:
+        """Human-review alert plus the ``escalated`` audit stage (with the steps that ran, when given). Never
+        raises (WR-13): ``result["escalated"]`` says whether the alert was written; a failure is logged."""
+        from remediation_audit_service import write_audit
+        result["escalated"] = False
+        try:
+            await db.alerts.insert_one({
+                "alert_id": f"ESC-{base_record['remediation_id']}", "type": "REMEDIATION_ESCALATION",
+                "severity": "critical", "status": "open", "agent_id": finding.agent_id, "tenantId": finding.tenant_id,
+                "message": (f"Remediation '{playbook['name']}' for finding {finding.finding_id} {what} "
+                            "— human review required."),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            result["escalated"] = True
+        except Exception as exc:
+            logger.error("[AutonomousRemediation] escalation alert for %s not written: %s",
+                         base_record.get("remediation_id"), exc)
+        record = {**base_record, "stage": "escalated"}
+        if steps_applied is not None:
+            record["steps_applied"] = list(steps_applied)
+        try:
+            await write_audit(db, finding.tenant_id, record)
+        except Exception as exc:
+            logger.error("[AutonomousRemediation] escalation audit for %s not written: %s",
+                         base_record.get("remediation_id"), exc)
 
     async def _evaluate_breaker(self, db, tenant_id: str) -> None:
         """Let the circuit breaker see a bad automatic outcome now (it counts only auto-dispatched

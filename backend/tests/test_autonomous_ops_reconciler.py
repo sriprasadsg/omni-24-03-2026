@@ -359,3 +359,61 @@ async def test_the_loop_survives_a_failing_pass_and_keeps_going(monkeypatch):
         with pytest.raises(asyncio.CancelledError):
             await reconciler.reconciler_loop()
     assert len(calls) == 2
+
+
+# ---------------------------------------------------------------- WR-12: a live multi-step remediation owns its row
+
+def _two_step(ip1="203.0.113.21", ip2="203.0.113.22", dispatcher="remediation"):
+    steps = [{"action": "block_ip", "params": {"ip_address": ip1}}, {"action": "block_ip", "params": {"ip_address": ip2}}]
+    return gate.ActionRequest(tenant_id="t1", kind="security", origin="remediation", actions=["block_ip", "block_ip"],
+                              targets=["a1"], params=steps[0]["params"], steps=steps, rollback=[],
+                              dedupe_key=f"t1|two|{ip1}", dispatcher=dispatcher, reason={"ruleId": "test", "inputs": {}})
+
+
+async def _step(db, action_id, ip, status="SUCCESS"):
+    out = await gate.execute(db, "t1", action_id, command="block_ip", agent_id="a1", params={"ip_address": ip})
+    assert out["status"] == "queued", out
+    await db.agent_instructions.update_one({"id": out["task_id"]}, {"$set": {"status": status}})
+    return out["task_id"]
+
+
+async def test_a_two_step_remediation_is_not_completed_between_its_steps(live):
+    """protects=WR-12; fails_when=the reconciler moves the row to executed after step 1, so step 2 is refused
+    not_dispatchable and the remediation fails although step 1 succeeded."""
+    d = await gate.decide(live, _two_step(), master_shadow=False)
+    assert d.state == "dispatching", d
+    await _step(live, d.action_id, "203.0.113.21")
+    assert (await reconciler.tick(live))["executed"] == 0
+    assert await _state(live, d.action_id) == "dispatching"
+    await _step(live, d.action_id, "203.0.113.22")                       # the service can still send step 2
+    assert (await reconciler.tick(live))["executed"] == 1
+    assert await _state(live, d.action_id) == "executed"
+
+
+async def test_a_failed_step_of_a_live_remediation_is_still_followed(live):
+    d = await gate.decide(live, _two_step("203.0.113.23", "203.0.113.24"), master_shadow=False)
+    await _step(live, d.action_id, "203.0.113.23", status="FAILURE")
+    await reconciler.tick(live)
+    row = await ledger.get(live, "t1", d.action_id)
+    assert row["state"] == "failed" and row["reasonCode"] == "agent_failed"
+
+
+async def test_a_remediation_whose_owner_is_gone_part_way_fails_as_partly_applied(live):
+    d = await gate.decide(live, _two_step("203.0.113.25", "203.0.113.26"), master_shadow=False)
+    await _step(live, d.action_id, "203.0.113.25")
+    await _age(live, d.action_id, 29)
+    await reconciler.tick(live)
+    assert await _state(live, d.action_id) == "dispatching"              # still inside the not-delivered bound
+    await _age(live, d.action_id, 31)
+    await reconciler.tick(live)
+    row = await ledger.get(live, "t1", d.action_id)
+    assert row["state"] == "failed" and row["reasonCode"] == "partly_applied"
+    assert row["reasonText"] == messages.REASON_TEXT["partly_applied"]
+
+
+async def test_a_multi_step_row_of_another_dispatcher_keeps_the_old_mapping(live):
+    d = await gate.decide(live, _two_step("203.0.113.27", "203.0.113.28", dispatcher="instruction"),
+                          master_shadow=False)
+    await _step(live, d.action_id, "203.0.113.27")
+    await reconciler.tick(live)
+    assert await _state(live, d.action_id) == "executed"

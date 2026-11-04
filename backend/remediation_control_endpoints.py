@@ -7,13 +7,15 @@ recorded as a new (never-mutated) remediation_audit record.
 Phase 81 (D-24 (c), D-10): approving or denying a card needs the approve tier,
 control:autonomous_ops, on an interactive JWT session (get_current_user; API keys
 use a different dependency and never reach these routes). Reading the audit trail
-keeps manage:active_response.
+keeps manage:active_response. A denial's reason is validated like the reason of
+/api/autonomous-ops/actions/{id}/deny (the same model): optional, stripped, at most 500 characters.
 """
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from autonomous_ops_endpoints import DecisionBody
 from autonomous_remediation_service import AutonomousRemediationService
 from authentication_service import get_current_user
 from database import get_database
@@ -70,11 +72,11 @@ async def approve_remediation(remediation_id: str, current_user=Depends(_require
 @router.post("/{remediation_id}/deny")
 async def deny_remediation(
     remediation_id: str,
-    body: Dict[str, Any] = Body(default={}),
+    body: Optional[DecisionBody] = None,
     current_user=Depends(_require_approve_permission),
 ):
     tenant_id = getattr(current_user, "tenant_id", None)
-    reason = (body or {}).get("reason", "")
+    reason = (body.reason if body else None) or ""
     result = await AutonomousRemediationService().deny_remediation(
         remediation_id, tenant_id, _approver(current_user), reason)
     if result.get("status") == "not_found":

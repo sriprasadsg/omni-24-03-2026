@@ -86,31 +86,19 @@ async def _dispatch_anomaly_remediation(
     anomaly_rule: str,
     risk_score: int,
 ) -> None:
-    """Runs inside `background_tasks` (never inline). Dedupes BEFORE
-    dispatch (Pitfall 2 / T-55-07 — is_duplicate_task must be called before
-    remediate() so a repeated anomaly does not trigger repeated destructive
-    dispatch), then builds a RemediationFinding(finding_type="anomaly") and
-    calls the existing Phase 53 `remediate()` engine unchanged — the
-    identical approval-gate/dry-run/DB-lease/audit path as every other
-    finding_type (D-02/D-04). No second dispatch engine is introduced."""
-    from response_orchestrator import ResponseOrchestrator
-    from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
+    """Runs inside `background_tasks` (never inline). Builds a
+    RemediationFinding(finding_type="anomaly") and calls the existing Phase 53
+    `remediate()` engine unchanged — the identical approval-gate/dry-run/DB-lease/audit
+    path as every other finding_type (D-02/D-04). No second dispatch engine is introduced.
 
-    orchestrator = ResponseOrchestrator()
-    is_dup = await orchestrator.is_duplicate_task(
-        agent_id=agent_id,
-        action="remediate_anomaly",
-        dedup_window_minutes=5,
-        tenant_id=tenant_id,
-        alert_type="anomaly",
-    )
-    if is_dup:
-        logger.info("UEBA anomaly containment skipped — duplicate task for agent %s", agent_id)
-        return
+    Dedupe (Pitfall 2 / T-55-07, Phase 81 WR-07): the finding id is stable per agent and
+    rule (no timestamp), so the gate's open-row dedupe on that id holds a repeated anomaly
+    to the one card already open instead of opening a new card per event."""
+    from autonomous_remediation_service import AutonomousRemediationService, RemediationFinding
 
     severity = "critical" if risk_score >= 80 else "high" if risk_score >= 60 else "medium"
     finding = RemediationFinding(
-        finding_id=f"UEBA-{agent_id}-{anomaly_rule}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        finding_id=f"UEBA-{agent_id}-{anomaly_rule}",
         finding_type="anomaly",
         severity=severity,
         tenant_id=tenant_id,

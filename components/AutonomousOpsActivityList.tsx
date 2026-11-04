@@ -105,12 +105,40 @@ const WhenLine: React.FC<{ row: AutonomousOpsRow; className?: string }> = ({ row
     );
 };
 
+/** One recorded step of a row's plan as the server lists it (Phase 81 review WR-10). */
+interface PlanStep { label: string; target: string | null }
+type RowWithPlan = AutonomousOpsRow & { steps?: PlanStep[]; compensationSteps?: PlanStep[] };
+
+const StepList: React.FC<{ steps: PlanStep[]; label: string }> = ({ steps, label }) => (
+    <ol aria-label={label} className="list-decimal pl-4">
+        {steps.map((step, i) => (
+            <li key={i} className="break-words">
+                {step.label}{step.target && <span className="font-mono break-all"> {step.target}</span>}
+            </li>
+        ))}
+    </ol>
+);
+
+/** A row decided with several steps lists every one, and every step that would put it back. */
+const Plan: React.FC<{ row: RowWithPlan }> = ({ row }) => {
+    const steps = Array.isArray(row.steps) ? row.steps : [];
+    const back = Array.isArray(row.compensationSteps) ? row.compensationSteps : [];
+    if (steps.length < 2) return null;
+    return (
+        <div className="mt-1 flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
+            <StepList steps={steps} label="Steps" />
+            {back.length > 0 && <><div>To put it back:</div><StepList steps={back} label="Steps that put it back" /></>}
+        </div>
+    );
+};
+
 const WhatRan: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => {
     const under = row.bucket === 'platform_health' ? row.source : row.classLine;
     return (
         <>
             <div className="text-sm font-semibold text-gray-900 dark:text-white break-words">{row.actionLabel}</div>
             {under && <div className="text-xs text-gray-500 dark:text-gray-400 break-words">{under}</div>}
+            <Plan row={row} />
         </>
     );
 };
