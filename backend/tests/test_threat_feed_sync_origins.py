@@ -115,6 +115,19 @@ async def test_two_feeds_listing_one_indicator_keep_both_names_and_the_last_one_
     assert await mongo_db.edr_ioc.count_documents({}) == 1
 
 
+async def test_a_feed_indicator_never_lands_on_a_tenants_own_ioc_row(mongo_db):
+    """83 WR-09: protects=the global feed row the sweep reads; fails_when=the upsert matches a tenant's manual
+    IOC with the same value, so no global row exists and the tenant's own threat_type is overwritten."""
+    await mongo_db.edr_ioc.insert_one({"ioc_type": "hash", "ioc_value": SHA, "tenantId": "t1",
+                                       "threat_type": "analyst note", "confidence": 0.4})
+    await threat_feed_sync._upsert_iocs(mongo_db, [{"ioc_type": "hash", "ioc_value": SHA, "source_ip": None,
+                                                    "source_feed": "malwarebazaar", "confidence": 0.9}])
+    own = await mongo_db.edr_ioc.find_one({"tenantId": "t1"}, {"_id": 0})
+    glob = await mongo_db.edr_ioc.find_one({"tenantId": {"$exists": False}}, {"_id": 0})
+    assert own["threat_type"] == "analyst note" and own["confidence"] == 0.4 and "source_feeds" not in own
+    assert glob is not None and glob["source_feeds"] == ["malwarebazaar"]
+
+
 async def test_a_row_with_one_feed_gets_a_one_name_list(mongo_db):
     await threat_feed_sync._upsert_iocs(mongo_db, [{"ioc_type": "url", "ioc_value": "http://x/y", "source_ip": "1.2.3.4",
                                                     "source_feed": "urlhaus"}] * 2)

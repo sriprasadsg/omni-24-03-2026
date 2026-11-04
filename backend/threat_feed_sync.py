@@ -216,8 +216,9 @@ async def _upsert_iocs(db, iocs: List[Dict[str, Any]]) -> int:
             # Two feeds can list one indicator: keep every name, and when each last listed it.
             update = {"$set": {**ioc, f"feed_seen.{feed}": now}, "$addToSet": {"source_feeds": feed}}
         try:
+            # Feed rows are global: never match (and overwrite) a tenant's own IOC with the same value (WR-09).
             result = await db.edr_ioc.update_one(
-                {"ioc_type": ioc["ioc_type"], "ioc_value": ioc["ioc_value"]},
+                {"ioc_type": ioc["ioc_type"], "ioc_value": ioc["ioc_value"], "tenantId": {"$exists": False}},
                 update,
                 upsert=True,
             )
