@@ -45,7 +45,7 @@ findings:
     title: "[backend routes] The shipped `quarantine_file` playbook can never produce a working quarantine from the legacy remediation path"
   - id: WR-09
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "[backend routes] The feed upsert can match a tenant's own IOC row instead of the global row"
   - id: WR-10
     severity: warning
@@ -223,7 +223,7 @@ findings:
     severity: info
     disposition: open
     title: "[frontend] Smaller race and robustness points"
-open: 51
+open: 50
 total: 55
 recorded: 2026-11-02T11:53:11.579Z
 ---
@@ -242,7 +242,7 @@ recorded: 2026-11-02T11:53:11.579Z
 | WR-06 | warning | open | - |
 | WR-07 | warning | fixed | ca2df5530 |
 | WR-08 | warning | open | - |
-| WR-09 | warning | open | - |
+| WR-09 | warning | fixed | 0e0db4b72 |
 | WR-10 | warning | open | - |
 | WR-11 | warning | open | - |
 | WR-12 | warning | open | - |
