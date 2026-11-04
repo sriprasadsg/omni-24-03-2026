@@ -3,6 +3,8 @@
 A bare FastAPI app over ``role_endpoints.router`` and one in-memory role store; the live
 database and the audit ledger are never touched (the audit recorder is a fake).
 """
+import re
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -14,7 +16,31 @@ import role_contents
 import role_endpoints
 from auth_types import TokenData
 from authentication_service import get_current_user
+from tests.agent_identity_test_support import Cursor, matches
 from tests.rbac_test_support import StoreCollection, make_user, role_store, shared_role_docs
+
+
+class _RegexAware(StoreCollection):
+    """Also honours the ``{"$regex", "$options"}`` field filter ``role_usage`` counts with (77 WR-05)."""
+
+    @staticmethod
+    def _hit(doc, flt):
+        flt = flt or {}
+        regexes = {k: v for k, v in flt.items() if isinstance(v, dict) and "$regex" in v}
+        if not matches(doc, {k: v for k, v in flt.items() if k not in regexes}):
+            return False
+        for field, cond in regexes.items():
+            flags = re.IGNORECASE if "i" in cond.get("$options", "") else 0
+            value = doc.get(field)
+            if not isinstance(value, str) or not re.search(cond["$regex"], value, flags):
+                return False
+        return True
+
+    def find(self, flt=None, projection=None, **k):
+        return Cursor([dict(d) for d in self.docs if self._hit(d, flt)])
+
+    async def count_documents(self, flt=None, **k):
+        return sum(1 for d in self.docs if self._hit(d, flt))
 
 COPY_BUILTIN = 'That name matches the built-in role "{}". Choose a different name.'
 COPY_RENAME = "A role's name can't be changed. To rename, create a new role and reassign its users."
@@ -52,7 +78,8 @@ def store(monkeypatch):
     docs.append(_custom("rbacmgr", "tenant-a", ["manage:rbac", "view:agents"]))
     docs.append(_custom("viewer", "tenant-a", ["view:viewer_extra"]))  # legacy doc extending a built-in
     tenants = [{"id": "tenant-a", "name": "A"}, {"id": "tenant-b", "name": "B"}]
-    db, raw = role_store(roles=docs, tenants=tenants, users=[], ldap_group_mappings=[], saml_group_mappings=[])
+    db, raw = role_store(roles=docs, tenants=tenants, users=_RegexAware([]),
+                         ldap_group_mappings=_RegexAware([]), saml_group_mappings=_RegexAware([]))
     for module in (role_endpoints, rbac_utils, rbac_service):
         monkeypatch.setattr(module, "get_database", lambda: db, raising=False)
     db.raw = raw
@@ -329,6 +356,56 @@ def test_put_is_audited_with_the_previous_state(client, audit):
     assert entry["action"] == "role.updated"
     assert entry["previous_state"]["permissions"] == ["view:agents", "view:dashboard"]
     assert entry["previous_state"]["description"] == "Desk"
+
+
+def test_a_role_holding_a_retired_or_banned_string_can_still_be_edited(client, store):
+    """77 WR-04: only strings an edit introduces must be grantable. A retired string already on the
+    role is carried through as the editor re-submits it; a banned one the resolver never grants (and
+    the editor never sees) may drop out without tripping the editor ceiling."""
+    store.raw.roles.docs.append(_custom("Legacy", "tenant-a", ["view:agents", "view:retired_thing", "manage:tenants"],
+                                        id="role-legacy"))
+    listed = next(r for r in call(client, "GET", "/api/roles").json() if r["id"] == "role-legacy")["permissions"]
+    assert "view:retired_thing" in listed and "manage:tenants" not in listed
+    res = call(client, "PUT", "/api/roles/role-legacy", json={"permissions": listed + ["view:logs"]})
+    assert res.status_code == 200, res.text
+    doc = next(d for d in stored(store, "tenant-a") if d["id"] == "role-legacy")
+    assert doc["permissions"] == ["view:agents", "view:logs", "view:retired_thing"]
+    for introduced in ("view:other_retired", "manage:tenants"):
+        refused = call(client, "PUT", "/api/roles/role-legacy", json={"permissions": listed + [introduced]})
+        assert refused.status_code == 400 and introduced in refused.json()["detail"], introduced
+
+
+def test_removing_a_held_permission_the_editor_lacks_is_still_refused(client, store):
+    """77 WR-04 keeps the D-02 ceiling: only strings no role is ever granted are exempt from it."""
+    store.raw.roles.docs.append(_custom("Seccy", "tenant-a", ["view:agents", "view:security", "view:retired_thing"],
+                                        id="role-seccy"))
+    res = call(client, "PUT", "/api/roles/role-seccy", role="rbacmgr",
+               json={"permissions": ["view:agents", "view:retired_thing"]})
+    assert res.status_code == 403
+
+
+def test_delete_is_refused_when_a_holder_count_cannot_be_established(client, store, monkeypatch):
+    """77 WR-05: holders are counted by the store; a count that fails refuses the delete (503)."""
+    role = _make(client)
+
+    async def down(*a, **k):
+        raise RuntimeError("count failed")
+
+    monkeypatch.setattr(store.raw.users, "count_documents", down)
+    assert call(client, "DELETE", f"/api/roles/{role['id']}").status_code == 503
+    assert any(d["id"] == role["id"] for d in stored(store, "tenant-a"))
+
+
+@pytest.mark.parametrize("bad_count", [None, -1, "3"])
+def test_delete_is_refused_when_a_mapping_count_is_not_a_number(client, store, monkeypatch, bad_count):
+    role = _make(client)
+
+    async def odd(*a, **k):
+        return bad_count
+
+    monkeypatch.setattr(store.raw.saml_group_mappings, "count_documents", odd)
+    assert call(client, "DELETE", f"/api/roles/{role['id']}").status_code == 503
+    assert any(d["id"] == role["id"] for d in stored(store, "tenant-a"))
 
 
 def test_put_and_delete_need_manage_rbac(client):

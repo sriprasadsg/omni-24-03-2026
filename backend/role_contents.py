@@ -36,6 +36,10 @@ BANNED_PERMISSIONS = (frozenset({"*"}) | rbac_defaults.SUPER_ADMIN_ONLY_PERMISSI
 # D-17: only strings the role table, manifest or switch catalogue already names.
 GRANTABLE_PERMISSIONS = frozenset(permission_vocabulary.KNOWN_PERMISSIONS - BANNED_PERMISSIONS)
 
+# What effective_permissions never grants to a custom role, whatever its document says: dropping
+# one from a role changes nothing anybody can do, so the editor ceiling does not apply (77 WR-04).
+NEVER_GRANTED = BANNED_PERMISSIONS | rbac_defaults.PARTNER_ONLY_PERMISSIONS
+
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.-]{1,63}$")
 MAX_DESCRIPTION = 500
 MAX_CUSTOM_ROLES_PER_TENANT = 200
@@ -101,17 +105,20 @@ async def assert_can_edit_contents(db, caller: TokenData, old: Iterable[str], ne
     """403 unless every permission added or removed is inside the editor's own closure (D-02).
 
     The symmetric difference is checked, so a holder cannot strip a permission it does
-    not hold either. A Super Admin passes (the banned set still applies through
+    not hold either; removing a ``NEVER_GRANTED`` string is exempt, since it grants nothing
+    (77 WR-04). A Super Admin passes (the banned set still applies through
     ``validate_permissions``). A role-store error refuses the write (503, fail closed).
     """
     if is_super_admin(caller.role):
         return
+    old, new = set(old), set(new)
+    changed = (new - old) | {p for p in old - new if p not in NEVER_GRANTED}
     try:
         caller_perms = await effective_permissions(db, caller.role, caller.tenant_id)
     except Exception as exc:
         logger.error("Role ceiling lookup failed for %s: %s", caller.role, exc)
         raise HTTPException(status_code=503, detail=STORE_UNAVAILABLE)
-    if not rbac_defaults.ceiling_allows(caller_perms, set(old) ^ set(new)):
+    if not rbac_defaults.ceiling_allows(caller_perms, changed):
         raise HTTPException(status_code=403, detail="You can only grant permissions you hold yourself")
 
 
@@ -163,24 +170,49 @@ async def find_custom_role(db, tenant_id: str, *, role_id: Optional[str] = None,
     return None
 
 
+def role_name_pattern(key: str) -> str:
+    """Anchored regex (use with the ``i`` option) for every stored string ``normalize_role`` turns into ``key``.
+
+    ``normalize_role`` lower-cases, strips the ends and turns each space or hyphen into ``_``,
+    so each ``_`` of the key stands for one of `` _-`` and the ends may carry whitespace.
+    """
+    body = "".join("[ _-]" if ch == "_" else re.escape(ch) for ch in key)
+    return rf"^\s*{body}\s*$"
+
+
+async def _count(collection, query: Dict[str, Any]) -> int:
+    """Exact count from the store; anything but a non-negative int refuses the caller (77 WR-05)."""
+    count = await collection.count_documents(query)
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise RuntimeError(f"role usage count unavailable: {count!r}")
+    return count
+
+
 async def role_usage(db, tenant_id: str, name: str) -> Tuple[int, List[Dict[str, str]], int, List[Dict[str, str]]]:
     """Who still holds a role: (holder count, holders, mapping count, mappings), D-03 and D-15.
 
-    Users of the tenant are compared after ``normalize_role`` (users store the role by
-    name, in any spelling); the tenant's LDAP and SAML group mappings likewise. Counts are
-    exact, the lists are capped at ``MAX_LISTED``.
+    Users of the tenant match under every spelling ``normalize_role`` folds into the role's
+    key (users store the role by name, in any spelling); the tenant's LDAP and SAML group
+    mappings likewise. The store counts the matches, so the counts are exact however large
+    the tenant is; only the lists are capped, at ``MAX_LISTED`` (77 WR-05). A count that
+    cannot be read raises, and ``delete_role`` then refuses the delete.
     """
-    key = rbac_defaults.normalize_role(name)
-    users = await db._db.users.find({"tenantId": tenant_id}, {"role": 1, "email": 1, "full_name": 1}).to_list(5000)
+    role = {"$regex": role_name_pattern(rbac_defaults.normalize_role(name)), "$options": "i"}
+    users_query = {"tenantId": tenant_id, "role": role}
+    holder_count = await _count(db._db.users, users_query)
+    users = await db._db.users.find(users_query, {"email": 1, "full_name": 1, "name": 1}).to_list(MAX_LISTED)
     holders = [{"name": u.get("full_name") or u.get("name") or u.get("email") or "", "email": u.get("email") or ""}
-               for u in users if rbac_defaults.normalize_role(u.get("role")) == key]
+               for u in users[:MAX_LISTED]]
+    mapping_count = 0
     mappings: List[Dict[str, str]] = []
     for collection, field, source in (("ldap_group_mappings", "group_dn", "LDAP"),
                                       ("saml_group_mappings", "group_value", "SAML")):
-        docs = await getattr(db._db, collection).find({"tenant_id": tenant_id}).to_list(5000)
-        mappings.extend({"group": d.get(field) or "", "source": source}
-                        for d in docs if rbac_defaults.normalize_role(d.get("role")) == key)
-    return len(holders), holders[:MAX_LISTED], len(mappings), mappings[:MAX_LISTED]
+        handle = getattr(db._db, collection)
+        query = {"tenant_id": tenant_id, "role": role}
+        mapping_count += await _count(handle, query)
+        docs = await handle.find(query, {field: 1}).to_list(MAX_LISTED)
+        mappings.extend({"group": d.get(field) or "", "source": source} for d in docs)
+    return holder_count, holders, mapping_count, mappings[:MAX_LISTED]
 
 
 def grantable_for(caller_perms: Iterable[str], *, super_admin: bool) -> List[str]:

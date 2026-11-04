@@ -244,7 +244,9 @@ async def update_role(role_id: str, body: RoleUpdate, tenantId: Optional[str] = 
     """Edit a custom role's description and permissions (D-13: the name never changes).
 
     The editor ceiling (D-02) is checked on the symmetric difference of the old and new
-    permissions. The change reaches holders on their next permission read (ACC-08).
+    permissions. Only the strings an edit introduces must be grantable (D-17): a retired
+    string the role already holds is carried through as re-submitted (77 WR-04). The change
+    reaches holders on their next permission read (ACC-08).
     """
     db = get_database()
     try:
@@ -253,8 +255,10 @@ async def update_role(role_id: str, body: RoleUpdate, tenantId: Optional[str] = 
                 rbac_defaults.normalize_role(doc.get("name")):
             raise HTTPException(status_code=400, detail=RENAME_REFUSED)
         old_permissions = sorted(doc.get("permissions") or [])
-        permissions = (role_contents.validate_permissions(body.permissions)
-                       if body.permissions is not None else old_permissions)
+        permissions = old_permissions
+        if body.permissions is not None:
+            role_contents.validate_permissions(sorted(set(body.permissions) - set(old_permissions)))
+            permissions = sorted(set(body.permissions))
         await role_contents.assert_can_edit_contents(db, current_user, old_permissions, permissions)
         changes = {"permissions": permissions, "updatedBy": current_user.username,
                    "updatedAt": datetime.now(timezone.utc).isoformat()}
@@ -278,7 +282,8 @@ async def delete_role(role_id: str, tenantId: Optional[str] = None,
     """Delete a custom role nobody holds (D-03, D-15).
 
     Refused with 409 ``role_in_use`` while users of the tenant hold it or the tenant's
-    LDAP/SAML group mappings name it: nobody silently loses access (PROH-77-04).
+    LDAP/SAML group mappings name it: nobody silently loses access (PROH-77-04). The store
+    counts them, and a count that cannot be read refuses the delete with 503 (77 WR-05).
     """
     db = get_database()
     try:

@@ -57,6 +57,19 @@ async def _role_docs(db, name: str, tenant_id: Optional[str]) -> List[dict]:
     return docs
 
 
+async def _custom_role_doc_by_key(db, key: str, tenant_id: Optional[str]) -> Optional[dict]:
+    """The caller's own tenant's custom role whose stored ``nameKey`` is ``key`` (75 WR-06).
+
+    ``role_endpoints.create_role`` stores ``nameKey = normalize_role(name)``, so a user whose
+    role was typed as ``help desk`` or ``HELP-DESK`` sees the same "Help Desk" document as one
+    stored under the exact name. Custom roles live in their tenant only; the shared catalogues
+    hold built-ins, which are matched by name in ``_role_document_names``.
+    """
+    if not tenant_id or key in rbac_defaults.builtin_role_keys():
+        return None
+    return await db._db.roles.find_one({"nameKey": key, "tenantId": tenant_id})
+
+
 def _role_document_names(role: Optional[str], key: str) -> List[str]:
     """Every spelling under which a role's documents may be stored (WR-06).
 
@@ -87,9 +100,14 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     A partner role (Phase 87 D-04) resolves to its table row alone and reads no document, and a
     ``PARTNER_ONLY_PERMISSIONS`` entry found in any other role's document is ignored.
     Documents are matched under every spelling of a built-in role (see
-    ``_role_document_names``), so a tenant override applies however the user's role
-    was typed. Merging is union-only: a document adds permissions, never removes them.
+    ``_role_document_names``) and a custom role also by its normalized ``nameKey``, so a
+    tenant override or custom role applies however the user's role was typed (75 WR-06).
+    Merging is union-only: a document adds permissions, never removes them.
     Role-store errors propagate; callers decide whether to fail closed or degrade.
+
+    ``isEditable`` is never read here. On the shared "all"/"platform" documents it is display
+    metadata only: the boot seed rewrites them from ``rbac_defaults`` every start, and the role
+    API never writes a built-in (75 WR-06 decision; built-in-ness comes from the name).
 
     This is the role's definition (role lists, the assignment ceiling). What a user may
     actually do also depends on the tenant's feature switches: see ``granted_permissions``.
@@ -106,9 +124,14 @@ async def effective_permissions(db, role: Optional[str], tenant_id: Optional[str
     banned = rbac_defaults.SUPER_ADMIN_ONLY_PERMISSIONS | rbac_defaults.PARTNER_ONLY_PERMISSIONS | {"*"}
     if key not in rbac_defaults.PLATFORM_ROLE_KEYS:
         banned |= rbac_defaults.PLATFORM_ONLY_PERMISSIONS  # spec C1: never on a tenant role
+    docs: List[dict] = []
     for name in _role_document_names(role, key):
-        for doc in await _role_docs(db, name, tenant_id):
-            perms.extend(p for p in (doc.get("permissions") or []) if p and p not in banned)
+        docs.extend(await _role_docs(db, name, tenant_id))
+    keyed = await _custom_role_doc_by_key(db, key, tenant_id)
+    if keyed:
+        docs.append(keyed)
+    for doc in docs:
+        perms.extend(p for p in (doc.get("permissions") or []) if p and p not in banned)
     return list(dict.fromkeys(perms))
 
 

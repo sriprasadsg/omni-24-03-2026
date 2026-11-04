@@ -142,6 +142,34 @@ def test_tenant_override_found_by_display_name_for_other_builtins(stored_role):
     assert "view:custom_extra" in perms
 
 
+HELP_DESK = {"id": "role-hd", "name": "Help Desk", "nameKey": "help_desk", "tenantId": "t1",
+             "permissions": ["view:agents"]}
+
+
+@pytest.mark.parametrize("stored_role", ["Help Desk", "help desk", "HELP-DESK", "help_desk", " Help Desk "])
+def test_custom_role_document_applies_whatever_the_spelling_of_the_role(stored_role):
+    """75 WR-06: a custom role is found by its normalized key, so every spelling resolves alike."""
+    perms = asyncio.run(rbac_service.effective_permissions(_store(dict(HELP_DESK)), stored_role, "t1"))
+    assert perms == ["view:agents"]
+
+
+@pytest.mark.parametrize("stored_role", ["Help Desk", "help-desk"])
+def test_the_assignment_ceiling_sees_the_same_custom_role_whatever_the_spelling(stored_role):
+    """75 WR-06: the ceiling compares the same permissions for every spelling of the target."""
+    import role_assignment
+    from fastapi import HTTPException
+    db = _store(dict(HELP_DESK, permissions=["manage:users"]))
+    caller = _token("viewer")
+    with pytest.raises(HTTPException) as refused:
+        asyncio.run(role_assignment.assert_can_assign_role(db, caller, stored_role, target_tenant_id="t1"))
+    assert refused.value.status_code == 403
+
+
+def test_custom_role_key_lookup_never_reads_another_tenant():
+    db = _store(dict(HELP_DESK, tenantId="tenant-b"))
+    assert asyncio.run(rbac_service.effective_permissions(db, "help desk", "t1")) == []
+
+
 def test_other_tenants_document_never_contributes():
     db = _store({"name": "viewer", "tenantId": "tenant-b", "permissions": ["view:secret_of_b"]})
     perms = asyncio.run(rbac_service.effective_permissions(db, "viewer", "tenant-a"))
