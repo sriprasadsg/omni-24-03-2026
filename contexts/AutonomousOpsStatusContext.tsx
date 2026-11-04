@@ -127,7 +127,6 @@ export const AutonomousOpsStatusProvider: React.FC<ProviderProps> = ({ tenantId 
             generation.current += 1;
         };
         // scopeKey stands in for the scope object so identical scopes do not restart the poller
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [enabled, scopeKey, load]);
 
     const value = useMemo<AutonomousOpsStatusValue>(

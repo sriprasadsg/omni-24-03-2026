@@ -137,7 +137,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             run: () => { void askAI(q); },
         };
         return [...matchedPages, ...matchedActions, ai];
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, pages, pinned, recent, currentView, actions, byView]);
 
     useEffect(() => { setActive(0); }, [query]);
