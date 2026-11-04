@@ -247,14 +247,14 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | ACTV-05 | Phase 86 | Pending |
 | ACTV-06 | Phase 86 | Pending |
 | ACTV-07 | Phase 86 | Pending |
-| PART-01 | Phase 87 | Gaps Found |
-| PART-02 | Phase 87 | Gaps Found |
-| PART-03 | Phase 87 | Gaps Found |
-| PART-04 | Phase 87 | Gaps Found |
-| PART-05 | Phase 87 | Gaps Found |
-| PART-06 | Phase 87 | Gaps Found |
-| PART-07 | Phase 87 | Gaps Found |
-| PART-08 | Phase 87 | Gaps Found |
+| PART-01 | Phase 87 | Pending |
+| PART-02 | Phase 87 | Pending |
+| PART-03 | Phase 87 | Pending |
+| PART-04 | Phase 87 | Pending |
+| PART-05 | Phase 87 | Pending |
+| PART-06 | Phase 87 | Pending |
+| PART-07 | Phase 87 | Pending |
+| PART-08 | Phase 87 | Pending |
 
 **Coverage:**
 - v4.3 v1 requirements: 63 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8, PART 8) — 55 mapped to Phases 81–86 by the v4.3 roadmap (2026-10-25); PART-01..08 added 2026-11-02 for Phase 87 from 87-CONTEXT.md D-01..D-16; no orphans, no duplicates
