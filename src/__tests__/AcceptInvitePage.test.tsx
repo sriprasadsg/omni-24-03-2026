@@ -407,3 +407,63 @@ describe('AcceptInvitePage submit and sign-in (D-20)', () => {
     setItem.mockRestore();
   });
 });
+
+describe('AcceptInvitePage reset purpose (the /reset-password link of a reset email)', () => {
+  it('opens the form at once, asks no invite status and takes the token out of the address bar', async () => {
+    render(<AcceptInvitePage purpose="reset" />);
+    await screen.findByRole('heading', { name: 'Choose a new password' });
+    expect(replaceState).toHaveBeenCalledWith({}, '', '/reset-password');
+    expect(fetchInviteStatus).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Welcome to/)).toBeNull();
+  });
+
+  it('sets the password and ends on Password set with Go to sign in, without signing in', async () => {
+    acceptInvite.mockResolvedValue(undefined);
+    render(<AcceptInvitePage purpose="reset" />);
+    await screen.findByRole('heading', { name: 'Choose a new password' });
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByRole('heading', { name: 'Password set' });
+    expect(acceptInvite).toHaveBeenCalledWith('abc123', GOOD);
+    expect(screen.getByText('Your new password is set. Sign in with it.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Go to sign in' })).toBeTruthy();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('shows the reset Invalid state when the server refuses the link', async () => {
+    acceptInvite.mockRejectedValue(new PartnerApiError('Reset token has expired', 400));
+    render(<AcceptInvitePage purpose="reset" />);
+    await screen.findByRole('heading', { name: 'Choose a new password' });
+    fill(GOOD);
+    fireEvent.click(submit());
+    await screen.findByRole('heading', { name: "This reset link isn't valid" });
+    expect(screen.queryByLabelText('New password')).toBeNull();
+    expect(fetchInviteStatus).not.toHaveBeenCalled();
+  });
+
+  it('keeps the form and shows a password-rule refusal as it is', async () => {
+    acceptInvite.mockRejectedValue(new PartnerApiError('Password must contain at least one special character', 400));
+    render(<AcceptInvitePage purpose="reset" />);
+    await screen.findByRole('heading', { name: 'Choose a new password' });
+    fill(GOOD);
+    fireEvent.click(submit());
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Password must contain at least one special character');
+    expect(newPassword().value).toBe(GOOD);
+  });
+
+  it('shows the reset Invalid state for a link without a token', async () => {
+    openLink('');
+    render(<AcceptInvitePage purpose="reset" />);
+    await screen.findByRole('heading', { name: "This reset link isn't valid" });
+    expect(acceptInvite).not.toHaveBeenCalled();
+  });
+
+  it('is what App renders for /reset-password', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const app = readFileSync(resolve(__dirname, '../../App.tsx'), 'utf8');
+    expect(app).toContain("window.location.pathname === '/accept-invite' || window.location.pathname === '/reset-password'");
+    expect(app).toContain("<AcceptInvitePage purpose={window.location.pathname === '/reset-password' ? 'reset' : 'invite'} />");
+  });
+});

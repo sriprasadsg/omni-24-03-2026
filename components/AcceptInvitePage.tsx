@@ -12,6 +12,10 @@ import { BotIcon, CheckIcon, ClockIcon, EyeIcon, EyeOffIcon, XIcon } from './ico
  * Once the password is set the page signs the person in once (the existing login call, which stores only the
  * session token) and loads the app shell. It builds no MFA UI: an administrator role meets the existing required
  * two-step set-up there (D-20). The password is never logged, never put in a URL and never kept after the call.
+ *
+ * With purpose="reset" the same page serves the /reset-password link of a password-reset email: there is no
+ * status to ask (the form shows at once), a refused link shows Invalid, and success ends on Password set with
+ * Go to sign in, because a reset link does not say whose account it is.
  */
 
 type View = 'checking' | 'form' | 'signing_in' | 'done' | 'expired' | 'used' | 'invalid' | 'network';
@@ -95,7 +99,12 @@ const PasswordField: React.FC<PasswordFieldProps> = ({ id, label, value, visible
   </div>
 );
 
-const AcceptInvitePage: React.FC = () => {
+interface AcceptInvitePageProps {
+  purpose?: 'invite' | 'reset';
+}
+
+const AcceptInvitePage: React.FC<AcceptInvitePageProps> = ({ purpose = 'invite' }) => {
+  const isReset = purpose === 'reset';
   const tokenRef = useRef<string | null | undefined>(undefined);
   const startedRef = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -128,15 +137,16 @@ const AcceptInvitePage: React.FC = () => {
     if (tokenRef.current === undefined) {
       tokenRef.current = new URLSearchParams(window.location.search).get('token')?.trim() || null;
       // The token lives in memory from here on; the address bar no longer carries it.
-      window.history.replaceState({}, '', '/accept-invite');
+      window.history.replaceState({}, '', isReset ? '/reset-password' : '/accept-invite');
     }
     const token = tokenRef.current;
     if (!token) {
       setView('invalid');
       return;
     }
-    checkInvite(token);
-  }, []);
+    if (isReset) setView('form');
+    else checkInvite(token);
+  }, [isReset]);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -197,7 +207,12 @@ const AcceptInvitePage: React.FC = () => {
       await acceptInvite(token, password);
     } catch (e) {
       if (e instanceof PartnerApiError) {
-        if (e.status === 400) await explainRefusal(e, token);
+        // Every refusal of a reset link names the token ("Invalid or expired reset token", "... has expired",
+        // "... already been used"); any other 400 is a password rule, shown as it is.
+        if (e.status === 400 && isReset) {
+          if (/token/i.test(e.message)) leaveForm('invalid');
+          else setFormError(e.message);
+        } else if (e.status === 400) await explainRefusal(e, token);
         else setFormError(`Couldn't set your password: ${e.message.replace(/\.+$/, '')}. Try again.`);
       } else {
         setFormError("Couldn't set your password. Check your connection and try again.");
@@ -208,6 +223,10 @@ const AcceptInvitePage: React.FC = () => {
     }
     pendingRef.current = false;
     setPending(false);
+    if (isReset) {
+      leaveForm('done');
+      return;
+    }
     setView('signing_in');
     await signInOnce();
   };
@@ -226,7 +245,7 @@ const AcceptInvitePage: React.FC = () => {
     case 'checking':
       body = (
         <div aria-busy="true" className="space-y-4">
-          {heading('Checking your invite...')}
+          {heading(isReset ? 'Opening your link...' : 'Checking your invite...')}
           <div className="h-4 w-48 max-w-full animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
         </div>
       );
@@ -234,9 +253,11 @@ const AcceptInvitePage: React.FC = () => {
     case 'form':
       body = (
         <div className="space-y-4">
-          {heading('Set your password')}
+          {heading(isReset ? 'Choose a new password' : 'Set your password')}
           <p className={`${BODY} break-words`}>
-            {`Welcome to ${organizationName}. Choose a password to finish setting up your account.`}
+            {isReset
+              ? 'Choose a new password for your account.'
+              : `Welcome to ${organizationName}. Choose a password to finish setting up your account.`}
           </p>
           {email && (
             <div>
@@ -324,7 +345,7 @@ const AcceptInvitePage: React.FC = () => {
       body = (
         <div className="space-y-4">
           {heading('Password set')}
-          <p className={BODY}>Your password is set. Sign in to continue.</p>
+          <p className={BODY}>{isReset ? 'Your new password is set. Sign in with it.' : 'Your password is set. Sign in to continue.'}</p>
           <SignInLink accent />
         </div>
       );
@@ -371,9 +392,11 @@ const AcceptInvitePage: React.FC = () => {
     default:
       body = (
         <div className="space-y-4">
-          {heading("This invite link isn't valid")}
+          {heading(isReset ? "This reset link isn't valid" : "This invite link isn't valid")}
           <p className={BODY}>
-            Check that you opened the whole link from your email, or ask the person who invited you to send a new one.
+            {isReset
+              ? 'A reset link works once, for 30 minutes. Check that you opened the whole link from your email, or ask your administrator to send a new one.'
+              : 'Check that you opened the whole link from your email, or ask the person who invited you to send a new one.'}
           </p>
           <SignInLink accent={false} />
         </div>

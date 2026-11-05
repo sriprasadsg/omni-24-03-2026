@@ -1636,11 +1636,12 @@ const App: React.FC = () => {
 
   // Phase 87 (PART-02, D-17): the invite link opens without a session, outside the shell, ahead of
   // the MFA gate and the sign-in page. Every hook above has already run, so hook order is unchanged.
-  if (window.location.pathname === '/accept-invite') {
+  // A password-reset email links to /reset-password, the same page in its reset form.
+  if (window.location.pathname === '/accept-invite' || window.location.pathname === '/reset-password') {
     return (
       <ThemeProvider>
         <Suspense fallback={<SkeletonDashboard />}>
-          <AcceptInvitePage />
+          <AcceptInvitePage purpose={window.location.pathname === '/reset-password' ? 'reset' : 'invite'} />
         </Suspense>
       </ThemeProvider>
     );
