@@ -212,8 +212,8 @@ table, .tabular-nums-all {
 /* ── Glass ─────────────────────────────────────────────────────────────────── */
 .glass {
     background: var(--glass-bg);
-    backdrop-filter: blur(20px) saturate(160%);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
     transition: box-shadow 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
@@ -221,16 +221,16 @@ table, .tabular-nums-all {
 
 .glass-strong {
     background: var(--glass-bg-strong);
-    backdrop-filter: blur(24px) saturate(170%);
     -webkit-backdrop-filter: blur(24px) saturate(170%);
+    backdrop-filter: blur(24px) saturate(170%);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
 }
 
 .glass-panel {
     background: linear-gradient(160deg, var(--glass-highlight) 0%, transparent 38%), var(--glass-bg);
-    backdrop-filter: blur(24px) saturate(160%);
     -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
 }
@@ -519,8 +519,8 @@ table, .tabular-nums-all {
 /* Windows high-contrast / forced colours: let the system palette win. */
 @media (forced-colors: active) {
     .glass, .glass-strong, .glass-panel, .glass-premium, .card {
-        backdrop-filter: none;
         -webkit-backdrop-filter: none;
+        backdrop-filter: none;
         border: 1px solid CanvasText;
     }
 }
