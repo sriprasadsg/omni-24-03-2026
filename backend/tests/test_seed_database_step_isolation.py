@@ -100,3 +100,35 @@ async def test_all_steps_succeed_when_nothing_fails(monkeypatch):
         "incident_responder", "user", "viewer", "itam_admin", "itam_user", "itam_viewer",
         "Platform Support", "Platform Billing", "Partner Admin", "Partner Viewer",
     }
+
+
+def _super_admin_update(db):
+    calls = [c for c in db._db.users.update_one.call_args_list if c.args[0] == {"email": "super@omni.ai"}]
+    assert len(calls) == 1
+    return calls[0].args[1]["$set"]
+
+
+@pytest.mark.asyncio
+async def test_a_locked_super_admin_stays_locked_across_restarts(monkeypatch):
+    """Startup restores the role but never re-activates a Super Admin someone locked (2026-11-05)."""
+    db = _mock_db()
+    db._db.users.find_one = AsyncMock(return_value={"email": "super@omni.ai", "status": "Inactive", "role": "Super Admin"})
+    monkeypatch.setattr(app_startup, "get_database", lambda: db)
+    monkeypatch.setattr(app_startup, "run_migrations", AsyncMock())
+
+    await app_startup.seed_database()
+
+    written = _super_admin_update(db)
+    assert written["role"] == "Super Admin"
+    assert "status" not in written
+
+
+@pytest.mark.asyncio
+async def test_a_super_admin_without_a_status_is_made_active(monkeypatch):
+    db = _mock_db()
+    monkeypatch.setattr(app_startup, "get_database", lambda: db)
+    monkeypatch.setattr(app_startup, "run_migrations", AsyncMock())
+
+    await app_startup.seed_database()
+
+    assert _super_admin_update(db)["status"] == "Active"

@@ -286,7 +286,12 @@ async def seed_database():
             })
         else:
             logger.info("Verifying existing super admin account status/role...")
-            update: dict = {"$set": {"status": "Active", "role": "Super Admin"}}
+            # The role is restored on every start, the status only when the document has none: a
+            # Super Admin locked on purpose (status Inactive) stays locked across restarts. Forcing
+            # Active re-opened super@omni.ai, still on its published default password (2026-11-05).
+            update: dict = {"$set": {"role": "Super Admin"}}
+            if not super_admin.get("status"):
+                update["$set"]["status"] = "Active"
             # Installs seeded by the old code stored the hash as `passwordHash`,
             # which login never reads. Move it to `password` once, so those
             # admins can log in with the SUPER_ADMIN_PASSWORD they were created
