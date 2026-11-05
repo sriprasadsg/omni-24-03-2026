@@ -495,7 +495,45 @@ Plans:
   4. A rollout installs or advances only inside the maintenance window recorded in Change Management; outside the window nothing is installed.
   5. Installs run on their own only in the canary ring and only for patch classes marked reversible; every other install and every reboot waits for one approval per stage. The platform's own host is never patched by a rollout, a host belongs to at most one active rollout, and patch instructions expire.
 
-**Plans**: TBD
+**Plans**: 0/22 plans executed in 7 waves
+
+Plans:
+**Wave 1**
+- [ ] 84-01-PLAN.md — Tracer: one canary host installs one reversible patch on its own through the gate inside the window, and the rollout completes
+- [ ] 84-02-PLAN.md — Contracts: agent rollout tokens and params, all server copy, UI copy and types, copy gate over whole directories
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 84-03-PLAN.md — Approval lines, window-deferred dispatcher, line approve and deny, a deny or expiry halts the ring, canary rate cap
+- [ ] 84-04-PLAN.md — Instructions expire at delivery, the reconciler leaves rollout rows alone, the old staged-deployment revert is fenced
+- [ ] 84-05-PLAN.md — Maintenance windows in the tenant's time zone (past midnight, DST, weekdays), typed routes, Change Management read route
+- [ ] 84-06-PLAN.md — Rings from agent groups, full preflight, left-out hosts with reasons, one active rollout per host
+- [ ] 84-07-PLAN.md — Rust agent: reversibility check before install, per-job revert state, two tokens
+- [ ] 84-22-PLAN.md — Controller loop under a renewed lock, index guard, restart resume, migration 031
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 84-08-PLAN.md — Restart lines, new-boot check, full health gate, failure share, hosts not reached
+- [ ] 84-09-PLAN.md — `/api/patch-rollouts` routes and server-built views under the Patching catalogue entry
+- [ ] 84-10-PLAN.md — Approval card list and line approve and deny on the Autonomous Ops response router
+- [ ] 84-11-PLAN.md — Rust agent: `service_state` in the heartbeat, plus its token
+- [ ] 84-12-PLAN.md — Settings windows rework, Change Management windows, ring chip on Agent Groups
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 84-13-PLAN.md — A halted ring is reverted where supported (undo, also during a stop); the breaker ignores reverts
+- [ ] 84-14-PLAN.md — Rollouts tab, window strip and rollout card on the Patching screen
+- [ ] 84-15-PLAN.md — Rollout approval card in Needs your decision
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 84-16-PLAN.md — Resume and Cancel, completion with hosts not reached (7-day close), Activity row copy
+- [ ] 84-17-PLAN.md — Start dialog with preflight, Rollout rings card
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 84-18-PLAN.md — Ring detail, Resume and Cancel dialogs
+- [ ] 84-19-PLAN.md — Draft a rollout link and Roll out in rings button
+- [ ] 84-20-PLAN.md — Shadow mode runs rollouts as simulations; a stop freezes rollouts without false halts
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 84-21-PLAN.md — Agent 2.1.17, all gates together, the validation map, the user's live list
+
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 84`) — per-OS patch reversibility matrix; health-gate signals; confirm the existing patch-revert path dispatches real agent work (OS patching was fake end to end until 2026-10-12).
 **Live-only verification** (operator steps): a real canary install plus reboot on a disposable host; revert on a supported OS; the post-reboot heartbeat feeding the gate; maintenance-window enforcement; the per-stage reboot approval click.

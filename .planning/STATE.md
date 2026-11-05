@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v4.3
 milestone_name: Autonomous Ops
-current_phase: 87
-current_phase_name: Partner and Reseller Channel
+current_phase: 84
+current_phase_name: Staged Patch Rollouts
 status: executing
 stopped_at: Phase 84 UI-SPEC approved
-last_updated: "2026-11-05T17:35:24.597Z"
-last_activity: 2026-11-03
-last_activity_desc: Phase 87 execution started
-state_head: 809a5aa26219940ea5ac32e8257aa4ad701ef0c9
+last_updated: "2026-11-05T19:08:20.931Z"
+last_activity: 2026-11-05
+last_activity_desc: Phase 84 planned (22 plans, 7 waves)
+state_head: f6fc17e7d7b4458b60d76f61f508a166dd506c0c
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 70
+  total_plans: 92
   completed_plans: 70
   percent: 14
 ---
@@ -837,10 +837,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 87 (Partner and Reseller Channel) — EXECUTING
-Plan: 15 of 15
+Phase: 84 (Staged Patch Rollouts) — READY TO EXECUTE
+Plan: 0 of 22
 Status: Ready to execute
-Last activity: 2026-11-03 — Phase 87 execution started
+Last activity: 2026-11-05 — Phase 84 planned: 22 plans in 7 waves, plan check passed on iteration 3
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
 
 ## Deferred Items

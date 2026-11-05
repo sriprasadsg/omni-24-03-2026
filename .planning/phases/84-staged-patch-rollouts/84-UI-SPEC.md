@@ -557,3 +557,32 @@ Dismissed (reason given):
 - [x] Dimension 7 Inventory Provenance: PASS (not applicable: `Tool: none`, no Component Inventory section)
 
 **Approval:** approved 2026-11-05 (gsd-ui-checker, first pass; R11 user-confirmed; UI Considerations probe resolved 78/78)
+
+---
+
+## Planning Deviations (pending user review)
+
+> Appended by the planner on 2026-11-05 during plan revision. The approved contract above (body, R1..R16, UI Considerations, Checker Sign-Off) is unchanged. Nothing in this section has been reviewed or accepted by the user: each row records where the Phase 84 plans depart from the contract, why, and which plans implement it. 84-21 hands this list to the user with the live list; a row the user rejects changes the named plans.
+
+| ID | Contract text it departs from | What the plans do instead | Why | Implemented by |
+|----|-------------------------------|---------------------------|-----|----------------|
+| DEV-1 | Section 6, last paragraph: Approve and Deny use the same approvals API as incident cards (`services/autonomousOpsApi.ts`). | Approve and Deny on an Install, Reboot or revert-restart line call `POST /api/autonomous-ops/rollout-lines/{rolloutId}/{ring}/{line}/approve` and `/deny`, which run `approvals.approve` or `approvals.deny` once per computer row of that line. Same permission (`control:autonomous_ops`), signed-in session (API keys refused), stop rule (Approve refused, Deny allowed), 24 h expiry and single use. Card anatomy, labels, aria-labels, toasts and result texts stay as section 6 states. | Every line is one ledger row per computer (84-RESEARCH Open Questions (RESOLVED) 2), so one click has to settle several rows. | 84-03 (lines), 84-10 (routes and card payload), 84-15 (card) |
+| DEV-2 | Section 4, Health check: the `Services` row chips are `Passed` / `Failed` / `Waiting`. | Adds a fourth state `Not checked` (existing OUTLINE chip, `InfoIcon`) with the text `{services} can't be checked on {k} of {n} computers until their agent is updated.` for computers whose agent does not report `service_state` yet (agents before 2.1.17). It is never shown as `Passed` and does not halt the ring; a reported service failure still fails the computer. No new tone. | Without a positive service report, `Passed` would only mean "nothing complained" (84-RESEARCH Open Questions (RESOLVED) 6). | 84-02 (copy and chip), 84-08 (signal), 84-11 (agent report), 84-18 (ring detail) |
+| DEV-3 | Section 3, `Check before starting`: rows are Window, Rings, Canary per operating system, Left out, Offline now. | Computers that cannot take a rollout (agent too old, patch capability not ticked, unsupported operating system, busy with another patch job, on the never-touch list) are listed in the Left out area with one reason sentence each, never dropped silently. Two blockers the section does not list are added: Autonomous Ops off for the organization (`Autonomous Ops is off for this organization, so a rollout can't run.`) and the 500-computer cap (`A rollout can reach at most 500 computers. Pick fewer patches or split your rings.`). | 84-RESEARCH Open Questions (RESOLVED) 3; the gate refuses every install while Autonomous Ops is off; the cap bounds one rollout (84-RESEARCH Security Domain). | 84-02 (copy), 84-06 (preflight), 84-17 (Start dialog) |
+| DEV-4 | Design System, the New files table and the Copy gate paragraph: names `components/PatchRollout*.tsx`, `components/AutonomousOpsRolloutCard.tsx`, `components/MaintenanceWindowDialog.tsx`, `components/ChangeManagementWindows.tsx`, `services/patchRolloutApi.ts`, each new file added one by one to the copy gate `files` list. | New rollout UI files live in `components/patchRollouts/` and `services/patchRollouts/` (mapping below). The copy gate gains a `directories` list (`backend/autonomous_ops/rollout`, `components/patchRollouts`, `services/patchRollouts`) walked recursively on the pytest and the Vitest side; a listed directory that is missing or empty fails. The `files` list keeps working for new files outside those folders (`backend/patch_rollout_endpoints.py` is added to it by 84-09), and `OsPatchesTab.tsx` and `ChangeManagementDashboard.tsx` stay off the gate as the contract says. | The contract calls the names a recommendation. Directory coverage is the same or wider (files added later are scanned too) and lets the UI plans run in parallel without all editing the same three list files. | 84-02 (gate, `rolloutCopy.ts`, `types.ts`); files placed by 84-12, 84-14, 84-15, 84-17, 84-18 |
+
+DEV-4 file mapping:
+
+| Contract name | Planned file | Plan |
+|---------------|--------------|------|
+| `components/PatchRolloutsTab.tsx` | `components/patchRollouts/RolloutsTab.tsx` | 84-14 (84-17 and 84-19 mount into it) |
+| `components/PatchRolloutCard.tsx` | `components/patchRollouts/RolloutCard.tsx` | 84-14 (84-18 extends it) |
+| `components/PatchRolloutRingDetail.tsx` | `components/patchRollouts/RingDetail.tsx` | 84-18 |
+| `components/PatchRolloutStartDialog.tsx` | `components/patchRollouts/StartDialog.tsx` | 84-17 |
+| `components/PatchRolloutDialogs.tsx` | `components/patchRollouts/RolloutDialogs.tsx` | 84-18 |
+| `components/PatchRolloutRings.tsx` | `components/patchRollouts/RingsSettings.tsx` | 84-17 |
+| `components/AutonomousOpsRolloutCard.tsx` | `components/patchRollouts/RolloutApprovalCard.tsx` | 84-15 |
+| `components/MaintenanceWindowDialog.tsx` | `components/patchRollouts/MaintenanceWindowDialog.tsx` | 84-12 |
+| `components/ChangeManagementWindows.tsx` | `components/patchRollouts/ChangeManagementWindows.tsx` | 84-12 |
+| `services/patchRolloutApi.ts` | `services/patchRollouts/types.ts` (84-02), `rollouts.ts` (84-14), `start.ts` and `rings.ts` (84-17), `lifecycle.ts` (84-18), `approvals.ts` (84-15), `windows.ts` (84-12) | as listed |
+| none (new) | `components/patchRollouts/rolloutCopy.ts` (chip labels, tones, icons, assurance line) | 84-02 |
