@@ -48,6 +48,7 @@ async def test_two_users_can_be_created_one_after_another():
     db = MagicMock()
     db.users = _Users()
     db.tenants.find_one = AsyncMock(return_value={"id": "tenant-a"})
+    db._db.tenants.find_one = AsyncMock(return_value={"id": "tenant-a"})  # the partner-role check (Phase 87 D-04)
     caller = TokenData(username="qa-super@qa.omni.test", role="Super Admin", tenant_id="platform-admin")
 
     def _body(email):
