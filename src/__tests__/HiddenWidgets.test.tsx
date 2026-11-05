@@ -79,6 +79,10 @@ describe('startup fetch plan (App.tsx source guard)', () => {
     expect(app).toMatch(/canReadView\('alertManagement', currentUser/);
   });
 
+  it('re-reads permissions (on focus or a 403) only for a signed-in user', () => {
+    expect(app).toMatch(/const run = \(async \(\): Promise<RefreshResult> => \{\s*\/\/[^\n]*\n\s*if \(!currentUserRef\.current\) return 'error';\s*const fresh = await api\.fetchCurrentPermissions\(\)/);
+  });
+
   it('refreshes metrics only for a signed-in user (the sign-in screen starts on the dashboard view)', () => {
     expect(app).toMatch(/if \(currentView !== 'dashboard' \|\| !currentUser\) return;\s*const tick = async \(\) => \{\s*const fresh = await api\.fetchMetrics\(\)/);
   });

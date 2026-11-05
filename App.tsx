@@ -837,6 +837,8 @@ const App: React.FC = () => {
   const refreshPermissions = useCallback((): Promise<RefreshResult> => {
     if (refreshInFlight.current) return refreshInFlight.current;
     const run = (async (): Promise<RefreshResult> => {
+      // Signed out (the sign-in or MFA screen): nothing to refresh, and /auth/me would refuse.
+      if (!currentUserRef.current) return 'error';
       const fresh = await api.fetchCurrentPermissions();
       const prev = currentUserRef.current;
       if (!fresh || !prev) return 'error';
