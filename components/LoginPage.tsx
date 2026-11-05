@@ -82,7 +82,8 @@ const HeroSection: React.FC = () => {
 
 interface LoginPageProps {
     users: User[];
-    onLogin?: (email: string, password: string) => Promise<boolean>;
+    /** Receives the answer of this page's login call; it must not sign in again. */
+    onLogin?: (data: Awaited<ReturnType<typeof api.login>>) => Promise<boolean>;
     onSignup?: (data: any) => Promise<boolean | { pending: string }>;
 }
 
@@ -184,7 +185,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ users, onLogin, onSignup }
 
             // Normal login (no MFA) — let App.tsx handle state setup
             if (onLogin) {
-                await onLogin(email, password);
+                await onLogin(data);
             } else {
                 window.location.reload();
             }

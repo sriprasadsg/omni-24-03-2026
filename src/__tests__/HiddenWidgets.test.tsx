@@ -78,6 +78,10 @@ describe('startup fetch plan (App.tsx source guard)', () => {
   it('skips the dashboard alerts refresh when alerts are unreadable', () => {
     expect(app).toMatch(/canReadView\('alertManagement', currentUser/);
   });
+
+  it('refreshes metrics only for a signed-in user (the sign-in screen starts on the dashboard view)', () => {
+    expect(app).toMatch(/if \(currentView !== 'dashboard' \|\| !currentUser\) return;\s*const tick = async \(\) => \{\s*const fresh = await api\.fetchMetrics\(\)/);
+  });
 });
 
 describe('fetchIntegrations (Pitfall 10)', () => {

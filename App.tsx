@@ -300,16 +300,18 @@ const App: React.FC = () => {
   // tell whether the floating support window is already open.
   const isSupportChatOpenRef = useRef(false);
 
-  // Refresh metrics every 30 s while the dashboard is visible
+  // Refresh metrics every 30 s while the dashboard is visible to a signed-in user. The sign-in
+  // and MFA screens start on this view too, and /api/metrics refuses them (a signed-out tab
+  // polled it with a 401 every 30 s, live 2026-11-05).
   useEffect(() => {
-    if (currentView !== 'dashboard') return;
+    if (currentView !== 'dashboard' || !currentUser) return;
     const tick = async () => {
       const fresh = await api.fetchMetrics();
       if (fresh && fresh.length > 0) setMetrics(fresh);
     };
     const timer = setInterval(tick, 30_000);
     return () => clearInterval(timer);
-  }, [currentView]);
+  }, [currentView, currentUser]);
 
   // Refresh recent alerts every 60 s while the dashboard is visible
   // Note: fetchAlerts() without tenantId uses server-side tenant from the JWT
@@ -609,10 +611,10 @@ const App: React.FC = () => {
 
   // ==================== AUTHENTICATION FUNCTIONS ====================
 
-  const handleLogin = async (email: string, password: string): Promise<boolean> => {
+  // Takes the answer of LoginPage's own login call. Signing in again here opened a second
+  // session and logged a second sign-in on every login (found 2026-11-05).
+  const handleLogin = async (data: Awaited<ReturnType<typeof api.login>>): Promise<boolean> => {
     try {
-      const data = await api.login(email, password);
-
       if (data.success && data.user) {
         // Store authentication tokens
         if (data.access_token) sessionStorage.setItem('token', data.access_token);
