@@ -328,12 +328,14 @@ export const PartnersDashboard: React.FC = () => {
       <table className="min-w-full">
         <thead>
           <tr className="border-b border-gray-200 dark:border-white/10">
-            <th scope="col" className={`${TH} min-w-[240px]`}>Partner</th>
-            <th scope="col" className={`${TH} min-w-[200px]`}>Pool</th>
-            <th scope="col" className={`${TH} min-w-[160px]`}>Expires</th>
-            <th scope="col" className={`${TH} min-w-[120px]`}>Screens</th>
-            <th scope="col" className={`${TH} min-w-[120px]`}>Status</th>
-            <th scope="col" className={`${TH} min-w-[200px]`}>Actions</th>
+            {/* Minimums sum to 900px so the table fits 1280px with the sidebar open (922px of card),
+                as the Partner portal's customers table does. */}
+            <th scope="col" className={`${TH} min-w-[190px]`}>Partner</th>
+            <th scope="col" className={`${TH} min-w-[170px]`}>Pool</th>
+            <th scope="col" className={`${TH} min-w-[130px]`}>Expires</th>
+            <th scope="col" className={`${TH} min-w-[110px]`}>Screens</th>
+            <th scope="col" className={`${TH} min-w-[110px]`}>Status</th>
+            <th scope="col" className={`${TH} min-w-[190px]`}>Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-white/10">
@@ -402,7 +404,7 @@ export const PartnersDashboard: React.FC = () => {
   const empty = partners !== null && partners.length === 0;
 
   return (
-    <main className="container mx-auto space-y-6 p-6">
+    <div className="container mx-auto space-y-6 p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-semibold leading-tight text-gray-900 dark:text-white">Partners</h1>
@@ -486,7 +488,7 @@ export const PartnersDashboard: React.FC = () => {
           onMoved={refreshAll}
         />
       )}
-    </main>
+    </div>
   );
 };
 

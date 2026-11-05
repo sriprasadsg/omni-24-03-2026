@@ -219,12 +219,14 @@ export const PartnerPortal: React.FC = () => {
       <table className="min-w-full">
         <thead>
           <tr className="border-b border-gray-200 dark:border-white/10">
-            <th scope="col" className={`${TH} min-w-[240px]`}>Customer</th>
-            <th scope="col" className={`${TH} min-w-[160px]`}>Seats used</th>
-            <th scope="col" className={`${TH} min-w-[128px]`}>Seats assigned</th>
-            <th scope="col" className={`${TH} min-w-[160px]`}>Agents</th>
-            <th scope="col" className={`${TH} min-w-[160px]`}>Licence expires</th>
-            {isAdmin && <th scope="col" className={`${TH} min-w-[200px]`}>Actions</th>}
+            {/* Minimums sum to 900px so the admin's table fits 1280px with the sidebar open (922px of
+                card); the UI-SPEC's 1,048px could not, against its own no-scroll-at-1280 check. */}
+            <th scope="col" className={`${TH} min-w-[200px]`}>Customer</th>
+            <th scope="col" className={`${TH} min-w-[140px]`}>Seats used</th>
+            <th scope="col" className={`${TH} min-w-[120px]`}>Seats assigned</th>
+            <th scope="col" className={`${TH} min-w-[150px]`}>Agents</th>
+            <th scope="col" className={`${TH} min-w-[130px]`}>Licence expires</th>
+            {isAdmin && <th scope="col" className={`${TH} min-w-[160px]`}>Actions</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-white/10">
@@ -282,7 +284,7 @@ export const PartnerPortal: React.FC = () => {
   const empty = !!data && customers.length === 0;
 
   return (
-    <main className="container mx-auto space-y-6 p-6">
+    <div className="container mx-auto space-y-6 p-6">
       <header className="space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
@@ -409,7 +411,7 @@ export const PartnerPortal: React.FC = () => {
       {modal?.kind === 'screens' && (
         <ChooseScreensModal customer={liveCustomer(modal.customer)} onClose={() => setModal(null)} onRefetch={refetch} />
       )}
-    </main>
+    </div>
   );
 };
 

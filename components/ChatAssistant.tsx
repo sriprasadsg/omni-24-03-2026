@@ -213,7 +213,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
         )}
 
         {/* Messages */}
-        <main className="flex-grow p-4 overflow-y-auto space-y-4">
+        <div className="flex-grow p-4 overflow-y-auto space-y-4">
           {messages.map((message, index) => {
             const isLastAssistant = message.role === 'assistant' && index === messages.length - 1;
             const showCursor = isLastAssistant && isStreaming;
@@ -250,7 +250,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ isOpen, onClose, c
             );
           })}
           <div ref={chatEndRef} />
-        </main>
+        </div>
 
         {/* Footer: autocomplete + input */}
         <footer className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700">

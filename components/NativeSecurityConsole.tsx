@@ -49,12 +49,12 @@ export function NativeSecurityConsole() {
         ))}
       </nav>
 
-      <main>
+      <div>
         {tab === 'findings' && <FindingsTab />}
         {tab === 'queue' && <RemediationQueueTab />}
         {tab === 'playbooks' && <PlaybooksTab />}
         {tab === 'audit' && <AuditTab />}
-      </main>
+      </div>
     </div>
   );
 }
