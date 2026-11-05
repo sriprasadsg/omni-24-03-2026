@@ -1,7 +1,8 @@
 ---
 phase: "84"
 slug: staged-patch-rollouts
-status: draft
+status: approved
+reviewed_at: "2026-11-05"
 shadcn_initialized: false
 preset: none
 created: "2026-11-05"
@@ -23,7 +24,7 @@ created: "2026-11-05"
 | Tool | none (`ls components.json` found nothing on 2026-11-05; hand-rolled Tailwind components, consistent with Phases 81, 82, 83 and 87; shadcn gate not applicable) |
 | Preset | not applicable |
 | Component library | none (in-house primitives; see 81-UI-SPEC Design System table) |
-| Icon library | `components/icons.tsx` local SVG set only. Needed and confirmed present by grep on 2026-11-05: `LayersIcon` (rollout), `PowerIcon` (Reboot line), `CalendarIcon`, `ClockIcon`, `CheckCircleIcon`, `XCircleIcon`, `RefreshCcwIcon` (reverted), `RefreshCwIcon` (running), `AlertTriangleIcon`, `AlertOctagonIcon`, `PauseCircleIcon`, `PlayCircleIcon`, `InfoIcon`, `LockIcon`, `FlaskConicalIcon`, `ChevronRightIcon`, `ChevronDownIcon`, `ArrowUpIcon`, `ArrowDownIcon`, `PlusIcon`, `XIcon`, `TrashIcon`, `ExternalLinkIcon`, `ServerIcon`, `WindowsIcon`, `LinuxIcon`, `CheckIcon`. Not present, do not import: `ChevronUpIcon` (use `ChevronDownIcon` with `rotate-180`), `ListIcon`, `MinusCircleIcon`, `WifiOffIcon`, `CircleIcon`, `UndoIcon`. |
+| Icon library | `components/icons.tsx` local SVG set only. Needed and confirmed present by grep on 2026-11-05: `LayersIcon` (rollout), `PowerIcon` (Reboot line), `CalendarIcon`, `ClockIcon`, `CheckCircleIcon`, `XCircleIcon`, `RefreshCcwIcon` (reverted), `RefreshCwIcon` (running), `AlertTriangleIcon`, `AlertOctagonIcon`, `PauseCircleIcon`, `PlayCircleIcon`, `InfoIcon`, `LockIcon`, `FlaskConicalIcon`, `ChevronRightIcon`, `ChevronDownIcon`, `ArrowUpIcon`, `ArrowDownIcon`, `PlusIcon`, `XIcon`, `TrashIcon`, `ExternalLinkIcon`, `ServerIcon`, `WindowsIcon`, `LinuxIcon`, `CheckIcon`, `RocketIcon` (Start rollout), `SearchIcon` (patch search), `ShieldLockIcon` (Not reverted chip), `ShieldAlertIcon` (83 incident header, referenced only; the last four confirmed present on re-check 2026-11-05). This is a list of icons the phase needs, not a closed allowlist of what `icons.tsx` offers. Not present, do not import: `ChevronUpIcon` (use `ChevronDownIcon` with `rotate-180`), `ListIcon`, `MinusCircleIcon`, `WifiOffIcon`, `CircleIcon`, `UndoIcon`. |
 | Font | Inter variable; `font-mono` (JetBrains Mono) only for patch ids (KB numbers, package names), host names in tables where they are identifiers, group names in chips, IANA time zone names and rule ids |
 | Styling | Tailwind 3.4, Spatial Glass tokens, light and `dark:` on every new element, no hard-coded hex or rgba (inherited) |
 | Reference | `81-UI-SPEC.md`, `83-UI-SPEC.md`, `87-UI-SPEC.md`; `design-system/omni-agent-2030/MASTER.md` |
@@ -173,7 +174,7 @@ Tab states:
 
 ### 3. Start rollout dialog (D-03, D-09..D-13)
 
-`Modal size="2xl"`, `showClose={false}`, `closeOnBackdrop={false}`, Esc closes unless a request is in flight. Title (18/600) `Start a rollout`. Initial focus on the name input. Body `gap-6`, scrolls inside the modal (`max-h-[90vh]` is the Modal's). Footer: `Cancel` (secondary) left, `Start rollout` (accent, pending `Starting...`) right.
+`Modal size="2xl"`, `showClose={false}`, `closeOnBackdrop={false}`, Esc closes unless a request is in flight. Title (18/600) `Start a rollout`. Initial focus on the name input. Body `gap-6`, scrolls inside the modal (`max-h-[90vh]` is the Modal's). Footer: `Close without starting` (secondary) left, `Start rollout` (accent, pending `Starting...`) right.
 
 Sections, in order:
 
@@ -245,12 +246,12 @@ Computer states and Result text:
 | `Left out` | `In "{other rollout}" at the time this rollout started.` |
 
 **Halt block** (rollout `Halted`). A red block (`rounded-lg border p-4`, `AlertOctagonIcon` 16px, `role="alert"`) between the strip and the ring detail:
-- First line 14/600: `Halted at {ring name}: {reason}` (examples of `{reason}`: `{n} of {m} computers failed, more than the {limit}% limit.`, `a computer failed its health check.`, `no heartbeat from {host} within 30 minutes of the restart.`, `no data for {signal}.`, `the install was denied.`).
+- First line 14/600: `Halted at {ring name}: {reason}` (examples of `{reason}`: `{n} of {m} computers failed, more than the {limit}% limit.`, `a computer failed its health check.`, `no heartbeat from {host} within 30 minutes of the restart.`, `no data for {signal}.`, `the install was denied.`, `the restart was denied.`, `the approval expired.`; R11).
 - Second line 12/400: `A rollout halts on failure; reverts where supported. Rings that already passed keep the patches. Nothing further installs.`
 - Revert summary (`ul`, 14/400, from the server so it never overstates): `Reverting {k} computers now.` (running), then `Reverted on {k} computers.` and, per reason, `{k} computers could not be reverted: {reason}. The patch is still installed on them.` and, when a restart is needed to finish a revert, `{k} computers need a restart to finish the revert. See Needs your decision.`
 - Actions (`flex flex-wrap gap-2`): `Resume rollout` and `Cancel rollout`, both secondary, `min-h-10`, rendered only when the server flag allows (`canResume`, `canCancel`). Nothing else: no skip-failed-computers control (D-16). Resume is disabled while a revert is still running with the reason line `Wait for the revert to finish.` (R10).
 
-**Resume dialog** (`Modal size="md"`, `showClose={false}`, `closeOnBackdrop={false}`): title `Resume this rollout?`; body 14/400 `Resuming runs the health check for {ring name} again. The rollout continues only if every check passes. Computers that failed are not skipped.`; label 14/600 `Reason for resuming`, `textarea` (3 rows, 1 to 500 characters, `aria-required`), counter 12/400 `{n}/500`; helper 12/400 muted `Recorded in the activity list and the audit log with your name.`; footer `Cancel` and accent `Resume rollout` (pending `Resuming...`, disabled until the reason has a non-space character). Outcomes: green health check: dialog closes, toast `Resuming. {ring name} passed its check and the rollout continues.`; still red: dialog closes, info toast `The health check for {ring name} still fails. The rollout stays halted.` and the card refetches with the new reason; Failure: red block `Couldn't resume the rollout: {server message}. Try again.` (fallback `Couldn't resume the rollout. Check your connection and try again.`); 403: close, toast `You don't have permission to resume rollouts.`
+**Resume dialog** (`Modal size="md"`, `showClose={false}`, `closeOnBackdrop={false}`): title `Resume this rollout?`; body 14/400 `Resuming runs the health check for {ring name} again. The rollout continues only if every check passes. Computers that failed are not skipped.`; label 14/600 `Reason for resuming`, `textarea` (3 rows, 1 to 500 characters, `aria-required`), counter 12/400 `{n}/500`; helper 12/400 muted `Recorded in the activity list and the audit log with your name.`; footer `Keep halted` (secondary) and accent `Resume rollout` (pending `Resuming...`, disabled until the reason has a non-space character). Outcomes: green health check: dialog closes, toast `Resuming. {ring name} passed its check and the rollout continues.`; still red: dialog closes, info toast `The health check for {ring name} still fails. The rollout stays halted.` and the card refetches with the new reason; Failure: red block `Couldn't resume the rollout: {server message}. Try again.` (fallback `Couldn't resume the rollout. Check your connection and try again.`); 403: close, toast `You don't have permission to resume rollouts.`
 
 **Cancel dialog** (`Modal size="md"`, same flags): title `Cancel this rollout?`; body `This ends "{name}". Computers that already have the patches keep them, and nothing further installs. A cancelled rollout can't be started again; start a new one instead.`; if a revert is running: amber block `A revert is still running. It finishes on its own.`; footer `Keep rollout` (secondary, first focus) and red `Cancel rollout` (pending `Cancelling...`). Success toast `Rollout "{name}" cancelled.`; failure block `Couldn't cancel the rollout: {server message}. Try again.` (fallback as above pattern). `Cancel rollout` is offered only on a `Halted` rollout (D-16: Resume or Cancel, after a halt). A rollout that is merely running or waiting has no Cancel on this screen in Phase 84 beyond the stop switch (R11).
 
@@ -318,7 +319,7 @@ Per 81 D-17 each automatic install is one row per computer. A revert ordered by 
 
 **Window cards** (`grid gap-6 md:grid-cols-2`, each `.card p-6`): name 14/600 `break-words`; recurrence as a neutral chip `One-time`, `Daily`, `Weekly`; schedule line 14/400: `22:00 to 02:00 the next day` (a window past midnight says so in words, never `-02:00`), `Sat, Sun` shown as day chips `h-8 w-8` 12/600 with `aria-label` of the full day name and selected state in neutral-filled (not accent); the time zone name 12/400 mono muted; a `Next: {Day D Mon, HH:MM}` 12/400 line, or `Next: not scheduled` for a finished one-time window. Delete: a visible `TrashIcon` button (`h-8 w-8`, `aria-label="Delete window {name}"`, always rendered) opening the delete dialog. Monthly recurrence is not offered (the old interface type lists it; the server and UI support none, daily and weekly only, R15).
 
-**Add and edit dialog** (`MaintenanceWindowDialog.tsx`, `Modal size="md"`, `showClose={false}`, `closeOnBackdrop={false}`): title `Add maintenance window` / `Edit maintenance window`. Fields: `Window name` (1 to 60 chars, placeholder `Weekly patching`); `Repeats` `<select>` (`One-time`, `Daily`, `Weekly`); for Daily and Weekly: `Starts at` and `Ends at` as `type="time"` (`w-32`), and for Weekly the seven day toggles (`min-h-10 w-10`, `aria-pressed`, `aria-label` full day name; helper `The window starts on these days.`); for One-time: `Starts` and `Ends` as `datetime-local`. A live helper line under the times (12/400 muted, `aria-live="polite"`): `Runs {n} h {m} min in {zone}.` and, when end is not after start on a recurring window, `Ends the next day at {HH:MM}.` Validation (inline, `role="alert"`): `Enter a window name.`; `Choose at least one day.`; `The window can't start and end at the same time.`; `A window can be up to 24 hours long.`; for One-time `The end must be after the start.` Footer `Cancel` and `Save window` (accent, pending `Saving...`). A tenant with no time zone gets the Time zone field at the top of this dialog too (required to save the first window). Failure: red block `Couldn't save the window: {server message}. Try again.` (fallback `Couldn't save the window. Check your connection and try again.`). Success toast `Window "{name}" saved.`
+**Add and edit dialog** (`MaintenanceWindowDialog.tsx`, `Modal size="md"`, `showClose={false}`, `closeOnBackdrop={false}`): title `Add maintenance window` / `Edit maintenance window`. Fields: `Window name` (1 to 60 chars, placeholder `Weekly patching`); `Repeats` `<select>` (`One-time`, `Daily`, `Weekly`); for Daily and Weekly: `Starts at` and `Ends at` as `type="time"` (`w-32`), and for Weekly the seven day toggles (`min-h-10 w-10`, `aria-pressed`, `aria-label` full day name; helper `The window starts on these days.`); for One-time: `Starts` and `Ends` as `datetime-local`. A live helper line under the times (12/400 muted, `aria-live="polite"`): `Runs {n} h {m} min in {zone}.` and, when end is not after start on a recurring window, `Ends the next day at {HH:MM}.` Validation (inline, `role="alert"`): `Enter a window name.`; `Choose at least one day.`; `The window can't start and end at the same time.`; `A window can be up to 24 hours long.`; for One-time `The end must be after the start.` Footer `Close without saving` (secondary) and `Save window` (accent, pending `Saving...`). A tenant with no time zone gets the Time zone field at the top of this dialog too (required to save the first window). Failure: red block `Couldn't save the window: {server message}. Try again.` (fallback `Couldn't save the window. Check your connection and try again.`). Success toast `Window "{name}" saved.`
 
 **Delete dialog** (`Modal size="md"`): title `Delete this window?`; body `"{name}" will be removed. Rollouts and approved restarts that were waiting for it wait for the next window.`; when it is the last window an amber block `This is the last window. Nobody can start a rollout until you add another.`; footer `Keep window` (secondary, first focus), red `Delete window` (pending `Deleting...`). Toast `Window "{name}" deleted.`
 
@@ -367,7 +368,7 @@ Naming rule (ACTV-08, inherited): the feature is `Autonomous Ops`; the patching 
 | Primary CTA, resume | `Resume rollout` (pending `Resuming...`) |
 | Primary CTA, rings | `Save rings` (pending `Saving...`) |
 | Primary CTA, windows | `Save window` (pending `Saving...`), `Save time zone` |
-| Secondary CTAs | `Roll out in rings`, `Add ring`, `Add window`, `Discard changes`, `Cancel`, `Keep rollout`, `Keep window`, `Show details`, `Hide details`, `Show hosts`, `Show computers`, `Show more rollouts`, `Show more computers`, `Show more patches`, `Review in Needs your decision`, `Draft a rollout`, `Open maintenance windows`, `Open rollout rings`, `Open agent groups`, `Manage in Settings`, `Try again` |
+| Secondary CTAs | `Roll out in rings`, `Add ring`, `Add window`, `Discard changes`, `Close without starting`, `Close without saving`, `Keep halted`, `Keep rollout`, `Keep window`, `Show details`, `Hide details`, `Show hosts`, `Show computers`, `Show more rollouts`, `Show more computers`, `Show more patches`, `Review in Needs your decision`, `Draft a rollout`, `Open maintenance windows`, `Open rollout rings`, `Open agent groups`, `Manage in Settings`, `Try again` |
 | Destructive CTAs | `Cancel rollout` (pending `Cancelling...`), `Delete window` (pending `Deleting...`) |
 | Tab and section titles | `Rollouts`; `Rollout rings`; `Maintenance windows`; dialog titles `Start a rollout`, `Resume this rollout?`, `Cancel this rollout?`, `Add maintenance window`, `Edit maintenance window`, `Delete this window?` |
 | Tab intro | `Install patches in rings: a small canary group first, then larger groups. Each ring waits and is health-checked before the next one starts.` |
@@ -406,7 +407,9 @@ Naming rule (ACTV-08, inherited): the feature is `Autonomous Ops`; the patching 
 | Validation | `Enter a name for this rollout.`; `Pick at least one group for the Canary ring.`; `Enter a ring name.`; `Ring names must be different.`; `Enter hours between 1 and 168.`; `Enter a percentage between 1 and 50.`; `Enter a number between 1 and 100.`; `Enter a window name.`; `Choose at least one day.`; `The window can't start and end at the same time.`; `A window can be up to 24 hours long.`; `The end must be after the start.`; `Choose a time zone from the list, for example Asia/Kolkata.` |
 | Destructive confirmation, Cancel | `Cancel this rollout?`: `This ends "{name}". Computers that already have the patches keep them, and nothing further installs. A cancelled rollout can't be started again; start a new one instead.` Buttons `Cancel rollout` / `Keep rollout` |
 | Destructive confirmation, Delete window | `Delete this window?`: `"{name}" will be removed. Rollouts and approved restarts that were waiting for it wait for the next window.` Last-window block `This is the last window. Nobody can start a rollout until you add another.` Buttons `Delete window` / `Keep window` |
-| Resume confirmation | `Resume this rollout?`: `Resuming runs the health check for {ring name} again. The rollout continues only if every check passes. Computers that failed are not skipped.` Buttons `Resume rollout` / `Cancel`; required reason `Reason for resuming` |
+| Resume confirmation | `Resume this rollout?`: `Resuming runs the health check for {ring name} again. The rollout continues only if every check passes. Computers that failed are not skipped.` Buttons `Resume rollout` / `Keep halted`; required reason `Reason for resuming` |
+
+No dialog in this phase uses a bare `Cancel` label: dismiss buttons say what staying means (`Close without starting`, `Close without saving`, `Keep halted`, `Keep rollout`, `Keep window`), so `Cancel` only ever appears as `Cancel rollout`.
 
 Destructive actions in this phase, and the confirmation approach for each:
 - **Approve** an install or a restart: one click by design (the 83 approval-card rule). Safeguards instead of a dialog: the consequence and the window timing are printed on the line before the click, each line has its own single-use decision, there is no approve-all, the button names its target and rollout in `aria-label`, MFA is required server-side, and the action is recorded in the ledger and audit chain.
@@ -421,9 +424,93 @@ Destructive actions in this phase, and the confirmation approach for each:
 
 > Populated by the ui-phase UI-consideration probe (Step 9.5) after checker approval; replaced, not appended, on a re-run. Empty and error COPY lives in the Copywriting Contract; this section records state coverage and references those rows.
 
-Surfaces for the probe (kinds proposed, to be confirmed): S1 Rollouts tab list and window strip (list-collection, static-content), S2 rollout card and ring strip (list-collection, interactive-control, static-content), S3 ring detail: health check and hosts table (list-collection, static-content), S4 Start rollout dialog: name, patch picker, preflight (form, list-collection, interactive-control), S5 halt block, Resume and Cancel dialogs (form, interactive-control, static-content), S6 Rollout rings settings (form, list-collection, interactive-control), S7 rollout approval card in Needs your decision (list-collection, interactive-control), S8 Maintenance windows in Settings: time zone, cards, dialogs (form, list-collection, interactive-control), S9 Change Management windows list (list-collection), S10 Agent Groups ring chip (static-content), S11 draft link (interactive-control).
+Probe run 2026-11-05 after checker approval. Surfaces and confirmed kinds: S1 Rollouts tab list and window strip (list-collection, static-content), S2 rollout card and ring strip (list-collection, interactive-control, static-content), S3 ring detail: health check and hosts table (list-collection, static-content; long-text added, the heuristic missed host names), S4 Start rollout dialog: name, patch picker, preflight (form, list-collection, interactive-control), S5 Resume and Cancel dialogs (form, interactive-control), S6 Rollout rings settings (form, list-collection, interactive-control), S7 rollout approval card in Needs your decision (list-collection, interactive-control), S8 Maintenance windows in Settings: time zone, cards, dialogs (form, list-collection, interactive-control), S9 Change Management windows list (list-collection; long-text added for window names), S10 Agent Groups ring chip (static-content), S11 `Draft a rollout` link (interactive-control).
 
-Applicable state considerations: pending — the probe resolves empty, loading, error, populated, partial, overflow, zero-one-many and long-text for each surface above; the sections above already name: first-load skeletons (S1, S6, S8, S9), empty copy (S1, S4 patches, S6 groups, S8, S9), error blocks with retry (S1, S6, S8, S9), host table paging at 25 and patch picker paging at 50 (overflow), `1 host`/`{n} hosts` plural copy (zero-one-many), `break-words` and `break-all` on names, ids and group names (long-text), and the partial case of a ring with some computers `Not reached` (partial).
+Applicable state considerations: 78 (76 detected plus 2 long-text added). Resolved: 75 explicit, 2 backstop. Dismissed: 1. Unresolved: 0. Unclassified: 0. The user chose "draft from the spec" on 2026-11-05; each truth below restates what the sections above already contract.
+
+Resolved (explicit):
+- S1 empty: No rollouts shows the `No rollouts yet` EmptyStateCard (rings-not-set or rings-set body, `Start rollout` CTA only with `canStart`); no window shows the amber `Add a maintenance window first.` block in the strip; the platform organization shows its own empty state with no buttons.
+- S1 loading: First load renders three `h-24` skeleton cards with `aria-busy="true"`; background polls (30 s, focus, Refresh, after an action) show no skeleton or spinner; polling pauses while the tab is hidden or not active.
+- S1 error: A first-load failure shows the red `role="alert"` block `Couldn't load rollouts...` with `Try again`; a failed background poll keeps the last cards and shows nothing new.
+- S1 populated: Cards order halted, waiting for approval, running, waiting for window, then finished newest first; the focal point is the first card that needs a person.
+- S1 partial: A stop shows the amber paused block and disables `Start rollout` with its reason line while Resume stays enabled; shadow mode shows the blue simulation block and `Simulation` chips; a viewer without `canStart` sees no button and the muted `Ask someone with patching access to start a rollout.`; an organization with no time zone shows `No time zone set. Windows use UTC.`
+- S1 overflow: 10 cards, then `Show more rollouts` (pending `Loading...`); rollouts finished more than 30 days ago are not listed.
+- S1 zero-one-many: The tab badge is hidden at zero and counts rollouts that need a person; the live region announces `{n} rollouts need your attention` only when the count rises after a poll, never on first load.
+- S1 long-text: The window strip wraps (`flex-wrap`), time zone names are mono and wrap, and rollout names wrap with `break-words`; nothing is truncated.
+- S2 empty: A ring not yet started shows `Not started` with `Starts after {previous ring} passes.`; a last ring with no group shows no group names and the summary calls it `Everyone else`.
+- S2 loading: In-progress rings show BLUE chips with server counts (`{k} of {n} installed`, `{k} of {n} back up`, `Soak: {h} h left`); after Resume or Cancel the card refetches without a skeleton.
+- S2 error: A halted rollout shows the red `role="alert"` halt block, `Halted at {ring name}: {reason}` plus the mandatory second line, and a server-written revert summary that never claims more than happened.
+- S2 populated: The header has the name, the `{n} patches · {h} computers · Started ...` meta line and the status chip; the ring strip is an `ol` with `aria-current="step"` on the current ring and a chip plus detail line per ring state.
+- S2 partial: `Review in Needs your decision` renders only with `canOpenDecisions`, else `Waiting for someone with access to Autonomous Ops.`; Resume and Cancel render only with their server flags; Resume is disabled with `Wait for the revert to finish.` while a revert runs; a completed rollout with offline computers shows the `{n} not reached` chip and its `closesAt` line.
+- S2 zero-one-many: Counts use singular forms at one (`1 patch`, `1 computer`, `1 not reached`) and plurals otherwise; a rollout always shows 2 to 4 ring blocks.
+- S2 long-text: Rollout names wrap with `break-words`, group names are mono with `break-all`, and halt reasons wrap; nothing is truncated or clamped.
+- S3 empty: An empty watched-services list reads `Only the agent service is checked.` and is not `No data`; before a ring starts every computer shows `Waiting`.
+- S3 loading: A signal not in yet shows an amber `Waiting` chip with `Waiting for {signal}.`; the disclosure renders from the card payload and has no loading state of its own.
+- S3 error: A missing signal shows the red `No data` chip with `No data for {signal} counts as a failure, so the ring halts.`; a failed computer's Result shows the server reason (install error, no heartbeat within 30 minutes, service not running).
+- S3 populated: Four health rows (install result, inventory after install, heartbeat after restart, services), each with a chip and `{k} of {n}` text, then the failure-rate and soak lines, then the hosts table ordered problems first, then `Waiting`, then by name.
+- S3 partial: Below the minimum sample the line reads `Fewer than {min} computers have reported, so any failure halts.`; the canary reads `Any failure halts the rollout.`; `Not reached`, `Not reverted` and `Left out` rows say why in their Result text.
+- S3 zero-one-many: `{k} of {n}` lines use `1 computer` at one; only one ring's detail is open at a time.
+- S3 long-text: Computer names (14/600) and Result texts wrap with `break-words`, patch ids are mono with `break-all`; nothing is truncated.
+- S4 empty: With nothing pending the patch area shows `Nothing is waiting to be installed.` and Start is disabled with that reason; the name defaults to `Rollout {D Mon}`.
+- S4 loading: The preflight shows `Checking...` while in flight (debounced 300 ms) and keeps the previous result visible; Start is disabled until the first preflight returns; Start shows `Starting...`, and Esc does not close the dialog while a request is in flight.
+- S4 error: A failed start shows the red `role="alert"` block above the footer with the server message or the fallback; a 409 `already_in_rollout` refreshes the preflight and shows the Left out row; an empty name shows `Enter a name for this rollout.` inline.
+- S4 populated: Patch rows show the mono id, title, OS chip and `{n} computers`; the counter reads `{k} selected`; preflight rows show an OK or blocker icon with title and detail; the What will happen block closes the form.
+- S4 partial: Any blocker (no window, no canary group, a canary OS gap) or a stop disables Start, with `aria-describedby` on the first blocker's text; a draft pre-ticks the suggested patches and drops ones no longer pending with `{k} patches are no longer needed and were removed.`; offline computers get the info row.
+- S4 overflow: The patch list scrolls inside `max-h-72`, 50 rows then `Show more patches`; Left out lists 3 rollouts then `and {k} more`; `Show hosts` lists 10 names then `Showing 10 of {n}.`
+- S4 zero-one-many: Left out reads `1 host is in "{name}" and was left out.` at one and `3 hosts are in "{name}" and were left out.` otherwise; Start stays disabled with zero patches ticked.
+- S4 long-text: Patch titles wrap with `break-words`, ids are mono; the rollout name is capped at 60 characters; host names in `Show hosts` are mono and wrap.
+- S5 empty: `Resume rollout` stays disabled until the reason has a non-space character; the Cancel dialog's first focus is `Keep rollout`.
+- S5 loading: Confirms show `Resuming...` or `Cancelling...`; neither dialog closes on backdrop or Esc while a request is in flight.
+- S5 error: A failed request keeps the dialog open with a red block carrying the server message or the fallback; a 403 closes it with the no-permission toast.
+- S5 partial: A health check that still fails closes Resume with the info toast `The health check for {ring name} still fails. The rollout stays halted.` and refetches the card; Cancel during a running revert adds the amber `A revert is still running. It finishes on its own.`
+- S5 long-text: The reason is 1 to 500 characters with a `{n}/500` counter, and a long rollout name in a dialog body wraps.
+- S6 empty: With nothing saved the summary reads `No rings set up yet · Canary needs a group before a rollout can start`; with no agent groups a blue block links to `Open agent groups`.
+- S6 loading: The collapsed summary shows an `h-4 w-64` skeleton, the expanded form three `h-16` skeletons with `aria-busy`, and Save shows `Saving...`.
+- S6 error: A load failure shows the red `role="alert"` block with `Try again`; a save failure shows the red block above the footer; a 403 closes the form with a toast; unreadable settings show the blue `no rollout can start until they load` block; field errors are inline `role="alert"`.
+- S6 populated: The summary reads `Canary (Canary) -> Pilot (Servers) -> Everyone else · 24-hour soak`, and the form has one block per ring with name, groups, soak and (not on Canary) failure limit.
+- S6 partial: A group used by another ring shows `{name} (in {ring})` disabled; the Canary name cannot be edited, moved or removed; the last ring may have no group; edits apply only to later rollouts; the form works during a stop; Save is disabled when clean or invalid.
+- S6 overflow: Every agent group renders as a checkbox row with no inner scroll, and the summary line wraps.
+- S6 zero-one-many: Rings number 2 to 4; `Add ring` is hidden at 4; move buttons are disabled at the ends; group rows read `(1 computer)` or `({n} computers)`.
+- S6 long-text: Ring names are 1 to 40 characters, group names mono with `break-all`, and the summary wraps; nothing is truncated.
+- S7 empty: With no rollout cards the section is unchanged from 83 and the count line omits the rollout part; with nothing to decide at all the section does not render.
+- S7 loading: Approve and Deny show their pending labels and disable only that line's buttons; rollout cards arrive on the section's existing cadence with no skeleton on polls.
+- S7 error: A failed decision keeps the line, shows `role="alert"` text under its buttons with the 83 copy and re-enables them; a 409 shows the server text and refetches.
+- S7 populated: The header shows `LayersIcon`, the rollout name, `Ring {i} of {r}: {ring name} · {n} computers` and the deadline chip; below it the Install line, then the Reboot line once installs finish, and the revert-restart line when a revert needs one.
+- S7 partial: A stop disables Approve but not Deny and shows the Paused helper; shadow mode renders no buttons; a viewer without approval access sees `Waiting for someone with approval access.`; a denied or expired line reads `Denied by {name}. The rollout halts at {ring name}.` or `Expired after 24 hours, counted as denied. The rollout halts at {ring name}.` (R11, user-confirmed).
+- S7 overflow: The target shows the first three patch ids then `+{m} more`; `Show computers` lists 10 then `Showing 10 of {n}.`; the section pages at 10 with `Show more`.
+- S7 zero-one-many: The count line reads `{n} incidents · {k} rollout rings` with a zero part omitted and `1 rollout ring` at one; line labels use singular forms (`Install 1 patch on 1 computer`).
+- S7 long-text: Rollout names and Why text wrap with `break-words`; patch ids are mono with `break-all`.
+- S8 empty: No windows shows the `No maintenance windows yet` EmptyStateCard with `Add window`; no time zone shows the blue `No time zone is set yet...` block with the browser zone only as a placeholder; the first window cannot be saved without a zone.
+- S8 loading: Two `h-32` skeleton cards with `aria-busy`; Save buttons show `Saving...` and Delete shows `Deleting...`.
+- S8 error: A load failure shows the red `role="alert"` block with `Try again`; a save failure shows the red block with the server message or fallback; validation (including an unknown zone) is inline `role="alert"`.
+- S8 populated: The time zone card, the open or closed status banner, then window cards in `md:grid-cols-2`, each with a recurrence chip, the schedule line (`22:00 to 02:00 the next day`), day chips, the zone name and a `Next:` line.
+- S8 partial: A finished one-time window reads `Next: not scheduled`; changing the zone with windows present shows `Existing windows keep their clock times but now run in {zone}.`; deleting the last window adds the amber last-window block; a recurring window that ends before it starts says `Ends the next day at {HH:MM}.`
+- S8 overflow: Window cards wrap in the two-column grid with no cap; a window is at most 24 hours (`A window can be up to 24 hours long.`).
+- S8 zero-one-many: Weekly needs at least one day (`Choose at least one day.`); one window renders one card; day chips show each selected day.
+- S8 long-text: Window names are 1 to 60 characters and wrap with `break-words`; IANA names are mono.
+- S9 empty: `No maintenance windows. Rollouts can't start until one is added.` with the `Manage in Settings` link.
+- S9 loading: One `h-16` skeleton.
+- S9 error: The red `role="alert"` text `Couldn't load maintenance windows.` with `Try again`, and the changes table below is unaffected.
+- S9 populated: A `divide-y` list, one row per window: name, schedule line with zone, and an `Open now` or `Next: ...` chip.
+- S9 partial: `Manage in Settings` is plain text for a viewer who cannot open Settings; the list has no create, edit or delete controls.
+- S9 overflow: The first 5 windows, then `Show {n} more`.
+- S9 zero-one-many: One window renders one row, and `Show {n} more` appears only beyond 5.
+- S9 long-text: Window names wrap with `break-words` and schedule lines wrap.
+- S10 overflow: At most one ring chip per group (a group belongs to one ring), and it wraps under the group name on narrow rows.
+- S10 long-text: A ring name up to 40 characters wraps inside the chip and is never truncated.
+- S11 empty: If none of the suggested patches is still pending, the dialog opens with nothing ticked, the removed-count line, and Start disabled until a patch is ticked.
+- S11 loading: The link switches to the Rollouts tab and opens the dialog at once; the dialog's own preflight `Checking...` state covers the wait.
+- S11 error: If the suggestion cannot be read, the Start dialog opens without the draft block and with nothing ticked; nothing is created either way.
+- S11 populated: `Draft a rollout` (`aria-label` `Draft a rollout for the vulnerabilities on {host}`) opens the dialog in draft state with the name `Patches for {CVE id or "vulnerabilities"} on {host}` and the blue draft block.
+- S11 partial: Without `canStart` the link stays `Open patching`; a viewer who cannot open Patching sees plain text.
+- S11 zero-one-many: The draft name uses the CVE id for one vulnerability and `vulnerabilities` for several; no count ever creates or starts a rollout.
+
+Resolved (backstop):
+- S2 overflow: { statement: "With 4 rings, the ring strip's four blocks (min 200px each, 16px gaps, 848px) sit on one row at 1280px wide with the sidebar open, and wrap without horizontal scroll at narrower widths", verification: backstop }
+- S3 overflow: { statement: "The hosts table (column minimums 200 + 150 + 300 + 150 = 800px) does not scroll horizontally at 1280px wide with the sidebar open or closed, pages at 25 rows with Show more computers, and becomes stacked cards below lg", verification: backstop }
+
+Dismissed (reason given):
+- S11 overflow: the surface is one link with no collection; the patches it pre-fills are covered by S4 overflow.
 
 ---
 
@@ -450,7 +537,7 @@ Applicable state considerations: pending — the probe resolves empty, loading, 
 | R8 | A finished rollout with `Not reached` computers shows a server-supplied `closesAt` date. The UI pins no number of days; the planner settles the recurrence and closing rule (CONTEXT discretion). | D-18 and its open "how long a rollout stays active" |
 | R9 | A draft from the vulnerability suggestion lives only in the Start dialog. The platform stores no rollout until an operator presses `Start rollout`. | D-11 |
 | R10 | `Resume rollout` is disabled while a revert is still running. | D-15, D-16: Resume re-runs the gate on settled data |
-| R11 | A deny or an expiry of an Install or Reboot line halts the rollout at that ring with the reason `the install was denied` or `the restart was denied`, then offers Resume or Cancel. A running or waiting rollout has no Cancel beyond the stop switch. | D-16 offers only Resume and Cancel after a halt; CONTEXT does not say what a denial does, so this is the safest fail-closed reading. Planner to confirm. |
+| R11 | A deny or an expiry of an Install or Reboot line halts the rollout at that ring with the reason `the install was denied` or `the restart was denied` (expiry: `the approval expired`), then offers Resume or Cancel. A running or waiting rollout has no Cancel beyond the stop switch. | **User-confirmed 2026-11-05** ("Halts at that ring"), over "waits and the card comes back" and "skips to Completed". D-16 offers only Resume and Cancel after a halt. |
 | R12 | A tenant has 2 to 4 rings; the first is always `Canary` and needs at least one group; a computer in groups from two rings joins the earlier ring; a group belongs to one ring; edits apply to later rollouts only. | D-09, D-10; counts and tie rules are not in CONTEXT |
 | R13 | Patch installs and restarts get no per-row Undo in Phase 84; a failed ring is put back by the halt's own revert. | D-14, D-15 |
 | R14 | `MaintenanceWindowConfig.tsx` is migrated from dark-only styling to the shared tokens, `Modal` and light/dark classes, because the phase edits it and it is unreadable in the light theme today. | D-01; 81 token rule |
@@ -461,12 +548,12 @@ Applicable state considerations: pending — the probe resolves empty, loading, 
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS (not applicable: `Tool: none`, no Component Inventory section)
+- [x] Dimension 1 Copywriting: PASS (checker FLAG on bare `Cancel` dismiss buttons resolved 2026-11-05: renamed to `Close without starting`, `Close without saving`, `Keep halted`)
+- [x] Dimension 2 Visuals: PASS (checker note resolved: `RocketIcon`, `SearchIcon`, `ShieldLockIcon`, `ShieldAlertIcon` confirmed present and added to the icon list)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS (not applicable: `Tool: none`, no Component Inventory section)
 
-**Approval:** pending
+**Approval:** approved 2026-11-05 (gsd-ui-checker, first pass; R11 user-confirmed; UI Considerations probe resolved 78/78)
