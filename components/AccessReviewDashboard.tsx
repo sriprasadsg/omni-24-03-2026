@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserCheck, Plus, AlertTriangle, Clock, CheckCircle, ChevronRight, Play, Award } from 'lucide-react';
+import { roleLabel } from '../utils/permissions';
 
 interface ScopeUser { userId: string; userName: string; email?: string; role?: string; }
 interface Decision { userId: string; userName: string; decision: string; reason: string; decidedAt: string; }
@@ -174,7 +175,7 @@ export default function AccessReviewDashboard() {
               <div key={u.userId} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{u.userName}</p>
-                  {u.role && <p className="text-xs text-gray-400">{u.role}</p>}
+                  {u.role && <p className="text-xs text-gray-400">{roleLabel(u.role)}</p>}
                 </div>
                 {selected.status === 'In Progress' ? (
                   <div className="flex items-center gap-2">

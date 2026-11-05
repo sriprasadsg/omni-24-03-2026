@@ -2,6 +2,7 @@ import React from 'react';
 import { User, Role, Tenant } from '../types';
 import { PlusCircleIcon, PencilIcon, TrashIcon, KeyIcon, SearchIcon, BuildingIcon } from './icons';
 import { useUser } from '../contexts/UserContext';
+import { roleLabel } from '../utils/permissions';
 
 interface Props {
     users: User[];
@@ -88,7 +89,7 @@ export function SettingsUsersTab({
                                             </td>
                                         )}
                                         <td className="px-4 py-3">
-                                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-300">{user.role}</span>
+                                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-300">{roleLabel(user.role)}</span>
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${user.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>

@@ -3,6 +3,7 @@ import { Laptop, Sun, Moon, Rows3, Rows4, Keyboard } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useTheme, ThemePreference, Density } from '../contexts/ThemeProvider';
 import { User, AppView } from '../types';
+import { roleLabel } from '../utils/permissions';
 import { ChevronDownIcon, LogOutIcon, UserIcon as ProfileIcon } from './icons';
 
 interface UserMenuProps {
@@ -83,7 +84,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ allUsers, setCurrentView }) 
                 )}
                 <div className="hidden md:flex flex-col items-start leading-tight">
                     <span className="text-sm font-medium text-gray-800 dark:text-white whitespace-nowrap">{currentUser.name || currentUser.email}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{currentUser.role}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{roleLabel(currentUser.role)}</span>
                 </div>
                 <ChevronDownIcon size={16} className={`hidden md:block text-gray-500 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>

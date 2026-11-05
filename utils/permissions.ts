@@ -101,9 +101,20 @@ export function partnerRoleLabel(role?: string | null): string {
 /** The tenant that holds every platform account; its users must hold a platform role. */
 export const PLATFORM_TENANT_ID = 'platform-admin';
 
-/** How a role is shown: the super-admin role reads "Platform Owner". */
+// How each built-in role stored under a raw key reads (backend rbac_defaults.BUILTIN_ROLES: its name when
+// that is already readable, else its display name). tests/test_role_labels_drift.py keeps the two in step.
+const BUILTIN_ROLE_LABELS: Record<string, string> = {
+  tenant_admin: 'Tenant Admin', admin: 'Admin', analyst: 'Analyst', security_analyst: 'Security Analyst',
+  incident_responder: 'Incident Responder', user: 'User', viewer: 'Viewer', itam_admin: 'ITAM Admin',
+  itam_user: 'ITAM User', itam_viewer: 'ITAM Viewer', platform_support: 'Platform Support',
+  platform_billing: 'Platform Billing', partner_admin: 'Partner Admin', partner_viewer: 'Partner Viewer',
+};
+
+/** How a role is shown: the super-admin role reads "Platform Owner", a built-in role its readable name,
+ *  and a tenant's own role exactly as it was named. */
 export function roleLabel(role: string): string {
-  return platformTier(role) === 'owner' ? 'Platform Owner' : role;
+  if (platformTier(role) === 'owner') return 'Platform Owner';
+  return BUILTIN_ROLE_LABELS[normalizeRoleName(role)] ?? role;
 }
 
 /**

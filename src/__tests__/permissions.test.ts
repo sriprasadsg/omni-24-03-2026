@@ -86,6 +86,18 @@ describe('platform roles (spec C1)', () => {
     expect(roleLabel('Platform Support')).toBe('Platform Support');
   });
 
+  it('names every built-in role readably and leaves a custom role as it was typed (QA 2026-11-04)', () => {
+    expect(roleLabel('partner_admin')).toBe('Partner Admin');
+    expect(roleLabel('partner_viewer')).toBe('Partner Viewer');
+    expect(roleLabel('security_analyst')).toBe('Security Analyst');
+    expect(roleLabel('itam_viewer')).toBe('ITAM Viewer');
+    expect(roleLabel('viewer')).toBe('Viewer');
+    expect(roleLabel('admin')).toBe('Admin');
+    expect(roleLabel('Tenant Admin')).toBe('Tenant Admin');
+    expect(roleLabel('tenant_admin')).toBe('Tenant Admin');
+    expect(roleLabel('QA Helpdesk')).toBe('QA Helpdesk');
+  });
+
   it('support gets exactly what the server delivered', () => {
     const support = user({ role: 'Platform Support', tenantId: 'platform-admin', permissions: [perm('view:agents')] });
     const state = derivePermissionState(support);

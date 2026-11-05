@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
+import { roleLabel } from '../utils/permissions';
 import { useUser } from '../contexts/UserContext';
 import { UserIcon, PencilIcon, SaveIcon, XIcon, ShieldCheckIcon, ShieldAlertIcon, KeyIcon } from './icons';
 import MFASetupWizard from './MFASetupWizard';
@@ -151,7 +152,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({ onProfileUpdat
                             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 text-sm">
                                 <div>
                                     <dt className="font-medium text-gray-500 dark:text-gray-400">Role</dt>
-                                    <dd className="mt-1 text-gray-900 dark:text-gray-200">{currentUser.role}</dd>
+                                    <dd className="mt-1 text-gray-900 dark:text-gray-200">{roleLabel(currentUser.role)}</dd>
                                 </div>
                                 <div>
                                     <dt className="font-medium text-gray-500 dark:text-gray-400">Tenant</dt>

@@ -61,7 +61,7 @@ describe('User forms offer the tenant custom roles to a Super Admin', () => {
     fetchRoles.mockImplementation(() => Promise.reject(new Error('down')));
     as('Super Admin', <AddUserModal isOpen onClose={vi.fn()} onSave={vi.fn()} tenants={TENANTS} roles={BUILTINS} />);
     await waitFor(() => expect(fetchRoles).toHaveBeenCalled());
-    expect(options('Role')).toEqual(['Tenant Admin', 'viewer']);
+    expect(options('Role')).toEqual(['Tenant Admin', 'Viewer']);
   });
 
   it('a tenant admin gets the roles from the App list, with no extra request', () => {
