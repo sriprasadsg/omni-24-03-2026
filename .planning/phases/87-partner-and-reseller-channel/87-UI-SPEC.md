@@ -169,7 +169,7 @@ Route/view id `partners`, group `mgmt`, permission `manage:partners` (Super Admi
 
 **Header.** Left: `h1` 30/600 `Partners`; under it a 14/400 muted line `Appoint partners, give each a pool of agent seats and set which screens they may sell.` Right: `Appoint partner` (accent, `PlusIcon` 16px left, `min-h-10`). Below the header, a `{n} partners` 12/400 muted count and, when there are more than 10 partners, a search input (`SearchIcon`, `aria-label="Search partners"`, filters by name client-side, placeholder `Search partners`).
 
-**Partners table** (`.card overflow-hidden`; `<table>` inside `overflow-x-auto`; column minimums sum to 1,008px, scrolling horizontally below `xl` is accepted for a back-office table, and below `lg` rows collapse to stacked cards, one per partner, with each field as a labelled `dl` row, the Phase 81 stacked-card pattern).
+**Partners table** (`.card overflow-hidden`; `<table>` inside `overflow-x-auto`; column minimums sum to 1,008px, scrolling horizontally below `xl` is accepted for a back-office table (amended 2026-11-05: the minimums now sum to 900px, Partner 190, Pool 170, Expires 130, Screens 110, Status 110, Actions 190, so the table also fits 1280px with the sidebar open, 922px of card), and below `lg` rows collapse to stacked cards, one per partner, with each field as a labelled `dl` row, the Phase 81 stacked-card pattern).
 
 | Column | Content | Width |
 |--------|---------|-------|
@@ -258,7 +258,7 @@ Customers table (`.card overflow-hidden`; stacked cards below `lg`):
 | Licence expires | `Mon D, YYYY` or `No expiry`; `Expired` RED chip beside a past date; shows the earlier of the customer's own expiry and the pool's | 160px |
 | Actions (admin only) | `Change seats`, `Choose screens` text buttons, `flex flex-wrap gap-2` | 200px |
 
-Column minimums sum to 1,048px for the admin; below `xl` the table scrolls horizontally inside its card, and below `lg` it becomes stacked cards (one per customer, `dl` rows, actions at the bottom). Ordering: name ascending. Paging: 25 rows, then a secondary `Show more customers` button (`min-h-10`, pending `Loading...`). The data shown is exactly the D-01 allowlist: name, seats assigned, seats used, agents online, agents total, licence expiry. Nothing else is rendered, tooltipped, or exported.
+Column minimums sum to 1,048px for the admin; below `xl` the table scrolls horizontally inside its card (amended 2026-11-05: the minimums now sum to 900px, Customer 200, Seats used 140, Seats assigned 120, Agents 150, Licence expires 130, Actions 160, because 1,048px could not meet the no-scroll-at-1280-with-the-sidebar-open check below), and below `lg` it becomes stacked cards (one per customer, `dl` rows, actions at the bottom). Ordering: name ascending. Paging: 25 rows, then a secondary `Show more customers` button (`min-h-10`, pending `Loading...`). The data shown is exactly the D-01 allowlist: name, seats assigned, seats used, agents online, agents total, licence expiry. Nothing else is rendered, tooltipped, or exported.
 
 Customers states:
 

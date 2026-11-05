@@ -3,16 +3,16 @@ status: testing
 phase: 87-partner-and-reseller-channel
 source: [87-01-SUMMARY.md, 87-02-SUMMARY.md, 87-03-SUMMARY.md, 87-04-SUMMARY.md, 87-05-SUMMARY.md, 87-06-SUMMARY.md, 87-07-SUMMARY.md, 87-08-SUMMARY.md, 87-09-SUMMARY.md, 87-10-SUMMARY.md, 87-11-SUMMARY.md, 87-12-SUMMARY.md, 87-13-SUMMARY.md, 87-14-SUMMARY.md, 87-15-SUMMARY.md]
 started: 2026-11-04T07:11:12Z
-updated: 2026-11-05T08:50:00Z
+updated: 2026-11-05T11:50:54Z
 ---
 
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 3
-name: Appoint a partner from the Partners screen
+number: 5
+name: Invite email and the Accept-invite page
 expected: |
-  Needs the UI published. As Super Admin, Partners is in the sidebar. Appoint partner takes a name, seat pool, pool expiry, screen ceiling and first admin. The partner appears in the table with 0 handed out and the whole pool free. With email not configured on this VM, a 'Partner appointed' panel says the invite email couldn't be sent and tells you to set a password for the admin in User Management.
+  Needs SMTP and FRONTEND_URL set, plus the UI published. The invited admin receives an email whose link opens /accept-invite; the token disappears from the address bar, the page names the organization, a password can be set, and the admin then signs in. A used or expired link says so instead of offering a form.
 awaiting: user response
 
 ## Tests
@@ -29,12 +29,14 @@ coverage_id: 87-03/D6
 
 ### 3. Appoint a partner from the Partners screen
 expected: Needs the UI published. As Super Admin, Partners is in the sidebar. Appoint partner takes a name, seat pool, pool expiry, screen ceiling and first admin. The partner appears in the table with 0 handed out and the whole pool free. With email not configured on this VM, a 'Partner appointed' panel says the invite email couldn't be sent and tells you to set a password for the admin in User Management.
-result: [pending]
+result: pass
+note: "2026-11-05: passed on the release bundle, private copy: appointed QA Reseller (1,000,000 seats, all screens); the Partner appointed panel says the invite email could not be sent and to set a password in User Management; the table shows 0 of 1,000,000 handed out, 1,000,000 free. Found and fixed: the dialog opened with Enter a partner name. shown and focus on Close (shared Modal), and closing left focus on the page body."
 coverage_id: 87-08/D8
 
 ### 4. Partners screen layout
 expected: Needs the UI published. The Partners screen matches 87-UI-SPEC in light and dark: even spacing, stacked cards below 1024 px, the table scrolls sideways below 1280 px instead of squashing, and nothing overflows at 320 px.
-result: [pending]
+result: pass
+note: "2026-11-05: passed after a fix: light and dark at 1280, 1024, 640, 360 and 320 px with no page overflow; stacked cards below 1024. The table needed sideways scroll at 1280 px with the sidebar open (1,040 px of minimums in 922 px); minimums now sum to 900 px, so it fits open and closed."
 coverage_id: 87-11/D5
 
 ### 5. Invite email and the Accept-invite page
@@ -44,22 +46,26 @@ coverage_id: 87-06/D8
 
 ### 6. Accept-invite page with a long organization name
 expected: Needs the UI published. On a phone-width window (360 px), a 100-character organization name wraps inside the card with no sideways scroll, and the card looks right in light and dark.
-result: [pending]
+result: pass
+note: "2026-11-05: passed on the release bundle: a 98-character organization name wraps inside the card at 360 px, page width 360 of 360, no sideways scroll. The page is always dark, like the sign-in page."
 coverage_id: 87-13/D4
 
 ### 7. Partner admin creates a customer from the pool
 expected: Needs the UI published. Signed in as a partner admin, the Partner portal shows the seat pool. Creating a customer with N seats lowers free seats by N, the customer appears in the list, and its first admin is invited (or the not-sent notice appears). The admin of that customer then signs in and runs it like a direct customer.
-result: [pending]
+result: pass
+note: "2026-11-05: passed on the release bundle, private copy: the partner admin (MFA set up) created QA Customer One with 5 seats; free went from 1,000,000 to 999,995, the customer is listed and the not-sent notice names the address; its admin then signed in (MFA set up) and used the screens ticked for it."
 coverage_id: 87-09/D11
 
 ### 8. Partner portal layout
 expected: Needs the UI published. A 1,000,000-seat tile fits at 1280 px and 360 px; at 1280 px the customer table needs no sideways scroll with the sidebar open or closed; cards stack below 1024 px; light and dark both look right.
-result: [pending]
+result: pass
+note: "2026-11-05: passed after a fix: the 1,000,000 tile fits at 1280 and 360 px; cards stack below 1024; light and dark read right. The customers table scrolled at 1280 px with the sidebar open (1,048 px in 922 px); minimums now sum to 900 px, so it fits open (922 of 922) and closed."
 coverage_id: 87-12/D9
 
 ### 9. Screen chips and checklist
 expected: Needs the UI published. The screen chips and the screen checklist (Appoint partner ceiling, customer screens) have even spacing, read correctly in dark theme and wrap cleanly at 320 px.
-result: [pending]
+result: pass
+note: "2026-11-05: passed on the release bundle: the Appoint partner screen checklist and the customer Choose screens checklist keep even spacing, read right in dark and wrap at 320 px with no overflow."
 coverage_id: 87-07/D5
 
 ### 10. Seat and delete routes on the live backend
@@ -577,9 +583,9 @@ coverage_id: 87-15/D3
 ## Summary
 
 total: 95
-passed: 84
+passed: 90
 issues: 0
-pending: 11
+pending: 5
 skipped: 0
 blocked: 0
 

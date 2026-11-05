@@ -3,7 +3,7 @@ status: testing
 phase: 82-platform-self-healing-scheduled-retention
 source: [82-VERIFICATION.md]
 started: 2026-10-31T10:45:00Z
-updated: 2026-10-31T10:45:00Z
+updated: 2026-11-05T11:50:54Z
 ---
 
 ## Current Test
@@ -39,14 +39,15 @@ result: [pending]
 ### 5. Browser pass of the health section and retention card
 how: Open Autonomous Ops platform health and the retention review in a published UI, light and dark, at 640, 1024 and 1280 px
 expected: Layout matches 82-UI-SPEC sections 1-7
-result: [pending]
+result: pass
+note: "2026-11-05: passed in headless Chrome on the release bundle, private copy: Platform health, Scheduled data retention and the response settings section in light and dark at 1280, 1024 and 640 px, no sideways overflow, screenshots read right. Only the not-installed and never-counted states could show: the reporting and counted states follow items 1 and 4."
 
 ## Summary
 
 total: 5
-passed: 0
+passed: 1
 issues: 0
-pending: 5
+pending: 4
 skipped: 0
 blocked: 0
 

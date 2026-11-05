@@ -3,7 +3,7 @@ status: testing
 phase: 76-catalogue-manifest-backend-route-enforcement
 source: [76-VERIFICATION.md]
 started: 2026-10-18T18:04:21Z
-updated: 2026-10-18T18:04:21Z
+updated: 2026-11-05T11:23:59Z
 ---
 
 ## Current Test
@@ -34,14 +34,15 @@ result: [pending]
 
 ### 5. Registration key exposure decision (CR-01)
 expected: Decide whether tenant registrationKey values were exposed to non-admin roles while the old GET /api/tenants/me was live (the backend running now still serves the old response until restart) and rotate them if so.
-result: [pending]
+result: pass
+note: "2026-11-05: not exposed, no rotation. Before the CR-01 fix went live (2026-10-19) non-admin accounts existed only in the QA test tenant tenant_e42a7fa26433, since archived and removed; the four live tenants have only ever held Tenant Admin and Super Admin users (users collection and audit_logs user.created events). Reported to the user."
 
 ## Summary
 
 total: 5
-passed: 0
+passed: 1
 issues: 0
-pending: 5
+pending: 4
 skipped: 0
 blocked: 0
 

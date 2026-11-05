@@ -3,15 +3,15 @@ status: testing
 phase: 83-autonomous-security-response
 source: [83-VERIFICATION.md]
 started: 2026-11-02T12:55:00Z
-updated: 2026-11-04T22:55:00Z
+updated: 2026-11-05T11:23:59Z
 ---
 
 ## Current Test
 
-number: 2
-name: Read the sentences the UI-SPEC does not word (83-20 Live list item 1) and confirm A-83-LEVEL-SUGGEST (item 2: which Suggest-level rows appear as approvable lines)
+number: 4
+name: Publish the UI (dist-new index-VUPN-kZs.js) and then agent 2.1.16 with _LATEST_AGENT_VERSION bumped from 2.1.14; confirm meta.response_actions tokens arrive from a test host (items 4-5)
 expected: |
-  Wording accepted, or edited, before the UI is published
+  Cards, Undo and settings render; heartbeat carries tokens block_ip_ttl, block_ip_range, quarantine_file, unquarantine_file, kill_process_exe, restart_service, service_failures, isolate_host, restore_host, reboot_host; RESP-10 can then be ticked
 awaiting: user response
 
 ## Tests
@@ -22,11 +22,13 @@ result: pass
 
 ### 2. Read the sentences the UI-SPEC does not word (83-20 Live list item 1) and confirm A-83-LEVEL-SUGGEST (item 2: which Suggest-level rows appear as approvable lines)
 expected: Wording accepted, or edited, before the UI is published
-result: [pending]
+result: pass
+note: "2026-11-05: the user accepted the plan-written wording and A-83-LEVEL-SUGGEST as built."
 
 ### 3. Accept the two agent behaviour changes before publishing 2.1.16 (item 3): a block_ip with no ttl_seconds lasts 24 hours; the agent refuses every non-global address (RFC 1918 included), the platform host, gateway, DNS servers and networks wider than /8
 expected: Accepted
-result: [pending]
+result: pass
+note: "2026-11-05: the user accepted both behaviour changes (24-hour default block; refusal of non-global, platform, gateway, DNS and wider-than-/8 targets) before 2.1.16 is published."
 
 ### 4. Publish the UI (dist-new index-VUPN-kZs.js) and then agent 2.1.16 with _LATEST_AGENT_VERSION bumped from 2.1.14; confirm meta.response_actions tokens arrive from a test host (items 4-5)
 expected: Cards, Undo and settings render; heartbeat carries tokens block_ip_ttl, block_ip_range, quarantine_file, unquarantine_file, kill_process_exe, restart_service, service_failures, isolate_host, restore_host, reboot_host; RESP-10 can then be ticked
@@ -71,9 +73,9 @@ result: pass
 ## Summary
 
 total: 13
-passed: 2
+passed: 4
 issues: 0
-pending: 11
+pending: 9
 skipped: 0
 blocked: 0
 

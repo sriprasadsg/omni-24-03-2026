@@ -1,9 +1,9 @@
 ---
-status: partial
+status: complete
 phase: 81-autonomy-gate-stop-switch-activity-ledger
 source: [81-VERIFICATION.md]
 started: 2026-10-26T22:12:37Z
-updated: 2026-10-26T23:48:38.904Z
+updated: 2026-11-05T11:50:54Z
 ---
 
 ## Current Test
@@ -36,9 +36,8 @@ note: "Passed by the user without a live run on this server: at 23:46 omni-agent
 
 ### 6. Open the Autonomous Ops screen in a published UI build as a tenant admin (screen ticked) and as Super Admin
 expected: Six states and a labelled Simulation chip render; Stop/Resume dialogs and the app-wide stop banner appear; tenant sees 'Platform administrator' for a platform stop
-result: blocked
-blocked_by: release-build
-reason: "UI not published: at 23:46 /var/www/omni-agent still served the 2026-10-21 18:11 build (index-OqToILUH.js), which has no Autonomous Ops screen; no local build or dev server. User chose to mark blocked until the UI is built and published."
+result: pass
+note: "2026-11-05: passed in headless Chrome on the release bundle (the published UI plus 2026-11-05 fixes), private copy. Tenant admin (screen ticked): labelled Shadow mode chip On: simulation only, Stop chip, levels; Super Admin platform stop: dialog, app-wide banner on other screens, tenant reads Stopped by Platform administrator and Only a platform administrator can resume this; resume clears it; tenant stop and resume of its own organization; the stop is listed in Activity. No page errors, no refused requests."
 
 ### 7. Decide whether the documented XDR-GRANDFATHERED writers are acceptable under the phase goal wording 'every automatic action in the platform'
 expected: Either accept (monitoring/hunt/snapshot/auto-update verbs stay outside gate and stop; fenced later) or require them to be gated before switch-on
@@ -47,10 +46,10 @@ result: pass
 ## Summary
 
 total: 7
-passed: 6
+passed: 7
 issues: 0
 pending: 0
 skipped: 0
-blocked: 1
+blocked: 0
 
 ## Gaps
