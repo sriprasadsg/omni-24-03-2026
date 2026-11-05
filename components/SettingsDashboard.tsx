@@ -67,6 +67,11 @@ interface SettingsDashboardProps {
 
 type SettingsView = 'users' | 'roles' | 'apiKeys' | 'integrations' | 'alerts' | 'infrastructure' | 'dataSources' | 'subscription' | 'appearance' | 'email' | 'maintenance' | 'voiceBot' | 'security' | 'evidence' | 'remediation';
 
+// Deep links that open Settings (utils/viewAccess HASH_ALIASES) name the tab to show (QA 2026-11-04).
+const HASH_TABS: Record<string, SettingsView> = {
+    usermanagement: 'users', rolemanagement: 'roles', apikeys: 'apiKeys', integrations: 'integrations',
+};
+
 export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
     const {
         integrations, alertRules, roles, users, apiKeys, dataSources, newlyGeneratedKey, databaseSettings, llmSettings,
@@ -138,6 +143,14 @@ export const SettingsDashboard: React.FC<SettingsDashboardProps> = (props) => {
     }, [newlyGeneratedKey]);
 
     useEffect(() => {
+        const linked = HASH_TABS[window.location.hash.slice(1).toLowerCase()];
+        const mayOpen: Partial<Record<SettingsView, boolean>> = {
+            users: canManageRBAC, roles: canListRoles, apiKeys: canManageApiKeys, integrations: canManageSettings,
+        };
+        if (linked && mayOpen[linked]) {
+            setActiveView(linked);
+            return;
+        }
         // Default to appearance for Super Admin to show all tabs, or first available tab for others
         if (isSuperAdmin) {
             setActiveView('appearance');

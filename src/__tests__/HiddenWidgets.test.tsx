@@ -69,8 +69,8 @@ describe('startup fetch plan (App.tsx source guard)', () => {
     expect(app).not.toMatch(/const ifOn[^\n]*!user \|\|/);
   });
 
-  it('gates the user and role lists by their catalogues and recognises Super Admin by name', () => {
-    expect(app).toContain("ifOn('userManagement', api.fetchUsers)");
+  it('gates the user list by its route (canListUsers), the role list by its catalogue, and recognises Super Admin by name', () => {
+    expect(app).toContain('canListUsers(user, holds) ? api.fetchUsers() : Promise.resolve(SKIPPED)');
     expect(app).toContain("ifOn('roleManagement', api.fetchRoles)");
     expect(app).toContain('isSuperAdminRoleName(_jwtPayload.role)');
   });

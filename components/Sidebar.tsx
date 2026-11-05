@@ -6,7 +6,7 @@ import { useUser } from '../contexts/UserContext';
 import { fetchSupportUnreadCount } from '../services/apiService';
 import { socketService } from '../services/socketService';
 import { isPartnerRoleName, isSuperAdminRoleName } from '../utils/permissions';
-import { permissionsKnown } from '../utils/viewAccess';
+import { canReadView, permissionsKnown } from '../utils/viewAccess';
 import { useVisibleNav, openNavItems, NavGroup } from '../hooks/useVisibleNav';
 import { useNavMemory, navMemoryKey } from '../hooks/useNavMemory';
 
@@ -159,6 +159,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     const userContext = useUser();
     const currentUser = userContext?.currentUser;
     const isPartner = isPartnerRoleName(currentUser?.role);
+    // The count feeds only the Chat item's badge; a tenant with Chat off would have every poll refused.
+    const supportReadable = !isPartner && typeof userContext?.hasPermission === 'function'
+        && canReadView('chat', currentUser ?? null, userContext.hasPermission);
 
     // ── Accordion state: which group header is currently open ──────────────
     const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
@@ -167,13 +170,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, currentView, setCurren
     const [supportUnread, setSupportUnread]   = useState(0);
     const [endpointUnread, setEndpointUnread] = useState(0);
     useEffect(() => {
-        // Phase 87 (T-87-42): the support unread count is a customer route; a partner user never asks.
-        if (isPartner) return;
+        // Phase 87 (T-87-42): the support unread count is a customer route; a partner user never asks,
+        // and neither does anyone who cannot read Chat (QA 2026-11-04).
+        if (!supportReadable) return;
         const fetch = () => fetchSupportUnreadCount().then(setSupportUnread).catch(() => {});
         fetch();
         const id = setInterval(fetch, 30_000);
         return () => clearInterval(id);
-    }, [isPartner]);
+    }, [supportReadable]);
     useEffect(() => {
         const handler = (data: any) => {
             if (data.event === 'agent_chat_message' || data.event === 'agent_chat_initiated') {

@@ -104,6 +104,12 @@ const HASH_ALIASES = new Map<string, AppView>([
   ['aigovernance', 'aiGovernance'],
   ['tickets', 'internalTickets'],
   ['helpdesk', 'internalTickets'],
+  // Manifest entries with no screen of their own: each opens the screen that shows it (QA 2026-11-04).
+  ['usermanagement', 'settings'],
+  ['rolemanagement', 'settings'],
+  ['apikeys', 'settings'],
+  ['integrations', 'settings'],
+  ['notifications', 'notificationPrefs'],
 ]);
 
 /** The view a URL hash names (alias first, then the manifest, case-insensitive), or undefined. */
@@ -112,3 +118,14 @@ export function resolveHashView(hash: string): AppView | undefined {
   if (!wanted) return undefined;
   return HASH_ALIASES.get(wanted) ?? viewForHash(wanted);
 }
+
+/**
+ * May the startup load ask GET /api/users? Besides the User Management read rule the route runs
+ * list_users' ITAM admin gate (manage:assets), so a tenant whose asset screens are switched off
+ * cannot list its users even with manage:users; asking would only log a refused request.
+ */
+export function canListUsers(user: User | null, has: Has): boolean {
+  if (!user || !canReadView('userManagement', user, has)) return false;
+  return isSuperAdminRoleName(user.role) || has('*' as Permission) || has('manage:assets' as Permission);
+}
+

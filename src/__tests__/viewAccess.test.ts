@@ -2,8 +2,11 @@
  * Phase 77 (D-05, D-06, D-12): one pure function decides whether a signed-in user may see a view,
  * and which view they land on. Pure derivation over the manifest; no DOM.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
+  canListUsers,
   evaluateViewAccess,
   hasAnyScreen,
   landingView,
@@ -148,5 +151,33 @@ describe('resolveHashView (friendly URLs, D-05)', () => {
     for (const hash of ['constructor', '#constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
       expect(resolveHashView(hash)).toBeUndefined();
     }
+  });
+});
+
+describe('deep links to screens that live inside another screen (partner UI QA 2026-11-04)', () => {
+  it('opens Settings for its User Management, Roles, API Keys and Integrations tabs', () => {
+    for (const hash of ['#userManagement', 'usermanagement', 'roleManagement', 'apiKeys', 'integrations']) {
+      expect(resolveHashView(hash)).toBe('settings');
+    }
+    expect(resolveHashView('notifications')).toBe('notificationPrefs');
+  });
+
+  it('never resolves a hash to a view App has no screen for', () => {
+    const app = readFileSync(resolve(__dirname, '../../App.tsx'), 'utf8');
+    const rendered = new Set(Array.from(app.matchAll(/case '([A-Za-z0-9_]+)':/g), m => m[1]));
+    const orphans = CATALOGUES.map(entry => resolveHashView(entry.view)).filter(view => !view || !rendered.has(view));
+    expect(orphans).toEqual([]);
+  });
+});
+
+describe('canListUsers (partner UI QA 2026-11-04)', () => {
+  const list = (user: User) => canListUsers(user, derivePermissionState(user).hasPermission);
+
+  it("asks for the user list only when the route's ITAM admin gate (manage:assets) is held too", () => {
+    expect(list(mk('Tenant Admin', ['view:dashboard', 'manage:users', 'manage:assets']))).toBe(true);
+    expect(list(mk('Tenant Admin', ['view:dashboard', 'manage:users']))).toBe(false);
+    expect(list(mk('itam_viewer', ['view:dashboard', 'manage:assets']))).toBe(false);
+    expect(list(mk('Super Admin'))).toBe(true);
+    expect(list(mk('Tenant Admin'))).toBe(false);
   });
 });

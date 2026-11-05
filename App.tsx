@@ -246,7 +246,7 @@ import { AlertTriangleIcon } from './components/icons';
 import { showToast } from './utils/toast';
 import { derivePermissionState, isPartnerRoleName, isSuperAdminRoleName, roleLabel } from './utils/permissions';
 import { NAV_GROUPS, catalogueFor, viewForHash } from './utils/catalogueAccess';
-import { canReadView, evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
+import { canListUsers, canReadView, evaluateViewAccess, hasAnyScreen, landingView, permissionsKnown, resolveHashView } from './utils/viewAccess';
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
 import { ZeroAccessScreen } from './components/ZeroAccessScreen';
 import { PERMISSION_DENIED_EVENT, samePermissionSet, lostAccess, refreshThenLoad, type RefreshResult } from './utils/permissionRefresh';
@@ -510,7 +510,7 @@ const App: React.FC = () => {
 
     try {
       const results = await Promise.allSettled([
-        ifOn('userManagement', api.fetchUsers), ifOn('roleManagement', api.fetchRoles), _isSuperAdmin ? api.fetchTenants() : Promise.resolve([]), api.fetchMetrics(),
+        canListUsers(user, holds) ? api.fetchUsers() : Promise.resolve(SKIPPED), ifOn('roleManagement', api.fetchRoles), _isSuperAdmin ? api.fetchTenants() : Promise.resolve([]), api.fetchMetrics(),
         ifOn('alertManagement', api.fetchAlerts), ifOn('compliance', api.fetchComplianceFrameworks), ifOn('aiGovernance', api.fetchAiSystems),
         ifOn('assetManagement', api.fetchAssets), ifOn('patchManagement', api.fetchPatches), ifOn('incidentResponse', api.fetchSecurityCases),
         ifOn('playbooks', api.fetchPlaybooks), ifOn('incidentResponse', api.fetchSecurityEvents), ifOn('cloudAccounts', api.fetchCloudAccounts),
