@@ -112,6 +112,11 @@ class FakeCollection:
     async def count_documents(self, query=None):
         return sum(1 for d in self.docs if _match(d, query or {}))
 
+    async def delete_many(self, query):
+        kept = [d for d in self.docs if not _match(d, query)]
+        deleted, self.docs[:] = len(self.docs) - len(kept), kept
+        return type("R", (), {"deleted_count": deleted})()
+
 
 class FakeDB:
     def __init__(self, users=None, tenants=None):
@@ -119,6 +124,7 @@ class FakeDB:
         self.tenants = FakeCollection(tenants or [])
         # The role resolver reads documents through the raw handle (db._db.roles).
         self.roles = FakeCollection([])
+        self.password_reset_tokens = FakeCollection([])
         self._db = self
         self.audit_logs = FakeCollection([])
         self.audit_logs.insert_one = AsyncMock(side_effect=self.audit_logs.insert_one)
@@ -409,6 +415,32 @@ class TestUpdateUser:
 
         stored = fake_db.users.docs[0]
         assert "hashed_password" not in stored
+
+    @pytest.mark.asyncio
+    async def test_an_admin_set_password_ends_the_invite_and_reset_links_of_that_address(self, app, fake_db):
+        """Partner UI QA 2026-11-04: a person whose password the Super Admin set still showed "Invited",
+        and the emailed link kept working. Setting a password ends every open link of the address."""
+        user_id = ObjectId()
+        fake_db.users.docs.append({
+            "_id": user_id, "email": "erin@tenant-b.com", "full_name": "Erin",
+            "role": "user", "tenantId": "tenant-b", "status": "Active",
+            "createdAt": "2026-01-01T00:00:00Z",
+        })
+        fake_db.password_reset_tokens.docs.extend([
+            {"tokenHash": "a" * 64, "email": "erin@tenant-b.com", "invite": True},
+            {"tokenHash": "b" * 64, "email": "erin@tenant-b.com"},
+            {"tokenHash": "c" * 64, "email": "someone@tenant-b.com", "invite": True},
+        ])
+        _override_user(app, make_token_data(username="root@platform.com", role="Super Admin", tenant_id="platform-admin"))
+
+        with patch("user_endpoints.revoke_user_sessions", new_callable=AsyncMock), \
+             patch("user_endpoints._audit", new_callable=AsyncMock):
+            async with await _client(app) as ac:
+                named = await ac.put(f"/api/users/{user_id}", json={"full_name": "Erin B"})
+                assert len(fake_db.password_reset_tokens.docs) == 3  # a change without a password keeps them
+                r = await ac.put(f"/api/users/{user_id}", json={"password": "N3w!Passw0rd-x"})
+        assert named.status_code == 200 and r.status_code == 200, r.text
+        assert [d["email"] for d in fake_db.password_reset_tokens.docs] == ["someone@tenant-b.com"]
 
     @pytest.mark.asyncio
     async def test_update_user_cross_tenant_forbidden(self, app, fake_db):

@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 from database import get_database
 from authentication_service import get_current_user, revoke_user_sessions
+from reset_tokens import end_open_links
 from auth_utils import hash_password as get_password_hash, validate_password_complexity
 from rbac_utils import is_super_admin
 # Deliberately excluded from the D-02 API-key swap (Phase 73): user-management
@@ -438,6 +439,9 @@ async def update_user(user_id: str, updates: UserUpdate, current_user: TokenData
     if revoke_reasons and target_user.get("email"):
         await revoke_user_sessions(target_user["email"], "user updated: " + ", ".join(revoke_reasons))
     await db.users.update_one({"_id": obj_id}, update_op)
+    if "password" in update_data:
+        # The address's invite or reset link must not set another password after this one.
+        await end_open_links(db._db, target_user.get("email"))
     await _audit(db, "user.updated", getattr(current_user, "username", "unknown"),
                  target_user.get("email", user_id), target_user.get("tenantId", ""))
     # Reload and return

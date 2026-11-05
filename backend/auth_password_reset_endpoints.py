@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from database import get_database
 from auth_utils import hash_password, validate_password_complexity
 from authentication_service import revoke_user_sessions
+from reset_tokens import by_token, end_open_links, token_hash
 from rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ async def request_password_reset(request: Request, response: Response, body: Pas
     # Persist to DB so token survives process restarts; fall back to in-memory dict
     try:
         await db._db.password_reset_tokens.insert_one({
-            "token": reset_token,
+            "tokenHash": token_hash(reset_token),  # the link carries the token; the row only its hash
             "email": body.email,
             "expires_at": expires_at.isoformat(),
         })
@@ -75,7 +76,7 @@ async def confirm_password_reset(request: Request, response: Response, body: Pas
     db = get_database()
     if not entry:
         try:
-            db_token = await db._db.password_reset_tokens.find_one({"token": body.token})
+            db_token = await db._db.password_reset_tokens.find_one(by_token(body.token))
             if db_token:
                 expires_at = datetime.datetime.fromisoformat(db_token["expires_at"])
                 if expires_at.tzinfo is None:
@@ -113,7 +114,7 @@ async def confirm_password_reset(request: Request, response: Response, body: Pas
     # cannot both pass validation and race to overwrite each other's new password.
     _reset_tokens.pop(body.token, None)
     try:
-        deleted = await db._db.password_reset_tokens.find_one_and_delete({"token": body.token})
+        deleted = await db._db.password_reset_tokens.find_one_and_delete(by_token(body.token))
         if not deleted and entry.get("_from_db"):
             raise HTTPException(status_code=400, detail="Reset token has already been used")
     except HTTPException:
@@ -127,6 +128,7 @@ async def confirm_password_reset(request: Request, response: Response, body: Pas
         {"$set": {"password": hashed}, "$unset": {"hashed_password": ""}},
     )
     # A reset usually means the old password was lost or stolen: end the
-    # sessions it opened.
+    # sessions it opened, and every other reset or invite link still open.
     await revoke_user_sessions(entry["email"], "password reset")
+    await end_open_links(db._db, entry["email"])
     return {"success": True, "message": "Password updated successfully"}

@@ -2,8 +2,9 @@
 
 The invited person is stored first as an Active user whose password hash nobody knows. The link
 lives in ``password_reset_tokens`` so the existing ``POST /api/auth/reset-password/confirm`` sets
-the password and consumes the row; ``invites`` keeps only the SHA-256 of the link's secret so the
-public status route can say valid / expired / used / invalid without the row itself.
+the password and consumes the row. Both rows keep only the SHA-256 of the link's secret
+(``reset_tokens``), so the public status route can say valid / expired / used / invalid and a
+reader of the database holds no working link.
 
 The secret is emailed and nothing else: it is never returned from ``invite`` or ``resend``, never
 logged, and the inviter (a partner or the Super Admin) cannot read it back. The token row carries
@@ -13,7 +14,6 @@ adding it would delete a seven-day invite after an hour.
 Every query names its collection on the raw handle; a user's email is unique across all
 organizations, so the clash check cannot go through the tenant-scoped wrapper.
 """
-import hashlib
 import html
 import logging
 import os
@@ -27,6 +27,7 @@ from pymongo.errors import DuplicateKeyError
 
 from auth_utils import hash_password
 from partner_pool import PartnerError, _raw
+from reset_tokens import by_token, token_hash
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,7 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _hash(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+_hash = token_hash
 
 
 def _unavailable() -> PartnerError:
@@ -71,7 +71,7 @@ async def issue_invite(db, *, email: str, tenant_id: str, organization_name: str
     token = secrets.token_urlsafe(32)
     raw = _raw(db)
     await raw.password_reset_tokens.insert_one(
-        {"token": token, "email": email, "expires_at": expires.isoformat(), "invite": True})
+        {"tokenHash": _hash(token), "email": email, "expires_at": expires.isoformat(), "invite": True})
     await raw.invites.insert_one({
         "id": f"invite-{uuid.uuid4()}", "tokenHash": _hash(token), "email": email, "tenantId": tenant_id,
         "organizationName": organization_name, "roleKind": role_kind, "invitedBy": invited_by,
@@ -174,7 +174,7 @@ async def invite_state(db, token: Any, now: Optional[datetime] = None) -> Dict[s
     record = await raw.invites.find_one({"tokenHash": _hash(token)})
     if not record or record.get("supersededAt"):
         return {"state": "invalid"}
-    row = await raw.password_reset_tokens.find_one({"token": token})
+    row = await raw.password_reset_tokens.find_one(by_token(token))
     if not row:
         return {"state": "used"}
     if _expired(row, now or _now()):

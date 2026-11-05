@@ -27,6 +27,7 @@ from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
 GOOD_PASSWORD = "Str0ng!Passw0rd#42"
 CLASH_MESSAGE = "That email address can't be used. Use a different one."
+_ISSUED: dict = {}  # email -> the last link token issue_invite returned (the database keeps only its hash)
 
 
 @pytest.fixture
@@ -37,6 +38,15 @@ def wired(mongo_db, monkeypatch):
     monkeypatch.setattr(reset_ep, "get_database", lambda: SimpleNamespace(_db=mongo_db))
     monkeypatch.setattr(reset_ep, "revoke_user_sessions", AsyncMock())
     monkeypatch.delenv("FRONTEND_URL", raising=False)
+    _ISSUED.clear()
+    real_issue = inv.issue_invite
+
+    async def _issue(db, **kwargs):
+        token = await real_issue(db, **kwargs)
+        _ISSUED[kwargs["email"]] = token
+        return token
+
+    monkeypatch.setattr(inv, "issue_invite", _issue)
     return mongo_db
 
 
@@ -76,6 +86,11 @@ async def _token_row(db, email="ada@example.com"):
     return await db.password_reset_tokens.find_one({"email": email, "invite": True})
 
 
+def _token(email="ada@example.com"):
+    """The link token as only the invitee's email carries it."""
+    return _ISSUED[email]
+
+
 async def test_invite_stores_an_active_user_with_a_password_nobody_knows(wired):
     out = await _invite(wired)
     user = await wired.users.find_one({"email": "ada@example.com"})
@@ -85,16 +100,16 @@ async def test_invite_stores_an_active_user_with_a_password_nobody_knows(wired):
     assert out["user"]["email"] == "ada@example.com" and out["user"]["id"] == user["id"]
 
 
-async def test_invite_stores_a_seven_day_token_row_without_a_creation_time_and_a_hash_only_record(wired):
+async def test_invite_stores_a_seven_day_hash_only_link_row_and_a_hash_only_record(wired):
     before = datetime.now(timezone.utc)
     await _invite(wired)
     row = await _token_row(wired)
-    assert row["invite"] is True and set(row) == {"_id", "token", "email", "expires_at", "invite"}
+    assert row["invite"] is True and set(row) == {"_id", "tokenHash", "email", "expires_at", "invite"}
     expires = datetime.fromisoformat(row["expires_at"])
     assert timedelta(days=6, hours=23) < expires - before < timedelta(days=7, minutes=1)
     record = await wired.invites.find_one({"email": "ada@example.com"})
-    assert record["tokenHash"] == hashlib.sha256(row["token"].encode()).hexdigest()
-    assert "token" not in record and row["token"] not in str(record)
+    assert record["tokenHash"] == row["tokenHash"] == hashlib.sha256(_token().encode()).hexdigest()
+    assert "token" not in record and _token() not in str(record) and _token() not in str(row)
     assert record["organizationName"] == "Acme" and record["roleKind"] == "customer_admin"
 
 
@@ -103,7 +118,7 @@ async def test_invite_returns_no_token_no_link_and_no_password(wired):
     row = await _token_row(wired)
     assert set(out) == {"user", "emailSent"} and out["emailSent"] is False
     assert set(out["user"]) == {"id", "name", "email", "role"}
-    assert row["token"] not in repr(out) and "accept-invite" not in repr(out)
+    assert _token() not in repr(out) and "accept-invite" not in repr(out)
 
 
 async def test_an_address_in_use_anywhere_is_refused_generically_and_nothing_is_stored(wired):
@@ -135,7 +150,7 @@ async def test_an_invalid_address_is_refused_before_anything_is_stored(wired):
 
 async def test_status_is_valid_then_used_after_the_existing_confirm_route_sets_a_password(wired):
     await _invite(wired)
-    token = (await _token_row(wired))["token"]
+    token = _token()
     state = await inv.invite_state(wired, token)
     assert state == {"state": "valid", "organizationName": "Acme", "email": "ada@example.com",
                      "roleKind": "customer_admin"}
@@ -152,13 +167,13 @@ async def test_status_is_expired_invalid_and_never_echoes_the_token(wired):
     await _invite(wired)
     row = await _token_row(wired)
     later = datetime.fromisoformat(row["expires_at"]) + timedelta(seconds=1)
-    assert (await inv.invite_state(wired, row["token"], now=later)) == {"state": "expired"}
+    assert (await inv.invite_state(wired, _token(), now=later)) == {"state": "expired"}
     assert (await inv.invite_state(wired, "nope")) == {"state": "invalid"}
     assert (await inv.invite_state(wired, "x" * 600)) == {"state": "invalid"}
     assert (await inv.invite_state(wired, "")) == {"state": "invalid"}
     assert (await inv.invite_state(wired, 12345)) == {"state": "invalid"}
-    for state in (await inv.invite_state(wired, row["token"]), await inv.invite_state(wired, "nope")):
-        assert row["token"] not in repr(state)
+    for state in (await inv.invite_state(wired, _token()), await inv.invite_state(wired, "nope")):
+        assert _token() not in repr(state)
 
 
 async def test_member_status_follows_the_invite_through_its_life(wired):
@@ -167,18 +182,29 @@ async def test_member_status_follows_the_invite_through_its_life(wired):
     assert await inv.member_status(wired, "Ada@example.com") == "invited"
     later = datetime.fromisoformat(row["expires_at"]) + timedelta(seconds=1)
     assert await inv.member_status(wired, "ada@example.com", now=later) == "invite_expired"
-    assert (await _confirm(row["token"])).status_code == 200
+    assert (await _confirm(_token())).status_code == 200
     assert await inv.member_status(wired, "ada@example.com") == "active"
+
+
+async def test_confirming_a_link_ends_every_other_open_link_for_the_address(wired):
+    """A password set by any route leaves no reset or invite link of that address working."""
+    from reset_tokens import token_hash
+    await _invite(wired)
+    await wired.password_reset_tokens.insert_one({"tokenHash": token_hash("older-reset"), "email": "ada@example.com",
+                                                  "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat()})
+    assert (await _confirm(_token())).status_code == 200
+    assert await wired.password_reset_tokens.count_documents({"email": "ada@example.com"}) == 0
+    assert (await _confirm("older-reset")).status_code == 400
 
 
 async def test_resend_supersedes_the_old_link_and_issues_a_new_seven_day_one(wired):
     await _invite(wired)
-    old = (await _token_row(wired))["token"]
+    old = _token()
     user = await wired.users.find_one({"email": "ada@example.com"})
     sent = await inv.resend(wired, user=user, organization_name="Acme", role_kind="customer_admin",
                             invited_by="p@x")
     assert sent is False
-    new = (await _token_row(wired))["token"]
+    new = _token()
     assert new != old
     assert (await inv.invite_state(wired, old)) == {"state": "invalid"}
     assert (await inv.invite_state(wired, new))["state"] == "valid"
@@ -188,7 +214,7 @@ async def test_resend_supersedes_the_old_link_and_issues_a_new_seven_day_one(wir
 
 async def test_resend_is_refused_once_the_person_has_set_a_password(wired):
     await _invite(wired)
-    token = (await _token_row(wired))["token"]
+    token = _token()
     assert (await _confirm(token)).status_code == 200
     user = await wired.users.find_one({"email": "ada@example.com"})
     with pytest.raises(PartnerError) as refused:
@@ -213,7 +239,7 @@ async def test_without_a_link_base_nothing_is_sent_and_nothing_secret_is_logged(
     caplog.set_level(logging.DEBUG)
     with patch("email_service.email_service.send_email", new=AsyncMock()) as send:
         out = await _invite(wired)
-    token = (await _token_row(wired))["token"]
+    token = _token()
     assert out["emailSent"] is False
     send.assert_not_awaited()
     assert token not in _app_log(caplog) and "accept-invite?token" not in _app_log(caplog)
@@ -228,7 +254,7 @@ async def test_without_a_mail_configuration_nothing_is_sent(wired, monkeypatch, 
         out = await _invite(wired)
     assert out["emailSent"] is False
     send.assert_not_awaited()
-    assert (await _token_row(wired))["token"] not in _app_log(caplog)
+    assert _token() not in _app_log(caplog)
 
 
 async def test_a_link_base_that_is_not_http_is_refused(wired, monkeypatch):
@@ -249,7 +275,7 @@ async def test_with_mail_configured_the_link_goes_only_to_the_invitee_and_never_
                   new=AsyncMock(return_value={"success": True, "message": "ok"})) as send, \
             patch("database.get_database", return_value=SimpleNamespace(_db=wired)):
         out = await _invite(wired)
-    token = (await _token_row(wired))["token"]
+    token = _token()
     assert out["emailSent"] is True and token not in repr(out)
     kwargs = send.await_args.kwargs
     assert kwargs["to_email"] == "ada@example.com"
@@ -279,7 +305,7 @@ async def test_a_mail_failure_reports_false_and_still_keeps_the_invite(wired, mo
             patch("database.get_database", return_value=SimpleNamespace(_db=wired)):
         out = await _invite(wired)
     assert out["emailSent"] is False
-    token = (await _token_row(wired))["token"]
+    token = _token()
     assert (await inv.invite_state(wired, token))["state"] == "valid"
     assert token not in _app_log(caplog)
 
@@ -313,7 +339,7 @@ async def _post_status(app, payload):
 
 async def test_status_route_answers_valid_without_a_session_and_never_echoes_the_token(status_app, wired):
     await _invite(wired)
-    token = (await _token_row(wired))["token"]
+    token = _token()
     response = await _post_status(status_app, {"token": token})
     assert response.status_code == 200
     assert response.json() == {"state": "valid", "organizationName": "Acme", "email": "ada@example.com",
@@ -323,7 +349,7 @@ async def test_status_route_answers_valid_without_a_session_and_never_echoes_the
 
 async def test_status_route_classifies_unknown_and_used_links(status_app, wired):
     await _invite(wired)
-    token = (await _token_row(wired))["token"]
+    token = _token()
     assert (await _post_status(status_app, {"token": "nope"})).json() == {"state": "invalid"}
     assert (await _confirm(token)).status_code == 200
     used = await _post_status(status_app, {"token": token})
