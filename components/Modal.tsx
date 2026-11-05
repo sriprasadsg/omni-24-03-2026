@@ -94,15 +94,22 @@ export const Modal: React.FC<ModalProps> = ({
         }
     }, [onClose, closeOnEsc]);
 
+    // The opener is read during render: a child's autoFocus moves focus before any effect runs, so
+    // an effect would record that field and restore focus to it, gone, instead of the opener.
+    if (isOpen && lastFocusedRef.current === null) {
+        lastFocusedRef.current = document.activeElement as HTMLElement | null;
+    }
+
     // Lock body scroll, move focus in, restore focus on close
     useEffect(() => {
         if (!isOpen) return;
-        lastFocusedRef.current = document.activeElement as HTMLElement | null;
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
 
-        // Focus the first focusable element (or the panel itself)
+        // Focus the first focusable element (or the panel itself), unless a field's autoFocus already
+        // put focus inside: moving it blurred that field and showed its error on open.
         const t = window.setTimeout(() => {
+            if (panelRef.current?.contains(document.activeElement)) return;
             const focusable = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
             (focusable ?? panelRef.current)?.focus();
         }, 0);
@@ -110,7 +117,9 @@ export const Modal: React.FC<ModalProps> = ({
         return () => {
             window.clearTimeout(t);
             document.body.style.overflow = prevOverflow;
-            lastFocusedRef.current?.focus?.();
+            const opener = lastFocusedRef.current;
+            lastFocusedRef.current = null;
+            opener?.focus?.();
         };
     }, [isOpen]);
 
