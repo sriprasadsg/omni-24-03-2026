@@ -37,6 +37,12 @@ or without the new LangChain pins — none of the 12 full-suite failures are cau
 installed in this plan. Confirmed via `import app_startup` (clean import, only expected dev-mode
 JWT_SECRET_KEY warning) and the plan's own documented import-verification command (`OK 1.3.14`).
 
+- **Status:** resolved
+- **Resolution (2026-11-05):** items 4 and 5 pass: `tests/test_agentic_ai.py`, `tests/test_e2e_integration.py`
+  and `tests/test_rust_heartbeat_parity.py` together give 0 failures on a private mongod. Items 1-3 are
+  scripts at the `backend/` root that the suite never collects (`pyproject.toml` sets
+  `testpaths = ["tests"]`), so they are not suite failures.
+
 ## Discovered during 39-04 (2026-07-18) full-suite regression check
 
 Items 1-5 above still reproduce identically. One new observation, unrelated to this plan's three

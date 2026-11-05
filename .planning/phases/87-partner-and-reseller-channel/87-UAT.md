@@ -3,16 +3,16 @@ status: testing
 phase: 87-partner-and-reseller-channel
 source: [87-01-SUMMARY.md, 87-02-SUMMARY.md, 87-03-SUMMARY.md, 87-04-SUMMARY.md, 87-05-SUMMARY.md, 87-06-SUMMARY.md, 87-07-SUMMARY.md, 87-08-SUMMARY.md, 87-09-SUMMARY.md, 87-10-SUMMARY.md, 87-11-SUMMARY.md, 87-12-SUMMARY.md, 87-13-SUMMARY.md, 87-14-SUMMARY.md, 87-15-SUMMARY.md]
 started: 2026-11-04T07:11:12Z
-updated: 2026-11-04T07:11:54Z
+updated: 2026-11-05T08:50:00Z
 ---
 
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 2
-name: Daily seat-pool repair runs in the live backend
+number: 3
+name: Appoint a partner from the Partners screen
 expected: |
-  After the restart, logs/backend.log shows 'License seat maintenance loop started (reclaim hourly, reconcile daily)' with no 'License seat maintenance failed' line after it. Pool repair runs at startup and every 24 hours; once a partner exists, its handed-out count after a restart equals the total seats of its customers.
+  Needs the UI published. As Super Admin, Partners is in the sidebar. Appoint partner takes a name, seat pool, pool expiry, screen ceiling and first admin. The partner appears in the table with 0 handed out and the whole pool free. With email not configured on this VM, a 'Partner appointed' panel says the invite email couldn't be sent and tells you to set a password for the admin in User Management.
 awaiting: user response
 
 ## Tests
@@ -23,7 +23,8 @@ result: pass
 
 ### 2. Daily seat-pool repair runs in the live backend
 expected: After the restart, logs/backend.log shows 'License seat maintenance loop started (reclaim hourly, reconcile daily)' with no 'License seat maintenance failed' line after it. Pool repair runs at startup and every 24 hours; once a partner exists, its handed-out count after a restart equals the total seats of its customers.
-result: [pending]
+result: pass
+note: "2026-11-05: after the 08:17 restart logs/backend.log shows the loop started at 08:17:50Z and no 'License seat maintenance failed' line since. No partner exists on live yet, so the handed-out count check waits for the first partner."
 coverage_id: 87-03/D6
 
 ### 3. Appoint a partner from the Partners screen
@@ -576,9 +577,9 @@ coverage_id: 87-15/D3
 ## Summary
 
 total: 95
-passed: 83
+passed: 84
 issues: 0
-pending: 12
+pending: 11
 skipped: 0
 blocked: 0
 
