@@ -11,7 +11,7 @@ Plan 03, Task 2: GET /api/assets/{asset_id}/warranty end-to-end
 """
 import sys
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -299,17 +299,12 @@ class TestWarrantyRouteEndToEnd:
 
     @pytest.mark.asyncio
     async def test_warranty_route_uses_configured_per_tenant_window(self, mock_db, finance_app):
-        # Purchased 34 months ago from a 36-month warranty -> ~60 days to expiry:
-        # expiring under a 90-day tenant window, active under the 30-day default.
-        # Built explicitly (no extra date-library dependency, per RESEARCH's
-        # Don't-Hand-Roll table — stdlib arithmetic only).
-        now = datetime.now(timezone.utc)
-        year = now.year
-        month = now.month - 34
-        while month <= 0:
-            month += 12
-            year -= 1
-        purchase_dt = now.replace(year=year, month=month, day=1)
+        # A 36-month warranty that ends 57-60 days from today, on any date: expiring under a
+        # 90-day tenant window, active under the 30-day default. (Day 1 of the month 34 months
+        # back left under 30 days late in some months, e.g. on 31 January.) Stdlib arithmetic
+        # only, per RESEARCH's Don't-Hand-Roll table.
+        expires = datetime.now(timezone.utc) + timedelta(days=60)
+        purchase_dt = expires.replace(year=expires.year - 3, day=min(expires.day, 28))
         purchase_date = purchase_dt.isoformat()
 
         mock_db.assets.find_one = AsyncMock(return_value=finance_asset(

@@ -113,7 +113,8 @@ def test_legacy_download_allows_owner():
     from authentication_service import get_current_user
     import compliance_reports_endpoints
 
-    caller = _make_user(role="Viewer", tenant_id="tenant-a")
+    # A download needs export:reports, which Viewer does not hold; this test is about ownership.
+    caller = _make_user(role="Tenant Admin", tenant_id="tenant-a")
     # DB reports the file belongs to tenant-a (same as caller)
     mock_db = _make_reports_db("tenant-a")
 

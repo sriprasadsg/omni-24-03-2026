@@ -244,7 +244,8 @@ def test_cross_tenant_report_download_owner_allowed():
     from authentication_service import get_current_user
     import compliance_reports_endpoints
 
-    caller = _make_user(role="Viewer", tenant_id="tenant-a")
+    # A download needs export:reports, which Viewer does not hold; this test is about ownership.
+    caller = _make_user(role="Tenant Admin", tenant_id="tenant-a")
     db = MagicMock()
     db.compliance_reports = MagicMock()
     db.compliance_reports.find_one = AsyncMock(
