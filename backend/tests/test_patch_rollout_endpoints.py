@@ -244,3 +244,136 @@ async def test_the_start_body_is_checked_and_extra_fields_are_ignored(api):
         assert (await api.call("POST", BASE, json=body)).status_code == 422
     made = await api.call("POST", BASE, json={"name": " Nov ", "patchIds": ["openssl"], "shadow": True, "x": 1})
     assert made.status_code == 201 and made.json()["name"] == "Nov"
+
+
+# ================================================================== permissions, isolation and the start flow
+
+async def ready(db):
+    """Three computers waiting on openssl: one in each of the first two rings' groups and one ungrouped."""
+    await put_agent(db, "a1", group="G1")
+    await put_agent(db, "a2", group="G2")
+    await put_agent(db, "a3")
+
+
+START = {"name": "November", "patchIds": ["openssl"]}
+
+
+async def test_a_view_only_person_reads_the_list_with_every_control_off_and_cannot_start_or_save(api):
+    """protects=T-84-32 / T-84-30; fails_when=a viewer is offered or allowed Start or rings."""
+    await ready(api.db)
+    got = await api.call("GET", BASE, role="user")
+    assert got.status_code == 200
+    flags = got.json()["flags"]
+    assert flags["canStart"] is False and flags["canManageRings"] is False and flags["canOpenDecisions"] is False
+    assert (await api.call("POST", BASE, role="user", json=START)).status_code == 403
+    assert (await api.call("PUT", f"{BASE}/rings", role="user", json={"rings": []})).status_code == 403
+    assert (await api.call("POST", f"{BASE}/preflight", role="user", json={"patchIds": []})).status_code == 403
+    assert await api.db.patch_rollouts.count_documents({}) == 0
+
+
+async def test_an_api_key_holding_manage_patches_still_cannot_start_a_rollout_or_save_rings(api):
+    """protects=T-84-30 (D-10); fails_when=a key creates a rollout or changes the rings."""
+    await ready(api.db)
+    scopes = ["view:patching", "manage:patches"]
+    started = await api.call("POST", BASE, auth="api_key", scopes=scopes, json=START)
+    assert started.status_code == 403
+    saved = await api.call("PUT", f"{BASE}/rings", auth="api_key", scopes=scopes, json={"rings": RINGS})
+    assert saved.status_code == 403
+    assert await api.db.patch_rollouts.count_documents({}) == 0 and await api.db.patch_rollout_hosts.count_documents({}) == 0
+    assert (await api.call("GET", f"{BASE}/rings", role="tenant_admin", auth="api_key", scopes=scopes)).status_code == 200
+
+
+async def test_another_organizations_rollout_and_suggestion_answer_not_found_and_the_tenant_query_is_refused(api):
+    """protects=T-84-29 (IDOR); fails_when=an id of another organization returns data."""
+    await ready(api.db)
+    made = (await api.call("POST", BASE, json=START)).json()
+    assert (await api.call("GET", f"{BASE}/{made['id']}")).status_code == 200
+    assert (await api.call("GET", f"{BASE}/{made['id']}", tenant="t2")).status_code == 404
+    assert (await api.call("GET", BASE, tenant="t2")).json()["items"] == []
+    await suggestion(api.db)
+    assert (await api.call("GET", f"{BASE}/draft?suggestion=s1", tenant="t2")).status_code == 404
+    assert (await api.call("GET", f"{BASE}?tenantId=t1", tenant="t2")).status_code == 403
+    assert (await api.call("POST", f"{BASE}?tenantId=t1", tenant="t2", json=START)).status_code == 403
+
+
+async def test_the_platform_organization_reads_an_empty_page_and_cannot_start_save_or_check(api):
+    """protects=PTCH-07; fails_when=the platform's own server could be rolled out to."""
+    platform = dict(tenant=PLATFORM_TENANT_ID)
+    page = (await api.call("GET", BASE, **platform)).json()
+    assert page["items"] == [] and page["flags"]["platformTenant"] is True and page["flags"]["canStart"] is False
+    assert (await api.call("POST", BASE, json=START, **platform)).status_code == 409
+    assert (await api.call("PUT", f"{BASE}/rings", json={"rings": RINGS}, **platform)).status_code == 409
+    assert (await api.call("POST", f"{BASE}/preflight", json={"patchIds": ["openssl"]}, **platform)).status_code == 409
+    assert (await api.call("GET", f"{BASE}/pending-patches", **platform)).json()["items"] == []
+    assert await api.db.patch_rollouts.count_documents({"tenantId": PLATFORM_TENANT_ID}) == 0
+
+
+async def test_start_answers_201_and_the_new_card_is_listed_first_with_the_canary_ring_waiting(api):
+    await ready(api.db)
+    made = await api.call("POST", BASE, json={"name": "November", "patchIds": ["openssl"]})
+    assert made.status_code == 201
+    assert made.json() == {"id": made.json()["id"], "name": "November", "simulation": False}
+    listed = (await api.call("GET", BASE)).json()
+    assert [c["id"] for c in listed["items"]] == [made.json()["id"]]
+    card = listed["items"][0]
+    assert card["status"] == "running" and card["computerCount"] == 3 and card["startedBy"] == "tenant_admin@example.test"
+    assert [r["name"] for r in card["rings"]] == ["Canary", "Pilot", "Everyone else"]
+    assert card["rings"][0]["hostTotal"] == 1 and card["rings"][0]["hosts"][0]["hostname"] == "host-a1"
+    assert (await api.call("GET", f"{BASE}/{made.json()['id']}")).json()["name"] == "November"
+
+
+async def test_a_rollout_started_in_shadow_mode_is_marked_as_a_simulation(api):
+    await ready(api.db)
+    await api.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"shadow": True}})
+    made = (await api.call("POST", BASE, json=START)).json()
+    assert made["simulation"] is True
+    assert (await api.call("GET", BASE)).json()["flags"]["shadow"] is True
+
+
+async def test_with_no_window_preflight_says_so_without_blocking_the_call_and_start_answers_422_with_the_row(api):
+    """protects=D-03; fails_when=a rollout starts with no maintenance window, or the answer lacks the window row."""
+    await ready(api.db)
+    await api.db.maintenance_windows.delete_many({"tenantId": "t1"})
+    checked = await api.call("POST", f"{BASE}/preflight", json={"patchIds": ["openssl"]})
+    assert checked.status_code == 200 and checked.json()["canStart"] is False
+    assert checked.json()["firstBlocker"] == "Add a maintenance window first."
+    refused = await api.call("POST", BASE, json=START)
+    assert refused.status_code == 422
+    body = refused.json()
+    assert body["detail"] == "Add a maintenance window first."
+    window = next(r for r in body["rows"] if r["check"] == "window")
+    assert window["blocker"] is True and window["link"] == "maintenance"
+    assert await api.db.patch_rollouts.count_documents({}) == 0 and await api.db.patch_rollout_hosts.count_documents({}) == 0
+
+
+async def test_preflight_with_a_ready_organization_can_start_and_claims_nothing(api):
+    await ready(api.db)
+    checked = (await api.call("POST", f"{BASE}/preflight", json={"patchIds": ["openssl"]})).json()
+    assert checked["canStart"] is True and checked["firstBlocker"] is None
+    assert [r["check"] for r in checked["rows"]][:2] == ["window", "rings"]
+    assert await api.db.patch_rollout_hosts.count_documents({}) == 0
+
+
+async def test_a_stop_blocks_start_with_its_row_and_turns_the_flag_off(api):
+    await ready(api.db)
+    await api.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"stop": {"active": True}}})
+    assert (await api.call("GET", BASE)).json()["flags"]["canStart"] is False
+    refused = await api.call("POST", BASE, json=START)
+    assert refused.status_code == 422 and any(r["check"] == "stopped" for r in refused.json()["rows"])
+
+
+async def test_two_starts_at_the_same_moment_give_one_rollout_and_one_already_in_rollout(api):
+    """protects=PTCH-07 (one rollout per computer); fails_when=both Starts succeed, or both fail, or a claim is left."""
+    await ready(api.db)
+    first, second = await api.twice("POST", BASE, START)
+    assert sorted([first.status_code, second.status_code]) == [201, 409]
+    lost = first if first.status_code == 409 else second
+    assert lost.json()["code"] == "already_in_rollout"
+    assert await api.db.patch_rollouts.count_documents({"tenantId": "t1"}) == 1
+    assert await api.db.patch_rollout_hosts.count_documents({"tenantId": "t1", "active": True}) == 3
+
+
+async def test_a_patch_id_that_is_not_installable_is_refused_with_the_patches_sentence(api):
+    await ready(api.db)
+    refused = await api.call("POST", BASE, json={"name": "x", "patchIds": ["CVE-2026-1"]})
+    assert refused.status_code == 422 and refused.json()["detail"] == "Pick at least one patch to install."
