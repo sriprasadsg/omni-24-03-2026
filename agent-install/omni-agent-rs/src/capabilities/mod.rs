@@ -40,6 +40,7 @@ mod response_contract_tests;
 pub mod ssh_key_checks;
 pub mod ssh_key_rotation;
 pub mod patch_installer;
+pub mod patch_reversible;
 #[cfg(target_os = "linux")]
 pub mod fanotify_watcher;
 

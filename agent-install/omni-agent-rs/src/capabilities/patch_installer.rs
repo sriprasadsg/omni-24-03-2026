@@ -8,6 +8,7 @@
 //! Patch ids come from the platform, so they are validated here (KB numbers and plain
 //! package names only) and never spliced into a shell or PowerShell command line.
 
+use super::patch_reversible::{self, NOT_REVERSIBLE, NOT_REVERSIBLE_MESSAGE};
 use serde_json::{json, Value};
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -30,6 +31,10 @@ pub struct PatchJob {
     pub patch_ids: Vec<String>,
     pub job_id: Option<String>,
     pub rollback: bool,
+    /// Install only what can be put back on this host; the rest is deferred (D-05).
+    pub require_reversible: bool,
+    /// Rollback only: revert what this install job changed, not the oldest recorded version.
+    pub revert_of: Option<String>,
 }
 
 /// A KB number (as "KB1234567") or a package name; None for anything else, CVE ids included.
@@ -57,16 +62,39 @@ pub fn parse_job(item: &Value, rollback: bool) -> Result<PatchJob, String> {
         return Err("The patch instruction carried no patch ids".to_string());
     }
     // The job id becomes a URL path segment, so only the platform's own id shape is kept.
-    let job_id = args.and_then(|a| a.get("job_id")).or_else(|| item.get("job_id"))
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty() && s.len() <= 80 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
-        .map(str::to_string);
-    Ok(PatchJob { patch_ids: ids, job_id, rollback })
+    let field = |key: &str| args.and_then(|a| a.get(key)).or_else(|| item.get(key)).filter(|v| !v.is_null());
+    let job_id = field("job_id").and_then(safe_id);
+    // A revert_of that is present but malformed must never fall back to the oldest-version rollback.
+    let revert_of = match field("revert_of") {
+        None => None,
+        Some(v) if rollback => Some(safe_id(v).ok_or("The patch instruction carried an invalid revert_of")?),
+        Some(_) => return Err("revert_of applies to rollback_patches only".to_string()),
+    };
+    let require_reversible = field("require_reversible").and_then(Value::as_bool).unwrap_or(false);
+    Ok(PatchJob { patch_ids: ids, job_id, rollback, require_reversible, revert_of })
+}
+
+/// The platform's own id shape (letters, digits, `-`, `_`; up to 80 characters), or None.
+fn safe_id(v: &Value) -> Option<String> {
+    v.as_str().filter(|s| !s.is_empty() && s.len() <= 80 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+        .map(str::to_string)
 }
 
 pub fn patch_result(patch_id: &str, status: &str, message: &str, reboot: bool) -> Value {
     json!({"patch_id": patch_id, "status": status, "message": message,
            "reboot_required": reboot, "timestamp": chrono::Utc::now().to_rfc3339()})
+}
+
+/// A result that carries a machine-readable `code` (the agent contract's `patchCodes`).
+pub fn coded_result(patch_id: &str, status: &str, code: &str, message: &str, reboot: bool) -> Value {
+    let mut r = patch_result(patch_id, status, message, reboot);
+    r["code"] = json!(code);
+    r
+}
+
+/// Not installed, and not a failure: the patch waits for a person to approve it.
+pub fn deferred_result(patch_id: &str, code: &str, message: &str) -> Value {
+    coded_result(patch_id, "deferred", code, message, false)
 }
 
 /// The job summary posted to /api/deployments/{job_id}/result.
@@ -104,12 +132,12 @@ pub async fn run(job: &PatchJob) -> Value {
     let (valid, mut results) = triage(&job.patch_ids, cfg!(windows));
     log::info!("Patch job {:?}: {} {} patch(es)", job.job_id, if job.rollback { "rolling back" } else { "installing" }, valid.len());
     if !valid.is_empty() {
-        results.extend(run_os(&valid, job.rollback).await);
+        results.extend(run_os(&valid, job).await);
     }
     summarize(results, job.job_id.as_deref(), None)
 }
 
-async fn output(mut cmd: tokio::process::Command, timeout: Duration) -> Result<std::process::Output, String> {
+pub(super) async fn output(mut cmd: tokio::process::Command, timeout: Duration) -> Result<std::process::Output, String> {
     cmd.kill_on_drop(true);
     match tokio::time::timeout(timeout, cmd.output()).await {
         Ok(Ok(out)) => Ok(out),
@@ -120,8 +148,8 @@ async fn output(mut cmd: tokio::process::Command, timeout: Duration) -> Result<s
 
 // ── Windows ────────────────────────────────────────────────────────────────
 
-#[cfg(windows)]
-const WUA_INSTALL: &str = r#"
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) const WUA_INSTALL: &str = r#"
 $ErrorActionPreference = 'Stop'
 try {
     $wanted = @($env:OMNI_KBS -split ',' | ForEach-Object { $_.Trim().ToUpper() } | Where-Object { $_ })
@@ -169,8 +197,8 @@ try {
 }
 "#;
 
-#[cfg(windows)]
-const WUA_UNINSTALL: &str = r#"
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) const WUA_UNINSTALL: &str = r#"
 $ErrorActionPreference = 'Stop'
 try {
     $wanted = @($env:OMNI_KBS -split ',' | ForEach-Object { $_.Trim().ToUpper() } | Where-Object { $_ })
@@ -203,6 +231,24 @@ try {
 }
 "#;
 
+/// The install script. With `require_reversible`, an offered update Windows does not mark as
+/// uninstallable is left out of the install collection and reported as deferred (D-05); without
+/// it this is the 2.1.16 script, byte for byte.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn install_script(require_reversible: bool) -> String {
+    if !require_reversible {
+        return WUA_INSTALL.to_string();
+    }
+    let deferred = format!("@{{ patch_id = $id; status = 'deferred'; code = '{NOT_REVERSIBLE}'; reboot_required = $false; message = '{NOT_REVERSIBLE_MESSAGE}' }}");
+    WUA_INSTALL
+        .replacen("$index = @{}; $added = @{}", "$index = @{}; $added = @{}; $deferred = @()", 1)
+        .replacen("$uid = $u.Identity.UpdateID",
+                  "if (-not $u.IsUninstallable) { if ($deferred -notcontains $id) { $deferred += $id }; continue }\n                $uid = $u.Identity.UpdateID", 1)
+        .replacen("    $results = @()\n    foreach ($id in $wanted) {",
+                  &format!("    $results = @()\n    foreach ($id in $deferred) {{ $results += {deferred} }}\n    foreach ($id in $wanted) {{"), 1)
+        .replacen("        if (-not $index.ContainsKey($id)) {", "        if (-not $index.ContainsKey($id) -and $deferred -notcontains $id) {", 1)
+}
+
 /// Turns the PowerShell script's JSON line into per-KB results.
 pub fn parse_wua_output(stdout: &str, stderr: &str, kbs: &[String]) -> Vec<Value> {
     let last = stdout.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("");
@@ -217,19 +263,25 @@ pub fn parse_wua_output(stdout: &str, stderr: &str, kbs: &[String]) -> Vec<Value
             return kbs.iter().map(|kb| patch_result(kb, "failed", &format!("Windows Update error: {reason}"), false)).collect();
         }
     };
-    rows.iter().filter(|r| r.is_object()).map(|r| patch_result(
-        r.get("patch_id").and_then(Value::as_str).unwrap_or("?"),
-        r.get("status").and_then(Value::as_str).unwrap_or("failed"),
-        r.get("message").and_then(Value::as_str).unwrap_or(""),
-        r.get("reboot_required").and_then(Value::as_bool).unwrap_or(false),
-    )).collect()
+    rows.iter().filter(|r| r.is_object()).map(|r| {
+        let mut result = patch_result(
+            r.get("patch_id").and_then(Value::as_str).unwrap_or("?"),
+            r.get("status").and_then(Value::as_str).unwrap_or("failed"),
+            r.get("message").and_then(Value::as_str).unwrap_or(""),
+            r.get("reboot_required").and_then(Value::as_bool).unwrap_or(false),
+        );
+        if let Some(code) = r.get("code").and_then(Value::as_str) {
+            result["code"] = json!(code);
+        }
+        result
+    }).collect()
 }
 
 #[cfg(windows)]
-async fn run_os(kbs: &[String], rollback: bool) -> Vec<Value> {
+async fn run_os(kbs: &[String], job: &PatchJob) -> Vec<Value> {
+    let script = if job.rollback { WUA_UNINSTALL.to_string() } else { install_script(job.require_reversible) };
     let mut cmd = tokio::process::Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
-              if rollback { WUA_UNINSTALL } else { WUA_INSTALL }])
+    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script])
         .env("OMNI_KBS", kbs.join(","));
     match output(cmd, WINDOWS_TIMEOUT).await {
         Ok(out) => parse_wua_output(&String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr), kbs),
@@ -327,7 +379,7 @@ mod linux {
         false
     }
 
-    pub async fn install(packages: &[String]) -> Vec<Value> {
+    pub async fn install(packages: &[String], job: &PatchJob) -> Vec<Value> {
         let Some(mgr) = manager() else {
             return packages.iter().map(|p| patch_result(p, "failed", "No supported package manager (apt-get, dnf, yum)", false)).collect();
         };
@@ -346,6 +398,11 @@ mod linux {
                 results.push(patch_result(pkg, "failed", "Package is not installed; patching only upgrades installed packages", false));
                 continue;
             };
+            // D-05: checked just before this package's upgrade, against what the source offers now.
+            if job.require_reversible && !patch_reversible::reversible_linux(&before, &patch_reversible::offered_versions(mgr, pkg).await) {
+                results.push(deferred_result(pkg, NOT_REVERSIBLE, NOT_REVERSIBLE_MESSAGE));
+                continue;
+            }
             let cmd = if mgr == "apt-get" {
                 privileged(&["apt-get", "install", "-y", "-q", "--only-upgrade", "-o", "Dpkg::Options::=--force-confdef",
                              "-o", "Dpkg::Options::=--force-confold", "--", pkg])
@@ -406,11 +463,11 @@ mod linux {
 }
 
 #[cfg(target_os = "linux")]
-async fn run_os(packages: &[String], rollback: bool) -> Vec<Value> {
-    if rollback { linux::rollback(packages).await } else { linux::install(packages).await }
+async fn run_os(packages: &[String], job: &PatchJob) -> Vec<Value> {
+    if job.rollback { linux::rollback(packages).await } else { linux::install(packages, job).await }
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]
-async fn run_os(ids: &[String], _rollback: bool) -> Vec<Value> {
+async fn run_os(ids: &[String], _job: &PatchJob) -> Vec<Value> {
     ids.iter().map(|id| patch_result(id, "failed", "Patching is not supported on this OS", false)).collect()
 }
