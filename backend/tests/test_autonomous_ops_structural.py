@@ -63,7 +63,6 @@ GRANDFATHERED_WRITERS = (
     "correlation_engine_threat.py",
     "database_migrations.py",
     "deployment_result_endpoints.py",
-    "deployment_service.py",
     "dr_endpoints.py",
     "native_security_ops_endpoints.py",
     "patch_core_endpoints.py",
