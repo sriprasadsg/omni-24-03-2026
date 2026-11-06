@@ -253,10 +253,13 @@ describe('StartDialog: the check before starting', () => {
     show();
     await ready();
     let release: (p: Preflight) => void = () => {};
+    const before = preflightCalls().length;
     preflightFor = () => new Promise<Preflight>(resolve => { release = resolve; });
     tick('KB5001');
     expect(await screen.findByText('Checking...')).toBeInTheDocument();
     expect(screen.getByText('Next window: Sat 7 Nov, 03:00 (Asia/Kolkata).')).toBeInTheDocument();
+    await waitFor(() => expect(preflightCalls().length).toBe(before + 1));
+    expect(screen.getByText('Checking...')).toBeInTheDocument();
     await act(async () => { release(pre([row('window', 'Next window: Sun 8 Nov, 03:00 (Asia/Kolkata).')])); });
     expect(await screen.findByText('Next window: Sun 8 Nov, 03:00 (Asia/Kolkata).')).toBeInTheDocument();
     expect(screen.queryByText('Checking...')).toBeNull();
