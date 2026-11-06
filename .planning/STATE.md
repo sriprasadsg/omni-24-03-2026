@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 84
 current_phase_name: Staged Patch Rollouts
 status: executing
-stopped_at: Completed 84-03-PLAN.md
-last_updated: "2026-11-06T14:52:25.849Z"
+stopped_at: Completed 84-04-PLAN.md
+last_updated: "2026-11-06T15:02:29.571Z"
 last_activity: 2026-11-06
 last_activity_desc: Phase 84 execution started
-state_head: 650da48c2f88995bd5397d07e494cfe86f38b9d5
+state_head: ff74c01f84420137005f53fa5a456a9c147ede34
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 92
-  completed_plans: 73
+  completed_plans: 74
   percent: 14
 ---
 
@@ -556,6 +556,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 84]: 84-02: Not reverted sentences are built from one reason table and not_reverted() raises on an unknown code; preflight title key is autonomous_ops (a dict key named autonomy trips the stamp scanner); plural() returns number+noun, count() only the agreeing noun
 - [Phase 84]: 84-03 OQ2: every rollout install, restart and revert is one ledger row per computer; a line is a ring's rows sharing reason.inputs {rolloutId, ring, line}; approve_line runs approvals.approve once per row (UI-SPEC DEV-1, pending user review)
 - [Phase 84]: 84-03: an approved rollout row is claimed approved->dispatching with one compare-and-set before gate.execute, and its job document is created at dispatch, not when the card is raised
+- [Phase 84]: 84-04: instruction expiry (instruction_expired) is checked first in delivery.hold_back_autonomous on any item with a datetime expiresAt; stamped undo/compensate exempt; non-date values ignored
+- [Phase 84]: 84-04: reconciler skips patch_rollout rows (controller settles); legacy staged-deployment trigger_rollback raises LegacyRevertRetired, route answers 409, deployment_service.py left GRANDFATHERED_WRITERS
 
 ## Performance Metrics
 
@@ -784,6 +786,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 84 P01 | 22 min | 3 tasks | 17 files |
 | Phase 84 P02 | 14 min | 3 tasks | 10 files |
 | Phase 84 P03 | 31 min | 3 tasks | 12 files |
+| Phase 84 P04 | 9 min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -818,8 +821,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-06T14:52:25.603Z
-**Stopped at:** Completed 84-03-PLAN.md
+**Last session:** 2026-11-06T15:02:29.336Z
+**Stopped at:** Completed 84-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -846,7 +849,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 84 (Staged Patch Rollouts) — EXECUTING
-Plan: 4 of 22
+Plan: 5 of 22
 Status: Ready to execute
 Last activity: 2026-11-06 — Phase 84 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
