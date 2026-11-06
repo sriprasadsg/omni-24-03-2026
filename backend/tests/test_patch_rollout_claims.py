@@ -303,6 +303,7 @@ async def test_a_job_that_already_reported_does_not_make_a_computer_busy(mongo_d
     assert row(await pre(db), "left_out") == []
 
 
+@pytest.mark.real_agent_capabilities
 async def test_a_tenant_whose_patch_installer_is_not_ticked_has_every_computer_left_out(mongo_db):
     db = await basic(mongo_db)
     await db.tenants.update_one({"id": T}, {"$set": {"agentCapabilities": ["remote_access"]}})
@@ -324,6 +325,7 @@ async def test_an_offline_computer_is_still_in_the_rollout_and_is_counted_in_the
 async def test_a_platform_computer_under_a_customer_group_is_never_claimed(mongo_db):
     db = await basic(mongo_db)
     await agent(db, "plat", tenant=PLATFORM_TENANT_ID)
+    await db.agents.update_one({"id": "plat"}, {"$set": {"ipAddress": "10.8.8.8"}})     # the others share 10.9.9.9
     await db.agent_group_members.replace_one({"group_id": "G2", "agent_id": "plat"},
                                              {"group_id": "G2", "agent_id": "plat", "tenantId": T}, upsert=True)
     out = await go(db)

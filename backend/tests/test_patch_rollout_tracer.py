@@ -100,11 +100,16 @@ async def test_start_refuses_without_a_window_or_rings_or_for_the_platform_tenan
         == "platform_tenant"
     assert (await start.start_rollout(db, T, name="x", patch_ids=["CVE-2026-1"], actor=ACTOR))["reason"] \
         == "invalid_patch_ids"
+    # Plan 84-06: a blocker from the check before Start raises PreflightBlocked (it carried a refusal code before).
     await db.patch_rollout_settings.delete_many({})
-    assert (await start.start_rollout(db, T, name="x", patch_ids=["openssl"], actor=ACTOR))["reason"] == "no_rings"
+    with pytest.raises(start.PreflightBlocked) as no_rings:
+        await start.start_rollout(db, T, name="x", patch_ids=["openssl"], actor=ACTOR, now=NOW)
+    assert any(r["check"] == "rings" and r["blocker"] for r in no_rings.value.rows)
     await seed_rings(db, T, RINGS)
     await db.maintenance_windows.delete_many({})
-    assert (await start.start_rollout(db, T, name="x", patch_ids=["openssl"], actor=ACTOR))["reason"] == "no_window"
+    with pytest.raises(start.PreflightBlocked) as no_window:
+        await start.start_rollout(db, T, name="x", patch_ids=["openssl"], actor=ACTOR, now=NOW)
+    assert any(r["check"] == "window" and r["blocker"] for r in no_window.value.rows)
     assert await db.patch_rollouts.count_documents({}) == 0
 
 
@@ -472,8 +477,10 @@ async def test_no_two_active_rollouts_can_hold_one_computer(mongo_db):
 async def test_a_second_start_leaves_out_a_computer_another_rollout_holds(mongo_db):
     db = await world(mongo_db)
     await begin(db)
-    out = await start.start_rollout(db, T, name="Second", patch_ids=["openssl"], actor=ACTOR, now=NOW)
-    assert out["status"] == "refused" and out["reason"] == "no_hosts" and out["leftOut"] == ["a1"]
+    # Plan 84-06: the only computer is held, so the check finds nothing to install and lists it as left out.
+    with pytest.raises(start.PreflightBlocked) as caught:
+        await start.start_rollout(db, T, name="Second", patch_ids=["openssl"], actor=ACTOR, now=NOW)
+    assert any(r["check"] == "left_out" and r["hosts"] == ["host-a1"] for r in caught.value.rows)
     assert await db.patch_rollouts.count_documents({}) == 1
 
 

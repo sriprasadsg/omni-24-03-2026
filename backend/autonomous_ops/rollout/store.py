@@ -118,6 +118,13 @@ async def release(db, tenant_id: str, rollout_id: str, agent_ids: Optional[Itera
     return result.modified_count
 
 
+async def discard(db, tenant_id: str, rollout_id: str) -> None:
+    """Remove a rollout that never started, its host documents (claims) included. Used by Start when it loses a
+    race or fails part way, so a failed Start leaves nothing behind."""
+    await hosts(db).delete_many({"tenantId": tenant_id, "rolloutId": rollout_id})
+    await rollouts(db).delete_one({"id": rollout_id, "tenantId": tenant_id})
+
+
 async def host_docs(db, tenant_id: str, rollout_id: str) -> List[Dict[str, Any]]:
     """The rollout's host documents in a stable order (ring, hostname, agent id)."""
     found = hosts(db).find({"tenantId": tenant_id, "rolloutId": rollout_id})
