@@ -195,16 +195,18 @@ async def handle_maintenance(tenant_id: Optional[str]) -> str:
         db = get_database()
         q: dict = {"tenantId": tenant_id} if tenant_id else {}
         windows = await (
-            db.maintenance_windows.find(q, {"_id": 0, "name": 1, "start_time": 1, "end_time": 1, "status": 1})
-            .sort("start_time", 1).limit(5).to_list(length=5)
+            db.maintenance_windows.find(q, {"_id": 0, "name": 1, "recurrence": 1, "startTime": 1, "endTime": 1,
+                                            "startsAt": 1, "endsAt": 1, "start_time": 1, "end_time": 1})
+            .sort("createdAt", 1).limit(5).to_list(length=5)
         )
         if not windows:
             return "No maintenance windows scheduled. [NAVIGATE:maintenance]"
         lines = ["**Maintenance Windows**:\n"]
         for w in windows:
-            start = str(w.get("start_time", "?"))[:16]
-            end = str(w.get("end_time", "?"))[:16]
-            lines.append(f"• **{w.get('name','?')}** [{w.get('status','?')}] {start} → {end}")
+            # new shape (zone-aware) first, the old UTC fields for a row the screen has not re-saved
+            start = str(w.get("startsAt") or w.get("startTime") or w.get("start_time") or "?")[:16]
+            end = str(w.get("endsAt") or w.get("endTime") or w.get("end_time") or "?")[:16]
+            lines.append(f"• **{w.get('name','?')}** [{w.get('recurrence','?')}] {start} → {end}")
         lines.append("\n[NAVIGATE:maintenance]")
         return "\n".join(lines)
     except Exception as e:

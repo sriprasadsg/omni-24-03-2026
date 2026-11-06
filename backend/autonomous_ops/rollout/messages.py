@@ -211,6 +211,19 @@ VALIDATION = {
     "soak_hours": "Enter hours between 1 and 168.",
     "fail_pct": "Enter a percentage between 1 and 50.",
     "min_sample": "Enter a number between 1 and 100.",
+    # Maintenance windows (UI-SPEC section 8, plan 84-05)
+    "window_name": "Enter a window name.",
+    "window_name_long": "A window name can be up to 60 characters.",
+    "window_repeats": "Choose One-time, Daily or Weekly.",
+    "window_times": "Enter a start and end time.",
+    "window_dates": "Enter a start and end date and time.",
+    "window_days": "Choose at least one day.",
+    "window_days_range": "Choose days from Monday (1) to Sunday (7).",
+    "window_same_time": "The window can't start and end at the same time.",
+    "window_too_long": "A window can be up to 24 hours long.",
+    "window_end_before_start": "The end must be after the start.",
+    "window_limit": "You can keep up to 50 maintenance windows. Delete one first.",
+    "time_zone": "Choose a time zone from the list, for example Asia/Kolkata.",
 }
 
 # ---------------------------------------------------------------- the approval card (section 6)
