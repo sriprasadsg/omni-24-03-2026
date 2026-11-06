@@ -495,7 +495,7 @@ Plans:
   4. A rollout installs or advances only inside the maintenance window recorded in Change Management; outside the window nothing is installed.
   5. Installs run on their own only in the canary ring and only for patch classes marked reversible; every other install and every reboot waits for one approval per stage. The platform's own host is never patched by a rollout, a host belongs to at most one active rollout, and patch instructions expire.
 
-**Plans**: 17/22 plans executed in 7 waves
+**Plans**: 18/22 plans executed in 7 waves
 
 Plans:
 **Wave 1**
@@ -524,7 +524,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 - [x] 84-16-PLAN.md — Resume and Cancel, completion with hosts not reached (7-day close), Activity row copy
-- [ ] 84-17-PLAN.md — Start dialog with preflight, Rollout rings card
+- [x] 84-17-PLAN.md — Start dialog with preflight, Rollout rings card
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 84-18-PLAN.md — Ring detail, Resume and Cancel dialogs
@@ -630,7 +630,7 @@ Plans:
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
 | 83. Autonomous Security Response | 20/20 | In Progress | - |
-| 84. Staged Patch Rollouts | 17/22 | In Progress | - |
+| 84. Staged Patch Rollouts | 18/22 | In Progress | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | In Progress | - |
