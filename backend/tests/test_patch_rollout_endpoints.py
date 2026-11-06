@@ -25,6 +25,7 @@ import patch_rollout_endpoints as endpoints
 import rbac_utils
 from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
+from authentication_service import get_current_user
 from autonomous_ops import PLATFORM_TENANT_ID, ledger, protected
 from autonomous_ops.rollout import store
 from catalogue_mounts import mount_dependencies
@@ -57,6 +58,7 @@ class Api:
         self.app = FastAPI()
         self.app.include_router(endpoints.router, dependencies=mount_dependencies("patch_rollout_endpoints", "router"))
         self.app.dependency_overrides[get_current_user_or_api_key] = lambda: self.user
+        self.app.dependency_overrides[get_current_user] = lambda: self.user       # the Patching guard's own sign-in
 
     async def call(self, method, path, *, role="tenant_admin", tenant="t1", auth="session", scopes=None, json=None):
         self.user = TokenData(username=f"{role}@example.test", role=role, tenant_id=tenant, scopes=scopes,
@@ -126,7 +128,7 @@ async def test_the_window_route_says_open_closed_or_none(api):
     await api.db.maintenance_windows.delete_many({"tenantId": "t1"})
     none = (await api.call("GET", f"{BASE}/window")).json()
     assert none == {"state": "none", "text": "Add a maintenance window first.", "closesAt": None,
-                    "nextOpensAt": None, "timeZone": None}
+                    "nextOpensAt": None, "timeZone": "UTC"}
 
 
 # ---------------------------------------------------------------- the patch picker

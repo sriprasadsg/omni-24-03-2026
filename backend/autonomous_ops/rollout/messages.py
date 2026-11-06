@@ -331,6 +331,7 @@ API_DETAIL = {
     "revert_running": "Wait for the revert to finish.",
     "reason_required": "A reason is required, up to 500 characters.",
     "rollout_not_found": "Rollout not found.",
+    "suggestion_not_found": "Suggestion not found.",
     "rings_unreadable": "Your rollout rings couldn't be read, so no rollout can start until they load.",
 }
 
