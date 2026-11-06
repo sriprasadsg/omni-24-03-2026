@@ -152,12 +152,14 @@ def _result(status: str, *, when: Optional[str] = None, opens: Any = None, appro
             "approved": approved, "refused": refused or [], "message": message}
 
 
-async def _running(db, tenant_id: str, rollout_id: str) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-    """(rollout, None) when it exists and is running, else (None, the refusing result)."""
+async def _running(db, tenant_id: str, rollout_id: str,
+                   line: str = "") -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """(rollout, None) when it exists and is running (a halted rollout too, for its Revert restart line), else
+    (None, the refusing result)."""
     rollout = await store.rollouts(db).find_one({"id": rollout_id, "tenantId": tenant_id}, {"_id": 0, "id": 1, "status": 1, "rings": 1})
     if rollout is None:
         return None, _result("refused", message=rm.LINE_RESULT["not_found"])
-    if rollout.get("status") != "running":
+    if rollout.get("status") != "running" and not (line == "revert_reboot" and rollout.get("status") == "halted"):
         return None, _result("refused", message=rm.LINE_RESULT["not_running"])
     return rollout, None
 
@@ -175,7 +177,7 @@ async def approve_line(db, tenant_id: str, rollout_id: str, ring: int, line: str
     ``now``; with the window closed (or the computer unable to take it yet) the rows stay approved and the
     answer is ``window``. A stop changes nothing."""
     now = _now(now)
-    rollout, refusal = await _running(db, tenant_id, rollout_id)
+    rollout, refusal = await _running(db, tenant_id, rollout_id, line)
     if rollout is None:
         return refusal
     if await gate._stopped(db, tenant_id):
@@ -221,7 +223,7 @@ async def deny_line(db, tenant_id: str, rollout_id: str, ring: int, line: str, *
                     reason: str = "") -> Dict[str, Any]:
     """Deny every awaiting row of one line of one ring, one ``approvals.deny`` per row. Writes nothing to an
     agent. The controller halts the rollout at the ring on its next pass."""
-    rollout, refusal = await _running(db, tenant_id, rollout_id)
+    rollout, refusal = await _running(db, tenant_id, rollout_id, line)
     if rollout is None:
         return refusal
     awaiting = await line_rows(db, tenant_id, rollout_id, ring, line, ("awaiting_approval", "suggested"))

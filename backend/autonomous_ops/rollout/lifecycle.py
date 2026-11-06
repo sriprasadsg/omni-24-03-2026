@@ -7,7 +7,8 @@ status moves from running to halted with one compare-and-set, every other open r
 (``rollout_closed``), and a row whose instruction nobody has fetched yet is ended (``rollout_halted``) so
 delivery refuses the instruction. A computer whose instruction was already sent keeps its row, and its
 later result is still recorded. A halt claims nothing back from the computers: the rings that passed keep
-their patches (reverting is plan 84-13).
+their patches. The ring's computers that installed something are then put back (``revert.start_ring_revert``,
+D-14): a failure there is logged and the controller tries again on its next pass, the halt itself stands.
 
 Raw Mongo handle with an explicit tenantId only. Reads an instruction's status; never writes the queue.
 """
@@ -92,4 +93,9 @@ async def halt(db, tenant_id: str, rollout: Dict[str, Any], ring: int, *, code: 
     rollout["rings"][ring]["state"] = "halted"
     await _close_open_rows(db, tenant_id, rollout["id"])
     await _end_unfetched(db, tenant_id, rollout["id"], ring)
+    from . import revert           # revert imports lines, which import modules that import this one
+    try:
+        await revert.start_ring_revert(db, tenant_id, rollout, ring, now)
+    except Exception as exc:
+        logger.error("autonomous_ops: rollout %s halted but its revert did not start: %s", rollout["id"], exc)
     return True

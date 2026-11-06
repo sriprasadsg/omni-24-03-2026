@@ -81,7 +81,9 @@ async def host_problem(db, tenant_id: str, rollout_id: str, row: Dict[str, Any],
     """A code when the computer cannot take the row now, else None. Anything unreadable counts as a problem."""
     try:
         rollout = await store.rollouts(db).find_one({"id": rollout_id, "tenantId": tenant_id}, {"_id": 0, "status": 1})
-        if rollout is None or rollout.get("status") != "running":
+        line = ((row.get("reason") or {}).get("inputs") or {}).get("line")
+        allowed = ("running", "halted") if line == "revert_reboot" else ("running",)    # a halted ring still finishes its revert
+        if rollout is None or rollout.get("status") not in allowed:
             return "rollout_not_running"
         claim = await store.hosts(db).find_one(
             {"tenantId": tenant_id, "rolloutId": rollout_id, "agentId": agent_id, "active": True}, {"_id": 1})
@@ -141,6 +143,8 @@ async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
     if result.get("status") == "queued":
         if row.get("command") == COMMAND_INSTALL:
             await store.set_host(db, tenant_id, rollout_id, agent_id, {"state": "installing", "waitReason": None})
+        elif row.get("command") == reboots.COMMAND and inputs.get("line") == "revert_reboot":
+            await reboots.record_revert_baseline(db, tenant_id, {"rolloutId": rollout_id, "agentId": agent_id}, None, now)
         elif row.get("command") == reboots.COMMAND:        # D-08: what the computer looked like before it restarted
             await reboots.record_baseline(db, tenant_id, {"rolloutId": rollout_id, "agentId": agent_id}, None, now)
         return result

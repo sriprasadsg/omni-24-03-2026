@@ -117,6 +117,18 @@ async def record_baseline(db, tenant_id: str, host: Dict[str, Any], agent: Optio
         "baselineBootTime": start.boot_time_of(agent), "baselineLastSeen": store.parse_time(agent.get("lastSeen"))})
 
 
+async def record_revert_baseline(db, tenant_id: str, host: Dict[str, Any], agent: Optional[Dict[str, Any]],
+                                 dispatched_at: datetime) -> None:
+    """The same baseline for a Revert restart, kept apart (``revertRestart``) and without touching the computer's
+    state: it is Reverted or Not reverted, and a restart does not turn that into Healthy."""
+    if agent is None:
+        agent = await raw(db).agents.find_one({"id": host["agentId"], "tenantId": tenant_id}, _AGENT_FIELDS)
+    sent = store.aware(dispatched_at)
+    await store.set_host(db, tenant_id, host["rolloutId"], host["agentId"], {"revertRestart": {
+        "dispatchedAt": sent, "scheduledAt": sent + timedelta(seconds=REBOOT_DELAY_SECONDS),
+        "baselineBootTime": start.boot_time_of(agent or {}), "done": None}})
+
+
 # ---------------------------------------------------------------- settling
 
 async def _instruction_status(db, tenant_id: str, instruction_id: Optional[str]) -> Optional[str]:

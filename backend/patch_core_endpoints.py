@@ -250,6 +250,14 @@ async def create_deployment_job(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+def installed_ids_for(job: dict, agent_id: str) -> List[str]:
+    """The patch ids this agent reported as installed (status success, an installable id) in the job. The
+    manual rollback route and the rollout revert both take their ids from here, never from a request."""
+    res = ((job or {}).get("agentResults") or {}).get(agent_id.replace(".", "_").replace("$", "_")) or {}
+    return [r.get("patch_id") for r in res.get("results", [])
+            if isinstance(r, dict) and r.get("status") == "success" and installable_patch_id(r.get("patch_id"))]
+
+
 @router.post("/deployment-jobs/{job_id}/rollback")
 async def rollback_patch_job(
     job_id: str,
@@ -268,9 +276,7 @@ async def rollback_patch_job(
 
     installed: dict = {}
     for agent_id in job.get("dispatchedAgents") or []:
-        res = (job.get("agentResults") or {}).get(agent_id.replace(".", "_").replace("$", "_")) or {}
-        ids = [r.get("patch_id") for r in res.get("results", [])
-               if isinstance(r, dict) and r.get("status") == "success" and installable_patch_id(r.get("patch_id"))]
+        ids = installed_ids_for(job, agent_id)
         if ids:
             installed[agent_id] = ids
     if not installed:

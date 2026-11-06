@@ -18,8 +18,8 @@ import agent_capabilities
 from .. import PLATFORM_TENANT_ID, agent_support, response_settings, scope, settings
 from ..scope import raw
 from .messages import plural
-from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, reboots, settle, signals, store,
-               windows as windows_mod)
+from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, reboots, revert, settle, signals,
+               store, windows as windows_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -245,6 +245,11 @@ async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, cou
                                      host=late["agentId"], now=now, facts={"host": late.get("hostname") or late["agentId"]})
             if rollout.get("status") == "running":
                 await _halt_on_lines(db, tenant_id, rollout, now)       # needs no decision, so it works under a stop
+            if rollout.get("status") == "halted":
+                await revert.tick(db, tenant_id, rollout, now, may_decide=decide)    # undo is exempt from every stop
+            if decide and rollout.get("status") == "halted":      # only the Revert restart line is still sent
+                sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
+                counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
             if decide and rollout.get("status") == "running":
                 sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
                 counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
