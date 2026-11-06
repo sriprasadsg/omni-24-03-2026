@@ -24,7 +24,7 @@ import agent_capabilities
 from .. import RATE_LIMIT_PER_WINDOW, RATE_LIMIT_WINDOW, agent_support, gate, ledger, messages
 from ..scope import raw
 from . import (CAPABILITY, COMMAND_INSTALL, DISPATCHER_NAME, MAX_ATTEMPTS, TOKEN_REVERSIBLE, lines,
-               needs_restart_by_name, store)
+               messages as rm, needs_restart_by_name, store)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def install_request(tenant_id: str, rollout: Dict[str, Any], ring: int, host: Di
         reason={"ruleId": "rollout:canary_install",
                 "inputs": {"rolloutId": rollout["id"], "ring": ring, "line": "install", "attempt": attempt,
                            "patchIds": patch_ids}},
-        reason_text=f"Install {', '.join(patch_ids)} on the first ring of the rollout {rollout.get('name') or ''}".strip(),
+        reason_text=rm.fill(rm.ACTIVITY["canary_why"], rollout=rollout.get("name") or "", patch=", ".join(patch_ids)),
         dispatcher=DISPATCHER_NAME)
 
 

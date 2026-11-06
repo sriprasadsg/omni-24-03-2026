@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 from . import dispatch_check, registry, response_messages as rm
-from .rollout import DISPATCHER_NAME as ROLLOUT_DISPATCHER
+from .rollout import DISPATCHER_NAME as ROLLOUT_DISPATCHER, messages as rollout_messages
 from .scope import raw
 
 ITEM_CAP = 10                # D-07: a grouped row lists at most this many items
@@ -221,6 +221,17 @@ def _can_undo(row: Dict[str, Any], spec: Optional[registry.ActionSpec], until: O
                 and not (until is not None and until <= now))
 
 
+def _rollout_result(row: Dict[str, Any], inputs: Dict[str, Any]) -> Optional[str]:
+    """What a staged rollout's row says it did (UI-SPEC section 7). The words are stored on the row by the rollout
+    when the agent answered (``activityResult``); a first-ring install waiting for a person says so."""
+    text = _text(row.get("activityResult"))
+    if text:
+        return text
+    if row.get("state") in ("awaiting_approval", "suggested") and inputs.get("line") == "install" and inputs.get("ring") == 0:
+        return rollout_messages.ACTIVITY["not_reversible_result"]
+    return None
+
+
 def row_extras(row: Dict[str, Any], *, host: Optional[str] = None, can_act: bool = False,
                now: Optional[datetime] = None, kill_card: Optional[bool] = None) -> Dict[str, Any]:
     """The extra fields for one Activity row (see the module docstring). ``kill_card`` says whether a kill
@@ -248,6 +259,8 @@ def row_extras(row: Dict[str, Any], *, host: Optional[str] = None, can_act: bool
         if reason:
             out["reasonText"] = reason
     result = _result_text(row, inputs, until, now, host, kill_card)
+    if row.get("dispatcher") == ROLLOUT_DISPATCHER:
+        result = _rollout_result(row, inputs) or result
     if row.get("dispatcher") == SECURITY_DISPATCHER and isinstance(row.get("undoFailed"), dict):
         failed = rm.REASON_TEXT["undo_failed"]               # the undo did not take: say so before anything else
         result = f"{failed} {result}" if result else failed

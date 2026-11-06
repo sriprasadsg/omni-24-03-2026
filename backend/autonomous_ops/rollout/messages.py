@@ -315,6 +315,7 @@ ACTIVITY = {
     "outside_window_result": ("Not sent. Your maintenance window is closed. It is tried again when the window "
                               "opens at {opens}."),
     "revert_why": "{ring} halted: {reason}.",
+    "revert_why_unknown": "{ring} halted.",
     "revert_done_package": "Reverted {patch} on {host}. Verified: the earlier version is installed.",
     "revert_done_update": "Uninstalled {patch}. Verified: it is no longer listed.",
     "restart_why": "{rollout}: {ring} needs a restart.",

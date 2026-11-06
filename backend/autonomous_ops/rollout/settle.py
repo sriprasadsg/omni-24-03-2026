@@ -76,6 +76,19 @@ async def _entry_of(db, tenant_id: str, job_id: Optional[str], agent_id: str):
     return job, entry if isinstance(entry, dict) else None
 
 
+def _words(kind: str, installed: List[str], deferred: List[str], host: Dict[str, Any]) -> Dict[str, str]:
+    """The words an Activity row keeps for an install the agent answered (UI-SPEC section 7). The row keeps the Why
+    it was made with (``reasonText``) and gains the Result (``activityResult``). Only an automatic row that ended for
+    nothing because every patch was deferred as not reversible says why it needs a person."""
+    if kind == "done":
+        return {"activityResult": rm.fill(rm.ACTIVITY["canary_done"], patch=", ".join(installed))}
+    if kind == "idle":
+        return {"reasonText": rm.fill(rm.ACTIVITY["not_reversible_why"], patch=", ".join(deferred),
+                                      host=host.get("hostname") or host["agentId"]),
+                "activityResult": rm.ACTIVITY["not_reversible_result"]}
+    return {"activityResult": rm.ACTIVITY["canary_failed"]}
+
+
 @dataclass
 class Progress:
     """What one pass learned about one computer."""
@@ -108,17 +121,16 @@ async def _settle_auto(db, tenant_id: str, host: Dict[str, Any], now: datetime, 
                 prog.reported.append(reported)
             idle = not verdict["installed"]
             code = "rollout_not_reversible" if idle else "rollout_installed"
-            text = (rm.fill(rm.ACTIVITY["not_reversible_why"], patch=", ".join(verdict["deferred"]),
-                            host=host.get("hostname") or host["agentId"]) if idle else messages.REASON_TEXT[code])
+            words = _words("idle" if idle else "done", verdict["installed"], verdict["deferred"], host)
             to_state = "executed"
         else:
             prog.reported.append(reported)
             prog.failed = verdict["message"]
-            code, text, to_state = "rollout_install_failed", messages.REASON_TEXT["rollout_install_failed"], "failed"
+            code, to_state = "rollout_install_failed", "failed"
+            words = _words("failed", [], [], host)
         if action_id:
             await ledger.transition(db, tenant_id, action_id, ("dispatching",), to_state, reasonCode=code,
-                                    reasonText=text,
-                                    result={"jobId": host.get("installJobId"), "agentStatus": entry.get("status")})
+                                    result={"jobId": host.get("installJobId"), "agentStatus": entry.get("status")}, **words)
         return
     status = await _instruction_status(db, tenant_id, host.get("installInstructionId"))
     if status in _NOT_DELIVERED:
@@ -157,8 +169,8 @@ async def _settle_lines(db, tenant_id: str, host: Dict[str, Any], now: datetime,
                 await ledger.transition(
                     db, tenant_id, action_id, ("dispatching",), "executed" if ok else "failed",
                     reasonCode="rollout_installed" if ok else "rollout_install_failed",
-                    reasonText=messages.REASON_TEXT["rollout_installed" if ok else "rollout_install_failed"],
-                    result={"jobId": params.get("job_id"), "agentStatus": entry.get("status")})
+                    result={"jobId": params.get("job_id"), "agentStatus": entry.get("status")},
+                    **_words("done" if ok else "failed", verdict["installed"], [], host))
                 prog.settled_lines.append(action_id)
                 continue
             instruction = (row.get("instructionIds") or [None])[-1]

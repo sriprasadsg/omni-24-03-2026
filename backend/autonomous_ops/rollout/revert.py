@@ -21,12 +21,12 @@ are not already being or done being reverted, so the halt and every later pass o
 """
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from .. import agent_support, gate, ledger, messages
 from ..scope import raw
-from . import COMMAND_INSTALL, COMMAND_UNDO, SYSTEM_ACTOR, TOKEN_REVERT_BY_JOB, reboots, store
+from . import COMMAND_INSTALL, COMMAND_UNDO, SYSTEM_ACTOR, TOKEN_REVERT_BY_JOB, messages as rm, reboots, start, store
 from .settle import result_key
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,33 @@ def _best_reason(reasons: List[str]) -> str:
         if known in reasons:
             return known
     return reasons[0] if reasons else "failed"
+
+
+def _why(rollout: Dict[str, Any], ring: int) -> str:
+    """The Why of a revert row: which ring halted and the reason (UI-SPEC section 7)."""
+    rings = rollout.get("rings") or []
+    name = str(rings[ring].get("name") or "") if 0 <= ring < len(rings) else ""
+    halt = rollout.get("haltReason") if isinstance(rollout.get("haltReason"), dict) else {}
+    reason = str(halt.get("text") or "").strip().rstrip(".")
+    if not reason:
+        return rm.fill(rm.ACTIVITY["revert_why_unknown"], ring=name)
+    return rm.fill(rm.ACTIVITY["revert_why"], ring=name, reason=reason)
+
+
+def _not_reverted_text(code: Optional[str]) -> str:
+    """The Not reverted sentence for a reason code; a code the screen has no words for reads the plain one."""
+    return rm.NOT_REVERTED.get(str(code), rm.NOT_REVERTED_OTHER)
+
+
+async def _say(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any], action_id: str,
+               result: str) -> None:
+    """Keep what happened to one install row on the row itself, so Activity says it in words. Never raises: the
+    words are a courtesy, the computer's state is what counts."""
+    try:
+        await ledger.set_display(db, tenant_id, action_id, reasonText=_why(rollout, int(host.get("ring") or 0)),
+                                 activityResult=result)
+    except Exception as exc:
+        logger.error("autonomous_ops: the words of %s were not kept: %s", action_id, exc)
 
 
 # ---------------------------------------------------------------- starting a revert
@@ -97,9 +124,9 @@ async def _revert_row(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[st
     await raw(db).patch_deployment_jobs.insert_one(job)
     block = {"available": True, "action": COMMAND_UNDO, "params": params, "undoneAt": now,
              "undoneBy": dict(SYSTEM_ACTOR)}
-    fields: Dict[str, Any] = {"undo": block}
+    fields: Dict[str, Any] = {"undo": block, "reasonText": _why(rollout, int(host.get("ring") or 0))}
     if row.get("state") != "failed":         # a real install failure keeps its code, so the breaker still counts it (T-84-43)
-        fields.update({"reasonCode": "ring_reverted", "reasonText": messages.REASON_TEXT["ring_reverted"]})
+        fields["reasonCode"] = "ring_reverted"
     won = await ledger.transition(db, tenant_id, row["id"], REVERTABLE, "undone", actor=SYSTEM_ACTOR, **fields)
     if won is None:
         await raw(db).patch_deployment_jobs.delete_one({"id": revert_job, "tenantId": tenant_id})
@@ -129,6 +156,8 @@ async def _start_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[st
         await store.set_host(db, tenant_id, rollout["id"], host["agentId"], {
             "state": "not_reverted", "notRevertedReason": "agent_unsupported", "waitReason": None,
             "revertStartedAt": now})
+        for target in targets:
+            await _say(db, tenant_id, rollout, host, target["row"]["id"], _not_reverted_text("agent_unsupported"))
         return True
     started: List[Dict[str, Any]] = []
     failed: Dict[str, Any] = {}
@@ -139,6 +168,7 @@ async def _start_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[st
         elif done["status"] == "refused":                    # the gate refused it: the row is as it was
             failed[target["row"]["id"]] = {"outcome": "not_reverted", "reason": "dispatch_failed", "reboot": False,
                                            "at": now}
+            await _say(db, tenant_id, rollout, host, target["row"]["id"], _not_reverted_text("dispatch_failed"))
     if not started and not failed:
         return False                                          # every row was taken by someone else meanwhile
     fields: Dict[str, Any] = {"waitReason": None, "revertStartedAt": now, "revertResult": failed,
@@ -225,6 +255,18 @@ async def _row_outcome(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
     return None
 
 
+async def _result_words(db, tenant_id: str, host: Dict[str, Any], action_id: str, found: Dict[str, Any]) -> str:
+    """What one revert did, in words: the package or the Windows-update wording only from the agent's own success,
+    else Not reverted with the reason (PROH-84-02c)."""
+    if found.get("outcome") != "reverted":
+        return _not_reverted_text(found.get("reason"))
+    row = await ledger.get(db, tenant_id, action_id)
+    ids = ", ".join(((row or {}).get("undo") or {}).get("params", {}).get("patch_ids") or [])
+    if host.get("os") == "windows":
+        return rm.fill(rm.ACTIVITY["revert_done_update"], patch=ids)
+    return rm.fill(rm.ACTIVITY["revert_done_package"], patch=ids, host=host.get("hostname") or host["agentId"])
+
+
 async def _settle_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any], now: datetime) -> str:
     """Move one reverting computer to Reverted or Not reverted once every one of its reverts has an outcome."""
     results = dict(host.get("revertResult") or {})
@@ -246,6 +288,9 @@ async def _settle_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
     else:
         fields.update({"state": "reverted", "revertedAt": max(store.aware(v["at"]) for v in results.values())})
     await store.set_host(db, tenant_id, rollout["id"], host["agentId"], fields)
+    for action_id, found in results.items():
+        if (host.get("revertResult") or {}).get(action_id) is None:           # a refused one was said when it was refused
+            await _say(db, tenant_id, rollout, host, action_id, await _result_words(db, tenant_id, host, action_id, found))
     return str(fields["state"])
 
 
@@ -277,8 +322,9 @@ async def _settle_restarts(db, tenant_id: str, rollout: Dict[str, Any], now: dat
                     "scheduledRestartAt": sent.get("scheduledAt")}
         agent = await raw(db).agents.find_one({"id": host["agentId"], "tenantId": tenant_id}, _AGENT_FIELDS)
         if reboots.is_new_boot(agent, stand_in) is True:
+            booted = datetime.fromtimestamp(start.boot_time_of(agent), tz=timezone.utc)
             await ledger.transition(db, tenant_id, ids[-1], ("dispatching",), "executed", reasonCode="rollout_restarted",
-                                    reasonText=messages.REASON_TEXT["rollout_restarted"])
+                                    **await reboots.restart_words(db, tenant_id, rollout, host, booted))
             await store.set_host(db, tenant_id, rollout["id"], host["agentId"],
                                  {"revertRebootNeeded": False, "revertRestart": {**sent, "done": "restarted"}})
         elif reboots.overdue(stand_in, now):

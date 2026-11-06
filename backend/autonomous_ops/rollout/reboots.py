@@ -25,7 +25,8 @@ from typing import Any, Dict, List, Optional
 
 from .. import ledger, messages
 from ..scope import raw
-from . import BOOT_TOLERANCE_SECONDS, MAX_ATTEMPTS, NEW_BOOT_WAIT, REBOOT_DELAY_SECONDS, REBOOT_REASON, start, store
+from . import (BOOT_TOLERANCE_SECONDS, MAX_ATTEMPTS, NEW_BOOT_WAIT, REBOOT_DELAY_SECONDS, REBOOT_REASON, messages as rm,
+               start, store, windows as windows_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,23 @@ async def record_revert_baseline(db, tenant_id: str, host: Dict[str, Any], agent
 
 # ---------------------------------------------------------------- settling
 
+async def restart_words(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any],
+                        booted: datetime) -> Dict[str, str]:
+    """The words the Activity row of a restart keeps once the computer is back (UI-SPEC section 7): why it was
+    restarted and when it came back, in the organization's time zone."""
+    try:
+        tenant_windows = await windows_mod.load(db, tenant_id)
+        zone = tenant_windows.zone if tenant_windows.readable else windows_mod.DEFAULT_ZONE
+    except Exception as exc:
+        logger.error("autonomous_ops: the time zone of %s could not be read for a restart row: %s", tenant_id, exc)
+        zone = windows_mod.DEFAULT_ZONE
+    rings = rollout.get("rings") or []
+    index = int(host.get("ring") or 0)
+    ring_name = str(rings[index].get("name") or "") if 0 <= index < len(rings) else ""
+    return {"reasonText": rm.fill(rm.ACTIVITY["restart_why"], rollout=rollout.get("name") or "", ring=ring_name),
+            "activityResult": rm.fill(rm.ACTIVITY["restart_done"], at=windows_mod.clock_text(booted, zone))}
+
+
 async def _instruction_status(db, tenant_id: str, instruction_id: Optional[str]) -> Optional[str]:
     if not instruction_id:
         return None
@@ -177,7 +195,7 @@ async def _settle_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
             "state": "healthy", "rebootSettled": settled, "newBootTime": start.boot_time_of(agent),
             "newBootAt": max(booted, due)})        # the restart was never earlier than it was due
         await ledger.transition(db, tenant_id, action_id, ("dispatching",), "executed", reasonCode="rollout_restarted",
-                                reasonText=messages.REASON_TEXT["rollout_restarted"])
+                                **await restart_words(db, tenant_id, rollout, host, booted))
         return False
     if overdue(host, now):
         await store.set_host(db, tenant_id, rollout["id"], host["agentId"], {

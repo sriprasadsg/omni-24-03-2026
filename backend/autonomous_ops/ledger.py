@@ -190,6 +190,19 @@ async def record_platform_health(db, event_id: str, kind: str, params: Optional[
     return doc
 
 
+DISPLAY_FIELDS = ("reasonText", "activityResult")
+
+
+async def set_display(db, tenant_id: str, action_id: str, **fields: Any) -> bool:
+    """Set only the words an Activity row shows (``reasonText``, ``activityResult``). No state change, no audit
+    event: used when a result the row could not know at the time reaches it (a revert's outcome)."""
+    sets = {k: v for k, v in fields.items() if k in DISPLAY_FIELDS and isinstance(v, str)}
+    if not sets:
+        return False
+    done = await _actions(db).update_one({"id": action_id, "tenantId": tenant_id}, {"$set": {**sets, "updatedAt": _now()}})
+    return done.matched_count > 0
+
+
 async def get(db, tenant_id: str, action_id: str) -> Optional[Dict[str, Any]]:
     return _normalize(await _actions(db).find_one({"id": action_id, "tenantId": tenant_id}))
 
