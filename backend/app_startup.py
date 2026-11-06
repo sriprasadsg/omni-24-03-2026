@@ -519,6 +519,12 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(_autonomous_ops_sweep_loop(), "autonomous_ops_sweep"),
                         name="autonomous_ops_sweep")
 
+    # Phase 84: moves patch rollouts ring by ring, inside the tenant's maintenance windows. One runner at a
+    # time (renewed Mongo lock); the gate owns every stop, level and limit.
+    from autonomous_ops.rollout.loop import rollout_loop as _patch_rollout_loop
+    asyncio.create_task(_safe_bg_task(_patch_rollout_loop(), "patch_rollout_controller"),
+                        name="patch_rollout_controller")
+
     # Platform self-healing dead-man switch (Phase 82, HEAL-05): one in-app alarm when the watchdog stops
     # reporting. Armed only after its first heartbeat; one runner at a time (renewed Mongo lock).
     from autonomous_ops.selfheal import selfheal_loop as _autonomous_ops_selfheal_loop
