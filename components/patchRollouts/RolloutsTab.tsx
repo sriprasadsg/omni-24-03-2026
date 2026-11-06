@@ -9,8 +9,10 @@ import { SECONDARY_BUTTON } from '../AutonomousOpsHealthCards';
 import { HealthNotice } from '../AutonomousOpsHealthChips';
 import { ACCENT_BUTTON } from '../AutonomousOpsResponseSettingsDialogs';
 import { AlertTriangleIcon, ClockIcon, FlaskConicalIcon, InfoIcon, LayersIcon, PauseCircleIcon, RefreshCwIcon, RocketIcon } from '../icons';
+import { RingsSettings } from './RingsSettings';
 import { RolloutCard } from './RolloutCard';
 import { chipClasses } from './RolloutChip';
+import { StartDialog } from './StartDialog';
 import { ASSURANCE_LINE, LINK_LABELS, plural } from './rolloutCopy';
 
 /**
@@ -18,8 +20,10 @@ import { ASSURANCE_LINE, LINK_LABELS, plural } from './rolloutCopy';
  * the rollout list and its states. One read on open, then every 30 seconds while the document is visible and the tab
  * is active, on focus, on Refresh and straight after an action. The first load shows skeleton cards; a background read
  * never shows a skeleton or a spinner and a failed one keeps the last cards. Every control comes from the server's
- * flags and every string is React text. The optional props are the extension points later plans fill (84-17 the Start
- * dialog and the rings card, 84-18 the ring detail and the Resume and Cancel actions).
+ * flags and every string is React text. The tab owns the Start a rollout dialog and the Rollout rings card (84-17): Start
+ * rollout opens the dialog, a started rollout reads the list again and moves focus to its card, and the dialog's Open
+ * rollout rings link closes it and expands the card. The optional render props stay as extension points (84-18 the ring
+ * detail and the Resume and Cancel actions).
  */
 
 export const ROLLOUTS_POLL_MS = 30_000;
@@ -54,7 +58,7 @@ export interface RolloutsTabProps {
     refreshSignal?: number;
     /** Reports the number of rollouts that need a person after every read, so the tab badge follows the list. */
     onAttentionCount?: (count: number) => void;
-    /** Start rollout was pressed. Without it the button is not rendered. */
+    /** Told when Start rollout is pressed; the tab opens its own dialog either way. */
     onStartRequested?: () => void;
     renderStartDialog?: () => React.ReactNode;
     renderRingsCard?: () => React.ReactNode;
@@ -114,6 +118,9 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
     const current = useRef<RolloutPage | null>(null);
     const previousAttention = useRef<number | null>(null);
     const moreBusy = useRef(false);
+    const [startOpen, setStartOpen] = useState(false);
+    const [ringsOpen, setRingsOpen] = useState(false);
+    const focusAfterLoad = useRef<string | null>(null);
     const lastSignal = useRef(refreshSignal);
     const callbacks = useRef({ onAttentionCount });
     current.current = state;
@@ -184,6 +191,17 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
 
     const refresh = useCallback(() => { void load(); }, [load]);
 
+    // After a Start, focus moves to the new card once the list that holds it has been read.
+    useEffect(() => {
+        const id = focusAfterLoad.current;
+        if (!id || !state) return;
+        const card = document.getElementById(`rollout-${id}`);
+        if (card) {
+            card.focus();
+            focusAfterLoad.current = null;
+        }
+    }, [state]);
+
     const canOpenSettings = !!onOpenView && (isSuperAdminRoleName(currentUser?.role) || hasPermission('manage:settings'));
 
     const intro = (
@@ -248,7 +266,7 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
     // ---- what Start rollout does: the server's flag shows it, the stop and a missing window only disable it
 
     const blocked = flags.stopped ? STOP_BLOCKED : strip.state === 'none' ? NO_WINDOW : null;
-    const canStart = flags.canStart && !!onStartRequested;
+    const canStart = flags.canStart;
     const startButton = (id: string) => (
         <div className="flex flex-col items-start gap-1">
             <button
@@ -256,7 +274,7 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
                 className={ACCENT_BUTTON}
                 disabled={blocked !== null}
                 aria-describedby={blocked ? id : undefined}
-                onClick={() => onStartRequested?.()}
+                onClick={() => { onStartRequested?.(); setStartOpen(true); }}
             >
                 <RocketIcon size={16} aria-hidden="true" />
                 {LINK_LABELS.startRollout}
@@ -321,7 +339,27 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
                     {moreFailed && <p role="alert" className="break-words text-sm text-red-600 dark:text-red-400">{LOAD_ERROR}</p>}
                 </div>
             )}
+            <RingsSettings
+                tenantId={tenantId}
+                canManageRings={flags.canManageRings}
+                expanded={ringsOpen}
+                onExpandedChange={setRingsOpen}
+                onOpenAgentGroups={onOpenView ? () => onOpenView('agentGroups') : undefined}
+                onSaved={refresh}
+            />
             {renderRingsCard?.()}
+            {flags.canStart && (
+                <StartDialog
+                    open={startOpen}
+                    tenantId={tenantId}
+                    stopped={flags.stopped}
+                    onClose={() => setStartOpen(false)}
+                    onStarted={id => { focusAfterLoad.current = id; refresh(); }}
+                    onOpenMaintenance={canOpenSettings ? () => { setStartOpen(false); onOpenView?.('settings'); } : undefined}
+                    onOpenRings={() => { setStartOpen(false); setRingsOpen(true); }}
+                    onOpenAgentGroups={onOpenView ? () => { setStartOpen(false); onOpenView('agentGroups'); } : undefined}
+                />
+            )}
             {renderStartDialog?.()}
             <div data-live="rollouts" role="status" className="sr-only">{announcement}</div>
         </section>

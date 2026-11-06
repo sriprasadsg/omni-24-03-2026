@@ -155,8 +155,10 @@ let served: Served;
 function serveRollouts(cards: RolloutCard[], over: Partial<RolloutPage> = {}) {
   served = { cards, over, failing: false };
   mockFetch.mockImplementation((url: string) => {
-    if (served.failing) return Promise.resolve(jsonRes({ detail: 'down' }, 500));
     const q = new URL(url, 'http://x');
+    // The Rollout rings card (84-17) reads its own settings once; it is not part of the polled list.
+    if (q.pathname === '/api/patch-rollouts/rings') return Promise.resolve(jsonRes({ rings: [], readable: true, groups: [] }));
+    if (served.failing) return Promise.resolve(jsonRes({ detail: 'down' }, 500));
     const offset = Number(q.searchParams.get('offset') ?? 0);
     const limit = Number(q.searchParams.get('limit') ?? 10);
     return Promise.resolve(jsonRes(rolloutPage(served.cards.slice(offset, offset + limit),
@@ -322,16 +324,17 @@ describe('RolloutsTab', () => {
 
   // ---- header and Start
 
-  it('Start rollout is rendered only with canStart and a handler, and calls the handler', async () => {
+  it('Start rollout is rendered with canStart, tells the handler when given, and opens the Start dialog', async () => {
     serveRollouts(names(1));
     const onStartRequested = vi.fn();
     const view = show({ onStartRequested });
     fireEvent.click(await screen.findByRole('button', { name: 'Start rollout' }));
     expect(onStartRequested).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog', { name: 'Start a rollout' })).toBeInTheDocument();
     view.unmount();
     show();
-    await screen.findByText('Rollout 1');
-    expect(screen.queryByRole('button', { name: 'Start rollout' })).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Start rollout' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('without canStart there is no button and the muted line says who to ask', async () => {

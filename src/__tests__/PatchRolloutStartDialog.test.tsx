@@ -631,10 +631,11 @@ describe('RolloutsTab starts rollouts and holds the rings card', () => {
     await screen.findByRole('checkbox', { name: /KB5001/ });
     await screen.findByText(/Next window:/);
     tick('KB5001');
-    await waitFor(() => expect(startBtn()).not.toBeDisabled());
+    const inDialog = () => within(screen.getByRole('dialog')).getByRole('button', { name: /^(Start rollout|Starting\.\.\.)$/ });
+    await waitFor(() => expect(inDialog()).not.toBeDisabled());
     const before = listCalls().length;
     cards = [card({ id: 'R9', name: 'Fresh' }), ...cards];
-    fireEvent.click(startBtn());
+    fireEvent.click(inDialog());
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await screen.findByText('Fresh');
     expect(listCalls().length).toBeGreaterThan(before);
