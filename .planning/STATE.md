@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 84
 current_phase_name: Staged Patch Rollouts
 status: executing
-stopped_at: Completed 84-11-PLAN.md
-last_updated: "2026-11-06T19:27:40.546Z"
+stopped_at: Completed 84-12-PLAN.md
+last_updated: "2026-11-06T19:42:00.539Z"
 last_activity: 2026-11-06
 last_activity_desc: Phase 84 execution started
-state_head: cab3e647c23724e57791e44958f335d7be0a24a1
+state_head: 79c66d39fb89ebabc2321e07ab215e65929b251c
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 92
-  completed_plans: 82
+  completed_plans: 83
   percent: 14
 ---
 
@@ -571,6 +571,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 84]: Ring stores healthCounts {reported, failed} beside health rows so the card states what the gate judged
 - [Phase 84]: 84-10 DEV-1: rollout line Approve/Deny use /api/autonomous-ops/rollout-lines/{rolloutId}/{ring}/{line}/approve|deny (same approvals engine per computer row, same permission, session, stop and expiry rules); pending user review
 - [Phase 84]: 84-11: service_state reports Pending/Unknown as unknown, lists critical watched names read-only, caches 60 s
+- [Phase 84]: 84-12: time zone names validated with Intl.DateTimeFormat, not a strict supportedValuesOf match (Chrome lists Asia/Calcutta, so Asia/Kolkata would be refused); server stays the final check
+- [Phase 84]: 84-12: Manage in Settings in Change Management stays plain text until a handler is passed (the dashboard has no view-change handler)
 
 ## Performance Metrics
 
@@ -808,6 +810,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 84 P09 | 105 min | 3 tasks | 16 files |
 | Phase 84 P10 | 18 min | 2 tasks | 5 files |
 | Phase 84 P11 | 20 min | 2 tasks | 7 files |
+| Phase 84 P12 | 13 min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -842,8 +845,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-06T19:27:40.312Z
-**Stopped at:** Completed 84-11-PLAN.md
+**Last session:** 2026-11-06T19:42:00.281Z
+**Stopped at:** Completed 84-12-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -870,7 +873,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 84 (Staged Patch Rollouts) — EXECUTING
-Plan: 13 of 22
+Plan: 14 of 22
 Status: Ready to execute
 Last activity: 2026-11-06 — Phase 84 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
