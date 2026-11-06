@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "ACTV-08. Terms the Autonomous Ops screens, labels, messages and route descriptions never use. Read by backend/tests/test_autonomous_ops_copy.py and src/__tests__/autonomousOpsCopy.test.ts; patterns are applied line by line with Python re and JavaScript RegExp, flags are 'i' (case-insensitive) or empty. A line containing unlessLineContains (any case) is exempt from that rule.",
+  "description": "ACTV-08. Terms the Autonomous Ops screens, labels, messages and route descriptions never use. Read by backend/tests/test_autonomous_ops_copy.py and src/__tests__/autonomousOpsCopy.test.ts; patterns are applied line by line with Python re and JavaScript RegExp, flags are 'i' (case-insensitive) or empty. A line containing unlessLineContains (any case) is exempt from that rule. The files list names single files; the directories list names folders whose .py (backend) and .ts and .tsx (frontend) files are all scanned, walked recursively, and a listed folder that is missing or holds no such file fails the test.",
   "rules": [
     { "id": "asi", "pattern": "\\bASI\\b", "flags": "" },
     { "id": "agi", "pattern": "\\bAGI\\b", "flags": "" },
@@ -43,6 +43,11 @@
     "components/AutonomousOpsResponseSettingsDialogs.tsx",
     "components/AutonomousOpsResponseSettingsPlatform.tsx",
     "components/SwarmDashboard.tsx"
+  ],
+  "directories": [
+    "backend/autonomous_ops/rollout",
+    "components/patchRollouts",
+    "services/patchRollouts"
   ],
   "catalogueViews": ["autonomousOps"]
 }

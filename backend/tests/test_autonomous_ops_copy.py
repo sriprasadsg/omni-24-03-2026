@@ -5,6 +5,9 @@ The rules and the explicit list of scanned files live in ``shared/autonomous-ops
 side scans the backend files and the ``autonomousOps`` label in ``shared/catalogue-access.json``.
 Every listed file must exist (a rename must not turn the check into a silent pass), and each rule
 has negative controls proving it fires, so a rule that stops matching fails the suite.
+
+Phase 84 adds ``directories``: whole directories walked recursively (a missing or empty one fails), so the
+rollout files need no per-file list entry.
 """
 import json
 import os
@@ -205,6 +208,96 @@ def test_the_scan_catches_a_banned_term_in_a_real_looking_file(tmp_path, monkeyp
     missing, problems = scan_files(["components/Copy.tsx"], load_rules()["rules"])
     assert missing == []
     assert problems == ["components/Copy.tsx:2 [autopilot] const b = 'Autopilot for your fleet';"]
+
+
+# ---------------------------------------------------------------- directories (Phase 84, plan 84-02)
+
+# Whole directories are walked recursively, so a file added later is covered without a list edit (UI-SPEC DEV-4).
+# The same list is hard-coded in the vitest side. If either side drifts from the JSON, it fails.
+EXPECTED_DIRECTORIES = [
+    "backend/autonomous_ops/rollout",
+    "components/patchRollouts",
+    "services/patchRollouts",
+]
+
+
+def scannable(rel_dir: str, name: str) -> bool:
+    """.py under backend/, .ts and .tsx everywhere else."""
+    return name.endswith(".py") if rel_dir.startswith("backend/") else name.endswith((".ts", ".tsx"))
+
+
+def scan_directories(dirs: List[str], rules: List[Dict[str, Any]]) -> Tuple[List[str], List[str]]:
+    """(missing or empty directories, problems). A directory that is missing, or holds no scannable file,
+    is its own failure: a rename or a wrong path must not turn the check into a silent pass."""
+    missing_or_empty, problems = [], []
+    for rel_dir in dirs:
+        base = os.path.join(REPO_ROOT, rel_dir)
+        found = 0
+        for root, subdirs, names in os.walk(base):
+            subdirs[:] = [d for d in subdirs if d != "__pycache__"]
+            for name in sorted(names):
+                if not scannable(rel_dir, name):
+                    continue
+                found += 1
+                path = os.path.join(root, name)
+                with open(path, encoding="utf-8") as handle:
+                    for number, rule_id, line in violations(handle.read(), rules):
+                        problems.append(f"{os.path.relpath(path, REPO_ROOT)}:{number} [{rule_id}] {line}")
+        if found == 0:
+            missing_or_empty.append(rel_dir)
+    return missing_or_empty, problems
+
+
+def test_directory_list_is_the_agreed_list():
+    dirs = load_rules()["directories"]
+    assert dirs == EXPECTED_DIRECTORIES
+    for rel in dirs:
+        assert not rel.startswith(".planning") and "autopilot" not in rel.lower(), rel
+        assert not rel.endswith("/"), rel
+
+
+def test_every_listed_directory_exists_and_holds_a_scannable_file():
+    missing_or_empty, _ = scan_directories(load_rules()["directories"], load_rules()["rules"])
+    assert missing_or_empty == []
+
+
+def test_every_python_file_under_the_backend_directories_passes_every_rule():
+    data = load_rules()
+    backend = [rel for rel in data["directories"] if rel.startswith("backend/")]
+    assert backend == ["backend/autonomous_ops/rollout"]
+    missing_or_empty, problems = scan_directories(backend, data["rules"])
+    assert missing_or_empty == []
+    assert problems == []
+
+
+def test_a_banned_term_in_a_scanned_directory_is_reported(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", str(tmp_path))
+    sub = tmp_path / "backend" / "autonomous_ops" / "rollout" / "nested"
+    sub.mkdir(parents=True)
+    (sub / "copy.py").write_text('OK = "Revert where supported."\nBAD = "We roll back the patch."\n')
+    (sub / "notes.txt").write_text("Autopilot is ignored in a file type that is not scanned.\n")
+    missing_or_empty, problems = scan_directories(["backend/autonomous_ops/rollout"], load_rules()["rules"])
+    assert missing_or_empty == []
+    assert problems == ['backend/autonomous_ops/rollout/nested/copy.py:2 [rollback] BAD = "We roll back the patch."']
+
+
+def test_an_empty_or_missing_directory_is_reported_not_skipped(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", str(tmp_path))
+    (tmp_path / "components" / "patchRollouts").mkdir(parents=True)
+    (tmp_path / "components" / "patchRollouts" / "readme.md").write_text("not a scannable type\n")
+    missing_or_empty, problems = scan_directories(
+        ["components/patchRollouts", "services/patchRollouts"], load_rules()["rules"])
+    assert missing_or_empty == ["components/patchRollouts", "services/patchRollouts"]
+    assert problems == []
+
+
+def test_a_pycache_directory_is_not_scanned(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", str(tmp_path))
+    cache = tmp_path / "backend" / "autonomous_ops" / "rollout" / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "stale.py").write_text("x = 'autopilot'\n")
+    missing_or_empty, problems = scan_directories(["backend/autonomous_ops/rollout"], load_rules()["rules"])
+    assert missing_or_empty == ["backend/autonomous_ops/rollout"] and problems == []
 
 
 # ---------------------------------------------------------------- response_messages (Phase 83, plan 83-03)
