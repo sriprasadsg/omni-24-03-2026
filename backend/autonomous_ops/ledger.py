@@ -249,8 +249,12 @@ BREAKER_FAILURES = ("verify_failed", "agent_failed", "blocked_by_local_security"
 # protected or unmatched target, and an instruction that was never delivered must never lower a level.
 # ``auto_reverted`` is an isolation that returned to the network on its own: a person approved it, so it was never
 # an automatic decision going wrong.
+# ``ring_reverted`` and ``rollout_halted`` are a staged rollout putting a patch back and stopping on its own
+# (Phase 84): that is the safeguard working, so one bad patch cannot switch off a tenant's other automatic
+# actions. A real install failure (``rollout_install_failed``) is not listed, so it still counts.
 BREAKER_IGNORED = ("not_delivered", "no_result", "capability_off", "agent_unsupported", "agent_offline",
-                   "hash_mismatch", "protected_path", "agent_refused", "locked", "dispatch_failed", "auto_reverted")
+                   "hash_mismatch", "protected_path", "agent_refused", "locked", "dispatch_failed", "auto_reverted",
+                   "ring_reverted", "rollout_halted")
 
 
 async def count_auto_since(db, tenant_id: str, since: datetime) -> int:

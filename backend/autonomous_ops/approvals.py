@@ -22,6 +22,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 
 from . import APPROVAL_TTL, PLATFORM_TENANT_ID, agent_support, ledger, messages, protected, registry, settings
 from . import breaker, decision_row, dispatch_check, gate
+from .rollout import DISPATCHER_NAME as ROLLOUT_DISPATCHER
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -231,6 +232,8 @@ async def undo(db, tenant_id: str, action_id: str, *, actor: Dict[str, Any]) -> 
     row = await ledger.get(db, tenant_id, action_id)
     if row is None:
         return {"status": "not_found"}
+    if row.get("dispatcher") == ROLLOUT_DISPATCHER:     # R13: a rollout's installs are put back only by its halt
+        return {"status": "refused", "reason": "not_undoable"}
     if row.get("state") == "undone":
         return {"status": "already_handled"}
     if row.get("state") not in _UNDOABLE:

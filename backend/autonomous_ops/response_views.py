@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 from . import dispatch_check, registry, response_messages as rm
+from .rollout import DISPATCHER_NAME as ROLLOUT_DISPATCHER
 from .scope import raw
 
 ITEM_CAP = 10                # D-07: a grouped row lists at most this many items
@@ -212,8 +213,10 @@ def _result_text(row: Dict[str, Any], inputs: Dict[str, Any], until: Optional[da
 def _can_undo(row: Dict[str, Any], spec: Optional[registry.ActionSpec], until: Optional[datetime],
               now: datetime, can_act: bool) -> bool:
     """True only for: a registered undo, state executed or verified, one step, not simulated, a target,
-    not past ``blockedUntil``, and a viewer who may act in an interactive session."""
+    not past ``blockedUntil``, a viewer who may act in an interactive session, and not a staged rollout's
+    row (R13: the rollout's own halt is the only way those are put back)."""
     return bool(can_act and spec is not None and spec.undo and row.get("state") in UNDOABLE_STATES
+                and row.get("dispatcher") != ROLLOUT_DISPATCHER
                 and not row.get("shadow") and dispatch_check.step_count(row) == 1 and (row.get("targets") or [])
                 and not (until is not None and until <= now))
 
