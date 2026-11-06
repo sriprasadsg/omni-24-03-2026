@@ -24,6 +24,7 @@ import {
   fetchChangeWindows,
 } from '../../services/patchRollouts/windows';
 import { WindowDialog, DeleteWindowDialog } from '../../components/patchRollouts/MaintenanceWindowDialog';
+import MaintenanceWindowConfig from '../../components/MaintenanceWindowConfig';
 import type { MaintenanceWindow } from '../../services/patchRollouts/types';
 
 const mockFetch = authFetch as unknown as ReturnType<typeof vi.fn>;
@@ -271,5 +272,169 @@ describe('DeleteWindowDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Deleting...' })).toBeDisabled());
     release(jsonRes({ detail: 'Maintenance window not found' }, 404));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain("Couldn't delete the window: Maintenance window not found"));
+  });
+});
+
+// ---------------------------------------------------------------- the Settings panel
+
+interface Served {
+  windows?: MaintenanceWindow[];
+  zone?: string | null;
+  status?: { state: 'open' | 'closed' | 'none'; text: string; timeZone: string | null };
+}
+
+/** Answers each maintenance route; `calls` records method and url of every request. */
+function serve(data: Served = {}) {
+  const state = {
+    windows: data.windows ?? [win()],
+    zone: data.zone === undefined ? 'Asia/Kolkata' : data.zone,
+    status: data.status ?? { state: 'closed' as const, text: 'Next window opens Sat 7 Nov, 22:00 (Asia/Kolkata).', timeZone: 'Asia/Kolkata' },
+  };
+  mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+    if (url === '/api/maintenance/windows' && method === 'GET') return jsonRes(state.windows);
+    if (url === '/api/maintenance/time-zone' && method === 'GET') return jsonRes({ timeZone: state.zone });
+    if (url === '/api/maintenance/time-zone' && method === 'PUT') {
+      state.zone = JSON.parse(String(init?.body)).timeZone;
+      return jsonRes({ timeZone: state.zone });
+    }
+    if (url === '/api/maintenance/status') return jsonRes(state.status);
+    if (method === 'DELETE') { state.windows = []; return jsonRes({ success: true }); }
+    return jsonRes({ detail: 'unexpected' }, 500);
+  });
+  return state;
+}
+
+const callsTo = (url: string, method: string) =>
+  mockFetch.mock.calls.filter(([u, i]) => u === url && (i?.method ?? 'GET') === method);
+
+describe('MaintenanceWindowConfig', () => {
+  it('shows two busy skeleton cards while loading', async () => {
+    mockFetch.mockReturnValue(new Promise(() => {}));
+    const { container } = render(<MaintenanceWindowConfig />);
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelectorAll('.h-32')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Maintenance windows' })).toBeInTheDocument();
+  });
+
+  it('a load failure shows the red alert with Try again, which reads the windows again', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('offline'));
+    mockFetch.mockRejectedValueOnce(new Error('offline'));
+    mockFetch.mockRejectedValueOnce(new Error('offline'));
+    render(<MaintenanceWindowConfig />);
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain("Couldn't load maintenance windows. Check your connection and try again.");
+    serve();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Weekly patching')).toBeInTheDocument();
+  });
+
+  it('no windows and no zone: the empty card, the blue zone block, the browser zone only as a placeholder', async () => {
+    serve({ windows: [], zone: null, status: { state: 'none', text: 'No maintenance windows yet.', timeZone: null } });
+    render(<MaintenanceWindowConfig />);
+    expect(await screen.findByText('No maintenance windows yet')).toBeInTheDocument();
+    expect(screen.getByText("Add a window. Rollouts and approved restarts run only inside your windows.")).toBeInTheDocument();
+    expect(screen.getByText('No time zone is set yet. Windows use UTC until you choose one.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Time zone')).toHaveValue('');
+    expect(screen.getAllByRole('button', { name: 'Add window' }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(/Window (open|closed)/)).toBeNull();
+  });
+
+  it('populated: the zone card, the status banner and a window card with its chips and lines', async () => {
+    serve({
+      windows: [win({ openNow: true }), win({
+        id: 'w2', name: 'Once only', recurrence: 'none', startTime: null, endTime: null, daysOfWeek: null,
+        startsAt: '2026-01-01T22:00', endsAt: '2026-01-02T02:00', scheduleText: 'Thu 1 Jan, 22:00 to Fri 2 Jan, 02:00',
+        nextText: 'Next: not scheduled',
+      })],
+      status: { state: 'open', text: 'Open until 02:00 (Asia/Kolkata).', timeZone: 'Asia/Kolkata' },
+    });
+    render(<MaintenanceWindowConfig />);
+    expect(await screen.findByText('Weekly patching')).toBeInTheDocument();
+    expect(screen.getByLabelText('Time zone')).toHaveValue('Asia/Kolkata');
+    expect(screen.getByText('All of this organization\'s windows use this time zone. Daylight-saving changes are handled.')).toBeInTheDocument();
+    expect(screen.getByText('Window open')).toBeInTheDocument();
+    expect(screen.getByText('Open until 02:00 (Asia/Kolkata).')).toBeInTheDocument();
+    expect(screen.getByText('Weekly')).toBeInTheDocument();
+    expect(screen.getByText('One-time')).toBeInTheDocument();
+    expect(screen.getByText('22:00 to 02:00 the next day')).toBeInTheDocument();
+    expect(screen.getByLabelText('Saturday')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sunday')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Monday')).toBeNull();
+    expect(screen.getByText('Next: Sat 7 Nov, 22:00')).toBeInTheDocument();
+    expect(screen.getByText('Next: not scheduled')).toBeInTheDocument();
+    expect(screen.getAllByText('Asia/Kolkata').every(el => el.className.includes('font-mono'))).toBe(true);
+    expect(screen.getByRole('button', { name: 'Delete window Weekly patching' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete window Once only' })).toBeInTheDocument();
+  });
+
+  it('a long window name wraps instead of being cut off', async () => {
+    serve({ windows: [win({ name: 'Quarterly production patching window for the finance servers and all of the databases' })] });
+    render(<MaintenanceWindowConfig />);
+    const name = await screen.findByText(/Quarterly production patching/);
+    expect(name.className).toContain('break-words');
+    expect(name.className).not.toContain('truncate');
+  });
+
+  it('closed reads Window closed and Refresh reads the status again', async () => {
+    serve();
+    render(<MaintenanceWindowConfig />);
+    expect(await screen.findByText('Window closed')).toBeInTheDocument();
+    const before = callsTo('/api/maintenance/status', 'GET').length;
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(callsTo('/api/maintenance/status', 'GET').length).toBeGreaterThan(before));
+  });
+
+  it('Save time zone is accent only when changed, refuses an unknown zone and then saves with a toast', async () => {
+    serve();
+    render(<MaintenanceWindowConfig />);
+    const input = await screen.findByLabelText('Time zone');
+    const save = screen.getByRole('button', { name: 'Save time zone' });
+    expect(save.className).not.toContain('bg-primary-600');
+    expect(save).toBeDisabled();
+    fireEvent.change(input, { target: { value: 'Mars/Olympus' } });
+    expect(screen.getByText('Choose a time zone from the list, for example Asia/Kolkata.')).toBeInTheDocument();
+    expect(save).toBeDisabled();
+    fireEvent.change(input, { target: { value: 'Europe/Paris' } });
+    expect(save.className).toContain('bg-primary-600');
+    expect(screen.getByText('Existing windows keep their clock times but now run in Europe/Paris.')).toBeInTheDocument();
+    fireEvent.click(save);
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Time zone saved. Window times now use Europe/Paris.', 'success'));
+    expect(callsTo('/api/maintenance/time-zone', 'PUT')).toHaveLength(1);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save time zone' })).toBeDisabled());
+  });
+
+  it('the delete button asks first, and deleting the last window reloads into the empty state', async () => {
+    serve();
+    render(<MaintenanceWindowConfig />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete window Weekly patching' }));
+    expect(screen.getByText('Delete this window?')).toBeInTheDocument();
+    expect(screen.getByText(/This is the last window/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete window' }));
+    expect(await screen.findByText('No maintenance windows yet')).toBeInTheDocument();
+    expect(callsTo('/api/maintenance/windows/w1', 'DELETE')).toHaveLength(1);
+  });
+
+  it('Add window and Edit open the dialog', async () => {
+    serve();
+    render(<MaintenanceWindowConfig />);
+    await screen.findByText('Weekly patching');
+    fireEvent.click(screen.getByRole('button', { name: 'Add window' }));
+    expect(screen.getByText('Add maintenance window')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close without saving' }));
+    expect(screen.queryByText('Add maintenance window')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit window Weekly patching' }));
+    expect(screen.getByText('Edit maintenance window')).toBeInTheDocument();
+  });
+
+  it('the file has no hard-coded hex, no hand-built modal and no dark-only text-white', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const source = readFileSync(resolve(__dirname, '../../components/MaintenanceWindowConfig.tsx'), 'utf-8');
+    expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(source).not.toContain('fixed inset-0');
+    for (const line of source.split('\n')) {
+      if (/\btext-white\b/.test(line)) expect(line).toMatch(/bg-primary-600|bg-red-600/);
+    }
   });
 });
