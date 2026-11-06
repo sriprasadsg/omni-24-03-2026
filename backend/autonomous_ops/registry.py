@@ -24,13 +24,16 @@ class ActionSpec:
     person), "undo_only" (only the inverse of another action) or "probe" (read-only re-scan).
     undo: the command that puts it back, or None. target_kind: what the action protects
     ("ip", "host" or "none"). ip_params: parameter names that carry an IP address. cidr_params: parameter
-    names that carry a whole network (Phase 83): a request holding one always needs a person."""
+    names that carry a whole network (Phase 83): a request holding one always needs a person.
+    dispatchers: the only dispatchers allowed to ask for the action; empty means any dispatcher.
+    install_patches is the one automatic action limited to a single dispatcher (PTCH-06)."""
     name: str
     cls: str
     undo: Optional[str] = None
     target_kind: str = "host"
     ip_params: Tuple[str, ...] = ()
     cidr_params: Tuple[str, ...] = ()
+    dispatchers: Tuple[str, ...] = ()
 
 
 def _specs(*specs: ActionSpec):
@@ -43,6 +46,10 @@ ACTIONS = _specs(
                cidr_params=("cidr",)),
     ActionSpec("quarantine_file", "auto", undo="unquarantine_file"),
     ActionSpec("restart_service", "auto"),
+    # PTCH-06 / OQ1: a fourth automatic action, only ever asked for by the patch rollout controller and
+    # only for the canary ring. Any other dispatcher is refused unregistered_action, at decide time
+    # (gate._step_class) and again at delivery (dispatch_check.bind).
+    ActionSpec("install_patches", "auto", undo="rollback_patches", dispatchers=("patch_rollout",)),
     # These need a person.
     ActionSpec("isolate_host", "approve", undo="restore_host"),
     ActionSpec("kill_process", "approve"),
@@ -58,6 +65,7 @@ ACTIONS = _specs(
     ActionSpec("unquarantine_file", "undo_only"),
     ActionSpec("restore_host", "undo_only"),
     ActionSpec("rotate_key_rollback", "undo_only"),
+    ActionSpec("rollback_patches", "undo_only"),
     # Read-only verify re-scans.
     ActionSpec("scan_file", "probe", target_kind="none"),
     ActionSpec("scan_ip", "probe", target_kind="none"),

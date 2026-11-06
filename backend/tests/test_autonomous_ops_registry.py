@@ -21,7 +21,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import remediation_playbook_service as playbooks
 from autonomous_ops import registry as r
 
-AUTO = ("block_ip", "quarantine_file", "restart_service")
+# Phase 84 (PTCH-06, OQ1): install_patches is a deliberate fourth automatic action, limited to the
+# patch rollout dispatcher and, in the controller, to the canary ring. The original three are unchanged.
+AUTO = ("block_ip", "quarantine_file", "restart_service", "install_patches")
 APPROVE = ("isolate_host", "kill_process", "reboot_host", "upgrade_software")
 
 
@@ -33,6 +35,17 @@ def test_locked_split_and_aliases():
     assert r.resolve("patch_package") is r.resolve("upgrade_software")
     assert r.resolve("isolate_endpoint") is r.resolve("isolate_host")
     assert r.resolve("nonsense") is None and r.resolve(None) is None and r.resolve(["block_ip"]) is None
+
+
+def test_install_patches_only_for_the_rollout_dispatcher():
+    """protects=PTCH-06 / T-84-01: install_patches is automatic, can be undone by rollback_patches, and
+    only the rollout dispatcher may ask for it; rollback_patches is only ever the inverse."""
+    spec = r.resolve("install_patches")
+    assert spec.cls == "auto" and spec.undo == "rollback_patches" and spec.dispatchers == ("patch_rollout",)
+    assert r.resolve("rollback_patches").cls == "undo_only"
+    for name, other in r.ACTIONS.items():
+        if name != "install_patches":
+            assert other.dispatchers == (), name
 
 
 def test_every_playbook_action_resolves_and_every_undo_is_registered():

@@ -12,6 +12,7 @@ ACTION_LABELS = {
     "block_ip": "Block IP address",
     "quarantine_file": "Quarantine file",
     "restart_service": "Restart service",
+    "install_patches": "Install patches",
     "isolate_host": "Isolate host",
     "kill_process": "Kill process",
     "reboot_host": "Reboot host",
@@ -25,6 +26,7 @@ ACTION_LABELS = {
     "unquarantine_file": "Release file from quarantine",
     "restore_host": "Reconnect host to the network",
     "rotate_key_rollback": "Put the previous key back",
+    "rollback_patches": "Revert patches",
     "scan_file": "Re-scan file",
     "scan_ip": "Re-scan IP address",
     "scan_url": "Re-scan web address",
@@ -83,6 +85,19 @@ REASON_TEXT = {
     "verify_failed": "The check afterwards still found the problem.",
     # A playbook of several steps that stopped part-way (WR-11, WR-12); counted by the circuit breaker.
     "partly_applied": "Some steps ran, but a later step was not confirmed by the host, so the action did not finish.",
+    # Staged patch rollouts (Phase 84): what happened to one computer's step in a rollout.
+    "rollout_installed": "The patches were installed on this computer and the computer reported success.",
+    "rollout_install_failed": "The computer reported that the patch install did not finish.",
+    "rollout_not_delivered": "The computer did not receive the install in time, so it was marked as failed.",
+    "rollout_halted": "The rollout stopped here because a check after the install did not pass.",
+    "rollout_closed": "The rollout was closed before this step ran, so nothing was done.",
+    "rollout_line_denied": "A person denied this step, so the rollout stopped here.",
+    "rollout_approval_expired": "No one approved this step in time, so nothing was done.",
+    "ring_reverted": "The patches on this computer were put back because the ring did not pass its checks.",
+    "rollout_revert_failed": "Putting the patches back was not confirmed by the computer.",
+    "rollout_restarted": "The computer restarted and came back as expected.",
+    "rollout_no_new_boot": "The computer did not report a new start time after the restart was due.",
+    "rollout_window_closed": "The maintenance window closed before this step could run, so it waits for the next one.",
     **response_messages.REASON_TEXT,
 }
 

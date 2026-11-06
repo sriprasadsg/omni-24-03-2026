@@ -190,6 +190,9 @@ async def _step_class(ctx: _Ctx) -> None:
     specs = ctx.specs
     if not specs:
         return ctx.refuse("class", "unregistered_action")
+    if any(s.dispatchers and ctx.req.dispatcher not in s.dispatchers for s in specs + ctx.rollback_specs):
+        # PTCH-06 / T-84-01: an action limited to one dispatcher is unregistered for every other one.
+        return ctx.refuse("class", "unregistered_action", record=False)
     if any(s.cls == "approve" for s in specs):
         ctx.escalate("class", "needs_approval", "class_approve")
     elif registry.effective_class(specs[0], playbook_raise=ctx.req.playbook_raise) == "approve":
@@ -409,7 +412,8 @@ async def _link(db, tenant_id: str, action_id: str, doc_id: str) -> None:
 
 
 async def execute(db, tenant_id: str, action_id: str, *, command: str, agent_id: str,
-                  params: Dict[str, Any], kind: str = "action") -> Dict[str, Any]:
+                  params: Dict[str, Any], kind: str = "action",
+                  expires_at: Optional[datetime] = None) -> Dict[str, Any]:
     """Write one stamped agent instruction for a ledger row. This and ``execute_response_task``
     are the only functions in the repository that write the autonomy stamp. Refused unless the
     row is dispatchable for ``kind``, no stop is on (undo/compensate exempt, D-12) and ``bind`` passes."""
@@ -421,6 +425,8 @@ async def execute(db, tenant_id: str, action_id: str, *, command: str, agent_id:
            "payload": params, "parameters": params, "status": "pending", "triggered_by": STAMP_SOURCE,
            "autonomy": {"actionId": action_id, "tenantId": tenant_id, "kind": kind},
            "created_at": datetime.now(timezone.utc).isoformat()}
+    if expires_at is not None:      # PTCH-05: delivery refuses the instruction once this time has passed
+        doc["expiresAt"] = _aware(expires_at).astimezone(timezone.utc)
     try:
         await raw(db).agent_instructions.insert_one(doc)
     except Exception as exc:
