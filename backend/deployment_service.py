@@ -6,7 +6,6 @@ Handles test environments, phased deployment, and rollback capabilities
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
-import uuid
 from maintenance_service import get_maintenance_service
 
 
@@ -34,6 +33,10 @@ class ApprovalStatus(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     EXPIRED = "expired"
+
+
+class LegacyRevertRetired(Exception):
+    """The old staged-deployment revert no longer exists; use a rollout (Patching screen, Rollouts)."""
 
 
 class PatchDeploymentService:
@@ -209,7 +212,10 @@ class PatchDeploymentService:
                 deployment["status"] = "failed"
                 
                 if deployment["config"]["rollback_on_failure"]:
-                    await self.trigger_rollback(deployment_id, f"Stage {stage} failed - success rate {success_rate:.1%}")
+                    try:
+                        await self.trigger_rollback(deployment_id, f"Stage {stage} failed - success rate {success_rate:.1%}")
+                    except LegacyRevertRetired:
+                        pass        # the stage stays failed; nothing is reverted or queued (T-84-13)
         
         # Update in database
         await self.db.staged_deployments.update_one(
@@ -377,68 +383,11 @@ class PatchDeploymentService:
         reason: str
     ) -> Dict[str, Any]:
         """
-        Trigger rollback of deployment
-        Creates rollback tasks for all successfully patched assets
+        Retired (84 PTCH-07, T-84-13). This used to queue an ungated rollback_patches instruction for every
+        patched asset straight into agent_instructions: no stop switch, no window, no approval, no ledger row.
+        A revert now exists only as part of a rollout, through the gate. Nothing is written here.
         """
-        deployment = await self.get_deployment(deployment_id)
-        
-        if not deployment:
-            raise ValueError(f"Deployment {deployment_id} not found")
-        
-        # Collect all successfully patched assets
-        rolled_back_assets = []
-        for stage in deployment["stages"]:
-            for result in stage.get("test_results", []):
-                if result["success"]:
-                    rolled_back_assets.append(result["asset_id"])
-        
-        # Create rollback job
-        rollback_id = f"rollback-{deployment_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        
-        rollback_job = {
-            "id": rollback_id,
-            "deployment_id": deployment_id,
-            "asset_ids": rolled_back_assets,
-            "patch_ids": deployment["patch_ids"],
-            "reason": reason,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "status": "in_progress",
-            "tenant_id": deployment["tenant_id"]
-        }
-        
-        await self.db.rollback_jobs.insert_one(rollback_job)
-        
-        # Queue instructions for agents
-        for asset_id in rolled_back_assets:
-            # Find agent for this asset
-            agent = await self.db.agents.find_one({"assetId": asset_id})
-            if agent:
-                instruction_id = f"instr-rollback-{uuid.uuid4()}"
-                instruction = {
-                    "id": instruction_id,
-                    "agent_id": agent["id"],
-                    "type": "rollback_patches",
-                    "instruction": f"Rollback patches: {', '.join(deployment['patch_ids'])}",
-                    "patches": deployment["patch_ids"],
-                    "job_id": rollback_id,
-                    "status": "pending",
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }
-                await self.db.agent_instructions.insert_one(instruction)
-                print(f"[Rollback] Queued instruction {instruction_id} for agent {agent['id']}")
-
-        # Update deployment status
-        await self.db.staged_deployments.update_one(
-            {"id": deployment_id},
-            {"$set": {
-                "status": "rolled_back",
-                "rollback_id": rollback_id,
-                "rollback_reason": reason,
-                "rolled_back_at": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        return rollback_job
+        raise LegacyRevertRetired(deployment_id)
 
 
 def get_deployment_service(db):

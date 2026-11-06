@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from database import get_database
 from audit_service import get_audit_service
-from deployment_service import get_deployment_service, DeploymentStage, ApprovalStatus
+from deployment_service import get_deployment_service, DeploymentStage, ApprovalStatus, LegacyRevertRetired
 from auth_types import TokenData
 from tenant_context import get_tenant_id
 from rbac_service import rbac_service
@@ -310,6 +310,11 @@ async def rollback_deployment(deployment_id: str, data: dict, current_user: Toke
             "rollback": rollback,
             "message": f"Rollback initiated for {len(rollback['asset_ids'])} assets."
         }
+    except LegacyRevertRetired:
+        raise HTTPException(
+            status_code=409,
+            detail="This old staged deployment can't revert patches. Use Rollouts on the Patching screen: "
+                   "a rollout halts on failure and reverts where supported.")
     except Exception as e:
         logger.error("Error triggering rollback: %s", e)
         raise HTTPException(status_code=500, detail="Internal server error")
