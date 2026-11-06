@@ -479,6 +479,18 @@ describe('RolloutsTab', () => {
     expect(await screen.findByText('RINGS CARD')).toBeInTheDocument();
     expect(screen.getByText('START DIALOG')).toBeInTheDocument();
   });
+
+  it('passes the ring detail and the actions through to each card', async () => {
+    const halt = { ringName: 'Early', reason: 'a computer failed its health check.', reverts: [] };
+    serveRollouts([card({ id: 'a', name: 'Alpha', status: 'halted', halt })]);
+    show({
+      renderRingDetail: (ring) => <div>DETAIL OF {ring.name}</div>,
+      renderActions: (c) => <button type="button">Act on {c.name}</button>,
+    });
+    expect(await screen.findByRole('button', { name: 'Act on Alpha' })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: /Show details/ })[1]);
+    expect(screen.getByText('DETAIL OF Early')).toBeInTheDocument();
+  });
 });
 
 function at0() { return new Date(Date.now() + 3600_000).toISOString(); }
