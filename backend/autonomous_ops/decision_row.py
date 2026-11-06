@@ -8,9 +8,9 @@ Moved out of ``gate.py`` unchanged (it had reached 500 lines): ``display_target`
   {quarantine_id}, ``restore_host`` {isolation_id}. The claim id is the original instruction's own
   task id, which only exists after the action was sent, so the undo params are recomputed when a
   person undoes it (``approvals.undo``); with no claim the output is exactly what it always was.
-* ``reason_text`` keeps the caller's own wording for a ``security_response`` request on the
-  escalation codes, so a sweep row can say why it was raised. Every other code and every other
-  dispatcher behaves as before.
+* ``reason_text`` keeps the caller's own wording for a ``security_response`` or ``patch_rollout`` request
+  on the escalation codes, so a sweep row or a rollout card can say why it was raised. Every other code
+  and every other dispatcher behaves as before.
 
 Pure functions over the decision context: nothing here reads or writes a database.
 """
@@ -21,7 +21,9 @@ from . import APPROVAL_TTL, dispatch_check, messages, registry
 # The parameter that names the one claim an undo removes, keyed by the undo command.
 CLAIM_KEYS = {"unblock_ip": "block_id", "unquarantine_file": "quarantine_id", "restore_host": "isolation_id"}
 
-# Codes for which a security_response request's own text replaces the generic reason.
+# Dispatchers whose own text replaces the generic reason on the codes below (Phase 83 sweep, Phase 84 rollout).
+_OWN_WORDS_DISPATCHERS = frozenset({"security_response", "patch_rollout"})
+# Codes for which such a request's own text replaces the generic reason.
 _OWN_WORDS = frozenset({"class_auto", "suggest_requested", "playbook_raised", "class_approve", "suppressed_by_undo"})
 
 
@@ -63,7 +65,7 @@ def reason_text(req: Any, outcome: str, code: str) -> Optional[str]:
     the escalation codes); otherwise the plain-words reason for the code (refusals and escalations)."""
     if outcome == "allow_auto" and req.reason_text:
         return req.reason_text
-    if req.dispatcher == "security_response" and req.reason_text and code in _OWN_WORDS:
+    if req.dispatcher in _OWN_WORDS_DISPATCHERS and req.reason_text and code in _OWN_WORDS:
         return req.reason_text
     return messages.REASON_TEXT.get(code, req.reason_text)
 

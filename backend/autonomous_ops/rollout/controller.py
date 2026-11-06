@@ -1,8 +1,9 @@
 """The rollout controller tick (Phase 84): one pass over every tenant with an active rollout.
 
 Each pass settles agent results first (also while a stop is on, so what the computers already did is
-never lost), then moves each running rollout one step: waits for a maintenance window, sends the
-canary installs, and later soaks and checks. It never writes an agent queue and never calls
+never lost), halts a rollout whose approval line was denied or went unanswered, then moves each running
+rollout one step: waits for a maintenance window, sends approved rows and the canary installs, raises the
+approval lines, and later soaks and checks. It never writes an agent queue and never calls
 ``gate.decide`` while a stop is on or the tenant is Off (a stopped ``decide`` records a refused row on
 every call). Plan 84-22 puts the locked background loop around ``tick``.
 
@@ -14,7 +15,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .. import PLATFORM_TENANT_ID, scope, settings
 from ..scope import raw
-from . import ACTIVE_STATUSES, health, installs, lifecycle, settle, store, windows as windows_mod
+from .messages import plural
+from . import ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, settle, store, windows as windows_mod
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +35,13 @@ async def _may_decide(db, tenant_id: str, platform_stopped: bool) -> bool:
     return not settings.stop_active(tenant.stop) and settings.effective_level(tenant) != "off"
 
 
-async def _halt(db, tenant_id: str, rollout: Dict[str, Any], index: int, verdict: health.Verdict,
-                now: datetime) -> None:
-    """Stop the rollout at this ring (plan 84-03 moves this into ``lifecycle``)."""
-    await store.set_ring(db, tenant_id, rollout, index, {"state": "halted"})
-    await store.set_rollout(db, tenant_id, rollout, {
-        "status": "halted", "haltReason": {"code": verdict.code, "ring": index, "host": verdict.host, "at": now}})
+def _halt_facts(verdict: health.Verdict, hosts: List[Dict[str, Any]], signals: List[Dict[str, Any]],
+                ring: Dict[str, Any]) -> Dict[str, Any]:
+    """The numbers and the computer name a halt sentence needs."""
+    named = next((h.get("hostname") for h in hosts if h["agentId"] == verdict.host), None)
+    reported = [s for s in signals if s.get("reported")]
+    return {"host": named or verdict.host or "", "f": sum(1 for s in reported if s.get("failed")),
+            "computers": plural(len(reported), "computer", "computers"), "limit": int(ring.get("failPct") or 0)}
 
 
 async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
@@ -58,10 +61,30 @@ async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts:
     if verdict.kind == "waiting":
         return False
     if verdict.kind == "halt":
-        await _halt(db, tenant_id, rollout, index, verdict, now)
+        await lifecycle.halt(db, tenant_id, rollout, index, code=verdict.code, host=verdict.host, now=now,
+                             facts=_halt_facts(verdict, hosts, signals, ring))
         return False
     await lifecycle.advance(db, tenant_id, rollout, now)
     return True
+
+
+async def _ring_state(db, tenant_id: str, rollout: Dict[str, Any], index: int) -> None:
+    """Name what the ring is doing while it installs: sending, waiting for a person, or waiting for the
+    window to send what a person approved. A ring in its soak, passed or halted keeps that state."""
+    ring = rollout["rings"][index]
+    if ring.get("state") in ("soaking", "checking_health", "halted", "passed"):
+        return
+    states = [(h.get("state"), h.get("waitReason")) for h in await store.host_docs(db, tenant_id, rollout["id"])
+              if h.get("ring") == index]
+    if any(state == "installing" for state, _ in states):
+        new = "installing"
+    elif any(state == "waiting" and reason == "approval" for state, reason in states):
+        new = "waiting_for_window" if await lines.has_approved(db, tenant_id, rollout["id"], index) \
+            else "waiting_for_approval"
+    else:
+        new = "installing"
+    if ring.get("state") != new:
+        await store.set_ring(db, tenant_id, rollout, index, {"state": new})
 
 
 async def _step(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, counts: Dict[str, int]) -> bool:
@@ -73,24 +96,37 @@ async def _step(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, coun
     if not hosts:
         await lifecycle.advance(db, tenant_id, rollout, now)
         return True
-    waiting = [h for h in hosts if h.get("state") == "waiting"]
-    if waiting:
+    if any(installs.needs_decision(h, index) for h in hosts):
         open_now = (await windows_mod.load(db, tenant_id)).open_at(now)
         if open_now is None:
             if ring.get("state") != "waiting_for_window":
                 await store.set_ring(db, tenant_id, rollout, index, {"state": "waiting_for_window"})
             counts["waiting_for_window"] = counts.get("waiting_for_window", 0) + 1
             return False
-        if ring.get("state") != "installing":
-            await store.set_ring(db, tenant_id, rollout, index, {"state": "installing"})
-        if index == 0:         # later rings wait for a person (plan 84-03)
-            sent = await installs.canary_auto(db, tenant_id, rollout, index, hosts, now, open_now[1])
-            for key, value in sent.items():
-                counts[key] = counts.get(key, 0) + value
+        if index == 0:
+            made = await installs.canary_auto(db, tenant_id, rollout, index, hosts, now, open_now[1])
+        else:                  # every install after the canary waits for a person (PTCH-06)
+            made = await installs.raise_ring(db, tenant_id, rollout, index, hosts, now)
+        for key, value in made.items():
+            counts[key] = counts.get(key, 0) + value
+        await _ring_state(db, tenant_id, rollout, index)
         return False
     if any(h.get("state") not in ("installed", "failed") for h in hosts):
-        return False           # still installing (or only simulated): nothing to check yet
+        await _ring_state(db, tenant_id, rollout, index)
+        return False           # installing, waiting for a person, or only simulated: nothing to check yet
     return await _check(db, tenant_id, rollout, index, hosts, now)
+
+
+async def _halt_on_lines(db, tenant_id: str, rollout: Dict[str, Any], now: datetime) -> bool:
+    """A person denied the current ring's line, or nobody answered in 24 hours: stop the rollout at the ring."""
+    index = int(rollout.get("currentRing") or 0)
+    closed = await lines.closed_line(db, tenant_id, rollout["id"], index)
+    if closed is None:
+        return False
+    named = next((h.get("hostname") for h in await store.host_docs(db, tenant_id, rollout["id"])
+                  if h["agentId"] == closed["host"]), None)
+    return await lifecycle.halt(db, tenant_id, rollout, index, code=closed["code"], host=closed["host"], now=now,
+                                facts={"host": named or closed["host"] or ""})
 
 
 async def _ring(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, counts: Dict[str, int]) -> None:
@@ -104,7 +140,11 @@ async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, cou
     with scope.tenant_scope(tenant_id):
         for rollout in await store.active_rollouts(db, tenant_id, ACTIVE_STATUSES):
             await settle.settle(db, tenant_id, rollout, now)
+            if rollout.get("status") == "running":
+                await _halt_on_lines(db, tenant_id, rollout, now)       # needs no decision, so it works under a stop
             if decide and rollout.get("status") == "running":
+                sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
+                counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
                 await _ring(db, tenant_id, rollout, now, counts)
 
 

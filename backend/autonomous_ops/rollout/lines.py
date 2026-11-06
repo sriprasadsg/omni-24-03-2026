@@ -1,0 +1,240 @@
+"""Approval lines: everything in a rollout that is not an automatic canary install waits for a person (PTCH-06).
+
+A ring step (an install, a restart, a revert restart) is one ledger row per computer, never one row for
+many computers (planner decision OQ2, recorded in plan 84-03): each computer keeps its own patch list and
+job, each revert is the plain undo of its own row, and Activity shows one row per computer. A *line* is the
+set of one ring's rows that share ``reason.inputs`` {rolloutId, ring, line}. ``raise_line`` asks the gate
+for one row per computer (``playbook_raise``, so each is a card in ``awaiting_approval``); ``approve_line``
+and ``deny_line`` run ``approvals.approve`` / ``approvals.deny`` once per row, so every single-use,
+expiry, re-validation and permission rule is the one the rest of Autonomous Ops already has. One line's
+approval never approves another line, another ring or another rollout (PROH-84-04b): there is no
+approve-all, and the rows are always found by rollout, ring and line together.
+
+An approved row is sent by ``dispatcher`` (inside the window only). A denied line, or one nobody answered in
+24 hours, halts the rollout at that ring; ``closed_line`` finds it and the controller halts.
+
+Raw Mongo handle with an explicit tenantId only.
+"""
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+from .. import approvals, gate
+from ..scope import raw
+from . import COMMAND_INSTALL, DISPATCHER_NAME, messages as rm, store
+from . import dispatcher as _dispatcher  # noqa: F401  (importing registers the approvals dispatcher)
+
+logger = logging.getLogger(__name__)
+
+Entry = Tuple[Dict[str, Any], str, Dict[str, Any]]      # (host document, command, params)
+_AUTOMATIC_RULE = "rollout:canary_install"
+
+
+def _now(now: Optional[datetime]) -> datetime:
+    now = now or datetime.now(timezone.utc)
+    now = now.astimezone(timezone.utc) if now.tzinfo else now.replace(tzinfo=timezone.utc)
+    return now.replace(microsecond=now.microsecond // 1000 * 1000)
+
+
+def _stamp(moment: Any) -> str:
+    moment = store.parse_time(moment)
+    return f"{moment:%Y-%m-%d %H:%M} UTC" if moment else ""
+
+
+def install_entry(host: Dict[str, Any], patch_ids: Iterable[str]) -> Entry:
+    """An install line entry: this computer's patches and the id of the job that will carry them. The job
+    itself is made when the row is sent (``dispatcher.ensure_job``)."""
+    return host, COMMAND_INSTALL, {"patch_ids": list(patch_ids), "job_id": uuid.uuid4().hex}
+
+
+def _why(rollout: Dict[str, Any], ring: int, line: str, host: Dict[str, Any], ids: List[str]) -> str:
+    """The sentence the card shows as its reason (UI-SPEC section 6)."""
+    rings = rollout.get("rings") or []
+    if line == "install" and ring == 0:
+        return rm.fill(rm.ACTIVITY["not_reversible_why"], patch=", ".join(ids), host=host.get("hostname") or host["agentId"])
+    if line == "install":
+        previous = rings[ring - 1] if 0 < ring <= len(rings) else {}
+        return rm.fill(rm.CARD["why"]["install"], previous=previous.get("name") or "The previous ring",
+                       at=_stamp(previous.get("passedAt")), ring=(rings[ring].get("name") if ring < len(rings) else ""))
+    key = "revert_reboot" if line == "revert_reboot" else "reboot"
+    return rm.fill(rm.CARD["why"][key], computers=rm.plural(1, "computer", "computers"))
+
+
+def _approval_filter(tenant_id: str, rollout_id: str, ring: int, line: str) -> Dict[str, Any]:
+    return {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
+            "reason.inputs.ring": ring, "reason.inputs.line": line, "reason.ruleId": f"rollout:{line}"}
+
+
+async def line_rows(db, tenant_id: str, rollout_id: str, ring: int, line: str,
+                    states: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
+    """The approval rows of one line of one ring of one rollout, oldest first, optionally only in ``states``."""
+    flt = _approval_filter(tenant_id, rollout_id, ring, line)
+    if states is not None:
+        flt["state"] = {"$in": list(states)}
+    found = raw(db).autonomy_actions.find(flt, {"_id": 0}).sort([("createdAt", 1), ("id", 1)])
+    return [r async for r in found]
+
+
+async def raise_line(db, tenant_id: str, rollout: Dict[str, Any], ring: int, line: str, entries: List[Entry],
+                     now: datetime) -> Dict[str, int]:
+    """Ask the gate for one approval row per entry. Returns counts of ``raised``, ``simulated`` and ``skipped``.
+    The gate escalates every request to a card (``playbook_raise``); a tenant in shadow mode records a
+    simulation and no card. The caller must not call this while a stop is on (a stopped ``decide`` records
+    a refused row each time)."""
+    counts = {"raised": 0, "simulated": 0, "skipped": 0}
+    for host, command, params in entries:
+        ids = list(params.get("patch_ids") or [])
+        agent_id = host["agentId"]
+        attempt = int(host.get("attempt") or 0) + 1
+        sequence = len((host.get("lineActionIds") or {}).get(line) or []) + 1
+        request = gate.ActionRequest(
+            tenant_id=tenant_id, kind="patching", origin="rollout", actions=[command], targets=[agent_id],
+            params=params, playbook_raise=True, dispatcher=DISPATCHER_NAME,
+            dedupe_key=f"{tenant_id}|{DISPATCHER_NAME}|{rollout['id']}|{ring}|{line}|{agent_id}|{attempt}|{sequence}",
+            reason={"ruleId": f"rollout:{line}",
+                    "inputs": {"rolloutId": rollout["id"], "ring": ring, "line": line, "attempt": attempt,
+                               "patchIds": ids}},
+            reason_text=_why(rollout, ring, line, host, ids))
+        decision = await gate.decide(db, request, now=now)
+        if not decision.recorded or not decision.action_id:
+            counts["skipped"] += 1
+            continue
+        if decision.shadow:
+            await store.set_host(db, tenant_id, rollout["id"], agent_id, {"state": "would_install"})
+            counts["simulated"] += 1
+            continue
+        if decision.state != "awaiting_approval":
+            counts["skipped"] += 1           # the gate refused: nothing to wait for
+            continue
+        await store.hosts(db).update_one(
+            {"tenantId": tenant_id, "rolloutId": rollout["id"], "agentId": agent_id},
+            {"$push": {f"lineActionIds.{line}": decision.action_id}, "$addToSet": {"linePatchIds": {"$each": ids}}})
+        await store.hosts(db).update_one(
+            {"tenantId": tenant_id, "rolloutId": rollout["id"], "agentId": agent_id, "state": "waiting"},
+            {"$set": {"waitReason": "approval"}})
+        counts["raised"] += 1
+    return counts
+
+
+async def has_approved(db, tenant_id: str, rollout_id: str, ring: int) -> bool:
+    """True when a person approved a row of the ring that has not been sent yet (it waits for the window)."""
+    flt = {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
+           "reason.inputs.ring": ring, "state": "approved"}
+    return await raw(db).autonomy_actions.find_one(flt, {"_id": 1}) is not None
+
+
+async def closed_line(db, tenant_id: str, rollout_id: str, ring: int) -> Optional[Dict[str, Any]]:
+    """The first approval row of the ring that a person denied or that expired unanswered, as
+    ``{"code": install_denied | restart_denied | approval_expired, "host": agent id}``, else None. A row the
+    rollout itself closed (reasonCode ``rollout_closed``) is not a decision."""
+    flt = {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
+           "reason.inputs.ring": ring, "reason.ruleId": {"$in": ["rollout:install", "rollout:reboot", "rollout:revert_reboot"]},
+           "state": {"$in": ["denied", "expired"]}, "reasonCode": {"$ne": "rollout_closed"}}
+    found = raw(db).autonomy_actions.find(flt, {"_id": 0}).sort([("finishedAt", 1), ("id", 1)]).limit(1)
+    for row in [r async for r in found]:
+        line = (row.get("reason") or {}).get("inputs", {}).get("line")
+        if row.get("state") == "expired":
+            code = "approval_expired"
+        else:
+            code = "install_denied" if line == "install" else "restart_denied"
+        return {"code": code, "host": (row.get("targets") or [None])[0]}
+    return None
+
+
+# ---------------------------------------------------------------- one click per line
+
+def _result(status: str, *, when: Optional[str] = None, opens: Any = None, approved: int = 0,
+            refused: Optional[List[Dict[str, str]]] = None, message: str = "") -> Dict[str, Any]:
+    """The LineDecisionResult of services/patchRollouts/types.ts."""
+    moment = store.parse_time(opens)
+    return {"status": status, "when": when, "windowOpensAt": moment.isoformat() if moment else None,
+            "approved": approved, "refused": refused or [], "message": message}
+
+
+async def _running(db, tenant_id: str, rollout_id: str) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """(rollout, None) when it exists and is running, else (None, the refusing result)."""
+    rollout = await store.rollouts(db).find_one({"id": rollout_id, "tenantId": tenant_id}, {"_id": 0, "id": 1, "status": 1, "rings": 1})
+    if rollout is None:
+        return None, _result("refused", message=rm.LINE_RESULT["not_found"])
+    if rollout.get("status") != "running":
+        return None, _result("refused", message=rm.LINE_RESULT["not_running"])
+    return rollout, None
+
+
+async def _hostname(db, tenant_id: str, rollout_id: str, agent_id: Any) -> str:
+    doc = await store.hosts(db).find_one({"tenantId": tenant_id, "rolloutId": rollout_id, "agentId": agent_id},
+                                         {"_id": 0, "hostname": 1})
+    return str((doc or {}).get("hostname") or agent_id or "")
+
+
+async def approve_line(db, tenant_id: str, rollout_id: str, ring: int, line: str, *, approver: Dict[str, Any],
+                       now: Optional[datetime] = None) -> Dict[str, Any]:
+    """Approve every awaiting row of one line of one ring, one ``approvals.approve`` per row, so one click is
+    one approval per stage and a second click finds every row already handled. A row sent at once counts as
+    ``now``; with the window closed (or the computer unable to take it yet) the rows stay approved and the
+    answer is ``window``. A stop changes nothing."""
+    now = _now(now)
+    rollout, refusal = await _running(db, tenant_id, rollout_id)
+    if rollout is None:
+        return refusal
+    if await gate._stopped(db, tenant_id):
+        return _result("stopped", message=rm.LINE_RESULT["stopped"])
+    awaiting = await line_rows(db, tenant_id, rollout_id, ring, line, ("awaiting_approval", "suggested"))
+    if not awaiting:
+        if await line_rows(db, tenant_id, rollout_id, ring, line):
+            return _result("already_handled", message=rm.LINE_RESULT["already_handled"])
+        return _result("refused", message=rm.LINE_RESULT["nothing_open"])
+    sent = deferred = expired = 0
+    opens: Any = None
+    refused: List[Dict[str, str]] = []
+    for row in awaiting:
+        answer = await approvals.approve(db, tenant_id, row["id"], approver=approver, now=now)
+        status = answer.get("status")
+        dispatch = answer.get("dispatch") or {}
+        if status == "stopped":
+            return _result("stopped", approved=sent + deferred, message=rm.LINE_RESULT["stopped"])
+        if status == "dispatched" and dispatch.get("status") == "deferred":
+            deferred += 1
+            opens = opens or dispatch.get("windowOpensAt")
+        elif status == "dispatched":
+            sent += 1
+        elif status == "expired":
+            expired += 1
+        elif status == "refused":
+            refused.append({"hostname": await _hostname(db, tenant_id, rollout_id, (row.get("targets") or [None])[0]),
+                            "reason": str(answer.get("reason") or "refused")})
+    approved = sent + deferred
+    if not approved:
+        status = "expired" if expired else "refused" if refused else "already_handled"
+        return _result(status, refused=refused, message=rm.LINE_RESULT["already_handled"])
+    key = "approved_install" if line == "install" else "approved_restart"
+    if deferred:
+        when = rm.fill(rm.CARD["settled"]["when_window"], opens=_stamp(opens)) if opens else rm.LINE_RESULT["waiting_computer"]
+        message = rm.fill(rm.CARD["settled"][key], when=when) if opens else rm.LINE_RESULT["waiting_computer"]
+        return _result("approved", when="window", opens=opens, approved=approved, refused=refused, message=message)
+    message = rm.fill(rm.CARD["settled"][key], when=rm.CARD["settled"]["when_now"])
+    return _result("approved", when="now", approved=approved, refused=refused, message=message)
+
+
+async def deny_line(db, tenant_id: str, rollout_id: str, ring: int, line: str, *, approver: Dict[str, Any],
+                    reason: str = "") -> Dict[str, Any]:
+    """Deny every awaiting row of one line of one ring, one ``approvals.deny`` per row. Writes nothing to an
+    agent. The controller halts the rollout at the ring on its next pass."""
+    rollout, refusal = await _running(db, tenant_id, rollout_id)
+    if rollout is None:
+        return refusal
+    awaiting = await line_rows(db, tenant_id, rollout_id, ring, line, ("awaiting_approval", "suggested"))
+    if not awaiting:
+        if await line_rows(db, tenant_id, rollout_id, ring, line):
+            return _result("already_handled", message=rm.LINE_RESULT["already_handled"])
+        return _result("refused", message=rm.LINE_RESULT["nothing_open"])
+    denied = 0
+    for row in awaiting:
+        answer = await approvals.deny(db, tenant_id, row["id"], approver=approver, reason=reason)
+        denied += 1 if answer.get("status") == "denied" else 0
+    if not denied:
+        return _result("already_handled", message=rm.LINE_RESULT["already_handled"])
+    rings = rollout.get("rings") or []
+    name = rings[ring].get("name") if 0 <= ring < len(rings) else ""
+    return _result("denied", message=rm.fill(rm.CARD["settled"]["denied"], name=approver.get("name") or "", ring=name))

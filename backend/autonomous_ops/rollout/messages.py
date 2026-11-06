@@ -251,6 +251,16 @@ CARD = {
     "never_reached": {"one": "1 computer was never reached.", "many": "{n} computers were never reached."},
 }
 
+# What an approve or deny click on a whole line answers when nothing was decided (84-03).
+LINE_RESULT = {
+    "not_running": "This rollout is not running, so nothing was decided.",
+    "not_found": "This step was not found.",
+    "stopped": "Automatic actions are stopped, so nothing was approved.",
+    "already_handled": "This step was already decided.",
+    "nothing_open": "Nothing is waiting for a decision here.",
+    "waiting_computer": "Approved. Each computer gets it as soon as it can take it, inside your maintenance window.",
+}
+
 # ---------------------------------------------------------------- Activity rows (section 7)
 
 ACTIVITY = {

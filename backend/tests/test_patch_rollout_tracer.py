@@ -177,7 +177,8 @@ async def test_a_host_that_cannot_check_reversibility_is_never_installed_automat
     db = await world(mongo_db, tokens=("reboot_host",))
     await begin(db)
     await controller.tick(db, now=NOW)
-    assert await rows(db) == [] and await instructions(db) == []
+    # PTCH-06 (plan 84-03): nothing is sent, and the patches wait for a person as one approval row.
+    assert [r["state"] for r in await rows(db)] == ["awaiting_approval"] and await instructions(db) == []
     assert (await db.patch_rollout_hosts.find_one({"agentId": "a1"}))["state"] == "waiting"
 
 
@@ -185,7 +186,7 @@ async def test_a_package_that_usually_needs_a_restart_is_not_installed_automatic
     db = await world(mongo_db, pending=("linux-image-6.8.0",))
     await begin(db, ["linux-image-6.8.0"])
     await controller.tick(db, now=NOW)
-    assert await rows(db) == [] and await instructions(db) == []
+    assert [r["state"] for r in await rows(db)] == ["awaiting_approval"] and await instructions(db) == []
 
 
 async def test_a_stopped_tenant_gets_no_new_decision_but_a_result_still_settles(mongo_db):
