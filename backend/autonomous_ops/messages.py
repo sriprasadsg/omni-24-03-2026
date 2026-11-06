@@ -46,6 +46,9 @@ CONTROL_LABELS = {
     "level_restored": "Level restored",
     "rate_limit_reached": "Rate limit reached",
     "rollout_rings_saved": "Rollout rings saved",
+    "rollout_resumed": "Rollout resumed",
+    "rollout_resume_checked": "Rollout kept halted",
+    "rollout_cancelled": "Rollout cancelled",
     **response_messages.CONTROL_LABELS,
 }
 

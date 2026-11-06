@@ -348,7 +348,7 @@ async def test_the_cancel_route_ends_a_halted_rollout(api):
     assert (await rollout(api.db))["status"] == "cancelled"
 
 
-async def test_a_viewer_an_api_key_and_platform_support_cannot_resume_or_cancel(api):
+async def test_a_viewer_and_an_api_key_cannot_resume_or_cancel(api):
     """protects=T-84-50; fails_when=anything but a signed-in person with manage:patches reaches the lifecycle."""
     scopes = ["view:patching", "manage:patches"]
     for role, kwargs in (("user", {}), ("tenant_admin", {"auth": "api_key", "scopes": scopes})):

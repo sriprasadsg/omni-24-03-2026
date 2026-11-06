@@ -105,6 +105,18 @@ def health_rows(hosts: List[Dict[str, Any]], ring: Dict[str, Any], now: datetime
     return rows
 
 
+def health_counts(hosts: List[Dict[str, Any]]) -> Dict[str, int]:
+    """{reported, failed} over the computers that are judged (not ``not_reached`` or ``left_out``): the numbers on
+    the ring's failure-rate line."""
+    judged = [h for h in hosts if h.get("state") not in EXCLUDED_STATES]
+    return {"reported": sum(1 for h in judged if h.get("reported")), "failed": sum(1 for h in judged if h.get("failed"))}
+
+
+def required_os(rollout: Dict[str, Any]) -> List[str]:
+    """The operating systems the rollout installs on (those with at least one chosen patch)."""
+    return sorted(name for name, ids in (rollout.get("patchesByOs") or {}).items() if ids)
+
+
 def last_change(hosts: List[Dict[str, Any]]) -> Optional[datetime]:
     """The latest install report or new boot of the ring's computers, None when none reported."""
     times = [t for t in (store.parse_time(h.get(key)) for h in hosts for key in ("installReportedAt", "newBootAt"))

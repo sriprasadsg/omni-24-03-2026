@@ -1,6 +1,7 @@
 """The rollout controller tick (Phase 84): one pass over every tenant with an active rollout.
 
-Each pass settles agent results first (also while a stop is on, so what the computers already did is
+Each pass (also over a completed rollout that still tracks computers it never reached, and a cancelled one whose
+revert is still running) settles agent results first (also while a stop is on, so what the computers already did is
 never lost), halts a rollout whose approval line was denied or went unanswered, then moves each running
 rollout one step: waits for a maintenance window, sends approved rows and the canary installs, raises the
 approval lines, and later soaks and checks. It never writes an agent queue and never calls
@@ -13,11 +14,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
-import agent_capabilities
-
-from .. import PLATFORM_TENANT_ID, agent_support, response_settings, scope, settings
+from .. import PLATFORM_TENANT_ID, agent_support, scope, settings
 from ..scope import raw
-from .messages import plural
 from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, reboots, revert, settle, signals,
                store, windows as windows_mod)
 
@@ -40,15 +38,6 @@ async def _may_decide(db, tenant_id: str, platform_stopped: bool) -> bool:
     return not settings.stop_active(tenant.stop) and settings.effective_level(tenant) != "off"
 
 
-def _halt_facts(verdict: health.Verdict, hosts: List[Dict[str, Any]], signals: List[Dict[str, Any]],
-                ring: Dict[str, Any]) -> Dict[str, Any]:
-    """The numbers and the computer name a halt sentence needs."""
-    named = next((h.get("hostname") for h in hosts if h["agentId"] == verdict.host), None)
-    reported = [s for s in signals if s.get("reported")]
-    return {"host": named or verdict.host or "", "f": sum(1 for s in reported if s.get("failed")),
-            "computers": plural(len(reported), "computer", "computers"), "limit": int(ring.get("failPct") or 0)}
-
-
 async def _restarts(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
                     now: datetime) -> bool:
     """True while the ring's restarts are not finished (D-07): raise the Reboot line for the installed
@@ -68,33 +57,19 @@ async def _restarts(db, tenant_id: str, rollout: Dict[str, Any], index: int, hos
     return True
 
 
-def _required_os(rollout: Dict[str, Any]) -> List[str]:
-    """The operating systems the rollout installs on (those with at least one chosen patch)."""
-    return sorted(name for name, ids in (rollout.get("patchesByOs") or {}).items() if ids)
-
-
 async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
                  now: datetime) -> bool:
     """Restart, soak and check the ring whose installs are all settled. True when the ring passed (go on)."""
     ring = rollout["rings"][index]
-    stored = await response_settings.load(db, tenant_id)
-    watched = list(stored.watched_services) if stored.readable else None       # unreadable: no data, not a pass
-    permitted = await agent_capabilities.allowed_for(raw(db), tenant_id)
-    agents = {}
-    async for agent in raw(db).agents.find({"tenantId": tenant_id, "id": {"$in": [h["agentId"] for h in hosts]}},
-                                           signals.AGENT_FIELDS):
-        agents[agent["id"]] = agent
-    found = [await signals.host_signals(db, tenant_id, rollout, h, agents.get(h["agentId"]), watched, permitted, now)
-             for h in hosts]
+    found = await signals.ring_signals(db, tenant_id, rollout, hosts, now)
     rows = health.health_rows(found, ring, now)
-    judged = [s for s in found if s.get("state") not in health.EXCLUDED_STATES]
-    counts = {"reported": sum(1 for s in judged if s.get("reported")), "failed": sum(1 for s in judged if s.get("failed"))}
+    counts = health.health_counts(found)
     if rows != ring.get("health") or counts != ring.get("healthCounts"):       # the card's failure-rate line reads these
         await store.set_ring(db, tenant_id, rollout, index, {"health": rows, "healthCounts": counts})
-    verdict = health.ring_verdict(found, ring, now, _required_os(rollout))
+    verdict = health.ring_verdict(found, ring, now, health.required_os(rollout))
     if verdict.kind == "halt":               # a failure halts at once: no restart is asked for, no soak is waited out
         await lifecycle.halt(db, tenant_id, rollout, index, code=verdict.code, host=verdict.host, now=now,
-                             facts=_halt_facts(verdict, hosts, found, ring))
+                             facts=lifecycle.halt_facts(verdict, hosts, found, ring))
         return False
     if await _restarts(db, tenant_id, rollout, index, hosts, now):
         return False
@@ -103,7 +78,7 @@ async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts:
         await store.set_ring(db, tenant_id, rollout, index, {"state": "soaking", "soakEndsAt": soak})
         rows = health.health_rows(found, rollout["rings"][index], now)
         await store.set_ring(db, tenant_id, rollout, index, {"health": rows})
-        verdict = health.ring_verdict(found, rollout["rings"][index], now, _required_os(rollout))
+        verdict = health.ring_verdict(found, rollout["rings"][index], now, health.required_os(rollout))
     if verdict.kind == "waiting":
         return False
     await lifecycle.advance(db, tenant_id, rollout, now)
@@ -153,7 +128,7 @@ async def _reach(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts:
             await store.set_host(db, tenant_id, rollout["id"], agent_id, {"lastOnlineInWindowAt": now})
     if index == 0 and open_now is not None:
         reached = {h.get("os") for h in hosts if h.get("state") in ("installed", "restarting", "healthy")}
-        missing = set(_required_os(rollout)) - reached
+        missing = set(health.required_os(rollout)) - reached
         for h in (h for h in hosts if h.get("state") == "not_reached" and h.get("os") in missing):
             if store.parse_time(h.get("notReachedWindow")) != open_now[0]:      # a window after the one it missed
                 await store.set_host(db, tenant_id, rollout["id"], h["agentId"],
@@ -234,6 +209,26 @@ async def _ring(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, coun
             return
 
 
+async def _tail(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, decide: bool, counts: Dict[str, int]) -> None:
+    """A finished rollout that is still looked after. A cancelled one only settles the revert it left running. A
+    completed one with computers it never reached (D-18, open question 4): settle what came back, free the claims
+    of those that were reached, offer a returning computer the install as an approval inside an open window (never
+    on its own), send approved ones, and close the rollout at ``closesAt``."""
+    if rollout.get("status") == "cancelled":
+        await lifecycle.settle_cancelled(db, tenant_id, rollout, now)
+        return
+    await settle.settle(db, tenant_id, rollout, now)
+    await lifecycle.release_reached(db, tenant_id, rollout)
+    closes = store.parse_time(rollout.get("closesAt"))
+    if decide and closes is not None and now < closes:
+        open_now = (await windows_mod.load(db, tenant_id)).open_at(now) is not None
+        counts["raised"] = counts.get("raised", 0) + await lifecycle.offer_returning(db, tenant_id, rollout, now, open_now)
+        sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
+        counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
+    if await lifecycle.close_if_due(db, tenant_id, rollout, now):
+        counts["closed"] = counts.get("closed", 0) + 1
+
+
 async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, counts: Dict[str, int]) -> None:
     decide = await _may_decide(db, tenant_id, platform_stopped)
     with scope.tenant_scope(tenant_id):
@@ -254,6 +249,11 @@ async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, cou
                 sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
                 counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
                 await _ring(db, tenant_id, rollout, now, counts)
+        for rollout in await store.tail_rollouts(db, tenant_id):
+            try:
+                await _tail(db, tenant_id, rollout, now, decide, counts)
+            except Exception as exc:           # one finished rollout's fault never stops the next
+                logger.error("autonomous_ops: rollout %s could not be tended after it finished: %s", rollout["id"], exc)
 
 
 async def tick(db, *, now: Optional[datetime] = None, lost: Optional[Callable[[], bool]] = None) -> Dict[str, int]:
@@ -266,7 +266,8 @@ async def tick(db, *, now: Optional[datetime] = None, lost: Optional[Callable[[]
     except Exception as exc:
         logger.error("autonomous_ops: rollout tick could not read the platform stop, only settling: %s", exc)
         platform_stopped = True
-    tenants: List[str] = [t for t in await store.tenants_with_rollouts(db, ACTIVE_STATUSES) if t != PLATFORM_TENANT_ID]
+    found = set(await store.tenants_with_rollouts(db, ACTIVE_STATUSES)) | set(await store.tenants_with_tails(db))
+    tenants: List[str] = sorted(t for t in found if t != PLATFORM_TENANT_ID)
     for tenant_id in tenants:
         if lost is not None and lost():
             logger.warning("autonomous_ops: rollout tick lost its lock, stopping this pass")

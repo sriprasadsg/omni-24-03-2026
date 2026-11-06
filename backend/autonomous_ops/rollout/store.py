@@ -157,3 +157,20 @@ async def active_rollouts(db, tenant_id: str, statuses: Iterable[str]) -> List[D
 async def tenants_with_rollouts(db, statuses: Iterable[str]) -> List[str]:
     ids = await rollouts(db).distinct("tenantId", {"status": {"$in": list(statuses)}})
     return sorted(t for t in ids if isinstance(t, str) and t)
+
+
+# A finished rollout the controller still looks after: a completed one that has not closed yet and tracks computers
+# it never reached (``closesAt``), and a cancelled one whose revert is still running (``revertOpen``).
+TAIL_FILTER: Dict[str, Any] = {"$or": [
+    {"status": "completed", "closesAt": {"$ne": None}, "closedAt": None},
+    {"status": "cancelled", "revertOpen": True}]}
+
+
+async def tail_rollouts(db, tenant_id: str) -> List[Dict[str, Any]]:
+    found = rollouts(db).find({"tenantId": tenant_id, **TAIL_FILTER}).sort("createdAt", 1)
+    return [normalise(d) async for d in found]
+
+
+async def tenants_with_tails(db) -> List[str]:
+    ids = await rollouts(db).distinct("tenantId", TAIL_FILTER)
+    return sorted(t for t in ids if isinstance(t, str) and t)

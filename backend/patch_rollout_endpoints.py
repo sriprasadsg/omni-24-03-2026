@@ -13,6 +13,8 @@ POST /preflight         the check before Start, one row per check
 POST /                  start a rollout (422 with the blocker rows, 409 when another rollout took a computer)
 GET  /draft             a vulnerability suggestion turned into a name and patch list; stores nothing
 GET  /{id}              one rollout card
+POST /{id}/resume       a halted rollout continues only if its ring's health check is green now (reason 1-500)
+POST /{id}/cancel       a halted rollout ends; claims are released and patched computers keep their patches
 
 The platform organization has no rollouts: reads answer an empty page, writes answer 409.
 """
@@ -27,7 +29,7 @@ from pydantic import BaseModel, Field, StrictStr, StringConstraints
 import rbac_defaults
 from api_key_auth import get_current_user_or_api_key
 from autonomous_ops import PLATFORM_TENANT_ID, settings, views as ops_views
-from autonomous_ops.rollout import MIN_RINGS, picker, rings as rings_mod, start, store, views
+from autonomous_ops.rollout import MIN_RINGS, lifecycle, picker, rings as rings_mod, start, store, views
 from autonomous_ops.rollout import messages as rm
 from autonomous_ops.scope import raw
 from autonomous_ops_endpoints import _require_interactive_session, _tenant_for, _unavailable
@@ -45,6 +47,12 @@ class StartBody(BaseModel):
     """A name of 1 to 60 characters and 1 to 200 patch ids; fields not listed here are ignored."""
     name: Annotated[StrictStr, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
     patchIds: List[PatchId] = Field(min_length=1, max_length=200)
+
+
+class ResumeBody(BaseModel):
+    """The reason for resuming. 1 to 500 characters with a non-space character is checked by ``lifecycle.resume``,
+    which answers with the sentence the screen shows; the length cap here only bounds the request."""
+    reason: StrictStr = Field(max_length=5000)
 
 
 class PreflightBody(BaseModel):
@@ -245,5 +253,47 @@ async def get_rollout(rollout_id: str = Path(..., max_length=ROLLOUT_ID_MAX), te
         return await views.rollout_card(db, tenant, doc, await _caller(db, user, tenant), _now())
     except HTTPException:
         raise
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
+def _lifecycle_error(exc: lifecycle.LifecycleError) -> HTTPException:
+    """409 for a rollout that is not halted or still reverting, 404 for an unknown one, 422 for a missing reason."""
+    code = 404 if isinstance(exc, lifecycle.RolloutNotFound) else 422 if isinstance(exc, lifecycle.ReasonRequired) else 409
+    return HTTPException(status_code=code, detail=str(exc))
+
+
+@router.post("/{rollout_id}/resume", summary="Resume a halted rollout")
+async def post_resume(body: ResumeBody, rollout_id: str = Path(..., max_length=ROLLOUT_ID_MAX),
+                      tenantId: Optional[str] = TenantQuery, user=Depends(_require_manage_patches),
+                      _session=Depends(_require_interactive_session)):
+    """Run the halted ring's health check again on current data. Green: the ring passes and the rollout continues
+    (``resumed``). Red or still waiting: it stays halted (``still_halted``) with the current reason. Failed computers
+    are never skipped. Needs a reason; recorded with the person's name."""
+    try:
+        db = get_database()
+        tenant = await _write_tenant(db, user, tenantId)
+        return await lifecycle.resume(db, tenant, rollout_id, actor=await _actor(db, user), reason=body.reason, now=_now())
+    except HTTPException:
+        raise
+    except lifecycle.LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/{rollout_id}/cancel", summary="Cancel a halted rollout")
+async def post_cancel(rollout_id: str = Path(..., max_length=ROLLOUT_ID_MAX), tenantId: Optional[str] = TenantQuery,
+                      user=Depends(_require_manage_patches), _session=Depends(_require_interactive_session)):
+    """End a halted rollout. Computers that already have the patches keep them, nothing further installs, and a
+    revert that is already running finishes on its own."""
+    try:
+        db = get_database()
+        tenant = await _write_tenant(db, user, tenantId)
+        return await lifecycle.cancel(db, tenant, rollout_id, actor=await _actor(db, user), now=_now())
+    except HTTPException:
+        raise
+    except lifecycle.LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
     except Exception as exc:
         raise _unavailable(exc) from exc

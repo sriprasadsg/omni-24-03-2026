@@ -324,6 +324,15 @@ ACTIVITY = {
     "simulation": "Would have {did}. Nothing was carried out.",
 }
 
+# ---------------------------------------------------------------- resume, cancel and closing (plan 84-16)
+
+# The record a person leaves in the activity list (and the audit log) when they resume or cancel a halted rollout.
+LIFECYCLE_CONTROL = {
+    "resumed": 'Rollout "{name}" resumed at {ring}. Reason: {reason}',
+    "still_halted": 'Rollout "{name}" stays halted at {ring}: its health check still fails. Reason given: {reason}',
+    "cancelled": 'Rollout "{name}" cancelled at {ring}. Computers that already have the patches keep them.',
+}
+
 # ---------------------------------------------------------------- short explanations the routes return
 
 API_DETAIL = {

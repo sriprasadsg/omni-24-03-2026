@@ -23,7 +23,9 @@ computer's ``state``, ``os`` and ``hostname``. Reads only.
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
-from .. import agent_support
+import agent_capabilities
+
+from .. import agent_support, response_settings
 from ..scope import raw
 from . import INVENTORY_FRESH_AFTER, SERVICE_SETTLE, TOKEN_SERVICE_STATE, reboots, store
 from .start import pending_ids
@@ -117,3 +119,18 @@ async def host_signals(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
     if agent is None and db is not None:
         agent = await raw(db).agents.find_one({"id": host["agentId"], "tenantId": tenant_id}, AGENT_FIELDS)
     return read(agent, host, watched, capabilities)
+
+
+async def ring_signals(db, tenant_id: str, rollout: Dict[str, Any], hosts: List[Dict[str, Any]],
+                       now: datetime) -> List[Dict[str, Any]]:
+    """The signals for every computer in ``hosts`` against the organization's watched services and permitted
+    capabilities, read once. The controller's pass and Resume both judge a ring from exactly this."""
+    stored = await response_settings.load(db, tenant_id)
+    watched = list(stored.watched_services) if stored.readable else None       # unreadable: no data, not a pass
+    permitted = await agent_capabilities.allowed_for(raw(db), tenant_id)
+    agents = {}
+    async for agent in raw(db).agents.find({"tenantId": tenant_id, "id": {"$in": [h["agentId"] for h in hosts]}},
+                                           AGENT_FIELDS):
+        agents[agent["id"]] = agent
+    return [await host_signals(db, tenant_id, rollout, h, agents.get(h["agentId"]), watched, permitted, now)
+            for h in hosts]
