@@ -102,7 +102,7 @@ describe('PatchManagementDashboard Rollouts tab', () => {
   it('re-reads the badge on window focus', async () => {
     serve(0);
     dashboard();
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockFetch.mock.calls.some(c => String(c[0]).startsWith('/api/patch-rollouts'))).toBe(true));
     serve(3);
     act(() => { window.dispatchEvent(new Event('focus')); });
     const tab = screen.getByRole('button', { name: /^Rollouts/ });

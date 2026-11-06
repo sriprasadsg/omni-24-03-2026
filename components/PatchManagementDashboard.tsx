@@ -15,6 +15,9 @@ import { LocalRepoManager } from './LocalRepoManager';
 import { PatchSoftwareUpdatesTab, OutdatedPackage } from './PatchSoftwareUpdatesTab';
 import { OsPatchesTab, OsAssetPatch } from './OsPatchesTab';
 import { showToast } from '../utils/toast';
+import type { AppView } from '../types';
+import { RolloutsTab } from './patchRollouts/RolloutsTab';
+import { fetchRollouts } from '../services/patchRollouts/rollouts';
 
 interface PatchManagementDashboardProps {
     patches: Patch[];
@@ -25,10 +28,12 @@ interface PatchManagementDashboardProps {
     onScheduleVulnerabilityScan: (assetIds: string[], scanType: 'Immediate' | 'Scheduled', scheduleTime?: string) => Promise<void>;
     /** Tenant a super admin is viewing; null = the caller's own tenant. */
     tenantId?: string | null;
+    /** Lets the Rollouts tab send the person to Needs your decision or Settings. */
+    onOpenView?: (view: AppView) => void;
 }
 
 export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> = ({
-    patches, assets, patchDeploymentJobs, onSchedulePatchDeployment, vulnerabilityScanJobs, onScheduleVulnerabilityScan, tenantId
+    patches, assets, patchDeploymentJobs, onSchedulePatchDeployment, vulnerabilityScanJobs, onScheduleVulnerabilityScan, tenantId, onOpenView
 }) => {
     // The live OS/software tabs and their scan follow the viewed tenant together,
     // so "Update" never picks an agent from a different tenant than the package.
@@ -39,7 +44,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
     const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
     const [scanScope, setScanScope] = useState<'selected' | 'all'>('selected');
-    const [activeTab, setActiveTab] = useState<'patches' | 'approvals' | 'software-updates' | 'os-patches'>('patches');
+    const [activeTab, setActiveTab] = useState<'patches' | 'approvals' | 'software-updates' | 'os-patches' | 'rollouts'>('patches');
 
     // Software Updates state
     const [outdatedPackages, setOutdatedPackages] = useState<OutdatedPackage[]>([]);
@@ -50,6 +55,20 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
     const [pkgTypeFilter, setPkgTypeFilter] = useState<string>('all');
     const [updatingPkgs, setUpdatingPkgs] = useState<Set<string>>(new Set());
     const [bulkUpdating, setBulkUpdating] = useState(false);
+
+    // Rollouts tab badge: how many rollouts need a person (the tab itself reports the figure while it is open).
+    const [rolloutAttention, setRolloutAttention] = useState(0);
+    useEffect(() => {
+        let alive = true;
+        const read = () => {
+            fetchRollouts({ offset: 0, limit: 1, tenantId })
+                .then(page => { if (alive && Number.isFinite(page?.attentionCount)) setRolloutAttention(page.attentionCount); })
+                .catch(() => { /* no badge when the read fails */ });
+        };
+        read();
+        window.addEventListener('focus', read);
+        return () => { alive = false; window.removeEventListener('focus', read); };
+    }, [tenantId]);
 
     // Velocity chart state
     const [velocityData, setVelocityData] = useState<{ date: string; deployed: number; failed: number }[]>([]);
@@ -254,10 +273,11 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
     };
     const scanAssetCount = scanScope === 'all' ? assets.length : selectedAssetIds.size;
 
-    const tabs: { id: 'patches' | 'approvals' | 'software-updates' | 'os-patches'; label: string; badge?: string }[] = [
+    const tabs: { id: 'patches' | 'approvals' | 'software-updates' | 'os-patches' | 'rollouts'; label: string; badge?: string }[] = [
         { id: 'patches', label: 'Patches & Deployment' },
         { id: 'software-updates', label: '🔄 Software Updates', badge: outdatedPackages.length > 0 ? String(outdatedPackages.length) : undefined },
         { id: 'os-patches', label: '🖥️ OS Patches', badge: osPatchesMeta?.total_pending_os_patches ? String(osPatchesMeta.total_pending_os_patches) : undefined },
+        { id: 'rollouts', label: 'Rollouts', badge: rolloutAttention > 0 ? String(rolloutAttention) : undefined },
         { id: 'approvals', label: 'Agent Approvals', badge: 'Agentic' },
     ];
 
@@ -276,7 +296,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
                             : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                         {tab.label}
                         {tab.badge && (
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tab.id === 'approvals' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'}`}>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tab.id === 'approvals' || tab.id === 'rollouts' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'}`}>
                                 {tab.badge}
                             </span>
                         )}
@@ -423,6 +443,10 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
                     onRefresh={() => fetchOsPatches()}
                     onApplyOsPatches={handleApplyOsPatches}
                 />
+            )}
+
+            {activeTab === 'rollouts' && (
+                <RolloutsTab tenantId={tenantId} onOpenView={onOpenView} onAttentionCount={setRolloutAttention} />
             )}
 
             {activeTab === 'approvals' && (
