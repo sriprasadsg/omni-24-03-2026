@@ -23,6 +23,7 @@ import rbac_defaults
 from api_key_auth import get_current_user_or_api_key
 from autonomous_ops import (CONTROL_PERMISSION, MANAGE_PERMISSION, PLATFORM_TENANT_ID, approvals, breaker, ledger,
                             messages, protected, settings, stop, views)
+from autonomous_ops.rollout import dispatcher as _rollout_dispatcher  # noqa: F401  (registers the patch_rollout approvals dispatcher)
 from database import get_database
 
 logger = logging.getLogger(__name__)
