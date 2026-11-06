@@ -179,7 +179,7 @@ OFFLINE_NOW = {
 
 PREFLIGHT = {
     "titles": {"window": "Window", "rings": "Rings", "canary": "Canary ring", "left_out": "Left out",
-               "offline": "Offline now", "autonomy": "Autonomous Ops", "cap": "Size of the rollout",
+               "offline": "Offline now", "autonomous_ops": "Autonomous Ops", "cap": "Size of the rollout",
                "patches": "Patches"},
     "window_ok": "Next window: {opens} ({zone}).",
     "window_blocker": "Add a maintenance window first.",

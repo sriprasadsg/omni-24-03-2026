@@ -158,6 +158,18 @@ def test_the_api_details_cover_the_refusals_the_routes_return():
                                  "reason_required", "rollout_not_found", "rings_unreadable"}
 
 
+def test_no_dict_key_in_the_module_is_the_autonomy_stamp_key():
+    # The structural gate test treats a dict key named "autonomy" as a stamp write, so only the gate may hold one.
+    import ast
+    with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "autonomous_ops", "rollout",
+                           "messages.py"), encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    keys = [k.value for node in ast.walk(tree) if isinstance(node, ast.Dict) for k in node.keys
+            if isinstance(k, ast.Constant) and isinstance(k.value, str)]
+    assert "autonomy" not in keys and not any(k.startswith("autonomy.") for k in keys)
+    assert m.PREFLIGHT["titles"]["autonomous_ops"] == "Autonomous Ops"
+
+
 def test_the_validation_sentences_are_the_ui_spec_ones():
     assert m.VALIDATION["name"] == "Enter a name for this rollout."
     assert m.VALIDATION["canary_group"] == "Pick at least one group for the Canary ring."

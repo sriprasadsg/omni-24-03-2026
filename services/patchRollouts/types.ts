@@ -134,7 +134,7 @@ export interface RolloutPage {
 // ---------------------------------------------------------------- Start rollout
 
 export type PreflightCheck =
-    | 'window' | 'rings' | 'canary' | 'left_out' | 'offline' | 'autonomy' | 'cap' | 'patches' | 'stopped';
+    | 'window' | 'rings' | 'canary' | 'left_out' | 'offline' | 'autonomous_ops' | 'cap' | 'patches' | 'stopped';
 
 export interface PreflightRow {
     check: PreflightCheck;
