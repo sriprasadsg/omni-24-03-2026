@@ -446,7 +446,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
             )}
 
             {activeTab === 'rollouts' && (
-                <RolloutsTab tenantId={tenantId} onOpenView={onOpenView} onAttentionCount={setRolloutAttention} />
+                <RolloutsTab key={tenantId ?? 'own'} tenantId={tenantId} onOpenView={onOpenView} onAttentionCount={setRolloutAttention} />
             )}
 
             {activeTab === 'approvals' && (
