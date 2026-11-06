@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 84
 current_phase_name: Staged Patch Rollouts
 status: executing
-stopped_at: Completed 84-05-PLAN.md
-last_updated: "2026-11-06T15:12:16.990Z"
+stopped_at: Completed 84-06-PLAN.md
+last_updated: "2026-11-06T15:35:26.689Z"
 last_activity: 2026-11-06
 last_activity_desc: Phase 84 execution started
-state_head: 4f24e03f548be5721d49e346ee9bc2d4af980867
+state_head: 9e982de467b0905c1ba7ebf6ca5e79b63d896504
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 92
-  completed_plans: 75
+  completed_plans: 76
   percent: 14
 ---
 
@@ -559,6 +559,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 84]: 84-04: instruction expiry (instruction_expired) is checked first in delivery.hold_back_autonomous on any item with a datetime expiresAt; stamped undo/compensate exempt; non-date values ignored
 - [Phase 84]: 84-04: reconciler skips patch_rollout rows (controller settles); legacy staged-deployment trigger_rollback raises LegacyRevertRetired, route answers 409, deployment_service.py left GRANDFATHERED_WRITERS
 - [Phase 84]: 84-05: window sentences live in messages.VALIDATION; a stored tenant zone always wins over a body timeZone; max 50 windows per tenant; edit replaces the whole window document
+- [Phase 84]: 84-06: Start claims computers one at a time in agent id order so overlapping Starts cannot both lose; start_rollout raises PreflightBlocked/AlreadyInRollout (platform tenant and non-installable ids still return refused)
+- [Phase 84]: 84-06: canary-per-OS check counts only canary computers that would really be claimed; deleted groups are dropped before placement (rings.resolve); a middle ring needs a group
 
 ## Performance Metrics
 
@@ -789,6 +791,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 84 P03 | 31 min | 3 tasks | 12 files |
 | Phase 84 P04 | 9 min | 3 tasks | 8 files |
 | Phase 84 P05 | 10 min | 2 tasks | 6 files |
+| Phase 84 P06 | 34 min | 3 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -823,8 +826,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-06T15:12:16.757Z
-**Stopped at:** Completed 84-05-PLAN.md
+**Last session:** 2026-11-06T15:35:26.470Z
+**Stopped at:** Completed 84-06-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -851,7 +854,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 84 (Staged Patch Rollouts) — EXECUTING
-Plan: 6 of 22
+Plan: 7 of 22
 Status: Ready to execute
 Last activity: 2026-11-06 — Phase 84 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
