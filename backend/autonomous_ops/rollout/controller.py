@@ -120,6 +120,12 @@ async def tick(db, *, now: Optional[datetime] = None, lost: Optional[Callable[[]
         platform_stopped = True
     tenants: List[str] = [t for t in await store.tenants_with_rollouts(db, ACTIVE_STATUSES) if t != PLATFORM_TENANT_ID]
     for tenant_id in tenants:
+        if lost is not None and lost():
+            logger.warning("autonomous_ops: rollout tick lost its lock, stopping this pass")
+            break
         counts["tenants"] += 1
-        await _tenant(db, tenant_id, now, platform_stopped, counts)
+        try:
+            await _tenant(db, tenant_id, now, platform_stopped, counts)
+        except Exception as exc:       # one tenant's fault never stops the next tenant's rollout
+            logger.error("autonomous_ops: rollout tick failed for tenant %s: %s", tenant_id, exc)
     return counts

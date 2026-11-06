@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from autonomous_ops import gate, ledger, protected
+from autonomous_ops import dispatch_check, gate, ledger, protected
 from autonomous_ops.rollout import controller, health, start, store, windows
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.rollout_support import (failure_result, fresh_scan, post_result, seed_group, seed_rings, seed_rollout_agent, seed_rollout_tenant,
@@ -45,30 +45,30 @@ def hhmm(moment):
     return moment.strftime("%H:%M")
 
 
-async def world(db, *, tokens=TOKENS, open_window=True, pending=("openssl",)):
+async def world(db, *, tokens=TOKENS, open_window=True, pending=("openssl",), tenant=T, agent="a1", group="G1"):
     """One tenant, an open (or closed) daily window, two rings and one Linux host in the canary group."""
     await ledger.ensure_indexes(db)
     await store.ensure_indexes(db)
-    await seed_rollout_tenant(db, T)
-    await seed_rollout_agent(db, T, "a1", hostname="host-a1", platform="Linux", tokens=tokens, pending=list(pending),
-                             boot_time=BOOT, last_seen=NOW)
-    await seed_group(db, T, "G1", ["a1"])
-    await seed_rings(db, T, RINGS)
+    await seed_rollout_tenant(db, tenant)
+    await seed_rollout_agent(db, tenant, agent, hostname=f"host-{agent}", platform="Linux", tokens=tokens,
+                             pending=list(pending), boot_time=BOOT, last_seen=NOW)
+    await seed_group(db, tenant, group, [agent])
+    await seed_rings(db, tenant, [{**RINGS[0], "groupIds": [group]}, RINGS[1]])
     if open_window:
-        await seed_window(db, T, start=hhmm(NOW - timedelta(hours=1)), end=hhmm(NOW + timedelta(hours=3)))
+        await seed_window(db, tenant, start=hhmm(NOW - timedelta(hours=1)), end=hhmm(NOW + timedelta(hours=3)))
     else:
-        await seed_window(db, T, start=hhmm(NOW + timedelta(hours=2)), end=hhmm(NOW + timedelta(hours=3)))
+        await seed_window(db, tenant, start=hhmm(NOW + timedelta(hours=2)), end=hhmm(NOW + timedelta(hours=3)))
     return db
 
 
-async def begin(db, patch_ids=("openssl",)):
-    out = await start.start_rollout(db, T, name="Nov", patch_ids=list(patch_ids), actor=ACTOR, now=NOW)
+async def begin(db, patch_ids=("openssl",), tenant=T):
+    out = await start.start_rollout(db, tenant, name="Nov", patch_ids=list(patch_ids), actor=ACTOR, now=NOW)
     assert out["status"] == "started", out
     return out["rolloutId"]
 
 
-async def rows(db):
-    return [r async for r in db.autonomy_actions.find({"tenantId": T, "dispatcher": "patch_rollout"}, {"_id": 0})]
+async def rows(db, tenant=T):
+    return [r async for r in db.autonomy_actions.find({"tenantId": tenant, "dispatcher": "patch_rollout"}, {"_id": 0})]
 
 
 async def instructions(db):
@@ -325,6 +325,134 @@ def test_verdict_missing_data_halts_only_after_the_soak_and_names_the_signal():
     done = health.ring_verdict([signals("a", heartbeat=None)], ring(), NOW)
     assert (done.kind, done.code, done.host) == ("halt", "no_data:heartbeat", "a")
     assert health.ring_verdict([signals("a", state="not_reached", inventory=None)], ring(), NOW).kind == "green"
+
+
+# ---------------------------------------------------------------- Task 3: fail-closed edges
+
+def row_for(dispatcher):
+    params = {"patch_ids": ["openssl"], "job_id": "j", "require_reversible": True}
+    return {"dispatcher": dispatcher, "targets": ["a1"], "steps": [{"command": "install_patches", "params": params}]}, params
+
+
+async def test_delivery_binds_install_patches_only_for_a_rollout_row(mongo_db):
+    row, params = row_for("patch_rollout")
+    assert await dispatch_check.bind(mongo_db, T, row, command="install_patches", agent_id="a1", params=params,
+                                     kind="action") is None
+    for other in ("security_response", "remediation", "instruction", None):
+        row, params = row_for(other)
+        assert await dispatch_check.bind(mongo_db, T, row, command="install_patches", agent_id="a1", params=params,
+                                         kind="action") == "unregistered_action", other
+
+
+async def test_gate_execute_refuses_to_deliver_install_patches_for_another_dispatcher(mongo_db):
+    db = await world(mongo_db)
+    row, params = row_for("security_response")
+    row.update({"id": "AO-x", "tenantId": T, "state": "dispatching", "kind": "patching", "origin": "x",
+                "command": "install_patches", "actions": ["install_patches"], "instructionIds": []})
+    await db.autonomy_actions.insert_one(row)
+    sent = await gate.execute(db, T, "AO-x", command="install_patches", agent_id="a1", params=params)
+    assert sent == {"status": "refused", "reason": "unregistered_action"}
+    assert await instructions(db) == []
+
+
+def test_a_legacy_weekly_window_reads_open_on_its_weekday_and_closed_outside_it():
+    # Written by the old screen: Python weekdays (Monday is 0), ISO date and time strings.
+    legacy = {"id": "w", "tenantId": T, "start_time": "2026-01-01T02:00:00Z", "end_time": "2026-01-01T04:00:00Z",
+              "recurrence": "weekly", "days_of_week": [1], "is_active": True}          # Tuesday
+    window = windows.parse_window(legacy)
+    assert window is not None and window.days == (2,)
+    tuesday_3am = datetime(2026, 11, 10, 3, 0, tzinfo=timezone.utc)
+    assert windows.is_open([window], "UTC", tuesday_3am) is not None
+    assert windows.is_open([window], "UTC", tuesday_3am + timedelta(hours=2)) is None
+    assert windows.is_open([window], "UTC", tuesday_3am + timedelta(days=1)) is None
+    assert windows.parse_window({**legacy, "days_of_week": [7]}) is None              # not a Python weekday
+    assert windows.parse_window({**legacy, "recurrence": "monthly"}) is None
+
+
+def test_a_legacy_daily_window_and_a_one_time_window_read_correctly():
+    daily = windows.parse_window({"start_time": "2026-01-01T22:00:00Z", "end_time": "2026-01-01T23:30:00Z",
+                                  "recurrence": "daily"})
+    assert windows.is_open([daily], "UTC", datetime(2026, 11, 10, 23, 0, tzinfo=timezone.utc)) is not None
+    once = windows.parse_window({"recurrence": "none", "startsAt": "2026-11-10T22:00:00",
+                                 "endsAt": "2026-11-11T01:00:00"})
+    kolkata = "Asia/Kolkata"                                                          # the stored times are local
+    assert windows.is_open([once], kolkata, datetime(2026, 11, 10, 17, 0, tzinfo=timezone.utc)) is not None
+    assert windows.is_open([once], kolkata, datetime(2026, 11, 10, 19, 31, tzinfo=timezone.utc)) is None
+    assert windows.is_open([once], kolkata, datetime(2026, 11, 10, 16, 29, tzinfo=timezone.utc)) is None
+    mixed = {"recurrence": "none", "startsAt": "2026-11-10T22:00:00", "endsAt": "2026-11-11T01:00:00Z"}
+    assert windows.parse_window(mixed) is None
+
+
+def test_next_open_never_returns_an_occurrence_that_is_already_open():
+    window = windows.parse_window({"recurrence": "daily", "startTime": "02:00", "endTime": "04:00"})
+    inside = datetime(2026, 11, 10, 3, 0, tzinfo=timezone.utc)
+    assert windows.next_open([window], "UTC", inside) == (datetime(2026, 11, 11, 2, 0, tzinfo=timezone.utc),
+                                                           datetime(2026, 11, 11, 4, 0, tzinfo=timezone.utc))
+    before = datetime(2026, 11, 10, 1, 0, tzinfo=timezone.utc)
+    assert windows.next_open([window], "UTC", before)[0] == datetime(2026, 11, 10, 2, 0, tzinfo=timezone.utc)
+    assert windows.next_open([window], "No/Such_Zone", before) is None
+    assert windows.next_open([], "UTC", before) is None
+
+
+async def test_an_old_screen_window_row_in_the_database_opens_the_tick(mongo_db):
+    db = await world(mongo_db, open_window=False)
+    await db.maintenance_windows.delete_many({})
+    await db.maintenance_windows.insert_one({
+        "id": "old", "tenantId": T, "name": "old screen", "recurrence": "weekly", "is_active": True,
+        "start_time": f"2026-01-01T{hhmm(NOW - timedelta(hours=1))}:00Z",
+        "end_time": f"2026-01-01T{hhmm(NOW + timedelta(hours=3))}:00Z", "days_of_week": sorted({NOW.weekday(), (NOW - timedelta(hours=1)).weekday()})})
+    await begin(db)
+    await controller.tick(db, now=NOW)
+    assert len(await rows(db)) == 1 and len(await instructions(db)) == 1
+
+
+async def test_an_unknown_time_zone_reads_closed_and_the_tick_writes_nothing(mongo_db):
+    db = await world(mongo_db)
+    await begin(db)
+    await db.maintenance_settings.update_one({"tenantId": T}, {"$set": {"timeZone": "Mars/Olympus"}})
+    loaded = await windows.load(db, T)
+    assert loaded.readable is False and loaded.open_at(NOW) is None
+    await controller.tick(db, now=NOW)
+    assert await rows(db) == [] and await instructions(db) == []
+
+
+async def two_tenants(db):
+    await world(db)
+    await world(db, tenant="t2", agent="a2", group="G2")
+    await begin(db)
+    await begin(db, tenant="t2")
+
+
+async def test_a_lost_lock_stops_the_tick_before_the_next_tenant_is_touched(mongo_db):
+    db = mongo_db
+    await two_tenants(db)
+    polls = []
+
+    def lost():
+        polls.append(1)
+        return len(polls) > 1                       # fine before the first tenant, lost before the second
+
+    counts = await controller.tick(db, now=NOW, lost=lost)
+    assert counts["tenants"] == 1
+    assert len(await rows(db, "t1")) == 1 and await rows(db, "t2") == []
+
+
+async def test_an_error_in_one_tenant_is_logged_and_the_next_tenant_still_runs(mongo_db, monkeypatch, caplog):
+    db = mongo_db
+    await two_tenants(db)
+    real = controller.settle.settle
+
+    async def broken(db_, tenant_id, rollout, now):
+        if tenant_id == "t1":
+            raise RuntimeError("boom")
+        return await real(db_, tenant_id, rollout, now)
+
+    monkeypatch.setattr(controller.settle, "settle", broken)
+    with caplog.at_level("ERROR"):
+        counts = await controller.tick(db, now=NOW)
+    assert counts["tenants"] == 2
+    assert "t1" in caplog.text and "boom" in caplog.text
+    assert await rows(db, "t1") == [] and len(await rows(db, "t2")) == 1
 
 
 # ---------------------------------------------------------------- PTCH-07

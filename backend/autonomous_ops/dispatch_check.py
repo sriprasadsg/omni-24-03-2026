@@ -194,12 +194,15 @@ def decided_steps(row, kind: str) -> Optional[List[Dict[str, Any]]]:
 
 async def bind(db, tenant_id: str, row, *, command, agent_id, params, kind: str) -> Optional[str]:
     """None when this dispatch is exactly what the row decided, else the refusal code:
-    ``unregistered_action``, ``target_mismatch``, ``step_mismatch``, or (auto / approve
-    commands only, checked now against the current list) ``protected_target`` /
-    ``invalid_target``. An unreadable never-touch list refuses ``protected_target``."""
+    ``unregistered_action`` (also for an action limited to other dispatchers than the row's),
+    ``target_mismatch``, ``step_mismatch``, or (auto / approve commands only, checked now against the
+    current list) ``protected_target`` / ``invalid_target``. An unreadable never-touch list refuses
+    ``protected_target``."""
     spec = registry.resolve(command)
     if spec is None:
         return "unregistered_action"
+    if spec.dispatchers and row.get("dispatcher") not in spec.dispatchers:
+        return "unregistered_action"     # PTCH-06 / T-84-01: the delivery-time half of the dispatcher allow-list
     targets = row.get("targets")
     if not isinstance(targets, list) or agent_id not in targets:
         return "target_mismatch"

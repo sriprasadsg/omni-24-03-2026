@@ -1,9 +1,13 @@
 """Maintenance windows, read the way a rollout needs them (PTCH-05).
 
 A window is a start and end time of day in the tenant's time zone, daily or on chosen ISO weekdays
-(Monday is 1, Sunday is 7). A window that ends at or before its start runs past midnight and is keyed
-by the date it starts on. Everything is built with the standard library's ``zoneinfo`` so a daylight
-saving change moves the UTC edges instead of breaking them.
+(Monday is 1, Sunday is 7), or a one-time window with a start and end date and time. A window that
+ends at or before its start runs past midnight and is keyed by the date it starts on. Everything is
+built with the standard library's ``zoneinfo`` so a daylight saving change moves the UTC edges instead
+of breaking them.
+
+Rows saved by the old maintenance screen (``start_time`` / ``end_time`` ISO strings, ``days_of_week``
+with Monday as 0) are converted on read: the time of day as written, the weekday plus one.
 
 Fail closed (PROH-84-05): a tenant with no window, a window this module cannot read, or an unknown
 time zone is never treated as open. ``TenantWindows.readable`` is False when anything was skipped.
@@ -28,10 +32,11 @@ Occurrence = Tuple[datetime, datetime]
 @dataclass
 class Window:
     name: str
-    recurrence: str                       # "daily" | "weekly"
-    start: time
-    end: time
+    recurrence: str                       # "daily" | "weekly" | "none" (one time)
+    start: Optional[time] = None
+    end: Optional[time] = None
     days: Optional[Tuple[int, ...]] = None    # ISO weekdays; None means every day
+    once: Optional[Tuple[datetime, datetime]] = None   # one-time: naive means local time in the zone
 
 
 @dataclass
@@ -64,27 +69,68 @@ def _hhmm(value: Any) -> Optional[time]:
         return None
 
 
+def _stamp(value: Any) -> Optional[datetime]:
+    """A datetime from a datetime or an ISO string, left naive when it carries no offset."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _clock(value: Any) -> Optional[time]:
+    """The time of day as written: "HH:MM", or the clock part of an ISO date and time."""
+    plain = _hhmm(value)
+    if plain is not None:
+        return plain
+    stamp = _stamp(value)
+    return time(stamp.hour, stamp.minute) if stamp is not None else None
+
+
+def _weekdays(values: Any, shift: int) -> Optional[Tuple[int, ...]]:
+    """Valid weekday numbers as ISO days (``shift`` 0 for ISO input, 1 for Monday-is-0 input), else None."""
+    low, high = 1 - shift, 7 - shift
+    if (not isinstance(values, list) or not values
+            or any(isinstance(d, bool) or not isinstance(d, int) or not low <= d <= high for d in values)):
+        return None
+    return tuple(sorted({d + shift for d in values}))
+
+
 def parse_window(row: Dict[str, Any]) -> Optional[Window]:
-    """The window a stored row describes, or None when this module cannot read it."""
-    recurrence = row.get("recurrence")
-    start, end = _hhmm(row.get("startTime")), _hhmm(row.get("endTime"))
+    """The window a stored row describes (new or old shape), or None when this module cannot read it."""
+    legacy = "start_time" in row or "end_time" in row
+    recurrence = row.get("recurrence") or ("none" if legacy else None)
+    name = str(row.get("name") or "")
+    if recurrence == "none":
+        first = _stamp(row.get("end_time" if legacy else "endsAt"))
+        begin = _stamp(row.get("start_time" if legacy else "startsAt"))
+        if begin is None or first is None or (begin.tzinfo is None) != (first.tzinfo is None) or first <= begin:
+            return None
+        return Window(name=name, recurrence="none", once=(begin, first))
+    start = _clock(row.get("start_time" if legacy else "startTime"))
+    end = _clock(row.get("end_time" if legacy else "endTime"))
     if recurrence not in ("daily", "weekly") or start is None or end is None or start == end:
         return None
     days = None
     if recurrence == "weekly":
-        raw_days = row.get("daysOfWeek")
-        if (not isinstance(raw_days, list) or not raw_days
-                or any(isinstance(d, bool) or not isinstance(d, int) or not 1 <= d <= 7 for d in raw_days)):
+        days = _weekdays(row.get("days_of_week") if legacy else row.get("daysOfWeek"), 1 if legacy else 0)
+        if days is None:
             return None
-        days = tuple(sorted(set(raw_days)))
-    return Window(name=str(row.get("name") or ""), recurrence=recurrence, start=start, end=end, days=days)
+    return Window(name=name, recurrence=recurrence, start=start, end=end, days=days)
 
 
 def occurrences(zone: str, window: Window, around_utc: datetime, span_days: int = 2) -> Iterator[Occurrence]:
     """The (open, close) UTC pairs of ``window`` that start from yesterday to ``span_days`` ahead of
-    ``around_utc``'s local date. An unknown zone yields nothing."""
+    ``around_utc``'s local date (a one-time window yields its single pair). An unknown zone yields nothing."""
     tz = _zone(zone)
     if tz is None:
+        return
+    if window.once is not None:
+        begin, finish = (d if d.tzinfo else d.replace(tzinfo=tz) for d in window.once)
+        yield begin.astimezone(timezone.utc), finish.astimezone(timezone.utc)
         return
     local = store.aware(around_utc).astimezone(tz)
     for offset in range(-1, span_days + 1):
@@ -107,6 +153,14 @@ def is_open(windows: List[Window], zone: str, now: datetime) -> Optional[Occurre
             if opens <= now < closes and (best is None or closes > best[1]):
                 best = (opens, closes)
     return best
+
+
+def next_open(windows: List[Window], zone: str, now: datetime) -> Optional[Occurrence]:
+    """The next occurrence that opens after ``now`` and is not open already, within the coming 8 days,
+    or None. An occurrence that is open now is never returned."""
+    now = store.aware(now).astimezone(timezone.utc)
+    upcoming = [o for w in windows for o in occurrences(zone, w, now, span_days=8) if o[0] > now]
+    return min(upcoming, key=lambda o: o[0]) if upcoming else None
 
 
 async def load(db, tenant_id: str) -> TenantWindows:
