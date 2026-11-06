@@ -17,7 +17,9 @@ tick, per tenant in sorted tenantId order:
    -> ``failed`` with reason ``no_result``. A ``remediation`` row decided with several steps belongs to
    the remediation that sends them one after another (WR-12): it is completed only once every step was
    sent, and one left part-way for longer than the not-delivered bound (its owner is gone) is ``failed``
-   with reason ``partly_applied``;
+   with reason ``partly_applied``. A ``patch_rollout`` row is skipped here: the rollout controller settles it
+   from ``patch_deployment_jobs`` (an approved install waits for its window, and the install reports through
+   the deployments route, hours after it was sent), so this pass never fails it (84, PTCH-05);
 3. gives an undone security_response row back its Done state when its undo failed or went unanswered
    (``verify.settle_undo``), and runs what follows a settled row (``followups``);
 4. asks the circuit breaker to look at the tenant when any of its rows changed.
@@ -35,6 +37,7 @@ from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
 from . import OPEN_STATES, approvals, breaker, followups, ledger, messages, scope, verify
+from .rollout import DISPATCHER_NAME as _ROLLOUT_DISPATCHER      # "patch_rollout": its rows belong to the controller
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -125,6 +128,8 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
     rows = [r async for r in raw(db).autonomy_actions.find(
         {"tenantId": tenant_id, "state": {"$in": ["approved", "dispatching"]}}, {"_id": 0})]
     for row in sorted(rows, key=lambda r: (str(r.get("createdAt")), r.get("id", ""))):
+        if row.get("dispatcher") == _ROLLOUT_DISPATCHER:
+            continue        # owned by the rollout controller, like a live remediation owns its multi-step row
         updated = row.get("updatedAt") or row.get("createdAt")
         if isinstance(updated, datetime) and updated.tzinfo is None:
             updated = updated.replace(tzinfo=timezone.utc)
