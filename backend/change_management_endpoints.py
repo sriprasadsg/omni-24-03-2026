@@ -1,5 +1,5 @@
 """ITIL Change Management API endpoints."""
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 from authentication_service import TokenData
 from rbac_service import rbac_service
 from change_management_service import change_service
+from database import get_database
+from maintenance_service import get_maintenance_service
 
 router = APIRouter(prefix="/api/changes", tags=["Change Management"])
 
@@ -90,6 +92,21 @@ async def list_changes(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/maintenance-windows")
+async def list_maintenance_windows(
+    current_user: TokenData = Depends(rbac_service.has_permission("view:security")),
+    db=Depends(get_database),
+) -> List[Dict[str, Any]]:
+    """The caller's maintenance windows, read-only (D-01, PTCH-05). Declared before /{change_id} so the path
+    is not read as a change id."""
+    tenant_id = _tenant(current_user)
+    if not tenant_id:
+        return []
+    rows = await get_maintenance_service(db).list_windows(tenant_id)
+    return [{"id": r["id"], "name": r["name"], "scheduleText": r["fullScheduleText"],
+             "openNow": r["openNow"], "nextText": r["nextText"]} for r in rows]
 
 
 @router.post("")
