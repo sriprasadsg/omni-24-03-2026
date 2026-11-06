@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { LayersIcon } from './icons';
 
 const API = '/api/agent-groups';
 
@@ -10,6 +11,7 @@ interface Group {
   tags: string[];
   member_count: number;
   created_at: string;
+  ringName?: string | null;
 }
 
 interface Member {
@@ -148,9 +150,15 @@ export default function AgentGroupsDashboard() {
           <div key={g.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3 cursor-pointer hover:border-blue-500/50 transition-colors"
             onClick={() => loadMembers(g)}>
             <div className="flex items-start justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
                 <span className="font-semibold text-white">{g.name}</span>
+                {g.ringName && (
+                  <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-500 px-2 py-1 text-xs font-semibold text-slate-200 break-words">
+                    <LayersIcon size={12} aria-hidden="true" />
+                    {`Ring: ${g.ringName}`}
+                  </span>
+                )}
               </div>
               <button onClick={e => { e.stopPropagation(); deleteGroup(g.id); }}
                 className="text-slate-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded transition-colors">

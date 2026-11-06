@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
+import { ChangeManagementWindows } from './patchRollouts/ChangeManagementWindows';
 
 interface CabVote {
   voter: string;
@@ -185,6 +186,8 @@ const ChangeManagementDashboard: React.FC = () => {
           + New Change Request
         </button>
       </div>
+
+      <ChangeManagementWindows />
 
       {/* Filters */}
       <div className="flex gap-3 mb-4 flex-wrap items-center">
