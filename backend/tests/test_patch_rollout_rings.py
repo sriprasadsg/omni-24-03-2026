@@ -12,20 +12,22 @@ no_claim=a rollout starting (plan 84-06 task 2) or the HTTP route (plan 84-09).
 """
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from autonomous_ops import PLATFORM_TENANT_ID, ledger
+from autonomous_ops import PLATFORM_TENANT_ID, ledger, protected
 from autonomous_ops.response_settings import PlatformTenantError
-from autonomous_ops.rollout import messages, rings
+from autonomous_ops.rollout import controller, messages, rings, start, store
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.rollout_support import seed_group, seed_rollout_agent, seed_rollout_tenant
+from tests.rollout_support import seed_group, seed_rollout_agent, seed_rollout_tenant, seed_window
 
 T = "t1"
 ACTOR = {"id": "u1", "username": "ann@example.com", "display": "Ann"}
 BOOT = 1_700_000_000
+NOW = datetime.now(timezone.utc).replace(second=0, microsecond=0)
 
 
 def ring(name, groups=(), **checks):
@@ -186,3 +188,61 @@ async def test_the_agent_group_list_carries_the_ring_name(mongo_db, monkeypatch)
     groups = {g["id"]: g for g in await agent_group_endpoints.list_groups(current_user=user)}
     assert groups["G2"]["ringName"] == "Pilot" and groups["G1"]["ringName"] == "Canary"
     assert groups["G3"]["ringName"] is None
+
+
+# ---------------------------------------------------------------- the rings are a snapshot at Start (D-09)
+
+@pytest.fixture
+def _live(monkeypatch):
+    monkeypatch.setenv("AUTONOMOUS_REMEDIATION_DRY_RUN", "false")
+    protected.cache_clear()
+
+
+async def running_rollout(db):
+    """Two Linux computers: h1 in the Canary group G1, h2 in Pilot's G2; a rollout started on both."""
+    await world(db)
+    await store.ensure_indexes(db)
+    for host, group in (("h1", "G1"), ("h2", "G2")):
+        await seed_rollout_agent(db, T, host, hostname=f"host-{host}", platform="Linux",
+                                 tokens=("reboot_host", "patch_reversible_check"), pending=["openssl"],
+                                 boot_time=BOOT, last_seen=NOW)
+        await seed_group(db, T, group, [host])
+    await seed_window(db, T, start=(NOW - timedelta(hours=1)).strftime("%H:%M"),
+                      end=(NOW + timedelta(hours=3)).strftime("%H:%M"))
+    await rings.save(db, T, [ring("Canary", ["G1"], soakHours=1), ring("Pilot", ["G2"], soakHours=1),
+                             ring("Everyone else")], actor=ACTOR)
+    out = await start.start_rollout(db, T, name="Nov", patch_ids=["openssl"], actor=ACTOR, now=NOW)
+    assert out["status"] == "started", out
+    return out["rolloutId"]
+
+
+async def test_moving_a_group_to_another_ring_later_does_not_move_a_computer_of_the_running_rollout(mongo_db, _live):
+    db = mongo_db
+    rollout_id = await running_rollout(db)
+    await seed_group(db, T, "G3", ["h1"])
+    await rings.save(db, T, [ring("Canary", ["G3"]), ring("Pilot", ["G1", "G2"]), ring("Everyone else")], actor=ACTOR)
+    hosts = {h["agentId"]: h["ring"] for h in await store.host_docs(db, T, rollout_id)}
+    assert hosts == {"h1": 0, "h2": 1}
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id})
+    assert [(r["name"], r["groupIds"]) for r in rollout["rings"]] == [("Canary", ["G1"]), ("Pilot", ["G2"]),
+                                                                       ("Everyone else", [])]
+    await controller.tick(db, now=NOW)                                    # h1 is still the canary: it is installed on its own
+    assert [r["targets"] async for r in db.autonomy_actions.find({"tenantId": T, "dispatcher": "patch_rollout"})] \
+        == [["h1"]]
+    assert {h["agentId"]: h["ring"] for h in await store.host_docs(db, T, rollout_id)} == hosts
+
+
+async def test_deleting_the_canary_group_later_leaves_the_running_rollout_alone_and_blocks_a_new_one(mongo_db, _live):
+    db = mongo_db
+    rollout_id = await running_rollout(db)
+    await db.agent_groups.delete_one({"id": "G1"})
+    await db.agent_group_members.delete_many({"group_id": "G1"})
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id})
+    assert rollout["status"] == "running" and rollout["rings"][0]["groupIds"] == ["G1"]
+    assert {h["agentId"]: h["ring"] for h in await store.host_docs(db, T, rollout_id)} == {"h1": 0, "h2": 1}
+    await controller.tick(db, now=NOW)
+    assert (await db.patch_rollouts.find_one({"id": rollout_id}))["status"] == "running"
+    assert await db.autonomy_actions.count_documents({"tenantId": T, "dispatcher": "patch_rollout"}) == 1
+    out = await start.preflight(db, T, ["openssl"], now=NOW)
+    assert out["canStart"] is False
+    assert [r["detail"] for r in out["rows"] if r["check"] == "rings"] == [messages.PREFLIGHT["canary_empty"]]
