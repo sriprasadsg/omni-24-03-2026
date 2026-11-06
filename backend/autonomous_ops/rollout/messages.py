@@ -272,6 +272,8 @@ CARD = {
         "restart": ('Restarts these computers with a 5-minute warning ("Restarting in 5 minutes for updates"). '
                     "Anyone using them loses unsaved work. Runs now if your window is open, otherwise when it "
                     "next opens at {opens}."),
+        "restart_no_window": ('Restarts these computers with a 5-minute warning ("Restarting in 5 minutes for updates"). '
+                              "Anyone using them loses unsaved work. Runs when your maintenance window is open."),
     },
     "window_clause": {"open": " (open now, closes {closes})", "next": " (next opens {opens})"},
     "settled": {

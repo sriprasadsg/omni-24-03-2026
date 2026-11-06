@@ -21,7 +21,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import views as ops_views
-from autonomous_ops.rollout import cards, controller, lines, reboots, store
+from autonomous_ops.rollout import cards, controller, dispatcher, lines, reboots, store
 from tests._autonomous_ops_http import _env, api  # noqa: F401  (fixtures)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.rollout_support import seed_rollout_tenant
@@ -29,6 +29,19 @@ from tests.test_patch_rollout_lines import (APPROVER, NOW, T, base, begin, host,
                                             rows)
 
 PATCHES = ("openssl", "curl", "bash", "zlib", "nginx")
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """The dispatcher's own clock (``approvals.approve`` hands it none): set ``clock["now"]`` to freeze it."""
+    state = {"now": None}
+    real = dispatcher._now
+
+    def fake(now=None):
+        return real(state["now"] if now is None and state["now"] is not None else now)
+
+    monkeypatch.setattr(dispatcher, "_now", fake)
+    return state
 
 
 def caller(*, control=True, interactive=True, staff=False):
@@ -191,10 +204,11 @@ async def test_a_denied_line_reads_its_result_for_one_poll_and_then_leaves(mongo
     assert (await page(db, decided + timedelta(minutes=5)))["total"] == 0
 
 
-async def test_an_approved_line_waiting_for_the_window_says_when_it_opens(mongo_db):
+async def test_an_approved_line_waiting_for_the_window_says_when_it_opens(mongo_db, clock):
     db = mongo_db
     rollout_id, later = await ring_one_world(mongo_db, n=2)
     closed = NOW + timedelta(hours=5)
+    clock["now"] = closed
     await db.autonomy_actions.update_many({"tenantId": T, "dispatcher": "patch_rollout", "reason.inputs.ring": 1},
                                           {"$set": {"approval.expiresAt": closed + timedelta(hours=20)}})
     result = await lines.approve_line(db, T, rollout_id, 1, "install", approver=APPROVER, now=closed)
