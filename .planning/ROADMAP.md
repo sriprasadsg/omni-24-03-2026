@@ -495,7 +495,7 @@ Plans:
   4. A rollout installs or advances only inside the maintenance window recorded in Change Management; outside the window nothing is installed.
   5. Installs run on their own only in the canary ring and only for patch classes marked reversible; every other install and every reboot waits for one approval per stage. The platform's own host is never patched by a rollout, a host belongs to at most one active rollout, and patch instructions expire.
 
-**Plans**: 6/22 plans executed in 7 waves
+**Plans**: 7/22 plans executed in 7 waves
 
 Plans:
 **Wave 1**
@@ -507,7 +507,7 @@ Plans:
 - [x] 84-04-PLAN.md — Instructions expire at delivery, the reconciler leaves rollout rows alone, the old staged-deployment revert is fenced
 - [x] 84-05-PLAN.md — Maintenance windows in the tenant's time zone (past midnight, DST, weekdays), typed routes, Change Management read route
 - [x] 84-06-PLAN.md — Rings from agent groups, full preflight, left-out hosts with reasons, one active rollout per host
-- [ ] 84-07-PLAN.md — Rust agent: reversibility check before install, per-job revert state, two tokens
+- [x] 84-07-PLAN.md — Rust agent: reversibility check before install, per-job revert state, two tokens
 - [ ] 84-22-PLAN.md — Controller loop under a renewed lock, index guard, restart resume, migration 031
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -630,7 +630,7 @@ Plans:
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
 | 83. Autonomous Security Response | 20/20 | In Progress | - |
-| 84. Staged Patch Rollouts | 6/22 | In Progress | - |
+| 84. Staged Patch Rollouts | 7/22 | In Progress | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | In Progress | - |
