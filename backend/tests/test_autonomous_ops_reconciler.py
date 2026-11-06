@@ -417,3 +417,57 @@ async def test_a_multi_step_row_of_another_dispatcher_keeps_the_old_mapping(live
     await _step(live, d.action_id, "203.0.113.27")
     await reconciler.tick(live)
     assert await _state(live, d.action_id) == "executed"
+
+
+# ---------------------------------------------------------------- 84 PTCH-05 (C5): rollout rows belong to the controller
+
+async def _rollout_row(db, state, dispatcher="patch_rollout", instruction_status=None, ip="203.0.113.41"):
+    """A decision row of the given dispatcher in ``state``, with one instruction when ``instruction_status``."""
+    ids = []
+    if instruction_status:
+        ids = [f"i-{ip}"]
+        await db.agent_instructions.insert_one({"id": ids[0], "agent_id": "a1", "tenantId": "t1",
+                                                "type": "install_patches", "status": instruction_status})
+    row = await ledger.create_intent(db, {
+        "tenantId": "t1", "kind": "patching", "state": state, "command": "install_patches",
+        "actions": ["install_patches"], "targets": ["a1"], "params": {}, "dispatcher": dispatcher,
+        "dedupeKey": f"t1|{dispatcher}|{ip}", "instructionIds": ids})
+    return row["id"]
+
+
+async def test_an_approved_rollout_row_waiting_for_its_window_is_not_failed(live):
+    """protects=PTCH-05 / T-84-14; fails_when=an approved install that waits for the next maintenance window is
+    failed not_delivered after 30 minutes, so the rollout loses a host that did nothing wrong."""
+    waiting = await _rollout_row(live, "approved")
+    control = await _rollout_row(live, "approved", dispatcher="instruction", ip="203.0.113.42")
+    await _age(live, waiting, 120)
+    await _age(live, control, 120)
+    await reconciler.tick(live)
+    assert await _state(live, waiting) == "approved"
+    assert await _state(live, control) == "failed"                      # the old mapping for every other dispatcher
+
+
+async def test_a_dispatching_rollout_row_with_an_accepted_instruction_is_not_failed_no_result(live):
+    """fails_when=a long install that reports through the deployments route is failed no_result after 24 hours."""
+    long_install = await _rollout_row(live, "dispatching", instruction_status="accepted")
+    control = await _rollout_row(live, "dispatching", dispatcher="instruction", instruction_status="accepted",
+                                 ip="203.0.113.43")
+    await _age(live, long_install, 25 * 60)
+    await _age(live, control, 25 * 60)
+    await reconciler.tick(live)
+    row = await ledger.get(live, "t1", long_install)
+    assert row["state"] == "dispatching" and row.get("reasonCode") is None
+    assert (await ledger.get(live, "t1", control))["reasonCode"] == "no_result"
+
+
+async def test_a_rollout_row_waiting_for_a_person_still_expires_after_the_card_lifetime(live):
+    """The expiry pass is untouched: only the settle of sent work moved to the controller."""
+    d = await gate.decide(live, gate.ActionRequest(
+        tenant_id="t1", kind="patching", origin="rollout", actions=["install_patches"], targets=["a1"], params={},
+        playbook_raise=True, dispatcher="patch_rollout", dedupe_key="t1|patch_rollout|card",
+        reason={"ruleId": "rollout:install", "inputs": {}}), master_shadow=False)
+    assert d.state == "awaiting_approval", d
+    assert (await reconciler.tick(live))["expired"] == 0
+    later = datetime.now(timezone.utc) + APPROVAL_TTL + timedelta(hours=1)
+    assert (await reconciler.tick(live, now=later))["expired"] == 1
+    assert await _state(live, d.action_id) == "expired"
