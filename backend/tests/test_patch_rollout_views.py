@@ -185,7 +185,7 @@ async def test_a_simulation_reads_in_the_conditional(mongo_db):
     got = await card(mongo_db)
     assert got["simulation"] is True
     assert got["rings"][0]["detail"] == "Would install on 2 computers."
-    assert got["rings"][0]["hosts"][0]["result"] == "Would install openssl. Nothing was carried out."
+    assert got["rings"][0]["hosts"][0]["result"] == "Would install 1 patch. Nothing was carried out."
 
 
 async def test_the_failure_rate_soak_and_health_lines_come_from_the_ring_and_its_stored_checks(mongo_db):

@@ -163,6 +163,23 @@ def next_open(windows: List[Window], zone: str, now: datetime) -> Optional[Occur
     return min(upcoming, key=lambda o: o[0]) if upcoming else None
 
 
+def when_text(moment: datetime, zone: str) -> str:
+    """A moment as the screens write it: ``Sat 7 Nov, 03:00``, in the tenant's zone (UTC for an unknown zone)."""
+    tz = _zone(zone) or ZoneInfo(DEFAULT_ZONE)
+    local = store.aware(moment).astimezone(tz)
+    return f"{local:%a} {local.day} {local:%b}, {local:%H:%M}"
+
+
+def day_text(moment: datetime, zone: str) -> str:
+    """The date part alone: ``Thu 12 Nov``."""
+    return when_text(moment, zone).split(",")[0]
+
+
+def clock_text(moment: datetime, zone: str) -> str:
+    """The time of day alone: ``03:00``."""
+    return when_text(moment, zone).split(", ")[1]
+
+
 async def load(db, tenant_id: str) -> TenantWindows:
     """The tenant's time zone and readable windows. A window row that is switched off is ignored; a row
     this module cannot read is skipped and makes ``readable`` False; an unknown zone also does."""

@@ -93,6 +93,7 @@ HOST_RESULT = {
     "not_reached": ("Offline for the whole ring, so nothing was installed. It gets the patches in a later "
                     "window if it comes back online."),
     "left_out": 'In "{other}" at the time this rollout started.',
+    "reverting": "Reverting {patches}.",
     "would_install": "Would install {patches}. Nothing was carried out.",
     "would_restart": "Would restart. Nothing was carried out.",
 }
@@ -151,14 +152,30 @@ NOT_REVERTED_REASON = {
 }
 NOT_REVERTED = {code: f"Not reverted: {reason}. The patch is still installed."
                 for code, reason in NOT_REVERTED_REASON.items()}
+# A computer whose recorded reason is not one of the three above: still honest, never reads as reverted.
+NOT_REVERTED_OTHER = "Not reverted. The patch is still installed."
 
 REVERT_SUMMARY = {
     "running": "Reverting {computers} now.",
     "done": "Reverted on {computers}.",
     "could_not": {"one": "{computers} could not be reverted: {reason}. The patch is still installed on it.",
                   "many": "{computers} could not be reverted: {reason}. The patch is still installed on them."},
+    "could_not_other": {"one": "{computers} could not be reverted. The patch is still installed on it.",
+                        "many": "{computers} could not be reverted. The patch is still installed on them."},
     "needs_restart": "A restart is needed on {computers} to finish the revert. See Needs your decision.",
 }
+
+# ---------------------------------------------------------------- the window strip and the rings card (sections 2 and 5)
+
+WINDOW_STRIP = {"open": "Closes at {closes} ({zone}).", "closed": "Next window opens {opens} ({zone}).",
+                "none": "Add a maintenance window first."}
+RINGS_SUMMARY = {
+    "unset": "No rings set up yet \u00b7 Canary needs a group before a rollout can start",
+    "last": "Everyone else",
+    "soak_same": "{h}-hour soak",
+    "soak_range": "{lo} to {hi}-hour soaks",
+}
+DRAFT_NAME = {"cve": "Patches for {cve} on {host}", "many": "Patches for vulnerabilities on {host}"}
 
 # ---------------------------------------------------------------- the check before starting (section 3, DEV-3)
 

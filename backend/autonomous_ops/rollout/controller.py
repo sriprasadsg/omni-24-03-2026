@@ -87,8 +87,10 @@ async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts:
     found = [await signals.host_signals(db, tenant_id, rollout, h, agents.get(h["agentId"]), watched, permitted, now)
              for h in hosts]
     rows = health.health_rows(found, ring, now)
-    if rows != ring.get("health"):
-        await store.set_ring(db, tenant_id, rollout, index, {"health": rows})
+    judged = [s for s in found if s.get("state") not in health.EXCLUDED_STATES]
+    counts = {"reported": sum(1 for s in judged if s.get("reported")), "failed": sum(1 for s in judged if s.get("failed"))}
+    if rows != ring.get("health") or counts != ring.get("healthCounts"):       # the card's failure-rate line reads these
+        await store.set_ring(db, tenant_id, rollout, index, {"health": rows, "healthCounts": counts})
     verdict = health.ring_verdict(found, ring, now, _required_os(rollout))
     if verdict.kind == "halt":               # a failure halts at once: no restart is asked for, no soak is waited out
         await lifecycle.halt(db, tenant_id, rollout, index, code=verdict.code, host=verdict.host, now=now,

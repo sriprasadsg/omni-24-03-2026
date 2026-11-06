@@ -24,7 +24,6 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from zoneinfo import ZoneInfo
 
 from .. import PLATFORM_TENANT_ID, agent_support, protected, settings
 from ..scope import raw
@@ -188,8 +187,7 @@ def _row(check: str, ok: bool, detail: str, *, blocker: bool = False, link: Opti
 
 
 def _when(moment: datetime, zone: str) -> str:
-    local = store.aware(moment).astimezone(ZoneInfo(zone))
-    return f"{local:%a} {local.day} {local:%b}, {local:%H:%M}"
+    return windows_mod.when_text(moment, zone)
 
 
 @dataclass
