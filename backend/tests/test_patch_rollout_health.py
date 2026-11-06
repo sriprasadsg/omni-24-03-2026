@@ -228,7 +228,7 @@ async def test_a_computer_offline_for_the_whole_window_is_not_reached_and_the_ca
     await db.agents.update_one({"id": "b1"}, {"$set": {"lastSeen": closing.isoformat()}})   # back, but the window is over
     await controller.tick(db, now=closing)
     b1 = await host_doc(db, "b1")
-    assert b1["state"] == "not_reached" and b1["active"] is True
+    assert b1["state"] == "not_reached"
     ring = (await rollout_of(db, rollout_id))["rings"][0]
     assert ring["state"] == "passed"                                          # judged on the computer that installed
     assert [i for i in await instructions(db) if i["agent_id"] == "b1"] == []

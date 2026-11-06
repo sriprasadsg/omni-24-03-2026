@@ -13,10 +13,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
-from .. import PLATFORM_TENANT_ID, scope, settings
+import agent_capabilities
+
+from .. import PLATFORM_TENANT_ID, agent_support, response_settings, scope, settings
 from ..scope import raw
 from .messages import plural
-from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, reboots, settle, store,
+from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, reboots, settle, signals, store,
                windows as windows_mod)
 
 logger = logging.getLogger(__name__)
@@ -66,32 +68,100 @@ async def _restarts(db, tenant_id: str, rollout: Dict[str, Any], index: int, hos
     return True
 
 
+def _required_os(rollout: Dict[str, Any]) -> List[str]:
+    """The operating systems the rollout installs on (those with at least one chosen patch)."""
+    return sorted(name for name, ids in (rollout.get("patchesByOs") or {}).items() if ids)
+
+
 async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
                  now: datetime) -> bool:
     """Restart, soak and check the ring whose installs are all settled. True when the ring passed (go on)."""
     ring = rollout["rings"][index]
+    stored = await response_settings.load(db, tenant_id)
+    watched = list(stored.watched_services) if stored.readable else None       # unreadable: no data, not a pass
+    permitted = await agent_capabilities.allowed_for(raw(db), tenant_id)
     agents = {}
-    found = raw(db).agents.find({"tenantId": tenant_id, "id": {"$in": [h["agentId"] for h in hosts]}},
-                                {"_id": 0, "id": 1, "lastSeen": 1, "meta.system_patching": 1, "meta.os_patches": 1,
-                                 "meta.response_state": 1})
-    async for agent in found:
+    async for agent in raw(db).agents.find({"tenantId": tenant_id, "id": {"$in": [h["agentId"] for h in hosts]}},
+                                           signals.AGENT_FIELDS):
         agents[agent["id"]] = agent
-    signals = [health.host_signals(agents.get(h["agentId"]), h, now) for h in hosts]
-    verdict = health.ring_verdict(signals, ring, now)
+    found = [await signals.host_signals(db, tenant_id, rollout, h, agents.get(h["agentId"]), watched, permitted, now)
+             for h in hosts]
+    rows = health.health_rows(found, ring, now)
+    if rows != ring.get("health"):
+        await store.set_ring(db, tenant_id, rollout, index, {"health": rows})
+    verdict = health.ring_verdict(found, ring, now, _required_os(rollout))
     if verdict.kind == "halt":               # a failure halts at once: no restart is asked for, no soak is waited out
         await lifecycle.halt(db, tenant_id, rollout, index, code=verdict.code, host=verdict.host, now=now,
-                             facts=_halt_facts(verdict, hosts, signals, ring))
+                             facts=_halt_facts(verdict, hosts, found, ring))
         return False
     if await _restarts(db, tenant_id, rollout, index, hosts, now):
         return False
     if ring.get("state") not in ("soaking", "checking_health"):
         soak = health.soak_end(hosts, float(ring.get("soakHours") or 0), now)
         await store.set_ring(db, tenant_id, rollout, index, {"state": "soaking", "soakEndsAt": soak})
-        verdict = health.ring_verdict(signals, rollout["rings"][index], now)
+        rows = health.health_rows(found, rollout["rings"][index], now)
+        await store.set_ring(db, tenant_id, rollout, index, {"health": rows})
+        verdict = health.ring_verdict(found, rollout["rings"][index], now, _required_os(rollout))
     if verdict.kind == "waiting":
         return False
     await lifecycle.advance(db, tenant_id, rollout, now)
     return True
+
+
+async def _online_ids(db, tenant_id: str, agent_ids: List[str], now: datetime) -> set:
+    found = raw(db).agents.find({"tenantId": tenant_id, "id": {"$in": agent_ids}},
+                                {"_id": 0, "id": 1, "status": 1, "lastSeen": 1})
+    return {a["id"] async for a in found if agent_support.online(a, now)}
+
+
+async def _reach(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
+                 now: datetime) -> List[Dict[str, Any]]:
+    """Computers that are never reached (D-18). While a window is open, note which computers still waiting for
+    their first install were online (``lastOnlineInWindowAt``). When that window occurrence has ended, a computer
+    that was not online at any tick of it is ``not_reached``: shown as such and counted in neither the reported
+    nor the failed numbers. In the canary ring, a not-reached computer is tried again in a later window while an
+    operating system of the rollout still has no installed computer. Returns the ring's hosts, re-read when
+    anything changed."""
+    ring = rollout["rings"][index]
+    waiting = [h for h in hosts if installs.needs_decision(h, index)]
+    window = ring.get("installWindow") if isinstance(ring.get("installWindow"), dict) else None
+    lost = [h for h in hosts if h.get("state") == "not_reached"] if index == 0 else []
+    if not waiting and window is None and not lost:
+        return hosts
+    now = store.aware(now)
+    open_now = (await windows_mod.load(db, tenant_id)).open_at(now)
+    changed = False
+    if window is not None:
+        begin, end = store.parse_time(window.get("start")), store.parse_time(window.get("end"))
+        if end is None or now >= end or (open_now is not None and open_now[0] != begin):
+            for h in list(waiting):
+                seen = store.parse_time(h.get("lastOnlineInWindowAt"))
+                if begin is not None and (seen is None or seen < begin):
+                    await store.set_host(db, tenant_id, rollout["id"], h["agentId"],
+                                         {"state": "not_reached", "waitReason": None, "notReachedWindow": begin,
+                                          "notReachedAt": now})
+                    waiting.remove(h)
+                    changed = True
+            await store.set_ring(db, tenant_id, rollout, index, {"installWindow": None})
+            window = None
+    if open_now is not None and waiting:
+        if window is None:
+            await store.set_ring(db, tenant_id, rollout, index, {"installWindow": {"start": open_now[0], "end": open_now[1]}})
+        for agent_id in await _online_ids(db, tenant_id, [h["agentId"] for h in waiting], now):
+            await store.set_host(db, tenant_id, rollout["id"], agent_id, {"lastOnlineInWindowAt": now})
+    if index == 0 and open_now is not None:
+        reached = {h.get("os") for h in hosts if h.get("state") in ("installed", "restarting", "healthy")}
+        missing = set(_required_os(rollout)) - reached
+        for h in (h for h in hosts if h.get("state") == "not_reached" and h.get("os") in missing):
+            if store.parse_time(h.get("notReachedWindow")) != open_now[0]:      # a window after the one it missed
+                await store.set_host(db, tenant_id, rollout["id"], h["agentId"],
+                                     {"state": "waiting", "waitReason": None, "lastOnlineInWindowAt": None,
+                                      "notReachedWindow": None})
+                await store.set_ring(db, tenant_id, rollout, index, {"state": "installing", "soakEndsAt": None})
+                changed = True
+    if not changed:
+        return hosts
+    return [h for h in await store.host_docs(db, tenant_id, rollout["id"]) if h.get("ring") == index]
 
 
 async def _ring_state(db, tenant_id: str, rollout: Dict[str, Any], index: int) -> None:
@@ -122,6 +192,7 @@ async def _step(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, coun
     if not hosts:
         await lifecycle.advance(db, tenant_id, rollout, now)
         return True
+    hosts = await _reach(db, tenant_id, rollout, index, hosts, now)
     if any(installs.needs_decision(h, index) for h in hosts):
         open_now = (await windows_mod.load(db, tenant_id)).open_at(now)
         if open_now is None:

@@ -275,13 +275,14 @@ async def test_a_scan_that_is_not_newer_than_the_install_halts_the_ring_with_no_
     assert (await db.patch_rollout_hosts.find_one({"agentId": "a1"}))["active"] is True
 
 
-async def test_a_fresh_scan_that_still_lists_the_patch_does_not_pass(mongo_db):
+async def test_a_fresh_scan_that_still_lists_the_patch_fails_the_canary(mongo_db):
     db = mongo_db
     rollout_id, installed = await installed_world(db)
     await fresh_scan(db, "a1", ["openssl"], installed + timedelta(minutes=10))
     await db.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": (installed + timedelta(minutes=10)).isoformat()}})
     await controller.tick(db, now=installed + timedelta(minutes=61))
-    assert (await rollout_of(db, rollout_id))["haltReason"]["code"] == "no_data:inventory"
+    reason = (await rollout_of(db, rollout_id))["haltReason"]
+    assert (reason["code"], reason["host"]) == ("canary_failed", "a1")       # plan 84-08: still listed is a failure
 
 
 async def test_a_failed_canary_install_halts_the_rollout_at_once(mongo_db):
