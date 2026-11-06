@@ -250,6 +250,9 @@ async def create_deployment_job(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+ROLLBACK_JOB_TYPE = "Patch Rollback"      # the job type the result route reads to leave the pending list alone
+
+
 def installed_ids_for(job: dict, agent_id: str) -> List[str]:
     """The patch ids this agent reported as installed (status success, an installable id) in the job. The
     manual rollback route and the rollout revert both take their ids from here, never from a request."""
@@ -293,7 +296,7 @@ async def rollback_patch_job(
     all_ids = sorted({p for a in agents for p in installed[a]})
     rb_job = new_patch_job(rb_id, job.get("tenantId"), all_ids, job.get("targetAssets") or [], list(agents),
                            getattr(current_user, "username", "unknown"), "Immediate", None, now, "In Progress")
-    rb_job.update({"type": "Patch Rollback", "rollbackOf": job_id})
+    rb_job.update({"type": ROLLBACK_JOB_TYPE, "rollbackOf": job_id})
     await db.patch_deployment_jobs.insert_one(rb_job.copy())
     rb_job.pop("_id", None)
     await db.agent_instructions.insert_many(

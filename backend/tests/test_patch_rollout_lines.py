@@ -408,7 +408,10 @@ async def test_a_halt_ends_a_row_whose_instruction_nobody_fetched_and_delivery_r
     job = await db.patch_deployment_jobs.find_one({"rolloutId": rollout_id, "dispatchedAgents": "b2"})
     await post_result(db, job["id"], "b2", success_result(["openssl"]))
     await controller.tick(db, now=later + timedelta(minutes=2))                  # the late result is still recorded
-    assert (await host_doc(db, "b2"))["state"] == "installed"
+    # 84-13: the halted ring is put back where the computer can; this agent has no revert-by-job token, so it
+    # reads Not reverted (never Reverted) and its install row stays executed.
+    late = await host_doc(db, "b2")
+    assert (late["state"], late["notRevertedReason"], late["installedIds"]) == ("not_reverted", "agent_unsupported", ["openssl"])
     assert (await rows(db, command="install_patches", **{"reason.inputs.ring": 1, "targets": "b2"}))[0]["state"] == "executed"
 
 

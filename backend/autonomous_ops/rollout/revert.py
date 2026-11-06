@@ -60,7 +60,7 @@ def _install_row_ids(host: Dict[str, Any]) -> List[str]:
 async def _targets(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any]) -> List[Dict[str, Any]]:
     """The computer's install rows that still need putting back, each with its job id and the ids that job's
     result recorded as installed. Rows that installed nothing, and rows already undone, are left out."""
-    from patch_core_endpoints import installed_ids_for           # the manual rollback route reads the same ids
+    from patch_core_endpoints import installed_ids_for           # the manual revert route reads the same ids
     found = []
     for action_id in _install_row_ids(host):
         row = await ledger.get(db, tenant_id, action_id)
@@ -84,7 +84,7 @@ async def _revert_row(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[st
     stamped undo instruction. Returns ``{"status": "started", "actionId", "jobId"}``, ``{"status": "taken"}``
     when someone else moved the row first, or ``{"status": "refused"}`` when the gate refused (the row is then
     restored exactly as it was and the revert job removed)."""
-    from patch_core_endpoints import new_patch_job
+    from patch_core_endpoints import ROLLBACK_JOB_TYPE, new_patch_job
     row, ids, agent_id = target["row"], target["ids"], host["agentId"]
     revert_job = f"revert-{uuid.uuid4().hex}"
     params: Dict[str, Any] = {"patch_ids": ids, "job_id": revert_job}
@@ -92,7 +92,7 @@ async def _revert_row(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[st
         params["revert_of"] = target["jobId"]
     job = new_patch_job(revert_job, tenant_id, ids, [agent_id], [agent_id], "Autonomous Ops", "Rollout", None,
                         now.isoformat(), "In Progress")
-    job.update({"type": "Patch Rollback", "rolloutId": rollout["id"], "revertOf": target["jobId"],
+    job.update({"type": ROLLBACK_JOB_TYPE, "rolloutId": rollout["id"], "revertOf": target["jobId"],
                 "rollbackOf": target["jobId"]})
     await raw(db).patch_deployment_jobs.insert_one(job)
     block = {"available": True, "action": COMMAND_UNDO, "params": params, "undoneAt": now,

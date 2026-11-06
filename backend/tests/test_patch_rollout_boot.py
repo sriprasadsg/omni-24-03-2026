@@ -237,7 +237,9 @@ async def test_a_heartbeat_from_before_the_restart_is_never_the_new_boot_and_the
     assert (reason["code"], reason["ring"], reason["host"]) == ("no_new_boot", 0, "a1")
     assert "host-a1" in reason["text"] and "30 minutes" in reason["text"]
     host_ = await host_doc(db, "a1")
-    assert host_["state"] == "failed" and host_["active"] is True
+    # 84-13: the halt puts the ring back where it can; this agent has no revert-by-job token, so Not reverted.
+    assert host_["state"] == "not_reverted" and host_["notRevertedReason"] == "agent_unsupported"
+    assert host_["failureCode"] == "no_new_boot" and host_["active"] is True
     row = (await rows(db, command="reboot_host"))[0]
     assert (row["state"], row["reasonCode"]) == ("failed", "rollout_no_new_boot")
 
