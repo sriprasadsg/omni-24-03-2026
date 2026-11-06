@@ -248,3 +248,137 @@ async def test_cards_are_ordered_soonest_expiry_first_and_page_by_the_limit(mong
     assert len(first["items"]) == 1 and first["total"] == 2 and first["items"][0]["ring"] == "0"
     second = await page(db, later, limit=1, offset=1)
     assert [c["ring"] for c in second["items"]] == ["1"]
+
+
+# ================================================================== the routes (Task 2)
+
+CARDS = "/api/autonomous-ops/rollout-cards"
+SESSION_KEY_SCOPES = ["view:autonomous_ops", "control:autonomous_ops"]
+
+
+def line_path(rollout_id, ring, line, what):
+    return f"/api/autonomous-ops/rollout-lines/{rollout_id}/{ring}/{line}/{what}"
+
+
+async def states(db, ring=1, **extra):
+    return [r["state"] for r in await rows(db, **{"reason.inputs.ring": ring, **extra})]
+
+
+async def test_the_card_list_needs_only_view_access_and_flags_follow_the_caller(api):
+    rollout_id, _ = await ring_one_world(api.db, n=3)
+    admin = await api.call("GET", CARDS, role="tenant_admin")
+    assert admin.status_code == 200
+    body = admin.json()
+    assert body["total"] == 1 and body["countText"] == "1 rollout ring" and body["stopped"] is None
+    line = body["items"][0]["lines"][0]
+    assert (line["line"], line["canApprove"], line["canDeny"], line["computerTotal"]) == ("install", True, True, 3)
+    viewer = (await api.call("GET", CARDS, role="analyst")).json()["items"][0]["lines"][0]
+    assert (viewer["canApprove"], viewer["canDeny"]) == (False, False)
+    key = (await api.call("GET", CARDS, role="tenant_admin", auth="api_key", scopes=SESSION_KEY_SCOPES)).json()
+    assert (key["items"][0]["lines"][0]["canApprove"], key["items"][0]["lines"][0]["canDeny"]) == (False, False)
+    assert (await api.call("GET", CARDS + "?limit=51", role="tenant_admin")).status_code == 422
+    assert (await api.call("GET", CARDS + "?tenantId=t1", role="tenant_admin", tenant="t2")).status_code == 403
+    other = await api.call("GET", CARDS, role="tenant_admin", tenant="t2")
+    assert other.status_code == 200 and other.json()["items"] == []
+    assert (await api.call("GET", CARDS, role="viewer")).status_code == 403              # no view:autonomous_ops
+
+
+async def test_a_person_with_control_approves_a_whole_line_with_one_request_and_a_second_answers_409(api):
+    db = api.db
+    rollout_id, _ = await ring_one_world(db, n=3, patches=("openssl",))
+    got = await api.call("POST", line_path(rollout_id, 1, "install", "approve"), role="tenant_admin",
+                         username="ann@example.test")
+    assert got.status_code == 200, got.text
+    body = got.json()
+    assert (body["status"], body["when"], body["approved"], body["refused"]) == ("approved", "now", 3, [])
+    assert body["message"].startswith("Approved. Installing now")
+    found = await rows(db, **{"reason.inputs.ring": 1})
+    assert [r["state"] for r in found] == ["dispatching"] * 3
+    assert {r["approval"]["approver"]["username"] for r in found} == {"ann@example.test"}      # T-84-35
+    again = await api.call("POST", line_path(rollout_id, 1, "install", "approve"), role="tenant_admin")
+    assert again.status_code == 409 and again.json()["status"] == "already_handled"
+    assert again.json()["detail"] == again.json()["message"]
+    assert len(await rows(db, **{"reason.inputs.ring": 1})) == 3
+
+
+async def test_an_api_key_and_a_role_without_control_cannot_approve_or_deny(api):
+    db = api.db
+    rollout_id, _ = await ring_one_world(db, n=2, patches=("openssl",))
+    for what in ("approve", "deny"):
+        path = line_path(rollout_id, 1, "install", what)
+        key = await api.call("POST", path, role="tenant_admin", auth="api_key", scopes=SESSION_KEY_SCOPES)
+        assert key.status_code == 403, (what, key.text)
+        for role in ("analyst", "viewer", "platform_support"):
+            assert (await api.call("POST", path, role=role)).status_code == 403, (what, role)
+    assert await states(db) == ["awaiting_approval"] * 2
+
+
+async def test_a_stop_refuses_approve_with_409_but_still_allows_deny(api):
+    db = api.db
+    rollout_id, _ = await ring_one_world(db, n=2, patches=("openssl",))
+    await db.autonomy_settings.update_one({"tenantId": T}, {"$set": {"stop": {"active": True, "scope": "tenant"}}})
+    stopped = await api.call("POST", line_path(rollout_id, 1, "install", "approve"), role="tenant_admin")
+    assert stopped.status_code == 409 and stopped.json()["status"] == "stopped"
+    assert await states(db) == ["awaiting_approval"] * 2
+    denied = await api.call("POST", line_path(rollout_id, 1, "install", "deny"), role="tenant_admin",
+                            json={"reason": "x" * 500})
+    assert denied.status_code == 200 and denied.json()["status"] == "denied"
+    assert await states(db) == ["denied"] * 2
+
+
+async def test_deny_names_the_person_and_the_ring_and_a_long_reason_is_refused(api):
+    db = api.db
+    rollout_id, _ = await ring_one_world(db, n=2, patches=("openssl",))
+    path = line_path(rollout_id, 1, "install", "deny")
+    assert (await api.call("POST", path, role="tenant_admin", json={"reason": "x" * 501})).status_code == 422
+    assert await states(db) == ["awaiting_approval"] * 2
+    done = await api.call("POST", path, role="tenant_admin", username="ann@example.test")
+    assert done.status_code == 200
+    assert done.json()["message"] == "Denied by ann@example.test. The rollout halts at Everyone else."
+
+
+async def test_a_bad_path_is_422_and_an_unknown_or_foreign_rollout_is_404(api):
+    db = api.db
+    rollout_id, _ = await ring_one_world(db, n=1, patches=("openssl",))
+    for bad in (line_path(rollout_id, 1, "bogus", "approve"), line_path(rollout_id, 4, "install", "approve"),
+                line_path(rollout_id, -1, "install", "deny"), line_path(rollout_id, "x", "install", "deny"),
+                line_path("r" * 65, 1, "install", "approve")):
+        assert (await api.call("POST", bad, role="tenant_admin")).status_code == 422, bad
+    assert (await api.call("POST", line_path("nope", 1, "install", "approve"), role="tenant_admin")).status_code == 404
+    assert (await api.call("POST", line_path(rollout_id, 1, "install", "approve"), role="tenant_admin",
+                           tenant="t2")).status_code == 404                  # another organization's rollout
+    assert (await api.call("POST", line_path(rollout_id, 1, "install", "deny"), role="tenant_admin",
+                           tenant="t2")).status_code == 404
+    assert await states(db) == ["awaiting_approval"]
+    nothing = await api.call("POST", line_path(rollout_id, 0, "reboot", "approve"), role="tenant_admin")
+    assert nothing.status_code == 409 and nothing.json()["status"] == "refused"
+
+
+async def test_one_request_decides_one_line_of_one_ring_only(api):
+    db = api.db
+    rollout_id, later = await ring_one_world(db, n=3, patches=("openssl",))
+    for agent in ("b00", "b01"):
+        await store.set_host(db, T, rollout_id, agent, {"state": "installed", "rebootNeeded": True})
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id}, {"_id": 0})
+    await reboots.raise_reboot_line(db, T, rollout, 1, await store.host_docs(db, T, rollout_id), later)
+    assert await states(db, **{"reason.inputs.line": "reboot"}) == ["awaiting_approval"] * 2
+    ring_zero = await states(db, ring=0)
+
+    done = await api.call("POST", line_path(rollout_id, 1, "install", "approve"), role="tenant_admin")
+    assert done.status_code == 200 and done.json()["approved"] == 3
+    assert await states(db, **{"reason.inputs.line": "reboot"}) == ["awaiting_approval"] * 2
+    assert await states(db, ring=0) == ring_zero
+    deny = await api.call("POST", line_path(rollout_id, 1, "reboot", "deny"), role="tenant_admin")
+    assert deny.status_code == 200 and deny.json()["status"] == "denied"
+    assert await states(db, **{"reason.inputs.line": "install"}) == ["dispatching"] * 3      # the install is untouched
+
+
+async def test_the_platform_organization_cannot_decide_a_line_and_staff_must_name_an_organization(api):
+    from tests._autonomous_ops_http import PLATFORM
+    rollout_id, _ = await ring_one_world(api.db, n=1, patches=("openssl",))
+    path = line_path(rollout_id, 1, "install", "approve")
+    assert (await api.call("POST", path, role="super_admin")).status_code == 400            # tenantId is required
+    assert (await api.call("POST", path + f"?tenantId={PLATFORM}", role="super_admin")).status_code == 409
+    assert (await api.call("POST", path, role="platform_support")).status_code == 403
+    done = await api.call("POST", path + "?tenantId=t1", role="super_admin")
+    assert done.status_code == 200 and done.json()["status"] == "approved"
