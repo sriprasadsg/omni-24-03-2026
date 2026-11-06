@@ -115,7 +115,7 @@ describe('RolloutApprovalCard: lines', () => {
     show(rolloutCard({ lines: [installLine(), rebootLine()] }));
     expect(screen.getAllByRole('button', { name: /^Approve/ })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /^Deny/ })).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: /all/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /\ball\b/i })).toBeNull();
   });
 
   it('names the target and the rollout in every Approve and Deny label', () => {
