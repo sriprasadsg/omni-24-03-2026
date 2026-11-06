@@ -1,11 +1,13 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { cancelRollout, resumeRollout } from '../../services/patchRollouts/lifecycle';
+import type { RolloutCard } from '../../services/patchRollouts/types';
 import { showToast } from '../../utils/toast';
 import { SECONDARY_BUTTON } from '../AutonomousOpsHealthCards';
 import { HealthNotice } from '../AutonomousOpsHealthChips';
 import { ACCENT_BUTTON, plain } from '../AutonomousOpsResponseSettingsDialogs';
 import { AlertTriangleIcon } from '../icons';
 import { Modal } from '../Modal';
+import { WAIT_FOR_REVERT } from './rolloutCopy';
 
 /**
  * The Resume and Cancel dialogs for a halted rollout (84-18, UI-SPEC section 4, D-16). Resume needs a typed reason and
@@ -24,6 +26,7 @@ const REVERT_RUNNING = 'A revert is still running. It finishes on its own.';
 const DANGER_BUTTON =
     'inline-flex items-center justify-center gap-2 min-h-10 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60';
 const BODY = 'break-words text-sm text-gray-600 dark:text-gray-400';
+const ACTION_BUTTON = `${SECONDARY_BUTTON} min-h-10`;
 
 export interface DialogBaseProps {
     rolloutId: string;
@@ -213,5 +216,74 @@ export const CancelDialog: React.FC<CancelDialogProps> = ({ rolloutId, rolloutNa
                 {error && <ErrorBlock text={error} />}
             </div>
         </Modal>
+    );
+};
+
+/**
+ * Why Resume cannot be pressed right now, or null. The server sets `resumeBlockedReason` while a computer is still being
+ * reverted and then also reports `canResume` false; a card that says both `canResume` and `revertRunning` gets the same
+ * sentence, so Resume is never offered during a revert.
+ */
+const resumeBlock = (card: RolloutCard): string | null =>
+    card.revertRunning ? (card.resumeBlockedReason || WAIT_FOR_REVERT) : card.resumeBlockedReason || null;
+
+/** The halt block shows Resume rollout when it is allowed, or allowed but waiting on a revert, and Cancel rollout when allowed. */
+export const hasHaltActions = (card: RolloutCard): boolean =>
+    card.canResume || card.canCancel || !!card.resumeBlockedReason;
+
+/**
+ * The only two ways forward for a halted rollout (D-16): Resume rollout and Cancel rollout, each behind its own
+ * confirmation. Nothing else: there is no control to skip a failed computer. Both render from the server's flags only;
+ * the routes check manage:patches and the session again. `onChanged` reads the card again after either succeeds.
+ */
+export const HaltActions: React.FC<{ card: RolloutCard; tenantId: string | null; onChanged: () => void }> = ({ card, tenantId, onChanged }) => {
+    const uid = useId();
+    const [open, setOpen] = useState<'resume' | 'cancel' | null>(null);
+    const blocked = resumeBlock(card);
+    const showResume = card.canResume || !!card.resumeBlockedReason;
+    const reasonId = `${uid}-resume-blocked`;
+    const close = () => setOpen(null);
+
+    return (
+        <>
+            {showResume && (
+                <div className="flex flex-col items-start gap-1">
+                    <button
+                        type="button"
+                        className={ACTION_BUTTON}
+                        disabled={blocked !== null}
+                        aria-describedby={blocked ? reasonId : undefined}
+                        onClick={() => setOpen('resume')}
+                    >
+                        Resume rollout
+                    </button>
+                    {blocked && <p id={reasonId} className="break-words text-xs">{blocked}</p>}
+                </div>
+            )}
+            {card.canCancel && (
+                <div>
+                    <button type="button" className={ACTION_BUTTON} onClick={() => setOpen('cancel')}>Cancel rollout</button>
+                </div>
+            )}
+            {open === 'resume' && (
+                <ResumeDialog
+                    rolloutId={card.id}
+                    ringName={card.halt?.ringName ?? ''}
+                    tenantId={tenantId}
+                    onClose={close}
+                    onDone={onChanged}
+                />
+            )}
+            {open === 'cancel' && (
+                <CancelDialog
+                    rolloutId={card.id}
+                    rolloutName={card.name}
+                    revertRunning={card.revertRunning}
+                    tenantId={tenantId}
+                    onClose={close}
+                    onDone={onChanged}
+                />
+            )}
+        </>
     );
 };

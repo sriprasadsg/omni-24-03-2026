@@ -105,6 +105,9 @@ export const HEALTH_SIGNAL_NAMES: Record<SignalName, string> = {
     services: 'the services check',
 };
 
+/** Under a disabled Resume rollout while a computer is still being put back (the server's own sentence, R10). */
+export const WAIT_FOR_REVERT = 'Wait for the revert to finish.';
+
 /** The text links and the secondary buttons the screens share. */
 export const LINK_LABELS = {
     maintenance: 'Open maintenance windows',

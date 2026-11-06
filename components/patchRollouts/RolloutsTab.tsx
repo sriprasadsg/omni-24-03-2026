@@ -331,6 +331,8 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
                             onOpenView={onOpenView}
                             renderRingDetail={renderRingDetail ?? defaultRingDetail}
                             actions={renderActions?.(card, refresh)}
+                            onChanged={refresh}
+                            tenantId={tenantId}
                         />
                     ))}
                 </div>

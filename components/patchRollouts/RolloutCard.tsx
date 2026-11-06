@@ -6,6 +6,7 @@ import { formatWhen } from '../AutonomousOpsActivityList';
 import { HealthNotice } from '../AutonomousOpsHealthChips';
 import { AlertOctagonIcon, ChevronRightIcon, ExternalLinkIcon, LayersIcon } from '../icons';
 import { RolloutChip } from './RolloutChip';
+import { HaltActions, hasHaltActions } from './RolloutDialogs';
 import { LINK_LABELS, RING_STATE_CHIP, ROLLOUT_STATUS_CHIP, SIMULATION_CHIP, plural } from './rolloutCopy';
 
 /**
@@ -14,7 +15,8 @@ import { LINK_LABELS, RING_STATE_CHIP, ROLLOUT_STATUS_CHIP, SIMULATION_CHIP, plu
  * sentence is the server's (detail lines, halt reason, revert summary, closed text) and is rendered as React text. The
  * only controls are the ones the server's flags earned: Review in Needs your decision (the ring says the viewer can
  * open it and the parent gave a handler), Show details (only when a ring detail renderer is given) and the actions the
- * parent supplies for a halted rollout (Resume, Cancel, 84-18).
+ * parent supplies for a halted rollout; with `onChanged` the halt block offers Resume rollout and Cancel rollout itself
+ * (84-18), each behind its own dialog, from the server's canResume and canCancel flags.
  */
 
 const HALT_SECOND_LINE = 'A rollout halts on failure; reverts where supported. Rings that already passed keep the patches. Nothing further installs.';
@@ -29,8 +31,12 @@ export interface RolloutCardProps {
     onOpenView?: (view: AppView) => void;
     /** The ring detail disclosure content (84-18). Without it no Show details control is rendered. */
     renderRingDetail?: (ring: RingView, card: RolloutCardData) => React.ReactNode;
-    /** Rendered in the halt block (Resume rollout, Cancel rollout; 84-18). Without it the block has no buttons. */
+    /** Rendered in the halt block instead of the built-in Resume rollout and Cancel rollout. */
     actions?: React.ReactNode;
+    /** Reads the card again after Resume or Cancel succeeds. Without it (and without `actions`) the halt block has no buttons. */
+    onChanged?: () => void;
+    /** The organization platform staff entered from Tenants, sent with Resume and Cancel; a tenant role passes null. */
+    tenantId?: string | null;
     /** The clock the "Started" text reads against; tests pass a fixed one. */
     now?: number;
 }
@@ -82,7 +88,7 @@ const RingBlock: React.FC<{
     );
 };
 
-export const RolloutCard: React.FC<RolloutCardProps> = ({ card, onOpenView, renderRingDetail, actions, now }) => {
+export const RolloutCard: React.FC<RolloutCardProps> = ({ card, onOpenView, renderRingDetail, actions, onChanged, tenantId = null, now }) => {
     const ids = useId();
     const titleId = `rollout-${card.id}-title`;
     const detailId = `${ids}-ring-detail`;
@@ -91,6 +97,9 @@ export const RolloutCard: React.FC<RolloutCardProps> = ({ card, onOpenView, rend
     const open = openRing === null ? undefined : card.rings.find(r => r.index === openRing);
     const status = ROLLOUT_STATUS_CHIP[card.status] ?? UNKNOWN_RING_CHIP;
     const notReached = card.status === 'completed' && card.notReachedCount > 0;
+    const haltActions = actions ?? (onChanged && hasHaltActions(card)
+        ? <HaltActions card={card} tenantId={tenantId} onChanged={onChanged} />
+        : null);
 
     return (
         <article id={`rollout-${card.id}`} tabIndex={-1} aria-labelledby={titleId} className="card overflow-hidden focus:outline-none">
@@ -135,7 +144,7 @@ export const RolloutCard: React.FC<RolloutCardProps> = ({ card, onOpenView, rend
                                 {card.halt.reverts.map((line, i) => <li key={i} className="break-words">{line}</li>)}
                             </ul>
                         )}
-                        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+                        {haltActions && <div className="flex flex-wrap items-start gap-2">{haltActions}</div>}
                     </HealthNotice>
                 </div>
             )}
