@@ -36,6 +36,8 @@ pub const GRACE_SECONDS: i64 = 60;
 pub const REPORT_CACHE_SECONDS: i64 = 60;
 /// The most services a tenant can list.
 pub const MAX_WATCHED: usize = 50;
+/// A name longer than this is not put in the state report.
+pub const MAX_STATE_NAME: usize = 128;
 /// After a restart the service is checked this many times, one second apart.
 pub const RESTART_POLLS: u32 = 10;
 
@@ -201,6 +203,50 @@ pub(crate) fn report_with(w: &mut Watch, os: Option<Os>, enabled: Option<&[Strin
     w.checked_for = watched.to_vec();
     w.cached = out.clone();
     out
+}
+
+// ── the state report ──────────────────────────────────────────────────────
+
+/// The word the heartbeat carries for one service. Starting or stopping is `unknown`: it is
+/// neither running nor stopped yet, and the health gate must not read it as running.
+pub fn state_from_health(h: &Health) -> &'static str {
+    match h {
+        Health::Running => "running",
+        Health::Stopped => "stopped",
+        Health::Failed { .. } => "failed",
+        Health::Pending | Health::Unknown => "unknown",
+    }
+}
+
+/// `meta.service_state` (PTCH-02): the state of every watched service, so a service that was
+/// stopped cleanly is seen too (`service_failures` reports failures only). One entry per name in
+/// the watched order, a repeated name (any case) once, a name longer than 128 characters or
+/// not a service name left out. Pure: `status` answers for one name.
+pub fn state_report_with(watched: &[String], now: i64, status: &dyn Fn(&str) -> Health) -> Value {
+    let mut seen = HashSet::new();
+    let services: Vec<Value> = watched
+        .iter()
+        .filter(|name| name.len() <= MAX_STATE_NAME && remediation_actions::is_valid_service_name(name))
+        .filter(|name| seen.insert(name.to_ascii_lowercase()))
+        .map(|name| json!({"name": name, "state": state_from_health(&status(name))}))
+        .collect();
+    json!({"v": 1, "at": now, "services": services})
+}
+
+/// The report for this host. Windows and Linux ask the service manager (at most once a minute
+/// for the same list, like the failure report); another platform lists nothing.
+pub fn state_report(os: Option<Os>, watched: &[String], now: i64) -> Value {
+    let Some(os) = os else { return state_report_with(&[], now, &|_| Health::Unknown) };
+    static CACHE: OnceLock<Mutex<Option<(i64, Vec<String>, Value)>>> = OnceLock::new();
+    let mut cache = CACHE.get_or_init(|| Mutex::new(None)).lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, list, value)) = cache.as_ref() {
+        if list == watched && (0..REPORT_CACHE_SECONDS).contains(&(now - at)) {
+            return value.clone();
+        }
+    }
+    let value = state_report_with(watched, now, &|name| status_of(os, name));
+    *cache = Some((now, watched.to_vec(), value.clone()));
+    value
 }
 
 // ── restart ───────────────────────────────────────────────────────────────

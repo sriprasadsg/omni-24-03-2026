@@ -404,3 +404,57 @@ async fn the_instruction_restarts_only_a_service_the_tenant_watches() {
         assert_eq!(restart_arm(&item(name), &cfg, &client), json!({"status": "accepted"}), "{name}");
     }
 }
+
+// ── service_state (PTCH-02) ───────────────────────────────────────────────
+
+#[test]
+fn state_from_health_maps_every_variant() {
+    assert_eq!(state_from_health(&Health::Running), "running");
+    assert_eq!(state_from_health(&Health::Stopped), "stopped");
+    assert_eq!(state_from_health(&Health::Failed { state: "failed".into(), exit_code: Some(1) }), "failed");
+    assert_eq!(state_from_health(&Health::Pending), "unknown");
+    assert_eq!(state_from_health(&Health::Unknown), "unknown");
+}
+
+#[test]
+fn state_report_lists_every_watched_service_in_order_including_a_clean_stop() {
+    let status = |name: &str| if name == "nginx" { Health::Stopped } else { Health::Running };
+    let report = state_report_with(&names(&["sshd", "nginx"]), 1_767_000_000, &status);
+    assert_eq!(report, json!({
+        "v": 1, "at": 1_767_000_000,
+        "services": [{"name": "sshd", "state": "running"}, {"name": "nginx", "state": "stopped"}],
+    }));
+}
+
+#[test]
+fn state_report_of_an_empty_list_has_no_services() {
+    let report = state_report_with(&[], 42, &|_| Health::Running);
+    assert_eq!(report, json!({"v": 1, "at": 42, "services": []}));
+}
+
+#[test]
+fn state_report_lists_a_duplicate_name_once_and_drops_a_name_over_128_characters() {
+    let long = "a".repeat(129);
+    let ok = "b".repeat(128);
+    let report = state_report_with(&names(&["nginx", "NGINX", "nginx", &long, &ok]), 1, &|_| Health::Running);
+    let listed: Vec<&str> = report["services"].as_array().unwrap().iter().map(|s| s["name"].as_str().unwrap()).collect();
+    assert_eq!(listed, vec!["nginx", ok.as_str()]);
+}
+
+#[test]
+fn state_report_asks_each_service_once_and_never_for_a_malformed_name() {
+    let asked = std::cell::RefCell::new(Vec::new());
+    let status = |name: &str| {
+        asked.borrow_mut().push(name.to_string());
+        Health::Unknown
+    };
+    let report = state_report_with(&names(&["nginx", "nginx", "--now", "a b", ""]), 1, &status);
+    assert_eq!(asked.into_inner(), vec!["nginx".to_string()]);
+    assert_eq!(report["services"], json!([{"name": "nginx", "state": "unknown"}]));
+}
+
+#[test]
+fn state_report_on_another_platform_lists_nothing() {
+    let report = state_report(None, &names(&["nginx"]), 7);
+    assert_eq!(report, json!({"v": 1, "at": 7, "services": []}));
+}
