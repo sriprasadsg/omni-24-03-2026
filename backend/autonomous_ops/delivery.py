@@ -5,8 +5,13 @@
 An item with NO autonomy stamp is looked at only for its command: one naming a gate-only command
 (``GATE_ONLY_COMMANDS``, the actions 2.1.16 added) is marked ``refused`` with error
 ``autonomy_gate_required`` and dropped, whatever wrote it (T-83-25, RESP-11). Any other unstamped item is
-returned untouched. With no gate-only item and no stamped item, the list is returned unchanged and the
-database is not touched. For a stamped item:
+returned untouched. With no gate-only item, no stamped item and no ``expiresAt``, the list is returned
+unchanged and the database is not touched.
+
+An instruction whose ``expiresAt`` is at or before now (a naive value is read as UTC) was issued for a window
+that has closed: it is marked ``refused`` with error ``instruction_expired`` and dropped, before any other check
+(PTCH-07, 84 D-04). A value that is not a date is ignored. A stamped undo or compensate is exempt: putting things
+back is never held by a clock (84 D-15). For a stamped item:
 
 * a stop (platform or the tenant's) on an action or probe: the item becomes terminal
   ``cancelled_by_stop`` and its ledger row follows, so it is never delivered after the stop is
@@ -37,6 +42,7 @@ GATE_ONLY_COMMANDS = ("quarantine_file", "unquarantine_file", "restart_service",
                       "restore_host", "reboot_host")
 _GATE_REQUIRED = "autonomy_gate_required"
 _CANCEL_ROW_STATES = ("approved", "dispatching")
+_EXPIRED = "instruction_expired"
 
 
 class _Unreadable(Exception):
@@ -137,20 +143,43 @@ async def _screen(db, tenant_id: Optional[str], items: List[Dict[str, Any]], *, 
     return [i for i in items if id(i) not in withheld]
 
 
+def _expired(item: Dict[str, Any], now: datetime) -> bool:
+    """Whether the item carries an ``expiresAt`` that has passed. Undo and compensate never expire (D-15)."""
+    at = item.get("expiresAt")
+    if not isinstance(at, datetime):
+        return False
+    if _stamp(item).get("kind") in STOP_EXEMPT_KINDS:
+        return False
+    return (at if at.tzinfo else at.replace(tzinfo=timezone.utc)) <= now
+
+
+async def _refuse(coll, items: List[Dict[str, Any]], why: str) -> None:
+    """Mark each pending item refused. A write that fails is logged: the item is dropped from the list anyway."""
+    for item in items:
+        try:
+            await coll.update_one({"_id": item["_id"], "status": "pending"},
+                                  {"$set": {"status": _REFUSED, "error": why,
+                                            "refused_at": datetime.now(timezone.utc).isoformat()}})
+        except Exception as exc:
+            logger.error("autonomous_ops: %s %s not marked refused (%s): %s", "agent_instructions",
+                         item.get("_id"), why, exc)
+
+
 async def hold_back_autonomous(db, tenant_id: Optional[str], instructions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """The agent instructions that may be delivered now (stamped ones filtered per the rules above)."""
     if not instructions:
         return instructions
+    now = datetime.now(timezone.utc)
+    lapsed = [i for i in instructions if _expired(i, now)]
+    if lapsed:
+        await _refuse(raw(db).agent_instructions, lapsed, _EXPIRED)
+        gone = {id(i) for i in lapsed}
+        instructions = [i for i in instructions if id(i) not in gone]
+        if not instructions:
+            return instructions
     unstamped = [i for i in instructions if _gate_only_unstamped(i)]
     if unstamped:
-        coll = raw(db).agent_instructions
-        for item in unstamped:
-            try:
-                await coll.update_one({"_id": item["_id"], "status": "pending"},
-                                      {"$set": {"status": _REFUSED, "error": _GATE_REQUIRED,
-                                                "refused_at": datetime.now(timezone.utc).isoformat()}})
-            except Exception as exc:       # still withheld: it is dropped from the list either way
-                logger.error("autonomous_ops: unstamped %s not marked refused: %s", item.get("_id"), exc)
+        await _refuse(raw(db).agent_instructions, unstamped, _GATE_REQUIRED)
         gone = {id(i) for i in unstamped}
         instructions = [i for i in instructions if id(i) not in gone]
         if not instructions:
