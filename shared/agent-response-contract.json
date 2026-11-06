@@ -11,7 +11,9 @@
     "service_failures",
     "isolate_host",
     "restore_host",
-    "reboot_host"
+    "reboot_host",
+    "patch_reversible_check",
+    "patch_revert_by_job"
   ],
   "commandToken": {
     "block_ip": "block_ip_ttl",

@@ -37,6 +37,7 @@ use serde_json::{json, Value};
 pub const SUPPORTED_TOKENS: &[&str] = &[
     "block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe",
     "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host",
+    "patch_reversible_check", "patch_revert_by_job",
 ];
 pub const BLOCK_TTL_MIN: i64 = 3_600;
 pub const BLOCK_TTL_MAX: i64 = 604_800;

@@ -152,9 +152,9 @@ fn a_changed_example_body_is_noticed() {
 fn support_names_the_platform_and_holds_the_ttl_token() {
     let report = support_report_for(Some(Os::Windows));
     assert_eq!(report["platform"], "windows");
-    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host"]));
+    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host", "patch_reversible_check", "patch_revert_by_job"]));
     assert_eq!(report["v"], 1);
-    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host"]));
+    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host", "patch_reversible_check", "patch_revert_by_job"]));
 }
 
 #[test]
@@ -328,4 +328,78 @@ fn every_example_in_the_contract_is_one_the_agent_tests_reproduce() {
     let mut theirs: Vec<String> = c["examples"].as_object().unwrap().keys().cloned().collect();
     theirs.sort();
     assert_eq!(theirs, known);
+}
+
+/// The result each patch example describes, built by the same helpers the agent's patch jobs use.
+fn patch_example_result(name: &str) -> Value {
+    use crate::capabilities::patch_installer::{coded_result, deferred_result, patch_result};
+    use crate::capabilities::patch_reversible as r;
+    match name {
+        "install_ok" => patch_result("openssl", "success", "Installed openssl", false),
+        "install_ok_reboot" => patch_result("KB5034441", "success", "Installed KB5034441. A restart is needed to finish.", true),
+        "install_deferred_not_reversible" => deferred_result("openssl", r::NOT_REVERSIBLE, r::NOT_REVERSIBLE_MESSAGE),
+        "install_failed" => patch_result("openssl", "failed", "E: Unable to locate package openssl", false),
+        "revert_ok" => coded_result("openssl", "success", r::REVERTED, "Put back the earlier version of openssl", false),
+        "revert_not_uninstallable" => coded_result("KB5034441", "failed", r::NOT_UNINSTALLABLE, "Windows does not allow this update to be uninstalled", false),
+        "revert_version_not_offered" => coded_result("openssl", "failed", r::VERSION_NOT_OFFERED, "The earlier version is no longer offered by the package source", false),
+        "revert_not_changed" => coded_result("curl", "skipped", r::NOT_CHANGED_BY_JOB, "This job did not change curl", false),
+        other => panic!("patch example {other} has no producer in this test"),
+    }
+}
+
+fn keys_of(v: &Value) -> Vec<String> {
+    let mut keys: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
+    keys.sort();
+    keys
+}
+
+#[test]
+fn every_patch_example_is_produced_by_the_patch_installer_helpers() {
+    use crate::capabilities::patch_installer::summarize;
+    let Some(c) = contract() else { return };
+    let examples = c["patchExamples"].as_object().unwrap();
+    let mut names: Vec<&str> = examples.keys().map(String::as_str).collect();
+    names.sort();
+    assert_eq!(names.len(), 8, "a new patch example needs a producer in patch_example_result");
+    for (name, example) in examples {
+        let built = patch_example_result(name);
+        let theirs = &example["results"][0];
+        for field in ["patch_id", "status", "reboot_required"] {
+            assert_eq!(built[field], theirs[field], "{name}.{field}");
+        }
+        assert_eq!(built.get("code"), theirs.get("code"), "{name}.code");
+        assert_eq!(keys_of(&built), keys_of(theirs), "{name}: result body keys");
+        let summary = summarize(vec![built], Some("job-1"), None);
+        for field in ["status", "job_id", "total", "successful", "failed"] {
+            assert_eq!(summary[field], example[field], "{name} summary.{field}");
+        }
+        assert_eq!(keys_of(&summary), keys_of(example), "{name}: summary body keys");
+    }
+}
+
+#[test]
+fn the_patch_statuses_and_codes_the_agent_writes_are_the_contracts() {
+    use crate::capabilities::patch_reversible as r;
+    let Some(c) = contract() else { return };
+    let mut codes = strings(&c, "patchCodes");
+    let mut ours: Vec<String> = [r::NOT_REVERSIBLE, r::REVERTED, r::NOT_UNINSTALLABLE, r::VERSION_NOT_OFFERED, r::NOT_CHANGED_BY_JOB, r::NOT_APPLICABLE]
+        .iter().map(|s| s.to_string()).collect();
+    codes.sort();
+    ours.sort();
+    assert_eq!(ours, codes);
+    let statuses = strings(&c, "patchStatuses");
+    for example in c["patchExamples"].as_object().unwrap().values() {
+        let status = example["results"][0]["status"].as_str().unwrap();
+        assert!(statuses.iter().any(|s| s == status), "{status}");
+    }
+}
+
+#[test]
+fn the_rollout_tokens_the_contract_names_are_reported_by_the_agent() {
+    let Some(c) = contract() else { return };
+    for key in ["reversibleCheck", "revertByJob"] {
+        let token = c["rolloutTokens"][key].as_str().unwrap();
+        assert!(SUPPORTED_TOKENS.contains(&token), "{token}");
+    }
+    assert_eq!(c["rolloutParams"], json!({"requireReversible": "require_reversible", "revertOf": "revert_of"}));
 }

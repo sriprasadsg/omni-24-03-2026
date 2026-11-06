@@ -88,7 +88,7 @@ async def get_row(db, row_id, tenant="t1"):
 # ------------------------------------------------------------------ the contract file itself
 
 def test_the_contract_file_holds_what_the_plan_names():
-    assert len(CONTRACT["tokens"]) == 10 and CONTRACT["version"] == 1
+    assert len(CONTRACT["tokens"]) >= 10 and CONTRACT["version"] == 1
     assert set(CONTRACT["commandToken"].values()) <= set(CONTRACT["tokens"])
     assert CONTRACT["rangeToken"] in CONTRACT["tokens"]
     assert CONTRACT["blockTtlSeconds"] == {"min": 3600, "max": 604800, "default": 86400}
