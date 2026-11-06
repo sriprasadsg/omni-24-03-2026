@@ -24,7 +24,9 @@ import { showToast } from '../../utils/toast';
 import { PREFLIGHT_DEBOUNCE_MS, StartDialog } from '../../components/patchRollouts/StartDialog';
 import type { StartDialogProps } from '../../components/patchRollouts/StartDialog';
 import type { DraftPayload, PendingPatch, Preflight, PreflightRow } from '../../services/patchRollouts/types';
-import { jsonRes } from './_patchRolloutFixtures';
+import { RolloutsTab } from '../../components/patchRollouts/RolloutsTab';
+import { UserContext } from '../../contexts/UserContext';
+import { card, flags, jsonRes, rolloutPage } from './_patchRolloutFixtures';
 
 const mockFetch = authFetch as unknown as ReturnType<typeof vi.fn>;
 const toast = showToast as unknown as ReturnType<typeof vi.fn>;
@@ -554,5 +556,170 @@ describe('StartDialog: a draft from a vulnerability suggestion', () => {
     show();
     await ready();
     expect(calls('GET', '/api/patch-rollouts/draft')).toHaveLength(0);
+  });
+});
+
+// ------------------------------------------------------------------------------------------- the Rollouts tab wiring
+
+describe('RolloutsTab starts rollouts and holds the rings card', () => {
+  const ringsPayload = {
+    rings: [
+      { key: 'canary', name: 'Canary', groupIds: ['g1'], soakHours: 24, failPct: 10, minSample: 10 },
+      { key: 'ring-b', name: 'Everyone else', groupIds: [], soakHours: 24, failPct: 10, minSample: 10 },
+    ],
+    readable: true,
+    groups: [{ id: 'g1', name: 'canary-hosts', computers: 3, ring: 'Canary' }],
+  };
+  let cards: ReturnType<typeof card>[];
+  let pageFlags: ReturnType<typeof flags>;
+
+  const serveTab = () => {
+    const base = mockFetch.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const u = new URL(url, 'http://x');
+      if (u.pathname === '/api/patch-rollouts/rings') return Promise.resolve(jsonRes(ringsPayload));
+      if (u.pathname === '/api/patch-rollouts' && (init?.method ?? 'GET') === 'GET') {
+        return Promise.resolve(jsonRes(rolloutPage(cards, { flags: pageFlags })));
+      }
+      return base(url, init);
+    });
+  };
+  const listCalls = () => mockFetch.mock.calls.filter(c => String(c[0]).startsWith('/api/patch-rollouts?') && !(c[1]?.method));
+
+  const tab = (props: Record<string, unknown> = {}, user: Record<string, unknown> = {}) => render(
+    <UserContext.Provider value={{
+      currentUser: null, login: async () => false, logout: () => {}, signup: async () => false, registerTenant: async () => false,
+      hasPermission: () => false, enabledFeatures: [], serverLockedFeatures: {}, ...user,
+    } as never}>
+      <RolloutsTab tenantId={null} {...props} />
+    </UserContext.Provider>);
+
+  beforeEach(() => {
+    cards = [card({ id: 'R1', name: 'Existing' })];
+    pageFlags = flags();
+    serveTab();
+  });
+
+  it('Start rollout in the header opens the dialog, and the dialog is not rendered before', async () => {
+    tab();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start rollout' }));
+    expect(screen.getByRole('dialog', { name: 'Start a rollout' })).toBeInTheDocument();
+    await screen.findByRole('checkbox', { name: /KB5001/ });
+  });
+
+  it('Start rollout in the empty state opens the same dialog', async () => {
+    cards = [];
+    tab();
+    await screen.findByRole('heading', { name: 'No rollouts yet' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Start rollout' })[1]);
+    expect(screen.getByRole('dialog', { name: 'Start a rollout' })).toBeInTheDocument();
+  });
+
+  it('no dialog and no Start button without the canStart flag', async () => {
+    pageFlags = flags({ canStart: false });
+    tab();
+    await screen.findByText('Existing');
+    expect(screen.queryByRole('button', { name: 'Start rollout' })).toBeNull();
+  });
+
+  it('a started rollout reads the list again and moves focus to the new card', async () => {
+    const onStartRequested = vi.fn();
+    tab({ onStartRequested });
+    fireEvent.click(await screen.findByRole('button', { name: 'Start rollout' }));
+    expect(onStartRequested).toHaveBeenCalledTimes(1);
+    await screen.findByRole('checkbox', { name: /KB5001/ });
+    await screen.findByText(/Next window:/);
+    tick('KB5001');
+    await waitFor(() => expect(startBtn()).not.toBeDisabled());
+    const before = listCalls().length;
+    cards = [card({ id: 'R9', name: 'Fresh' }), ...cards];
+    fireEvent.click(startBtn());
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await screen.findByText('Fresh');
+    expect(listCalls().length).toBeGreaterThan(before);
+    await waitFor(() => expect(document.getElementById('rollout-R9')).toHaveFocus());
+  });
+
+  it('Open rollout rings closes the dialog and expands the rings card', async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const u = new URL(url, 'http://x');
+      if (u.pathname === '/api/patch-rollouts/rings') return Promise.resolve(jsonRes(ringsPayload));
+      if (u.pathname === '/api/patch-rollouts/preflight') return Promise.resolve(jsonRes(pre([NO_CANARY_COMPUTERS])));
+      if (u.pathname === '/api/patch-rollouts' && (init?.method ?? 'GET') === 'GET') return Promise.resolve(jsonRes(rolloutPage(cards, { flags: pageFlags })));
+      return Promise.resolve(jsonRes({ items: [patch('KB5001')], total: 1, offset: 0, limit: 50 }));
+    });
+    tab();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start rollout' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open rollout rings' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Rollout rings' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('the rings card sits under the list only with canManageRings', async () => {
+    tab();
+    expect(await screen.findByRole('button', { name: 'Rollout rings' })).toHaveAttribute('aria-expanded', 'false');
+    expect(await screen.findByText(/Canary \(canary-hosts\)/)).toBeInTheDocument();
+  });
+
+  it('without canManageRings the rings card is absent and never read', async () => {
+    pageFlags = flags({ canManageRings: false });
+    tab();
+    await screen.findByText('Existing');
+    expect(screen.queryByRole('button', { name: 'Rollout rings' })).toBeNull();
+    expect(calls('GET', '/api/patch-rollouts/rings')).toHaveLength(0);
+  });
+
+  it('saving rings reads the list again', async () => {
+    tab();
+    await screen.findByText(/Canary \(canary-hosts\)/);
+    const before = listCalls().length;
+    fireEvent.click(screen.getByRole('button', { name: 'Rollout rings' }));
+    fireEvent.change(await screen.findByLabelText('Name of ring 2'), { target: { value: 'Rest' } });
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const u = new URL(url, 'http://x');
+      if (u.pathname === '/api/patch-rollouts/rings') return Promise.resolve(jsonRes(ringsPayload));
+      return Promise.resolve(jsonRes(rolloutPage(cards, { flags: pageFlags })));
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save rings' }));
+    await waitFor(() => expect(listCalls().length).toBeGreaterThan(before));
+  });
+
+  it('Open maintenance windows goes to Settings for a person who can open it, and is plain text otherwise', async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const u = new URL(url, 'http://x');
+      if (u.pathname === '/api/patch-rollouts/rings') return Promise.resolve(jsonRes(ringsPayload));
+      if (u.pathname === '/api/patch-rollouts/preflight') return Promise.resolve(jsonRes(pre([NO_WINDOW])));
+      if (u.pathname === '/api/patch-rollouts' && (init?.method ?? 'GET') === 'GET') {
+        return Promise.resolve(jsonRes(rolloutPage(cards, { flags: pageFlags, window: { state: 'open', text: 't', closesAt: null, nextOpensAt: null, timeZone: 'UTC' } })));
+      }
+      return Promise.resolve(jsonRes({ items: [patch('KB5001')], total: 1, offset: 0, limit: 50 }));
+    });
+    const onOpenView = vi.fn();
+    const first = tab({ onOpenView }, { hasPermission: (p: string) => p === 'manage:settings' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Start rollout' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open maintenance windows' }));
+    expect(onOpenView).toHaveBeenCalledWith('settings');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    first.unmount();
+    tab({ onOpenView });
+    fireEvent.click(await screen.findByRole('button', { name: 'Start rollout' }));
+    expect(await screen.findByText('Open maintenance windows')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open maintenance windows' })).toBeNull();
+  });
+
+  it('Open agent groups from the dialog goes to Agent Groups through onOpenView', async () => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const u = new URL(url, 'http://x');
+      if (u.pathname === '/api/patch-rollouts/rings') return Promise.resolve(jsonRes(ringsPayload));
+      if (u.pathname === '/api/patch-rollouts/preflight') return Promise.resolve(jsonRes(pre([NO_CANARY_LINUX])));
+      if (u.pathname === '/api/patch-rollouts' && (init?.method ?? 'GET') === 'GET') return Promise.resolve(jsonRes(rolloutPage(cards, { flags: pageFlags })));
+      return Promise.resolve(jsonRes({ items: [patch('KB5001')], total: 1, offset: 0, limit: 50 }));
+    });
+    const onOpenView = vi.fn();
+    tab({ onOpenView });
+    fireEvent.click(await screen.findByRole('button', { name: 'Start rollout' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open agent groups' }));
+    expect(onOpenView).toHaveBeenCalledWith('agentGroups');
   });
 });
