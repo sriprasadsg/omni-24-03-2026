@@ -30,10 +30,10 @@ from api_key_auth import get_current_user_or_api_key
 from auth_types import TokenData
 from authentication_service import get_current_user
 from autonomous_ops import ledger, protected
-from autonomous_ops.rollout import controller, lifecycle, messages as rm, store
+from autonomous_ops.rollout import controller, lifecycle, lines, messages as rm, store
 from catalogue_mounts import mount_dependencies
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.rollout_support import seed_rollout_agent, seed_rollout_tenant, seed_window
+from tests.rollout_support import post_result, seed_rollout_agent, seed_rollout_tenant, seed_window, success_result
 
 T = "t1"
 NOW = datetime.now(timezone.utc).replace(second=0, microsecond=0)
@@ -64,7 +64,8 @@ async def world(db, *, status="halted", ring=1, code="no_data:inventory", rings=
     names = ["Canary", "Pilot", "Everyone else"][:rings]
     ring_docs = [{"index": i, "key": n.lower(), "name": n, "groupIds": [], "soakHours": 1, "failPct": 10,
                   "minSample": 10, "isCanary": i == 0,
-                  "state": "passed" if i < ring else "halted" if i == ring else "not_started",
+                  "state": "passed" if i < ring else ("halted" if status == "halted" else "installing") if i == ring
+                  else "not_started",
                   "soakEndsAt": NOW - timedelta(hours=1)} for i, n in enumerate(names)]
     doc = {"id": "r1", "tenantId": T, "name": "Nov", "patchIds": ["openssl"], "patchesByOs": {"linux": ["openssl"]},
            "status": status, "shadow": False, "currentRing": ring, "rings": ring_docs, "leftOut": [],
@@ -357,3 +358,141 @@ async def test_a_viewer_and_an_api_key_cannot_resume_or_cancel(api):
     got = await rollout(api.db)
     assert got["status"] == "halted" and "resumeLog" not in got
     assert not await controls(api.db, "rollout_resumed") and not await controls(api.db, "rollout_cancelled")
+
+
+# ---------------------------------------------------------------- Task 2: completion, computers never reached, closing
+
+APPROVER = {"id": "u2", "name": "Bo"}
+DAY = timedelta(days=1)
+
+
+async def finish_with_one_lost(db):
+    """The last ring passes with h1 installed and n1 offline for the whole ring (never installed)."""
+    await world(db, status="running", ring=1, rings=2)
+    await add(db, "h1")
+    await add(db, "n1", state="not_reached", scanned=True, installedIds=[], installReportedAt=None, attempt=0)
+    await db.agents.update_one({"id": "n1"}, {"$set": {"lastSeen": (NOW - 2 * DAY).isoformat()}})
+    await controller.tick(db, now=NOW)
+    return await rollout(db)
+
+
+async def claims(db):
+    return sorted([d["agentId"] async for d in db.patch_rollout_hosts.find({"tenantId": T, "active": True})])
+
+
+async def test_the_last_ring_completes_the_rollout_and_keeps_only_the_computer_it_never_reached(mongo_db):
+    """protects=D-18 / OQ4; fails_when=an offline computer is a failure, the rollout stays open until it returns,
+    every claim is dropped at once or kept for good."""
+    db = mongo_db
+    got = await finish_with_one_lost(db)
+    assert got["status"] == "completed" and got["rings"][1]["state"] == "passed"
+    assert got["notReached"] == ["n1"] and got["closesAt"] == got["completedAt"] + lifecycle.NOT_REACHED_GRACE
+    assert got["closesAt"] - got["completedAt"] == timedelta(days=7)
+    assert await claims(db) == ["n1"]
+    assert (await host(db, "n1"))["state"] == "not_reached"
+
+
+async def test_a_rollout_that_reached_everyone_completes_with_no_tail(mongo_db):
+    db = mongo_db
+    await world(db, status="running", ring=1, rings=2)
+    await add(db, "h1")
+    await controller.tick(db, now=NOW)
+    got = await rollout(db)
+    assert got["status"] == "completed" and "closesAt" not in got and "notReached" not in got
+    assert await claims(db) == [] and await store.tail_rollouts(db, T) == [] and await store.tenants_with_tails(db) == []
+
+
+async def test_a_computer_back_online_in_a_window_is_offered_the_install_as_an_approval_never_automatically(mongo_db):
+    """protects=D-18 / PTCH-06; fails_when=a returning computer is installed without a person, is offered twice, or
+    keeps its claim after it installed."""
+    db = mongo_db
+    await finish_with_one_lost(db)
+    day3 = NOW + 3 * DAY
+    await db.agents.update_one({"id": "n1"}, {"$set": {"lastSeen": day3.isoformat(), "status": "Online"}})
+
+    await controller.tick(db, now=day3)
+
+    opened = [r async for r in db.autonomy_actions.find({"tenantId": T, "dispatcher": "patch_rollout"}, {"_id": 0})]
+    assert len(opened) == 1
+    row = opened[0]
+    assert (row["state"], row["targets"], row["command"]) == ("awaiting_approval", ["n1"], "install_patches")
+    assert row["reason"]["inputs"]["line"] == "install" and row["reason"]["inputs"]["ring"] == 1
+    assert row["reason"]["inputs"]["attempt"] == 1 and row["reason"]["inputs"]["patchIds"] == ["openssl"]
+    assert [i async for i in db.agent_instructions.find({"tenantId": T, "agent_id": "n1"})] == []
+    assert (await host(db, "n1"))["state"] == "waiting" and await claims(db) == ["n1"]
+    await controller.tick(db, now=day3 + timedelta(minutes=1))
+    assert await db.autonomy_actions.count_documents({"tenantId": T, "dispatcher": "patch_rollout"}) == 1
+
+    approved = await lines.approve_line(db, T, "r1", 1, "install", approver=APPROVER, now=day3 + timedelta(minutes=2))
+    assert approved["status"] == "approved" and approved["when"] == "now"
+    sent = [i async for i in db.agent_instructions.find({"tenantId": T, "agent_id": "n1"})]
+    assert len(sent) == 1 and sent[0]["type"] == "install_patches"
+    assert (await host(db, "n1"))["state"] == "installing"
+    assert (await post_result(db, sent[0]["payload"]["job_id"], "n1", success_result(["openssl"])))
+    await controller.tick(db, now=day3 + timedelta(minutes=3))
+    assert (await host(db, "n1"))["state"] == "installed"
+    assert await claims(db) == []
+    got = await rollout(db)
+    assert got["status"] == "completed" and not got.get("closedAt")
+
+
+async def test_nothing_is_offered_outside_a_window_to_an_offline_computer_or_during_a_stop(mongo_db):
+    db = mongo_db
+    await finish_with_one_lost(db)
+    day3 = NOW + 3 * DAY
+    count = lambda: db.autonomy_actions.count_documents({"tenantId": T, "dispatcher": "patch_rollout"})
+    await controller.tick(db, now=day3)                                         # the computer is still offline
+    assert await count() == 0
+    await db.agents.update_one({"id": "n1"}, {"$set": {"lastSeen": day3.isoformat(), "status": "Online"}})
+    await db.maintenance_windows.update_many({"tenantId": T}, {"$set": {"startTime": hhmm(day3 + timedelta(hours=5)),
+                                                                        "endTime": hhmm(day3 + timedelta(hours=6))}})
+    await controller.tick(db, now=day3)                                         # the window is closed
+    assert await count() == 0
+    await db.maintenance_windows.update_many({"tenantId": T}, {"$set": {"startTime": hhmm(day3 - timedelta(hours=1)),
+                                                                        "endTime": hhmm(day3 + timedelta(hours=3))}})
+    await db.autonomy_settings.update_one({"tenantId": T}, {"$set": {"stop": {
+        "active": True, "scope": "tenant", "pressedBy": {"username": "ann"}, "pressedAt": datetime.now(timezone.utc)}}})
+    await controller.tick(db, now=day3)                                         # automatic actions are stopped
+    assert await count() == 0 and (await host(db, "n1"))["state"] == "not_reached"
+
+
+async def test_a_computer_that_never_returns_is_counted_and_released_when_the_rollout_closes(mongo_db):
+    """protects=D-18 / PTCH-07; fails_when=the rollout never closes, the claim stays, the count is wrong or a closed
+    rollout is visited again."""
+    db = mongo_db
+    done = await finish_with_one_lost(db)
+    await controller.tick(db, now=done["closesAt"] - timedelta(minutes=1))
+    assert not (await rollout(db)).get("closedAt") and await claims(db) == ["n1"]
+
+    await controller.tick(db, now=done["closesAt"] + timedelta(minutes=1))
+
+    got = await rollout(db)
+    assert got["status"] == "completed" and got["closedAt"] and got["neverReachedCount"] == 1
+    assert await claims(db) == []
+    assert await store.tail_rollouts(db, T) == [] and await store.tenants_with_tails(db) == []
+    taken = await store.claim_hosts(db, T, "r2", [{"agentId": "n1", "ring": 0, "state": "waiting"}])
+    assert taken == (["n1"], [])                                                # a new rollout can take the computer
+    assert await lifecycle.close_if_due(db, T, got, done["closesAt"] + DAY) is False
+
+
+async def test_closing_expires_a_waiting_approval_and_a_computer_that_returned_late_is_not_counted(mongo_db):
+    db = mongo_db
+    done = await finish_with_one_lost(db)
+    day3 = NOW + 3 * DAY
+    await db.agents.update_one({"id": "n1"}, {"$set": {"lastSeen": day3.isoformat(), "status": "Online"}})
+    await controller.tick(db, now=day3)                                         # an approval row now waits
+    assert await db.autonomy_actions.count_documents({"tenantId": T, "state": "awaiting_approval"}) == 1
+    await controller.tick(db, now=done["closesAt"] + timedelta(minutes=1))
+    row = await db.autonomy_actions.find_one({"tenantId": T, "dispatcher": "patch_rollout"})
+    assert row["state"] == "expired" and row["reasonCode"] == "rollout_closed"
+    got = await rollout(db)
+    assert got["neverReachedCount"] == 1                                        # it came back but nobody approved
+    assert (await store.tail_rollouts(db, T)) == []
+
+
+async def test_a_cancelled_rollout_with_no_revert_is_not_visited(mongo_db):
+    db = mongo_db
+    await world(db)
+    await add(db, "h1")
+    await lifecycle.cancel(db, T, "r1", actor=ACTOR, now=NOW)
+    assert await store.tail_rollouts(db, T) == [] and await store.tenants_with_tails(db) == []

@@ -82,7 +82,8 @@ async def host_problem(db, tenant_id: str, rollout_id: str, row: Dict[str, Any],
     try:
         rollout = await store.rollouts(db).find_one({"id": rollout_id, "tenantId": tenant_id}, {"_id": 0, "status": 1})
         line = ((row.get("reason") or {}).get("inputs") or {}).get("line")
-        allowed = ("running", "halted") if line == "revert_reboot" else ("running",)    # a halted ring still finishes its revert
+        allowed = {"revert_reboot": ("running", "halted"),          # a halted ring still finishes its revert
+                   "install": ("running", "completed")}.get(line, ("running",))      # a returning computer, D-18
         if rollout is None or rollout.get("status") not in allowed:
             return "rollout_not_running"
         claim = await store.hosts(db).find_one(

@@ -154,12 +154,16 @@ def _result(status: str, *, when: Optional[str] = None, opens: Any = None, appro
 
 async def _running(db, tenant_id: str, rollout_id: str,
                    line: str = "") -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-    """(rollout, None) when it exists and is running (a halted rollout too, for its Revert restart line), else
+    """(rollout, None) when it exists and is running (a halted rollout too, for its Revert restart line, and a
+    completed one that is not closed yet, for the install offered to a computer that came back), else
     (None, the refusing result)."""
-    rollout = await store.rollouts(db).find_one({"id": rollout_id, "tenantId": tenant_id}, {"_id": 0, "id": 1, "status": 1, "rings": 1})
+    rollout = await store.rollouts(db).find_one({"id": rollout_id, "tenantId": tenant_id},
+                                                {"_id": 0, "id": 1, "status": 1, "rings": 1, "closedAt": 1})
     if rollout is None:
         return None, _result("refused", message=rm.LINE_RESULT["not_found"])
-    if rollout.get("status") != "running" and not (line == "revert_reboot" and rollout.get("status") == "halted"):
+    status = rollout.get("status")
+    open_tail = line == "install" and status == "completed" and not rollout.get("closedAt")    # a computer that came back (D-18)
+    if status != "running" and not (line == "revert_reboot" and status == "halted") and not open_tail:
         return None, _result("refused", message=rm.LINE_RESULT["not_running"])
     return rollout, None
 
