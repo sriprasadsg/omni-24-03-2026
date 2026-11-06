@@ -75,3 +75,10 @@ def success_result(patch_ids, *, reboot=False):
 def failure_result(patch_ids, message="install failed"):
     return {"status": "failed", "successful": 0, "failed": len(patch_ids), "total": len(patch_ids),
             "results": [{"patch_id": p, "status": "failed", "message": message} for p in patch_ids]}
+
+
+async def fresh_scan(db, agent_id, pending, at):
+    """What the agent's next patch scan leaves behind: ``pending`` ids listed, stamped ``at``."""
+    await db.agents.update_one({"id": agent_id}, {"$set": {
+        "meta.system_patching.timestamp": iso(at), "meta.system_patching.pending_update_count": len(pending),
+        "meta.system_patching.pending_updates": [{"id": p, "title": p} for p in pending]}})

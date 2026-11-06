@@ -21,9 +21,9 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import gate, ledger, protected
-from autonomous_ops.rollout import controller, start, store, windows
+from autonomous_ops.rollout import controller, health, start, store, windows
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.rollout_support import (post_result, seed_group, seed_rings, seed_rollout_agent, seed_rollout_tenant,
+from tests.rollout_support import (failure_result, fresh_scan, post_result, seed_group, seed_rings, seed_rollout_agent, seed_rollout_tenant,
                                    seed_window, success_result)
 
 T = "t1"
@@ -213,6 +213,118 @@ async def test_install_patches_from_any_other_dispatcher_is_refused_and_records_
         assert (decision.outcome, decision.reason) == ("refuse", "unregistered_action"), dispatcher
     assert await db.autonomy_actions.count_documents({}) == 0
     assert await db.agent_instructions.count_documents({}) == 0
+
+
+# ---------------------------------------------------------------- Task 2: soak, fresh scan, completion
+
+async def installed_world(db):
+    """The tracer after the agent's result settled: host installed at ``installed_at`` (returned)."""
+    await world(db)
+    rollout_id = await begin(db)
+    await controller.tick(db, now=NOW)
+    job = await db.patch_deployment_jobs.find_one({"rolloutId": rollout_id})
+    await post_result(db, job["id"], "a1", success_result(["openssl"]))
+    await controller.tick(db, now=NOW + timedelta(minutes=2))
+    host = await db.patch_rollout_hosts.find_one({"agentId": "a1"})
+    assert host["state"] == "installed"
+    return rollout_id, aware(host["installReportedAt"])
+
+
+async def rollout_of(db, rollout_id):
+    return await db.patch_rollouts.find_one({"id": rollout_id})
+
+
+async def test_the_canary_ring_soaks_until_its_soak_has_ended(mongo_db):
+    db = mongo_db
+    rollout_id, installed = await installed_world(db)
+    await controller.tick(db, now=installed + timedelta(minutes=30))
+    rollout = await rollout_of(db, rollout_id)
+    assert rollout["status"] == "running" and rollout["rings"][0]["state"] == "soaking"
+    assert aware(rollout["rings"][0]["soakEndsAt"]) == installed + timedelta(hours=1)
+
+
+async def test_the_ring_passes_on_a_fresh_scan_and_the_rollout_completes_and_releases_its_claims(mongo_db):
+    db = mongo_db
+    rollout_id, installed = await installed_world(db)
+    await fresh_scan(db, "a1", [], installed + timedelta(minutes=10))
+    await db.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": (installed + timedelta(minutes=10)).isoformat()}})
+    await controller.tick(db, now=installed + timedelta(minutes=61))
+    rollout = await rollout_of(db, rollout_id)
+    assert [r["state"] for r in rollout["rings"]] == ["passed", "passed"]
+    assert rollout["status"] == "completed" and rollout["completedAt"] is not None
+    claims = [c async for c in db.patch_rollout_hosts.find({"rolloutId": rollout_id})]
+    assert claims and all(c["active"] is False for c in claims)
+
+
+async def test_a_scan_that_is_not_newer_than_the_install_halts_the_ring_with_no_data(mongo_db):
+    db = mongo_db
+    rollout_id, installed = await installed_world(db)
+    await fresh_scan(db, "a1", [], installed + timedelta(minutes=2))
+    await db.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": (installed + timedelta(minutes=10)).isoformat()}})
+    await controller.tick(db, now=installed + timedelta(minutes=61))
+    rollout = await rollout_of(db, rollout_id)
+    assert rollout["status"] == "halted" and rollout["rings"][0]["state"] == "halted"
+    reason = rollout["haltReason"]
+    assert (reason["code"], reason["ring"], reason["host"]) == ("no_data:inventory", 0, "a1")
+    assert (await db.patch_rollout_hosts.find_one({"agentId": "a1"}))["active"] is True
+
+
+async def test_a_fresh_scan_that_still_lists_the_patch_does_not_pass(mongo_db):
+    db = mongo_db
+    rollout_id, installed = await installed_world(db)
+    await fresh_scan(db, "a1", ["openssl"], installed + timedelta(minutes=10))
+    await db.agents.update_one({"id": "a1"}, {"$set": {"lastSeen": (installed + timedelta(minutes=10)).isoformat()}})
+    await controller.tick(db, now=installed + timedelta(minutes=61))
+    assert (await rollout_of(db, rollout_id))["haltReason"]["code"] == "no_data:inventory"
+
+
+async def test_a_failed_canary_install_halts_the_rollout_at_once(mongo_db):
+    db = await world(mongo_db)
+    rollout_id = await begin(db)
+    await controller.tick(db, now=NOW)
+    job = await db.patch_deployment_jobs.find_one({"rolloutId": rollout_id})
+    await post_result(db, job["id"], "a1", failure_result(["openssl"], "dpkg error"))
+    await controller.tick(db, now=NOW + timedelta(minutes=2))
+    rollout = await rollout_of(db, rollout_id)
+    assert rollout["status"] == "halted" and rollout["haltReason"]["code"] == "canary_failed"
+    host = await db.patch_rollout_hosts.find_one({"agentId": "a1"})
+    assert host["state"] == "failed" and host["failureMessage"] == "dpkg error"
+    row = (await rows(db))[0]
+    assert row["state"] == "failed" and row["reasonCode"] == "rollout_install_failed"
+
+
+def signals(agent_id, *, failed=False, reported=True, **over):
+    base = {"agentId": agent_id, "state": "installed", "failed": failed, "reported": reported, "install": not failed,
+            "inventory": True, "heartbeat": True, "services": True}
+    return {**base, **over}
+
+
+def ring(**over):
+    return {"isCanary": False, "failPct": 10, "minSample": 10, "soakEndsAt": NOW, **over}
+
+
+def test_verdict_canary_halts_on_any_failure_even_during_the_soak():
+    soaking = ring(isCanary=True, soakEndsAt=NOW + timedelta(hours=5))
+    assert health.ring_verdict([signals("a"), signals("b", failed=True)], soaking, NOW).code == "canary_failed"
+    assert health.ring_verdict([signals("a")], soaking, NOW).kind == "waiting"
+
+
+def test_verdict_later_ring_uses_integer_share_once_the_sample_is_large_enough():
+    ten = [signals(f"h{i}") for i in range(10)]
+    assert health.ring_verdict(ten, ring(), NOW).kind == "green"
+    one_bad = [signals("bad", failed=True)] + [signals(f"h{i}") for i in range(9)]
+    assert health.ring_verdict(one_bad, ring(), NOW).kind == "green"                 # 10% is not over 10%
+    two_bad = [signals("bad", failed=True), signals("bad2", failed=True)] + [signals(f"h{i}") for i in range(8)]
+    assert health.ring_verdict(two_bad, ring(), NOW).code == "failure_share"
+    assert health.ring_verdict([signals("bad", failed=True), signals("ok")], ring(), NOW).code == "host_failed"
+
+
+def test_verdict_missing_data_halts_only_after_the_soak_and_names_the_signal():
+    later = ring(soakEndsAt=NOW + timedelta(hours=1))
+    assert health.ring_verdict([signals("a", heartbeat=None)], later, NOW).kind == "waiting"
+    done = health.ring_verdict([signals("a", heartbeat=None)], ring(), NOW)
+    assert (done.kind, done.code, done.host) == ("halt", "no_data:heartbeat", "a")
+    assert health.ring_verdict([signals("a", state="not_reached", inventory=None)], ring(), NOW).kind == "green"
 
 
 # ---------------------------------------------------------------- PTCH-07

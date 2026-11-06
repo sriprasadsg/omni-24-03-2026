@@ -13,7 +13,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from .. import PLATFORM_TENANT_ID, scope, settings
-from . import ACTIVE_STATUSES, installs, settle, store, windows as windows_mod
+from ..scope import raw
+from . import ACTIVE_STATUSES, health, installs, lifecycle, settle, store, windows as windows_mod
 
 logger = logging.getLogger(__name__)
 
@@ -32,26 +33,70 @@ async def _may_decide(db, tenant_id: str, platform_stopped: bool) -> bool:
     return not settings.stop_active(tenant.stop) and settings.effective_level(tenant) != "off"
 
 
-async def _ring(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, counts: Dict[str, int]) -> None:
-    """Move the current ring one step."""
+async def _halt(db, tenant_id: str, rollout: Dict[str, Any], index: int, verdict: health.Verdict,
+                now: datetime) -> None:
+    """Stop the rollout at this ring (plan 84-03 moves this into ``lifecycle``)."""
+    await store.set_ring(db, tenant_id, rollout, index, {"state": "halted"})
+    await store.set_rollout(db, tenant_id, rollout, {
+        "status": "halted", "haltReason": {"code": verdict.code, "ring": index, "host": verdict.host, "at": now}})
+
+
+async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
+                 now: datetime) -> bool:
+    """Soak and check the ring whose installs are all settled. True when the ring passed (go on)."""
+    ring = rollout["rings"][index]
+    if ring.get("state") not in ("soaking", "checking_health"):
+        soak = health.soak_end(hosts, float(ring.get("soakHours") or 0), now)
+        await store.set_ring(db, tenant_id, rollout, index, {"state": "soaking", "soakEndsAt": soak})
+    agents = {}
+    found = raw(db).agents.find({"tenantId": tenant_id, "id": {"$in": [h["agentId"] for h in hosts]}},
+                                {"_id": 0, "id": 1, "lastSeen": 1, "meta.system_patching": 1, "meta.os_patches": 1})
+    async for agent in found:
+        agents[agent["id"]] = agent
+    signals = [health.host_signals(agents.get(h["agentId"]), h, now) for h in hosts]
+    verdict = health.ring_verdict(signals, ring, now)
+    if verdict.kind == "waiting":
+        return False
+    if verdict.kind == "halt":
+        await _halt(db, tenant_id, rollout, index, verdict, now)
+        return False
+    await lifecycle.advance(db, tenant_id, rollout, now)
+    return True
+
+
+async def _step(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, counts: Dict[str, int]) -> bool:
+    """Move the current ring one step. True when the rollout moved on to the next ring, so the caller
+    steps again (an empty ring passes at once)."""
     index = int(rollout.get("currentRing") or 0)
     ring = rollout["rings"][index]
     hosts = [h for h in await store.host_docs(db, tenant_id, rollout["id"]) if h.get("ring") == index]
+    if not hosts:
+        await lifecycle.advance(db, tenant_id, rollout, now)
+        return True
     waiting = [h for h in hosts if h.get("state") == "waiting"]
-    if not waiting:
-        return
-    tenant_windows = await windows_mod.load(db, tenant_id)
-    open_now = tenant_windows.open_at(now)
-    if open_now is None:
-        if ring.get("state") != "waiting_for_window":
-            await store.set_ring(db, tenant_id, rollout, index, {"state": "waiting_for_window"})
-        counts["waiting_for_window"] = counts.get("waiting_for_window", 0) + 1
-        return
-    if ring.get("state") != "installing":
-        await store.set_ring(db, tenant_id, rollout, index, {"state": "installing"})
-    if index == 0:         # later rings wait for a person (plan 84-03)
-        for key, value in (await installs.canary_auto(db, tenant_id, rollout, index, hosts, now, open_now[1])).items():
-            counts[key] = counts.get(key, 0) + value
+    if waiting:
+        open_now = (await windows_mod.load(db, tenant_id)).open_at(now)
+        if open_now is None:
+            if ring.get("state") != "waiting_for_window":
+                await store.set_ring(db, tenant_id, rollout, index, {"state": "waiting_for_window"})
+            counts["waiting_for_window"] = counts.get("waiting_for_window", 0) + 1
+            return False
+        if ring.get("state") != "installing":
+            await store.set_ring(db, tenant_id, rollout, index, {"state": "installing"})
+        if index == 0:         # later rings wait for a person (plan 84-03)
+            sent = await installs.canary_auto(db, tenant_id, rollout, index, hosts, now, open_now[1])
+            for key, value in sent.items():
+                counts[key] = counts.get(key, 0) + value
+        return False
+    if any(h.get("state") not in ("installed", "failed") for h in hosts):
+        return False           # still installing (or only simulated): nothing to check yet
+    return await _check(db, tenant_id, rollout, index, hosts, now)
+
+
+async def _ring(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, counts: Dict[str, int]) -> None:
+    for _ in range(len(rollout["rings"]) + 1):
+        if rollout.get("status") != "running" or not await _step(db, tenant_id, rollout, now, counts):
+            return
 
 
 async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, counts: Dict[str, int]) -> None:
