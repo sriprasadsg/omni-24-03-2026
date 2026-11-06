@@ -10,6 +10,7 @@ import uuid
 
 import license_rules
 import licensing
+from autonomous_ops.rollout import rings as rollout_rings
 
 router = APIRouter(prefix="/api/agent-groups", tags=["Agent Groups"])
 
@@ -42,8 +43,10 @@ async def list_groups(current_user: TokenData = Depends(get_current_user)):
     """List all agent groups for the tenant."""
     db = get_database()
     groups = []
+    ring_names = await rollout_rings.ring_names_by_group(db, current_user.tenant_id)
     async for doc in db.agent_groups.find({"tenantId": current_user.tenant_id}):
         _strip_id(doc)
+        doc["ringName"] = ring_names.get(doc["id"])
         # Attach member count
         doc["member_count"] = await db.agent_group_members.count_documents(
             {"group_id": doc["id"], "tenantId": current_user.tenant_id}

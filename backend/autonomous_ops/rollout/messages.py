@@ -211,6 +211,13 @@ VALIDATION = {
     "soak_hours": "Enter hours between 1 and 168.",
     "fail_pct": "Enter a percentage between 1 and 50.",
     "min_sample": "Enter a number between 1 and 100.",
+    # Rings the screen cannot get wrong by itself but the server still checks (plan 84-06)
+    "ring_count": "A rollout needs 2 to 4 rings.",
+    "ring_name_long": "A ring name can be up to 40 characters.",
+    "canary_name": "The first ring is always named Canary.",
+    "ring_group": "Pick at least one group for every ring except the last.",
+    "group_twice": "A group can be in only one ring.",
+    "group_unknown": "One of those groups was not found. Pick groups from your own Agent Groups.",
     # Maintenance windows (UI-SPEC section 8, plan 84-05)
     "window_name": "Enter a window name.",
     "window_name_long": "A window name can be up to 60 characters.",
@@ -225,6 +232,9 @@ VALIDATION = {
     "window_limit": "You can keep up to 50 maintenance windows. Delete one first.",
     "time_zone": "Choose a time zone from the list, for example Asia/Kolkata.",
 }
+
+# The control row written when a person saves the rings; shown in Activity and mirrored to the audit chain.
+RINGS_SAVED = "Rollout rings saved: {rings} ({names})."
 
 # ---------------------------------------------------------------- the approval card (section 6)
 

@@ -45,6 +45,7 @@ CONTROL_LABELS = {
     "breaker_tripped": "Level lowered by the circuit breaker",
     "level_restored": "Level restored",
     "rate_limit_reached": "Rate limit reached",
+    "rollout_rings_saved": "Rollout rings saved",
     **response_messages.CONTROL_LABELS,
 }
 

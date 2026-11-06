@@ -178,7 +178,7 @@ async def test_ring_names_by_group_lists_only_groups_a_ring_uses(mongo_db):
 
 async def test_the_agent_group_list_carries_the_ring_name(mongo_db, monkeypatch):
     import agent_group_endpoints
-    from auth import TokenData
+    from auth_types import TokenData
     db = await world(mongo_db)
     await rings.save(db, T, GOOD, actor=ACTOR)
     monkeypatch.setattr(agent_group_endpoints, "get_database", lambda: db)
