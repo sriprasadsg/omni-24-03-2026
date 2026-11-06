@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from autonomous_ops import ledger, protected
+from autonomous_ops import approvals, delivery, ledger, protected
 from autonomous_ops.rollout import controller, lines, start, store
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.rollout_support import (failure_result, fresh_scan, post_result, seed_group, seed_rings,
@@ -310,3 +310,128 @@ async def test_a_shadow_tenant_records_simulations_and_no_card(mongo_db):
     assert [r["state"] for r in found] == ["shadow"] and found[0]["wouldHave"] == "needs_approval"
     assert await db.autonomy_actions.count_documents({"tenantId": T, "state": "awaiting_approval"}) == 0
     assert await instructions(db) == []
+
+
+# ---------------------------------------------------------------- a denied or expired line halts the rollout (R11)
+
+async def ring_one_world(db, agents=("b1", "b2")):
+    """The canary passed and ring one has an install card per computer. Returns (rollout id, time)."""
+    await base(db)
+    await host(db, "a1", canary=True)
+    for agent in agents:
+        await host(db, agent)
+    rollout_id = await begin(db)
+    later = await pass_the_canary(db, rollout_id)
+    assert len(await rows(db, **{"reason.inputs.ring": 1, "state": "awaiting_approval"})) == len(agents)
+    return rollout_id, later
+
+
+async def add_reboot_card(db, rollout_id, agent, at):
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id}, {"_id": 0})
+    made = await lines.raise_line(db, T, rollout, 1, "reboot",
+                                  [(await host_doc(db, agent), "reboot_host", {"delay_seconds": 300, "reason": "x"})], at)
+    assert made["raised"] == 1
+
+
+async def test_a_denied_install_line_halts_the_rollout_at_that_ring_and_closes_every_other_open_row(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_world(db)
+    await add_reboot_card(db, rollout_id, "b1", later)
+    result = await lines.deny_line(db, T, rollout_id, 1, "install", approver=APPROVER)
+    assert result["status"] == "denied"
+    await controller.tick(db, now=later + timedelta(minutes=1))
+
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id})
+    assert rollout["status"] == "halted" and rollout["rings"][1]["state"] == "halted"
+    reason = rollout["haltReason"]
+    assert (reason["code"], reason["ring"]) == ("install_denied", 1) and reason["text"] == "the install was denied."
+    installs_ = await rows(db, **{"reason.inputs.ring": 1, "reason.inputs.line": "install"})
+    assert [(r["state"], r.get("reasonCode")) for r in installs_] == [("denied", "playbook_raised")] * 2
+    reboot = (await rows(db, command="reboot_host"))[0]
+    assert (reboot["state"], reboot["reasonCode"]) == ("expired", "rollout_closed")
+    assert "closed before this step ran" in reboot["reasonText"]
+    assert await db.patch_rollout_hosts.count_documents({"rolloutId": rollout_id, "active": True}) == 3   # claims stay for the revert
+
+    await controller.tick(db, now=later + timedelta(minutes=2))                  # a halted rollout stays as it is
+    assert (await db.patch_rollouts.find_one({"id": rollout_id}))["haltReason"]["at"] == rollout["haltReason"]["at"]
+
+
+async def test_an_install_line_nobody_answers_in_24_hours_halts_with_approval_expired(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_world(db)
+    after = later + timedelta(hours=25)
+    assert await approvals.expire_due(db, now=after, tenant_id=T) == 2
+    await online_at(db, after)
+    await controller.tick(db, now=after)
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id})
+    assert rollout["status"] == "halted" and rollout["haltReason"]["code"] == "approval_expired"
+    assert rollout["haltReason"]["text"] == "the approval expired."
+    # Expired by the clock, not closed by the rollout: its reason code stays the one it was raised with.
+    assert {(r["state"], r.get("reasonCode")) for r in await rows(db, **{"reason.inputs.ring": 1})} == {("expired", "playbook_raised")}
+
+
+async def test_a_denied_restart_line_halts_with_restart_denied(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_world(db, ("b1",))
+    await add_reboot_card(db, rollout_id, "b1", later)
+    await lines.deny_line(db, T, rollout_id, 1, "reboot", approver=APPROVER)
+    await controller.tick(db, now=later + timedelta(minutes=1))
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id})
+    assert rollout["status"] == "halted" and rollout["haltReason"]["code"] == "restart_denied"
+    install = (await rows(db, **{"reason.inputs.line": "install", "reason.inputs.ring": 1}))[0]
+    assert (install["state"], install["reasonCode"]) == ("expired", "rollout_closed")
+
+
+async def test_a_halt_ends_a_row_whose_instruction_nobody_fetched_and_delivery_refuses_it(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_world(db)
+    approved = await lines.approve_line(db, T, rollout_id, 1, "install", approver=APPROVER, now=later)
+    assert approved["status"] == "approved" and approved["approved"] == 2
+    sent = [i async for i in db.agent_instructions.find({"tenantId": T, "agent_id": {"$in": ["b1", "b2"]}})]
+    assert len(sent) == 2 and {i["status"] for i in sent} == {"pending"}
+    # b2's agent fetched its instruction before the halt; b1's did not.
+    await db.agent_instructions.update_one({"agent_id": "b2"}, {"$set": {"status": "sent"}})
+    await add_reboot_card(db, rollout_id, "b1", later)
+    await lines.deny_line(db, T, rollout_id, 1, "reboot", approver=APPROVER)
+    await controller.tick(db, now=later + timedelta(minutes=1))
+
+    assert (await db.patch_rollouts.find_one({"id": rollout_id}))["status"] == "halted"
+    by_agent = {r["targets"][0]: r for r in await rows(db, command="install_patches", **{"reason.inputs.ring": 1})}
+    assert (by_agent["b1"]["state"], by_agent["b1"]["reasonCode"]) == ("failed", "rollout_halted")
+    assert by_agent["b2"]["state"] == "dispatching"                              # already sent: its row stays open
+    assert (await host_doc(db, "b1"))["state"] == "not_reached"
+
+    pending = [i async for i in db.agent_instructions.find({"agent_id": "b1"})]
+    assert await delivery.hold_back_autonomous(db, T, pending) == []             # the poll refuses it
+    assert (await db.agent_instructions.find_one({"agent_id": "b1"}))["status"] == "refused"
+
+    job = await db.patch_deployment_jobs.find_one({"rolloutId": rollout_id, "dispatchedAgents": "b2"})
+    await post_result(db, job["id"], "b2", success_result(["openssl"]))
+    await controller.tick(db, now=later + timedelta(minutes=2))                  # the late result is still recorded
+    assert (await host_doc(db, "b2"))["state"] == "installed"
+    assert (await rows(db, command="install_patches", **{"reason.inputs.ring": 1, "targets": "b2"}))[0]["state"] == "executed"
+
+
+async def test_nothing_of_a_halted_rollout_can_be_approved_any_more(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_world(db, ("b1",))
+    await add_reboot_card(db, rollout_id, "b1", later)
+    await lines.deny_line(db, T, rollout_id, 1, "reboot", approver=APPROVER)
+    await controller.tick(db, now=later + timedelta(minutes=1))
+    before = len(await instructions(db))
+    refused = await lines.approve_line(db, T, rollout_id, 1, "install", approver=APPROVER, now=later)
+    assert refused["status"] == "refused" and refused["message"] == "This rollout is not running, so nothing was decided."
+    for row in await rows(db, **{"reason.inputs.ring": 1}):
+        assert (await approvals.approve(db, T, row["id"], approver=APPROVER, now=later))["status"] == "already_handled"
+    assert len(await instructions(db)) == before
+
+
+async def test_a_halt_is_taken_once_when_two_passes_meet(mongo_db):
+    from autonomous_ops.rollout import lifecycle
+    db = mongo_db
+    rollout_id, later = await ring_one_world(db, ("b1",))
+    first = await db.patch_rollouts.find_one({"id": rollout_id}, {"_id": 0})
+    second = dict(first)
+    assert await lifecycle.halt(db, T, first, 1, code="install_denied", now=later) is True
+    assert await lifecycle.halt(db, T, second, 1, code="approval_expired", now=later) is False
+    assert (await db.patch_rollouts.find_one({"id": rollout_id}))["haltReason"]["code"] == "install_denied"
