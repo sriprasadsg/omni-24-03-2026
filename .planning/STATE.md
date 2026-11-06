@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 84
 current_phase_name: Staged Patch Rollouts
 status: executing
-stopped_at: Completed 84-01-PLAN.md
-last_updated: "2026-11-06T14:00:02.815Z"
+stopped_at: Completed 84-02-PLAN.md
+last_updated: "2026-11-06T14:18:38.372Z"
 last_activity: 2026-11-06
 last_activity_desc: Phase 84 execution started
-state_head: c37710f45448ff8ebde7bb852c9b0937bbb2d047
+state_head: 34cec947df05960a1d35b6f4673cfca3aa95c214
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 92
-  completed_plans: 71
+  completed_plans: 72
   percent: 14
 ---
 
@@ -553,6 +553,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 87]: 87-14: a partner user's shell starts no customer request: loadAllData returns early, restricted Header, sidebar poll and bundle read skipped, floating assistants not mounted; /accept-invite renders before the MFA gate
 - [Phase 84]: 84-01: install_patches is a fourth automatic action limited to the patch_rollout dispatcher (OQ1, PTCH-06), enforced at decide time and at delivery
 - [Phase 84]: 84-01: rollout job document is inserted after gate.decide returns dispatching, not before, so refused or simulated decisions leave no orphan job; canary installs capped at 20 minus the hourly automatic count, 3 attempts per host
+- [Phase 84]: 84-02: Not reverted sentences are built from one reason table and not_reverted() raises on an unknown code; preflight title key is autonomous_ops (a dict key named autonomy trips the stamp scanner); plural() returns number+noun, count() only the agreeing noun
 
 ## Performance Metrics
 
@@ -779,6 +780,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 87 P13 | 12min | 2 tasks | 2 files |
 | Phase 87 P14 | 35min | 3 tasks | 5 files |
 | Phase 84 P01 | 22 min | 3 tasks | 17 files |
+| Phase 84 P02 | 14 min | 3 tasks | 10 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -813,8 +815,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-06T14:00:02.581Z
-**Stopped at:** Completed 84-01-PLAN.md
+**Last session:** 2026-11-06T14:18:38.140Z
+**Stopped at:** Completed 84-02-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -841,7 +843,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 84 (Staged Patch Rollouts) — EXECUTING
-Plan: 2 of 22
+Plan: 3 of 22
 Status: Ready to execute
 Last activity: 2026-11-06 — Phase 84 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)

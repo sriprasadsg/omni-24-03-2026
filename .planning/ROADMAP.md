@@ -495,12 +495,12 @@ Plans:
   4. A rollout installs or advances only inside the maintenance window recorded in Change Management; outside the window nothing is installed.
   5. Installs run on their own only in the canary ring and only for patch classes marked reversible; every other install and every reboot waits for one approval per stage. The platform's own host is never patched by a rollout, a host belongs to at most one active rollout, and patch instructions expire.
 
-**Plans**: 1/22 plans executed in 7 waves
+**Plans**: 2/22 plans executed in 7 waves
 
 Plans:
 **Wave 1**
 - [x] 84-01-PLAN.md — Tracer: one canary host installs one reversible patch on its own through the gate inside the window, and the rollout completes
-- [ ] 84-02-PLAN.md — Contracts: agent rollout tokens and params, all server copy, UI copy and types, copy gate over whole directories
+- [x] 84-02-PLAN.md — Contracts: agent rollout tokens and params, all server copy, UI copy and types, copy gate over whole directories
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 84-03-PLAN.md — Approval lines, window-deferred dispatcher, line approve and deny, a deny or expiry halts the ring, canary rate cap
@@ -630,7 +630,7 @@ Plans:
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
 | 83. Autonomous Security Response | 20/20 | In Progress | - |
-| 84. Staged Patch Rollouts | 1/22 | In Progress | - |
+| 84. Staged Patch Rollouts | 2/22 | In Progress | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | In Progress | - |
