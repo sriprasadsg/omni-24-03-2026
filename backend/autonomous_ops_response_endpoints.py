@@ -10,6 +10,12 @@ GET  /api/autonomous-ops/incidents                       the Needs your decision
                                                           every line say what the caller may do)
 POST /api/autonomous-ops/actions/{id}/confirm-isolation  keep an isolated computer isolated (control:autonomous_ops,
                                                           signed-in session, single use, refused during a stop)
+GET  /api/autonomous-ops/rollout-cards                   the patch rollout cards for Needs your decision (Phase 84;
+                                                          view access, flags per line as for the incident cards)
+POST /api/autonomous-ops/rollout-lines/{rolloutId}/{ring}/{line}/approve   approve one line of one ring of one
+                                                          rollout, one approval per computer (control:autonomous_ops,
+                                                          signed-in session, refused during a stop)
+POST /api/autonomous-ops/rollout-lines/{rolloutId}/{ring}/{line}/deny      deny that line (allowed during a stop)
 The mount guard (catalogue_mounts_autonomous_ops) checks the catalogue strings; the dependencies below add
 the exact permission. A change takes effect for new decisions only (a block already in place keeps its
 length). Every value that changes leaves one control row in the activity list and one audit event, naming
@@ -19,16 +25,18 @@ The platform router (autonomous_ops_response_platform_endpoints) writes the same
 organization at once, one organization at a time.
 """
 import logging
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StrictBool, StrictInt, StringConstraints
 
 import agent_capabilities
 from api_key_auth import get_current_user_or_api_key
 from autonomous_ops import PLATFORM_TENANT_ID, incident_views, isolation, messages, response_settings, views
+from autonomous_ops.rollout import cards as rollout_cards, lines as rollout_lines, messages as rollout_messages
 from autonomous_ops.scope import raw
-from autonomous_ops_endpoints import (_decision_error, _require_control, _require_interactive_session,
+from autonomous_ops_endpoints import (DecisionBody, _decision_error, _require_control, _require_interactive_session,
                                       _require_manage, _tenant_for, _unavailable)
 from database import get_database
 
@@ -174,3 +182,88 @@ async def post_confirm_isolation(
         raise
     except Exception as exc:
         raise _unavailable(exc) from exc
+
+
+# ---------------------------------------------------------------- patch rollout cards and their lines (Phase 84)
+
+@router.get("/rollout-cards", summary="Patch rollout steps that need a decision")
+async def get_rollout_cards(
+    offset: int = Query(0, ge=0, le=100000),
+    limit: int = Query(10, ge=1, le=50),
+    tenantId: Optional[str] = Query(None, max_length=views.TENANT_ID_MAX),
+    user=Depends(get_current_user_or_api_key),
+):
+    """One card per ring of a patch rollout that has a step waiting for a person (or one decided a moment ago),
+    soonest expiry first, 10 a page. A card has an Install line, a Restart line once the installs are done and
+    only for computers that need one, and a Revert restart line when a revert needs one. Every line carries its
+    own canApprove and canDeny, all false for a view-only role, Platform Support or an API key; `stopped` names the
+    stop that disables Approve. Platform staff name an organization with tenantId."""
+    try:
+        db = get_database()
+        tenant = await _tenant_for(db, user, tenantId, write=False)
+        return await rollout_cards.list_cards(db, tenant, await views.build_caller(user), offset=offset, limit=limit)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
+def _line_answer(out: Dict[str, Any]):
+    """The answer for a whole-line decision: the result itself when something was decided, 404 for a rollout
+    that is not the caller's, and 409 (the result plus `detail`, the sentence) when nothing could be decided."""
+    if out.get("status") in ("approved", "denied"):
+        return out
+    if out.get("message") == rollout_messages.LINE_RESULT["not_found"]:
+        raise HTTPException(status_code=404, detail=out["message"])
+    return JSONResponse(status_code=409, content={**out, "detail": out.get("message")})
+
+
+async def _decide_line(rollout_id: str, ring: int, line: str, tenant_id: Optional[str], user, what: str,
+                       reason: Optional[str] = None):
+    try:
+        db = get_database()
+        tenant = await _tenant(db, user, tenant_id)
+        actor = await views.actor_for(db, await views.build_caller(user))
+        if what == "approve":
+            out = await rollout_lines.approve_line(db, tenant, rollout_id, ring, line, approver=actor)
+        else:
+            out = await rollout_lines.deny_line(db, tenant, rollout_id, ring, line, approver=actor, reason=reason or "")
+        return _line_answer(out)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _unavailable(exc) from exc
+
+
+RolloutLine = Literal["install", "reboot", "revert_reboot"]
+
+
+@router.post("/rollout-lines/{rollout_id}/{ring}/{line}/approve", summary="Approve one step of a patch rollout")
+async def post_approve_rollout_line(
+    rollout_id: str = Path(..., min_length=1, max_length=64),
+    ring: int = Path(..., ge=0, le=3),
+    line: RolloutLine = Path(...),
+    tenantId: Optional[str] = Query(None, max_length=views.TENANT_ID_MAX),
+    user=Depends(_require_control),
+    _session=Depends(_require_interactive_session),
+):
+    """Approves every computer of one step (install, restart or revert restart) of one ring of one rollout, one
+    approval per computer, so one click is one approval per stage. Needs control:autonomous_ops in a signed-in
+    session; an API key is refused. A computer is sent its work inside the maintenance window only. Answers 409
+    when the step was already decided or automatic actions are stopped, 404 for a rollout that is not yours."""
+    return await _decide_line(rollout_id, ring, line, tenantId, user, "approve")
+
+
+@router.post("/rollout-lines/{rollout_id}/{ring}/{line}/deny", summary="Deny one step of a patch rollout")
+async def post_deny_rollout_line(
+    rollout_id: str = Path(..., min_length=1, max_length=64),
+    ring: int = Path(..., ge=0, le=3),
+    line: RolloutLine = Path(...),
+    body: Optional[DecisionBody] = None,
+    tenantId: Optional[str] = Query(None, max_length=views.TENANT_ID_MAX),
+    user=Depends(_require_control),
+    _session=Depends(_require_interactive_session),
+):
+    """Denies every computer of that step; nothing is sent to any computer and the rollout halts at the ring.
+    The reason is optional (500 characters at most). Still allowed while automatic actions are stopped."""
+    return await _decide_line(rollout_id, ring, line, tenantId, user, "deny", body.reason if body else None)

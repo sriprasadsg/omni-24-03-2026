@@ -237,4 +237,5 @@ async def deny_line(db, tenant_id: str, rollout_id: str, ring: int, line: str, *
         return _result("already_handled", message=rm.LINE_RESULT["already_handled"])
     rings = rollout.get("rings") or []
     name = rings[ring].get("name") if 0 <= ring < len(rings) else ""
-    return _result("denied", message=rm.fill(rm.CARD["settled"]["denied"], name=approver.get("name") or "", ring=name))
+    who = approver.get("display") or approver.get("name") or approver.get("username") or "a person"
+    return _result("denied", message=rm.fill(rm.CARD["settled"]["denied"], name=who, ring=name))
