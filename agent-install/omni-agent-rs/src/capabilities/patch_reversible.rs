@@ -21,6 +21,18 @@ pub const NOT_REVERSIBLE_MESSAGE: &str = "Not installed: this update cannot be r
 pub const WIN_NOT_UNINSTALLABLE_TEXT: &str = "Windows marks this update as not uninstallable";
 pub const WIN_NOT_INSTALLED_TEXT: &str = "Not installed on this host";
 
+/// A result that carries a machine-readable `code` (the agent contract's `patchCodes`).
+pub fn coded_result(patch_id: &str, status: &str, code: &str, message: &str, reboot: bool) -> Value {
+    let mut r = super::patch_installer::patch_result(patch_id, status, message, reboot);
+    r["code"] = Value::from(code);
+    r
+}
+
+/// Not installed, and not a failure: the patch waits for a person to approve it.
+pub fn deferred_result(patch_id: &str, code: &str, message: &str) -> Value {
+    coded_result(patch_id, "deferred", code, message, false)
+}
+
 /// Versions `apt-cache madison` lists, in listed order. The entry for the local dpkg status file is
 /// the installed copy, not something the package source offers, so it is left out.
 pub fn parse_madison(stdout: &str) -> Vec<String> {

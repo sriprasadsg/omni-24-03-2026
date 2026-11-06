@@ -8,7 +8,9 @@
 //! Patch ids come from the platform, so they are validated here (KB numbers and plain
 //! package names only) and never spliced into a shell or PowerShell command line.
 
+pub use super::patch_reversible::{coded_result, deferred_result};
 use super::patch_reversible::{self, NOT_REVERSIBLE, NOT_REVERSIBLE_MESSAGE};
+use super::patch_state;
 use serde_json::{json, Value};
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -83,18 +85,6 @@ fn safe_id(v: &Value) -> Option<String> {
 pub fn patch_result(patch_id: &str, status: &str, message: &str, reboot: bool) -> Value {
     json!({"patch_id": patch_id, "status": status, "message": message,
            "reboot_required": reboot, "timestamp": chrono::Utc::now().to_rfc3339()})
-}
-
-/// A result that carries a machine-readable `code` (the agent contract's `patchCodes`).
-pub fn coded_result(patch_id: &str, status: &str, code: &str, message: &str, reboot: bool) -> Value {
-    let mut r = patch_result(patch_id, status, message, reboot);
-    r["code"] = json!(code);
-    r
-}
-
-/// Not installed, and not a failure: the patch waits for a person to approve it.
-pub fn deferred_result(patch_id: &str, code: &str, message: &str) -> Value {
-    coded_result(patch_id, "deferred", code, message, false)
 }
 
 /// The job summary posted to /api/deployments/{job_id}/result.
@@ -279,9 +269,30 @@ pub fn parse_wua_output(stdout: &str, stderr: &str, kbs: &[String]) -> Vec<Value
 
 #[cfg(windows)]
 async fn run_os(kbs: &[String], job: &PatchJob) -> Vec<Value> {
-    let script = if job.rollback { WUA_UNINSTALL.to_string() } else { install_script(job.require_reversible) };
+    if !job.rollback {
+        let results = run_wua(kbs, &install_script(job.require_reversible)).await;
+        if let Some(id) = &job.job_id {
+            let mut state = patch_state::load();
+            state.record_kb_successes(id, chrono::Utc::now().timestamp(), &results);
+            patch_state::save(&mut state);
+        }
+        return results;
+    }
+    let Some(revert_of) = &job.revert_of else { return run_wua(kbs, WUA_UNINSTALL).await };
+    // Revert by job: only the KBs that job installed are uninstalled; the rest are answered without touching Windows.
+    let plan = patch_state::load().plan_revert(revert_of, kbs);
+    let todo: Vec<String> = plan.todo.into_iter().map(|(id, _)| id).collect();
+    let mut results = plan.immediate;
+    if !todo.is_empty() {
+        results.extend(patch_reversible::code_revert_rows(run_wua(&todo, WUA_UNINSTALL).await));
+    }
+    results
+}
+
+#[cfg(windows)]
+async fn run_wua(kbs: &[String], script: &str) -> Vec<Value> {
     let mut cmd = tokio::process::Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script])
+    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
         .env("OMNI_KBS", kbs.join(","));
     match output(cmd, WINDOWS_TIMEOUT).await {
         Ok(out) => parse_wua_output(&String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr), kbs),
@@ -293,31 +304,13 @@ async fn run_os(kbs: &[String], job: &PatchJob) -> Vec<Value> {
 
 #[cfg(target_os = "linux")]
 mod linux {
+    use super::patch_reversible::{REVERTED, VERSION_NOT_OFFERED};
     use super::*;
-    use std::collections::BTreeMap;
 
     fn tail(bytes: &[u8], n: usize) -> String {
         let s = String::from_utf8_lossy(bytes).trim().to_string();
         let chars: Vec<char> = s.chars().collect();
         chars[chars.len().saturating_sub(n)..].iter().collect()
-    }
-
-    pub fn state_path() -> std::path::PathBuf {
-        crate::config::config_path().with_file_name("patch_state.json")
-    }
-
-    pub fn load_state() -> BTreeMap<String, String> {
-        std::fs::read(state_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
-    }
-
-    pub fn save_state(state: &BTreeMap<String, String>) {
-        let path = state_path();
-        let tmp = path.with_extension("json.tmp");
-        let ok = serde_json::to_vec_pretty(state).ok()
-            .map(|b| std::fs::write(&tmp, b).and_then(|_| std::fs::rename(&tmp, &path)).is_ok());
-        if ok != Some(true) {
-            log::warn!("Could not record pre-patch package versions in {}", path.display());
-        }
     }
 
     fn is_root() -> bool {
@@ -391,7 +384,7 @@ mod linux {
                 log::warn!("apt-get update {e}");
             }
         }
-        let mut state = load_state();
+        let mut state = patch_state::load();
         let mut results = Vec::new();
         for pkg in packages {
             let Some(before) = installed_version(mgr, pkg).await else {
@@ -415,56 +408,88 @@ mod linux {
                     &format!("{mgr} failed: {}", tail(if out.stderr.is_empty() { &out.stdout } else { &out.stderr }, 400)), false)),
                 Ok(_) => match installed_version(mgr, pkg).await {
                     Some(after) if after != before => {
-                        state.entry(pkg.clone()).or_insert(before.clone()); // keep the oldest pre-patch version
+                        state.legacy.entry(pkg.clone()).or_insert(before.clone()); // keep the oldest pre-patch version
+                        if let Some(id) = &job.job_id {
+                            state.record_install(id, "linux", chrono::Utc::now().timestamp(), pkg, &before);
+                        }
                         results.push(patch_result(pkg, "success", &format!("Upgraded {before} -> {after}"), reboot_required().await));
                     }
                     _ => results.push(patch_result(pkg, "skipped", &format!("Already at the newest available version ({before})"), false)),
                 },
             }
         }
-        save_state(&state);
+        patch_state::save(&mut state);
         results
     }
 
-    pub async fn rollback(packages: &[String]) -> Vec<Value> {
+    /// Downgrades `pkg` to `previous`; Ok only when the package manager confirms that version is installed.
+    async fn downgrade(mgr: &str, pkg: &str, previous: &str) -> Result<(), String> {
+        let target = if mgr == "apt-get" { format!("{pkg}={previous}") } else { format!("{pkg}-{previous}") };
+        let cmd = if mgr == "apt-get" {
+            privileged(&["apt-get", "install", "-y", "-q", "--allow-downgrades", "-o", "Dpkg::Options::=--force-confdef",
+                         "-o", "Dpkg::Options::=--force-confold", "--", &target])
+        } else {
+            privileged(&[mgr, "downgrade", "-y", "-q", &target])
+        };
+        match output(cmd, LINUX_TIMEOUT).await {
+            Ok(out) if out.status.success() && installed_version(mgr, pkg).await.as_deref() == Some(previous) => Ok(()),
+            Ok(out) => Err(format!("Downgrade to {previous} failed: {}", tail(if out.stderr.is_empty() { &out.stdout } else { &out.stderr }, 400))),
+            Err(e) => Err(format!("{mgr} {e}")),
+        }
+    }
+
+    /// Revert by job: put back the version that job replaced, and only when the source still offers it.
+    async fn rollback_job(mgr: &str, packages: &[String], job_id: &str) -> Vec<Value> {
+        let plan = patch_state::load().plan_revert(job_id, packages);
+        let mut results = plan.immediate;
+        for (pkg, version) in plan.todo {
+            if installed_version(mgr, &pkg).await.as_deref() == Some(version.as_str()) {
+                results.push(coded_result(&pkg, "success", REVERTED, &format!("Already at the earlier version {version}"), false));
+            } else if !patch_reversible::reversible_linux(&version, &patch_reversible::offered_versions(mgr, &pkg).await) {
+                results.push(coded_result(&pkg, "failed", VERSION_NOT_OFFERED, &format!("The package source no longer offers {version}"), false));
+            } else {
+                results.push(match downgrade(mgr, &pkg, &version).await {
+                    Ok(()) => coded_result(&pkg, "success", REVERTED, &format!("Put back the earlier version of {pkg} ({version})"), reboot_required().await),
+                    Err(message) => patch_result(&pkg, "failed", &message, false),
+                });
+            }
+        }
+        results
+    }
+
+    pub async fn rollback(packages: &[String], job: &PatchJob) -> Vec<Value> {
         let Some(mgr) = manager() else {
             return packages.iter().map(|p| patch_result(p, "failed", "No supported package manager (apt-get, dnf, yum)", false)).collect();
         };
         if !can_escalate().await {
             return packages.iter().map(|p| patch_result(p, "failed", "The agent needs root or passwordless sudo to roll back updates", false)).collect();
         }
-        let mut state = load_state();
+        if let Some(revert_of) = &job.revert_of {
+            return rollback_job(mgr, packages, revert_of).await;
+        }
+        let mut state = patch_state::load();
         let mut results = Vec::new();
         for pkg in packages {
-            let Some(previous) = state.get(pkg).cloned() else {
+            let Some(previous) = state.legacy.get(pkg).cloned() else {
                 results.push(patch_result(pkg, "failed", "No pre-patch version recorded by this agent; refusing to remove the package", false));
                 continue;
             };
-            let target = if mgr == "apt-get" { format!("{pkg}={previous}") } else { format!("{pkg}-{previous}") };
-            let cmd = if mgr == "apt-get" {
-                privileged(&["apt-get", "install", "-y", "-q", "--allow-downgrades", "-o", "Dpkg::Options::=--force-confdef",
-                             "-o", "Dpkg::Options::=--force-confold", "--", &target])
-            } else {
-                privileged(&[mgr, "downgrade", "-y", "-q", &target])
-            };
-            match output(cmd, LINUX_TIMEOUT).await {
-                Ok(out) if out.status.success() && installed_version(mgr, pkg).await.as_deref() == Some(previous.as_str()) => {
-                    state.remove(pkg);
+            match downgrade(mgr, pkg, &previous).await {
+                Ok(()) => {
+                    state.legacy.remove(pkg);
                     results.push(patch_result(pkg, "success", &format!("Downgraded to {previous}"), reboot_required().await));
                 }
-                Ok(out) => results.push(patch_result(pkg, "failed", &format!("Downgrade to {previous} failed: {}",
-                    tail(if out.stderr.is_empty() { &out.stdout } else { &out.stderr }, 400)), false)),
-                Err(e) => results.push(patch_result(pkg, "failed", &format!("{mgr} {e}"), false)),
+                Err(message) => results.push(patch_result(pkg, "failed", &message, false)),
             }
         }
-        save_state(&state);
+        patch_state::save(&mut state);
         results
     }
 }
 
 #[cfg(target_os = "linux")]
 async fn run_os(packages: &[String], job: &PatchJob) -> Vec<Value> {
-    if job.rollback { linux::rollback(packages).await } else { linux::install(packages, job).await }
+    if job.rollback { linux::rollback(packages, job).await } else { linux::install(packages, job).await }
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]

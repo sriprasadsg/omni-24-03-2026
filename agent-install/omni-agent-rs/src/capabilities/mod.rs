@@ -41,6 +41,7 @@ pub mod ssh_key_checks;
 pub mod ssh_key_rotation;
 pub mod patch_installer;
 pub mod patch_reversible;
+pub mod patch_state;
 #[cfg(target_os = "linux")]
 pub mod fanotify_watcher;
 
