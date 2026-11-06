@@ -34,6 +34,7 @@ const EXPECTED_FILES = [
   'backend/autonomous_ops_retention_endpoints.py',
   'backend/autonomous_ops_response_endpoints.py',
   'backend/autonomous_ops_response_platform_endpoints.py',
+  'backend/patch_rollout_endpoints.py',
   'services/autonomousOpsApi.ts',
   'services/autonomousOpsIncidentsApi.ts',
   'contexts/AutonomousOpsStatusContext.tsx',

@@ -38,7 +38,7 @@
     {"view": "agentCapabilities", "label": "Agent Capabilities", "group": "infra", "nav": true, "permission": "view:agent_capabilities", "write": ["manage:agents"], "routes": ["/api/agents/capabilities"]},
     {"view": "assetManagement", "label": "Assets", "group": "infra", "nav": true, "permission": "view:assets", "write": ["manage:assets", "manage:compliance_evidence"], "routes": ["/api/assets"]},
     {"view": "itam", "label": "IT Asset Management", "group": "infra", "nav": true, "permission": "view:itam", "read": ["view:itam", "manage:assets"], "write": ["manage:assets", "manage:procurement", "request:assets"], "routes": ["/api/itam", "/api/v1/itam", "/api/assets/labels", "/api/assets/reports"]},
-    {"view": "patchManagement", "label": "Patching", "group": "infra", "nav": true, "permission": "view:patching", "write": ["manage:patches"], "routes": ["/api/patches", "/api/repo"]},
+    {"view": "patchManagement", "label": "Patching", "group": "infra", "nav": true, "permission": "view:patching", "write": ["manage:patches"], "routes": ["/api/patches", "/api/patch-rollouts", "/api/repo"]},
     {"view": "deploymentApprovals", "label": "Deployment Approvals", "group": "infra", "nav": true, "permission": "view:patching", "write": ["manage:approvals"], "routes": ["/api/approvals"]},
     {"view": "softwareUpdates", "label": "Software Updates", "group": "infra", "nav": true, "permission": "view:software_updates", "write": ["manage:patches"], "routes": ["/api/software"]},
     {"view": "softwareDeployment", "label": "Software Deployment", "group": "infra", "nav": true, "permission": "view:software_deployment", "write": ["manage:settings", "view:software_deployment"], "routes": ["/api/deployments"]},

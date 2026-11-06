@@ -32,6 +32,8 @@ MOUNTS = {
     # Patching (patchManagement): patch_endpoints aggregates patch_core, patch_enrichment,
     # patch_integrity and patch_software (all /api/patches); repo_endpoints is /api/repo.
     ("patch_endpoints", "router"): PATCH_GUARD,
+    # Staged patch rollouts (Phase 84) are part of the Patching screen: /api/patch-rollouts.
+    ("patch_rollout_endpoints", "router"): PATCH_GUARD,
     ("repo_endpoints", "router"): PATCH_GUARD,
     # Approvals (deploymentApprovals).
     ("approval_endpoints", "router"): catalogue_guard(

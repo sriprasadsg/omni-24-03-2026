@@ -175,6 +175,7 @@ def register_all_routers(app: FastAPI) -> None:
 
     # ── Patch & Software Management ───────────────────────────────────────────
     _load(app, "patch_endpoints",             "router")
+    _load(app, "patch_rollout_endpoints",     "router")
     _load(app, "sbom_endpoints",              "router")
     _load(app, "software_endpoints",          "router")
     _load(app, "update_endpoints",            "router")
