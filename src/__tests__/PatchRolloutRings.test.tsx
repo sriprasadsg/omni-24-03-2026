@@ -62,9 +62,10 @@ function serve(data: RingsData) {
   mockFetch.mockReset();
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     if (init?.method === 'PUT') {
-      putBody = JSON.parse(String(init.body));
+      const body = JSON.parse(String(init.body)) as { rings: Array<Record<string, unknown>> };
+      putBody = body;
       if (putStatus !== 200) return Promise.resolve(jsonRes(putDetail === undefined ? {} : { detail: putDetail }, putStatus));
-      current = { ...current, rings: putBody.rings.map((r, i) => ({ key: `k${i}`, ...(r as object) })) as RingsData['rings'] };
+      current = { ...current, rings: body.rings.map((r, i) => ({ key: `k${i}`, ...(r as object) })) as RingsData['rings'] };
       return Promise.resolve(jsonRes(current));
     }
     return Promise.resolve(jsonRes(current));
@@ -244,6 +245,9 @@ describe('RingsSettings card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move Pilot later' }));
     expect(within(block(1)).getByRole('textbox')).toHaveValue('Everyone else');
     expect(within(block(2)).getByRole('textbox')).toHaveValue('Pilot');
+    // Everyone else now sits in the middle with no group, which the form refuses until a group is picked.
+    expect(within(block(1)).getByRole('alert')).toHaveTextContent('Pick at least one group for every ring except the last.');
+    fireEvent.click(within(block(1)).getByRole('checkbox', { name: 'laptops (12 computers)' }));
     expect(saveBtn()).not.toBeDisabled();
   });
 
