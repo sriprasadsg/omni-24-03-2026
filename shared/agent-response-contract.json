@@ -203,5 +203,125 @@
       "outcome": "scheduled",
       "verify": {"ok": true, "check": "reboot_scheduled"}
     }
+  },
+  "rolloutTokens": {
+    "reversibleCheck": "patch_reversible_check",
+    "revertByJob": "patch_revert_by_job",
+    "serviceState": "service_state"
+  },
+  "rolloutParams": {
+    "requireReversible": "require_reversible",
+    "revertOf": "revert_of"
+  },
+  "patchStatuses": ["success", "failed", "skipped", "deferred"],
+  "patchCodes": [
+    "not_reversible",
+    "reverted",
+    "not_uninstallable",
+    "version_not_offered",
+    "not_changed_by_job",
+    "not_applicable"
+  ],
+  "serviceState": {
+    "key": "service_state",
+    "states": ["running", "stopped", "failed", "unknown"],
+    "example": {
+      "v": 1,
+      "at": 1767000000,
+      "services": [
+        {"name": "sshd", "state": "running"},
+        {"name": "nginx", "state": "stopped"}
+      ]
+    }
+  },
+  "patchExamples": {
+    "install_ok": {
+      "status": "completed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 1,
+      "failed": 0,
+      "results": [
+        {"patch_id": "openssl", "status": "success", "message": "Installed openssl", "reboot_required": false, "timestamp": "2026-11-06T12:00:00+00:00"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    },
+    "install_ok_reboot": {
+      "status": "completed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 1,
+      "failed": 0,
+      "results": [
+        {"patch_id": "KB5034441", "status": "success", "message": "Installed KB5034441. A restart is needed to finish.", "reboot_required": true, "timestamp": "2026-11-06T12:00:00+00:00"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    },
+    "install_deferred_not_reversible": {
+      "status": "completed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 0,
+      "failed": 0,
+      "results": [
+        {"patch_id": "openssl", "status": "deferred", "message": "Not installed: this update cannot be reversed on this computer.", "reboot_required": false, "timestamp": "2026-11-06T12:00:00+00:00", "code": "not_reversible"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    },
+    "install_failed": {
+      "status": "failed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 0,
+      "failed": 1,
+      "results": [
+        {"patch_id": "openssl", "status": "failed", "message": "E: Unable to locate package openssl", "reboot_required": false, "timestamp": "2026-11-06T12:00:00+00:00"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    },
+    "revert_ok": {
+      "status": "completed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 1,
+      "failed": 0,
+      "results": [
+        {"patch_id": "openssl", "status": "success", "message": "Put back the earlier version of openssl", "reboot_required": false, "timestamp": "2026-11-06T12:00:00+00:00", "code": "reverted"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    },
+    "revert_not_uninstallable": {
+      "status": "failed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 0,
+      "failed": 1,
+      "results": [
+        {"patch_id": "KB5034441", "status": "failed", "message": "Windows does not allow this update to be uninstalled", "reboot_required": false, "timestamp": "2026-11-06T12:00:00+00:00", "code": "not_uninstallable"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    },
+    "revert_version_not_offered": {
+      "status": "failed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 0,
+      "failed": 1,
+      "results": [
+        {"patch_id": "openssl", "status": "failed", "message": "The earlier version is no longer offered by the package source", "reboot_required": false, "timestamp": "2026-11-06T12:00:00+00:00", "code": "version_not_offered"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    },
+    "revert_not_changed": {
+      "status": "completed",
+      "job_id": "job-1",
+      "total": 1,
+      "successful": 0,
+      "failed": 0,
+      "results": [
+        {"patch_id": "curl", "status": "skipped", "message": "This job did not change curl", "reboot_required": false, "timestamp": "2026-11-06T12:00:00+00:00", "code": "not_changed_by_job"}
+      ],
+      "timestamp": "2026-11-06T12:00:00+00:00"
+    }
   }
 }
