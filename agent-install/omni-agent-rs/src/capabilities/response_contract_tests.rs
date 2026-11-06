@@ -152,9 +152,9 @@ fn a_changed_example_body_is_noticed() {
 fn support_names_the_platform_and_holds_the_ttl_token() {
     let report = support_report_for(Some(Os::Windows));
     assert_eq!(report["platform"], "windows");
-    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host", "patch_reversible_check", "patch_revert_by_job"]));
+    assert_eq!(report["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host", "patch_reversible_check", "patch_revert_by_job", "service_state"]));
     assert_eq!(report["v"], 1);
-    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host", "patch_reversible_check", "patch_revert_by_job"]));
+    assert_eq!(support_report_for(Some(Os::Linux))["tokens"], json!(["block_ip_ttl", "block_ip_range", "quarantine_file", "unquarantine_file", "kill_process_exe", "restart_service", "service_failures", "isolate_host", "restore_host", "reboot_host", "patch_reversible_check", "patch_revert_by_job", "service_state"]));
 }
 
 #[test]
@@ -397,9 +397,37 @@ fn the_patch_statuses_and_codes_the_agent_writes_are_the_contracts() {
 #[test]
 fn the_rollout_tokens_the_contract_names_are_reported_by_the_agent() {
     let Some(c) = contract() else { return };
-    for key in ["reversibleCheck", "revertByJob"] {
+    for key in ["reversibleCheck", "revertByJob", "serviceState"] {
         let token = c["rolloutTokens"][key].as_str().unwrap();
         assert!(SUPPORTED_TOKENS.contains(&token), "{token}");
     }
     assert_eq!(c["rolloutParams"], json!({"requireReversible": "require_reversible", "revertOf": "revert_of"}));
+}
+
+#[test]
+fn a_state_report_has_the_shape_of_the_contract_service_state_example() {
+    use crate::capabilities::service_watch::{state_report_with, Health};
+    let Some(c) = contract() else { return };
+    let shape = &c["serviceState"];
+    assert_eq!(shape["key"], "service_state");
+    assert_eq!(c["tokens"].as_array().unwrap().last().unwrap(), "service_state");
+    let example = &shape["example"];
+    let names: Vec<String> = example["services"].as_array().unwrap().iter().map(|s| s["name"].as_str().unwrap().to_string()).collect();
+    let report = state_report_with(&names, example["at"].as_i64().unwrap(), &|n| if n == "nginx" { Health::Stopped } else { Health::Running });
+    assert_eq!(&report, example);
+    let states = strings(shape, "states");
+    for service in report["services"].as_array().unwrap() {
+        assert!(states.contains(&service["state"].as_str().unwrap().to_string()));
+    }
+    // Every state the agent can produce is one the contract lists.
+    for health in [Health::Running, Health::Stopped, Health::Pending, Health::Unknown, Health::Failed { state: "failed".into(), exit_code: None }] {
+        assert!(states.contains(&crate::capabilities::service_watch::state_from_health(&health).to_string()));
+    }
+}
+
+#[test]
+fn only_a_platform_with_a_service_manager_reports_the_service_state_token() {
+    assert!(support_report_for(Some(Os::Windows))["tokens"].as_array().unwrap().iter().any(|t| t == "service_state"));
+    assert!(support_report_for(Some(Os::Linux))["tokens"].as_array().unwrap().iter().any(|t| t == "service_state"));
+    assert_eq!(support_report_for(None)["tokens"], json!([]));
 }

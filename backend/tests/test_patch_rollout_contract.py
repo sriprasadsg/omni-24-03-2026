@@ -79,6 +79,11 @@ def test_rollout_names_are_the_agreed_ones():
                                   "not_changed_by_job", "not_applicable"]
 
 
+def test_service_state_is_the_last_of_thirteen_tokens():
+    tokens = contract()["tokens"]
+    assert len(tokens) == 13 and tokens[-1] == "service_state" and tokens[-2] == "patch_revert_by_job"
+
+
 def test_the_service_state_heartbeat_shape():
     state = contract()["serviceState"]
     assert state["key"] == "service_state"

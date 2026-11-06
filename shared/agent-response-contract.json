@@ -13,7 +13,8 @@
     "restore_host",
     "reboot_host",
     "patch_reversible_check",
-    "patch_revert_by_job"
+    "patch_revert_by_job",
+    "service_state"
   ],
   "commandToken": {
     "block_ip": "block_ip_ttl",
