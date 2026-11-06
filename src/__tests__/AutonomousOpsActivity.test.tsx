@@ -81,6 +81,8 @@ function routeFetch(handlers: { status?: Handler; actions?: Handler; incidents?:
     if (path === '/api/autonomous-ops/incidents') {
       return (handlers.incidents ?? (() => jsonRes({ items: [], total: 0, offset: 0, limit: 10, stopped: null })))(url);
     }
+    // 84-15: the Needs your decision section also reads rollout approval cards; none here.
+    if (path === '/api/autonomous-ops/rollout-cards') return jsonRes({ items: [], total: 0, offset: 0, limit: 10, stopped: null });
     // 83-13: the Response settings panel reads its own settings; this screen's tests are about the activity list.
     if (path === '/api/autonomous-ops/response-settings') {
       return jsonRes({ twoSignal: true, blockHours: 24, watchedServices: [], readable: true, restartAvailable: true });

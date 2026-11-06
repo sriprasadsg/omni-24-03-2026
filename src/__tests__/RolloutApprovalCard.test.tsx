@@ -17,7 +17,10 @@ vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
 import { RolloutApprovalCard } from '../../components/patchRollouts/RolloutApprovalCard';
 import type { ApprovalCard, ApprovalLine } from '../../services/patchRollouts/types';
-import { mockAuthFetch, toast, jsonRes, at, HOUR, MIN, flush } from './_autonomousOpsDecisionsHarness';
+import {
+  mockAuthFetch, toast, jsonRes, at, HOUR, MIN, flush, card, line, page, routeFetch, shown, view, statusPayload,
+  incidentCalls, rolloutCalls, lineCalls,
+} from './_autonomousOpsDecisionsHarness';
 
 // ── fixtures ────────────────────────────────────────────────────────────────
 
@@ -320,5 +323,175 @@ describe('RolloutApprovalCard: stop, shadow, access and settled lines', () => {
     />);
     expect(screen.getByText('Approved. Installing when your window opens at 22:00.')).toBeTruthy();
     expect(screen.queryByText('Approved. Installing now.')).toBeNull();
+  });
+});
+
+// ── merged into Needs your decision ─────────────────────────────────────────
+
+const ISOLATION_SENTENCE = 'An isolated computer returns to the network after 4 hours unless you confirm it.';
+const EXPIRY_SENTENCE = 'Approvals expire after 24 hours and then count as denied.';
+
+/** An incident card whose only line expires `hours` from now. */
+const incident = (id: string, hours: number, over: Record<string, unknown> = {}) =>
+  card({
+    id, host: `host-${id}`, deadlineAt: at(hours * HOUR + 30_000),
+    actions: [line({ id: `AO-${id}`, expiresAt: at(hours * HOUR + 30_000) })], ...over,
+  });
+
+const rolloutPage = (items: ApprovalCard[], over: Record<string, unknown> = {}) => page(items, over);
+const order = () => Array.from(document.querySelectorAll('article')).map(a => a.id);
+const countLine = () => document.querySelector('#decisions .tabular-nums') as HTMLElement;
+
+describe('Needs your decision: rollout cards beside incident cards', () => {
+  it('orders incident and rollout cards in one list by the soonest deadline', async () => {
+    routeFetch({
+      incidents: () => jsonRes(page([incident('A', 5), incident('B', 10)])),
+      rollouts: () => jsonRes(rolloutPage([rolloutCard({ expiresAt: at(3 * HOUR + 30_000), lines: [installLine({ expiresAt: at(3 * HOUR + 30_000) })] })])),
+    });
+    await shown();
+    expect(order()).toEqual(['approval-rollout-R1-1', 'approval-A', 'approval-B']);
+    expect(countLine().textContent).toBe('2 incidents · 1 rollout ring');
+  });
+
+  it('puts an incident first when its deadline is sooner', async () => {
+    routeFetch({
+      incidents: () => jsonRes(page([incident('A', 1)])),
+      rollouts: () => jsonRes(rolloutPage([rolloutCard()])),
+    });
+    await shown();
+    expect(order()).toEqual(['approval-A', 'approval-rollout-R1-1']);
+  });
+
+  it('reads one rollout ring in the singular and omits a zero part of the count', async () => {
+    routeFetch({ rollouts: () => jsonRes(rolloutPage([rolloutCard()])) });
+    const first = await shown();
+    expect(countLine().textContent).toBe('1 rollout ring');
+    expect(document.body.textContent).not.toContain('0 incidents');
+    first.unmount();
+    const two = rolloutCard({ rolloutId: 'R2', anchorId: 'approval-rollout-R2-0', ring: '0' });
+    routeFetch({ rollouts: () => jsonRes(rolloutPage([rolloutCard(), two])) });
+    await shown();
+    expect(countLine().textContent).toBe('2 rollout rings');
+  });
+
+  it('with only rollout cards shows the expiry sentence without the isolation sentence', async () => {
+    routeFetch({ rollouts: () => jsonRes(rolloutPage([rolloutCard()])) });
+    await shown();
+    expect(screen.getByText(EXPIRY_SENTENCE)).toBeTruthy();
+    expect(document.body.textContent).not.toContain('isolated computer returns');
+  });
+
+  it('with only incidents keeps the section exactly as before', async () => {
+    routeFetch({ incidents: () => jsonRes(page([incident('A', 5)])) });
+    await shown();
+    expect(countLine().textContent).toBe('1 incident');
+    expect(screen.getByText(`${EXPIRY_SENTENCE} ${ISOLATION_SENTENCE}`)).toBeTruthy();
+  });
+
+  it('with incidents and rollout cards keeps the isolation sentence', async () => {
+    routeFetch({ incidents: () => jsonRes(page([incident('A', 5)])), rollouts: () => jsonRes(rolloutPage([rolloutCard()])) });
+    await shown();
+    expect(screen.getByText(`${EXPIRY_SENTENCE} ${ISOLATION_SENTENCE}`)).toBeTruthy();
+  });
+
+  it('renders nothing when there is nothing to decide of either kind', async () => {
+    routeFetch({});
+    const { container } = render(view());
+    await flush();
+    expect(container.querySelector('section')).toBeNull();
+  });
+
+  it('says Show more when both kinds exist and reads the next page of the kind that has more', async () => {
+    routeFetch({
+      incidents: (url: string) => (new URL(url, 'http://x').searchParams.get('offset') === '0'
+        ? jsonRes(page([incident('A', 5)], { total: 2 }))
+        : jsonRes(page([incident('B', 6)], { total: 2, offset: 1 }))),
+      rollouts: () => jsonRes(rolloutPage([rolloutCard()])),
+    });
+    await shown();
+    expect(screen.queryByRole('button', { name: 'Show more incidents' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    await screen.findByRole('article', { name: 'host-B' });
+    const last = incidentCalls().at(-1)?.[0] as string;
+    expect(new URL(last, 'http://x').searchParams.get('offset')).toBe('1');
+    expect(rolloutCalls()).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+  });
+
+  it('announces the combined count as decisions only when rollout cards exist', async () => {
+    let n = 0;
+    routeFetch({
+      incidents: () => jsonRes(page([incident('A', 5)])),
+      rollouts: () => (n++ === 0 ? jsonRes(rolloutPage([rolloutCard()])) : jsonRes(rolloutPage([rolloutCard(), rolloutCard({ rolloutId: 'R2', anchorId: 'approval-rollout-R2-0', ring: '0' })]))),
+    });
+    await shown();
+    const live = document.querySelector('[data-live="decisions"]') as HTMLElement;
+    expect(live.textContent).toBe('');
+    await act(async () => { window.dispatchEvent(new Event('focus')); });
+    await waitFor(() => expect(live.textContent).toBe('3 decisions need your decision'));
+  });
+
+  it('keeps the incident cards and says the read failed when only the rollout read fails', async () => {
+    routeFetch({
+      incidents: () => jsonRes(page([incident('A', 5)])),
+      rollouts: () => jsonRes({}, 500),
+    });
+    await shown();
+    expect(screen.getByRole('article', { name: 'host-A' })).toBeTruthy();
+    expect(screen.getByText("Couldn't refresh approvals. Showing the last result.")).toBeTruthy();
+  });
+
+  it('keeps the rollout cards when only the incident read fails', async () => {
+    routeFetch({
+      incidents: () => jsonRes({}, 500),
+      rollouts: () => jsonRes(rolloutPage([rolloutCard()])),
+    });
+    await shown();
+    expect(screen.getByRole('article', { name: 'November security' })).toBeTruthy();
+  });
+
+  it('disables Approve on a rollout line during a stop and keeps Deny', async () => {
+    routeFetch({
+      status: () => jsonRes(statusPayload({ stop: { tenant: { scope: 'tenant', by: 'Pat', at: at(-MIN), reason: null }, platform: null } })),
+      rollouts: () => jsonRes(rolloutPage([rolloutCard({ lines: [installLine({ canApprove: false })] })])),
+    });
+    await shown();
+    await waitFor(() => expect((screen.getByRole('button', { name: /^Approve: Install/ }) as HTMLButtonElement).disabled).toBe(true));
+    expect((screen.getByRole('button', { name: /^Deny: Install/ }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('hides the rollout buttons in shadow mode', async () => {
+    routeFetch({
+      status: () => jsonRes(statusPayload({ shadow: { effective: true, source: 'tenant' } })),
+      rollouts: () => jsonRes(rolloutPage([rolloutCard()])),
+    });
+    await shown();
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Approve/ })).toBeNull());
+  });
+
+  it('after a decision re-reads the rollout cards and keeps the card on screen showing the result until the next poll', async () => {
+    let decided = false;
+    routeFetch({
+      rollouts: () => jsonRes(rolloutPage(decided ? [] : [rolloutCard()])),
+      lineDecision: () => { decided = true; return jsonRes(result({ message: 'Approved. Installing now.' })); },
+    });
+    const onDecided = vi.fn();
+    await shown({ onDecided });
+    fireEvent.click(screen.getByRole('button', { name: /^Approve: Install/ }));
+    await waitFor(() => expect(screen.getByText('Approved. Installing now.')).toBeTruthy());
+    await flush();
+    expect(lineCalls()).toHaveLength(1);
+    expect(rolloutCalls().length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('article', { name: 'November security' })).toBeTruthy();
+    expect(onDecided).toHaveBeenCalledTimes(1);
+    await act(async () => { window.dispatchEvent(new Event('focus')); });
+    await waitFor(() => expect(document.querySelector('section')).toBeNull());
+  });
+
+  it('does not offer a rollout card to the Activity list as an incident id', async () => {
+    const seen: Array<ReadonlySet<string>> = [];
+    routeFetch({ incidents: () => jsonRes(page([incident('A', 5)])), rollouts: () => jsonRes(rolloutPage([rolloutCard()])) });
+    await shown({ onDecisionIds: ids => seen.push(ids) });
+    expect([...(seen.at(-1) ?? [])]).toEqual(['A']);
   });
 });

@@ -69,13 +69,18 @@ export function statusPayload(over: Record<string, unknown> = {}) {
 }
 
 export type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
-export interface Handlers { incidents?: Handler; decision?: Handler; status?: Handler }
+export interface Handlers { incidents?: Handler; decision?: Handler; status?: Handler; rollouts?: Handler; lineDecision?: Handler }
 
 export function routeFetch(h: Handlers) {
   mockAuthFetch.mockImplementation(async (url: string, init?: RequestInit) => {
     const path = url.split('?')[0];
     if (path === '/api/autonomous-ops/status') return (h.status ?? (() => jsonRes(statusPayload())))(url, init);
     if (path === '/api/autonomous-ops/incidents') return (h.incidents ?? (() => jsonRes(page([]))))(url, init);
+    // 84-15: the section reads rollout approval cards beside incidents; the default is an empty page.
+    if (path === '/api/autonomous-ops/rollout-cards') return (h.rollouts ?? (() => jsonRes(page([]))))(url, init);
+    if (/^\/api\/autonomous-ops\/rollout-lines\/[^/]+\/[^/]+\/[^/]+\/(approve|deny)$/.test(path)) {
+      return (h.lineDecision ?? (() => jsonRes({}, 500)))(url, init);
+    }
     if (/^\/api\/autonomous-ops\/actions\/[^/]+\/(approve|deny|confirm-isolation)$/.test(path)) {
       return (h.decision ?? (() => jsonRes({}, 500)))(url, init);
     }
@@ -85,6 +90,8 @@ export function routeFetch(h: Handlers) {
 
 export const callsTo = (re: RegExp) => mockAuthFetch.mock.calls.filter(c => re.test((c[0] as string).split('?')[0]));
 export const incidentCalls = () => callsTo(/\/incidents$/);
+export const rolloutCalls = () => callsTo(/\/rollout-cards$/);
+export const lineCalls = () => callsTo(/\/rollout-lines\//);
 export const decisionCalls = () => callsTo(/\/(approve|deny|confirm-isolation)$/);
 
 export function view(props: { onDecisionIds?: (ids: ReadonlySet<string>) => void; onDecided?: () => void; refreshSignal?: number } = {}) {
