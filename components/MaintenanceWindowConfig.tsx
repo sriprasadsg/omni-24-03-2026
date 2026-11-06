@@ -1,274 +1,280 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    CalendarIcon,
-    ClockIcon,
-    PlusIcon,
-    TrashIcon,
-    CheckIcon,
-    AlertCircleIcon,
-    RefreshCwIcon,
-    ShieldCheckIcon
+    CalendarIcon, CheckCircleIcon, ClockIcon, InfoIcon, PencilIcon, PlusIcon, RefreshCwIcon, TrashIcon,
 } from './icons';
+import { SECONDARY_BUTTON } from './AutonomousOpsHealthCards';
+import { EmptyStateCard } from './AutonomousOpsActivityList';
+import { DAYS, DeleteWindowDialog, WindowDialog } from './patchRollouts/MaintenanceWindowDialog';
+import { showToast } from '../utils/toast';
+import type { MaintenanceWindow, WindowStatus } from '../services/patchRollouts/types';
 import {
-    getMaintenanceWindows,
-    createMaintenanceWindow,
-    deleteMaintenanceWindow,
-    checkMaintenanceStatus
-} from '../services/apiService';
-import { useUser } from '../contexts/UserContext';
+    WindowApiError, browserTimeZone, fetchTimeZone, fetchWindows, fetchWindowStatus, isKnownTimeZone, listTimeZones,
+    saveTimeZone,
+} from '../services/patchRollouts/windows';
 
-interface MaintenanceWindow {
-    id: string;
-    name: string;
-    start_time: string;
-    end_time: string;
-    recurrence: 'none' | 'daily' | 'weekly' | 'monthly';
-    days_of_week: number[];
-    is_active: boolean;
-}
+/**
+ * Settings > Maintenance (UI-SPEC section 8): the organization's time zone, whether a window is open, and the
+ * windows themselves. Rollouts and approved restarts run only inside these windows. Every text from the server is
+ * rendered as React text; the server decides what is allowed, the buttons only ask.
+ */
+
+const ACCENT_BUTTON =
+    'inline-flex items-center justify-center gap-2 min-h-10 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white ' +
+    'hover:bg-primary-700 disabled:opacity-60';
+const ICON_BUTTON =
+    'inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 ' +
+    'dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white disabled:opacity-60';
+const INPUT =
+    'min-h-10 w-full max-w-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 ' +
+    'font-mono text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500';
+const MUTED = 'break-words text-xs text-gray-500 dark:text-gray-400';
+const GREEN_CHIP =
+    'inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-1 text-xs font-semibold text-green-800 ' +
+    'dark:border-green-400/25 dark:bg-green-400/10 dark:text-green-200';
+const OUTLINE_CHIP =
+    'inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs font-semibold ' +
+    'text-gray-700 dark:text-gray-200';
+const NEUTRAL_CHIP =
+    'inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 dark:bg-white/10 dark:text-gray-200';
+const DAY_CHIP =
+    'inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-200 text-xs font-semibold text-gray-900 ' +
+    'dark:bg-white/15 dark:text-gray-100';
+const BLUE_BLOCK =
+    'flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800 ' +
+    'dark:border-blue-400/25 dark:bg-blue-400/10 dark:text-blue-200';
+const AMBER_LINE =
+    'flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 ' +
+    'dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200';
+const ERROR_BLOCK =
+    'flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 ' +
+    'dark:border-red-400/25 dark:bg-red-400/10 dark:text-red-200';
+const SKELETON = 'h-32 animate-pulse rounded-lg bg-gray-200 dark:bg-white/10';
+
+const ZONE_SENTENCE = 'Choose a time zone from the list, for example Asia/Kolkata.';
+const RECURRENCE_LABEL: Record<MaintenanceWindow['recurrence'], string> = {
+    none: 'One-time', daily: 'Daily', weekly: 'Weekly',
+};
+
+type Dialog = { kind: 'edit'; window: MaintenanceWindow | null } | { kind: 'delete'; window: MaintenanceWindow } | null;
 
 const MaintenanceWindowConfig: React.FC = () => {
-    const { currentUser } = useUser();
     const [windows, setWindows] = useState<MaintenanceWindow[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [isInWindow, setIsInWindow] = useState(false);
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [zone, setZone] = useState<string | null>(null);
+    const [status, setStatus] = useState<WindowStatus | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [loadFailed, setLoadFailed] = useState(false);
+    const [zoneInput, setZoneInput] = useState('');
+    const [zoneSaving, setZoneSaving] = useState(false);
+    const [zoneFailed, setZoneFailed] = useState<string | null>(null);
+    const [dialog, setDialog] = useState<Dialog>(null);
+    const alive = useRef(true);
+    const zones = useMemo(() => listTimeZones(), []);
 
-    // Form state
-    const [newName, setNewName] = useState('');
-    const [newStart, setNewStart] = useState('');
-    const [newEnd, setNewEnd] = useState('');
-    const [newRecurrence, setNewRecurrence] = useState<'none' | 'daily' | 'weekly'>('none');
-    const [newDays, setNewDays] = useState<number[]>([]);
+    useEffect(() => () => { alive.current = false; }, []);
 
-    const fetchWindows = async () => {
-        setLoading(true);
-        const [data, status] = await Promise.all([
-            getMaintenanceWindows(),
-            checkMaintenanceStatus()
-        ]);
-        setWindows(Array.isArray(data) ? data : []);
-        setIsInWindow(status.is_in_window);
-        setLoading(false);
-    };
-
-    useEffect(() => {
-        fetchWindows();
+    /** `first` shows the skeletons and fills the zone field; later reads keep what the person typed. */
+    const load = useCallback(async (first: boolean) => {
+        if (first) setLoading(true); else setRefreshing(true);
+        setLoadFailed(false);
+        try {
+            const [rows, storedZone, state] = await Promise.all([fetchWindows(), fetchTimeZone(), fetchWindowStatus()]);
+            if (!alive.current) return;
+            setWindows(rows);
+            setZone(storedZone);
+            setStatus(state);
+            if (first) setZoneInput(storedZone ?? '');
+        } catch {
+            if (alive.current) setLoadFailed(true);
+        } finally {
+            if (alive.current) { setLoading(false); setRefreshing(false); }
+        }
     }, []);
 
-    const handleAddWindow = async () => {
-        if (!newName || !newStart || !newEnd) return;
+    useEffect(() => { void load(true); }, [load]);
 
-        await createMaintenanceWindow({
-            tenant_id: currentUser?.tenantId || 'default',
-            name: newName,
-            start_time: newStart,
-            end_time: newEnd,
-            recurrence: newRecurrence,
-            days_of_week: newDays,
-            is_active: true
-        });
+    const dirty = zoneInput !== (zone ?? '');
+    const zoneValid = isKnownTimeZone(zoneInput);
+    const zoneError = dirty && zoneInput !== '' && !zoneValid ? ZONE_SENTENCE : null;
 
-        setShowAddModal(false);
-        setNewName('');
-        setNewStart('');
-        setNewEnd('');
-        fetchWindows();
+    const saveZone = async () => {
+        if (!dirty || !zoneValid || zoneSaving) return;
+        setZoneSaving(true);
+        setZoneFailed(null);
+        try {
+            const saved = await saveTimeZone(zoneInput);
+            showToast(`Time zone saved. Window times now use ${saved ?? zoneInput}.`, 'success');
+            setZone(saved);
+            setZoneInput(saved ?? '');
+            void load(false);
+        } catch (err) {
+            const detail = err instanceof WindowApiError ? err.detail.replace(/[.\s]+$/, '') : '';
+            setZoneFailed(detail
+                ? `Couldn't save the time zone: ${detail}. Try again.`
+                : "Couldn't save the time zone. Check your connection and try again.");
+        } finally {
+            if (alive.current) setZoneSaving(false);
+        }
     };
 
-    const handleDelete = async (id: string) => {
-        await deleteMaintenanceWindow(id);
-        fetchWindows();
-    };
-
-    const toggleDay = (day: number) => {
-        setNewDays(prev =>
-            prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-        );
-    };
-
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const reload = () => { setDialog(null); void load(false); };
+    const ready = !loading && !loadFailed;
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <CalendarIcon className="text-blue-400" size={24} />
-                        Maintenance Windows
+            <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                    <h2 className="flex items-center gap-2 text-lg font-semibold leading-tight text-gray-900 dark:text-white">
+                        <CalendarIcon size={20} aria-hidden="true" className="text-gray-500 dark:text-gray-400" />
+                        Maintenance windows
                     </h2>
-                    <p className="text-sm text-gray-400 mt-1">
-                        Define scheduled windows for patch deployments and system updates.
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        Rollouts and approved restarts run only inside these windows.
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all shadow-lg shadow-blue-500/20"
-                >
-                    <PlusIcon size={18} />
-                    Add Window
+                <button type="button" className={SECONDARY_BUTTON} disabled={!ready} onClick={() => setDialog({ kind: 'edit', window: null })}>
+                    <PlusIcon size={16} aria-hidden="true" />
+                    Add window
                 </button>
             </div>
 
-            {/* Current Status Banner */}
-            <div className={`p-4 rounded-xl border flex items-center justify-between ${isInWindow ? 'bg-green-500/10 border-green-500/20' : 'bg-yellow-500/10 border-yellow-500/20'}`}>
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${isInWindow ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                        {isInWindow ? <ShieldCheckIcon size={20} /> : <AlertCircleIcon size={20} />}
-                    </div>
-                    <div>
-                        <div className="text-sm font-semibold text-white">
-                            Current Status: {isInWindow ? 'Within Maintenance Window' : 'Outside Maintenance Window'}
-                        </div>
-                        <p className="text-xs text-gray-400">
-                            {isInWindow
-                                ? 'Deployments are currently permitted.'
-                                : 'Deployments will be blocked unless maintenance window enforcement is disabled.'}
-                        </p>
-                    </div>
-                </div>
-                <button onClick={fetchWindows} className="p-2 text-gray-400 hover:text-white transition-colors">
-                    <RefreshCwIcon size={18} className={loading ? 'animate-spin' : ''} />
-                </button>
-            </div>
-
-            {/* Windows List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {windows.length === 0 ? (
-                    <div className="col-span-full py-12 flex flex-col items-center justify-center text-gray-500 bg-white/5 rounded-2xl border border-dashed border-white/10">
-                        <CalendarIcon size={48} className="mb-4 opacity-20" />
-                        <p>No maintenance windows configured</p>
-                    </div>
-                ) : (
-                    windows.map(window => (
-                        <div key={window.id} className="p-5 bg-white/5 rounded-2xl border border-white/10 hover:border-white/20 transition-all group relative">
-                            <div className="flex items-start justify-between mb-4">
-                                <div>
-                                    <h3 className="font-semibold text-white">{window.name}</h3>
-                                    <span className="text-[10px] uppercase tracking-wider font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded mt-1 inline-block">
-                                        {window.recurrence}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={() => handleDelete(window.id)}
-                                    className="p-2 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                                >
-                                    <TrashIcon size={16} />
-                                </button>
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-xs text-gray-400">
-                                    <ClockIcon size={14} />
-                                    <span>{new Date(window.start_time).toLocaleTimeString()} - {new Date(window.end_time).toLocaleTimeString()}</span>
-                                </div>
-                                {window.recurrence === 'weekly' && (
-                                    <div className="flex gap-1 mt-2">
-                                        {days.map((d, i) => (
-                                            <span
-                                                key={d}
-                                                className={`w-6 h-6 flex items-center justify-center rounded text-[10px] font-bold ${window.days_of_week.includes(i) ? 'bg-blue-500 text-white' : 'bg-white/5 text-gray-600'}`}
-                                            >
-                                                {d[0]}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {/* Add Modal */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-[#121212] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-white/10">
-                            <h3 className="text-lg font-bold text-white">Add Maintenance Window</h3>
-                        </div>
-
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 mb-1">Window Name</label>
-                                <input
-                                    type="text"
-                                    value={newName}
-                                    onChange={e => setNewName(e.target.value)}
-                                    placeholder="e.g. Weekly Production Patching"
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 mb-1">Start Time</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={newStart}
-                                        onChange={e => setNewStart(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 mb-1">End Time</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={newEnd}
-                                        onChange={e => setNewEnd(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 mb-1">Recurrence</label>
-                                <select
-                                    value={newRecurrence}
-                                    onChange={e => setNewRecurrence(e.target.value as any)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                                >
-                                    <option value="none">One-time</option>
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                </select>
-                            </div>
-
-                            {newRecurrence === 'weekly' && (
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 mb-1">Days of Week</label>
-                                    <div className="flex justify-between">
-                                        {days.map((d, i) => (
-                                            <button
-                                                key={d}
-                                                onClick={() => toggleDay(i)}
-                                                className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${newDays.includes(i) ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 text-gray-500 hover:bg-white/10'}`}
-                                            >
-                                                {d[0]}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="p-6 bg-white/5 flex gap-3">
-                            <button
-                                onClick={() => setShowAddModal(false)}
-                                className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleAddWindow}
-                                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all"
-                            >
-                                Create Window
-                            </button>
-                        </div>
-                    </div>
+            {loading && (
+                <div aria-busy="true" className="grid gap-6 md:grid-cols-2">
+                    <div className={SKELETON} />
+                    <div className={SKELETON} />
                 </div>
             )}
+
+            {loadFailed && !loading && (
+                <div role="alert" className={ERROR_BLOCK}>
+                    <p>Couldn't load maintenance windows. Check your connection and try again.</p>
+                    <button type="button" className={SECONDARY_BUTTON} onClick={() => void load(true)}>Try again</button>
+                </div>
+            )}
+
+            {ready && (
+                <>
+                    <section className="card space-y-3 p-6">
+                        <label htmlFor="maintenance-time-zone" className="block text-sm font-semibold text-gray-900 dark:text-white">
+                            Time zone
+                        </label>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <input
+                                id="maintenance-time-zone" type="text" list="maintenance-time-zones" value={zoneInput}
+                                placeholder={browserTimeZone()} autoComplete="off" spellCheck={false} disabled={zoneSaving}
+                                onChange={e => { setZoneInput(e.target.value); setZoneFailed(null); }}
+                                aria-describedby="maintenance-time-zone-help"
+                                className={INPUT}
+                            />
+                            <datalist id="maintenance-time-zones">
+                                {zones.map(z => <option key={z} value={z} />)}
+                            </datalist>
+                            <button
+                                type="button" onClick={saveZone} disabled={!dirty || !zoneValid || zoneSaving}
+                                className={dirty ? ACCENT_BUTTON : SECONDARY_BUTTON}
+                            >
+                                {zoneSaving ? 'Saving...' : 'Save time zone'}
+                            </button>
+                        </div>
+                        <p id="maintenance-time-zone-help" className={MUTED}>
+                            All of this organization's windows use this time zone. Daylight-saving changes are handled.
+                        </p>
+                        {zone === null && (
+                            <div role="status" className={BLUE_BLOCK}>
+                                <InfoIcon size={16} aria-hidden="true" className="mt-0.5 flex-shrink-0" />
+                                <p>No time zone is set yet. Windows use UTC until you choose one.</p>
+                            </div>
+                        )}
+                        {zoneError && <p role="alert" className="break-words text-xs text-red-700 dark:text-red-300">{zoneError}</p>}
+                        {dirty && zoneValid && windows.length > 0 && (
+                            <div role="status" className={AMBER_LINE}>
+                                <p>{`Existing windows keep their clock times but now run in ${zoneInput}.`}</p>
+                            </div>
+                        )}
+                        {zoneFailed && <p role="alert" className="break-words text-sm text-red-700 dark:text-red-300">{zoneFailed}</p>}
+                    </section>
+
+                    {status && status.state !== 'none' && (
+                        <div className="card flex items-center justify-between gap-4 p-4">
+                            <div className="flex min-w-0 flex-wrap items-center gap-3">
+                                {status.state === 'open'
+                                    ? <span className={GREEN_CHIP}><CheckCircleIcon size={12} aria-hidden="true" />Window open</span>
+                                    : <span className={OUTLINE_CHIP}><ClockIcon size={12} aria-hidden="true" />Window closed</span>}
+                                <p className="break-words text-sm text-gray-700 dark:text-gray-200">{status.text}</p>
+                            </div>
+                            <button type="button" aria-label="Refresh" className={ICON_BUTTON} onClick={() => void load(false)} disabled={refreshing}>
+                                <RefreshCwIcon size={16} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
+                            </button>
+                        </div>
+                    )}
+
+                    {windows.length === 0 ? (
+                        <div className="card">
+                            <EmptyStateCard icon={CalendarIcon} heading="No maintenance windows yet">
+                                <p className="max-w-prose text-sm text-gray-600 dark:text-gray-400">
+                                    Add a window. Rollouts and approved restarts run only inside your windows.
+                                </p>
+                                <button type="button" className={SECONDARY_BUTTON} onClick={() => setDialog({ kind: 'edit', window: null })}>
+                                    <PlusIcon size={16} aria-hidden="true" />
+                                    Add window
+                                </button>
+                            </EmptyStateCard>
+                        </div>
+                    ) : (
+                        <ul className="grid gap-6 md:grid-cols-2">
+                            {windows.map(w => (
+                                <li key={w.id} className="card space-y-3 p-6">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 space-y-2">
+                                            <h3 className="break-words text-sm font-semibold text-gray-900 dark:text-white">{w.name}</h3>
+                                            <span className={NEUTRAL_CHIP}>{RECURRENCE_LABEL[w.recurrence] ?? w.recurrence}</span>
+                                        </div>
+                                        <div className="flex flex-shrink-0 gap-1">
+                                            <button
+                                                type="button" className={ICON_BUTTON} aria-label={`Edit window ${w.name}`}
+                                                onClick={() => setDialog({ kind: 'edit', window: w })}
+                                            >
+                                                <PencilIcon size={16} aria-hidden="true" />
+                                            </button>
+                                            <button
+                                                type="button" className={ICON_BUTTON} aria-label={`Delete window ${w.name}`}
+                                                onClick={() => setDialog({ kind: 'delete', window: w })}
+                                            >
+                                                <TrashIcon size={16} aria-hidden="true" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="break-words text-sm text-gray-700 dark:text-gray-200">{w.scheduleText}</p>
+                                    {w.recurrence === 'weekly' && (
+                                        <div className="flex flex-wrap gap-1">
+                                            {DAYS.filter(d => w.daysOfWeek?.includes(d.iso)).map(d => (
+                                                <span key={d.iso} role="img" aria-label={d.full} className={DAY_CHIP}>{d.short}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <p className={`${MUTED} font-mono`}>{zone ?? 'UTC'}</p>
+                                    <p className={MUTED}>{w.nextText}</p>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </>
+            )}
+
+            <WindowDialog
+                isOpen={dialog?.kind === 'edit'}
+                window={dialog?.kind === 'edit' ? dialog.window : null}
+                timeZone={zone}
+                onClose={() => setDialog(null)}
+                onSaved={reload}
+            />
+            <DeleteWindowDialog
+                isOpen={dialog?.kind === 'delete'}
+                window={dialog?.kind === 'delete' ? dialog.window : null}
+                isLast={windows.length === 1}
+                onClose={() => setDialog(null)}
+                onDeleted={reload}
+            />
         </div>
     );
 };

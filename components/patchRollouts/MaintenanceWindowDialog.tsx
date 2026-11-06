@@ -36,7 +36,7 @@ const DANGER_BUTTON =
     'hover:bg-red-700 disabled:opacity-60';
 
 /** ISO weekdays, Monday 1 to Sunday 7: the numbers the server stores. */
-const DAYS: Array<{ iso: number; short: string; full: string }> = [
+export const DAYS: Array<{ iso: number; short: string; full: string }> = [
     { iso: 1, short: 'Mon', full: 'Monday' }, { iso: 2, short: 'Tue', full: 'Tuesday' },
     { iso: 3, short: 'Wed', full: 'Wednesday' }, { iso: 4, short: 'Thu', full: 'Thursday' },
     { iso: 5, short: 'Fri', full: 'Friday' }, { iso: 6, short: 'Sat', full: 'Saturday' },

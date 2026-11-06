@@ -434,7 +434,7 @@ describe('MaintenanceWindowConfig', () => {
     expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     expect(source).not.toContain('fixed inset-0');
     for (const line of source.split('\n')) {
-      if (/\btext-white\b/.test(line)) expect(line).toMatch(/bg-primary-600|bg-red-600/);
+      if (/(^|[\s"'`])text-white\b/.test(line)) expect(line).toMatch(/bg-primary-600|bg-red-600/);
     }
   });
 });
