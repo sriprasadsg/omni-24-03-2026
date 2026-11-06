@@ -27,7 +27,7 @@ import agent_capabilities
 from .. import agent_support, approvals, gate, ledger, messages
 from ..scope import raw
 from . import (CAPABILITY, COMMAND_INSTALL, COMMAND_UNDO, DISPATCHER_NAME, TOKEN_REBOOT, TOKEN_REVERSIBLE,
-               TOKEN_REVERT_BY_JOB, store, windows as windows_mod)
+               TOKEN_REVERT_BY_JOB, reboots, store, windows as windows_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +141,8 @@ async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
     if result.get("status") == "queued":
         if row.get("command") == COMMAND_INSTALL:
             await store.set_host(db, tenant_id, rollout_id, agent_id, {"state": "installing", "waitReason": None})
+        elif row.get("command") == reboots.COMMAND:        # D-08: what the computer looked like before it restarted
+            await reboots.record_baseline(db, tenant_id, {"rolloutId": rollout_id, "agentId": agent_id}, None, now)
         return result
     if result.get("reason") == "stopped":
         await _end(db, row, "cancelled_by_stop", "platform_stop")

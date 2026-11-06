@@ -16,9 +16,12 @@ from typing import Any, Callable, Dict, List, Optional
 from .. import PLATFORM_TENANT_ID, scope, settings
 from ..scope import raw
 from .messages import plural
-from . import ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, settle, store, windows as windows_mod
+from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, reboots, settle, store,
+               windows as windows_mod)
 
 logger = logging.getLogger(__name__)
+
+SETTLED = ("installed", "failed", "restarting", "healthy", "not_reached")     # a computer the ring need not wait on to install
 
 
 def _now(now: Optional[datetime]) -> datetime:
@@ -44,25 +47,48 @@ def _halt_facts(verdict: health.Verdict, hosts: List[Dict[str, Any]], signals: L
             "computers": plural(len(reported), "computer", "computers"), "limit": int(ring.get("failPct") or 0)}
 
 
+async def _restarts(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
+                    now: datetime) -> bool:
+    """True while the ring's restarts are not finished (D-07): raise the Reboot line for the installed
+    computers that need one, and name what the ring is waiting for. False when no computer needs a restart or
+    every restart is done, so the soak can start."""
+    if not any(reboots.pending(h) for h in hosts):
+        return False
+    if any(reboots.needs_line(h) for h in hosts):
+        await reboots.raise_reboot_line(db, tenant_id, rollout, index, hosts, now)
+    if any(h.get("state") == "restarting" for h in hosts):
+        new = "restarting"
+    else:
+        new = "waiting_for_window" if await lines.has_approved(db, tenant_id, rollout["id"], index) \
+            else "waiting_for_approval"
+    if rollout["rings"][index].get("state") != new:
+        await store.set_ring(db, tenant_id, rollout, index, {"state": new})
+    return True
+
+
 async def _check(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
                  now: datetime) -> bool:
-    """Soak and check the ring whose installs are all settled. True when the ring passed (go on)."""
+    """Restart, soak and check the ring whose installs are all settled. True when the ring passed (go on)."""
     ring = rollout["rings"][index]
-    if ring.get("state") not in ("soaking", "checking_health"):
-        soak = health.soak_end(hosts, float(ring.get("soakHours") or 0), now)
-        await store.set_ring(db, tenant_id, rollout, index, {"state": "soaking", "soakEndsAt": soak})
     agents = {}
     found = raw(db).agents.find({"tenantId": tenant_id, "id": {"$in": [h["agentId"] for h in hosts]}},
-                                {"_id": 0, "id": 1, "lastSeen": 1, "meta.system_patching": 1, "meta.os_patches": 1})
+                                {"_id": 0, "id": 1, "lastSeen": 1, "meta.system_patching": 1, "meta.os_patches": 1,
+                                 "meta.response_state": 1})
     async for agent in found:
         agents[agent["id"]] = agent
     signals = [health.host_signals(agents.get(h["agentId"]), h, now) for h in hosts]
     verdict = health.ring_verdict(signals, ring, now)
-    if verdict.kind == "waiting":
-        return False
-    if verdict.kind == "halt":
+    if verdict.kind == "halt":               # a failure halts at once: no restart is asked for, no soak is waited out
         await lifecycle.halt(db, tenant_id, rollout, index, code=verdict.code, host=verdict.host, now=now,
                              facts=_halt_facts(verdict, hosts, signals, ring))
+        return False
+    if await _restarts(db, tenant_id, rollout, index, hosts, now):
+        return False
+    if ring.get("state") not in ("soaking", "checking_health"):
+        soak = health.soak_end(hosts, float(ring.get("soakHours") or 0), now)
+        await store.set_ring(db, tenant_id, rollout, index, {"state": "soaking", "soakEndsAt": soak})
+        verdict = health.ring_verdict(signals, rollout["rings"][index], now)
+    if verdict.kind == "waiting":
         return False
     await lifecycle.advance(db, tenant_id, rollout, now)
     return True
@@ -111,7 +137,7 @@ async def _step(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, coun
             counts[key] = counts.get(key, 0) + value
         await _ring_state(db, tenant_id, rollout, index)
         return False
-    if any(h.get("state") not in ("installed", "failed") for h in hosts):
+    if any(h.get("state") not in SETTLED for h in hosts):
         await _ring_state(db, tenant_id, rollout, index)
         return False           # installing, waiting for a person, or only simulated: nothing to check yet
     return await _check(db, tenant_id, rollout, index, hosts, now)
@@ -140,6 +166,10 @@ async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, cou
     with scope.tenant_scope(tenant_id):
         for rollout in await store.active_rollouts(db, tenant_id, ACTIVE_STATUSES):
             await settle.settle(db, tenant_id, rollout, now)
+            late = await reboots.settle(db, tenant_id, rollout, now)
+            if rollout.get("status") == "running" and late is not None:
+                await lifecycle.halt(db, tenant_id, rollout, int(late.get("ring") or 0), code="no_new_boot",
+                                     host=late["agentId"], now=now, facts={"host": late.get("hostname") or late["agentId"]})
             if rollout.get("status") == "running":
                 await _halt_on_lines(db, tenant_id, rollout, now)       # needs no decision, so it works under a stop
             if decide and rollout.get("status") == "running":

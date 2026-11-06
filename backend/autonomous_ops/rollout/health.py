@@ -46,7 +46,7 @@ def halt(code: str, host: Optional[str] = None) -> Verdict:
 def host_signals(agent: Optional[Dict[str, Any]], host: Dict[str, Any], now: datetime) -> Dict[str, Any]:
     """The plain signal dict ``ring_verdict`` reads for one computer."""
     state = host.get("state")
-    install = True if state == "installed" else False if state == "failed" else None
+    install = True if state in ("installed", "restarting", "healthy") else False if state == "failed" else None
     installed_at = store.parse_time(host.get("installReportedAt"))
     meta = (agent or {}).get("meta") if isinstance((agent or {}).get("meta"), dict) else {}
     scan = meta.get("system_patching") if isinstance(meta.get("system_patching"), dict) else {}
@@ -87,7 +87,8 @@ def ring_verdict(hosts: List[Dict[str, Any]], ring: Dict[str, Any], now: datetim
 
 
 def soak_end(hosts: List[Dict[str, Any]], soak_hours: float, now: datetime) -> datetime:
-    """When the ring's soak ends: the latest install report plus the soak, or now plus the soak when no
-    host reported."""
-    reported = [t for t in (store.parse_time(h.get("installReportedAt")) for h in hosts) if t is not None]
+    """When the ring's soak ends (D-10): the latest install report or new boot plus the soak, or now plus the
+    soak when no computer reported."""
+    reported = [t for t in (store.parse_time(h.get(key)) for h in hosts for key in ("installReportedAt", "newBootAt"))
+                if t is not None]
     return (max(reported) if reported else store.aware(now)) + timedelta(hours=soak_hours)
