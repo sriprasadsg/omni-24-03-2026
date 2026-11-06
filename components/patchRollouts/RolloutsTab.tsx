@@ -10,6 +10,7 @@ import { HealthNotice } from '../AutonomousOpsHealthChips';
 import { ACCENT_BUTTON } from '../AutonomousOpsResponseSettingsDialogs';
 import { AlertTriangleIcon, ClockIcon, FlaskConicalIcon, InfoIcon, LayersIcon, PauseCircleIcon, RefreshCwIcon, RocketIcon } from '../icons';
 import { RingsSettings } from './RingsSettings';
+import { RingDetail } from './RingDetail';
 import { RolloutCard } from './RolloutCard';
 import { chipClasses } from './RolloutChip';
 import { StartDialog } from './StartDialog';
@@ -22,11 +23,14 @@ import { ASSURANCE_LINE, LINK_LABELS, plural } from './rolloutCopy';
  * never shows a skeleton or a spinner and a failed one keeps the last cards. Every control comes from the server's
  * flags and every string is React text. The tab owns the Start a rollout dialog and the Rollout rings card (84-17): Start
  * rollout opens the dialog, a started rollout reads the list again and moves focus to its card, and the dialog's Open
- * rollout rings link closes it and expands the card. The optional render props stay as extension points (84-18 the ring
- * detail and the Resume and Cancel actions).
+ * rollout rings link closes it and expands the card. Every card offers the ring detail (84-18) behind Show details; the
+ * optional render props stay as extension points and replace it.
  */
 
 export const ROLLOUTS_POLL_MS = 30_000;
+
+/** The ring detail every card offers behind Show details; a parent can still supply its own. */
+const defaultRingDetail = (ring: RingView) => <RingDetail key={ring.index} ring={ring} />;
 const PAGE = 10;
 const MAX_PAGE = 50;
 
@@ -325,7 +329,7 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
                             key={card.id}
                             card={card}
                             onOpenView={onOpenView}
-                            renderRingDetail={renderRingDetail}
+                            renderRingDetail={renderRingDetail ?? defaultRingDetail}
                             actions={renderActions?.(card, refresh)}
                         />
                     ))}

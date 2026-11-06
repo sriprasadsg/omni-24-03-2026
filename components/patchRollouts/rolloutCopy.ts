@@ -7,7 +7,7 @@
  * Copy rules (ACTV-08): plain English, say "revert" or "put back", never an unqualified word for undoing a change
  * in bulk, no emoji. The directory is scanned by the copy gate.
  */
-import type { HostState, RingState, RolloutStatus, SignalState } from '../../services/patchRollouts/types';
+import type { HostState, RingState, RolloutStatus, SignalName, SignalState } from '../../services/patchRollouts/types';
 
 /** The tone a chip takes. `dashed` is the Simulation chip; `outline` is OUTLINE_CHIP from Phase 81. */
 export type ChipTone = 'amber' | 'blue' | 'green' | 'red' | 'neutral' | 'outline' | 'dashed';
@@ -87,6 +87,24 @@ export const SIGNAL_CHIP: Record<SignalState, ChipSpec> = {
     not_checked: { label: 'Not checked', tone: 'outline', icon: 'InfoIcon' },
 };
 
+/** The four health-check rows, in the order the ring detail shows them (UI-SPEC section 4). */
+export const HEALTH_SIGNALS: readonly SignalName[] = ['install', 'inventory', 'heartbeat', 'services'];
+
+export const HEALTH_TITLES: Record<SignalName, string> = {
+    install: 'Install result',
+    inventory: 'Inventory after install',
+    heartbeat: 'Heartbeat after restart',
+    services: 'Services',
+};
+
+/** How a signal reads inside a sentence; the same names the server uses in its own sentences. */
+export const HEALTH_SIGNAL_NAMES: Record<SignalName, string> = {
+    install: 'the install result',
+    inventory: 'the inventory after the install',
+    heartbeat: 'the heartbeat after the restart',
+    services: 'the services check',
+};
+
 /** The text links and the secondary buttons the screens share. */
 export const LINK_LABELS = {
     maintenance: 'Open maintenance windows',
@@ -99,6 +117,7 @@ export const LINK_LABELS = {
     hideDetails: 'Hide details',
     showHosts: 'Show hosts',
     showComputers: 'Show computers',
+    showMoreComputers: 'Show more computers',
     startRollout: 'Start rollout',
     tryAgain: 'Try again',
 } as const;
