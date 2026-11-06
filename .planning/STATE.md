@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 84
 current_phase_name: Staged Patch Rollouts
 status: executing
-stopped_at: Phase 84 UI-SPEC approved
-last_updated: "2026-11-05T19:08:20.931Z"
-last_activity: 2026-11-05
-last_activity_desc: Phase 84 planned (22 plans, 7 waves)
-state_head: f6fc17e7d7b4458b60d76f61f508a166dd506c0c
+stopped_at: Completed 84-01-PLAN.md
+last_updated: "2026-11-06T14:00:02.815Z"
+last_activity: 2026-11-06
+last_activity_desc: Phase 84 execution started
+state_head: c37710f45448ff8ebde7bb852c9b0937bbb2d047
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 92
-  completed_plans: 70
+  completed_plans: 71
   percent: 14
 ---
 
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-12)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 87 — Partner and Reseller Channel
+**Current focus:** Phase 84 — Staged Patch Rollouts
 
 ## Current Phase
 
@@ -551,6 +551,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 87]: 87-12: the Team panel owns fetchPartnerTeam, so a viewer's portal never requests the team
 - [Phase 87]: 87-13: Accept invite network-failure card uses the 'Set your password' title with the red block and Try again; a 400 from confirm re-asks the status, else shows the server message verbatim
 - [Phase 87]: 87-14: a partner user's shell starts no customer request: loadAllData returns early, restricted Header, sidebar poll and bundle read skipped, floating assistants not mounted; /accept-invite renders before the MFA gate
+- [Phase 84]: 84-01: install_patches is a fourth automatic action limited to the patch_rollout dispatcher (OQ1, PTCH-06), enforced at decide time and at delivery
+- [Phase 84]: 84-01: rollout job document is inserted after gate.decide returns dispatching, not before, so refused or simulated decisions leave no orphan job; canary installs capped at 20 minus the hourly automatic count, 3 attempts per host
 
 ## Performance Metrics
 
@@ -776,6 +778,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 87 P12 | 26min | 3 tasks | 5 files |
 | Phase 87 P13 | 12min | 2 tasks | 2 files |
 | Phase 87 P14 | 35min | 3 tasks | 5 files |
+| Phase 84 P01 | 22 min | 3 tasks | 17 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -810,9 +813,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-05T17:35:24.385Z
-**Stopped at:** Phase 84 UI-SPEC approved
-**Resume file:** .planning/phases/84-staged-patch-rollouts/84-UI-SPEC.md
+**Last session:** 2026-11-06T14:00:02.581Z
+**Stopped at:** Completed 84-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -837,10 +840,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 84 (Staged Patch Rollouts) — READY TO EXECUTE
-Plan: 0 of 22
+Phase: 84 (Staged Patch Rollouts) — EXECUTING
+Plan: 2 of 22
 Status: Ready to execute
-Last activity: 2026-11-05 — Phase 84 planned: 22 plans in 7 waves, plan check passed on iteration 3
+Last activity: 2026-11-06 — Phase 84 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
 
 ## Deferred Items
