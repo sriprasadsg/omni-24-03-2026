@@ -34,6 +34,47 @@ class PasswordResetConfirm(BaseModel):
 # In-memory reset token store — replace with DB collection in production
 _reset_tokens: dict[str, dict] = {}
 
+# The platform tenant owns the SMTP server that serves every tenant. A Super
+# Admin saves mail config from Settings, which POSTs to
+# /api/tenants/${currentUser.tenantId}/email/config — and a Super Admin's
+# tenantId is `platform-admin`. So config lands on the platform tenant, not on
+# the tenant whose users need the mail. Resolving only the user's own tenant
+# left 8 of 9 tenants with no sender and skipped every send silently.
+PLATFORM_TENANT_ID = "platform-admin"
+
+
+async def _resolve_smtp_config(db, tenant_id):
+    """Resolve an SMTP config with a usable encrypted password, or None.
+
+    Order: the user's own `smtp_config` doc, then the user's tenant
+    `emailConfig`, then the platform tenant's `emailConfig`.
+
+    Two disjoint SMTP stores exist in this codebase. `smtp_config` is written
+    by /api/email/config, which no shipped UI calls. `tenants.<id>.emailConfig`
+    is written by /api/tenants/{id}/email/config — the only surface an admin
+    can reach from Settings. Both are consulted. Field names match what
+    email_service.send_email reads, so the sub-document is used as-is.
+    """
+    candidates = []
+    if tenant_id:
+        candidates.append(await db.smtp_config.find_one({"tenant_id": tenant_id}))
+        tenant = await db._db.tenants.find_one(
+            {"id": tenant_id}, {"emailConfig": 1, "_id": 0}
+        )
+        candidates.append((tenant or {}).get("emailConfig"))
+        if tenant_id != PLATFORM_TENANT_ID:
+            platform = await db._db.tenants.find_one(
+                {"id": PLATFORM_TENANT_ID}, {"emailConfig": 1, "_id": 0}
+            )
+            candidates.append((platform or {}).get("emailConfig"))
+    else:
+        candidates.append(await db.smtp_config.find_one({}))
+
+    for config in candidates:
+        if config and config.get("smtpPasswordEncrypted"):
+            return config
+    return None
+
 
 @router.post("/reset-password/request")
 @limiter.limit("3/minute")
