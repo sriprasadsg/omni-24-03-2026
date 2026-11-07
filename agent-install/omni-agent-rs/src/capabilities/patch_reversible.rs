@@ -122,7 +122,7 @@ pub fn code_revert_rows(rows: Vec<Value>) -> Vec<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::patch_installer::{deferred_result, install_script, parse_job, parse_wua_output, summarize, WUA_INSTALL, WUA_UNINSTALL};
+    use super::super::patch_installer::{apt_downgrade_args, revert_precheck, deferred_result, install_script, parse_job, parse_wua_output, summarize, WUA_INSTALL, WUA_UNINSTALL};
     use super::*;
     use serde_json::json;
 
@@ -197,6 +197,28 @@ openssl-libs.x86_64   1:1.1.1k-5.el8_4        baseos\n";
         assert!(flag(json!({"parameters": {"patch_ids": ["openssl"], "require_reversible": true}})));
         assert!(!flag(json!({"payload": {"patch_ids": ["openssl"]}})));
         assert!(!flag(json!({"payload": {"patch_ids": ["openssl"], "require_reversible": "yes"}})));
+    }
+
+    #[test]
+    fn patch_reversible_apt_downgrade_argv_refuses_to_remove_other_packages() {
+        let args = apt_downgrade_args("libssl3", "3.0.2-0ubuntu1.10");
+        assert!(args.iter().any(|a| a == "--no-remove"), "{args:?}");
+        assert!(args.iter().any(|a| a == "--allow-downgrades"), "{args:?}");
+        let n = args.len();
+        assert_eq!((args[n - 2].as_str(), args[n - 1].as_str()), ("--", "libssl3=3.0.2-0ubuntu1.10"));
+        assert_eq!(args[0], "apt-get");
+        assert!(args.iter().all(|a| !a.contains(' ')), "no shell string: {args:?}");
+    }
+
+    #[test]
+    fn patch_reversible_a_package_that_is_gone_is_answered_not_applicable_and_never_reinstalled() {
+        let r = revert_precheck("libssl3", None, "3.0.2-0ubuntu1.10").expect("answered without a downgrade");
+        assert_eq!((r["status"].as_str(), r["code"].as_str(), r["patch_id"].as_str()), (Some("failed"), Some("not_applicable"), Some("libssl3")));
+        assert!(r["message"].as_str().unwrap().contains("The package is not installed any more, so nothing was reverted"));
+        // installed at some other version: the downgrade runs; installed at the recorded one: already reverted
+        assert!(revert_precheck("libssl3", Some("3.0.2-0ubuntu1.12"), "3.0.2-0ubuntu1.10").is_none());
+        let done = revert_precheck("libssl3", Some("3.0.2-0ubuntu1.10"), "3.0.2-0ubuntu1.10").unwrap();
+        assert_eq!((done["status"].as_str(), done["code"].as_str()), (Some("success"), Some("reverted")));
     }
 
     #[test]

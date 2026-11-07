@@ -82,6 +82,21 @@ fn safe_id(v: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
+/// The apt argv that puts `pkg` back to `previous`. Never a shell string; the `--` keeps the target from
+/// being read as an option.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) fn apt_downgrade_args(pkg: &str, previous: &str) -> Vec<String> {
+    ["apt-get", "install", "-y", "-q", "--allow-downgrades", "-o", "Dpkg::Options::=--force-confdef",
+     "-o", "Dpkg::Options::=--force-confold", "--"].iter().map(|s| s.to_string())
+        .chain(std::iter::once(format!("{pkg}={previous}"))).collect()
+}
+
+/// The answer a revert can give without touching the package manager, or None when the downgrade should run.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) fn revert_precheck(_pkg: &str, _installed: Option<&str>, _recorded: &str) -> Option<Value> {
+    None
+}
+
 pub fn patch_result(patch_id: &str, status: &str, message: &str, reboot: bool) -> Value {
     json!({"patch_id": patch_id, "status": status, "message": message,
            "reboot_required": reboot, "timestamp": chrono::Utc::now().to_rfc3339()})
@@ -424,12 +439,11 @@ mod linux {
 
     /// Downgrades `pkg` to `previous`; Ok only when the package manager confirms that version is installed.
     async fn downgrade(mgr: &str, pkg: &str, previous: &str) -> Result<(), String> {
-        let target = if mgr == "apt-get" { format!("{pkg}={previous}") } else { format!("{pkg}-{previous}") };
         let cmd = if mgr == "apt-get" {
-            privileged(&["apt-get", "install", "-y", "-q", "--allow-downgrades", "-o", "Dpkg::Options::=--force-confdef",
-                         "-o", "Dpkg::Options::=--force-confold", "--", &target])
+            let args = apt_downgrade_args(pkg, previous);
+            privileged(&args.iter().map(String::as_str).collect::<Vec<_>>())
         } else {
-            privileged(&[mgr, "downgrade", "-y", "-q", &target])
+            privileged(&[mgr, "downgrade", "-y", "-q", &format!("{pkg}-{previous}")])
         };
         match output(cmd, LINUX_TIMEOUT).await {
             Ok(out) if out.status.success() && installed_version(mgr, pkg).await.as_deref() == Some(previous) => Ok(()),
