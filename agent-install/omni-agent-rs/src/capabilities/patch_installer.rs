@@ -447,6 +447,8 @@ mod linux {
                         if let Some(id) = &job.job_id {
                             state.record_install(id, "linux", chrono::Utc::now().timestamp(), pkg, &before);
                         }
+                        // On disk as soon as the package changed, so a stop mid-job still leaves the record (WR-14).
+                        patch_state::save(&mut state);
                         results.push(patch_result(pkg, "success", &format!("Upgraded {before} -> {after}"), reboot_required().await));
                     }
                     _ => results.push(patch_result(pkg, "skipped", &format!("Already at the newest available version ({before})"), false)),

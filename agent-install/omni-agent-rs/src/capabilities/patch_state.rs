@@ -18,9 +18,13 @@ const KEEP_SECONDS: i64 = 90 * 24 * 3600;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct JobEntry {
+    // A field a hand-edited or older file lacks must not discard every other job (WR-14).
+    #[serde(default)]
     pub at: i64,
+    #[serde(default)]
     pub os: String,
     /// patch id -> the version before this job (Linux), or `KB_MARK` (Windows)
+    #[serde(default)]
     pub changes: BTreeMap<String, String>,
 }
 
@@ -56,11 +60,16 @@ pub fn state_path() -> PathBuf {
 impl JobsState {
     /// Reads either format: the current one, or the 2.1.16 flat package -> version map (loaded as `legacy`).
     pub fn from_bytes(bytes: &[u8]) -> JobsState {
-        let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(bytes) else { return JobsState::default() };
+        Self::try_from_bytes(bytes).unwrap_or_default()
+    }
+
+    /// Like `from_bytes`, but None when the bytes are not a state file at all.
+    fn try_from_bytes(bytes: &[u8]) -> Option<JobsState> {
+        let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(bytes) else { return None };
         if matches!(map.get("legacy"), Some(Value::Object(_))) || matches!(map.get("jobs"), Some(Value::Object(_))) {
-            return serde_json::from_value(Value::Object(map)).unwrap_or_default();
+            return serde_json::from_value(Value::Object(map)).ok();
         }
-        JobsState { legacy: map.into_iter().filter_map(|(k, v)| v.as_str().map(|v| (k, v.to_string()))).collect(), jobs: BTreeMap::new() }
+        Some(JobsState { legacy: map.into_iter().filter_map(|(k, v)| v.as_str().map(|v| (k, v.to_string()))).collect(), jobs: BTreeMap::new() })
     }
 
     /// Records that `job_id` changed `id`, which was at `before` (or `KB_MARK`). The first record of
@@ -113,16 +122,32 @@ impl JobsState {
     }
 }
 
+/// A non-empty file that does not parse is copied to `<path>.bad` (replacing an older copy) before the
+/// default is returned, so the next save cannot wipe the only record of what jobs changed (WR-14).
 pub fn load_from(path: &Path) -> JobsState {
-    std::fs::read(path).map(|b| JobsState::from_bytes(&b)).unwrap_or_default()
+    let Ok(bytes) = std::fs::read(path) else { return JobsState::default() };
+    if bytes.iter().all(u8::is_ascii_whitespace) {
+        return JobsState::default();
+    }
+    JobsState::try_from_bytes(&bytes).unwrap_or_else(|| {
+        let mut bad = path.as_os_str().to_owned();
+        bad.push(".bad");
+        match std::fs::write(&bad, &bytes) {
+            Ok(()) => log::warn!("{} could not be read; kept as {}", path.display(), Path::new(&bad).display()),
+            Err(e) => log::warn!("{} could not be read and could not be copied aside: {e}", path.display()),
+        }
+        JobsState::default()
+    })
 }
 
-/// Writes through a temporary file so a crash never leaves half a state file.
+/// Writes through a temporary file, flushed to disk before the rename, so a crash or power loss never
+/// leaves half a state file.
 pub fn save_to(path: &Path, state: &JobsState) -> bool {
+    use std::io::Write;
     let tmp = path.with_extension("json.tmp");
-    serde_json::to_vec_pretty(state).ok()
-        .map(|b| std::fs::write(&tmp, b).and_then(|_| std::fs::rename(&tmp, path)).is_ok())
-        .unwrap_or(false)
+    let Ok(bytes) = serde_json::to_vec_pretty(state) else { return false };
+    let written = std::fs::File::create(&tmp).and_then(|mut f| f.write_all(&bytes).and_then(|_| f.sync_all()));
+    written.and_then(|_| std::fs::rename(&tmp, path)).is_ok()
 }
 
 pub fn load() -> JobsState {
