@@ -1,1 +1,1 @@
-No external API integration: only the platform's own internal routes and the host's local package managers and Windows Update; no third-party service or SDK.
+No external API integration: the gap round changes the platform's own rollout controller, routes and agent; no third-party API is called.
