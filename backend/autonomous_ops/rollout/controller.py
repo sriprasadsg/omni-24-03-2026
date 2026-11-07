@@ -6,7 +6,10 @@ never lost), halts a rollout whose approval line was denied or went unanswered, 
 rollout one step: waits for a maintenance window, sends approved rows and the canary installs, raises the
 approval lines, and later soaks and checks. It never writes an agent queue and never calls
 ``gate.decide`` while a stop is on or the tenant is Off (a stopped ``decide`` records a refused row on
-every call). Plan 84-22 puts the locked background loop around ``tick``.
+every call). A running rollout is marked ``stoppedSince`` while a stop is on, so a card that ran out meanwhile is not
+read as a denial; settle gives the computers of cancelled or stop-expired rows back to waiting, and the first pass after
+the stop clears clears the mark and decides for them again as a new attempt. A simulation rollout (``shadow``) records
+what it would do and is never sent, restarted or reverted. Plan 84-22 puts the locked background loop around ``tick``.
 
 Raw Mongo handle with an explicit tenantId; ``scope.tenant_scope`` only wraps each tenant's pass.
 """
@@ -37,6 +40,16 @@ async def _may_decide(db, tenant_id: str, platform_stopped: bool) -> bool:
         return False
     tenant = await settings.load(db, tenant_id)
     return not settings.stop_active(tenant.stop) and settings.effective_level(tenant) != "off"
+
+
+async def _stopped_since(db, tenant_id: str, platform_since: Optional[datetime], now: datetime) -> Optional[datetime]:
+    """When the stop in force for the tenant began (the earlier of the platform and tenant stops), else None. A stop
+    document with no readable press time counts from ``now``."""
+    found = [platform_since] if platform_since is not None else []
+    stop = (await settings.load(db, tenant_id)).stop
+    if settings.stop_active(stop):
+        found.append(store.parse_time(stop.get("pressedAt")) or now)
+    return min(found) if found else None
 
 
 async def _shadow_on(db, tenant_id: str) -> bool:
@@ -237,13 +250,17 @@ async def _step(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, coun
 
 
 async def _halt_on_lines(db, tenant_id: str, rollout: Dict[str, Any], now: datetime) -> bool:
-    """A person denied the current ring's line, or nobody answered in 24 hours: stop the rollout at the ring."""
+    """A person denied the current ring's line, or nobody answered in 24 hours: stop the rollout at the ring. A card
+    that ran out while a stop was on is not an answer (``stoppedSince``), and neither is one the settle pass already
+    gave back to its computer after such a stop; both are offered again instead."""
     index = int(rollout.get("currentRing") or 0)
-    closed = await lines.closed_line(db, tenant_id, rollout["id"], index)
+    docs = await store.host_docs(db, tenant_id, rollout["id"])
+    handled = [a for h in docs for a in h.get("lineSettled") or []]
+    closed = await lines.closed_line(db, tenant_id, rollout["id"], index, since=rollout.get("stoppedSince"),
+                                     handled=handled)
     if closed is None:
         return False
-    named = next((h.get("hostname") for h in await store.host_docs(db, tenant_id, rollout["id"])
-                  if h["agentId"] == closed["host"]), None)
+    named = next((h.get("hostname") for h in docs if h["agentId"] == closed["host"]), None)
     return await lifecycle.halt(db, tenant_id, rollout, index, code=closed["code"], host=closed["host"], now=now,
                                 facts={"host": named or closed["host"] or ""})
 
@@ -274,11 +291,15 @@ async def _tail(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, deci
         counts["closed"] = counts.get("closed", 0) + 1
 
 
-async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, counts: Dict[str, int]) -> None:
-    decide = await _may_decide(db, tenant_id, platform_stopped)
+async def _tenant(db, tenant_id: str, now: datetime, platform_since: Optional[datetime],
+                  counts: Dict[str, int]) -> None:
+    decide = await _may_decide(db, tenant_id, platform_since is not None)
+    stopped_since = await _stopped_since(db, tenant_id, platform_since, now)
     shadow_on = await _shadow_on(db, tenant_id)
     with scope.tenant_scope(tenant_id):
         for rollout in await store.active_rollouts(db, tenant_id, ACTIVE_STATUSES):
+            if stopped_since is not None and rollout.get("status") == "running" and not rollout.get("stoppedSince"):
+                await store.set_rollout(db, tenant_id, rollout, {"stoppedSince": stopped_since})     # GATE-06: frozen from now on
             await settle.settle(db, tenant_id, rollout, now)
             late = await reboots.settle(db, tenant_id, rollout, now)
             if rollout.get("status") == "running" and late is not None:
@@ -286,6 +307,8 @@ async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, cou
                                      host=late["agentId"], now=now, facts={"host": late.get("hostname") or late["agentId"]})
             if rollout.get("status") == "running":
                 await _halt_on_lines(db, tenant_id, rollout, now)       # needs no decision, so it works under a stop
+            if stopped_since is None and rollout.get("stoppedSince"):
+                await store.set_rollout(db, tenant_id, rollout, {"stoppedSince": None})    # the stop is over: decide again
             if rollout.get("status") == "halted" and not rollout.get("shadow"):      # PROH-84-08: a simulation reverts nothing
                 await revert.tick(db, tenant_id, rollout, now, may_decide=decide)    # undo is exempt from every stop
             if decide and rollout.get("status") == "halted" and not rollout.get("shadow"):      # only the Revert restart line
@@ -310,11 +333,14 @@ async def tick(db, *, now: Optional[datetime] = None, lost: Optional[Callable[[]
     ``tenants``. ``lost`` (the lock reports it was lost) is polled between tenants."""
     now = _now(now)
     counts: Dict[str, int] = {"tenants": 0}
+    platform_since: Optional[datetime] = None
     try:
-        platform_stopped = settings.stop_active(await settings.platform_stop(db))
+        platform = await settings.platform_stop(db)
+        if settings.stop_active(platform):
+            platform_since = store.parse_time((platform or {}).get("pressedAt")) or now
     except Exception as exc:
         logger.error("autonomous_ops: rollout tick could not read the platform stop, only settling: %s", exc)
-        platform_stopped = True
+        platform_since = now
     found = set(await store.tenants_with_rollouts(db, ACTIVE_STATUSES)) | set(await store.tenants_with_tails(db))
     tenants: List[str] = sorted(t for t in found if t != PLATFORM_TENANT_ID)
     for tenant_id in tenants:
@@ -323,7 +349,7 @@ async def tick(db, *, now: Optional[datetime] = None, lost: Optional[Callable[[]
             break
         counts["tenants"] += 1
         try:
-            await _tenant(db, tenant_id, now, platform_stopped, counts)
+            await _tenant(db, tenant_id, now, platform_since, counts)
         except Exception as exc:       # one tenant's fault never stops the next tenant's rollout
             logger.error("autonomous_ops: rollout tick failed for tenant %s: %s", tenant_id, exc)
     return counts

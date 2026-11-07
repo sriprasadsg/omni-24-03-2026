@@ -332,7 +332,8 @@ async def test_an_approved_line_a_stop_cancelled_is_raised_again_as_a_new_approv
     assert {r["reason"]["inputs"]["attempt"] for r in fresh} == {2}
 
 
-async def test_a_line_that_expired_during_a_long_stop_is_raised_again_and_never_halts_the_rollout(mongo_db):
+@pytest.mark.parametrize("scope", ["tenant", "platform"])
+async def test_a_line_that_expired_during_a_long_stop_is_raised_again_and_never_halts_the_rollout(mongo_db, scope):
     db = mongo_db
     await world(db)
     rollout_id = await begin(db)
@@ -340,7 +341,7 @@ async def test_a_line_that_expired_during_a_long_stop_is_raised_again_and_never_
     await controller.tick(db, now=later)
     assert len(await rows(db, state="awaiting_approval", **{"reason.inputs.ring": 1})) == 2
 
-    await press(db, "tenant")
+    await press(db, scope)
     await online_at(db, later + timedelta(hours=1))
     await controller.tick(db, now=later + timedelta(hours=1))                    # the stop is noticed
     assert await approvals.expire_due(db, now=later + timedelta(hours=30), tenant_id=T) == 2      # the 24 h ran out
@@ -352,7 +353,7 @@ async def test_a_line_that_expired_during_a_long_stop_is_raised_again_and_never_
     assert await db.autonomy_actions.count_documents({}) == before
     assert {(await host_doc(db, a))["state"] for a in ("b1", "b2")} == {"waiting"}      # never read as installed
 
-    await clear(db, "tenant")
+    await clear(db, scope)
     after = later + timedelta(hours=48)                                          # inside the daily window again
     for minutes in (0, 5):
         await online_at(db, after + timedelta(minutes=minutes))

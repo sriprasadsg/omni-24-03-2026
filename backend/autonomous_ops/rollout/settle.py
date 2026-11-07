@@ -143,8 +143,10 @@ async def _settle_auto(db, tenant_id: str, host: Dict[str, Any], now: datetime, 
     prog.inflight = True
 
 
-async def _settle_lines(db, tenant_id: str, host: Dict[str, Any], now: datetime, prog: Progress) -> None:
-    """The host's approval rows of the install line, each by the state of its own ledger row."""
+async def _settle_lines(db, tenant_id: str, host: Dict[str, Any], now: datetime, prog: Progress,
+                        stopped_since: Optional[datetime] = None) -> None:
+    """The host's approval rows of the install line, each by the state of its own ledger row. A row that expired
+    while a stop was on (``stopped_since``) was never a "no": the computer is offered the install again."""
     done = set(host.get("lineSettled") or [])
     for action_id in (host.get("lineActionIds") or {}).get("install") or []:
         if action_id in done:
@@ -190,14 +192,23 @@ async def _settle_lines(db, tenant_id: str, host: Dict[str, Any], now: datetime,
         elif state == "refused":
             prog.failed = prog.failed or str(row.get("reasonText") or "The step was refused.")
             prog.settled_lines.append(action_id)
+        elif state == "expired" and _expired_in_stop(row, stopped_since):
+            prog.reraise += ids              # GATE-06: the clock ran during the stop; ask again, as a new card
+            prog.settled_lines.append(action_id)
         # denied and expired rows are the controller's to act on: it halts the rollout at the ring
+
+
+def _expired_in_stop(row: Dict[str, Any], stopped_since: Optional[datetime]) -> bool:
+    """True when the expired row ran out at or after the moment the stop began."""
+    finished = store.parse_time(row.get("finishedAt"))
+    return stopped_since is not None and finished is not None and finished >= stopped_since
 
 
 async def _settle_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any], now: datetime) -> str:
     prog = Progress()
     if host.get("state") == "installing" and host.get("installActionId") and not host.get("autoSettled"):
         await _settle_auto(db, tenant_id, host, now, prog)
-    await _settle_lines(db, tenant_id, host, now, prog)
+    await _settle_lines(db, tenant_id, host, now, prog, store.parse_time(rollout.get("stoppedSince")))
     after = dict(host)
     after["deferredIds"] = list(dict.fromkeys(list(host.get("deferredIds") or []) + prog.deferred))
     after["linePatchIds"] = [p for p in host.get("linePatchIds") or [] if p not in prog.reraise]

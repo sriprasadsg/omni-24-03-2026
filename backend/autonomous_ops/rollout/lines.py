@@ -139,13 +139,21 @@ async def has_approved(db, tenant_id: str, rollout_id: str, ring: int) -> bool:
     return await raw(db).autonomy_actions.find_one(flt, {"_id": 1}) is not None
 
 
-async def closed_line(db, tenant_id: str, rollout_id: str, ring: int) -> Optional[Dict[str, Any]]:
+async def closed_line(db, tenant_id: str, rollout_id: str, ring: int, *, since: Any = None,
+                      handled: Iterable[str] = ()) -> Optional[Dict[str, Any]]:
     """The first approval row of the ring that a person denied or that expired unanswered, as
     ``{"code": install_denied | restart_denied | approval_expired, "host": agent id}``, else None. A row the
-    rollout itself closed (reasonCode ``rollout_closed``) is not a decision."""
-    flt = {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
-           "reason.inputs.ring": ring, "reason.ruleId": {"$in": ["rollout:install", "rollout:reboot", "rollout:revert_reboot"]},
-           "state": {"$in": ["denied", "expired"]}, "reasonCode": {"$ne": "rollout_closed"}}
+    rollout itself closed (reasonCode ``rollout_closed``) is not a decision. Nor is a row that ran out while a stop was
+    on (``since`` is when the stop began: nobody could approve then) or one the controller already offered again
+    after such a stop (``handled`` holds those row ids)."""
+    flt: Dict[str, Any] = {
+        "tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
+        "reason.inputs.ring": ring, "reason.ruleId": {"$in": ["rollout:install", "rollout:reboot", "rollout:revert_reboot"]},
+        "state": {"$in": ["denied", "expired"]}, "reasonCode": {"$ne": "rollout_closed"}}
+    if handled:
+        flt["id"] = {"$nin": list(handled)}
+    if store.parse_time(since) is not None:
+        flt["$nor"] = [{"state": "expired", "finishedAt": {"$gte": store.parse_time(since)}}]
     found = raw(db).autonomy_actions.find(flt, {"_id": 0}).sort([("finishedAt", 1), ("id", 1)]).limit(1)
     for row in [r async for r in found]:
         line = (row.get("reason") or {}).get("inputs", {}).get("line")
