@@ -495,7 +495,7 @@ Plans:
   4. A rollout installs or advances only inside the maintenance window recorded in Change Management; outside the window nothing is installed.
   5. Installs run on their own only in the canary ring and only for patch classes marked reversible; every other install and every reboot waits for one approval per stage. The platform's own host is never patched by a rollout, a host belongs to at most one active rollout, and patch instructions expire.
 
-**Plans**: 23/29 plans executed in 7 waves
+**Plans**: 24/29 plans executed in 7 waves
 
 Plans:
 **Wave 1**
@@ -536,7 +536,7 @@ Plans:
 
 **Gap closure (verification gaps_found 3/5):** 7 plans in 4 waves
 - [x] 84-23-PLAN.md — Held or Suggest-level canary rows become Install lines; refusals retry; breaker ignores not-delivered (CR-01, CR-02, WR-01)
-- [ ] 84-24-PLAN.md — Manual job rollback refuses rollout jobs with 409 (WR-10)
+- [x] 84-24-PLAN.md — Manual job rollback refuses rollout jobs with 409 (WR-10)
 - [ ] 84-25-PLAN.md — Agent: a not-installed or masked service reads `absent`; the gate drops it only if it was absent before the change, and fails a service the change removed (CR-03) *(after 84-27)*
 - [ ] 84-26-PLAN.md — Agent: apt downgrade `--no-remove`, no reinstall on revert, strict require_reversible, durable job records (CR-04, WR-13..15)
 - [ ] 84-27-PLAN.md — In-flight work has a bounded end; denied hosts not shown installed; stuck dispatching rows and jobs recovered (WR-02..04, WR-06) *(after 84-23)*
@@ -639,7 +639,7 @@ Plans:
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
 | 83. Autonomous Security Response | 20/20 | In Progress | - |
-| 84. Staged Patch Rollouts | 23/29 | In Progress | - |
+| 84. Staged Patch Rollouts | 24/29 | In Progress | - |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | In Progress | - |
