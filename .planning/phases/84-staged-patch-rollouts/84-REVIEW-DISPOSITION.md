@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: WR-25
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A revert still re-installs a removed package that left its config behind (reopens WR-15)"
   - id: WR-26
     severity: warning
@@ -33,7 +33,7 @@ findings:
     title: "A controller pass that loaded the rollout before the Cancel stamp can still decide and send"
   - id: WR-32
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The 409 for a manual rollback tells the user to \"Revert it from Rollouts\", which only works for a halted rollout"
   - id: IN-24
     severity: info
@@ -251,23 +251,23 @@ findings:
     severity: info
     disposition: deferred
     title: "[frontend] Minor robustness points"
-open: 5
+open: 3
 total: 62
-recorded: 2026-11-07T13:39:46.048Z
+recorded: 2026-11-07T13:40:02.359Z
 ---
 
 # Phase 84: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-25 | warning | open | - |
+| WR-25 | warning | fixed | 84-REVIEW-FIX.md |
 | WR-26 | warning | fixed | 84-REVIEW-FIX.md |
 | WR-27 | warning | fixed | 84-REVIEW-FIX.md |
 | WR-28 | warning | fixed | 84-REVIEW-FIX.md |
 | WR-29 | warning | fixed | 84-REVIEW-FIX.md |
 | WR-30 | warning | fixed | 84-REVIEW-FIX.md |
 | WR-31 | warning | fixed | 84-REVIEW-FIX.md |
-| WR-32 | warning | open | - |
+| WR-32 | warning | fixed | 84-REVIEW-FIX.md |
 | IN-24 | info | open | - |
 | IN-25 | info | open | - |
 | IN-26 | info | open | - |
