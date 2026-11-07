@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 
 from .. import agent_support, ledger, messages
 from ..scope import raw
-from . import DISPATCHER_NAME, NOT_REACHED_GRACE, messages as rm, store
+from . import DISPATCHER_NAME, NOT_REACHED_GRACE, inflight, messages as rm, store
 from .messages import plural
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ async def _close_open_rows(db, tenant_id: str, rollout_id: str) -> int:
     return closed
 
 
-async def _end_unfetched(db, tenant_id: str, rollout_id: str, ring: int) -> None:
+async def _end_unfetched(db, tenant_id: str, rollout_id: str, ring: int, now: datetime) -> None:
     """A dispatching row of the ring whose instruction is still pending is failed ``rollout_halted``: delivery
     then refuses the instruction (its row is not dispatchable), and the computer is marked not reached."""
     found = raw(db).autonomy_actions.find(
@@ -128,6 +128,8 @@ async def _end_unfetched(db, tenant_id: str, rollout_id: str, ring: int) -> None
         done = await ledger.transition(db, tenant_id, row["id"], ("dispatching",), "failed", reasonCode="rollout_halted",
                                        reasonText=messages.REASON_TEXT["rollout_halted"])
         if done:
+            await inflight.close_job(db, tenant_id, (row.get("params") or {}).get("job_id"), now,
+                                     messages.REASON_TEXT["rollout_halted"])
             await store.set_host(db, tenant_id, rollout_id, (row.get("targets") or [None])[0],
                                  {"state": "not_reached", "waitReason": None})
 
@@ -150,7 +152,7 @@ async def halt(db, tenant_id: str, rollout: Dict[str, Any], ring: int, *, code: 
     rollout.update({"status": "halted", "haltedAt": now, "haltReason": reason})
     rollout["rings"][ring]["state"] = "halted"
     await _close_open_rows(db, tenant_id, rollout["id"])
-    await _end_unfetched(db, tenant_id, rollout["id"], ring)
+    await _end_unfetched(db, tenant_id, rollout["id"], ring, now)
     from . import revert           # revert imports lines, which import modules that import this one
     try:
         await revert.start_ring_revert(db, tenant_id, rollout, ring, now)

@@ -27,7 +27,7 @@ import agent_capabilities
 from .. import agent_support, approvals, gate, ledger, messages
 from ..scope import raw
 from . import (CAPABILITY, COMMAND_INSTALL, COMMAND_UNDO, DISPATCHER_NAME, TOKEN_REBOOT, TOKEN_REVERSIBLE,
-               TOKEN_REVERT_BY_JOB, reboots, store, windows as windows_mod)
+               TOKEN_REVERT_BY_JOB, inflight, reboots, store, windows as windows_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +118,15 @@ async def _end(db, row: Dict[str, Any], to_state: str, code: str) -> None:
                             reasonText=messages.REASON_TEXT.get(code, "Nothing was dispatched."))
 
 
+async def _abandon(db, row: Dict[str, Any], now: datetime, code: str, to_state: str = "failed") -> None:
+    """End a claimed row that was never sent, and the patch job made for it, so the computer does not read busy."""
+    await _end(db, row, to_state, code)
+    params = row.get("params") or {}
+    if row.get("command") == COMMAND_INSTALL:
+        await inflight.close_job(db, row["tenantId"], params.get("job_id"), now,
+                                 messages.REASON_TEXT.get(code, messages.REASON_TEXT["rollout_not_delivered"]))
+
+
 async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
                tenant_windows: Optional[windows_mod.TenantWindows] = None) -> Dict[str, Any]:
     """Send one approved row if the window is open and its computer can take it. Returns
@@ -140,10 +149,15 @@ async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
     if claimed is None:
         return {"status": "deferred", "reason": "already_sent", "windowOpensAt": None}     # a click and a tick met
     params = row.get("params") or {}
-    if row.get("command") == COMMAND_INSTALL and params.get("job_id"):
-        await ensure_job(db, tenant_id, rollout_id, agent_id, params.get("patch_ids") or [], params["job_id"], now)
-    result = await gate.execute(db, tenant_id, row["id"], command=row.get("command"), agent_id=agent_id,
-                                params=params, kind="action", expires_at=occurrence[1])
+    try:
+        if row.get("command") == COMMAND_INSTALL and params.get("job_id"):
+            await ensure_job(db, tenant_id, rollout_id, agent_id, params.get("patch_ids") or [], params["job_id"], now)
+        result = await gate.execute(db, tenant_id, row["id"], command=row.get("command"), agent_id=agent_id,
+                                    params=params, kind="action", expires_at=occurrence[1])
+    except Exception as exc:        # WR-06: a claimed row must end, never stay dispatching with no instruction
+        logger.error("autonomous_ops: rollout row %s could not be sent: %s", row.get("id"), exc)
+        await _abandon(db, row, now, "rollout_not_delivered")
+        return {"status": "refused", "reason": "dispatch_failed"}
     if result.get("status") == "queued":
         if row.get("command") == COMMAND_INSTALL:
             await store.set_host(db, tenant_id, rollout_id, agent_id, {"state": "installing", "waitReason": None})
@@ -158,9 +172,9 @@ async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
             await reboots.record_baseline(db, tenant_id, {"rolloutId": rollout_id, "agentId": agent_id}, None, now)
         return result
     if result.get("reason") == "stopped":
-        await _end(db, row, "cancelled_by_stop", "platform_stop")
+        await _abandon(db, row, now, "platform_stop", "cancelled_by_stop")
     else:
-        await _end(db, row, "failed", "rollout_not_delivered")
+        await _abandon(db, row, now, "rollout_not_delivered")
     return {"status": "refused", "reason": result.get("reason") or "dispatch_failed"}
 
 

@@ -12,7 +12,7 @@ revert (undo) end the work the same way instead of waiting for ever:
 * ``pending``: anything else; keep waiting.
 
 A row left ``dispatching`` with no instruction for ``DISPATCH_CLAIM_BOUND`` was claimed by a process that died or raised
-before it wrote the instruction; ``stuck_since`` says so. ``close_job`` ends a patch job nobody will answer, so the
+before it wrote the instruction; ``settle.recover_unsent`` ends it. ``close_job`` ends a patch job nobody will answer, so the
 computer does not read busy for ever (``start._busy_agents`` and the dispatcher's busy check skip jobs that are not
 In Progress).
 
@@ -80,12 +80,6 @@ def failure_words(task: Optional[Dict[str, Any]], fallback: str) -> str:
         if isinstance(value, str) and value.strip():
             return value.strip()[:500]
     return fallback
-
-
-def stuck_since(row: Dict[str, Any], now: datetime) -> bool:
-    """True when a ``dispatching`` row was claimed more than ``DISPATCH_CLAIM_BOUND`` ago."""
-    since = store.parse_time(row.get("updatedAt")) or store.parse_time(row.get("createdAt"))
-    return since is not None and since + DISPATCH_CLAIM_BOUND <= store.aware(now)
 
 
 async def close_job(db, tenant_id: str, job_id: Optional[str], now: datetime, reason: str) -> bool:

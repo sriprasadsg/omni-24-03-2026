@@ -23,7 +23,7 @@ import agent_capabilities
 
 from .. import RATE_LIMIT_PER_WINDOW, RATE_LIMIT_WINDOW, agent_support, gate, ledger, messages
 from ..scope import raw
-from . import (CAPABILITY, COMMAND_INSTALL, DISPATCHER_NAME, MAX_ATTEMPTS, TOKEN_REVERSIBLE, lines,
+from . import (CAPABILITY, COMMAND_INSTALL, DISPATCHER_NAME, MAX_ATTEMPTS, TOKEN_REVERSIBLE, inflight, lines,
                messages as rm, needs_restart_by_name, store)
 
 logger = logging.getLogger(__name__)
@@ -98,9 +98,10 @@ def split_canary(host: Dict[str, Any], reversible: bool) -> Dict[str, List[str]]
 
 
 async def _fail_undelivered(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any], action_id: str,
-                            attempt: int) -> None:
+                            attempt: int, job_id: Optional[str], now: datetime) -> None:
     await ledger.transition(db, tenant_id, action_id, ("dispatching",), "failed", reasonCode="rollout_not_delivered",
                             reasonText=messages.REASON_TEXT["rollout_not_delivered"])
+    await inflight.close_job(db, tenant_id, job_id, now, messages.REASON_TEXT["rollout_not_delivered"])
     await store.set_host(db, tenant_id, rollout["id"], host["agentId"], retry_fields(host, attempt))
 
 
@@ -216,12 +217,16 @@ async def _send(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any
     job = new_patch_job(job_id, tenant_id, patch_ids, [host["agentId"]], [host["agentId"]], "Autonomous Ops",
                         "Rollout", None, now.isoformat(), "In Progress")
     job["rolloutId"] = rollout["id"]
-    await raw(db).patch_deployment_jobs.insert_one(job)
     params = {"patch_ids": patch_ids, "job_id": job_id, "require_reversible": True}
-    sent = await gate.execute(db, tenant_id, action_id, command=COMMAND_INSTALL, agent_id=host["agentId"],
-                              params=params, kind="action", expires_at=window_close)
+    try:
+        await raw(db).patch_deployment_jobs.insert_one(job)
+        sent = await gate.execute(db, tenant_id, action_id, command=COMMAND_INSTALL, agent_id=host["agentId"],
+                                  params=params, kind="action", expires_at=window_close)
+    except Exception as exc:          # WR-06: the claimed row must end, and the computer is tried again
+        logger.error("autonomous_ops: rollout %s could not send the install %s: %s", rollout["id"], action_id, exc)
+        sent = {"status": "refused"}
     if sent.get("status") != "queued":
-        await _fail_undelivered(db, tenant_id, rollout, host, action_id, attempt)
+        await _fail_undelivered(db, tenant_id, rollout, host, action_id, attempt, job_id, now)
         counts["skipped"] += 1
         return
     await store.set_host(db, tenant_id, rollout["id"], host["agentId"], {

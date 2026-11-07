@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from .. import ledger, messages
 from ..scope import raw
-from . import MAX_ATTEMPTS, inflight, messages as rm, store
+from . import COMMAND_INSTALL, DISPATCHER_NAME, MAX_ATTEMPTS, inflight, messages as rm, store
 from .installs import deferred_pending, retry_fields, unresolved
 
 logger = logging.getLogger(__name__)
@@ -279,11 +279,55 @@ async def _settle_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
     return str(fields.get("state") or host.get("state"))
 
 
+async def _has_instruction(db, tenant_id: str, ids: List[Optional[str]]) -> bool:
+    for instruction_id in ids:
+        if await inflight.load_instruction(db, tenant_id, instruction_id) is not None:
+            return True
+    return False
+
+
+async def recover_unsent(db, tenant_id: str, rollout: Dict[str, Any], now: datetime) -> int:
+    """WR-06: an install row claimed for dispatch (``dispatching``) that still has no instruction after
+    ``DISPATCH_CLAIM_BOUND`` was left by a process that died or raised before it wrote one. It ends failed
+    ``rollout_not_delivered``, its job is closed and the computer is tried again (an approval row asks again, as a
+    new card, through the normal settle pass). Returns how many rows were recovered."""
+    cutoff = store.aware(now) - inflight.DISPATCH_CLAIM_BOUND
+    found = raw(db).autonomy_actions.find(
+        {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout["id"],
+         "state": "dispatching", "command": COMMAND_INSTALL, "updatedAt": {"$lte": cutoff}}, {"_id": 0})
+    hosts = {h["agentId"]: h for h in await store.host_docs(db, tenant_id, rollout["id"])}
+    recovered = 0
+    for row in [r async for r in found]:
+        host = hosts.get((row.get("targets") or [None])[0])
+        ids = list(row.get("instructionIds") or [])
+        if host is not None and host.get("installActionId") == row["id"]:
+            ids.append(host.get("installInstructionId"))
+        if await _has_instruction(db, tenant_id, ids):
+            continue
+        text = messages.REASON_TEXT["rollout_not_delivered"]
+        if await ledger.transition(db, tenant_id, row["id"], ("dispatching",), "failed",
+                                   reasonCode="rollout_not_delivered", reasonText=text) is None:
+            continue
+        recovered += 1
+        await inflight.close_job(db, tenant_id, (row.get("params") or {}).get("job_id"), now, text)
+        is_line = host is not None and row["id"] in ((host.get("lineActionIds") or {}).get("install") or [])
+        if host is not None and not is_line and host.get("installActionId") in (None, row["id"]) \
+                and host.get("state") in ("waiting", "installing"):
+            attempt = int(((row.get("reason") or {}).get("inputs") or {}).get("attempt") or 1)
+            await store.set_host(db, tenant_id, rollout["id"], host["agentId"],
+                                 retry_fields(host, max(attempt, int(host.get("attempt") or 0))))
+    return recovered
+
+
 async def settle(db, tenant_id: str, rollout: Dict[str, Any], now: datetime) -> Dict[str, int]:
     """Settle every computer of the rollout that has something in flight: installing, or waiting on an
     approval row. Returns counts by new state. A failure on one computer is logged and does not stop the
     others."""
     counts: Dict[str, int] = {}
+    try:
+        await recover_unsent(db, tenant_id, rollout, now)
+    except Exception as exc:
+        logger.error("autonomous_ops: rollout %s could not recover its unsent rows: %s", rollout["id"], exc)
     for host in await store.host_docs(db, tenant_id, rollout["id"]):
         if host.get("state") != "installing" and not (host.get("state") == "waiting" and host.get("lineActionIds")):
             continue

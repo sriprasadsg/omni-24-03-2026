@@ -21,7 +21,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import approvals, gate, ledger, protected
-from autonomous_ops.rollout import controller, dispatcher, lifecycle, lines, messages as rm, start, store
+from autonomous_ops.rollout import controller, lifecycle, lines, messages as rm, start, store
 from tests import test_patch_rollout_revert as rv
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_platform_stop
