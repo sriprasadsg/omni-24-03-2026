@@ -87,7 +87,7 @@ def test_service_state_is_the_last_of_thirteen_tokens():
 def test_the_service_state_heartbeat_shape():
     state = contract()["serviceState"]
     assert state["key"] == "service_state"
-    assert state["states"] == ["running", "stopped", "failed", "unknown"]
+    assert state["states"] == ["running", "stopped", "failed", "unknown", "absent"]
     example = state["example"]
     assert example["v"] == 1 and isinstance(example["at"], int)
     assert example["services"] == [{"name": "sshd", "state": "running"}, {"name": "nginx", "state": "stopped"}]

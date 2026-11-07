@@ -41,6 +41,9 @@ pub const MAX_STATE_NAME: usize = 128;
 /// After a restart the service is checked this many times, one second apart.
 pub const RESTART_POLLS: u32 = 10;
 
+/// The `sc` exit code for a service that does not exist.
+const SC_NO_SUCH_SERVICE: i32 = 1060;
+
 /// What one service looks like right now.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Health {
@@ -116,7 +119,15 @@ pub fn status_of(os: Os, name: &str) -> Health {
         Os::Linux => privileged::run_output("systemctl", &["show", "-p", "LoadState,ActiveState,SubState,Result,ExecMainStatus", name])
             .map_or(Health::Unknown, |out| classify_systemd(&out)),
         Os::Windows => {
-            let Ok(query) = privileged::run_output("sc", &["query", name]) else { return Health::Unknown };
+            let Ok(done) = privileged::run_status("sc", &["query", name]) else { return Health::Unknown };
+            // Error 1060 is "not an installed service"; the number is read, not the localised words.
+            if done.code == Some(SC_NO_SUCH_SERVICE) {
+                return Health::Absent;
+            }
+            if done.code != Some(0) {
+                return Health::Unknown;
+            }
+            let query = done.stdout;
             let first = classify_sc(&query, "");
             if !matches!(first, Health::Failed { .. }) {
                 return first;

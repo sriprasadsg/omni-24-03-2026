@@ -420,7 +420,7 @@ fn a_state_report_has_the_shape_of_the_contract_service_state_example() {
         assert!(states.contains(&service["state"].as_str().unwrap().to_string()));
     }
     // Every state the agent can produce is one the contract lists.
-    for health in [Health::Running, Health::Stopped, Health::Pending, Health::Unknown, Health::Failed { state: "failed".into(), exit_code: None }] {
+    for health in [Health::Running, Health::Stopped, Health::Pending, Health::Unknown, Health::Absent, Health::Failed { state: "failed".into(), exit_code: None }] {
         assert!(states.contains(&crate::capabilities::service_watch::state_from_health(&health).to_string()));
     }
 }

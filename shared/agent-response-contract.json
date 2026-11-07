@@ -227,7 +227,7 @@
   ],
   "serviceState": {
     "key": "service_state",
-    "states": ["running", "stopped", "failed", "unknown"],
+    "states": ["running", "stopped", "failed", "unknown", "absent"],
     "example": {
       "v": 1,
       "at": 1767000000,

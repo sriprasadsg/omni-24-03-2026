@@ -19,6 +19,8 @@ const SYSTEMD_NOT_FOUND: &str = "LoadState=not-found\nActiveState=inactive\nSubS
 const SYSTEMD_MASKED: &str = "LoadState=masked\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n";
 const SYSTEMD_LOADED_STOP: &str = "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n";
 const SYSTEMD_LOADED_FAILED: &str = "LoadState=loaded\nActiveState=failed\nSubState=failed\nResult=exit-code\nExecMainStatus=1\n";
+/// What `sc query` prints for a service that is not installed (it exits with 1060).
+const SC_MISSING: &str = "[SC] EnumQueryServicesStatus:OpenService FAILED 1060:\n\nThe specified service does not exist as an installed service.\n";
 const SYSTEMD_STARTING: &str = "Result=success\nExecMainStatus=0\nActiveState=activating\nSubState=start\n";
 
 /// `sc query nginx` for a service that stopped with a service-specific error.
@@ -103,6 +105,17 @@ fn an_absent_service_is_never_a_failure_and_is_reported_absent_in_the_state() {
     script(&[SYSTEMD_NOT_FOUND, SYSTEMD_ACTIVE]);
     let state = state_report_with(&names(&["nginx", "sshd"]), 7, &|name| status_of(Os::Linux, name));
     assert_eq!(state["services"], json!([{"name": "nginx", "state": "absent"}, {"name": "sshd", "state": "running"}]));
+}
+
+#[test]
+fn windows_error_1060_is_absent_and_any_other_sc_failure_is_unknown() {
+    with_recorder(|r| { r.script.clear(); r.calls.clear(); r.fail_exit(1060, SC_MISSING); });
+    assert_eq!(status_of(Os::Windows, "nginx"), Health::Absent);
+    assert_eq!(calls(), vec!["sc query nginx"]);
+    with_recorder(|r| { r.script.clear(); r.calls.clear(); r.fail_exit(5, "[SC] OpenService FAILED 5:\n\nAccess is denied.\n"); });
+    assert_eq!(status_of(Os::Windows, "nginx"), Health::Unknown);
+    with_recorder(|r| { r.script.clear(); r.calls.clear(); r.fail_spawn(2); });
+    assert_eq!(status_of(Os::Windows, "nginx"), Health::Unknown);
 }
 
 #[test]
