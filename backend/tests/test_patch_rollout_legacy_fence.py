@@ -127,3 +127,22 @@ async def test_a_rollout_revert_job_is_refused_with_409_and_queues_nothing(mongo
     assert caught.value.status_code == 409 and caught.value.detail == ROLLOUT_JOB_DETAIL
     assert await mongo_db.agent_instructions.count_documents({}) == 0
     assert await mongo_db.patch_deployment_jobs.count_documents({}) == 1
+
+
+async def test_an_ordinary_job_still_rolls_back(mongo_db, monkeypatch):
+    """Manual patching is unchanged: a finished job with no rolloutId queues its rollback_patches instruction."""
+    job_id = await seed_job(mongo_db)
+    out = await roll_back(mongo_db, monkeypatch, job_id)
+    assert out["success"] is True and out["job"]["rollbackOf"] == job_id
+    (instruction,) = [d async for d in mongo_db.agent_instructions.find({})]
+    assert instruction["instruction"] == "rollback_patches" and instruction["agent_id"] == "a1"
+    assert instruction["payload"]["patch_ids"] == ["KB5034441"]
+
+
+async def test_another_tenants_rollout_job_answers_with_the_existing_denial(mongo_db, monkeypatch):
+    """The tenant check stays first, so a caller from another tenant learns nothing about rolloutId."""
+    job_id = await seed_job(mongo_db, tenant="t2", rollout_id="ro-1")
+    with pytest.raises(HTTPException) as caught:
+        await roll_back(mongo_db, monkeypatch, job_id, user=operator(tenant="t1"))
+    assert caught.value.status_code == 404 and caught.value.detail == "Patch deployment job not found"
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
