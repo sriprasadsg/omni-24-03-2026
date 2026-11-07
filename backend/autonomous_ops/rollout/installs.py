@@ -23,7 +23,7 @@ import agent_capabilities
 
 from .. import RATE_LIMIT_PER_WINDOW, RATE_LIMIT_WINDOW, agent_support, gate, ledger, messages
 from ..scope import raw
-from . import (CAPABILITY, COMMAND_INSTALL, DISPATCHER_NAME, MAX_ATTEMPTS, TOKEN_REVERSIBLE, inflight, lines,
+from . import (CAPABILITY, COMMAND_INSTALL, DISPATCHER_NAME, MAX_ATTEMPTS, TOKEN_REVERSIBLE, inflight, lines, signals,
                messages as rm, needs_restart_by_name, store)
 
 logger = logging.getLogger(__name__)
@@ -218,6 +218,7 @@ async def _send(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any
                         "Rollout", None, now.isoformat(), "In Progress")
     job["rolloutId"] = rollout["id"]
     params = {"patch_ids": patch_ids, "job_id": job_id, "require_reversible": True}
+    baseline = await signals.read_service_baseline(db, tenant_id, host["agentId"])      # CR-03, KD-84-G2
     try:
         await raw(db).patch_deployment_jobs.insert_one(job)
         sent = await gate.execute(db, tenant_id, action_id, command=COMMAND_INSTALL, agent_id=host["agentId"],
@@ -232,4 +233,5 @@ async def _send(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any
     await store.set_host(db, tenant_id, rollout["id"], host["agentId"], {
         "state": "installing", "waitReason": None, "installActionId": action_id, "installJobId": job_id,
         "installInstructionId": sent["task_id"], "installDispatchedAt": now, "attempt": attempt, "autoSettled": False})
+    await signals.record_service_baseline(db, tenant_id, rollout["id"], host["agentId"], baseline)
     counts["sent"] += 1

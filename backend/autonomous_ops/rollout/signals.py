@@ -23,8 +23,9 @@ change it judges, so absence of a problem is never taken for success:
 ``host_signals`` also returns ``failed`` (any signal False), ``reported`` (the install result is known), the
 computer's ``state``, ``os`` and ``hostname``. Reads only.
 """
+import logging
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import agent_capabilities
 
@@ -32,6 +33,8 @@ from .. import agent_support, response_settings
 from ..scope import raw
 from . import INVENTORY_FRESH_AFTER, SERVICE_SETTLE, TOKEN_SERVICE_STATE, reboots, store
 from .start import pending_ids
+
+logger = logging.getLogger(__name__)
 
 AGENT_FIELDS = {"_id": 0, "id": 1, "status": 1, "lastSeen": 1, "meta.system_patching": 1, "meta.os_patches": 1,
                 "meta.response_state": 1, "meta.response_actions": 1, "meta.service_state": 1,
@@ -128,6 +131,46 @@ def read(agent: Optional[Dict[str, Any]], host: Dict[str, Any], watched: Optiona
     out["reported"] = install is not None
     out["failed"] = any(out[s] is False for s in ("install", "inventory", "heartbeat", "services"))
     return out
+
+
+def service_baseline(agent: Optional[Dict[str, Any]]) -> Optional[Tuple[List[str], List[str]]]:
+    """The computer's services as its last ``service_state`` block shows them: (present, absent) casefolded names,
+    present being any state but ``absent``. None when the block is missing or malformed."""
+    block = _meta(agent).get("service_state")
+    entries = block.get("services") if isinstance(block, dict) else None
+    if not isinstance(entries, list):
+        return None
+    present, absent = set(), set()
+    for entry in entries:
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str):
+            (absent if str(entry.get("state")).casefold() == "absent" else present).add(entry["name"].casefold())
+    return sorted(present), sorted(absent)
+
+
+async def read_service_baseline(db, tenant_id: str, agent_id: str) -> Optional[Tuple[List[str], List[str]]]:
+    """The baseline of the agent as it is now, read just before an install is sent. Any error is logged and reads
+    as no baseline (absent then reads as no data), so it can never stop the send."""
+    try:
+        return service_baseline(await raw(db).agents.find_one({"id": agent_id, "tenantId": tenant_id}, AGENT_FIELDS))
+    except Exception as exc:
+        logger.error("autonomous_ops: service baseline of %s could not be read: %s", agent_id, exc)
+        return None
+
+
+async def record_service_baseline(db, tenant_id: str, rollout_id: str, agent_id: str,
+                                  baseline: Optional[Tuple[List[str], List[str]]]) -> None:
+    """Add the baseline to the host's row once its install is queued. The names merge with what an earlier attempt
+    recorded (``$addToSet``, never ``$set``), so a later attempt cannot hide an earlier presence. A write error is
+    logged and the host then has the baseline it already had."""
+    if baseline is None:
+        return
+    try:
+        await store.hosts(db).update_one(
+            {"tenantId": tenant_id, "rolloutId": rollout_id, "agentId": agent_id},
+            {"$addToSet": {"servicesPresentBefore": {"$each": list(baseline[0])},
+                           "servicesAbsentBefore": {"$each": list(baseline[1])}}})
+    except Exception as exc:
+        logger.error("autonomous_ops: service baseline of %s could not be recorded: %s", agent_id, exc)
 
 
 async def host_signals(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any],

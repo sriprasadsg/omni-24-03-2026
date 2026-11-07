@@ -27,7 +27,7 @@ import agent_capabilities
 from .. import agent_support, approvals, gate, ledger, messages
 from ..scope import raw
 from . import (CAPABILITY, COMMAND_INSTALL, COMMAND_UNDO, DISPATCHER_NAME, TOKEN_REBOOT, TOKEN_REVERSIBLE,
-               TOKEN_REVERT_BY_JOB, inflight, reboots, store, windows as windows_mod)
+               TOKEN_REVERT_BY_JOB, inflight, reboots, signals, store, windows as windows_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +149,9 @@ async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
     if claimed is None:
         return {"status": "deferred", "reason": "already_sent", "windowOpensAt": None}     # a click and a tick met
     params = row.get("params") or {}
+    baseline = None
+    if row.get("command") == COMMAND_INSTALL:       # the services as they are before the change (CR-03, KD-84-G2)
+        baseline = await signals.read_service_baseline(db, tenant_id, agent_id)
     try:
         if row.get("command") == COMMAND_INSTALL and params.get("job_id"):
             await ensure_job(db, tenant_id, rollout_id, agent_id, params.get("patch_ids") or [], params["job_id"], now)
@@ -166,6 +169,7 @@ async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
             await store.hosts(db).update_one(
                 {"tenantId": tenant_id, "rolloutId": rollout_id, "agentId": agent_id, "installActionId": None},
                 {"$set": {"installJobId": params.get("job_id"), "installInstructionId": result.get("task_id")}})
+            await signals.record_service_baseline(db, tenant_id, rollout_id, agent_id, baseline)
         elif row.get("command") == reboots.COMMAND and inputs.get("line") == "revert_reboot":
             await reboots.record_revert_baseline(db, tenant_id, {"rolloutId": rollout_id, "agentId": agent_id}, None, now)
         elif row.get("command") == reboots.COMMAND:        # D-08: what the computer looked like before it restarted
