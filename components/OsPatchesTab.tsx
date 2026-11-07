@@ -22,9 +22,11 @@ interface Props {
     deployingAssetPatches: Set<string>;
     onRefresh: () => void;
     onApplyOsPatches: (agentId: string, patches: string[]) => void;
+    /** Opens the Start a rollout dialog on the Rollouts tab; the button shows only when given. */
+    onRollOut?: () => void;
 }
 
-export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deployingAssetPatches, onRefresh, onApplyOsPatches }: Props) {
+export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deployingAssetPatches, onRefresh, onApplyOsPatches, onRollOut }: Props) {
     return (
         <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex justify-between items-center">
@@ -38,10 +40,18 @@ export function OsPatchesTab({ osPatches, osPatchesMeta, osPatchesLoading, deplo
                         </p>
                     )}
                 </div>
-                <button onClick={onRefresh} disabled={osPatchesLoading}
-                    className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 rounded-lg hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-300">
-                    ↻ Refresh
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    {onRollOut && (
+                        <button type="button" onClick={onRollOut}
+                            className="inline-flex items-center justify-center min-h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Roll out in rings
+                        </button>
+                    )}
+                    <button onClick={onRefresh} disabled={osPatchesLoading}
+                        className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 rounded-lg hover:bg-primary-200 dark:bg-primary-900/50 dark:text-primary-300">
+                        ↻ Refresh
+                    </button>
+                </div>
             </div>
 
             {osPatchesLoading ? (

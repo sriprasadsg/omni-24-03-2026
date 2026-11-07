@@ -457,6 +457,7 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
                     deployingAssetPatches={deployingAssetPatches}
                     onRefresh={() => fetchOsPatches()}
                     onApplyOsPatches={handleApplyOsPatches}
+                    onRollOut={() => { setRolloutIntent({ tab: 'rollouts' }); setActiveTab('rollouts'); }}
                 />
             )}
 
