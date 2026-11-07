@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 84
 current_phase_name: Staged Patch Rollouts
 status: executing
-stopped_at: Completed 84-26-PLAN.md
-last_updated: "2026-11-07T06:32:40.425Z"
+stopped_at: Completed 84-27-PLAN.md
+last_updated: "2026-11-07T06:54:16.866Z"
 last_activity: 2026-11-07
 last_activity_desc: Phase 84 execution started
-state_head: 229fd5c4eaa6c62124ae92da9a056a67445bf64b
+state_head: b853849a709cfba481e505c09329126427fce274
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 99
-  completed_plans: 95
+  completed_plans: 96
   percent: 14
 ---
 
@@ -590,6 +590,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 84]: KD-84-G1: Suggest raises approval lines; a rollout row the gate records as suggested is treated like awaiting_approval (ring Install line with Approve and Deny). Start keeps refusing only off. Reversible, server code only.
 - [Phase 84]: 84-24: manual rollback route refuses any job with rolloutId (409, after the tenant check, before any insert); error text reaches the UI via error.error
 - [Phase 84]: 84-26: null require_reversible is an error like any non-boolean; legacy rollback gets only the not-installed guard
+- [Phase 84]: 84-27: RESULT_DEADLINE 6 h after delivery and DISPATCH_CLAIM_BOUND 10 min (constants in rollout/inflight.py); FAILURE or silence fails the computer (rollout_no_result), an expired unread instruction is retried, a denied or expired approval keeps the computer waiting not_approved, a revert that never answers reads Not reverted: the computer did not answer
 
 ## Performance Metrics
 
@@ -840,6 +841,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 84 P23 | 35 min | 3 tasks | 6 files |
 | Phase 84 P24 | 10 min | 2 tasks | 2 files |
 | Phase 84 P26 | 25 min | 3 tasks | 3 files |
+| Phase 84 P27 | 40 min | 3 tasks | 13 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -874,8 +876,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-07T06:32:40.213Z
-**Stopped at:** Completed 84-26-PLAN.md
+**Last session:** 2026-11-07T06:54:16.645Z
+**Stopped at:** Completed 84-27-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -902,7 +904,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 84 (Staged Patch Rollouts) — EXECUTING
-Plan: 26 of 29 (gap closure 84-23..84-29)
+Plan: 27 of 29 (gap closure 84-23..84-29)
 Status: Ready to execute
 Last activity: 2026-11-07 — Phase 84 gap closure execution started (84-23..84-29)
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
