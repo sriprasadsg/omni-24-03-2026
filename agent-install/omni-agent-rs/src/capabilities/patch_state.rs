@@ -249,6 +249,64 @@ mod tests {
     }
 
     #[test]
+    fn patch_state_an_entry_missing_a_field_keeps_itself_and_every_other_job() {
+        let raw = json!({"legacy": {"curl": "7.1"}, "jobs": {
+            "job-a": {"at": 5, "changes": {"openssl": "1.0"}},
+            "job-b": {"at": 6, "os": "linux", "changes": {"curl": "7.0"}},
+            "job-c": {"os": "windows"}}});
+        let s = JobsState::from_bytes(&serde_json::to_vec(&raw).unwrap());
+        assert_eq!(s.legacy["curl"], "7.1");
+        assert_eq!(s.jobs.len(), 3);
+        assert_eq!((s.jobs["job-a"].os.as_str(), s.jobs["job-a"].changes["openssl"].as_str()), ("", "1.0"));
+        assert_eq!(s.jobs["job-b"].changes["curl"], "7.0");
+        assert!(s.jobs["job-c"].changes.is_empty());
+    }
+
+    #[test]
+    fn patch_state_an_unreadable_file_is_kept_as_bad_before_the_default_is_returned() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("patch_state.json");
+        let bad = dir.path().join("patch_state.json.bad");
+        std::fs::write(&path, b"{ half a file").unwrap();
+        std::fs::write(&bad, b"an older copy").unwrap();
+        assert_eq!(load_from(&path), JobsState::default());
+        assert_eq!(std::fs::read(&bad).unwrap(), b"{ half a file", "the older .bad copy is overwritten");
+        assert_eq!(std::fs::read(&path).unwrap(), b"{ half a file", "the original is left in place");
+    }
+
+    #[test]
+    fn patch_state_a_missing_empty_or_good_file_leaves_no_bad_copy() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("patch_state.json");
+        let bad = dir.path().join("patch_state.json.bad");
+        assert_eq!(load_from(&path), JobsState::default());
+        std::fs::write(&path, b"").unwrap();
+        assert_eq!(load_from(&path), JobsState::default());
+        let mut s = JobsState::default();
+        s.record_install("job-1", "linux", 1_000, "openssl", "1.0");
+        assert!(save_to(&path, &s));
+        assert_eq!(load_from(&path), s);
+        // the 2.1.16 flat map is a valid file too
+        std::fs::write(&path, br#"{"openssl": "1.0"}"#).unwrap();
+        assert_eq!(load_from(&path).legacy["openssl"], "1.0");
+        assert!(!bad.exists());
+    }
+
+    #[test]
+    fn patch_state_save_replaces_the_file_whole_and_leaves_no_temporary_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("patch_state.json");
+        let mut s = JobsState::default();
+        s.record_install("job-1", "linux", 1_000, "openssl", "1.0");
+        assert!(save_to(&path, &s));
+        s.record_install("job-2", "linux", 2_000, "curl", "7.0");
+        assert!(save_to(&path, &s));
+        assert_eq!(load_from(&path), s);
+        let names: Vec<String> = std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        assert_eq!(names, vec!["patch_state.json".to_string()]);
+    }
+
+    #[test]
     fn patch_state_the_first_record_of_an_id_within_a_job_wins() {
         let mut s = JobsState::default();
         s.record_install("job-1", "linux", 1_000, "openssl", "1.0");
