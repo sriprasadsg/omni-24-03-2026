@@ -196,7 +196,17 @@ openssl-libs.x86_64   1:1.1.1k-5.el8_4        baseos\n";
         assert!(flag(json!({"payload": {"patch_ids": ["openssl"], "require_reversible": true}})));
         assert!(flag(json!({"parameters": {"patch_ids": ["openssl"], "require_reversible": true}})));
         assert!(!flag(json!({"payload": {"patch_ids": ["openssl"]}})));
-        assert!(!flag(json!({"payload": {"patch_ids": ["openssl"], "require_reversible": "yes"}})));
+        assert!(!flag(json!({"payload": {"patch_ids": ["openssl"], "require_reversible": false}})));
+    }
+
+    #[test]
+    fn patch_reversible_a_present_but_non_boolean_flag_refuses_the_job() {
+        for bad in [json!("yes"), json!("true"), json!(1), json!(0), json!([true]), Value::Null] {
+            let err = parse_job(&json!({"payload": {"patch_ids": ["openssl"], "require_reversible": bad}}), false).unwrap_err();
+            assert!(err.contains("The patch instruction carried an invalid require_reversible"), "{bad}: {err}");
+        }
+        // the same rule applies to a rollback job
+        assert!(parse_job(&json!({"payload": {"patch_ids": ["openssl"], "require_reversible": "no"}}), true).is_err());
     }
 
     #[test]
