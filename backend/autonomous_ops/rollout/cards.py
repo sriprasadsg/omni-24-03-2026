@@ -30,7 +30,8 @@ ROW_CAP = 2000                                    # rows read for one page
 COMPUTER_NAMES = 10                               # names a line lists
 PATCH_IDS_SHOWN = 3
 INSTALL, REBOOT, REVERT_REBOOT = LINES
-_RULES = [f"rollout:{line}" for line in LINES]
+_RULES = [f"rollout:{line}" for line in LINES] + ["rollout:canary_install"]       # a held canary row is an Install row
+_OPEN_STATES = ["awaiting_approval", "suggested"]      # a person has to decide either (KD-84-G1)
 _ENDED_BY_ROLLOUT = ("rollout_closed", "rollout_halted", "rollout_not_delivered")   # not a person's decision
 _DECIDED = ("approved", "dispatching", "executed", "verified", "failed", "undone", "rolled_back")
 EXCLUDED_HOSTS = ("not_reached", "left_out")
@@ -69,7 +70,7 @@ def _target(row: Dict[str, Any]) -> Optional[str]:
 
 def _is_open(row: Dict[str, Any], now: datetime) -> bool:
     expires = store.parse_time(_dict(row.get("approval")).get("expiresAt"))
-    return row.get("state") == "awaiting_approval" and expires is not None and expires > now
+    return row.get("state") in _OPEN_STATES and expires is not None and expires > now
 
 
 def _settled_at(row: Dict[str, Any]) -> Optional[datetime]:
@@ -94,7 +95,7 @@ async def _pairs(db, tenant_id: str, now: datetime) -> List[Tuple[str, int]]:
     since = now - SETTLED_STAY
     flt = {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.ruleId": {"$in": _RULES},
            "reasonCode": {"$nin": list(_ENDED_BY_ROLLOUT)},
-           "$or": [{"state": "awaiting_approval", "approval.expiresAt": {"$gt": now}},
+           "$or": [{"state": {"$in": _OPEN_STATES}, "approval.expiresAt": {"$gt": now}},
                    {"state": {"$in": ["denied", *_DECIDED]}, "approval.decidedAt": {"$gte": since}},
                    {"state": "expired", "finishedAt": {"$gte": since}}]}
     found = raw(db).autonomy_actions.find(flt, {"_id": 0, "reason.inputs.rolloutId": 1, "reason.inputs.ring": 1}) \
@@ -158,6 +159,8 @@ def _why(line: str, ring: int, ring_defs: List[Dict[str, Any]], ids: List[str], 
         return rm.fill(rm.CARD["why"]["reboot"], computers=plural)
     if line == REVERT_REBOOT:
         return rm.fill(rm.CARD["why"]["revert_reboot"], computers=plural)
+    if ring == 0 and rows and all((r.get("reason") or {}).get("ruleId") == "rollout:canary_install" for r in rows):
+        return str(rows[0].get("reasonText") or "")          # a canary row the gate held says why in its own words
     if ring == 0:
         return rm.fill(rm.CARD["why"]["install_not_reversible"], patch=", ".join(ids))
     previous = ring_defs[ring - 1] if 0 < ring <= len(ring_defs) else {}
