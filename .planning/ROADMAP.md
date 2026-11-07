@@ -316,7 +316,7 @@ Plans:
 *Execution shape: Phase 81 first; Phases 82, 83 and 85 can then run in parallel; Phase 84 follows 83; Phase 86 closes the milestone after 82–85. Ships inert: shadow mode and the environment dry-run floor stay on until an operator lifts a tenant (Phase 86). v4.2 Phases 75–80 above are untouched and resume after this milestone.*
 
 - [x] **Phase 81: Autonomy Gate, Stop Switch & Activity Ledger** - One code-owned decision gate, a stop switch, write-ahead decision records and a read-only Autonomous Ops screen, with the legacy LLM remediation path removed (completed 2026-11-07)
-- [ ] **Phase 82: Platform Self-Healing & Scheduled Retention** - An external watchdog restarts what fails within a budget, warns before certificates expire or disks fill, pages on-call, and retention runs on a schedule
+- [x] **Phase 82: Platform Self-Healing & Scheduled Retention** - An external watchdog restarts what fails within a budget, warns before certificates expire or disks fill, pages on-call, and retention runs on a schedule (completed 2026-11-07)
 - [ ] **Phase 83: Autonomous Security Response** - Findings become undoable containment on their own and destructive approval cards, each verified, deduplicated and undoable from the Activity screen
 - [x] **Phase 84: Staged Patch Rollouts** - Ring-based patch rollouts with soak, a real health gate, maintenance windows and one approval per stage; halts on failure and reverts where supported (completed 2026-11-07)
 - [ ] **Phase 85: First-Line Service Desk** - New tickets are answered from the knowledge base with citations or escalated by fixed rules, and never answered when the model is unavailable
@@ -384,7 +384,7 @@ Plans:
   4. Data retention runs on a schedule per tenant in bounded batches and never touches audit logs, the audit ledger or decision records; its first run is a dry-run count the operator confirms before anything is deleted.
   5. Watchdog events (checks, restarts, warnings, pages) appear in the Activity view at platform scope, and the repo ships the watchdog unit files, service drop-ins and an install checklist — the app itself installs nothing on the live server.
 
-**Plans**: 17/17 plans executed: 14 in 6 waves, plus a gap round of 3 plans in 2 waves
+**Plans**: 17/17 plans complete: 14 in 6 waves, plus a gap round of 3 plans in 2 waves
 
 Plans:
 **Wave 1**
@@ -637,7 +637,7 @@ Plans:
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
-| 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
+| 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | In Progress | - |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
