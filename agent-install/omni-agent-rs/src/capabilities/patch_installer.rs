@@ -82,19 +82,33 @@ fn safe_id(v: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The apt argv that puts `pkg` back to `previous`. Never a shell string; the `--` keeps the target from
-/// being read as an option.
+/// The apt argv that puts `pkg` back to `previous`. `--no-remove` makes apt fail, with its own message,
+/// rather than remove another package to get there (CR-04). Never a shell string; the `--` keeps the
+/// target from being read as an option.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) fn apt_downgrade_args(pkg: &str, previous: &str) -> Vec<String> {
-    ["apt-get", "install", "-y", "-q", "--allow-downgrades", "-o", "Dpkg::Options::=--force-confdef",
+    ["apt-get", "install", "-y", "-q", "--allow-downgrades", "--no-remove", "-o", "Dpkg::Options::=--force-confdef",
      "-o", "Dpkg::Options::=--force-confold", "--"].iter().map(|s| s.to_string())
         .chain(std::iter::once(format!("{pkg}={previous}"))).collect()
 }
 
-/// The answer a revert can give without touching the package manager, or None when the downgrade should run.
+/// A revert of a package that is gone installs nothing (WR-15): a revert never adds software.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
-pub(crate) fn revert_precheck(_pkg: &str, _installed: Option<&str>, _recorded: &str) -> Option<Value> {
-    None
+fn not_installed_result(pkg: &str) -> Value {
+    coded_result(pkg, "failed", patch_reversible::NOT_APPLICABLE,
+                 "The package is not installed any more, so nothing was reverted", false)
+}
+
+/// The answer a revert can give without touching the package manager, or None when the downgrade should run.
+/// `installed` is the version on this host now, `recorded` the version the revert goes back to.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub(crate) fn revert_precheck(pkg: &str, installed: Option<&str>, recorded: &str) -> Option<Value> {
+    match installed {
+        None => Some(not_installed_result(pkg)),
+        Some(v) if v == recorded => Some(coded_result(pkg, "success", patch_reversible::REVERTED,
+                                                      &format!("Already at the earlier version {recorded}"), false)),
+        Some(_) => None,
+    }
 }
 
 pub fn patch_result(patch_id: &str, status: &str, message: &str, reboot: bool) -> Value {
@@ -457,8 +471,8 @@ mod linux {
         let plan = patch_state::load().plan_revert(job_id, packages);
         let mut results = plan.immediate;
         for (pkg, version) in plan.todo {
-            if installed_version(mgr, &pkg).await.as_deref() == Some(version.as_str()) {
-                results.push(coded_result(&pkg, "success", REVERTED, &format!("Already at the earlier version {version}"), false));
+            if let Some(answer) = revert_precheck(&pkg, installed_version(mgr, &pkg).await.as_deref(), &version) {
+                results.push(answer);
             } else if !patch_reversible::reversible_linux(&version, &patch_reversible::offered_versions(mgr, &pkg).await) {
                 results.push(coded_result(&pkg, "failed", VERSION_NOT_OFFERED, &format!("The package source no longer offers {version}"), false));
             } else {
@@ -488,6 +502,10 @@ mod linux {
                 results.push(patch_result(pkg, "failed", "No pre-patch version recorded by this agent; refusing to remove the package", false));
                 continue;
             };
+            if installed_version(mgr, pkg).await.is_none() {
+                results.push(not_installed_result(pkg));
+                continue;
+            }
             match downgrade(mgr, pkg, &previous).await {
                 Ok(()) => {
                     state.legacy.remove(pkg);
