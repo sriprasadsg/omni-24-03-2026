@@ -49,6 +49,7 @@ CONTROL_LABELS = {
     "rollout_resumed": "Rollout resumed",
     "rollout_resume_checked": "Rollout kept halted",
     "rollout_cancelled": "Rollout cancelled",
+    "rollout_cancel_requested": "Rollout cancel requested",
     **response_messages.CONTROL_LABELS,
 }
 

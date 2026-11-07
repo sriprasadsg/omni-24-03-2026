@@ -6,7 +6,8 @@ never lost), halts a rollout whose approval line was denied or went unanswered, 
 rollout one step: waits for a maintenance window, sends approved rows and the canary installs, raises the
 approval lines, and later soaks and checks. It never writes an agent queue and never calls
 ``gate.decide`` while a stop is on or the tenant is Off (a stopped ``decide`` records a refused row on
-every call). A running rollout is marked ``stoppedSince`` while a stop is on, so a card that ran out meanwhile is not
+every call). A running rollout with ``cancelRequested`` is only settled and then ended by ``cancelling.tick``: no decision, no ring
+verdict, no halt (plan 84-28). A running rollout is marked ``stoppedSince`` while a stop is on, so a card that ran out meanwhile is not
 read as a denial; settle gives the computers of cancelled or stop-expired rows back to waiting, and the first pass after
 the stop clears clears the mark and decides for them again as a new attempt. A simulation rollout (``shadow``) records
 what it would do and is never sent, restarted or reverted. Plan 84-22 puts the locked background loop around ``tick``.
@@ -19,8 +20,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .. import PLATFORM_TENANT_ID, agent_support, scope, settings
 from ..scope import raw
-from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, reboots, revert, settle, signals,
-               store, windows as windows_mod)
+from . import (ACTIVE_STATUSES, cancelling, dispatcher, health, installs, lifecycle, lines, reboots, revert, settle,
+               signals, store, windows as windows_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +303,9 @@ async def _tenant(db, tenant_id: str, now: datetime, platform_since: Optional[da
                 await store.set_rollout(db, tenant_id, rollout, {"stoppedSince": stopped_since})     # GATE-06: frozen from now on
             await settle.settle(db, tenant_id, rollout, now)
             late = await reboots.settle(db, tenant_id, rollout, now)
+            if rollout.get("status") == "running" and rollout.get("cancelRequested"):
+                await cancelling.tick(db, tenant_id, rollout, now)    # Cancel (D-16): settle only, decide and halt nothing
+                continue
             if rollout.get("status") == "running" and late is not None:
                 await lifecycle.halt(db, tenant_id, rollout, int(late.get("ring") or 0), code="no_new_boot",
                                      host=late["agentId"], now=now, facts={"host": late.get("hostname") or late["agentId"]})

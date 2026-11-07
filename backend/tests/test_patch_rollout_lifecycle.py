@@ -182,6 +182,7 @@ async def test_resume_is_refused_while_a_revert_runs_and_when_the_rollout_is_not
     await db.patch_rollouts.update_one({"id": "r1"}, {"$set": {"status": "running"}})
     with pytest.raises(lifecycle.NotHalted):
         await lifecycle.resume(db, T, "r1", actor=ACTOR, reason="Now", now=NOW)
+    await db.patch_rollouts.update_one({"id": "r1"}, {"$set": {"status": "completed"}})      # a running Cancel: 84-28
     with pytest.raises(lifecycle.NotHalted):
         await lifecycle.cancel(db, T, "r1", actor=ACTOR, now=NOW)
 
@@ -337,7 +338,7 @@ async def test_the_routes_map_each_refusal_to_its_status_and_sentence(api):
     await db.patch_rollout_hosts.update_one({"agentId": "h1"}, {"$set": {"state": "reverting"}})
     busy = await api.call("POST", f"{BASE}/r1/resume", json={"reason": "x"})
     assert busy.status_code == 409 and busy.json()["detail"] == rm.API_DETAIL["revert_running"]
-    await db.patch_rollouts.update_one({"id": "r1"}, {"$set": {"status": "running"}})
+    await db.patch_rollouts.update_one({"id": "r1"}, {"$set": {"status": "completed"}})      # a running Cancel: 84-28
     for path, body in (("resume", {"reason": "x"}), ("cancel", None)):
         refused = await api.call("POST", f"{BASE}/r1/{path}", json=body)
         assert refused.status_code == 409 and refused.json()["detail"] == rm.API_DETAIL["not_halted"]

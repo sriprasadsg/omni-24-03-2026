@@ -14,7 +14,7 @@ POST /                  start a rollout (422 with the blocker rows, 409 when ano
 GET  /draft             a vulnerability suggestion turned into a name and patch list; stores nothing
 GET  /{id}              one rollout card
 POST /{id}/resume       a halted rollout continues only if its ring's health check is green now (reason 1-500)
-POST /{id}/cancel       a halted rollout ends; claims are released and patched computers keep their patches
+POST /{id}/cancel       a running or halted rollout ends; claims are released and patched computers keep their patches
 
 The platform organization has no rollouts: reads answer an empty page, writes answer 409.
 """
@@ -258,7 +258,7 @@ async def get_rollout(rollout_id: str = Path(..., max_length=ROLLOUT_ID_MAX), te
 
 
 def _lifecycle_error(exc: lifecycle.LifecycleError) -> HTTPException:
-    """409 for a rollout that is not halted or still reverting, 404 for an unknown one, 422 for a missing reason."""
+    """409 for a rollout that is not halted, still reverting or already being cancelled, 404 for an unknown one, 422 for a missing reason."""
     code = 404 if isinstance(exc, lifecycle.RolloutNotFound) else 422 if isinstance(exc, lifecycle.ReasonRequired) else 409
     return HTTPException(status_code=code, detail=str(exc))
 
@@ -282,11 +282,12 @@ async def post_resume(body: ResumeBody, rollout_id: str = Path(..., max_length=R
         raise _unavailable(exc) from exc
 
 
-@router.post("/{rollout_id}/cancel", summary="Cancel a halted rollout")
+@router.post("/{rollout_id}/cancel", summary="Cancel a running or halted rollout")
 async def post_cancel(rollout_id: str = Path(..., max_length=ROLLOUT_ID_MAX), tenantId: Optional[str] = TenantQuery,
                       user=Depends(_require_manage_patches), _session=Depends(_require_interactive_session)):
-    """End a halted rollout. Computers that already have the patches keep them, nothing further installs, and a
-    revert that is already running finishes on its own."""
+    """End a running or halted rollout. Computers that already have the patches keep them and nothing is reverted.
+    A halted rollout ends at once (a revert already running finishes on its own); a running one answers
+    ``cancelling``, sends nothing new and ends when the installs in progress settle."""
     try:
         db = get_database()
         tenant = await _write_tenant(db, user, tenantId)

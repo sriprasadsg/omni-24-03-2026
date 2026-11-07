@@ -156,7 +156,7 @@ def test_the_blockers_and_computer_reasons_have_their_keys():
 
 def test_the_api_details_cover_the_refusals_the_routes_return():
     assert set(m.API_DETAIL) == {"already_in_rollout", "platform_tenant", "not_halted", "revert_running",
-                                 "reason_required", "rollout_not_found", "rings_unreadable",
+                                 "cancel_requested", "reason_required", "rollout_not_found", "rings_unreadable",
                                  "suggestion_not_found"}
 
 

@@ -334,7 +334,12 @@ LIFECYCLE_CONTROL = {
     "resumed": 'Rollout "{name}" resumed at {ring}. Reason: {reason}',
     "still_halted": 'Rollout "{name}" stays halted at {ring}: its health check still fails. Reason given: {reason}',
     "cancelled": 'Rollout "{name}" cancelled at {ring}. Computers that already have the patches keep them.',
+    "cancel_requested": 'Cancel requested for rollout "{name}" at {ring}. Nothing new is sent; installs in progress finish first.',
 }
+
+# The sentence the Cancel dialog shows for a running rollout (plan 84-28, D-16): nothing is reverted.
+CANCEL_NOTE_RUNNING = ("Cancelling stops new installs now. Computers that already installed keep the patches; nothing "
+                       "is reverted. The rollout ends when the installs in progress finish.")
 
 # ---------------------------------------------------------------- short explanations the routes return
 
@@ -342,6 +347,7 @@ API_DETAIL = {
     "already_in_rollout": "One or more of these computers are already in another rollout.",
     "platform_tenant": "Patches are never rolled out to the platform's own server.",
     "not_halted": "This rollout is not halted.",
+    "cancel_requested": "This rollout is being cancelled. It ends when the installs in progress finish.",
     "revert_running": "Wait for the revert to finish.",
     "reason_required": "A reason is required, up to 500 characters.",
     "rollout_not_found": "Rollout not found.",

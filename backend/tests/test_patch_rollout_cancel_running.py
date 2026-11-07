@@ -14,7 +14,7 @@ cancelling, or the halted Cancel changes; no_claim=a real agent, a real install 
 """
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import pytest
 

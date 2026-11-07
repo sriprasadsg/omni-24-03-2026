@@ -56,6 +56,10 @@ class RevertRunning(LifecycleError):
     pass
 
 
+class CancelRequested(LifecycleError):
+    """The rollout is already being cancelled: Resume and a second Cancel are refused (409)."""
+
+
 class ReasonRequired(LifecycleError):
     pass
 
@@ -141,11 +145,12 @@ def halt_reason(code: str, ring: int, host: Optional[str], facts: Optional[Dict[
 
 async def halt(db, tenant_id: str, rollout: Dict[str, Any], ring: int, *, code: str, now: datetime,
                host: Optional[str] = None, facts: Optional[Dict[str, Any]] = None) -> bool:
-    """Stop the rollout at ``ring``. Returns False when it was not running (someone halted it first).
+    """Stop the rollout at ``ring``. Returns False when it was not running (someone halted it first) or is being
+    cancelled (a Cancel decides nothing new and never halts or reverts, D-16).
     ``facts`` fill the reason sentence (``host`` as a name, ``f``, ``computers``, ``limit``)."""
     reason = halt_reason(code, ring, host, facts, now)
     won = await store.rollouts(db).update_one(
-        {"id": rollout["id"], "tenantId": tenant_id, "status": "running"},
+        {"id": rollout["id"], "tenantId": tenant_id, "status": "running", "cancelRequested": {"$exists": False}},
         {"$set": {"status": "halted", "haltedAt": now, "haltReason": reason, f"rings.{ring}.state": "halted"}})
     if won.modified_count == 0:
         return False
@@ -194,7 +199,7 @@ async def _undo_flip(db, tenant_id: str, rollout: Dict[str, Any], expect: str, r
                      unset: List[str], pull_at: Optional[datetime]) -> None:
     """Put the rollout back as it was after its record could not be written (a safeguard is never changed without
     a record, PROH-83-09). Best effort: a failure here is logged and the original error is raised by the caller."""
-    update: Dict[str, Any] = {"$set": restore}
+    update: Dict[str, Any] = {"$set": restore} if restore else {}
     if unset:
         update["$unset"] = {k: "" for k in unset}
     if pull_at is not None:
@@ -216,6 +221,8 @@ async def resume(db, tenant_id: str, rollout_id: str, *, actor: Optional[Dict[st
     if not text or len(text) > REASON_MAX:
         raise ReasonRequired(rm.API_DETAIL["reason_required"])
     rollout = await _load(db, tenant_id, rollout_id)
+    if rollout.get("cancelRequested"):
+        raise CancelRequested(rm.API_DETAIL["cancel_requested"])
     if rollout.get("status") != "halted":
         raise NotHalted(rm.API_DETAIL["not_halted"])
     hosts = await store.host_docs(db, tenant_id, rollout_id)
@@ -286,26 +293,28 @@ async def _continue(db, tenant_id: str, rollout: Dict[str, Any], index: int, rin
     return {"status": "resumed", "reason": None, "ring": ring_name}
 
 
-async def cancel(db, tenant_id: str, rollout_id: str, *, actor: Optional[Dict[str, Any]], now: datetime) -> Dict[str, Any]:
-    """Cancel a halted rollout (D-16): rings that did not pass are cancelled, the claims are released, open rows
-    expire (``rollout_closed``) and a revert already running is left to finish. Computers that were patched keep
-    their patches. Raises ``RolloutNotFound`` and ``NotHalted``."""
-    rollout = await _load(db, tenant_id, rollout_id)
-    if rollout.get("status") != "halted":
-        raise NotHalted(rm.API_DETAIL["not_halted"])
-    hosts = await store.host_docs(db, tenant_id, rollout_id)
-    who = _who(actor)
+async def finish_cancel(db, tenant_id: str, rollout: Dict[str, Any], who: Optional[Dict[str, Any]], now: datetime,
+                        *, expect: str = "halted") -> Optional[str]:
+    """End the rollout (D-16): status cancelled, rings that did not pass cancelled, every claim released, open rows
+    expired (``rollout_closed``), one control row and one audit event naming ``who``. A revert already running is left
+    to finish (``revertOpen``). Returns the ring name, or None when the rollout was no longer in status ``expect``
+    (someone else ended it first). The record is written after the change; if it cannot be, the change is put back."""
+    hosts = await store.host_docs(db, tenant_id, rollout["id"])
+    who = _who(who)
     rings = rollout.get("rings") or []
     fields: Dict[str, Any] = {"status": "cancelled", "cancelledAt": now, "cancelledBy": {"id": who.get("id"), "name": who["display"]},
                               "revertOpen": any(h.get("state") == "reverting" for h in hosts)}
-    before: Dict[str, Any] = {"status": "halted"}
+    before: Dict[str, Any] = {"status": expect}
     for i, ring in enumerate(rings):
         if ring.get("state") != "passed":
             fields[f"rings.{i}.state"] = "cancelled"
             before[f"rings.{i}.state"] = ring.get("state")
-    won = await store.rollouts(db).update_one({"id": rollout_id, "tenantId": tenant_id, "status": "halted"}, {"$set": fields})
+    flt: Dict[str, Any] = {"id": rollout["id"], "tenantId": tenant_id, "status": expect}
+    if expect == "running":
+        flt["cancelRequested"] = {"$exists": True}
+    won = await store.rollouts(db).update_one(flt, {"$set": fields})
     if won.modified_count == 0:
-        raise NotHalted(rm.API_DETAIL["not_halted"])
+        return None
     ring_name = str(rings[_halted_ring(rollout)].get("name") or "") if rings else ""
     try:
         await ledger.record_control(db, tenant_id, "rollout_cancelled", scope="tenant", actor=who,
@@ -313,9 +322,62 @@ async def cancel(db, tenant_id: str, rollout_id: str, *, actor: Optional[Dict[st
     except Exception:
         await _undo_flip(db, tenant_id, rollout, "cancelled", before, ["cancelledAt", "cancelledBy", "revertOpen"], None)
         raise
-    await store.release(db, tenant_id, rollout_id)
-    await _close_open_rows(db, tenant_id, rollout_id)
+    await store.release(db, tenant_id, rollout["id"])
+    await _close_open_rows(db, tenant_id, rollout["id"])
+    rollout.update({"status": "cancelled", "cancelledAt": now})
+    return ring_name
+
+
+async def _request_running(db, tenant_id: str, rollout: Dict[str, Any], who: Dict[str, Any], now: datetime) -> Dict[str, Any]:
+    """Cancel a running rollout (KD-84-G3): one compare-and-set stamps ``cancelRequested``, the open and approved-not-sent
+    rows close and instructions nobody fetched end. Nothing is reverted and no restart is queued. If the rollout was
+    halted meanwhile the halted path is taken; a request already made answers 409."""
+    stamp = {"by": {"id": who.get("id"), "name": who["display"]}, "at": now}
+    won = await store.rollouts(db).update_one(
+        {"id": rollout["id"], "tenantId": tenant_id, "status": "running", "cancelRequested": {"$exists": False}},
+        {"$set": {"cancelRequested": stamp}})
+    if won.modified_count == 0:
+        fresh = await _load(db, tenant_id, rollout["id"])
+        if fresh.get("cancelRequested"):
+            raise CancelRequested(rm.API_DETAIL["cancel_requested"])
+        if fresh.get("status") != "halted":
+            raise NotHalted(rm.API_DETAIL["not_halted"])
+        return await _cancel_halted(db, tenant_id, fresh, who, now)
+    rings = rollout.get("rings") or []
+    ring_name = str(rings[_halted_ring(rollout)].get("name") or "") if rings else ""
+    try:
+        await ledger.record_control(db, tenant_id, "rollout_cancel_requested", scope="tenant", actor=who,
+                                    reason=_record_text("cancel_requested", rollout, ring_name))
+    except Exception:
+        await _undo_flip(db, tenant_id, rollout, "running", {}, ["cancelRequested"], None)
+        raise
+    await _close_open_rows(db, tenant_id, rollout["id"])
+    for index in range(len(rings)):
+        await _end_unfetched(db, tenant_id, rollout["id"], index, now)
+    return {"status": "cancelling", "reason": None, "ring": ring_name}
+
+
+async def _cancel_halted(db, tenant_id: str, rollout: Dict[str, Any], who: Dict[str, Any], now: datetime) -> Dict[str, Any]:
+    ring_name = await finish_cancel(db, tenant_id, rollout, who, now)
+    if ring_name is None:
+        raise NotHalted(rm.API_DETAIL["not_halted"])
     return {"status": "cancelled", "reason": None, "ring": ring_name}
+
+
+async def cancel(db, tenant_id: str, rollout_id: str, *, actor: Optional[Dict[str, Any]], now: datetime) -> Dict[str, Any]:
+    """Cancel a running or halted rollout (D-16). A halted one ends at once: rings that did not pass are cancelled, the
+    claims are released, open rows expire (``rollout_closed``) and a revert already running is left to finish. A running
+    one answers ``cancelling`` and ends when the installs in progress settle. Computers that were patched keep their
+    patches either way. Raises ``RolloutNotFound``, ``NotHalted`` (finished) and ``CancelRequested`` (409)."""
+    rollout = await _load(db, tenant_id, rollout_id)
+    if rollout.get("cancelRequested"):
+        raise CancelRequested(rm.API_DETAIL["cancel_requested"])
+    who = _who(actor)
+    if rollout.get("status") == "running":
+        return await _request_running(db, tenant_id, rollout, who, now)
+    if rollout.get("status") != "halted":
+        raise NotHalted(rm.API_DETAIL["not_halted"])
+    return await _cancel_halted(db, tenant_id, rollout, who, now)
 
 
 async def settle_cancelled(db, tenant_id: str, rollout: Dict[str, Any], now: datetime) -> None:
