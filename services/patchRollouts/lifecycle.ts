@@ -9,9 +9,12 @@ import { rolloutFailure } from './rollouts';
  * Tenants; a tenant role never sends one.
  */
 
-/** `status` is `resumed` or `still_halted` for Resume and `cancelled` for Cancel; `ring` is the ring's name. */
+/**
+ * `status` is `resumed` or `still_halted` for Resume and `cancelled` for Cancel of a halted rollout; Cancel of a running
+ * rollout answers `cancelling` (it ends when the installs in progress finish); `ring` is the ring's name.
+ */
 export interface LifecycleResult {
-    status: 'resumed' | 'still_halted' | 'cancelled';
+    status: 'resumed' | 'still_halted' | 'cancelled' | 'cancelling';
     /** The halt reason now stored (Resume that stayed halted); empty otherwise. */
     reason: string;
     ring: string;
@@ -34,7 +37,7 @@ export async function resumeRollout(id: string, reason: string, tenantId?: strin
     return post(`${encodeURIComponent(id)}/resume`, { reason }, tenantId);
 }
 
-/** POST /api/patch-rollouts/{id}/cancel: ends a halted rollout; patched computers keep their patches. */
+/** POST /api/patch-rollouts/{id}/cancel: ends a halted rollout, or stops a running one; patched computers keep their patches. */
 export async function cancelRollout(id: string, tenantId?: string | null): Promise<LifecycleResult> {
     return post(`${encodeURIComponent(id)}/cancel`, undefined, tenantId);
 }

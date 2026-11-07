@@ -337,6 +337,7 @@ async def rollout_card(db, tenant_id: str, rollout: Dict[str, Any], caller, now:
         by_ring.setdefault(int(h.get("ring") or 0), []).append(h)
     status = status_of(rollout)
     halted = status == "halted"
+    cancelling = bool(rollout.get("cancelRequested"))          # a Cancel is settling: Resume and Cancel are not offered
     reverting = any(h.get("state") == "reverting" for h in hosts)
     can_act = bool(caller.can_manage_patches and caller.interactive and not caller.platform_tenant)
     lost = sum(1 for h in hosts if h.get("state") == "not_reached")
@@ -358,7 +359,9 @@ async def rollout_card(db, tenant_id: str, rollout: Dict[str, Any], caller, now:
         else None,
         "halt": halt_block(rollout, hosts) if halted else None, "notReachedCount": lost,
         "closesAt": _iso(closes), "neverReachedCount": never, "closedText": closed_text,
-        "canResume": can_act and halted and not reverting, "canCancel": can_act and halted,
+        "canResume": can_act and halted and not reverting and not cancelling,
+        "canCancel": can_act and status in ("running", "halted") and not cancelling,
+        "cancelNote": rm.CANCEL_NOTE_RUNNING if status == "running" and not cancelling else None,
         "resumeBlockedReason": rm.API_DETAIL["revert_running"] if can_act and halted and reverting else None,
         "revertRunning": reverting}
 

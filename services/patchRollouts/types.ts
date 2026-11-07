@@ -116,6 +116,8 @@ export interface RolloutCard {
     /** Why Resume is disabled, for `aria-describedby`; null when it is enabled. */
     resumeBlockedReason: string | null;
     revertRunning: boolean;
+    /** The server's sentence for the Cancel dialog of a running rollout (nothing is reverted); null otherwise. */
+    cancelNote: string | null;
 }
 
 export interface RolloutPage {

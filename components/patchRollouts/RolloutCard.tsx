@@ -6,7 +6,7 @@ import { formatWhen } from '../AutonomousOpsActivityList';
 import { HealthNotice } from '../AutonomousOpsHealthChips';
 import { AlertOctagonIcon, ChevronRightIcon, ExternalLinkIcon, LayersIcon } from '../icons';
 import { RolloutChip } from './RolloutChip';
-import { HaltActions, hasHaltActions } from './RolloutDialogs';
+import { HaltActions, RunningCancel, hasHaltActions } from './RolloutDialogs';
 import { LINK_LABELS, RING_STATE_CHIP, ROLLOUT_STATUS_CHIP, SIMULATION_CHIP, plural } from './rolloutCopy';
 
 /**
@@ -147,6 +147,9 @@ export const RolloutCard: React.FC<RolloutCardProps> = ({ card, onOpenView, rend
                         {haltActions && <div className="flex flex-wrap items-start gap-2">{haltActions}</div>}
                     </HealthNotice>
                 </div>
+            )}
+            {!card.halt && card.status === 'running' && card.canCancel && onChanged && (
+                <div className="flex px-6 pb-4"><RunningCancel card={card} tenantId={tenantId} onChanged={onChanged} /></div>
             )}
             {open && renderRingDetail && <div id={detailId} className="px-6 pb-4">{renderRingDetail(open, card)}</div>}
             {card.closedText && (

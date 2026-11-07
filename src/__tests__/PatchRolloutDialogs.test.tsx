@@ -380,8 +380,8 @@ describe('Halt block actions on the card', () => {
     expect(haltButtons()).toHaveLength(2);
   });
 
-  it('renders no buttons on a card that is not halted, whatever the flags say', () => {
-    render(<RolloutCard card={card({ status: 'running', canResume: true, canCancel: true })} onChanged={vi.fn()} />);
+  it('renders no Resume on a card that is not halted, whatever the flags say (Cancel is 84-28)', () => {
+    render(<RolloutCard card={card({ status: 'running', canResume: true, canCancel: false })} onChanged={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Resume rollout' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Cancel rollout' })).toBeNull();
   });

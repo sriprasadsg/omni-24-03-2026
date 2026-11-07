@@ -47,6 +47,8 @@ export interface CancelDialogProps extends DialogBaseProps {
     rolloutName: string;
     /** A revert is still running; Cancel leaves it to finish. */
     revertRunning: boolean;
+    /** The server's sentence for a running rollout (nothing is reverted; it ends when the installs in progress finish). */
+    note?: string | null;
 }
 
 const failureOf = (error: unknown) => {
@@ -152,7 +154,7 @@ export const ResumeDialog: React.FC<ResumeDialogProps> = ({ rolloutId, ringName,
     );
 };
 
-export const CancelDialog: React.FC<CancelDialogProps> = ({ rolloutId, rolloutName, revertRunning, tenantId, onClose, onDone }) => {
+export const CancelDialog: React.FC<CancelDialogProps> = ({ rolloutId, rolloutName, revertRunning, note = null, tenantId, onClose, onDone }) => {
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const inFlight = useRef(false);
@@ -168,8 +170,10 @@ export const CancelDialog: React.FC<CancelDialogProps> = ({ rolloutId, rolloutNa
         setPending(true);
         setError(null);
         try {
-            await cancelRollout(rolloutId, tenantId);
-            showToast(`Rollout "${rolloutName}" cancelled.`, 'success');
+            const result = await cancelRollout(rolloutId, tenantId);
+            showToast(result.status === 'cancelling'
+                ? `Cancelling "${rolloutName}". It ends when the installs in progress finish.`
+                : `Rollout "${rolloutName}" cancelled.`, 'success');
             onClose();
             onDone();
         } catch (failure) {
@@ -210,6 +214,7 @@ export const CancelDialog: React.FC<CancelDialogProps> = ({ rolloutId, rolloutNa
                 <p className={BODY}>
                     {`This ends "${rolloutName}". Computers that already have the patches keep them, and nothing further installs. A cancelled rollout can't be started again; start a new one instead.`}
                 </p>
+                {note && <p className={BODY}>{note}</p>}
                 {revertRunning && (
                     <HealthNotice tone="amber" icon={AlertTriangleIcon} role="status"><p>{REVERT_RUNNING}</p></HealthNotice>
                 )}
@@ -281,6 +286,30 @@ export const HaltActions: React.FC<{ card: RolloutCard; tenantId: string | null;
                     revertRunning={card.revertRunning}
                     tenantId={tenantId}
                     onClose={close}
+                    onDone={onChanged}
+                />
+            )}
+        </>
+    );
+};
+
+/**
+ * Cancel rollout for a running rollout (84-28, D-16): the same confirmation, with the server's sentence saying what will
+ * happen. Rendered from `canCancel` only; the route checks manage:patches and the session again.
+ */
+export const RunningCancel: React.FC<{ card: RolloutCard; tenantId: string | null; onChanged: () => void }> = ({ card, tenantId, onChanged }) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <>
+            <button type="button" className={ACTION_BUTTON} onClick={() => setOpen(true)}>Cancel rollout</button>
+            {open && (
+                <CancelDialog
+                    rolloutId={card.id}
+                    rolloutName={card.name}
+                    revertRunning={card.revertRunning}
+                    note={card.cancelNote}
+                    tenantId={tenantId}
+                    onClose={() => setOpen(false)}
                     onDone={onChanged}
                 />
             )}

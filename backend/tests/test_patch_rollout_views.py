@@ -319,11 +319,11 @@ async def test_a_halted_rollout_without_a_revert_has_no_revert_lines_and_can_be_
     assert got["canResume"] is True and got["resumeBlockedReason"] is None and got["revertRunning"] is False
 
 
-async def test_only_a_halted_rollout_has_a_halt_block_or_resume_and_cancel(mongo_db):
+async def test_only_a_halted_rollout_has_a_halt_block_or_resume(mongo_db):
     await prepare(mongo_db)
     await seed(mongo_db)
     got = await card(mongo_db)
-    assert got["halt"] is None and got["canResume"] is False and got["canCancel"] is False
+    assert got["halt"] is None and got["canResume"] is False and got["canCancel"] is True      # Cancel while running: 84-28
 
 
 async def test_a_viewer_is_offered_neither_resume_nor_cancel(mongo_db):
