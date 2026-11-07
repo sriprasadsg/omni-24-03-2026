@@ -79,3 +79,51 @@ async def test_the_read_routes_and_the_screen_keep_working(mongo_db, monkeypatch
     deployment_id = await seed(mongo_db)
     found = await PatchDeploymentService(mongo_db).get_deployment(deployment_id)
     assert found["id"] == deployment_id and found["patch_ids"] == ["KB1"]
+
+
+# ── WR-10 (plan 84-24): the manual per-job Rollback route refuses a rollout's own jobs ──────────────────────
+
+import patch_core_endpoints  # noqa: E402
+
+ROLLOUT_JOB_DETAIL = "This job belongs to a rollout. Revert it from Rollouts on the Patching screen."
+
+
+def operator(tenant="t1", role="Tenant Admin"):
+    return type("U", (), {"username": "alice", "role": role, "tenant_id": tenant})()
+
+
+async def seed_job(db, *, tenant="t1", job_id="job-1", rollout_id=None, job_type="Patch Deployment"):
+    """A finished job whose one agent reported KB5034441 installed."""
+    await db.agents.insert_one({"id": "a1", "tenantId": tenant, "hostname": "h1", "status": "online"})
+    job = patch_core_endpoints.new_patch_job(job_id, tenant, ["KB5034441"], [], ["a1"], "bob", "Immediate", None,
+                                             "2026-11-07T00:00:00+00:00", "Completed")
+    job["agentResults"] = {"a1": {"status": "Completed", "results": [{"patch_id": "KB5034441", "status": "success"}]}}
+    job["type"] = job_type
+    if rollout_id:
+        job["rolloutId"] = rollout_id
+    await db.patch_deployment_jobs.insert_one(job)
+    return job_id
+
+
+async def roll_back(db, monkeypatch, job_id, user=None):
+    monkeypatch.setattr(patch_core_endpoints, "get_database", lambda: db)
+    return await patch_core_endpoints.rollback_patch_job(job_id, current_user=user or operator())
+
+
+async def test_a_rollout_install_job_is_refused_with_409_and_queues_nothing(mongo_db, monkeypatch):
+    """fails_when=the manual route queues a rollback for a job that carries rolloutId (WR-10, T-84-68)."""
+    job_id = await seed_job(mongo_db, rollout_id="ro-1")
+    with pytest.raises(HTTPException) as caught:
+        await roll_back(mongo_db, monkeypatch, job_id)
+    assert caught.value.status_code == 409 and caught.value.detail == ROLLOUT_JOB_DETAIL
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
+    assert await mongo_db.patch_deployment_jobs.count_documents({}) == 1
+
+
+async def test_a_rollout_revert_job_is_refused_with_409_and_queues_nothing(mongo_db, monkeypatch):
+    job_id = await seed_job(mongo_db, rollout_id="ro-1", job_type=patch_core_endpoints.ROLLBACK_JOB_TYPE)
+    with pytest.raises(HTTPException) as caught:
+        await roll_back(mongo_db, monkeypatch, job_id)
+    assert caught.value.status_code == 409 and caught.value.detail == ROLLOUT_JOB_DETAIL
+    assert await mongo_db.agent_instructions.count_documents({}) == 0
+    assert await mongo_db.patch_deployment_jobs.count_documents({}) == 1
