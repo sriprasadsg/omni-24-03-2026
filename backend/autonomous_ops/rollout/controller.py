@@ -6,8 +6,8 @@ never lost), halts a rollout whose approval line was denied or went unanswered, 
 rollout one step: waits for a maintenance window, sends approved rows and the canary installs, raises the
 approval lines, and later soaks and checks. It never writes an agent queue and never calls
 ``gate.decide`` while a stop is on or the tenant is Off (a stopped ``decide`` records a refused row on
-every call). A running rollout with ``cancelRequested`` is only settled and then ended by ``cancelling.tick``: no decision, no ring
-verdict, no halt (plan 84-28). A running rollout is marked ``stoppedSince`` while a stop is on, so a card that ran out meanwhile is not
+every call). A running rollout with ``cancelRequested`` is only settled and then ended by ``cancelling.tick`` once no computer is installing or restarting, at the
+latest RESULT_DEADLINE (inflight) after the request: no decision, no ring verdict, no halt (plan 84-28). A running rollout is marked ``stoppedSince`` while a stop is on, so a card that ran out meanwhile is not
 read as a denial; settle gives the computers of cancelled or stop-expired rows back to waiting, and the first pass after
 the stop clears clears the mark and decides for them again as a new attempt. A simulation rollout (``shadow``) records
 what it would do and is never sent, restarted or reverted. Plan 84-22 puts the locked background loop around ``tick``.
