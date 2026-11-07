@@ -159,7 +159,7 @@ def _result(host: Dict[str, Any], zone: str, now: datetime) -> str:
         return table[state]
     if state == "left_out":
         return rm.fill(table["left_out"], other=host.get("otherRollout") or "another rollout")
-    return table["waiting_approval" if host.get("waitReason") == "approval" else "waiting_window"]
+    return table[{"approval": "waiting_approval", "not_approved": "not_approved"}.get(host.get("waitReason"), "waiting_window")]
 
 
 def host_rows(hosts: List[Dict[str, Any]], zone: str = "UTC", now: Optional[datetime] = None,

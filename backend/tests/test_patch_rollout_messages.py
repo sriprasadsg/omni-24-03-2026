@@ -119,12 +119,13 @@ def test_a_revert_that_could_not_happen_says_so_in_one_and_many_forms():
 # ---------------------------------------------------------------- no sentence claims a revert (PROH-84-02)
 
 def test_every_not_reverted_text_ends_with_the_patch_is_still_installed():
-    assert set(m.NOT_REVERTED) == {"not_uninstallable", "version_not_offered", "agent_unsupported"}
+    assert set(m.NOT_REVERTED) == {"not_uninstallable", "version_not_offered", "agent_unsupported", "no_answer"}
     for code, text in m.NOT_REVERTED.items():
         assert text.startswith("Not reverted: "), code
         assert text.endswith("The patch is still installed."), code
     assert m.not_reverted("not_uninstallable") == (
         "Not reverted: Windows doesn't allow this update to be uninstalled. The patch is still installed.")
+    assert m.not_reverted("no_answer") == "Not reverted: the computer did not answer. The patch is still installed."
     with pytest.raises(KeyError):
         m.not_reverted("some_new_reason")
 

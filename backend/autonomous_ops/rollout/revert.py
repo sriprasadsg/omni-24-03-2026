@@ -26,14 +26,14 @@ from typing import Any, Dict, List, Optional
 
 from .. import agent_support, gate, ledger, messages
 from ..scope import raw
-from . import COMMAND_INSTALL, COMMAND_UNDO, SYSTEM_ACTOR, TOKEN_REVERT_BY_JOB, messages as rm, reboots, start, store
+from . import (COMMAND_INSTALL, COMMAND_UNDO, SYSTEM_ACTOR, TOKEN_REVERT_BY_JOB, inflight, messages as rm, reboots,
+               start, store)
 from .settle import result_key
 
 logger = logging.getLogger(__name__)
 
 REVERTABLE = ("executed", "verified", "failed")          # an install row that can be put back (a partial install fails)
 _SKIP_STATES = ("installing", "restarting", "reverting", "reverted", "not_reverted")
-_NOT_DELIVERED = ("refused", "cancelled_by_stop", "cancelled")
 _KNOWN_FIRST = ("not_uninstallable", "version_not_offered")      # the reasons the screen has words for, shown first
 _AGENT_FIELDS = {"_id": 0, "id": 1, "tenantId": 1, "lastSeen": 1, "platform": 1, "meta.response_actions": 1,
                  "meta.response_state": 1}
@@ -205,14 +205,6 @@ async def start_ring_revert(db, tenant_id: str, rollout: Dict[str, Any], ring: i
 
 # ---------------------------------------------------------------- settling
 
-async def _instruction_status(db, tenant_id: str, instruction_id: Optional[str]) -> Optional[str]:
-    if not instruction_id:
-        return None
-    doc = await raw(db).agent_instructions.find_one({"id": instruction_id, "tenantId": tenant_id}, {"_id": 0, "status": 1})
-    status = (doc or {}).get("status")
-    return status.strip().lower() if isinstance(status, str) else None
-
-
 def judge(entry: Dict[str, Any], patch_ids: List[str], now: datetime) -> Dict[str, Any]:
     """The outcome of one revert from the agent's result entry: ``{"outcome": reverted | not_reverted, "reason",
     "reboot", "at"}``. Reverted needs a success for at least one id and no id that failed; an id the install job
@@ -242,17 +234,23 @@ def judge(entry: Dict[str, Any], patch_ids: List[str], now: datetime) -> Dict[st
 
 async def _row_outcome(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any], action_id: str,
                        job_id: str, now: datetime) -> Optional[Dict[str, Any]]:
-    """One revert's outcome, or None while the agent has neither reported nor been refused the instruction."""
+    """One revert's outcome, or None while the agent is still working on it."""
     job = await raw(db).patch_deployment_jobs.find_one(
         {"id": job_id, "tenantId": tenant_id, "rolloutId": rollout["id"]}, {"_id": 0, "agentResults": 1, "patchIds": 1})
     entry = ((job or {}).get("agentResults") or {}).get(result_key(host["agentId"]))
     if isinstance(entry, dict):
         return judge(entry, list((job or {}).get("patchIds") or []), now)
     row = await ledger.get(db, tenant_id, action_id)
-    status = await _instruction_status(db, tenant_id, ((row or {}).get("instructionIds") or [None])[-1])
-    if status in _NOT_DELIVERED:
-        return {"outcome": "not_reverted", "reason": "not_delivered", "reboot": False, "at": now}
-    return None
+    task = await inflight.load_instruction(db, tenant_id, ((row or {}).get("instructionIds") or [None])[-1])
+    outcome = inflight.instruction_outcome(task, now, host.get("revertStartedAt"))
+    if outcome not in ("not_delivered", "failed", "no_result"):
+        return None
+    # The computer never had the revert, answered FAILURE, or stayed silent past RESULT_DEADLINE: it is Not reverted
+    # (never reverted, never reverting for ever), and the revert job it will not answer is closed.
+    await inflight.close_job(db, tenant_id, job_id, now, rm.NOT_REVERTED["no_answer"])
+    refused = inflight.status_of(task) in inflight.NOT_DELIVERED_STATES
+    return {"outcome": "not_reverted", "reason": "not_delivered" if refused else "no_answer", "reboot": False,
+            "at": now}
 
 
 async def _result_words(db, tenant_id: str, host: Dict[str, Any], action_id: str, found: Dict[str, Any]) -> str:

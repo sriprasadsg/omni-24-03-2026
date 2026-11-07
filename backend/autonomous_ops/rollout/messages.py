@@ -82,6 +82,7 @@ RING_DETAIL = {
 HOST_RESULT = {
     "waiting_window": "Waiting for the next window.",
     "waiting_approval": "Waiting for approval.",
+    "not_approved": "Not approved. Nothing was installed.",
     "installing": "Installing {patches}.",
     "installed": "Installed {patches}. Verified: no longer pending.",
     "restarting": "Restarting. Waiting for a heartbeat from the new start.",
@@ -149,10 +150,11 @@ NOT_REVERTED_REASON = {
     "not_uninstallable": "Windows doesn't allow this update to be uninstalled",
     "version_not_offered": "the earlier version is no longer offered by the package source",
     "agent_unsupported": "this computer's agent doesn't support it yet",
+    "no_answer": "the computer did not answer",
 }
 NOT_REVERTED = {code: f"Not reverted: {reason}. The patch is still installed."
                 for code, reason in NOT_REVERTED_REASON.items()}
-# A computer whose recorded reason is not one of the three above: still honest, never reads as reverted.
+# A computer whose recorded reason is not one of the four above: still honest, never reads as reverted.
 NOT_REVERTED_OTHER = "Not reverted. The patch is still installed."
 
 REVERT_SUMMARY = {

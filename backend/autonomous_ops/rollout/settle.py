@@ -85,6 +85,7 @@ class Progress:
     outstanding: bool = False                 # an approval row is waiting for a person or for the window
     failed: Optional[str] = None
     failure_code: Optional[str] = None        # set when the computer is failed without a result (no answer)
+    closed: bool = False                      # an approval row was denied or ran out: the computer is not approved
     reported: List[Any] = field(default_factory=list)
     reboot: bool = False
     installed: List[str] = field(default_factory=list)
@@ -212,7 +213,10 @@ async def _settle_lines(db, tenant_id: str, host: Dict[str, Any], now: datetime,
         elif state == "expired" and _expired_in_stop(row, stopped_since):
             prog.reraise += ids              # GATE-06: the clock ran during the stop; ask again, as a new card
             prog.settled_lines.append(action_id)
-        # denied and expired rows are the controller's to act on: it halts the rollout at the ring
+        elif state in ("denied", "expired"):
+            # The controller halts the rollout at the ring; until then, and afterwards, the computer was not
+            # approved: it must never fall through to installed (WR-04).
+            prog.closed = True
 
 
 def _expired_in_stop(row: Dict[str, Any], stopped_since: Optional[datetime]) -> bool:
@@ -265,6 +269,8 @@ async def _settle_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
             fields.update({"state": "waiting", "waitReason": "approval"})
         elif wants_decision:
             fields.update({"state": "waiting", "waitReason": None})
+        elif prog.closed:
+            fields.update({"state": "waiting", "waitReason": "not_approved"})
         else:
             fields.update({"state": "installed", "waitReason": None})
     changed = {k: v for k, v in fields.items() if host.get(k) != v}
