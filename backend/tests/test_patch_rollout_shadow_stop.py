@@ -218,3 +218,185 @@ async def test_a_live_rollout_whose_organization_enters_shadow_records_once_and_
     assert sorted(r["targets"][0] for r in live) == ["b1", "b2"]
     assert {(r["state"], r["reason"]["inputs"]["attempt"]) for r in live} == {("awaiting_approval", 2)}
     assert (await rollout_of(db, rollout_id))["shadow"] is False
+
+
+# ---------------------------------------------------------------- Task 2: stops freeze rollouts without failing them
+
+TENANT_ACTOR = {"username": "alice", "display": "Alice", "tier": "tenant"}
+PLATFORM_ACTOR = {"username": "root", "display": "Root", "tier": "platform"}
+
+
+async def press(db, scope):
+    return await stop.press(db, scope=scope, tenant_id=T if scope == "tenant" else None,
+                            actor=TENANT_ACTOR if scope == "tenant" else PLATFORM_ACTOR)
+
+
+async def clear(db, scope):
+    out = await stop.clear(db, scope=scope, tenant_id=T if scope == "tenant" else None,
+                           actor=PLATFORM_ACTOR, reason="all clear", actor_is_super_admin=True, actor_has_manage=True)
+    assert out["status"] == "cleared", out
+
+
+def _request():
+    req = MagicMock()
+    req.headers = {"host": "10.0.0.1"}
+    req.url.scheme = "http"
+    return req
+
+
+async def poll(db, agent="a1"):
+    """What the agent receives from its instruction poll (the task ids)."""
+    with patch.object(agent_tasks_endpoints, "get_database", return_value=db):
+        delivered = await agent_tasks_endpoints.get_agent_instructions(
+            agent, request=_request(), _tenant={"tenant_id": T, "authenticated_agent_id": agent})
+    return [d.get("task_id") or d.get("id") for d in delivered]
+
+
+@pytest.mark.parametrize("scope", ["tenant", "platform"])
+async def test_a_stop_freezes_the_canary_and_clearing_it_offers_the_cancelled_installs_again(mongo_db, scope):
+    db = mongo_db
+    await world(db, canary=("a1", "a2"), rest=("b1",))
+    rollout_id = await begin(db)
+    await controller.tick(db, now=NOW)
+    first = await rows(db)
+    assert [r["state"] for r in first] == ["dispatching", "dispatching"]
+    cancelled_ids = {i["id"] for i in await instructions(db)}
+    assert len(cancelled_ids) == 2
+
+    await press(db, scope)
+    assert {r["state"] for r in await rows(db)} == {"cancelled_by_stop"}
+    assert {i["status"] for i in await instructions(db)} == {"cancelled_by_stop"}
+    before_rows = await db.autonomy_actions.count_documents({})
+    before_instructions = await db.agent_instructions.count_documents({})
+
+    for minutes in (1, 10, 30):
+        await online_at(db, NOW + timedelta(minutes=minutes))
+        await controller.tick(db, now=NOW + timedelta(minutes=minutes))
+    assert await db.autonomy_actions.count_documents({}) == before_rows          # no decision, no refused row
+    assert await db.autonomy_actions.count_documents({"state": "refused"}) == 0
+    assert await db.agent_instructions.count_documents({}) == before_instructions
+    frozen = await rollout_of(db, rollout_id)
+    assert frozen["status"] == "running" and frozen["stoppedSince"] is not None
+
+    await clear(db, scope)
+    await online_at(db, NOW + timedelta(minutes=40))
+    await controller.tick(db, now=NOW + timedelta(minutes=40))
+    rollout = await rollout_of(db, rollout_id)
+    assert rollout["status"] == "running" and rollout.get("stoppedSince") is None
+    again = [r for r in await rows(db) if r["state"] == "dispatching"]
+    assert sorted(r["targets"][0] for r in again) == ["a1", "a2"]
+    assert {r["reason"]["inputs"]["attempt"] for r in again} == {2}
+    assert len({r["dedupeKey"] for r in await rows(db)}) == 4                    # every attempt has its own key
+    pending = await instructions(db, status="pending")
+    assert len(pending) == 2 and not ({i["id"] for i in pending} & cancelled_ids)
+    delivered = await poll(db, "a1")                     # the cancelled instruction is terminal at delivery
+    assert len(delivered) == 1 and delivered[0] not in cancelled_ids
+    assert delivered[0] in {i["id"] for i in pending if i["agent_id"] == "a1"}
+
+
+async def pass_the_canary_and_approve_ring_one(db, rollout_id):
+    """Ring 1 has an approval row per computer and a person approved the line (the instructions are pending)."""
+    later = await installed_canary(db, rollout_id)
+    await controller.tick(db, now=later)
+    awaiting = await rows(db, state="awaiting_approval", **{"reason.inputs.ring": 1})
+    assert sorted(r["targets"][0] for r in awaiting) == ["b1", "b2"]
+    done = await lines.approve_line(db, T, rollout_id, 1, "install", approver=APPROVER, now=later)
+    assert done["status"] == "approved" and done["approved"] == 2, done
+    return later
+
+
+@pytest.mark.parametrize("scope", ["tenant", "platform"])
+async def test_an_approved_line_a_stop_cancelled_is_raised_again_as_a_new_approval_and_the_rollout_does_not_halt(mongo_db, scope):
+    db = mongo_db
+    await world(db)
+    rollout_id = await begin(db)
+    later = await pass_the_canary_and_approve_ring_one(db, rollout_id)
+    await press(db, scope)
+    ring_one = await rows(db, **{"reason.inputs.ring": 1})
+    assert {r["state"] for r in ring_one} == {"cancelled_by_stop"}
+    before = await db.autonomy_actions.count_documents({})
+
+    for minutes in (5, 20):
+        await online_at(db, later + timedelta(minutes=minutes))
+        await controller.tick(db, now=later + timedelta(minutes=minutes))
+    assert await db.autonomy_actions.count_documents({}) == before
+    assert (await rollout_of(db, rollout_id))["status"] == "running"
+
+    await clear(db, scope)
+    await online_at(db, later + timedelta(minutes=30))
+    await controller.tick(db, now=later + timedelta(minutes=30))
+    rollout = await rollout_of(db, rollout_id)
+    assert rollout["status"] == "running" and rollout["currentRing"] == 1 and "haltReason" not in rollout
+    fresh = await rows(db, state="awaiting_approval", **{"reason.inputs.ring": 1})
+    assert sorted(r["targets"][0] for r in fresh) == ["b1", "b2"]
+    assert {r["reason"]["inputs"]["attempt"] for r in fresh} == {2}
+
+
+async def test_a_line_that_expired_during_a_long_stop_is_raised_again_and_never_halts_the_rollout(mongo_db):
+    db = mongo_db
+    await world(db)
+    rollout_id = await begin(db)
+    later = await installed_canary(db, rollout_id)
+    await controller.tick(db, now=later)
+    assert len(await rows(db, state="awaiting_approval", **{"reason.inputs.ring": 1})) == 2
+
+    await press(db, "tenant")
+    await online_at(db, later + timedelta(hours=1))
+    await controller.tick(db, now=later + timedelta(hours=1))                    # the stop is noticed
+    assert await approvals.expire_due(db, now=later + timedelta(hours=30), tenant_id=T) == 2      # the 24 h ran out
+    before = await db.autonomy_actions.count_documents({})
+    await online_at(db, later + timedelta(hours=31))
+    await controller.tick(db, now=later + timedelta(hours=31))
+    rollout = await rollout_of(db, rollout_id)
+    assert rollout["status"] == "running" and "haltReason" not in rollout        # not a deny, not an approval_expired
+    assert await db.autonomy_actions.count_documents({}) == before
+    assert {(await host_doc(db, a))["state"] for a in ("b1", "b2")} == {"waiting"}      # never read as installed
+
+    await clear(db, "tenant")
+    after = later + timedelta(hours=48)                                          # inside the daily window again
+    for minutes in (0, 5):
+        await online_at(db, after + timedelta(minutes=minutes))
+        await controller.tick(db, now=after + timedelta(minutes=minutes))
+    rollout = await rollout_of(db, rollout_id)
+    assert rollout["status"] == "running" and rollout["currentRing"] == 1 and "haltReason" not in rollout
+    assert rollout.get("stoppedSince") is None
+    fresh = await rows(db, state="awaiting_approval", **{"reason.inputs.ring": 1})
+    assert sorted(r["targets"][0] for r in fresh) == ["b1", "b2"]
+    assert {r["reason"]["inputs"]["attempt"] for r in fresh} == {2}
+    assert len(await rows(db, state="expired", **{"reason.inputs.ring": 1})) == 2       # the old cards stay as history
+
+
+async def test_an_expired_line_outside_any_stop_still_halts_the_rollout(mongo_db):
+    db = mongo_db
+    await world(db)
+    rollout_id = await begin(db)
+    later = await installed_canary(db, rollout_id)
+    await controller.tick(db, now=later)
+    assert await approvals.expire_due(db, now=later + timedelta(hours=25), tenant_id=T) == 2
+    await online_at(db, later + timedelta(hours=25))
+    await controller.tick(db, now=later + timedelta(hours=25))
+    assert (await rollout_of(db, rollout_id))["haltReason"]["code"] == "approval_expired"
+
+
+async def test_a_revert_of_a_halted_rollout_still_goes_out_during_a_stop(mongo_db):
+    db = mongo_db
+    await world(db, rest=())
+    await db.agents.update_one({"id": "a1"}, {"$set": {"meta.response_actions.tokens": [*TOKENS, "patch_revert_by_job"]}})
+    rollout_id = await begin(db)
+    await controller.tick(db, now=NOW)
+    job = await db.patch_deployment_jobs.find_one({"rolloutId": rollout_id})
+    await post_result(db, job["id"], "a1", success_result(["openssl"]))
+    await controller.tick(db, now=NOW + timedelta(minutes=2))
+    assert (await host_doc(db, "a1"))["state"] == "installed"
+
+    await press(db, "tenant")
+    rollout = store.normalise(await db.patch_rollouts.find_one({"id": rollout_id}))
+    assert await lifecycle.halt(db, T, rollout, 0, code="host_failed", host="a1", now=NOW + timedelta(minutes=3)) is True
+    undo = await instructions(db, type="rollback_patches")
+    assert len(undo) == 1 and undo[0]["status"] == "pending"
+    before = await db.autonomy_actions.count_documents({})
+    await online_at(db, NOW + timedelta(minutes=5))
+    await controller.tick(db, now=NOW + timedelta(minutes=5))
+    assert await db.autonomy_actions.count_documents({}) == before and await db.autonomy_actions.count_documents({"state": "refused"}) == 0
+    assert [i["status"] for i in await instructions(db, type="rollback_patches")] == ["pending"]
+    assert (await rollout_of(db, rollout_id))["status"] == "halted"
