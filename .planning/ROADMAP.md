@@ -534,6 +534,15 @@ Plans:
 **Wave 7** *(blocked on Wave 6 completion)*
 - [x] 84-21-PLAN.md — Agent 2.1.17, all gates together, the validation map, the user's live list
 
+**Gap closure (verification gaps_found 3/5):** 7 plans in 4 waves
+- [ ] 84-23-PLAN.md — Held or Suggest-level canary rows become Install lines; refusals retry; breaker ignores not-delivered (CR-01, CR-02, WR-01)
+- [ ] 84-24-PLAN.md — Manual job rollback refuses rollout jobs with 409 (WR-10)
+- [ ] 84-25-PLAN.md — Agent: a not-installed or masked service reads `absent`; the gate drops it only if it was absent before the change, and fails a service the change removed (CR-03) *(after 84-27)*
+- [ ] 84-26-PLAN.md — Agent: apt downgrade `--no-remove`, no reinstall on revert, strict require_reversible, durable job records (CR-04, WR-13..15)
+- [ ] 84-27-PLAN.md — In-flight work has a bounded end; denied hosts not shown installed; stuck dispatching rows and jobs recovered (WR-02..04, WR-06) *(after 84-23)*
+- [ ] 84-28-PLAN.md — Cancel a running rollout per D-16: stop new work, keep every patch (no revert), release claims once in-flight work settles; no Resume mid-cancel (WR-03) *(after 84-27)*
+- [ ] 84-29-PLAN.md — All gates together; VALIDATION, SECURITY (T-84-65..78) and review dispositions *(after all)*
+
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 84`) — per-OS patch reversibility matrix; health-gate signals; confirm the existing patch-revert path dispatches real agent work (OS patching was fake end to end until 2026-10-12).
 **Live-only verification** (operator steps): a real canary install plus reboot on a disposable host; revert on a supported OS; the post-reboot heartbeat feeding the gate; maintenance-window enforcement; the per-stage reboot approval click.
