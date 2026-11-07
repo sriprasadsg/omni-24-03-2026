@@ -212,6 +212,7 @@ async def test_a_live_rollout_whose_organization_enters_shadow_records_once_and_
     assert rollout["status"] == "running" and rollout["currentRing"] == 1 and rollout["rings"][1]["state"] != "passed"
 
     await set_shadow(db, False)
+    await online_at(db, later + timedelta(minutes=15))
     await controller.tick(db, now=later + timedelta(minutes=15))
     live = [r for r in await rows(db, **{"reason.inputs.ring": 1}) if r["state"] != "shadow"]
     assert sorted(r["targets"][0] for r in live) == ["b1", "b2"]

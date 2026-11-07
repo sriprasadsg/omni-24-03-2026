@@ -76,13 +76,26 @@ async def line_rows(db, tenant_id: str, rollout_id: str, ring: int, line: str,
     return [r async for r in found]
 
 
+def shadow_flag(rollout: Dict[str, Any]) -> Optional[bool]:
+    """``master_shadow`` for ``gate.decide``: True for a rollout that was started as a simulation (81 D-02, research
+    pitfall 5), so it stays one whatever the organization's shadow switch says later. None for a live rollout, which
+    lets the gate read the deployment and organization switches as it does for everything else."""
+    return True if rollout.get("shadow") else None
+
+
+_SHADOW_STATE = {"install": "would_install", "reboot": "would_restart"}      # a revert restart changes no computer state
+
+
 async def raise_line(db, tenant_id: str, rollout: Dict[str, Any], ring: int, line: str, entries: List[Entry],
-                     now: datetime) -> Dict[str, int]:
+                     now: datetime, *, master_shadow: Optional[bool] = None) -> Dict[str, int]:
     """Ask the gate for one approval row per entry. Returns counts of ``raised``, ``simulated`` and ``skipped``.
-    The gate escalates every request to a card (``playbook_raise``); a tenant in shadow mode records a
-    simulation and no card. The caller must not call this while a stop is on (a stopped ``decide`` records
-    a refused row each time)."""
+    The gate escalates every request to a card (``playbook_raise``); a simulation rollout, or an organization in
+    shadow mode, records a ``shadow`` row and no card, and the computer reads ``would_install`` or ``would_restart``
+    with its attempt counted, so the next real row after shadow is lifted is a new attempt with a new dedupe key.
+    The caller must not call this while a stop is on (a stopped ``decide`` records a refused row each time)."""
     counts = {"raised": 0, "simulated": 0, "skipped": 0}
+    if master_shadow is None:
+        master_shadow = shadow_flag(rollout)
     for host, command, params in entries:
         ids = list(params.get("patch_ids") or [])
         agent_id = host["agentId"]
@@ -96,12 +109,14 @@ async def raise_line(db, tenant_id: str, rollout: Dict[str, Any], ring: int, lin
                     "inputs": {"rolloutId": rollout["id"], "ring": ring, "line": line, "attempt": attempt,
                                "patchIds": ids}},
             reason_text=_why(rollout, ring, line, host, ids))
-        decision = await gate.decide(db, request, now=now)
+        decision = await gate.decide(db, request, master_shadow=master_shadow, now=now)
         if not decision.recorded or not decision.action_id:
             counts["skipped"] += 1
             continue
         if decision.shadow:
-            await store.set_host(db, tenant_id, rollout["id"], agent_id, {"state": "would_install"})
+            shown = _SHADOW_STATE.get(line)
+            if shown:
+                await store.set_host(db, tenant_id, rollout["id"], agent_id, {"state": shown, "attempt": attempt})
             counts["simulated"] += 1
             continue
         if decision.state != "awaiting_approval":

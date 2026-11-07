@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 from .. import ledger, messages
 from ..scope import raw
 from . import (BOOT_TOLERANCE_SECONDS, MAX_ATTEMPTS, NEW_BOOT_WAIT, REBOOT_DELAY_SECONDS, REBOOT_REASON, messages as rm,
-               start, store, windows as windows_mod)
+               needs_restart_by_name, start, store, windows as windows_mod)
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +101,31 @@ async def raise_reboot_line(db, tenant_id: str, rollout: Dict[str, Any], ring: i
     if not entries:
         return {"raised": 0, "simulated": 0, "skipped": 0}
     return await lines.raise_line(db, tenant_id, rollout, ring, LINE, entries, now)
+
+
+def simulated_due(host: Dict[str, Any]) -> bool:
+    """A computer of a simulation that would have installed a package from a usually-restart-needing family (D-06)
+    and has not had its would-restart row recorded yet. A simulation has no agent result to say a restart is needed,
+    so the package name is the only signal."""
+    return (host.get("state") == "would_install" and not host.get("simulatedRestartAt")
+            and any(needs_restart_by_name(p) for p in host.get("patchIds") or []))
+
+
+async def simulate_restarts(db, tenant_id: str, rollout: Dict[str, Any], ring: int, hosts: List[Dict[str, Any]],
+                            now: datetime) -> Dict[str, int]:
+    """Record one ``shadow`` reboot_host row for each computer of the ring that ``simulated_due``, through
+    ``gate.decide`` with ``master_shadow`` True (the rollout is a simulation, so nothing is sent), and mark the
+    computer ``would_restart``. Each computer is tried once: one the gate refuses is marked tried and the ring is not
+    held up for it. Returns the counts of ``lines.raise_line``."""
+    from . import lines            # lines imports dispatcher, which imports this module
+    due = [h for h in sorted(hosts, key=_order) if h.get("ring") == ring and simulated_due(h)]
+    if not due:
+        return {"raised": 0, "simulated": 0, "skipped": 0}
+    made = await lines.raise_line(db, tenant_id, rollout, ring, LINE, [(h, COMMAND, reboot_params()) for h in due], now,
+                                  master_shadow=True)
+    for h in due:
+        await store.set_host(db, tenant_id, rollout["id"], h["agentId"], {"simulatedRestartAt": now})
+    return made
 
 
 async def record_baseline(db, tenant_id: str, host: Dict[str, Any], agent: Optional[Dict[str, Any]],

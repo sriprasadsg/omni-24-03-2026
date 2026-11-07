@@ -153,7 +153,7 @@ async def canary_auto(db, tenant_id: str, rollout: Dict[str, Any], ring_index: i
         attempt = int(host.get("attempt") or 0) + 1
         job_id = uuid.uuid4().hex
         request = install_request(tenant_id, rollout, ring_index, host, job_id, attempt, split["automatic"])
-        decision = await gate.decide(db, request, now=now)
+        decision = await gate.decide(db, request, master_shadow=lines.shadow_flag(rollout), now=now)
         if not decision.recorded or not decision.action_id:
             counts["skipped"] += 1
             continue

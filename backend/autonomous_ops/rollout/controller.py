@@ -11,7 +11,7 @@ every call). Plan 84-22 puts the locked background loop around ``tick``.
 Raw Mongo handle with an explicit tenantId; ``scope.tenant_scope`` only wraps each tenant's pass.
 """
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from .. import PLATFORM_TENANT_ID, agent_support, scope, settings
@@ -22,6 +22,7 @@ from . import (ACTIVE_STATUSES, dispatcher, health, installs, lifecycle, lines, 
 logger = logging.getLogger(__name__)
 
 SETTLED = ("installed", "failed", "restarting", "healthy", "not_reached")     # a computer the ring need not wait on to install
+SIMULATED = ("would_install", "would_restart")          # a computer with a shadow row ("would have done")
 
 
 def _now(now: Optional[datetime]) -> datetime:
@@ -36,6 +37,46 @@ async def _may_decide(db, tenant_id: str, platform_stopped: bool) -> bool:
         return False
     tenant = await settings.load(db, tenant_id)
     return not settings.stop_active(tenant.stop) and settings.effective_level(tenant) != "off"
+
+
+async def _shadow_on(db, tenant_id: str) -> bool:
+    """True while shadow mode is in force for the tenant (the deployment switch or the organization's own)."""
+    return settings.shadow_state(await settings.load(db, tenant_id))[0]
+
+
+async def _release_shadow(db, tenant_id: str, rollout: Dict[str, Any]) -> None:
+    """A live rollout whose organization was in shadow mode and no longer is: the computers that only have a shadow
+    row go back to what they were before it, so the next pass decides for them again as a new attempt (the shadow row
+    already counted the attempt, so the dedupe key is new). A simulation is never released (research pitfall 5)."""
+    gone = "not_reached" if rollout.get("status") == "completed" else "waiting"
+    base = {"tenantId": tenant_id, "rolloutId": rollout["id"], "active": True}
+    await store.hosts(db).update_many({**base, "state": "would_install"}, {"$set": {
+        "state": gone, "installActionId": None, "installJobId": None, "waitReason": None}})
+    await store.hosts(db).update_many({**base, "state": "would_restart"}, {"$set": {"state": "installed"}})
+
+
+async def _simulate(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
+                    now: datetime) -> bool:
+    """One step of a simulation ring (81 D-02): record the would-restart rows, and once every computer has a shadow row
+    soak for the ring's soak hours on the real clock, then pass without health data (a simulation has none to read).
+    True when the ring passed."""
+    ring = rollout["rings"][index]
+    if any(reboots.simulated_due(h) for h in hosts):
+        await reboots.simulate_restarts(db, tenant_id, rollout, index, hosts, now)
+        hosts = [h for h in await store.host_docs(db, tenant_id, rollout["id"]) if h.get("ring") == index]
+    if any(h.get("state") not in SIMULATED + ("not_reached",) for h in hosts) \
+            or not any(h.get("state") in SIMULATED for h in hosts):
+        await _ring_state(db, tenant_id, rollout, index)
+        return False
+    if ring.get("state") != "soaking":
+        await store.set_ring(db, tenant_id, rollout, index, {
+            "state": "soaking", "soakEndsAt": now + timedelta(hours=float(ring.get("soakHours") or 0))})
+        ring = rollout["rings"][index]
+    ends = store.parse_time(ring.get("soakEndsAt"))
+    if ends is None or store.aware(now) < ends:
+        return False
+    await lifecycle.advance(db, tenant_id, rollout, now)
+    return True
 
 
 async def _restarts(db, tenant_id: str, rollout: Dict[str, Any], index: int, hosts: List[Dict[str, Any]],
@@ -183,8 +224,12 @@ async def _step(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, coun
             made = await installs.raise_ring(db, tenant_id, rollout, index, hosts, now)
         for key, value in made.items():
             counts[key] = counts.get(key, 0) + value
-        await _ring_state(db, tenant_id, rollout, index)
-        return False
+        if not rollout.get("shadow"):
+            await _ring_state(db, tenant_id, rollout, index)
+            return False
+        hosts = [h for h in await store.host_docs(db, tenant_id, rollout["id"]) if h.get("ring") == index]
+    if rollout.get("shadow"):
+        return await _simulate(db, tenant_id, rollout, index, hosts, now)
     if any(h.get("state") not in SETTLED for h in hosts):
         await _ring_state(db, tenant_id, rollout, index)
         return False           # installing, waiting for a person, or only simulated: nothing to check yet
@@ -231,6 +276,7 @@ async def _tail(db, tenant_id: str, rollout: Dict[str, Any], now: datetime, deci
 
 async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, counts: Dict[str, int]) -> None:
     decide = await _may_decide(db, tenant_id, platform_stopped)
+    shadow_on = await _shadow_on(db, tenant_id)
     with scope.tenant_scope(tenant_id):
         for rollout in await store.active_rollouts(db, tenant_id, ACTIVE_STATUSES):
             await settle.settle(db, tenant_id, rollout, now)
@@ -240,14 +286,17 @@ async def _tenant(db, tenant_id: str, now: datetime, platform_stopped: bool, cou
                                      host=late["agentId"], now=now, facts={"host": late.get("hostname") or late["agentId"]})
             if rollout.get("status") == "running":
                 await _halt_on_lines(db, tenant_id, rollout, now)       # needs no decision, so it works under a stop
-            if rollout.get("status") == "halted":
+            if rollout.get("status") == "halted" and not rollout.get("shadow"):      # PROH-84-08: a simulation reverts nothing
                 await revert.tick(db, tenant_id, rollout, now, may_decide=decide)    # undo is exempt from every stop
-            if decide and rollout.get("status") == "halted":      # only the Revert restart line is still sent
+            if decide and rollout.get("status") == "halted" and not rollout.get("shadow"):      # only the Revert restart line
                 sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
                 counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
             if decide and rollout.get("status") == "running":
-                sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
-                counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
+                if not rollout.get("shadow"):
+                    if not shadow_on:
+                        await _release_shadow(db, tenant_id, rollout)
+                    sent = await dispatcher.dispatch_approved(db, tenant_id, rollout, now)
+                    counts["dispatched"] = counts.get("dispatched", 0) + sent["sent"]
                 await _ring(db, tenant_id, rollout, now, counts)
         for rollout in await store.tail_rollouts(db, tenant_id):
             try:
