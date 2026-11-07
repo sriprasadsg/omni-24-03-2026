@@ -55,6 +55,29 @@ Requirement-level map. Task ids read `plan/task` (for example `84-01/T1` is plan
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
+### Gap closure 2026-11
+
+One row per task of gap plans 84-23..84-28, filled by 84-29 after the whole gate chain ran green together on the final code. `PYT` below is `MONGO_TEST_URL=mongodb://127.0.0.1:27998 MONGODB_URL=mongodb://127.0.0.1:27998 MONGO_URI=mongodb://127.0.0.1:27998 backend/venv/bin/python -m pytest ... -q -p no:cacheprovider` on a private mongod (never the live 27017); `RUST` is `cargo test --offline --manifest-path agent-install/omni-agent-rs/Cargo.toml --lib <filter>` with the nodebug target and debug info off.
+
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 84-23/T1 | 84-23 | 1 | PTCH-06 | T-84-65, T-84-66 | A canary row the gate holds at Suggest level is the ring's Install line; approving it sends it once and its result settles the host | mongo | `PYT backend/tests/test_patch_rollout_gap_lines.py` | ✅ | ✅ green |
+| 84-23/T2 | 84-23 | 1 | PTCH-06, PTCH-01 | T-84-65 | Later rings at Suggest raise Install lines; deny or 24 h expiry of a held canary line halts; a refused canary row is retried then failed with a reason | mongo | `PYT backend/tests/test_patch_rollout_gap_lines.py` | ✅ | ✅ green |
+| 84-23/T3 | 84-23 | 1 | PTCH-01 | T-84-67 | Expired `rollout_not_delivered` rows cannot lower a tenant's level (breaker ignores them) | mongo | `PYT backend/tests/test_patch_rollout_gap_lines.py backend/tests/test_patch_rollout_lines.py backend/tests/test_patch_rollout_cards.py backend/tests/test_patch_rollout_tracer.py backend/tests/test_patch_rollout_controller.py backend/tests/test_patch_rollout_dispatcher.py backend/tests/test_patch_rollout_shadow_stop.py` | ✅ | ✅ green |
+| 84-24/T1 | 84-24 | 1 | PTCH-04, PTCH-06 | T-84-68 | Manual rollback route refuses any job carrying `rolloutId` with 409 before an instruction is queued | mongo | `PYT backend/tests/test_patch_rollout_legacy_fence.py` | ✅ | ✅ green |
+| 84-24/T2 | 84-24 | 1 | PTCH-04 | T-84-68 | Ordinary jobs still roll back; another tenant's rollout job answers 404; the sentence passes the copy gate | mongo + copy gate | `PYT backend/tests/test_patch_rollout_legacy_fence.py backend/tests/test_patch_rollout_messages.py backend/tests/test_patch_rollout_endpoints.py` | ✅ | ✅ green |
+| 84-25/T1 | 84-25 | 2 | PTCH-02 | T-84-69, T-84-70 | A not-found or masked systemd unit reads `absent`, never stopped; the services signal judges it against the pre-change baseline | cargo + mongo | `RUST service_`; `PYT backend/tests/test_patch_rollout_health.py` | ✅ | ✅ green |
+| 84-25/T2 | 84-25 | 2 | PTCH-02 | T-84-70 | The baseline is recorded only when an install is queued, merged across attempts, and can never fail the send | mongo | `PYT backend/tests/test_patch_rollout_baseline.py backend/tests/test_patch_rollout_health.py backend/tests/test_patch_rollout_dispatcher.py backend/tests/test_patch_rollout_tracer.py backend/tests/test_patch_rollout_gap_lines.py backend/tests/test_patch_rollout_gap_inflight.py` | ✅ | ✅ green |
+| 84-25/T3 | 84-25 | 2 | PTCH-04 | T-84-69 | Windows error 1060 reads `absent`, any other sc failure stays unknown; the shared contract lists the token | cargo + mongo | `RUST service_`; `RUST response_`; `cargo check --offline --lib --target x86_64-pc-windows-gnu`; `PYT backend/tests/test_patch_rollout_contract.py` | ✅ | ✅ green |
+| 84-26/T1 | 84-26 | 2 | PTCH-04 | T-84-71 | Every apt downgrade carries `--no-remove`; a revert of a package that is gone installs nothing | cargo | `RUST patch_` | ✅ | ✅ green |
+| 84-26/T2 | 84-26 | 2 | PTCH-06 | T-84-72 | A non-boolean `require_reversible` (null included) refuses the job, never reads as false | cargo | `RUST patch_reversible` | ✅ | ✅ green |
+| 84-26/T3 | 84-26 | 2 | PTCH-04 | T-84-73 | Job records are saved per package, an unreadable file is kept as `.bad`, the temporary file is fsynced before rename; Windows target compiles | cargo | `RUST patch_`; `cargo check --offline --lib --target x86_64-pc-windows-gnu` | ✅ | ✅ green |
+| 84-27/T1 | 84-27 | 3 | PTCH-06 | T-84-74 | An install answered FAILURE or silent past 6 h fails the computer and the ring halts; an expired unread instruction is retried | mongo | `PYT backend/tests/test_patch_rollout_gap_inflight.py` | ✅ | ✅ green |
+| 84-27/T2 | 84-27 | 3 | PTCH-04, PTCH-02 | T-84-74, T-84-75 | A revert answered FAILURE, expired or silent reads Not reverted (did not answer) and Resume is unblocked; a denied computer is never shown installed | mongo | `PYT backend/tests/test_patch_rollout_gap_inflight.py backend/tests/test_patch_rollout_revert.py backend/tests/test_patch_rollout_lifecycle.py backend/tests/test_patch_rollout_messages.py` | ✅ | ✅ green |
+| 84-27/T3 | 84-27 | 3 | PTCH-06, PTCH-07 | T-84-76 | A row dispatching with no instruction is recovered after 10 min; a send that raises ends the row; every abandoned install closes its job | mongo | `PYT backend/tests/test_patch_rollout_gap_inflight.py backend/tests/test_patch_rollout_gap_lines.py backend/tests/test_patch_rollout_dispatcher.py backend/tests/test_patch_rollout_tracer.py backend/tests/test_patch_rollout_controller.py backend/tests/test_patch_rollout_claims.py` | ✅ | ✅ green |
+| 84-28/T1 | 84-28 | 4 | PTCH-04, PTCH-07 | T-84-77, T-84-78 | Cancel of a running rollout stops new work, reverts nothing, ends cancelled with claims released once installs settle or at 6 h; halt, Resume and a second Cancel are refused while cancelling | mongo | `PYT backend/tests/test_patch_rollout_cancel_running.py backend/tests/test_patch_rollout_lifecycle.py backend/tests/test_patch_rollout_endpoints.py backend/tests/test_patch_rollout_messages.py backend/tests/test_patch_rollout_revert.py backend/tests/test_patch_rollout_controller.py backend/tests/test_patch_rollout_gap_inflight.py` | ✅ | ✅ green |
+| 84-28/T2 | 84-28 | 4 | PTCH-04, PTCH-06 | T-84-77, T-84-78 | The server offers Cancel on a running card with the nothing-is-reverted sentence; neither Cancel nor Resume while cancelling | mongo + vitest | `PYT backend/tests/test_patch_rollout_views.py backend/tests/test_patch_rollout_views_cancel.py backend/tests/test_patch_rollout_lifecycle.py backend/tests/test_patch_rollout_messages.py`; `npx vitest run src/__tests__/PatchRollout`; `npx tsc --noEmit` | ✅ | ✅ green |
+
 ---
 
 ## Wave 0 Requirements
@@ -90,6 +113,8 @@ Requirement-level map. Task ids read `plan/task` (for example `84-01/T1` is plan
 - [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** validated 2026-11-07 by /gsd-validate-phase 84. Re-run on the final code: backend map set 547 passed, 0 skipped (private mongod :27998); vitest `src/__tests__` 1,599 passed; cargo `--lib` patch_ 31, response_ 92, service_state 2 passed. Live behaviours stay in Manual-Only above.
+
+**Gap round re-run 2026-11-07 (plan 84-29), final code after 84-23..84-28:** backend map set 1,601 passed, 0 failed (private mongod :27998, `test_patch_rollout_*.py` + maintenance windows + deployment flow + `test_autonomous_ops_*.py` + catalogue slice/parity + route auth baseline); vitest `src/__tests__` 108 files, 1,604 passed; cargo `--lib` patch_ 38, response_ 92, service_ 48 passed; windows-gnu `cargo check --lib` finished; `tsc --noEmit` clean; `npm run build` ok (dist-new only). Every gap task row above has an automated command, so `nyquist_compliant` stays true.
 
 ## Validation Audit 2026-11-07
 
