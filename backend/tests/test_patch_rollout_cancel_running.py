@@ -99,7 +99,9 @@ async def test_cancel_of_a_running_rollout_stops_new_work_closes_rows_and_revert
     assert (await db.autonomy_actions.find_one({"id": "AO-appr"}))["state"] == "expired"
     assert (await db.autonomy_actions.find_one({"id": "AO-appr"}))["reasonCode"] == "rollout_closed"
     unfetched = await db.autonomy_actions.find_one({"id": "A-pend"})
-    assert unfetched["state"] == "failed" and unfetched["reasonCode"] == "rollout_halted"
+    assert unfetched["state"] == "failed" and unfetched["reasonCode"] == "rollout_closed"     # no check failed (WR-29)
+    assert unfetched["reasonText"] == "The rollout was closed before this step ran, so nothing was done."
+    assert "rollout_closed" in ledger.BREAKER_IGNORED
     assert (await host(db, "h4"))["state"] == "not_reached"
     assert (await db.autonomy_actions.find_one({"id": "A-sent"}))["state"] == "dispatching"     # on the computer
     assert (await host(db, "h2"))["state"] == "installing"

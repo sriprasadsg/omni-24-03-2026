@@ -120,20 +120,22 @@ async def _close_open_rows(db, tenant_id: str, rollout_id: str) -> int:
     return closed
 
 
-async def _end_unfetched(db, tenant_id: str, rollout_id: str, ring: int, now: datetime) -> None:
-    """A dispatching row of the ring whose instruction is still pending is failed ``rollout_halted``: delivery
-    then refuses the instruction (its row is not dispatchable), and the computer is marked not reached."""
+async def _end_unfetched(db, tenant_id: str, rollout_id: str, ring: int, now: datetime,
+                         code: str = "rollout_halted") -> None:
+    """A dispatching row of the ring whose instruction is still pending is failed with ``code`` (``rollout_halted``
+    for a halt, ``rollout_closed`` for a Cancel, where no check failed): delivery then refuses the instruction (its
+    row is not dispatchable), and the computer is marked not reached."""
     found = raw(db).autonomy_actions.find(
         {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
          "reason.inputs.ring": ring, "state": "dispatching"}, {"_id": 0})
     for row in [r async for r in found]:
         if not await _instruction_pending(db, tenant_id, (row.get("instructionIds") or [None])[-1]):
             continue
-        done = await ledger.transition(db, tenant_id, row["id"], ("dispatching",), "failed", reasonCode="rollout_halted",
-                                       reasonText=messages.REASON_TEXT["rollout_halted"])
+        done = await ledger.transition(db, tenant_id, row["id"], ("dispatching",), "failed", reasonCode=code,
+                                       reasonText=messages.REASON_TEXT[code])
         if done:
             await inflight.close_job(db, tenant_id, (row.get("params") or {}).get("job_id"), now,
-                                     messages.REASON_TEXT["rollout_halted"])
+                                     messages.REASON_TEXT[code])
             await store.set_host(db, tenant_id, rollout_id, (row.get("targets") or [None])[0],
                                  {"state": "not_reached", "waitReason": None})
 
@@ -353,7 +355,7 @@ async def _request_running(db, tenant_id: str, rollout: Dict[str, Any], who: Dic
         raise
     await _close_open_rows(db, tenant_id, rollout["id"])
     for index in range(len(rings)):
-        await _end_unfetched(db, tenant_id, rollout["id"], index, now)
+        await _end_unfetched(db, tenant_id, rollout["id"], index, now, "rollout_closed")
     return {"status": "cancelling", "reason": None, "ring": ring_name}
 
 
