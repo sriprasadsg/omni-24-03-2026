@@ -9,27 +9,27 @@ findings:
     title: "A revert still re-installs a removed package that left its config behind (reopens WR-15)"
   - id: WR-26
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "An expired `sent` instruction is judged \"not delivered\" although the agent already fetched it"
   - id: WR-27
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A queued revert that was never fetched is declared \"did not answer\" after 6 hours and the instruction is left live"
   - id: WR-28
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A revert the agent answered FAILURE is reported as \"the computer did not answer\""
   - id: WR-29
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Cancel closes unfetched instructions with the \"a check after the install did not pass\" text"
   - id: WR-30
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A rollout whose Cancel is settling shows no sign of it"
   - id: WR-31
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A controller pass that loaded the rollout before the Cancel stamp can still decide and send"
   - id: WR-32
     severity: warning
@@ -251,9 +251,9 @@ findings:
     severity: info
     disposition: deferred
     title: "[frontend] Minor robustness points"
-open: 11
+open: 5
 total: 62
-recorded: 2026-11-07T09:51:31.025Z
+recorded: 2026-11-07T13:39:46.048Z
 ---
 
 # Phase 84: Code Review Disposition
@@ -261,12 +261,12 @@ recorded: 2026-11-07T09:51:31.025Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | WR-25 | warning | open | - |
-| WR-26 | warning | open | - |
-| WR-27 | warning | open | - |
-| WR-28 | warning | open | - |
-| WR-29 | warning | open | - |
-| WR-30 | warning | open | - |
-| WR-31 | warning | open | - |
+| WR-26 | warning | fixed | 84-REVIEW-FIX.md |
+| WR-27 | warning | fixed | 84-REVIEW-FIX.md |
+| WR-28 | warning | fixed | 84-REVIEW-FIX.md |
+| WR-29 | warning | fixed | 84-REVIEW-FIX.md |
+| WR-30 | warning | fixed | 84-REVIEW-FIX.md |
+| WR-31 | warning | fixed | 84-REVIEW-FIX.md |
 | WR-32 | warning | open | - |
 | IN-24 | info | open | - |
 | IN-25 | info | open | - |
