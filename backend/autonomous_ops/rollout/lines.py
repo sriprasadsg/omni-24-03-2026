@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 Entry = Tuple[Dict[str, Any], str, Dict[str, Any]]      # (host document, command, params)
 _AUTOMATIC_RULE = "rollout:canary_install"
+OPEN_ROW_STATES = ("awaiting_approval", "suggested")      # a person has to decide either one (KD-84-G1)
 
 
 def _now(now: Optional[datetime]) -> datetime:
@@ -62,8 +63,9 @@ def _why(rollout: Dict[str, Any], ring: int, line: str, host: Dict[str, Any], id
 
 
 def _approval_filter(tenant_id: str, rollout_id: str, ring: int, line: str) -> Dict[str, Any]:
+    rules = [f"rollout:{line}"] + ([_AUTOMATIC_RULE] if line == "install" else [])      # a held canary row is an install row
     return {"tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
-            "reason.inputs.ring": ring, "reason.inputs.line": line, "reason.ruleId": f"rollout:{line}"}
+            "reason.inputs.ring": ring, "reason.inputs.line": line, "reason.ruleId": {"$in": rules}}
 
 
 async def line_rows(db, tenant_id: str, rollout_id: str, ring: int, line: str,
@@ -119,17 +121,23 @@ async def raise_line(db, tenant_id: str, rollout: Dict[str, Any], ring: int, lin
                 await store.set_host(db, tenant_id, rollout["id"], agent_id, {"state": shown, "attempt": attempt})
             counts["simulated"] += 1
             continue
-        if decision.state != "awaiting_approval":
+        if decision.state not in OPEN_ROW_STATES:
             counts["skipped"] += 1           # the gate refused: nothing to wait for
             continue
-        await store.hosts(db).update_one(
-            {"tenantId": tenant_id, "rolloutId": rollout["id"], "agentId": agent_id},
-            {"$push": {f"lineActionIds.{line}": decision.action_id}, "$addToSet": {"linePatchIds": {"$each": ids}}})
-        await store.hosts(db).update_one(
-            {"tenantId": tenant_id, "rolloutId": rollout["id"], "agentId": agent_id, "state": "waiting"},
-            {"$set": {"waitReason": "approval"}})
+        await track_line(db, tenant_id, rollout["id"], agent_id, line, decision.action_id, ids)
         counts["raised"] += 1
     return counts
+
+
+async def track_line(db, tenant_id: str, rollout_id: str, agent_id: str, line: str, action_id: str,
+                     patch_ids: Iterable[str]) -> None:
+    """Remember an open approval row on its computer: its id under ``lineActionIds.<line>``, its patches in
+    ``linePatchIds`` (so nothing asks for them twice), and the computer reads "waiting for approval". Used for
+    every row a person has to decide, including a canary row the gate held (KD-84-G1)."""
+    where = {"tenantId": tenant_id, "rolloutId": rollout_id, "agentId": agent_id}
+    await store.hosts(db).update_one(
+        where, {"$push": {f"lineActionIds.{line}": action_id}, "$addToSet": {"linePatchIds": {"$each": list(patch_ids)}}})
+    await store.hosts(db).update_one({**where, "state": "waiting"}, {"$set": {"waitReason": "approval"}})
 
 
 async def has_approved(db, tenant_id: str, rollout_id: str, ring: int) -> bool:
@@ -148,7 +156,7 @@ async def closed_line(db, tenant_id: str, rollout_id: str, ring: int, *, since: 
     after such a stop (``handled`` holds those row ids)."""
     flt: Dict[str, Any] = {
         "tenantId": tenant_id, "dispatcher": DISPATCHER_NAME, "reason.inputs.rolloutId": rollout_id,
-        "reason.inputs.ring": ring, "reason.ruleId": {"$in": ["rollout:install", "rollout:reboot", "rollout:revert_reboot"]},
+        "reason.inputs.ring": ring, "reason.ruleId": {"$in": ["rollout:install", _AUTOMATIC_RULE, "rollout:reboot", "rollout:revert_reboot"]},
         "state": {"$in": ["denied", "expired"]}, "reasonCode": {"$ne": "rollout_closed"}}
     if handled:
         flt["id"] = {"$nin": list(handled)}
@@ -209,7 +217,7 @@ async def approve_line(db, tenant_id: str, rollout_id: str, ring: int, line: str
         return refusal
     if await gate._stopped(db, tenant_id):
         return _result("stopped", message=rm.LINE_RESULT["stopped"])
-    awaiting = await line_rows(db, tenant_id, rollout_id, ring, line, ("awaiting_approval", "suggested"))
+    awaiting = await line_rows(db, tenant_id, rollout_id, ring, line, OPEN_ROW_STATES)
     if not awaiting:
         if await line_rows(db, tenant_id, rollout_id, ring, line):
             return _result("already_handled", message=rm.LINE_RESULT["already_handled"])
@@ -253,7 +261,7 @@ async def deny_line(db, tenant_id: str, rollout_id: str, ring: int, line: str, *
     rollout, refusal = await _running(db, tenant_id, rollout_id, line)
     if rollout is None:
         return refusal
-    awaiting = await line_rows(db, tenant_id, rollout_id, ring, line, ("awaiting_approval", "suggested"))
+    awaiting = await line_rows(db, tenant_id, rollout_id, ring, line, OPEN_ROW_STATES)
     if not awaiting:
         if await line_rows(db, tenant_id, rollout_id, ring, line):
             return _result("already_handled", message=rm.LINE_RESULT["already_handled"])

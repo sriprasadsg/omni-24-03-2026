@@ -147,6 +147,11 @@ async def send(db, row: Dict[str, Any], now: Optional[datetime] = None,
     if result.get("status") == "queued":
         if row.get("command") == COMMAND_INSTALL:
             await store.set_host(db, tenant_id, rollout_id, agent_id, {"state": "installing", "waitReason": None})
+            # An approved install keeps its own job and instruction on the computer so its result is read; a
+            # computer whose automatic canary row is in flight keeps that row's ids instead.
+            await store.hosts(db).update_one(
+                {"tenantId": tenant_id, "rolloutId": rollout_id, "agentId": agent_id, "installActionId": None},
+                {"$set": {"installJobId": params.get("job_id"), "installInstructionId": result.get("task_id")}})
         elif row.get("command") == reboots.COMMAND and inputs.get("line") == "revert_reboot":
             await reboots.record_revert_baseline(db, tenant_id, {"rolloutId": rollout_id, "agentId": agent_id}, None, now)
         elif row.get("command") == reboots.COMMAND:        # D-08: what the computer looked like before it restarted

@@ -165,11 +165,29 @@ async def canary_auto(db, tenant_id: str, rollout: Dict[str, Any], ring_index: i
             budget -= 1
             await _send(db, tenant_id, rollout, host, decision.action_id, job_id, attempt, now, window_close, counts,
                         split["automatic"])
-        else:       # the gate wants a person (limits, a stop on the tenant's side): remember the row, do nothing
-            await store.set_host(db, tenant_id, rollout["id"], host["agentId"],
-                                 {"installActionId": decision.action_id, "attempt": attempt})
+        elif decision.state in lines.OPEN_ROW_STATES:
+            # The gate wants a person (Suggest level, the hourly limit, an unreadable setting): the row is the
+            # ring's Install line with its own Approve and Deny, never the host's automatic install (CR-02,
+            # KD-84-G1), so a deny or an expiry halts the ring and the host is never left waiting with no card.
+            await lines.track_line(db, tenant_id, rollout["id"], host["agentId"], "install", decision.action_id,
+                                   split["automatic"])
+            await store.set_host(db, tenant_id, rollout["id"], host["agentId"], {"attempt": attempt})
             counts["held"] += 1
+        else:       # a recorded refusal (a stop pressed in between): the host stays waiting and is decided again
+            counts["skipped"] += 1
+            await _refused(db, tenant_id, rollout, host, attempt, decision.reason)
     return counts
+
+
+async def _refused(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any], attempt: int,
+                   code: Optional[str]) -> None:
+    """A refused canary row is never remembered as the host's install (CR-01). Only the attempt is counted, so
+    the next pass decides it again as a new attempt; after MAX_ATTEMPTS the host fails with the reason."""
+    fields: Dict[str, Any] = {"attempt": attempt}
+    if attempt >= MAX_ATTEMPTS:
+        fields.update({"state": "failed", "waitReason": None,
+                       "failureMessage": messages.REASON_TEXT.get(code or "") or messages.REASON_TEXT["rollout_not_delivered"]})
+    await store.set_host(db, tenant_id, rollout["id"], host["agentId"], fields)
 
 
 async def raise_ring(db, tenant_id: str, rollout: Dict[str, Any], ring_index: int, hosts: List[Dict[str, Any]],
