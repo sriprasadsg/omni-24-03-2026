@@ -1,8 +1,8 @@
 ---
 phase: 87-partner-and-reseller-channel
-verified: 2026-11-04T08:05:00Z
-status: human_needed
-score: 5/5 roadmap success criteria verified
+verified: 2026-11-07T15:20:00Z
+status: passed
+score: 5/5 must-haves verified
 covered_files:
   - ".planning/phases/87-partner-and-reseller-channel/87-01-PLAN.md"
   - ".planning/phases/87-partner-and-reseller-channel/87-01-SUMMARY.md"
@@ -35,119 +35,102 @@ covered_files:
   - ".planning/phases/87-partner-and-reseller-channel/87-15-PLAN.md"
   - ".planning/phases/87-partner-and-reseller-channel/87-15-SUMMARY.md"
   - "backend/audit_middleware.py"
+  - "backend/auth_password_reset_endpoints.py"
   - "backend/authentication_endpoints.py"
-  - "backend/export_controls.py"
+  - "backend/authentication_service.py"
+  - "backend/migrations/029_partner_channel.py"
+  - "backend/partner_endpoints.py"
   - "backend/partner_invites.py"
   - "backend/partner_middleware.py"
+  - "backend/partner_platform_endpoints.py"
   - "backend/partner_platform_service.py"
   - "backend/partner_pool.py"
   - "backend/partner_portal_service.py"
+  - "backend/partner_status.py"
+  - "backend/partner_store.py"
   - "backend/role_endpoints.py"
   - "backend/stream_processing_endpoints.py"
   - "backend/tenant_middleware.py"
-covered_digest: "v3:sha256:81d3f69c007346b34ae47941106416ef1a70f498adf8724590d71bf945fa8ef7"
+  - "components/AcceptInvitePage.tsx"
+  - "components/PartnerPortal.tsx"
+  - "components/PartnersDashboard.tsx"
+  - "services/partnerApi.ts"
+covered_digest: "v3:sha256:70dfb556a5f6094f24eabd4ed8545b373b0cc51d8bfaa3c7e676646bee3bdb55"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: gaps_found
-  previous_score: 4/5
+  previous_score: 4/5 at HEAD f86bcc397 (5/5 on the working tree)
   gaps_closed:
-    - "SC4 / PART-05: edge walls bypassed by Authorization scheme spelling (T-87-13), fixed 2ae92b5d2"
-    - "SC4: /api/stream/live served global logs and security_events to partner tokens, fixed e693da59e"
+    - "Invite e-mail (PART-02 / SC2): partner_invites imported _resolve_smtp_config, which was uncommitted; committed in 422af6095 (PLATFORM_TENANT_ID + the resolver, 41 lines)"
   gaps_remaining: []
   regressions: []
+  history:
+    - "2026-11-04 08:05Z human_needed 5/5 (after T-87-13 and live-feed gap closure)"
+    - "2026-11-07 14:45Z gaps_found 4/5 at HEAD f86bcc397 (invite mail depended on uncommitted resolver)"
+    - "2026-11-07 15:20Z passed 5/5 at HEAD 422af6095"
 gaps: []
 deferred: []
-human_verification:
-  - test: "Full backend suite on a private mongod, compared by name against the baseline"
-    expected: "Failures are exactly the four known names (test_audit_export::test_legacy_download_allows_owner, test_e2e_integration::test_cross_tenant_report_download_owner_allowed, test_catalogue_route_parity::test_ledger_ratchets, test_catalogue_manifest::test_sidebar_and_app_agree_with_manifest)"
-    why_human: "About 33 minutes alone on the VM; this verification ran the 600-odd phase, auth, roles and catalogue tests only (the two catalogue baseline failures reproduced, nothing new)"
-  - test: "Live end-to-end partner flow after a backend restart and UI publish (migration 029 not yet run live)"
-    expected: "Appoint a partner, partner admin creates a customer from the pool, invitee signs in and meets MFA set-up, suspend locks the partner out while the customers' agents keep reporting"
-    why_human: "Nothing is published, the backend has not been restarted, SMTP is not configured on this VM; 87-UAT.md is at test 2 of the run and awaits the user"
-  - test: "Browser pass of the Partners screen, Partner portal (admin and viewer) and Accept-invite page, light and dark at 640, 1024 and 1280 px"
-    expected: "Matches 87-UI-SPEC; 87-UI-REVIEW scored 17/24 from code only"
-    why_human: "Visual and responsive behaviour, needs a published UI"
-  - test: "Live isolation: partner token against customer pages and APIs, Socket.IO (assumption A-87-A5), and the real retailer trial (2+ partners, 100 and 1,000 seats, real agents)"
-    expected: "Every customer route refused, nothing of customers delivered over Socket.IO, the agent past the allotment is held"
-    why_human: "Needs the deployed backend and real agents; Socket.IO has no partner emitters by assumption and was not checked live"
+human_verification: []
+
 ---
 
 # Phase 87: Partner and Reseller Channel Verification Report
 
 **Phase Goal:** The platform can sell through partners the way a vendor appoints dealers: a Super Admin appoints partner organizations and gives each a pool of agent seats, a partner creates and manages its own customer organizations and assigns seats to each from its pool, a partner admin sees only that partner's customers, and usage rolls up per partner.
-**Verified:** 2026-11-04T08:05:00Z
-**Status:** human_needed
-**Re-verification:** Yes, after gap closure (previous report 2026-11-03T20:15Z, gaps_found 4/5)
+**Verified:** 2026-11-07T15:20:00Z
+**Status:** passed
+**Re-verification:** Yes. Previous report 2026-11-04 (human_needed 5/5) was stale: the audit and fix rounds, the partner UI QA fixes, migration 030 and Phase 84 changed covered files.
+
+## How this was judged
+
+Committed HEAD (422af6095; the earlier run of this report was at f86bcc397, and the only change between the two is the 41-line resolver commit) is the subject. The working tree carries about 2,377 uncommitted entries of the user's work, so the verifier extracted `git archive HEAD` (backend, shared, front-end sources) into a scratch directory and ran Phase 87's backend tests there against the private mongod (127.0.0.1:27998), in addition to the working tree runs. Every Phase 87 backend file (`partner_*.py`, `tenant_middleware.py`, `stream_processing_endpoints.py`, `audit_middleware.py`, `role_endpoints.py`, migration 029) and every Phase 87 front-end component is identical between HEAD and the working tree. The only place where the two differ for this phase is the invite-mail dependency below.
 
 ## Goal Achievement
-
-Both gaps recorded against success criterion 4 are closed in the code and by tests the verifier ran. Success criteria 1, 2, 3 and 5 were verified in the previous report and re-checked here by running their test files (no regression). What remains is live verification that cannot be done before a backend restart and a UI publish.
-
-### Gap re-check
-
-**Gap 1, T-87-13 (bearer spelling bypass): CLOSED.**
-- `backend/tenant_middleware.py:102-109` defines `bearer_token()` over FastAPI's own `get_authorization_scheme_param` (scheme compared case-insensitively, parameter stripped). Used by `_bearer_role` (line 112, feeds the partner, platform read-only and screen-switch walls), `TenantMiddleware` (line 184), `audit_middleware.actor_of` (line 64) and `export_controls` (line 42).
-- Independent probe by the verifier (a partner_admin JWT through `PartnerScopeMiddleware` on `GET /api/tenants`): `Bearer`, `bearer`, `BEARER`, `Bearer  ` (two spaces), `Bearer <t> ` (trailing space) and `BeArEr   <t>  ` all return 403. No header returns 200. The previous report showed four of these reaching the app.
-- Regression test `test_partner_route_walk.py` now carries `_SPELLINGS` (bearer, BEARER, bEaReR, two spaces, trailing space); the file passes (19 tests).
-- Remaining hand-written `startswith("Bearer ")` parsers (`agent_auth.py:74`, `agent_registry_endpoints.py:53`, `deployment_result_endpoints.py:32`, `tunnel_endpoints.py:228`) are agent-token or secondary-token paths, not edge walls; a differently spelled header on them falls to "no token" and the partner wall itself already parses it. Not a gap.
-
-**Gap 2, `/api/stream/live`: CLOSED.**
-- `backend/stream_processing_endpoints.py:79-110`: the handshake verifies the token, then `is_partner_role(...)` closes with 4403 before `accept()`. Delivery goes through `_live_event_allowed`: platform staff (`can_read_all_tenants`) get everything; everyone else gets `system_stats` (platform-wide window counts) and only `logs` / `security_events` events tagged with their own tenant; untagged ones are platform data and withheld.
-- Tests `test_live_feed_refuses_partner_roles`, `test_live_feed_sends_a_tenant_only_its_own_logs_and_security_events`, `test_live_feed_sends_platform_staff_every_event` in `test_tenant_boundary_hardening.py` pass (32 passed in that file).
-- `87-SECURITY.md` was re-audited (fbe4a522c): `threats_open: 0`, T-87-13 closed. T-87-15 (Socket.IO, accepted) still rests on assumption A-87-A5 and remains a live check.
-
-**Review warnings WR-01 to WR-05 (a1a845740): fixed and tested.** WR-01 `role_endpoints.py:135` skips platform and partner roles for non-owners; WR-02 `name_unavailable` 409 at `partner_platform_service.py:70,95,135,156` and `partner_portal_service.py:106,117`; WR-03/WR-04/WR-05 covered by new cases in `test_partner_invites.py`, `test_login_me_permissions.py`, `test_partner_move.py`, `test_partner_customers.py` (all pass). Nav pins read 192 (`test_closure_delivery.py` passes). WR-06 to WR-11 and IN-01 to IN-10 remain open in `87-REVIEW-DISPOSITION.md`; they are warnings and info, none contradicts a success criterion.
 
 ### Observable Truths (ROADMAP success criteria)
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Super Admin appoints a partner with pool, expiry and screen ceiling from a Partners screen, sees pool used and free, can suspend (users locked out, customers keep running) | VERIFIED | `test_partner_platform.py`, `test_partner_suspension.py` pass; vitest PartnersDashboard green |
-| 2 | Partner admin creates a customer with seats from the pool and invites its first admin; screens only within the ceiling | VERIFIED | `test_partner_customers.py`, `test_partner_ceiling.py`, `test_partner_invites.py` pass (incl. new WR-03/WR-04 cases). Real e-mail and first sign-in are a human item |
-| 3 | Seats never exceed the pool under concurrency; lower only to seats used; pool cannot shrink below handed out; after pool expiry no customer and no seat | VERIFIED | `test_partner_pool.py`, `test_partner_expiry.py`, `test_partner_license_writers.py` pass |
-| 4 | Partner admins and viewers reach only their own customers' seats and usage through every route; two partners see none of each other's customers nor any customer's security data | VERIFIED | Portal isolation (`test_partner_isolation.py`); edge allowlist now immune to scheme spelling (probe above, route walk 19 pass); live feed refuses partners and tenant-filters events (3 tests). Socket.IO is by assumption and listed for a live check |
-| 5 | Super Admin moves a customer between partners or to direct, seats returned and audited; pre-existing organizations stay direct; per-customer usage list with CSV | VERIFIED | `test_partner_move.py` (incl. new WR-05 case), `test_partner_usage.py`; migration 029 creates indexes only |
+| 1 | Super Admin appoints a partner with pool, expiry and screen ceiling from a Partners screen, sees every pool used and free, can suspend (users locked out, customers keep running) | VERIFIED | HEAD run: `test_partner_platform.py`, `test_partner_suspension.py` (14), `test_partner_expiry.py` green. Suspension chokepoint is in the token verifier (`authentication_service.py:411-412`, `partner_status.refuse_if_suspended`) and in login (`authentication_endpoints.py:236-240`) and refresh (`:507`). Vitest PartnersDashboard green. UAT 3, 4, 13 pass |
+| 2 | Partner admin creates a customer with seats from the pool and invites its first admin, who runs it like a direct customer; screens only within the ceiling | VERIFIED | Customer creation, pool claim and ceiling verified (`test_partner_customers.py`, `test_partner_ceiling.py` green). The invite is created (user, single-use seven-day token, hashed storage) and the e-mail path now resolves: `auth_password_reset_endpoints.py` at HEAD defines `PLATFORM_TENANT_ID` (line 43) and `_resolve_smtp_config` (line 46), which `partner_invites.py:93` imports. `test_partner_invites.py` 24/24 on a clean HEAD snapshot |
+| 3 | Seats never exceed the pool under concurrency; lower only to seats used; pool cannot shrink below handed out; after expiry no customer and no seat | VERIFIED | `partner_pool.claim` is one `update_one` with `$expr: allocated + n <= poolSize` and `$inc` (no read-modify-write); increases claim first, decreases write the customer first, so a crash can only leak seats. `test_partner_pool.py` (28) and `test_partner_expiry.py` (6) green at HEAD. UAT 11 pass |
+| 4 | Partner admins and viewers reach only their own customers' seats and usage through every route; two partners see no one else's customers nor any customer's security data | VERIFIED | `PartnerScopeMiddleware` is mounted in HEAD `app_middleware.py` (lines 212, 218) and allowlists `/api/partner`, `/api/auth|mfa|passkey/` and `GET /api/platform/features` only; scheme parsing goes through the shared `bearer_token()` (`tenant_middleware.py:102`). Portal queries are all keyed by `{"id": customer_id, "partnerId": partner_id}` (`partner_portal_service.py:37,138,174,198`). `/api/stream/live` closes 4403 for partner roles and filters events per tenant (`stream_processing_endpoints.py:70-110`). `test_partner_route_walk.py` (19), `test_partner_isolation.py` (9), `test_tenant_boundary_hardening.py` green at HEAD. UAT 10, 12, 13 pass (user accepted Socket.IO isolation live) |
+| 5 | Super Admin moves a customer between partners or to direct, seats returned and audited; pre-existing orgs stay direct; per-customer usage list with CSV | VERIFIED | `test_partner_move.py` (15), `test_partner_usage.py` green at HEAD; migration 029 creates indexes only; vitest PartnerPortal green |
 
-**Score:** 5/5 truths verified; 0 behavior-unverified.
+**Score:** 5 of 5 verified at committed HEAD; 0 behavior-unverified.
 
 ### Requirements Coverage
 
-All eight IDs PART-01 to PART-08 appear in plan frontmatter (87-14 claims all) and in REQUIREMENTS.md for Phase 87; no orphans. REQUIREMENTS.md still shows them as "Gaps Found" in its traceability table; the orchestrator should move them to complete once the human items are accepted or on its own rule.
+All eight IDs PART-01..PART-08 are claimed by plan frontmatter (87-14 claims all) and mapped to Phase 87 in REQUIREMENTS.md (lines 88-95, traceability 250-257); no orphans. The traceability table still reads "Pending" for all eight; that is a bookkeeping item for the orchestrator once the gap is closed.
 
 | Requirement | Status | Evidence |
 |-------------|--------|----------|
-| PART-01 appoint, pool, suspend/reinstate | SATISFIED | platform service, suspension per-request check; tests green. Live flow is a human item |
-| PART-02 partner creates customer, invites first admin | SATISFIED | `create_customer`, invite flow; login now case-insensitive (WR-04) so invitee case no longer locks out |
-| PART-03 seats never exceed pool, atomic | SATISFIED | 26 pool tests; WR-05 closed; WR-06 (transient over-claim) open as a warning |
+| PART-01 appoint, pool, suspend/reinstate | SATISFIED | tests above; suspension at token verifier, login, refresh |
+| PART-02 partner creates customer, invites first admin by e-mail | SATISFIED | creation, invite record and e-mail resolver all committed (422af6095); 24 invite tests pass at HEAD |
+| PART-03 seats never exceed pool, atomic | SATISFIED | `partner_pool.claim` (atomic `$expr` update); 28 pool tests |
 | PART-04 expiry | SATISFIED | `test_partner_expiry.py` |
-| PART-05 only own customers, only seats and usage, every route | SATISFIED | gaps 1 and 2 closed (above) |
+| PART-05 only own customers, seats and usage, every route | SATISFIED | edge allowlist, portal scoping, live-feed filter; route walk |
 | PART-06 screens within ceiling | SATISFIED | `test_partner_ceiling.py` |
 | PART-07 only Super Admin moves; audited; existing stay direct | SATISFIED | `test_partner_move.py` |
 | PART-08 usage roll-up and CSV | SATISFIED | `test_partner_usage.py`, PartnerPortal vitest |
 
-### Key Link Verification
+### Required Artifacts and Key Links
 
-| From | To | Status | Details |
-|------|----|--------|---------|
-| `app_middleware.py` | `PartnerScopeMiddleware` | WIRED | now reads the header via shared `bearer_token()` |
-| `tenant_middleware` / `audit_middleware` / `export_controls` | `bearer_token()` | WIRED | grep shows all three import it |
-| `/api/stream/live` | partner role refusal and per-tenant filter | WIRED | closes 4403; `_live_event_allowed` applied in every client callback |
-| `partner_endpoints` to `partner_portal_service` / `partner_pool` | real queries | WIRED | unchanged from previous report |
-| shell to partner views | `isPartnerRoleName` | WIRED | `PartnerShell.test.tsx` passes |
+All partner backend modules, migration 029, router registration (`router_registry.py:128-129`), `PartnerScopeMiddleware` mount and front-end components exist at HEAD, are substantive (1,816 lines across the nine `partner_*.py` modules plus tenant middleware) and are wired (route walk and component tests exercise them end to end). Data flow is real: portal and Partners screen read `tenants` queries keyed by `partnerId`; no static returns found. The previously broken link `partner_invites.send_invite_email` to `auth_password_reset_endpoints._resolve_smtp_config` is now defined at HEAD (422af6095).
 
-### Data-Flow Trace (Level 4)
+### Behavioral Spot-Checks (private mongod 127.0.0.1:27998; live database untouched)
 
-Unchanged and FLOWING: portal customers table, Partners screen pool bars and CSV all read real `tenants` queries filtered by `partnerId`. The live feed filter now operates on the real broker event `tenantId` field.
+| Behavior | Command (abridged) | Result | Status |
+|----------|--------------------|--------|--------|
+| Pool, route walk, isolation, suspension, expiry, move on HEAD snapshot | pytest `test_partner_pool/route_walk/isolation/suspension/expiry/move` | 91 passed | PASS |
+| Rest of Phase 87 plus neighbours on HEAD snapshot (f86bcc397; invite failures since fixed) | pytest `test_partner_ceiling/customers/invites/license_writers/platform/roles/tracer/usage`, `test_catalogue_slice_partners`, `test_tenant_boundary_hardening`, `test_tenant_middleware_context_cleanup`, `test_rbac_defaults`, `test_closure_delivery` | 272 passed, 4 failed: 3 are the invite-mail gap; 1 (`test_rbac_defaults::test_role_writing_scripts_are_archived`) is a snapshot artefact (the `archive/` directory was not extracted), not a finding | 3 FAIL (gap), 1 n/a |
+| Re-run on fresh HEAD 422af6095 snapshot | pytest `test_partner_invites`, `test_partner_route_walk` | 43 passed | PASS |
+| Catalogue, session revocation and invites on the working tree | pytest `test_catalogue_manifest`, `test_catalogue_route_parity`, `test_session_revocation`, `test_partner_invites` | 123 passed | PASS |
+| Partner and shell front end on the working tree | vitest Partner*, partnerAccess, AcceptInvitePage, SidebarFailClosed, catalogueAccess, viewAccess | 11 files, 332 passed | PASS |
+| Orchestrator gates (HEAD code, not re-run) | full vitest 1,606; Phase 87 22 backend files 465; Autonomous Ops/patch 1,531 | all green per orchestrator | taken as given |
 
-### Behavioral Spot-Checks (private mongod 127.0.0.1:27998, live database untouched)
-
-| Behavior | Command | Result | Status |
-|----------|---------|--------|--------|
-| Phase 87 backend, roles, platform roles, tenant boundary, middleware cleanup | pytest `test_partner_*`, `test_catalogue_slice_partners`, `test_roles_endpoint`, `test_platform_roles`, `test_tenant_boundary_hardening`, `test_tenant_middleware_context_cleanup` | 406 passed | PASS |
-| Review-fix and neighbours | pytest `test_login_me_permissions`, `test_closure_delivery`, `test_catalogue_manifest`, `test_catalogue_route_parity`, `test_route_auth_baseline`, `test_auth_mfa` | 190 passed, 2 failed (`test_sidebar_and_app_agree_with_manifest`, `test_ledger_ratchets`: both on the accepted baseline list) | PASS |
-| Partner frontend | vitest PartnerPortal, partnerAccess, AcceptInvitePage, PartnersDashboard, PartnerShell | 6 files, 174 tests passed | PASS |
-| Edge wall under scheme spellings | verifier probe (JWT through `PartnerScopeMiddleware`, GET /api/tenants) | seven spellings: all 403; no header 200 | PASS |
+Nav-count pins: the old "190" pins are now `192` in `catalogueAccess.test.ts:49`, `test_catalogue_manifest.py:161` and `test_closure_delivery.py:214`; all pass, and grep finds no `.skip`, `.todo` or `xit` in the Phase 87 test files. Resolved, not skipped.
 
 ### Probe Execution
 
@@ -155,17 +138,23 @@ SKIPPED: the phase declares no probe scripts.
 
 ### Anti-Patterns Found
 
-No TBD, FIXME or XXX markers or stubs found in the files changed for the gap fixes (`tenant_middleware.py`, `stream_processing_endpoints.py`, `partner_*.py`). The earlier two blockers are removed.
+No TBD, FIXME or XXX markers in the Phase 87 backend files. One blanket `except Exception` in `partner_invites.send_invite_email` turned the earlier missing import into a silent "not sent" result. Info only: the import now resolves, and the tests that cover the mail path would catch a recurrence.
+
+### Facts the orchestrator asked to check
+
+- **`backend/export_controls.py`**: the file is untracked (`??`), has never been committed, and HEAD's `app_middleware.py` does not import it. It is not part of Phase 87 at HEAD (the 2026-11-04 report listing it as covered was wrong, and it is dropped from `covered_files` here). The working-tree version already parses the header through the shared `bearer_token()` and passes agent and unauthenticated callers through, so it neither weakens nor strengthens the partner wall (partner tokens are refused earlier by `PartnerScopeMiddleware` for every non-portal route). It changes nothing in this verdict.
+- **Other working-tree differences touching Phase 87 files**: `authentication_service.py` / `authentication_endpoints.py` carry an uncommitted `mfa_exempt` claim (set only from a server-written account flag) that lets an exempt account skip admin MFA. No partner account is exempt by design and no API sets the flag, so the partner-MFA rule (D-02 / PART-02) is unchanged; `test_partner_roles.py` and `test_custom_role_mfa.py` pass either way. Worth a conscious look if a partner admin is ever given that flag.
+- **Review/security**: `87-SECURITY.md` is `verified`, `threats_open: 0`; `87-REVIEW-DISPOSITION.md` lists WR-01..WR-11 as fixed. UAT is 95/95 with no skipped, blocked or pending tests. No new human item is raised: the five user-accepted tests (5, 10, 11, 12, 13) are not re-raised.
 
 ### Human Verification Required
 
-See the `human_verification` frontmatter: the full backend suite by name against the baseline, the live partner flow after restart and publish (87-UAT.md is in progress), the browser pass, and live isolation including Socket.IO and the retailer trial.
+None. (UAT 5, the invite e-mail, passed on the live system, which runs the working tree; the gap is about what is committed, not about live behavior.)
 
 ### Gaps Summary
 
-No open gaps. Status is `human_needed` solely because live checks need a backend restart, a UI publish, SMTP and real agents, all owned by the user. Open review items WR-06 to WR-11 and IN-01 to IN-10 are tracked in `87-REVIEW-DISPOSITION.md` and do not block any success criterion.
+No open gaps. The single gap from the 14:45Z run (the committed invite-mail code importing `_resolve_smtp_config`, which lived only in uncommitted working-tree code) is closed by commit 422af6095, which adds only `PLATFORM_TENANT_ID` and the resolver (41 lines) to `backend/auth_password_reset_endpoints.py`. Confirmed by reading HEAD's file and by running `test_partner_invites.py` plus `test_partner_route_walk.py` on a fresh `git archive HEAD` snapshot (backend, shared, pytest.ini) against the private mongod 127.0.0.1:27998: 43 passed (24 invites, 19 route walk). `git diff f86bcc397 HEAD --stat` shows that one 41-line addition is the only change since the earlier run, so every other result in this report still holds. The user's password-reset mail and FRONTEND_URL edits in the same file remain uncommitted; they do not affect any Phase 87 truth (the resolver is self-contained). No new human items; UAT is 95/95.
 
 ---
 
-_Verified: 2026-11-04T08:05:00Z_
+_Verified: 2026-11-07T14:45:00Z_
 _Verifier: Claude (gsd-verifier)_
