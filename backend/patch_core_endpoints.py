@@ -251,6 +251,7 @@ async def create_deployment_job(
 
 
 ROLLBACK_JOB_TYPE = "Patch Rollback"      # the job type the result route reads to leave the pending list alone
+ROLLOUT_OWNED_JOB_DETAIL = "This job belongs to a rollout. Revert it from Rollouts on the Patching screen."
 
 
 def installed_ids_for(job: dict, agent_id: str) -> List[str]:
@@ -274,6 +275,10 @@ async def rollback_patch_job(
     job = await db.patch_deployment_jobs.find_one({"id": job_id}, {"_id": 0})
     if not job or (not is_admin and job.get("tenantId") != caller_tenant):
         raise HTTPException(status_code=404, detail="Patch deployment job not found")
+    if job.get("rolloutId"):
+        # WR-10: a rollout's own install or revert job is reverted only through the rollout (stop check, window,
+        # ledger row, controller told), never around it. Checked after the tenant check so another tenant learns nothing.
+        raise HTTPException(status_code=409, detail=ROLLOUT_OWNED_JOB_DETAIL)
     if job.get("status") not in ("Completed", "Partially Completed", "Failed"):
         raise HTTPException(status_code=409, detail="Only a finished patch job can be rolled back")
 
