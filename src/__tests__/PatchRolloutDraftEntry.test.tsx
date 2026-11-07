@@ -119,7 +119,7 @@ describe('buildOpenViewHandlers', () => {
     handlers.patchManagement?.({ tab: 'rollouts', draft: 'x' });
     expect(go).toHaveBeenLastCalledWith('patchManagement', { tab: 'rollouts', draft: 'x' });
     handlers.patchManagement?.();
-    expect(go).toHaveBeenLastCalledWith('patchManagement', undefined);
+    expect(go).toHaveBeenLastCalledWith('patchManagement');
   });
 });
 

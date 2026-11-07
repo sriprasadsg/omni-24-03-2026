@@ -5,7 +5,8 @@ import { resolveAutonomousOpsScope, useAutonomousOpsStatus } from '../contexts/A
 import { platformTier } from '../utils/permissions';
 import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
 import { AutonomousOpsDecisions } from './AutonomousOpsDecisions';
-import type { OpenViewHandlers } from './AutonomousOpsRowActions';
+import { buildOpenViewHandlers } from './AutonomousOpsRowActions';
+import type { OpenViewPayload } from './AutonomousOpsRowActions';
 import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
 import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
 import { PlatformResponseSettings } from './AutonomousOpsResponseSettingsPlatform';
@@ -16,8 +17,8 @@ interface AutonomousOpsActivityProps {
     /** viewingTenantId: the organization platform staff entered from Tenants, else null. */
     tenantId?: string | null;
     onGoToTenants?: () => void;
-    /** Moves the app to another screen. A suggestion row may open Patching or File Integrity through it. */
-    onOpenView?: (view: AppView) => void;
+    /** Moves the app to another screen. A suggestion row may open Patching or File Integrity through it; Draft a rollout sends a payload. */
+    onOpenView?: (view: AppView, payload?: OpenViewPayload) => void;
 }
 
 const SECONDARY_BUTTON =
@@ -48,13 +49,12 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
     // A link out exists for a target only when the viewer may open that screen; otherwise it reads as plain text.
     const canPatch = hasPermission('view:patching');
     const canFim = hasPermission('view:fim');
-    const openers = useMemo<OpenViewHandlers | undefined>(() => {
-        if (!onOpenView) return undefined;
-        const out: OpenViewHandlers = {};
-        if (canPatch) out.patchManagement = () => onOpenView('patchManagement');
-        if (canFim) out.fimMonitoring = () => onOpenView('fimMonitoring');
-        return out;
-    }, [onOpenView, canPatch, canFim]);
+    // Draft a rollout also needs the right to start rollouts; that is display only, the server checks it again.
+    const canDraft = hasPermission('manage:patches');
+    const openers = useMemo(
+        () => buildOpenViewHandlers(onOpenView, { canPatch, canFim, canDraft }),
+        [onOpenView, canPatch, canFim, canDraft],
+    );
 
     // Response settings (D-22): holders of manage in an organization that is not the platform one; never Platform Support.
     // Needs your decision (ACTV-02): an organization's own cards; never in platform scope or for the platform organization.

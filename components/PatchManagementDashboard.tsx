@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend } from 'recharts';
 import { Patch, PatchSeverity, Asset, PatchDeploymentJob, VulnerabilityScanJob } from '../types';
 import { PatchList } from './PatchList';
@@ -17,6 +17,7 @@ import { OsPatchesTab, OsAssetPatch } from './OsPatchesTab';
 import { showToast } from '../utils/toast';
 import type { AppView } from '../types';
 import { RolloutsTab } from './patchRollouts/RolloutsTab';
+import type { PatchingIntent } from './patchRollouts/RolloutsTab';
 import { fetchRollouts } from '../services/patchRollouts/rollouts';
 
 interface PatchManagementDashboardProps {
@@ -30,10 +31,13 @@ interface PatchManagementDashboardProps {
     tenantId?: string | null;
     /** Lets the Rollouts tab send the person to Needs your decision or Settings. */
     onOpenView?: (view: AppView) => void;
+    /** From another screen: land on the Rollouts tab with the Start dialog open (Draft a rollout carries a draft). Consumed once. */
+    intent?: PatchingIntent | null;
+    onIntentConsumed?: () => void;
 }
 
 export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> = ({
-    patches, assets, patchDeploymentJobs, onSchedulePatchDeployment, vulnerabilityScanJobs, onScheduleVulnerabilityScan, tenantId, onOpenView
+    patches, assets, patchDeploymentJobs, onSchedulePatchDeployment, vulnerabilityScanJobs, onScheduleVulnerabilityScan, tenantId, onOpenView, intent = null, onIntentConsumed
 }) => {
     // The live OS/software tabs and their scan follow the viewed tenant together,
     // so "Update" never picks an agent from a different tenant than the package.
@@ -44,7 +48,18 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
     const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
     const [scanScope, setScanScope] = useState<'selected' | 'all'>('selected');
-    const [activeTab, setActiveTab] = useState<'patches' | 'approvals' | 'software-updates' | 'os-patches' | 'rollouts'>('patches');
+    const [activeTab, setActiveTab] = useState<'patches' | 'approvals' | 'software-updates' | 'os-patches' | 'rollouts'>(intent ? 'rollouts' : 'patches');
+    // The one-shot request to open the Start dialog: kept here so the screen's own state clears at once and a later
+    // visit to the Rollouts tab never reopens the dialog. The Rollouts tab clears it when it has acted on it.
+    const [rolloutIntent, setRolloutIntent] = useState<PatchingIntent | null>(intent);
+    const intentConsumed = useRef(onIntentConsumed);
+    intentConsumed.current = onIntentConsumed;
+    useEffect(() => {
+        if (!intent) return;
+        setRolloutIntent(intent);
+        setActiveTab('rollouts');
+        intentConsumed.current?.();
+    }, [intent]);
 
     // Software Updates state
     const [outdatedPackages, setOutdatedPackages] = useState<OutdatedPackage[]>([]);
@@ -446,7 +461,10 @@ export const PatchManagementDashboard: React.FC<PatchManagementDashboardProps> =
             )}
 
             {activeTab === 'rollouts' && (
-                <RolloutsTab key={tenantId ?? 'own'} tenantId={tenantId} onOpenView={onOpenView} onAttentionCount={setRolloutAttention} />
+                <RolloutsTab
+                    key={tenantId ?? 'own'} tenantId={tenantId} onOpenView={onOpenView} onAttentionCount={setRolloutAttention}
+                    intent={rolloutIntent} onIntentConsumed={() => setRolloutIntent(null)}
+                />
             )}
 
             {activeTab === 'approvals' && (

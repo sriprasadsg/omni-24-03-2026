@@ -21,8 +21,34 @@ const SECONDARY_BUTTON =
 const TEXT_BUTTON = 'text-sm font-semibold text-gray-900 dark:text-white underline underline-offset-2';
 const MUTED = 'text-gray-600 dark:text-gray-400';
 
-/** The openers the screen allows: a target is present only when the viewer may open that screen. */
-export type OpenViewHandlers = Partial<Record<AutonomousOpsOpenView, () => void>>;
+/** Where an opener can land inside Patching: the Rollouts tab, with the Start dialog open on a suggestion's draft. */
+export interface OpenViewPayload {
+    tab: 'rollouts';
+    draft: string;
+}
+
+/**
+ * The openers the screen allows: a target is present only when the viewer may open that screen. `draftRollout` is
+ * display only (the viewer may open Patching and start rollouts): it turns a vulnerability suggestion's link into
+ * Draft a rollout. The server checks again when the draft is read and when Start is pressed.
+ */
+export type OpenViewHandlers =
+    Partial<Record<AutonomousOpsOpenView, (payload?: OpenViewPayload) => void>> & { draftRollout?: boolean };
+
+/** Builds the openers from what the viewer may open; undefined when the screen cannot navigate at all. */
+export function buildOpenViewHandlers(
+    go: ((view: AutonomousOpsOpenView, payload?: OpenViewPayload) => void) | undefined,
+    can: { canPatch: boolean; canFim: boolean; canDraft: boolean },
+): OpenViewHandlers | undefined {
+    if (!go) return undefined;
+    const out: OpenViewHandlers = {};
+    if (can.canPatch) {
+        out.patchManagement = payload => (payload ? go('patchManagement', payload) : go('patchManagement'));
+        if (can.canDraft) out.draftRollout = true;
+    }
+    if (can.canFim) out.fimMonitoring = () => go('fimMonitoring');
+    return out;
+}
 
 /** What the list hands every Result cell. */
 export interface ResultContext {
@@ -174,12 +200,19 @@ const nounFor = (row: AutonomousOpsRow, n: number): string => {
     return n === 1 ? 'vulnerability' : 'vulnerabilities';
 };
 
-const ViewLink: React.FC<{ view: AutonomousOpsOpenView; onOpenView?: OpenViewHandlers }> = ({ view, onOpenView }) => {
+/** `draft` turns the link into Draft a rollout for that suggestion; it only opens the dialog and never starts anything. */
+const ViewLink: React.FC<{ view: AutonomousOpsOpenView; onOpenView?: OpenViewHandlers; draft?: { id: string; host: string | null } }> = ({ view, onOpenView, draft }) => {
     const open = onOpenView?.[view];
     if (!open) return <span className={`text-sm ${MUTED}`}>{VIEW_LABEL[view]}</span>;
+    const drafting = !!draft && view === 'patchManagement' && onOpenView?.draftRollout === true;
     return (
-        <button type="button" className={`${TEXT_BUTTON} inline-flex items-center gap-1`} onClick={open}>
-            {VIEW_LABEL[view]}
+        <button
+            type="button"
+            className={`${TEXT_BUTTON} inline-flex items-center gap-1`}
+            aria-label={drafting ? `Draft a rollout for the vulnerabilities on ${draft?.host || 'this computer'}` : undefined}
+            onClick={() => (drafting && draft ? open({ tab: 'rollouts', draft: draft.id }) : open())}
+        >
+            {drafting ? 'Draft a rollout' : VIEW_LABEL[view]}
             <ExternalLinkIcon size={12} aria-hidden="true" />
         </button>
     );
@@ -196,7 +229,7 @@ export const SuggestionBody: React.FC<{ row: AutonomousOpsRow; onOpenView?: Open
     return (
         <div className="mt-2 flex flex-col items-start gap-2">
             <div className="flex flex-wrap items-center gap-2">
-                <ViewLink view={view} onOpenView={onOpenView} />
+                <ViewLink view={view} onOpenView={onOpenView} draft={suggestion.kind === 'vulnerability' ? { id: row.id, host: row.host } : undefined} />
                 {items.length > 0 && (
                     <button type="button" className={`${TEXT_BUTTON} inline-flex items-center gap-1`} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(o => !o)}>
                         <ChevronRightIcon size={16} aria-hidden="true" className={open ? 'rotate-90' : ''} />

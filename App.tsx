@@ -250,6 +250,8 @@ import { canListUsers, canReadView, evaluateViewAccess, hasAnyScreen, landingVie
 import { NoAccessPanel, ViewGate } from './components/NoAccessPanel';
 import { ZeroAccessScreen } from './components/ZeroAccessScreen';
 import { PERMISSION_DENIED_EVENT, samePermissionSet, lostAccess, refreshThenLoad, type RefreshResult } from './utils/permissionRefresh';
+import type { OpenViewPayload } from './components/AutonomousOpsRowActions';
+import type { PatchingIntent } from './components/patchRollouts/RolloutsTab';
 
 const API_BASE = '/api';
 
@@ -293,6 +295,8 @@ const App: React.FC = () => {
   // 'enroll' to set it up, 'verify' to confirm a code for this session.
   const [mfaGate, setMfaGate] = useState<'enroll' | 'verify' | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
+  // One-shot request from another screen (Draft a rollout) to open Patching's Start a rollout dialog; the dashboard clears it.
+  const [patchingIntent, setPatchingIntent] = useState<PatchingIntent | null>(null);
   // Ref so WebSocket handlers can read the latest view without being re-registered on every navigation
   const currentViewRef = useRef<AppView>('dashboard');
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
@@ -1248,6 +1252,13 @@ const App: React.FC = () => {
     setCurrentView(view);
   }, []);
 
+  // Autonomous Ops links into Patching; Draft a rollout also carries the suggestion to draft from.
+  const handleOpenFromAutonomousOps = useCallback((view: AppView, payload?: OpenViewPayload) => {
+    if (view === 'patchManagement' && payload) setPatchingIntent(payload);
+    handleSetCurrentView(view);
+  }, [handleSetCurrentView]);
+  const clearPatchingIntent = useCallback(() => setPatchingIntent(null), []);
+
   // "Go to {landing}" on the no-access panel: replace (never push) the hash so Back does not loop into the panel.
   const goToLanding = useCallback(() => {
     if (!landing) return;
@@ -1724,7 +1735,7 @@ const App: React.FC = () => {
       case 'agentCapabilities': return <ErrorBoundary name="AgentCapabilitiesDashboard"><AgentCapabilitiesDashboard /></ErrorBoundary>;
       case 'assetManagement': return <ErrorBoundary name="AssetManagementDashboard"><AssetManagementDashboard assets={tenantData.assets} patches={tenantData.patches} onRunVulnerabilityScan={handleRunVulnerabilityScan} filters={assetFilters} onClearFilters={() => setAssetFilters([])} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} onDeleteAsset={handleDeleteAsset} /></ErrorBoundary>;
       case 'softwareUpdates': return <ErrorBoundary name="SoftwareUpdateManagement"><SoftwareUpdateManagement assets={tenantData.assets} /></ErrorBoundary>;
-      case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} tenantId={viewingTenantId} onOpenView={handleSetCurrentView} /></ErrorBoundary>;
+      case 'patchManagement': return <ErrorBoundary name="PatchManagementDashboard"><PatchManagementDashboard patches={tenantData.patches} assets={tenantData.assets} patchDeploymentJobs={tenantData.patchDeploymentJobs} onSchedulePatchDeployment={handleSchedulePatchDeployment} vulnerabilityScanJobs={tenantData.vulnerabilityScanJobs} onScheduleVulnerabilityScan={handleScheduleVulnerabilityScan} tenantId={viewingTenantId} onOpenView={handleSetCurrentView} intent={patchingIntent} onIntentConsumed={clearPatchingIntent} /></ErrorBoundary>;
       case 'deploymentApprovals': return <ErrorBoundary name="ApprovalDashboard"><ApprovalDashboard currentUser={currentUser} /></ErrorBoundary>;
       case 'stagedDeployments': return <ErrorBoundary name="StagedDeploymentsPage"><StagedDeploymentsPage /></ErrorBoundary>;
       case 'vulnerabilityManagement': return <ErrorBoundary name="VulnerabilityManagement"><VulnerabilityManagement /></ErrorBoundary>;
@@ -1757,7 +1768,7 @@ const App: React.FC = () => {
       case 'pentest': return <ErrorBoundary name="PentestDashboard"><PentestDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
       case 'playbooks': return <ErrorBoundary name="PlaybookBuilder"><PlaybookBuilder /></ErrorBoundary>;
       case 'soar': return <ErrorBoundary name="SOARDashboard"><SOARDashboard tenantId={activeTenantId ?? ''} /></ErrorBoundary>;
-      case 'autonomousOps': return <ErrorBoundary name="AutonomousOpsActivity"><Suspense fallback={<SkeletonDashboard />}><AutonomousOpsActivity tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} onOpenView={handleSetCurrentView} /></Suspense></ErrorBoundary>;
+      case 'autonomousOps': return <ErrorBoundary name="AutonomousOpsActivity"><Suspense fallback={<SkeletonDashboard />}><AutonomousOpsActivity tenantId={viewingTenantId} onGoToTenants={hasPermission('manage:tenants') ? () => handleSetCurrentView('tenantManagement') : undefined} onOpenView={handleOpenFromAutonomousOps} /></Suspense></ErrorBoundary>;
       case 'threatIntelligence': return (
         <ErrorBoundary name="ThreatIntelligence">
           <div className="space-y-6">

@@ -51,6 +51,12 @@ const EMPTY_RINGS_SET = 'Pick the patches your computers are waiting for and rol
 const MUTED = 'break-words text-xs text-gray-500 dark:text-gray-400';
 const TEXT_BUTTON = 'inline-flex items-center gap-1 text-sm font-semibold text-gray-900 dark:text-white underline underline-offset-2';
 
+/** A one-shot request to land on the Rollouts tab: open the Start dialog, with a suggestion's draft when it has one (84-19). */
+export interface PatchingIntent {
+    tab: 'rollouts';
+    draft?: string;
+}
+
 export interface RolloutsTabProps {
     /** The organization platform staff entered from Tenants, else null (a tenant role never sends one). */
     tenantId?: string | null;
@@ -64,6 +70,10 @@ export interface RolloutsTabProps {
     onAttentionCount?: (count: number) => void;
     /** Told when Start rollout is pressed; the tab opens its own dialog either way. */
     onStartRequested?: () => void;
+    /** Opens the Start dialog (in draft state when it carries a draft) once the first read says the viewer may start; never starts anything. */
+    intent?: PatchingIntent | null;
+    /** Told once the intent has been acted on, or dropped because the viewer cannot start rollouts. */
+    onIntentConsumed?: () => void;
     renderStartDialog?: () => React.ReactNode;
     renderRingsCard?: () => React.ReactNode;
     renderRingDetail?: (ring: RingView, card: RolloutCardData) => React.ReactNode;
@@ -108,7 +118,7 @@ const WindowStripCard: React.FC<{ strip: WindowStrip; onOpenSettings?: () => voi
 // ---------------------------------------------------------------- the tab
 
 export const RolloutsTab: React.FC<RolloutsTabProps> = ({
-    tenantId = null, onOpenView, active = true, refreshSignal = 0, onAttentionCount, onStartRequested,
+    tenantId = null, onOpenView, active = true, refreshSignal = 0, onAttentionCount, onStartRequested, intent = null, onIntentConsumed,
     renderStartDialog, renderRingsCard, renderRingDetail, renderActions,
 }) => {
     const { currentUser, hasPermission } = useUser();
@@ -123,12 +133,13 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
     const previousAttention = useRef<number | null>(null);
     const moreBusy = useRef(false);
     const [startOpen, setStartOpen] = useState(false);
+    const [draftId, setDraftId] = useState<string | null>(null);
     const [ringsOpen, setRingsOpen] = useState(false);
     const focusAfterLoad = useRef<string | null>(null);
     const lastSignal = useRef(refreshSignal);
-    const callbacks = useRef({ onAttentionCount });
+    const callbacks = useRef({ onAttentionCount, onIntentConsumed });
     current.current = state;
-    callbacks.current = { onAttentionCount };
+    callbacks.current = { onAttentionCount, onIntentConsumed };
 
     const load = useCallback(async () => {
         const mine = ++seq.current;
@@ -194,6 +205,17 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
     }, [refreshSignal, active, load]);
 
     const refresh = useCallback(() => { void load(); }, [load]);
+
+    // An intent from another screen: once the first read has said whether the viewer may start, open the dialog (only
+    // for someone who may) in draft state, then tell the parent. The dialog reads the draft and its own preflight.
+    useEffect(() => {
+        if (!intent || !state) return;
+        if (state.flags.canStart && !state.flags.platformTenant) {
+            setDraftId(intent.draft ?? null);
+            setStartOpen(true);
+        }
+        callbacks.current.onIntentConsumed?.();
+    }, [intent, state]);
 
     // After a Start, focus moves to the new card once the list that holds it has been read.
     useEffect(() => {
@@ -359,7 +381,8 @@ export const RolloutsTab: React.FC<RolloutsTabProps> = ({
                     open={startOpen}
                     tenantId={tenantId}
                     stopped={flags.stopped}
-                    onClose={() => setStartOpen(false)}
+                    draftSuggestionId={draftId}
+                    onClose={() => { setStartOpen(false); setDraftId(null); }}
                     onStarted={id => { focusAfterLoad.current = id; refresh(); }}
                     onOpenMaintenance={canOpenSettings ? () => { setStartOpen(false); onOpenView?.('settings'); } : undefined}
                     onOpenRings={() => { setStartOpen(false); setRingsOpen(true); }}
