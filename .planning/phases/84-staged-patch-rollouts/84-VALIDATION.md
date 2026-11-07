@@ -3,10 +3,11 @@ phase: "84"
 slug: "staged-patch-rollouts"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-05"
+validated: "2026-11-07"
 ---
 
 # Phase 84 — Validation Strategy
@@ -81,11 +82,19 @@ Requirement-level map. Task ids read `plan/task` (for example `84-01/T1` is plan
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 120s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (window math lives in `test_maintenance_windows.py`, the gate in the tracer/registry/health tests; no separate `test_patch_rollout_windows.py` or `_gate.py` was needed)
+- [x] No watch-mode flags (`vitest run`, `pytest -q`, `cargo test --lib`)
+- [x] Feedback latency < 120s per quick-run file (the whole backend map set takes about 3 min)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** validated 2026-11-07 by /gsd-validate-phase 84. Re-run on the final code: backend map set 547 passed, 0 skipped (private mongod :27998); vitest `src/__tests__` 1,599 passed; cargo `--lib` patch_ 31, response_ 92, service_state 2 passed. Live behaviours stay in Manual-Only above.
+
+## Validation Audit 2026-11-07
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
