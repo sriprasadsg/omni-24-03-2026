@@ -19,8 +19,8 @@ before it wrote the instruction; ``settle.recover_unsent`` ends it. ``close_job`
 computer does not read busy for ever (``start._busy_agents`` and the dispatcher's busy check skip jobs that are not
 In Progress).
 
-Raw Mongo handle with an explicit tenantId only. Reads the queue; its one write is ``cancel_unfetched``, which only
-ever turns a ``pending`` instruction into ``cancelled``.
+Raw Mongo handle with an explicit tenantId only. Reads the queue; never writes it. An instruction nobody fetched is
+abandoned through ``delivery.cancel_unfetched`` (GATE-03: only the package's queue modules touch the queues).
 """
 import logging
 from datetime import datetime, timedelta
@@ -100,21 +100,5 @@ async def close_job(db, tenant_id: str, job_id: Optional[str], now: datetime, re
              "$push": {"statusLog": {"timestamp": stamp, "message": reason, "level": "error"}}})
     except Exception as exc:
         logger.error("autonomous_ops: job %s was not closed: %s", job_id, exc)
-        return False
-    return done.modified_count > 0
-
-
-async def cancel_unfetched(db, tenant_id: str, instruction_id: Optional[str], now: datetime) -> bool:
-    """Abandon an instruction nobody fetched: ``pending`` becomes ``cancelled``, so a computer that comes back later
-    can not run a step the platform has already given up on (WR-27). One compare-and-set on the status: an instruction
-    the agent fetched in the meantime is left alone. Never raises."""
-    if not instruction_id:
-        return False
-    try:
-        done = await raw(db).agent_instructions.update_one(
-            {"id": instruction_id, "tenantId": tenant_id, "status": "pending"},
-            {"$set": {"status": "cancelled", "error": "rollout_abandoned", "cancelled_at": store.aware(now).isoformat()}})
-    except Exception as exc:
-        logger.error("autonomous_ops: instruction %s was not cancelled: %s", instruction_id, exc)
         return False
     return done.modified_count > 0

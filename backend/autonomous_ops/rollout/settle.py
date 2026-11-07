@@ -15,15 +15,15 @@ ends for nothing, and the host remembers the patch in ``deferredIds`` so the con
 row for it. A computer is ``installed`` only when its automatic row and every approval row it holds have
 settled (PTCH-06 adjacency); until then it reads installing, or waiting with ``waitReason`` approval.
 
-Raw Mongo handle with an explicit tenantId only. Reads an instruction's status; the only queue write is cancelling an
-instruction nobody fetched (``inflight.cancel_unfetched``).
+Raw Mongo handle with an explicit tenantId only. Reads an instruction's status; an instruction nobody fetched is
+cancelled through ``delivery.cancel_unfetched``.
 """
 import logging
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .. import ledger, messages
+from .. import delivery, ledger, messages
 from ..scope import raw
 from . import COMMAND_INSTALL, DISPATCHER_NAME, MAX_ATTEMPTS, inflight, messages as rm, store
 from .installs import deferred_pending, retry_fields, unresolved
@@ -133,7 +133,7 @@ async def _settle_auto(db, tenant_id: str, host: Dict[str, Any], now: datetime, 
                                     reasonText=messages.REASON_TEXT["rollout_not_delivered"])
         await inflight.close_job(db, tenant_id, host.get("installJobId"), now,
                                  messages.REASON_TEXT["rollout_not_delivered"])
-        await inflight.cancel_unfetched(db, tenant_id, host.get("installInstructionId"), now)
+        await delivery.cancel_unfetched(db, tenant_id, host.get("installInstructionId"), now)
         prog.retry = retry_fields(host, int(host.get("attempt") or 1))
         return
     if outcome in ("failed", "no_result"):
@@ -191,7 +191,7 @@ async def _settle_lines(db, tenant_id: str, host: Dict[str, Any], now: datetime,
                                         reasonText=messages.REASON_TEXT["rollout_not_delivered"])
                 await inflight.close_job(db, tenant_id, params.get("job_id"), now,
                                          messages.REASON_TEXT["rollout_not_delivered"])
-                await inflight.cancel_unfetched(db, tenant_id, instruction, now)
+                await delivery.cancel_unfetched(db, tenant_id, instruction, now)
                 prog.reraise += ids
                 prog.settled_lines.append(action_id)
             elif outcome in ("failed", "no_result"):

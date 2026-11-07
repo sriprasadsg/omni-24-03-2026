@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from .. import agent_support, gate, ledger, messages
+from .. import agent_support, delivery, gate, ledger, messages
 from ..scope import raw
 from . import (COMMAND_INSTALL, COMMAND_UNDO, SYSTEM_ACTOR, TOKEN_REVERT_BY_JOB, inflight, messages as rm, reboots,
                start, store)
@@ -251,7 +251,7 @@ async def _row_outcome(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
     refused = inflight.status_of(task) in inflight.NOT_DELIVERED_STATES
     reason = "not_delivered" if refused else ("agent_failed" if outcome == "failed" else "no_answer")     # WR-28
     await inflight.close_job(db, tenant_id, job_id, now, rm.NOT_REVERTED.get(reason, rm.NOT_REVERTED_OTHER))
-    await inflight.cancel_unfetched(db, tenant_id, instruction_id, now)       # a late fetch must not run it (WR-27)
+    await delivery.cancel_unfetched(db, tenant_id, instruction_id, now)       # a late fetch must not run it (WR-27)
     return {"outcome": "not_reverted", "reason": reason, "reboot": False, "at": now}
 
 

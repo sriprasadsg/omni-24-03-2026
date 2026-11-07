@@ -432,13 +432,13 @@ def test_the_outcome_of_an_instruction_follows_its_status_and_the_poll_time():
 
 
 async def test_only_a_pending_instruction_is_cancelled(mongo_db):
-    from autonomous_ops.rollout import inflight
+    from autonomous_ops import delivery
     db = mongo_db
     await db.agent_instructions.insert_many([{"id": "i-p", "tenantId": T, "status": "pending"},
                                              {"id": "i-s", "tenantId": T, "status": "sent"}])
-    assert await inflight.cancel_unfetched(db, T, "i-p", NOW) is True
-    assert await inflight.cancel_unfetched(db, T, "i-s", NOW) is False
-    assert await inflight.cancel_unfetched(db, "other", "i-p", NOW) is False
+    assert await delivery.cancel_unfetched(db, T, "i-p", NOW) is True
+    assert await delivery.cancel_unfetched(db, T, "i-s", NOW) is False
+    assert await delivery.cancel_unfetched(db, "other", "i-p", NOW) is False
     assert [(await db.agent_instructions.find_one({"id": i}))["status"] for i in ("i-p", "i-s")] == ["cancelled", "sent"]
 
 

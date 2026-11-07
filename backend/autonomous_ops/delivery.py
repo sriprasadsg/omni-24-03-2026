@@ -20,6 +20,9 @@ back is never held by a clock (84 D-15). For a stamped item:
 * the ledger row is missing, not dispatchable for the kind, or belongs to another tenant than the
   item or the polling agent: the item is withheld and marked ``refused``.
 
+``cancel_unfetched`` is the hold-back for work the platform gave up on: a rollout that abandons an instruction
+nobody fetched turns it ``cancelled``, so a computer that comes back later never runs it (84 WR-27).
+
 Stop state is read fresh on every call (never cached); the raw Mongo handle and explicit tenant
 ids are used throughout.
 """
@@ -163,6 +166,23 @@ async def _refuse(coll, items: List[Dict[str, Any]], why: str) -> None:
         except Exception as exc:
             logger.error("autonomous_ops: %s %s not marked refused (%s): %s", "agent_instructions",
                          item.get("_id"), why, exc)
+
+
+async def cancel_unfetched(db, tenant_id: str, instruction_id: Optional[str], now: datetime) -> bool:
+    """Abandon an instruction nobody fetched: ``pending`` becomes ``cancelled``, so a computer that comes back later
+    can not run a step the platform has already given up on (84 WR-27). One compare-and-set on the status: an
+    instruction the agent fetched in the meantime is left alone. Never raises."""
+    if not instruction_id:
+        return False
+    at = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+    try:
+        done = await raw(db).agent_instructions.update_one(
+            {"id": instruction_id, "tenantId": tenant_id, "status": "pending"},
+            {"$set": {"status": "cancelled", "error": "rollout_abandoned", "cancelled_at": at.isoformat()}})
+    except Exception as exc:
+        logger.error("autonomous_ops: instruction %s was not cancelled: %s", instruction_id, exc)
+        return False
+    return done.modified_count > 0
 
 
 async def hold_back_autonomous(db, tenant_id: Optional[str], instructions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
