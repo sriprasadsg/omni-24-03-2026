@@ -287,3 +287,82 @@ async def test_an_install_line_that_expired_inside_a_stop_is_still_offered_again
         await controller.tick(db, now=after + timedelta(minutes=minutes))
     fresh = await rows(db, state="awaiting_approval", **{"reason.inputs.ring": 1})
     assert [r["targets"] for r in fresh] == [["b1"]] and fresh[0]["reason"]["inputs"]["attempt"] == 2
+
+
+# ---------------------------------------------------------------- Task 3: stuck rows and abandoned jobs
+
+async def job_of(db, agent_id="a1"):
+    return await db.patch_deployment_jobs.find_one({"tenantId": T, "dispatchedAgents": agent_id}, {"_id": 0})
+
+
+async def test_a_dispatching_row_with_no_instruction_is_recovered_and_the_computer_is_decided_again(mongo_db):
+    db = mongo_db
+    await canary_in_flight(db)
+    first = (await rows(db))[0]
+    stuck_job = (await job_of(db))["id"]
+    assert first["state"] == "dispatching" and "a1" in await start._busy_agents(db, T)
+    # A process died between the claim and the instruction: no instruction, no host record of the row.
+    await db.agent_instructions.delete_many({"tenantId": T})
+    await db.autonomy_actions.update_one({"id": first["id"]}, {"$set": {
+        "instructionIds": [], "updatedAt": NOW - timedelta(minutes=11)}})
+    await db.patch_rollout_hosts.update_one({"tenantId": T, "agentId": "a1"}, {"$set": {
+        "state": "waiting", "installActionId": None, "installJobId": None, "installInstructionId": None}})
+
+    await online_at(db, NOW + timedelta(minutes=1))
+    await controller.tick(db, now=NOW + timedelta(minutes=1))
+    found = await rows(db)
+    old = next(r for r in found if r["id"] == first["id"])
+    assert (old["state"], old["reasonCode"]) == ("failed", "rollout_not_delivered")
+    fresh = [r for r in found if r["id"] != first["id"]]
+    assert len(fresh) == 1 and fresh[0]["reason"]["inputs"]["attempt"] == 2 and fresh[0]["state"] == "dispatching"
+    doc = await host_doc(db, "a1")
+    assert doc["state"] == "installing" and doc["installActionId"] == fresh[0]["id"]
+    closed = await db.patch_deployment_jobs.find_one({"id": stuck_job})
+    assert closed["status"] == "Failed" and closed["statusLog"][-1]["level"] == "error"
+
+
+async def test_a_dispatching_row_younger_than_the_claim_bound_is_left_alone(mongo_db):
+    db = mongo_db
+    await canary_in_flight(db)
+    first = (await rows(db))[0]
+    await db.agent_instructions.delete_many({"tenantId": T})
+    await db.autonomy_actions.update_one({"id": first["id"]}, {"$set": {
+        "instructionIds": [], "updatedAt": NOW - timedelta(minutes=9)}})
+    await controller.tick(db, now=NOW + timedelta(seconds=30))
+    assert (await rows(db))[0]["state"] == "dispatching" and (await host_doc(db, "a1"))["state"] == "installing"
+
+
+@pytest.mark.parametrize("path", ["automatic", "approved"])
+async def test_a_send_that_raises_ends_the_row_and_the_computer_waits_to_be_tried_again(mongo_db, monkeypatch, path):
+    db = mongo_db
+    await base(db, level="undoable_auto" if path == "automatic" else "suggest")
+    await host(db, "a1", canary=True)
+    rollout_id = await begin(db)
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("queue unavailable")
+
+    if path == "automatic":
+        monkeypatch.setattr(gate, "execute", broken)
+        await controller.tick(db, now=NOW)
+    else:
+        await controller.tick(db, now=NOW)                                        # the held canary row, nothing sent
+        monkeypatch.setattr(gate, "execute", broken)
+        await lines.approve_line(db, T, rollout_id, 0, "install", approver=APPROVER, now=NOW)
+        await controller.tick(db, now=NOW + timedelta(seconds=30))                # no exception escapes the tick
+    found = await rows(db)
+    first = found[0]
+    assert (first["state"], first["reasonCode"]) == ("failed", "rollout_not_delivered")
+    assert (await host_doc(db, "a1"))["state"] == "waiting"
+    assert (await job_of(db))["status"] == "Failed" and "a1" not in await start._busy_agents(db, T)
+
+
+async def test_an_expired_canary_instruction_closes_its_job_so_the_computer_is_not_busy(mongo_db):
+    db = mongo_db
+    await canary_in_flight(db)
+    assert "a1" in await start._busy_agents(db, T) and (await job_of(db))["status"] == "In Progress"
+
+    await controller.tick(db, now=NOW + timedelta(hours=3, minutes=1))
+    job = await job_of(db)
+    assert job["status"] == "Failed" and job["statusLog"][-1]["level"] == "error"
+    assert "a1" not in await start._busy_agents(db, T)
