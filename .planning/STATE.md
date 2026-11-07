@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 84
 current_phase_name: Staged Patch Rollouts
-status: executing
-stopped_at: Completed 84-20-PLAN.md
-last_updated: "2026-11-07T00:25:28.404Z"
+status: verifying
+stopped_at: Completed 84-21-PLAN.md
+last_updated: "2026-11-07T00:41:52.965Z"
 last_activity: 2026-11-06
 last_activity_desc: Phase 84 execution started
-state_head: 97c02d9000a275ab90cd9274d508d1ac85c97c67
+state_head: 24bf408011ea9e4ca4261418dcf2e321b227a710
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 92
-  completed_plans: 91
+  completed_plans: 92
   percent: 14
 ---
 
@@ -586,6 +586,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 84]: 84-18: ring detail and halt actions are defaults inside RolloutsTab/RolloutCard; extension props still replace them; rings over 25 computers need a paged hosts route (deferred-items.md)
 - [Phase 84]: 84-19: the Start dialog opens from an intent only after the Rollouts tab's first read says the viewer may start; the intent is one-shot and consumed either way
 - [Phase 84]: 84-20: a simulation rollout passes a ring on the soak alone (no health data); a stop-expired card is given back to its computer and offered again as a new attempt, never read as a denial (stoppedSince)
+- [Phase 84]: 84-21: agent version 2.1.17 committed as version lines only (HEAD blob staged; user flate2 lines left unstaged); all automated gates green together (backend 1546, vitest 1599, rust patch_/response_/service_state, Windows lib check, build); live list and DEV-1..4 handed to user in 84-21-SUMMARY
 
 ## Performance Metrics
 
@@ -832,6 +833,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 84 P18 | 16 min | 3 tasks | 8 files |
 | Phase 84 P19 | 15 min | 2 tasks | 7 files |
 | Phase 84 P20 | 15 min | 2 tasks | 7 files |
+| Phase 84 P21 | 40 min | 2 tasks | 3 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -866,8 +868,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-07T00:25:28.180Z
-**Stopped at:** Completed 84-20-PLAN.md
+**Last session:** 2026-11-07T00:41:52.746Z
+**Stopped at:** Completed 84-21-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -895,7 +897,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 84 (Staged Patch Rollouts) — EXECUTING
 Plan: 22 of 22
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-06 — Phase 84 execution started
 Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
 
