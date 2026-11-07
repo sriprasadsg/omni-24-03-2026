@@ -72,7 +72,13 @@ pub fn parse_job(item: &Value, rollback: bool) -> Result<PatchJob, String> {
         Some(v) if rollback => Some(safe_id(v).ok_or("The patch instruction carried an invalid revert_of")?),
         Some(_) => return Err("revert_of applies to rollback_patches only".to_string()),
     };
-    let require_reversible = field("require_reversible").and_then(Value::as_bool).unwrap_or(false);
+    // Absent means false; anything present that is not a JSON boolean (null included) refuses the job,
+    // because reading it as false would install a patch that may not be reversible (WR-13).
+    let require_reversible = match args.and_then(|a| a.get("require_reversible")).or_else(|| item.get("require_reversible")) {
+        None => false,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => return Err("The patch instruction carried an invalid require_reversible".to_string()),
+    };
     Ok(PatchJob { patch_ids: ids, job_id, rollback, require_reversible, revert_of })
 }
 
