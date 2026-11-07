@@ -234,7 +234,9 @@ async def test_denying_the_held_canary_line_halts_the_rollout_with_install_denie
     await controller.tick(db, now=NOW + timedelta(minutes=1))
     rollout = await db.patch_rollouts.find_one({"id": rollout_id})
     assert rollout["status"] == "halted" and rollout["haltReason"]["code"] == "install_denied"
-    assert await instructions(db) == []          # nothing was installed (the host reading "installed" is WR-04, plan 84-27)
+    assert await instructions(db) == []          # nothing was installed
+    doc = await host_doc(db, "a1")
+    assert (doc["state"], doc["waitReason"]) == ("waiting", "not_approved")          # WR-04: never read as installed
 
 
 async def test_a_held_canary_line_nobody_answers_in_24_hours_halts_with_approval_expired(mongo_db):
@@ -250,7 +252,9 @@ async def test_a_held_canary_line_nobody_answers_in_24_hours_halts_with_approval
     await controller.tick(db, now=after)
     rollout = await db.patch_rollouts.find_one({"id": rollout_id})
     assert rollout["status"] == "halted" and rollout["haltReason"]["code"] == "approval_expired"
-    assert await instructions(db) == []          # nothing was installed (the host reading "installed" is WR-04, plan 84-27)
+    assert await instructions(db) == []          # nothing was installed
+    doc = await host_doc(db, "a1")
+    assert (doc["state"], doc["waitReason"]) == ("waiting", "not_approved")          # WR-04: never read as installed
 
 
 async def test_a_refused_canary_row_never_parks_the_host_it_is_retried_and_then_fails_with_a_reason(mongo_db, monkeypatch):

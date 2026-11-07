@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from autonomous_ops import gate, ledger, protected
+from autonomous_ops import approvals, gate, ledger, protected
 from autonomous_ops.rollout import controller, dispatcher, lifecycle, lines, messages as rm, start, store
 from tests import test_patch_rollout_revert as rv
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -168,3 +168,122 @@ async def test_an_install_nobody_answered_does_not_count_toward_the_circuit_brea
             "autoDispatched": True, "createdAt": at, "updatedAt": at, "finishedAt": at, "command": "install_patches",
             "targets": ["a1"], "reasonCode": "rollout_no_result"})
     assert await ledger.recent_finished_auto(db, T, 3) == []
+
+
+# ---------------------------------------------------------------- Task 2: reverts that end, denied computers
+
+async def silent_revert(db, how):
+    """A halted ring whose revert instruction the agent answers FAILURE, never reads before it expired, or never
+    answers after reading it. Returns the time to tick at."""
+    await rv.world(db)
+    await rv.add(db, "l1")
+    await rv.halt(db)
+    sent = (await rv.undo_instructions(db))[0]
+    assert (await rv.host_doc(db, "l1"))["state"] == "reverting"
+    if how == "failure":
+        await set_instruction(db, sent["id"], status="FAILURE")
+        return rv.NOW + timedelta(minutes=1)
+    if how == "expired":
+        await set_instruction(db, sent["id"], expiresAt=rv.NOW - timedelta(minutes=1))
+        return rv.NOW + timedelta(minutes=1)
+    await set_instruction(db, sent["id"], status="ACCEPTED", delivered_at=rv.NOW.isoformat())
+    return rv.NOW + DEADLINE + timedelta(minutes=1)
+
+
+@pytest.mark.parametrize("how", ["failure", "expired", "silent"])
+async def test_a_revert_the_agent_fails_or_never_answers_reads_not_reverted_and_resume_is_unblocked(mongo_db, how):
+    db = mongo_db
+    at = await silent_revert(db, how)
+    await controller.tick(db, now=at)
+
+    got = await rv.host_doc(db, "l1")
+    assert (got["state"], got["notRevertedReason"]) == ("not_reverted", "no_answer")
+    assert rm.not_reverted("no_answer") == "Not reverted: the computer did not answer. The patch is still installed."
+    block = rv_block(await db.patch_rollouts.find_one({"id": "r1"}), await store.host_docs(db, T, "r1"))
+    assert "1 computer could not be reverted: the computer did not answer. The patch is still installed on it." \
+        in block["reverts"]
+    job = await db.patch_deployment_jobs.find_one({"id": got["revertJobId"]})
+    assert job["status"] == "Failed" and job["statusLog"][-1]["level"] == "error"
+    try:
+        await lifecycle.resume(db, T, "r1", actor=ACTOR, reason="Again", now=at)
+    except lifecycle.RevertRunning:
+        pytest.fail("Resume is still blocked by a revert that ended")
+
+
+def rv_block(rollout, hosts):
+    from autonomous_ops.rollout import views
+    return views.halt_block(store.normalise(rollout), hosts)
+
+
+async def pass_the_canary(db, rollout_id):
+    """Tick the canary host through install, result, soak and a fresh scan so ring 1 is current."""
+    await controller.tick(db, now=NOW)
+    job = await db.patch_deployment_jobs.find_one({"rolloutId": rollout_id, "dispatchedAgents": "a1"})
+    await post_result(db, job["id"], "a1", success_result(["openssl"]))
+    await controller.tick(db, now=NOW + timedelta(minutes=2))
+    installed = aware((await host_doc(db, "a1"))["installReportedAt"])
+    await fresh_scan(db, "a1", [], installed + timedelta(minutes=10))
+    later = installed + timedelta(minutes=61)
+    await online_at(db, later)
+    await controller.tick(db, now=later)
+    return later
+
+
+async def ring_one_line(db):
+    await base(db)
+    await host(db, "a1", canary=True)
+    await host(db, "b1")
+    rollout_id = await begin(db)
+    later = await pass_the_canary(db, rollout_id)
+    found = await rows(db, **{"reason.inputs.ring": 1})
+    assert [(r["state"], r["targets"]) for r in found] == [("awaiting_approval", ["b1"])]
+    return rollout_id, later
+
+
+async def test_a_computer_whose_install_line_was_denied_is_never_shown_installed(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_line(db)
+    assert (await lines.deny_line(db, T, rollout_id, 1, "install", approver=APPROVER))["status"] == "denied"
+
+    for minutes in (1, 2):
+        await online_at(db, later + timedelta(minutes=minutes))
+        await controller.tick(db, now=later + timedelta(minutes=minutes))
+        doc = await host_doc(db, "b1")
+        assert (doc["state"], doc["waitReason"]) == ("waiting", "not_approved")
+        assert not doc.get("installedIds")
+    rollout = await db.patch_rollouts.find_one({"id": rollout_id})
+    assert rollout["status"] == "halted" and rollout["haltReason"]["code"] == "install_denied"
+
+
+async def test_a_computer_whose_install_line_expired_unanswered_is_never_shown_installed(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_line(db)
+    after = later + timedelta(hours=25)
+    assert await approvals.expire_due(db, now=after, tenant_id=T) == 1
+    await online_at(db, after)
+    await controller.tick(db, now=after)
+    doc = await host_doc(db, "b1")
+    assert (doc["state"], doc["waitReason"]) == ("waiting", "not_approved")
+    assert (await db.patch_rollouts.find_one({"id": rollout_id}))["haltReason"]["code"] == "approval_expired"
+
+
+async def test_an_install_line_that_expired_inside_a_stop_is_still_offered_again(mongo_db):
+    db = mongo_db
+    rollout_id, later = await ring_one_line(db)
+    await seed_platform_stop(db)
+    await online_at(db, later + timedelta(hours=1))
+    await controller.tick(db, now=later + timedelta(hours=1))                          # the stop is noticed
+    assert await approvals.expire_due(db, now=later + timedelta(hours=30), tenant_id=T) == 1
+    await online_at(db, later + timedelta(hours=31))
+    await controller.tick(db, now=later + timedelta(hours=31))
+    doc = await host_doc(db, "b1")
+    assert doc["state"] == "waiting" and doc["waitReason"] != "not_approved"
+    assert (await db.patch_rollouts.find_one({"id": rollout_id}))["status"] == "running"
+
+    await seed_platform_stop(db, active=False)
+    after = later + timedelta(hours=48)
+    for minutes in (0, 5):
+        await online_at(db, after + timedelta(minutes=minutes))
+        await controller.tick(db, now=after + timedelta(minutes=minutes))
+    fresh = await rows(db, state="awaiting_approval", **{"reason.inputs.ring": 1})
+    assert [r["targets"] for r in fresh] == [["b1"]] and fresh[0]["reason"]["inputs"]["attempt"] == 2
