@@ -26,7 +26,7 @@ WR-26 and WR-27 share one commit because both rewrite `instruction_outcome` in `
 
 ## Fixed Issues
 
-### WR-25: A revert still re-installs a removed package that left its config behind
+### WR-25: A revert still re-installs a removed package that left its config behind (reopens WR-15)
 
 **Files modified:** `agent-install/omni-agent-rs/src/capabilities/patch_installer.rs`, `agent-install/omni-agent-rs/src/capabilities/patch_reversible.rs`
 **Commit:** ca22a0dfb
@@ -81,7 +81,7 @@ WR-26 and WR-27 share one commit because both rewrite `instruction_outcome` in `
 **Commit:** 58a1fcf25
 **Applied fix:** The card payload gains `cancelling`, `cancelRequestedBy`, `cancelRequestedAt` and a server-written `cancellingNote` ("Cancel requested by Ann. It ends when the installs in progress finish."; without a recorded name: "Cancel requested. It ends ..."). `RolloutCard` renders the note (role status) and swaps the Running chip for a Cancelling chip. Fixtures, types, a backend view test (named, nameless, plain) and two vitest cases were added. The stored `status` is unchanged (still `running`), so listing and sorting are not affected.
 
-### WR-32: The 409 for a manual rollback tells the user to "Revert it from Rollouts"
+### WR-32: The 409 for a manual rollback tells the user to "Revert it from Rollouts", which only works for a halted rollout
 
 **Files modified:** `backend/patch_core_endpoints.py`, `backend/tests/test_patch_rollout_legacy_fence.py`
 **Commit:** f8ffdd7d5
