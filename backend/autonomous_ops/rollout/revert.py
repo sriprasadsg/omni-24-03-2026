@@ -241,13 +241,15 @@ async def _row_outcome(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
     if isinstance(entry, dict):
         return judge(entry, list((job or {}).get("patchIds") or []), now)
     row = await ledger.get(db, tenant_id, action_id)
-    task = await inflight.load_instruction(db, tenant_id, ((row or {}).get("instructionIds") or [None])[-1])
+    instruction_id = ((row or {}).get("instructionIds") or [None])[-1]
+    task = await inflight.load_instruction(db, tenant_id, instruction_id)
     outcome = inflight.instruction_outcome(task, now, host.get("revertStartedAt"))
     if outcome not in ("not_delivered", "failed", "no_result"):
         return None
     # The computer never had the revert, answered FAILURE, or stayed silent past RESULT_DEADLINE: it is Not reverted
     # (never reverted, never reverting for ever), and the revert job it will not answer is closed.
     await inflight.close_job(db, tenant_id, job_id, now, rm.NOT_REVERTED["no_answer"])
+    await inflight.cancel_unfetched(db, tenant_id, instruction_id, now)       # a late fetch must not run it (WR-27)
     refused = inflight.status_of(task) in inflight.NOT_DELIVERED_STATES
     return {"outcome": "not_reverted", "reason": "not_delivered" if refused else "no_answer", "reboot": False,
             "at": now}

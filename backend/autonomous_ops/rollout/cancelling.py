@@ -7,7 +7,7 @@ ends the rollout through ``lifecycle.finish_cancel`` when no computer is install
 latest ``RESULT_DEADLINE`` after the request. A computer still in flight at that moment is marked failed with
 ``rollout_no_result`` (it did not answer in time), its row and job are closed, and nothing else happens to it.
 
-Raw Mongo handle with an explicit tenantId only. Never writes the agent queue.
+Raw Mongo handle with an explicit tenantId only. The agent queue is written only to cancel an instruction nobody fetched.
 """
 import logging
 from datetime import datetime
@@ -32,6 +32,7 @@ async def _abandon(db, tenant_id: str, rollout_id: str, busy: List[Dict[str, Any
         if await ledger.transition(db, tenant_id, item["id"], ("dispatching",), "failed", reasonCode="rollout_no_result",
                                    reasonText=text):
             await inflight.close_job(db, tenant_id, (item.get("params") or {}).get("job_id"), now, text)
+            await inflight.cancel_unfetched(db, tenant_id, (item.get("instructionIds") or [None])[-1], now)
     for h in busy:
         await store.set_host(db, tenant_id, rollout_id, h["agentId"], {
             "state": "failed", "failureCode": "rollout_no_result", "failureMessage": text, "waitReason": None})

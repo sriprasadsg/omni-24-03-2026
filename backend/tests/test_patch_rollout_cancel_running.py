@@ -67,7 +67,7 @@ async def running_world(db, *, delivered=None):
               installDispatchedAt=NOW, autoSettled=False, installedIds=[], installReportedAt=None)
     await job(db, "j2")
     await job(db, "j4")
-    await instruction(db, "I-sent", "h2", "delivered", delivered_at=delivered or NOW)
+    await instruction(db, "I-sent", "h2", "sent", sent_at=(delivered or NOW).isoformat())
     await instruction(db, "I-pend", "h4", "pending")
     await row(db, "A-sent", "dispatching", agent="h2", instruction="I-sent", job="j2")
     await row(db, "A-pend", "dispatching", agent="h4", instruction="I-pend", job="j4")

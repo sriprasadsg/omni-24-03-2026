@@ -2,7 +2,7 @@
 
 Real MongoDB (skips without one) through the throwaway database of tests/_mongo_test_db.py. Time is frozen by
 passing ``now`` to the real controller tick; the stand-in agent changes the instruction document the way the
-delivery hook and the instruction result route do (status FAILURE, delivered_at, an expiry that passed).
+delivery hook, the poll route and the instruction result route do (status FAILURE, sent_at, an expiry that passed).
 
 Value: protects=PTCH-02 / PTCH-04 / PTCH-06 / WR-02 / WR-03 / WR-04 / WR-06: an install the agent answers FAILURE, or
 never answers within RESULT_DEADLINE, fails the computer so the ring halts; an expired instruction is not a failure
@@ -130,7 +130,7 @@ async def test_a_canary_install_nobody_answers_for_six_hours_fails_the_computer_
     db = mongo_db
     await canary_in_flight(db)
     sent = await instruction(db, "a1")
-    await set_instruction(db, sent["id"], status="ACCEPTED", delivered_at=NOW.isoformat())
+    await set_instruction(db, sent["id"], status="ACCEPTED", sent_at=NOW.isoformat())
 
     await controller.tick(db, now=NOW + DEADLINE - timedelta(seconds=1))
     assert (await host_doc(db, "a1"))["state"] == "installing"
@@ -186,7 +186,7 @@ async def silent_revert(db, how):
     if how == "expired":
         await set_instruction(db, sent["id"], expiresAt=rv.NOW - timedelta(minutes=1))
         return rv.NOW + timedelta(minutes=1)
-    await set_instruction(db, sent["id"], status="ACCEPTED", delivered_at=rv.NOW.isoformat())
+    await set_instruction(db, sent["id"], status="ACCEPTED", sent_at=rv.NOW.isoformat())
     return rv.NOW + DEADLINE + timedelta(minutes=1)
 
 
@@ -366,3 +366,84 @@ async def test_an_expired_canary_instruction_closes_its_job_so_the_computer_is_n
     job = await job_of(db)
     assert job["status"] == "Failed" and job["statusLog"][-1]["level"] == "error"
     assert "a1" not in await start._busy_agents(db, T)
+
+
+# ---------------------------------------------------------------- WR-26 / WR-27: what "not delivered" and the deadline mean
+
+async def test_an_install_the_agent_fetched_is_not_called_undelivered_when_the_window_closes(mongo_db):
+    db = mongo_db
+    await canary_in_flight(db)
+    sent = await instruction(db, "a1")
+    await set_instruction(db, sent["id"], status="sent", sent_at=NOW.isoformat())      # fetched; its accepted post was lost
+
+    await controller.tick(db, now=NOW + timedelta(hours=3, minutes=1))                 # past expiresAt (the window close)
+    doc = await host_doc(db, "a1")
+    assert doc["state"] == "installing" and doc["installActionId"]
+    row = (await rows(db))[0]
+    assert row["state"] == "dispatching" and row.get("reasonCode") != "rollout_not_delivered"
+    assert (await job_of(db))["status"] == "In Progress"                                # the computer still reads busy
+
+    await controller.tick(db, now=NOW + DEADLINE + timedelta(seconds=1))                # the deadline decides, from sent_at
+    assert (await host_doc(db, "a1"))["failureCode"] == "rollout_no_result"
+
+
+async def test_an_install_instruction_nobody_fetched_is_cancelled_when_it_is_given_up(mongo_db):
+    db = mongo_db
+    await canary_in_flight(db)
+    assert (await instruction(db, "a1"))["status"] == "pending"
+    await controller.tick(db, now=NOW + timedelta(hours=3, minutes=1))
+    assert (await instruction(db, "a1"))["status"] == "cancelled"
+
+
+async def test_a_queued_revert_that_was_never_fetched_keeps_waiting_and_is_not_declared_unanswered(mongo_db):
+    db = mongo_db
+    await rv.world(db)
+    await rv.add(db, "l1")
+    await rv.halt(db)
+    sent = (await rv.undo_instructions(db))[0]
+    assert sent["status"] == "pending" and "expiresAt" not in sent
+
+    await controller.tick(db, now=rv.NOW + DEADLINE + timedelta(hours=18))              # the laptop has been off for a day
+    assert (await rv.host_doc(db, "l1"))["state"] == "reverting"
+    assert (await db.agent_instructions.find_one({"id": sent["id"]}))["status"] == "pending"
+
+
+async def test_a_revert_the_agent_fetched_is_timed_from_the_poll_not_from_the_row(mongo_db):
+    db = mongo_db
+    await rv.world(db)
+    await rv.add(db, "l1")
+    await rv.halt(db)
+    sent = (await rv.undo_instructions(db))[0]
+    fetched = rv.NOW + timedelta(hours=20)
+    await set_instruction(db, sent["id"], status="sent", sent_at=fetched.isoformat())
+
+    await controller.tick(db, now=fetched + DEADLINE - timedelta(seconds=1))
+    assert (await rv.host_doc(db, "l1"))["state"] == "reverting"
+    await controller.tick(db, now=fetched + DEADLINE + timedelta(seconds=1))
+    assert (await rv.host_doc(db, "l1"))["notRevertedReason"] == "no_answer"
+
+
+def test_the_outcome_of_an_instruction_follows_its_status_and_the_poll_time():
+    from autonomous_ops.rollout import inflight
+    at, sent = NOW, (NOW - timedelta(hours=1)).isoformat()
+    past, future = at - timedelta(minutes=1), at + timedelta(minutes=1)
+    outcome = inflight.instruction_outcome
+    assert outcome({"status": "pending", "expiresAt": past}, at) == "not_delivered"
+    assert outcome({"status": "pending", "expiresAt": future}, at) == "pending"
+    assert outcome({"status": "pending", "created_at": at - timedelta(days=2)}, at) == "pending"      # no clock before the poll
+    assert outcome({"status": "sent", "expiresAt": past, "sent_at": sent}, at) == "pending"           # WR-26
+    assert outcome({"status": "sent", "sent_at": (at - DEADLINE).isoformat()}, at) == "no_result"
+    accepted = {"status": "ACCEPTED", "sent_at": (at - DEADLINE).isoformat(), "updated_at": (at - timedelta(hours=5)).isoformat()}
+    assert outcome(accepted, at) == "pending"                                                         # the accept time wins
+    assert outcome({"status": "cancelled"}, at) == "not_delivered"
+
+
+async def test_only_a_pending_instruction_is_cancelled(mongo_db):
+    from autonomous_ops.rollout import inflight
+    db = mongo_db
+    await db.agent_instructions.insert_many([{"id": "i-p", "tenantId": T, "status": "pending"},
+                                             {"id": "i-s", "tenantId": T, "status": "sent"}])
+    assert await inflight.cancel_unfetched(db, T, "i-p", NOW) is True
+    assert await inflight.cancel_unfetched(db, T, "i-s", NOW) is False
+    assert await inflight.cancel_unfetched(db, "other", "i-p", NOW) is False
+    assert [(await db.agent_instructions.find_one({"id": i}))["status"] for i in ("i-p", "i-s")] == ["cancelled", "sent"]
