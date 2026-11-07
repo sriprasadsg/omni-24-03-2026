@@ -168,6 +168,9 @@ async def test_approving_the_held_canary_line_sends_it_stores_its_ids_and_the_re
     await controller.tick(db, now=NOW)
     held = (await rows(db))[0]
 
+    # The approval dispatcher (fn(db, row, approver)) sends on the wall clock, not on NOW, which is fixed at import:
+    # late in a long run the computer would read offline.
+    await online_at(db, datetime.now(timezone.utc))
     answer = await lines.approve_line(db, T, rollout_id, 0, "install", approver=APPROVER, now=NOW)
     assert (answer["status"], answer["when"], answer["approved"]) == ("approved", "now", 1)
     sent = await instructions(db)

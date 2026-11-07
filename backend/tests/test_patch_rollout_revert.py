@@ -357,6 +357,9 @@ async def test_an_approved_revert_restart_is_sent_on_the_halted_rollout_and_ends
     await halt(db)
     await answer(db, "l1", example("revert_ok", reboot=True))
     await controller.tick(db, now=NOW + timedelta(minutes=1))
+    # The approval dispatcher sends on the wall clock, not on NOW (fixed at import): late in a long run the
+    # computer would read offline.
+    await db.agents.update_one({"id": "l1"}, {"$set": {"lastSeen": datetime.now(timezone.utc).isoformat()}})
     done = await lines.approve_line(db, T, "r1", 1, "revert_reboot", approver=APPROVER, now=NOW)
     assert done["status"] == "approved" and done["when"] == "now"
     sent = [i async for i in db.agent_instructions.find({"type": "reboot_host"}, {"_id": 0})]
