@@ -317,7 +317,7 @@ Plans:
 
 - [x] **Phase 81: Autonomy Gate, Stop Switch & Activity Ledger** - One code-owned decision gate, a stop switch, write-ahead decision records and a read-only Autonomous Ops screen, with the legacy LLM remediation path removed (completed 2026-11-07)
 - [x] **Phase 82: Platform Self-Healing & Scheduled Retention** - An external watchdog restarts what fails within a budget, warns before certificates expire or disks fill, pages on-call, and retention runs on a schedule (completed 2026-11-07)
-- [ ] **Phase 83: Autonomous Security Response** - Findings become undoable containment on their own and destructive approval cards, each verified, deduplicated and undoable from the Activity screen
+- [x] **Phase 83: Autonomous Security Response** - Findings become undoable containment on their own and destructive approval cards, each verified, deduplicated and undoable from the Activity screen (completed 2026-11-07)
 - [x] **Phase 84: Staged Patch Rollouts** - Ring-based patch rollouts with soak, a real health gate, maintenance windows and one approval per stage; halts on failure and reverts where supported (completed 2026-11-07)
 - [ ] **Phase 85: First-Line Service Desk** - New tickets are answered from the knowledge base with citations or escalated by fixed rules, and never answered when the model is unavailable
 - [ ] **Phase 86: Activity Reporting, Hardening & Live Validation** - Daily digest, per-rule statistics, export and a time-saved estimate, plus stop drills, two-tenant isolation checks and live validation across every automatic actor
@@ -435,7 +435,7 @@ Plans:
   4. From the Autonomous Ops screen an operator can approve or deny pending actions and undo done actions that have an inverse (remove a block, restore a quarantined file) with one click.
   5. The Rust agent (with Python agent parity where that agent stays supported) supports restart service, quarantine and restore file, isolate and restore host, and reboot host; each is gated by the tenant's agent-capability ticks, and rules that need one stay dormant until the agent reports support. The swarm "propagate antibody" and SOAR block/isolate paths are fenced so they cannot dispatch automatic containment.
 
-**Plans**: 20/20 plans executed in 10 waves
+**Plans**: 20/20 plans complete in 10 waves
 
 Plans:
 **Wave 1**
@@ -638,7 +638,7 @@ Plans:
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
-| 83. Autonomous Security Response | 20/20 | In Progress | - |
+| 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |

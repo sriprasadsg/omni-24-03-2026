@@ -61,7 +61,6 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ### Active
 
-- [ ] Autonomous security response through the existing remediation engine, destructive actions approval-gated (v4.3)
 - [ ] AI first-line ticket answers with escalation (v4.3)
 - [ ] Autonomous Ops activity view with undo (v4.3)
 - [ ] v4.2 costing (Phases 78–80) — resumes after v4.3
@@ -97,6 +96,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - ✓ **Staged patch rollouts** — rings from agent groups with a soak and a real health gate (install result, post-install inventory, post-reboot heartbeat, key services, where a service the computer does not have reads `absent` and is judged against the pre-change baseline), failure-rate halt with a minimum sample, revert where the OS supports it, Change Management windows, automatic installs only in the canary ring and only for reversible classes, one approval per stage, Cancel of a running rollout keeps patches (v4.3 Phase 84, PTCH-01..07; built, not yet deployed). Its review warnings WR-25..WR-32 were all fixed on 2026-11-07, ahead of agent 2.1.17 (the user's UAT decision)
 - ✓ **Autonomy gate, stop switch and activity ledger** — one code-owned decision gate for every automatic action (platform stop, eligibility, tenant stop, level, class, protected targets, blast-radius cap, cooldown), a write-ahead intent record before any dispatch, platform and tenant stops honoured at agent delivery without a restart, shadow mode on by default, a circuit breaker to Suggest, the Autonomous Ops screen, and the legacy LLM remediation path removed; a structural test fails on any other queue writer (v4.3 Phase 81, GATE-01..14, ACTV-01/03/08; backend live, verified 2026-11-07)
 - ✓ **Platform self-healing and scheduled retention** — an external watchdog (systemd timer, polkit-limited restarts) restarts mongod then the backend within a budget of 3 with backoff, warns at certificate 30/14/7/1 days and disk 80/90/95 percent plus a fill forecast, pages on-call with an external dead-man heartbeat, and runs retention nightly with a count-first review the Super Admin confirms before anything is deleted; audit evidence is never in scope (v4.3 Phase 82, HEAL-01..08; backend + migrations 025-027 live, watchdog not installed on Omniai-copy, verified 2026-11-07)
+- ✓ **Autonomous security response** — findings become undoable containment on their own only on two independent signals (block an IP with a TTL, quarantine a file, restart a failed service within a budget) and one-click approval cards when destructive (isolate, kill, reboot), each verified on the agent, deduplicated, undoable from Autonomous Ops; non-public ranges, the platform host, gateway and DNS are never blocked (v4.3 Phase 83, RESP-01..11, ACTV-02; backend + migration 028 live, agent 2.1.16+ actions ship in the unpublished 2.1.17, verified 2026-11-07)
 - ✓ **Fail-closed sidebar, view gate & role visibility** — a catalogue shows only when the role holds its permission, a render-time gate guards every navigation path with an in-place no-access panel and a guaranteed landing view, a "what can this role see" view, real server-side custom tenant roles, and permissions refresh on a 403 or window focus without re-login (v4.2 Phase 77, ACC-06..09)
 
 ### Out of Scope
@@ -194,4 +194,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-07 after Phase 82 transition*
+*Last updated: 2026-11-07 after Phase 83 transition*

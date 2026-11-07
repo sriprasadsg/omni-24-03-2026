@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v4.3
 milestone_name: Autonomous Ops
-current_phase: 83
-current_phase_name: Autonomous Security Response
+current_phase: 85
+current_phase_name: First-Line Service Desk
 status: verifying
-stopped_at: Phase 82 complete; next /gsd-verify-work 83 (Phase 83 built, 9 UAT items wait on the operator)
-last_updated: "2026-11-07T14:03:25.173Z"
+stopped_at: Phase 83 complete; Phase 87 UAT in progress (90/95), then /gsd-discuss-phase 85
+last_updated: "2026-11-07T14:15:52.766Z"
 last_activity: 2026-11-07
-last_activity_desc: Phase 82 complete, transitioned to Phase 83
-state_head: b4e450eda4f183b9d8fe890bf6cdca88b6d1c9ee
+last_activity_desc: Phase 83 complete, transitioned to Phase 85
+state_head: 499abedad2b71d6c0d19f146960b26573627fe62
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 99
   completed_plans: 99
-  percent: 43
+  percent: 57
 ---
 
 # Project State
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-07)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phases 81, 82 and 84 complete (84 review warnings WR-25..32 all fixed 2026-11-07); close Phases 83 and 87 (built, UAT items need the operator), then plan 85
+**Current focus:** Phases 81, 82, 83 and 84 complete (84 review warnings WR-25..32 all fixed 2026-11-07); close Phase 87 (UAT in progress), then discuss and plan 85
 
 ## Current Phase
 
@@ -881,8 +881,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-07T14:10:00Z
-**Stopped at:** Phase 82 complete (UAT 5/5, re-verified passed 5/5); next /gsd-verify-work 83 (Phase 83 is built; 9 UAT items wait on the operator)
+**Last session:** 2026-11-07T14:35:00Z
+**Stopped at:** Phase 83 complete (UAT 13/13, re-verified passed 5/5); Phase 87 UAT in progress at test 5 of 95 (90 passed); then /gsd-discuss-phase 85
 **Resume file:** None
 
 ## Accumulated Context
@@ -908,11 +908,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 83 — Autonomous Security Response — EXECUTED (20/20 plans), awaiting UAT and verification close; not a phase to plan. Phase 87 is in the same state; 85 and 86 are not planned.
-Plan: 20 of 20
-Status: Awaiting UAT (4/13 passed; items 4-12 need real hosts, publishes or the operator)
-Last activity: 2026-11-07 — Phase 82 complete (UAT 5/5, verification re-run passed 5/5)
-Progress: 3/7 phases complete (81, 82, 84) ([████░░░░░░] 43%)
+Phase: 85 — First-Line Service Desk — not discussed or planned yet; comes after Phase 87 closes. Phase 87 is EXECUTED (15/15 plans) with its UAT in progress (90/95). Phase 86 closes the milestone after 85.
+Plan: Not started
+Status: Phase 87 UAT in progress; 85 ready to discuss
+Last activity: 2026-11-07 — Phase 83 complete (UAT 13/13, verification re-run passed 5/5)
+Progress: 4/7 phases complete (81, 82, 83, 84) ([██████░░░░] 57%)
 
 ## Deferred Items
 
