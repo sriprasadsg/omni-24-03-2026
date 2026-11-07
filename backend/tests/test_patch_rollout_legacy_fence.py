@@ -85,7 +85,7 @@ async def test_the_read_routes_and_the_screen_keep_working(mongo_db, monkeypatch
 
 import patch_core_endpoints  # noqa: E402
 
-ROLLOUT_JOB_DETAIL = "This job belongs to a rollout. Revert it from Rollouts on the Patching screen."
+ROLLOUT_JOB_DETAIL = "This job belongs to a rollout. A rollout's patches are put back only while the rollout is halted."
 
 
 def operator(tenant="t1", role="Tenant Admin"):
