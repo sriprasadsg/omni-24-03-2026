@@ -1,19 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 87-partner-and-reseller-channel
 source: [87-01-SUMMARY.md, 87-02-SUMMARY.md, 87-03-SUMMARY.md, 87-04-SUMMARY.md, 87-05-SUMMARY.md, 87-06-SUMMARY.md, 87-07-SUMMARY.md, 87-08-SUMMARY.md, 87-09-SUMMARY.md, 87-10-SUMMARY.md, 87-11-SUMMARY.md, 87-12-SUMMARY.md, 87-13-SUMMARY.md, 87-14-SUMMARY.md, 87-15-SUMMARY.md]
 started: 2026-11-04T07:11:12Z
-updated: 2026-11-05T11:50:54Z
+updated: 2026-11-07T14:22:36.212Z
 ---
 
 ## Current Test
-<!-- OVERWRITE each test - shows where we are -->
 
-number: 5
-name: Invite email and the Accept-invite page
-expected: |
-  Needs SMTP and FRONTEND_URL set, plus the UI published. The invited admin receives an email whose link opens /accept-invite; the token disappears from the address bar, the page names the organization, a password can be set, and the admin then signs in. A used or expired link says so instead of offering a form.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -41,7 +36,8 @@ coverage_id: 87-11/D5
 
 ### 5. Invite email and the Accept-invite page
 expected: Needs SMTP and FRONTEND_URL set, plus the UI published. The invited admin receives an email whose link opens /accept-invite; the token disappears from the address bar, the page names the organization, a password can be set, and the admin then signs in. A used or expired link says so instead of offering a form.
-result: [pending]
+result: pass
+note: "Passed by the user 2026-11-07."
 coverage_id: 87-06/D8
 
 ### 6. Accept-invite page with a long organization name
@@ -70,22 +66,26 @@ coverage_id: 87-07/D5
 
 ### 10. Seat and delete routes on the live backend
 expected: Through the running app, not test calls. As Super Admin: raising a partner customer's seats past the pool is refused with how many are free and changes nothing; lowering returns seats to the pool; deleting a partner customer returns its seats; deleting a partner that still has customers is refused and deletes nothing; MSSP views never list a partner.
-result: [pending]
+result: pass
+note: "Passed by the user 2026-11-07."
 coverage_id: 87-10/D8
 
 ### 11. No seats handed out after the pool expires
 expected: With a test partner whose pool expiry has passed, creating a customer or raising seats is refused with the pool-expired message and the handed-out count does not move; lowering seats still works. (A hand-out already in flight at the exact moment of expiry may still commit; that edge was accepted in the plan.)
-result: [pending]
+result: pass
+note: "Passed by the user 2026-11-07."
 coverage_id: 87-09/D10
 
 ### 12. A partner session receives nothing of a customer over sockets
 expected: Signed in as a partner user with the browser's network tab open: the /api/stream/live socket is closed by the server (code 4403), and the Socket.IO connection delivers no customer alerts, logs, agent updates or security events.
-result: [pending]
+result: pass
+note: "Passed by the user 2026-11-07."
 coverage_id: 87-05/D6
 
 ### 13. Live suspension, isolation and retailer trial
 expected: With two partners (100 and 1,000 seats): every customer page or API opened with a partner's session is refused; suspending a partner signs its users out while its customers' agents keep reporting; installing agents into a partner customer up to its seats works and the next agent is held Pending; after a test pool expires, new agents are held and running ones keep working.
-result: [pending]
+result: pass
+note: "Passed by the user 2026-11-07."
 coverage_id: 87-14/D6
 
 ### 14. Super Admin appoints a partner: tenants document type partner with pool, ceiling, no registrationKey, no seats of its own
@@ -583,9 +583,9 @@ coverage_id: 87-15/D3
 ## Summary
 
 total: 95
-passed: 90
+passed: 95
 issues: 0
-pending: 5
+pending: 0
 skipped: 0
 blocked: 0
 
