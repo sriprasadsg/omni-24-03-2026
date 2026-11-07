@@ -318,7 +318,7 @@ Plans:
 - [ ] **Phase 81: Autonomy Gate, Stop Switch & Activity Ledger** - One code-owned decision gate, a stop switch, write-ahead decision records and a read-only Autonomous Ops screen, with the legacy LLM remediation path removed
 - [ ] **Phase 82: Platform Self-Healing & Scheduled Retention** - An external watchdog restarts what fails within a budget, warns before certificates expire or disks fill, pages on-call, and retention runs on a schedule
 - [ ] **Phase 83: Autonomous Security Response** - Findings become undoable containment on their own and destructive approval cards, each verified, deduplicated and undoable from the Activity screen
-- [ ] **Phase 84: Staged Patch Rollouts** - Ring-based patch rollouts with soak, a real health gate, maintenance windows and one approval per stage; halts on failure and reverts where supported
+- [x] **Phase 84: Staged Patch Rollouts** - Ring-based patch rollouts with soak, a real health gate, maintenance windows and one approval per stage; halts on failure and reverts where supported (completed 2026-11-07)
 - [ ] **Phase 85: First-Line Service Desk** - New tickets are answered from the knowledge base with citations or escalated by fixed rules, and never answered when the model is unavailable
 - [ ] **Phase 86: Activity Reporting, Hardening & Live Validation** - Daily digest, per-rule statistics, export and a time-saved estimate, plus stop drills, two-tenant isolation checks and live validation across every automatic actor
 - [ ] **Phase 87: Partner and Reseller Channel** - Partners appointed by the Super Admin hold a seat pool, create their own customer organizations and assign seats to them; partner admins see only their customers
@@ -495,7 +495,7 @@ Plans:
   4. A rollout installs or advances only inside the maintenance window recorded in Change Management; outside the window nothing is installed.
   5. Installs run on their own only in the canary ring and only for patch classes marked reversible; every other install and every reboot waits for one approval per stage. The platform's own host is never patched by a rollout, a host belongs to at most one active rollout, and patch instructions expire.
 
-**Plans**: 29/29 plans executed in 7 waves
+**Plans**: 29/29 plans complete in 7 waves
 
 Plans:
 **Wave 1**
@@ -639,7 +639,7 @@ Plans:
 | 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
 | 83. Autonomous Security Response | 20/20 | In Progress | - |
-| 84. Staged Patch Rollouts | 29/29 | In Progress | - |
+| 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
 | 85. First-Line Service Desk | 0/TBD | Not started | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | In Progress | - |

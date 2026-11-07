@@ -63,7 +63,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 - [ ] Per-tenant autonomy level with audit, undo and a global stop switch (v4.3)
 - [ ] Autonomous security response through the existing remediation engine, destructive actions approval-gated (v4.3)
-- [ ] Staged patch rollouts with automatic halt and rollback (v4.3)
+- [ ] Fix review findings WR-25, WR-26, WR-27 and WR-31 before agent 2.1.17 is published or rollouts are enabled for real tenants (Phase 84 UAT decision, 2026-11-07)
 - [ ] Platform self-healing watchdog, expiry/disk warnings, scheduled retention (v4.3)
 - [ ] AI first-line ticket answers with escalation (v4.3)
 - [ ] Autonomous Ops activity view with undo (v4.3)
@@ -97,6 +97,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - ✓ **ITAM procurement & workflow** — Purchase order/supplier tracking, warranty alerts, straight-line depreciation, asset request + approval workflow with email/Slack notifications (v4.1 Phase 71, ITAM-PRO-01..05)
 - ✓ **ITAM reporting & dashboards** — Closed-vocabulary custom report builder, 6 pre-built reports, PDF/Excel/CSV export, 4-tile KPI dashboard with drill-down (v4.1 Phase 72, ITAM-REP-01..04)
 - ✓ **ITAM API & integrations** — Dual session/API-key auth with scope narrowing across all ITAM routers, 8 tenant-bracketed webhook event types, Jira/ServiceNow ticketing bridge with dedup guards (v4.1 Phase 73, ITAM-API-01/02/03)
+- ✓ **Staged patch rollouts** — rings from agent groups with a soak and a real health gate (install result, post-install inventory, post-reboot heartbeat, key services, where a service the computer does not have reads `absent` and is judged against the pre-change baseline), failure-rate halt with a minimum sample, revert where the OS supports it, Change Management windows, automatic installs only in the canary ring and only for reversible classes, one approval per stage, Cancel of a running rollout keeps patches (v4.3 Phase 84, PTCH-01..07; built, not yet deployed)
 - ✓ **Fail-closed sidebar, view gate & role visibility** — a catalogue shows only when the role holds its permission, a render-time gate guards every navigation path with an in-place no-access panel and a guaranteed landing view, a "what can this role see" view, real server-side custom tenant roles, and permissions refresh on a 403 or window focus without re-login (v4.2 Phase 77, ACC-06..09)
 
 ### Out of Scope
@@ -167,6 +168,9 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 | Ticketing bridge reuses the existing Jira/ServiceNow connectors unmodified, via a new adapter + dedup-guarded orchestrator (v4.1 Phase 73) | Two connector implementations for the same providers would drift; the compliance-remediation ticketing path already proved the connectors work | Done — `_itam_event_to_alert_shape` adapter, `create_ticket_for_itam_event`, no condition creates more than one ticket per asset/request |
 | The "what can this role see" view is computed by the same delivery pipeline that enforces access, not a second evaluation (v4.2 Phase 77, D-09/D-10) | A visibility view that can disagree with enforcement would tell an admin a role is safe when it is not | Done — equality with the catalogue guard is a regression test |
 | MFA is required by permission, not by role name (v4.2 Phase 77, D-14) | With real custom tenant roles, an admin-tier custom role named anything else must not skip MFA | Done |
+| A rollout row the gate holds at the Suggest level becomes that ring's Install line with its own Approve and Deny; Start still refuses only Off (v4.3 Phase 84, KD-84-G1) | The breaker or unreadable settings can drop a tenant to Suggest mid-ring; a Start-time refusal could never unwedge that | Done — 84-23 |
+| A watched service the computer does not have reports the token `absent`, judged against the host's pre-change service baseline, never `unknown` (v4.3 Phase 84, KD-84-G2) | `unknown` reads as no data, which halts and then reverts a healthy ring; `absent` keeps "missing data halts" for services that exist but do not report | Done — 84-25, ships in agent 2.1.17 |
+| Cancel of a running rollout stops new work, reverts nothing and ends once installs in flight settle; Resume is refused while cancelling (v4.3 Phase 84, KD-84-G3 per D-16) | Reverts follow only a failed ring; an operator cancelling a healthy rollout must not have patched hosts rolled back | Done — 84-28 |
 
 **Note (2026-07-06, resolved 2026-07-20):** This file's Requirements/Milestone sections had drifted since v1.1 and weren't kept current through v2.0/v2.1/v3.0/v3.1 — a pre-existing maintenance gap. Corrected at the v3.2 milestone kickoff (2026-07-20): Current Milestone and v2 Backlog Candidates rewritten against verified codebase state (one backlog item, scheduled-report auto-email, turned out to already be shipped in Phase 10). The Validated/Out of Scope requirement lists below still predate v2.0+ and remain a known gap — full catch-up still deferred to a proper `/gsd-complete-milestone` pass.
 
@@ -188,4 +192,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-04 after Phase 77 transition (its evolve step, run late)*
+*Last updated: 2026-11-07 after Phase 84 transition*

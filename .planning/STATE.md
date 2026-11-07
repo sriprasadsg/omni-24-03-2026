@@ -2,30 +2,30 @@
 gsd_state_version: "1.0"
 milestone: v4.3
 milestone_name: Autonomous Ops
-current_phase: 84
-current_phase_name: Staged Patch Rollouts
-status: verifying
-stopped_at: Completed 84-29-PLAN.md
-last_updated: "2026-11-07T07:37:17.756Z"
+current_phase: 81
+current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
+status: planning
+stopped_at: Phase 84 complete, ready to plan Phase 81
+last_updated: "2026-11-07T12:35:32.256Z"
 last_activity: 2026-11-07
-last_activity_desc: Phase 84 execution started
-state_head: 864ebbafc2144db97c7ebbf1be495b5ba0317e66
+last_activity_desc: Phase 84 complete, transitioned to Phase 81
+state_head: 33bab13f1c32d031d0ad0a640d4cad566836b3a3
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 99
   completed_plans: 99
-  percent: 14
+  percent: 15
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-12)
+See: .planning/PROJECT.md (updated 2026-11-07)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 84 — Staged Patch Rollouts
+**Current focus:** Phase 84 complete; fix review findings WR-25, WR-26, WR-27, WR-31 before agent 2.1.17 ships, then close Phases 81–83 and 87 and plan 85
 
 ## Current Phase
 
@@ -882,7 +882,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Session
 
 **Last session:** 2026-11-07T07:37:17.537Z
-**Stopped at:** Completed 84-29-PLAN.md
+**Stopped at:** Phase 84 complete (UAT 7/7, verification passed); next: /gsd-code-review 84 --fix for WR-25, WR-26, WR-27, WR-31 (user decision, before agent 2.1.17 is published)
 **Resume file:** None
 
 ## Accumulated Context
@@ -908,11 +908,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 84 (Staged Patch Rollouts) — EXECUTING
-Plan: 29 of 29 (gap closure 84-23..84-29)
-Status: Phase complete — ready for verification
-Last activity: 2026-11-07 — Phase 84 gap closure execution started (84-23..84-29)
-Progress: 0/6 phases complete ([█░░░░░░░░░] 14%)
+Phase: 84 (Staged Patch Rollouts) — COMPLETE 2026-11-07 (not deployed). Phases 81, 82, 83 and 87 are executed and await verification close; 85 and 86 are not planned. The tool's "next phase 81" means the first phase not yet marked complete, not a phase to plan.
+Plan: 29 of 29
+Status: Phase 84 complete; next /gsd-code-review 84 --fix (WR-25, WR-26, WR-27, WR-31 before agent 2.1.17 ships)
+Last activity: 2026-11-07 — Phase 84 UAT 7/7 passed, verification passed, phase marked complete
+Progress: 1/7 phases complete ([█░░░░░░░░░] 14%)
 
 ## Deferred Items
 

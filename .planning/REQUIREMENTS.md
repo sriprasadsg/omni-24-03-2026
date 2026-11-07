@@ -43,13 +43,13 @@
 
 ### 3. Staged Patching
 
-- [ ] **PTCH-01**: An operator can define rollout rings per tenant (a canary ring, then larger stages); a rollout moves to the next ring only after a soak period and a passing health gate.
-- [ ] **PTCH-02**: The health gate combines the install result, the post-install inventory, a fresh heartbeat after reboot and key services; missing data halts the rollout.
-- [ ] **PTCH-03**: A stage also halts when more than a set share of its hosts fail, with a minimum sample size (failure-rate gate).
-- [ ] **PTCH-04**: A failed stage halts the rollout and reverts the patch where the operating system supports it; the UI says "halts on failure; reverts where supported" and never promises an unqualified rollback.
-- [ ] **PTCH-05**: Rollouts run only inside the maintenance window recorded in Change Management.
-- [ ] **PTCH-06**: Installs run on their own only in the canary ring and only for patch classes marked reversible; other installs and every reboot need one approval per stage.
-- [ ] **PTCH-07**: The platform's own host is never patched by a rollout, a host is in at most one active rollout, and patch instructions expire.
+- [x] **PTCH-01**: An operator can define rollout rings per tenant (a canary ring, then larger stages); a rollout moves to the next ring only after a soak period and a passing health gate.
+- [x] **PTCH-02**: The health gate combines the install result, the post-install inventory, a fresh heartbeat after reboot and key services; missing data halts the rollout.
+- [x] **PTCH-03**: A stage also halts when more than a set share of its hosts fail, with a minimum sample size (failure-rate gate).
+- [x] **PTCH-04**: A failed stage halts the rollout and reverts the patch where the operating system supports it; the UI says "halts on failure; reverts where supported" and never promises an unqualified rollback.
+- [x] **PTCH-05**: Rollouts run only inside the maintenance window recorded in Change Management.
+- [x] **PTCH-06**: Installs run on their own only in the canary ring and only for patch classes marked reversible; other installs and every reboot need one approval per stage.
+- [x] **PTCH-07**: The platform's own host is never patched by a rollout, a host is in at most one active rollout, and patch instructions expire.
 
 ### 4. Platform Self-Healing
 
@@ -229,13 +229,13 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | RESP-10 | Phase 83 | Pending |
 | RESP-11 | Phase 83 | Complete |
 | ACTV-02 | Phase 83 | Complete |
-| PTCH-01 | Phase 84 | Gaps Found |
-| PTCH-02 | Phase 84 | Gaps Found |
-| PTCH-03 | Phase 84 | Gaps Found |
-| PTCH-04 | Phase 84 | Gaps Found |
-| PTCH-05 | Phase 84 | Gaps Found |
-| PTCH-06 | Phase 84 | Gaps Found |
-| PTCH-07 | Phase 84 | Gaps Found |
+| PTCH-01 | Phase 84 | Complete |
+| PTCH-02 | Phase 84 | Complete |
+| PTCH-03 | Phase 84 | Complete |
+| PTCH-04 | Phase 84 | Complete |
+| PTCH-05 | Phase 84 | Complete |
+| PTCH-06 | Phase 84 | Complete |
+| PTCH-07 | Phase 84 | Complete |
 | DESK-01 | Phase 85 | Pending |
 | DESK-02 | Phase 85 | Pending |
 | DESK-03 | Phase 85 | Pending |
