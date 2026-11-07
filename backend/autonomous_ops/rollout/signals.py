@@ -13,7 +13,10 @@ change it judges, so absence of a problem is never taken for success:
 * ``services`` (OQ6, DEV-2): ``"agent_only"`` with an empty watched list (only the agent's heartbeat is checked
   and that is not no data); for an agent that reports the ``service_state`` token every watched service must
   be running in a block newer than the change plus 120 s (stopped or failed fails the computer, a missing or
-  stale block is no data); an agent without the token reads ``"not_checked"`` unless its ``service_failures``
+  stale block is no data); a service reported ``absent`` (not installed or masked) is judged against the host's
+  pre-change baseline (``servicesPresentBefore`` / ``servicesAbsentBefore``, CR-03, KD-84-G2): present before
+  fails, absent before leaves the wanted list (all gone reads ``"agent_only"``), no record is no data;
+  an agent without the token reads ``"not_checked"`` unless its ``service_failures``
   name a watched service (then False). ``"not_checked"`` neither passes nor halts and is shown as Not checked
   (T-84-28: never reported as passed).
 
@@ -44,6 +47,11 @@ def _meta(agent: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return meta if isinstance(meta, dict) else {}
 
 
+def _names(value: Any) -> set:
+    """The casefolded names of a stored baseline list (anything but a list of strings reads as empty)."""
+    return {n.casefold() for n in value if isinstance(n, str)} if isinstance(value, list) else set()
+
+
 def _inventory(agent: Optional[Dict[str, Any]], host: Dict[str, Any], since) -> Optional[bool]:
     scan = _meta(agent).get("system_patching")
     scanned_at = store.parse_time(scan.get("timestamp")) if isinstance(scan, dict) else None
@@ -62,8 +70,11 @@ def _heartbeat(agent: Optional[Dict[str, Any]], host: Dict[str, Any], restart: b
     return True if installed_at is not None and seen is not None and seen > installed_at else None
 
 
-def _from_block(block: Any, wanted: List[str], since) -> Optional[bool]:
-    """Every wanted service running in a block newer than ``since`` plus the settle time."""
+def _from_block(block: Any, wanted: List[str], since, present: Iterable[str] = (), absent: Iterable[str] = ()) -> Any:
+    """Every wanted service running in a block newer than ``since`` plus the settle time. A service the block
+    reports ``absent`` (not installed or masked, CR-03) is judged against the host's pre-change baseline
+    (``present``/``absent``, casefolded): present before fails the signal, absent before leaves the wanted list,
+    in neither is no data. When every wanted name left the list the value is ``AGENT_ONLY``."""
     at = block.get("at") if isinstance(block, dict) else None
     entries = block.get("services") if isinstance(block, dict) else None
     if since is None or isinstance(at, bool) or not isinstance(at, (int, float)) or not isinstance(entries, list) \
@@ -71,13 +82,21 @@ def _from_block(block: Any, wanted: List[str], since) -> Optional[bool]:
         return None
     states = {str(e["name"]).casefold(): str(e.get("state")).casefold() for e in entries
               if isinstance(e, dict) and isinstance(e.get("name"), str)}
-    if any(states.get(name) in ("stopped", "failed") for name in wanted):
+    was_present, was_absent = set(present), set(absent)
+    gone = [name for name in wanted if states.get(name) == "absent"]
+    if any(states.get(name) in ("stopped", "failed") for name in wanted) or any(name in was_present for name in gone):
         return False
+    missing_baseline = any(name not in was_absent for name in gone)
+    wanted = [name for name in wanted if name not in gone]
+    if missing_baseline:
+        return None
+    if not wanted:
+        return AGENT_ONLY
     return True if all(states.get(name) == "running" for name in wanted) else None
 
 
 def _services(agent: Optional[Dict[str, Any]], watched: Optional[Iterable[str]], capabilities: Iterable[str],
-              since) -> Any:
+              since, host: Optional[Dict[str, Any]] = None) -> Any:
     if watched is None:                       # the watched list could not be read: nothing can be said
         return None
     wanted = sorted({str(n).casefold() for n in watched if isinstance(n, str) and n.strip()})
@@ -85,7 +104,8 @@ def _services(agent: Optional[Dict[str, Any]], watched: Optional[Iterable[str]],
         return AGENT_ONLY
     meta = _meta(agent)
     if TOKEN_SERVICE_STATE in agent_support.tokens_of(agent):
-        return _from_block(meta.get("service_state"), wanted, since)
+        return _from_block(meta.get("service_state"), wanted, since, _names((host or {}).get("servicesPresentBefore")),
+                           _names((host or {}).get("servicesAbsentBefore")))
     failures = meta.get("service_failures") if REMEDIATION in set(capabilities) else None
     if isinstance(failures, list) and any(isinstance(f, dict) and str(f.get("name") or "").casefold() in wanted
                                           for f in failures):
@@ -104,7 +124,7 @@ def read(agent: Optional[Dict[str, Any]], host: Dict[str, Any], watched: Optiona
     out = {"agentId": host["agentId"], "hostname": host.get("hostname"), "os": host.get("os"), "state": state,
            "install": install, "inventory": _inventory(agent, host, since),
            "heartbeat": _heartbeat(agent, host, restart, installed_at),
-           "services": _services(agent, watched, capabilities, since)}
+           "services": _services(agent, watched, capabilities, since, host)}
     out["reported"] = install is not None
     out["failed"] = any(out[s] is False for s in ("install", "inventory", "heartbeat", "services"))
     return out

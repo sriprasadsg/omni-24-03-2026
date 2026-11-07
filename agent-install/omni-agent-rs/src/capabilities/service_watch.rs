@@ -50,6 +50,10 @@ pub enum Health {
     /// Stopped cleanly or on purpose. Never reported, never restarted.
     Stopped,
     Failed { state: String, exit_code: Option<i64> },
+    /// The service is not installed on this computer (systemd `LoadState` not-found or masked,
+    /// `sc` error 1060). Never a failure; the platform judges it against what the computer had
+    /// before the change (CR-03).
+    Absent,
     Unknown,
 }
 
@@ -57,8 +61,12 @@ fn property<'a>(text: &'a str, key: &str) -> Option<&'a str> {
     text.lines().find_map(|line| line.strip_prefix(key)?.strip_prefix('=')).map(str::trim)
 }
 
-/// Reads `systemctl show -p ActiveState,SubState,Result,ExecMainStatus <unit>`.
+/// Reads `systemctl show -p LoadState,ActiveState,SubState,Result,ExecMainStatus <unit>`. A unit
+/// systemd does not know answers `ActiveState=inactive`, so `LoadState` is read first.
 pub fn classify_systemd(output: &str) -> Health {
+    if matches!(property(output, "LoadState"), Some("not-found" | "masked")) {
+        return Health::Absent;
+    }
     let Some(active) = property(output, "ActiveState") else { return Health::Unknown };
     let exit_code = property(output, "ExecMainStatus").and_then(|v| v.parse().ok());
     let bad_result = property(output, "Result").is_some_and(|r| !r.is_empty() && r != "success");
@@ -105,7 +113,7 @@ pub fn classify_sc(query: &str, qc: &str) -> Health {
 /// error code, the one case where it decides.
 pub fn status_of(os: Os, name: &str) -> Health {
     match os {
-        Os::Linux => privileged::run_output("systemctl", &["show", "-p", "ActiveState,SubState,Result,ExecMainStatus", name])
+        Os::Linux => privileged::run_output("systemctl", &["show", "-p", "LoadState,ActiveState,SubState,Result,ExecMainStatus", name])
             .map_or(Health::Unknown, |out| classify_systemd(&out)),
         Os::Windows => {
             let Ok(query) = privileged::run_output("sc", &["query", name]) else { return Health::Unknown };
@@ -208,12 +216,14 @@ pub(crate) fn report_with(w: &mut Watch, os: Option<Os>, enabled: Option<&[Strin
 // ── the state report ──────────────────────────────────────────────────────
 
 /// The word the heartbeat carries for one service. Starting or stopping is `unknown`: it is
-/// neither running nor stopped yet, and the health gate must not read it as running.
+/// neither running nor stopped yet, and the health gate must not read it as running. A service the
+/// computer does not have is `absent`, which is not a failure and not missing data.
 pub fn state_from_health(h: &Health) -> &'static str {
     match h {
         Health::Running => "running",
         Health::Stopped => "stopped",
         Health::Failed { .. } => "failed",
+        Health::Absent => "absent",
         Health::Pending | Health::Unknown => "unknown",
     }
 }

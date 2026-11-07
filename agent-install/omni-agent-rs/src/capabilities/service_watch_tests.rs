@@ -14,6 +14,11 @@ const SYSTEMD_ADMIN_STOP: &str = "Result=success\nExecMainStatus=0\nActiveState=
 /// A service that crashed and is waiting for systemd's `Restart=` to start it again.
 const SYSTEMD_AUTO_RESTART: &str = "Result=exit-code\nExecMainStatus=203\nActiveState=activating\nSubState=auto-restart\n";
 const SYSTEMD_ACTIVE: &str = "Result=success\nExecMainStatus=0\nActiveState=active\nSubState=running\n";
+/// A unit systemd has never heard of, and a masked one (`LoadState` is asked for first, CR-03).
+const SYSTEMD_NOT_FOUND: &str = "LoadState=not-found\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n";
+const SYSTEMD_MASKED: &str = "LoadState=masked\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n";
+const SYSTEMD_LOADED_STOP: &str = "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n";
+const SYSTEMD_LOADED_FAILED: &str = "LoadState=loaded\nActiveState=failed\nSubState=failed\nResult=exit-code\nExecMainStatus=1\n";
 const SYSTEMD_STARTING: &str = "Result=success\nExecMainStatus=0\nActiveState=activating\nSubState=start\n";
 
 /// `sc query nginx` for a service that stopped with a service-specific error.
@@ -81,6 +86,26 @@ fn a_unit_systemd_does_not_know_is_no_failure() {
 }
 
 #[test]
+fn a_not_found_or_masked_unit_is_absent_and_a_loaded_one_is_judged_as_before() {
+    assert_eq!(classify_systemd(SYSTEMD_NOT_FOUND), Health::Absent);
+    assert_eq!(classify_systemd(SYSTEMD_MASKED), Health::Absent);
+    assert_eq!(classify_systemd(SYSTEMD_LOADED_STOP), Health::Stopped);
+    assert_eq!(classify_systemd(SYSTEMD_LOADED_FAILED), Health::Failed { state: "failed".into(), exit_code: Some(1) });
+    assert_eq!(state_from_health(&Health::Absent), "absent");
+}
+
+#[test]
+fn an_absent_service_is_never_a_failure_and_is_reported_absent_in_the_state() {
+    let mut w = Watch::default();
+    let watched = names(&["nginx"]);
+    script(&[SYSTEMD_NOT_FOUND]);
+    assert!(report_with(&mut w, Some(Os::Linux), None, &watched, 1_000).is_empty());
+    script(&[SYSTEMD_NOT_FOUND, SYSTEMD_ACTIVE]);
+    let state = state_report_with(&names(&["nginx", "sshd"]), 7, &|name| status_of(Os::Linux, name));
+    assert_eq!(state["services"], json!([{"name": "nginx", "state": "absent"}, {"name": "sshd", "state": "running"}]));
+}
+
+#[test]
 fn sc_stopped_with_exit_code_1066_is_a_failure() {
     assert_eq!(classify_sc(SC_FAILED, SC_QC_AUTO), Health::Failed { state: "stopped".into(), exit_code: Some(1066) });
 }
@@ -107,7 +132,7 @@ fn sc_running_and_pending_states_are_not_failures() {
 fn status_of_asks_with_fixed_argv_on_linux() {
     script(&[SYSTEMD_FAILED]);
     assert_eq!(status_of(Os::Linux, "nginx"), Health::Failed { state: "failed".into(), exit_code: Some(1) });
-    assert_eq!(calls(), vec!["systemctl show -p ActiveState,SubState,Result,ExecMainStatus nginx"]);
+    assert_eq!(calls(), vec!["systemctl show -p LoadState,ActiveState,SubState,Result,ExecMainStatus nginx"]);
 }
 
 #[test]

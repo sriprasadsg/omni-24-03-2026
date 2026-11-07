@@ -182,6 +182,47 @@ async def test_a_host_without_the_service_state_token_is_not_checked_unless_it_r
     assert unticked["services"] == "not_checked"
 
 
+# ---------------------------------------------------------------- services the host does not have (CR-03, KD-84-G2)
+
+def before(present=(), absent=()):
+    return {"servicesPresentBefore": list(present), "servicesAbsentBefore": list(absent)}
+
+
+async def absent_read(after, watched=("sshd", "nginx"), **baseline):
+    fresh = INSTALL + timedelta(seconds=130)
+    host_ = a_host(**baseline) if baseline else a_host()
+    return (await read(host_, an_agent(tokens=SERVICE_TOKENS, block=state_block(fresh, **after)), list(watched)))["services"]
+
+
+async def test_a_service_absent_before_and_after_the_change_leaves_the_wanted_list():
+    assert await absent_read({"sshd": "running", "nginx": "absent"}, **before(["sshd"], ["nginx"])) is True
+    assert await absent_read({"sshd": "stopped", "nginx": "absent"}, **before(["sshd"], ["nginx"])) is False
+    assert await absent_read({"sshd": "unknown", "nginx": "absent"}, **before(["sshd"], ["nginx"])) is None
+
+
+async def test_a_service_the_change_removed_fails_and_a_name_in_both_baseline_lists_counts_as_present():
+    assert await absent_read({"sshd": "running", "nginx": "absent"}, **before(["sshd", "nginx"])) is False
+    assert await absent_read({"sshd": "running", "nginx": "absent"}, **before(["sshd", "nginx"], ["nginx"])) is False
+    assert await absent_read({"sshd": "unknown", "nginx": "absent"}, **before(["sshd", "NGINX"])) is False   # False beats no data
+
+
+async def test_a_service_absent_with_no_baseline_is_no_data():
+    assert await absent_read({"sshd": "running", "nginx": "absent"}) is None
+    assert await absent_read({"sshd": "running", "nginx": "absent"}, **before(["sshd"])) is None
+
+
+async def test_when_every_watched_service_was_absent_before_and_after_only_the_agent_is_checked():
+    got = await absent_read({"sshd": "absent", "nginx": "absent"}, **before([], ["sshd", "nginx"]))
+    assert got == "agent_only"
+    host_ = a_host(**before([], ["sshd", "nginx"]))
+    full = await read(host_, an_agent(tokens=SERVICE_TOKENS, block=state_block(INSTALL + timedelta(seconds=130), sshd="absent",
+                                                                               nginx="absent")), ["sshd", "nginx"])
+    assert full["failed"] is False
+    stale = INSTALL + timedelta(seconds=60)                                                 # an old block is still no data
+    assert (await read(host_, an_agent(tokens=SERVICE_TOKENS, block=state_block(stale, sshd="absent", nginx="absent")),
+                       ["sshd", "nginx"]))["services"] is None
+
+
 # ---------------------------------------------------------------- the ring's health rows
 
 async def test_the_ring_keeps_its_health_rows_for_the_views(mongo_db):
