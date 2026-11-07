@@ -33,7 +33,7 @@ pub fn deferred_result(patch_id: &str, code: &str, message: &str) -> Value {
     coded_result(patch_id, "deferred", code, message, false)
 }
 
-/// The installed version in `dpkg-query -W -f='${db:Status-Status}\t${Version}'` output. Only the
+/// The installed version in `dpkg-query -W -f='${db:Status-Status}\t${Version}\n'` output. Only the
 /// `installed` state counts: a package that was removed but kept its config (`rc`, `config-files`)
 /// is gone, and a revert must never put it back.
 pub fn parse_dpkg_installed(stdout: &str) -> Option<String> {

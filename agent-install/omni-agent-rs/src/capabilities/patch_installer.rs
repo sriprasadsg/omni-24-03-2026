@@ -382,7 +382,7 @@ mod linux {
     pub async fn installed_version(manager: &str, pkg: &str) -> Option<String> {
         let mut cmd = if manager == "apt-get" {
             let mut c = tokio::process::Command::new("dpkg-query");
-            c.args(["-W", "-f=${db:Status-Status}\t${Version}", pkg]); c
+            c.args(["-W", "-f=${db:Status-Status}\t${Version}\n", pkg]); c   // one line per architecture
         } else {
             let mut c = tokio::process::Command::new("rpm");
             c.args(["-q", "--qf", "%{VERSION}-%{RELEASE}", pkg]);
