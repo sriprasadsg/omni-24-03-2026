@@ -264,10 +264,13 @@ BREAKER_FAILURES = ("verify_failed", "agent_failed", "blocked_by_local_security"
 # an automatic decision going wrong.
 # ``ring_reverted`` and ``rollout_halted`` are a staged rollout putting a patch back and stopping on its own
 # (Phase 84): that is the safeguard working, so one bad patch cannot switch off a tenant's other automatic
-# actions. A real install failure (``rollout_install_failed``) is not listed, so it still counts.
+# actions. A real install failure (``rollout_install_failed``) is not listed, so it still counts. A rollout
+# install that was never delivered (``rollout_not_delivered``, an instruction that expired with its window) is
+# plumbing, not the action going wrong. (``rollout_no_new_boot`` is a restart row a person approved, never an
+# automatic one, so it needs no entry.)
 BREAKER_IGNORED = ("not_delivered", "no_result", "capability_off", "agent_unsupported", "agent_offline",
                    "hash_mismatch", "protected_path", "agent_refused", "locked", "dispatch_failed", "auto_reverted",
-                   "ring_reverted", "rollout_halted")
+                   "ring_reverted", "rollout_halted", "rollout_not_delivered")
 
 
 async def count_auto_since(db, tenant_id: str, since: datetime) -> int:
