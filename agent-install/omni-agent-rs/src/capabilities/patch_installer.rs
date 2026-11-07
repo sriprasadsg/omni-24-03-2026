@@ -382,8 +382,7 @@ mod linux {
     pub async fn installed_version(manager: &str, pkg: &str) -> Option<String> {
         let mut cmd = if manager == "apt-get" {
             let mut c = tokio::process::Command::new("dpkg-query");
-            c.args(["-W", "-f=${Version}", pkg]);
-            c
+            c.args(["-W", "-f=${db:Status-Status}\t${Version}", pkg]); c
         } else {
             let mut c = tokio::process::Command::new("rpm");
             c.args(["-q", "--qf", "%{VERSION}-%{RELEASE}", pkg]);
@@ -392,6 +391,7 @@ mod linux {
         cmd.env("LC_ALL", "C");
         let out = output(cmd, Duration::from_secs(30)).await.ok()?;
         let v = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let v = if manager == "apt-get" { patch_reversible::parse_dpkg_installed(&v)? } else { v }; // `rc` (removed, config kept) is not installed
         (out.status.success() && !v.is_empty() && !v.contains("not installed")).then_some(v)
     }
 

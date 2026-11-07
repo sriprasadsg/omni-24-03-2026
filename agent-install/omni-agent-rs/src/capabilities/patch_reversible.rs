@@ -33,6 +33,15 @@ pub fn deferred_result(patch_id: &str, code: &str, message: &str) -> Value {
     coded_result(patch_id, "deferred", code, message, false)
 }
 
+/// The installed version in `dpkg-query -W -f='${db:Status-Status}\t${Version}'` output. Only the
+/// `installed` state counts: a package that was removed but kept its config (`rc`, `config-files`)
+/// is gone, and a revert must never put it back.
+pub fn parse_dpkg_installed(stdout: &str) -> Option<String> {
+    stdout.lines().filter_map(|l| l.split_once('\t')).find_map(|(status, version)| {
+        (status.trim() == "installed" && !version.trim().is_empty()).then(|| version.trim().to_string())
+    })
+}
+
 /// Versions `apt-cache madison` lists, in listed order. The entry for the local dpkg status file is
 /// the installed copy, not something the package source offers, so it is left out.
 pub fn parse_madison(stdout: &str) -> Vec<String> {
@@ -229,6 +238,16 @@ openssl-libs.x86_64   1:1.1.1k-5.el8_4        baseos\n";
         assert!(revert_precheck("libssl3", Some("3.0.2-0ubuntu1.12"), "3.0.2-0ubuntu1.10").is_none());
         let done = revert_precheck("libssl3", Some("3.0.2-0ubuntu1.10"), "3.0.2-0ubuntu1.10").unwrap();
         assert_eq!((done["status"].as_str(), done["code"].as_str()), (Some("success"), Some("reverted")));
+    }
+
+    #[test]
+    fn patch_reversible_a_removed_package_with_kept_config_is_not_installed() {
+        use super::parse_dpkg_installed;
+        assert_eq!(parse_dpkg_installed("installed\t3.0.2-0ubuntu1.12\n").as_deref(), Some("3.0.2-0ubuntu1.12"));
+        assert_eq!(parse_dpkg_installed("config-files\t3.0.2-0ubuntu1.12\n"), None); // `apt remove` leaves this (dpkg state rc)
+        assert_eq!(parse_dpkg_installed("not-installed\t\n"), None);
+        assert_eq!(parse_dpkg_installed(""), None);
+        assert_eq!(parse_dpkg_installed("config-files\t1.0\ninstalled\t2.0\n").as_deref(), Some("2.0")); // another architecture is installed
     }
 
     #[test]
