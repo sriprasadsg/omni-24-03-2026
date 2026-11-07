@@ -30,7 +30,8 @@ export const card = (over: Partial<RolloutCard> = {}): RolloutCard => ({
         ring({ index: 2, name: 'Broad', groups: [], state: 'not_started', detail: 'Starts after Early passes.', hostTotal: 0 }),
     ],
     halt: null, notReachedCount: 0, closesAt: null, neverReachedCount: 0, closedText: null,
-    canResume: false, canCancel: false, resumeBlockedReason: null, revertRunning: false, cancelNote: null, ...over,
+    canResume: false, canCancel: false, resumeBlockedReason: null, revertRunning: false, cancelNote: null,
+    cancelling: false, cancelRequestedBy: null, cancelRequestedAt: null, cancellingNote: null, ...over,
 });
 
 export const flags = (over: Partial<RolloutFlags> = {}): RolloutFlags => ({

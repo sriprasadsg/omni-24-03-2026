@@ -118,6 +118,13 @@ export interface RolloutCard {
     revertRunning: boolean;
     /** The server's sentence for the Cancel dialog of a running rollout (nothing is reverted); null otherwise. */
     cancelNote: string | null;
+    /** True while a Cancel of a running rollout is settling: the installs in progress finish, then it ends. */
+    cancelling: boolean;
+    /** Who asked for the Cancel and when (ISO); null when nobody did or the name is not on record. */
+    cancelRequestedBy: string | null;
+    cancelRequestedAt: string | null;
+    /** The server's sentence for a settling Cancel ("Cancel requested by X. ..."); null otherwise. */
+    cancellingNote: string | null;
 }
 
 export interface RolloutPage {

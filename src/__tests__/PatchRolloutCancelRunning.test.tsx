@@ -34,6 +34,21 @@ beforeEach(() => {
 });
 
 describe('Cancel on a running rollout', () => {
+  it('says a Cancel is settling: the notice, a Cancelling chip and no Cancel rollout button', () => {
+    const note = 'Cancel requested by Ann. It ends when the installs in progress finish.';
+    render(<RolloutCard card={card({ status: 'running', canCancel: false, cancelling: true, cancelRequestedBy: 'Ann', cancellingNote: note })} onChanged={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(note);
+    expect(screen.getByText('Cancelling')).toBeInTheDocument();
+    expect(screen.queryByText('Running')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel rollout' })).toBeNull();
+  });
+
+  it('shows no notice and the Running chip when nothing is cancelling', () => {
+    render(<RolloutCard card={card({ status: 'running', canCancel: true })} onChanged={vi.fn()} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByText('Running')).toBeInTheDocument();
+  });
+
   it('shows Cancel rollout on a running card only with the server flag', () => {
     const off = render(<RolloutCard card={card({ status: 'running', canCancel: false, cancelNote: NOTE })} onChanged={vi.fn()} />);
     expect(screen.queryByRole('button', { name: 'Cancel rollout' })).toBeNull();

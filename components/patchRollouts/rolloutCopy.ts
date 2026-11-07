@@ -41,6 +41,9 @@ export const ROLLOUT_STATUS_CHIP: Record<RolloutStatus, ChipSpec> = {
     cancelled: { label: 'Cancelled', ...ENDED },
 };
 
+/** Stands in for the rollout chip while a Cancel is settling (the stored status is still running). */
+export const CANCELLING_CHIP: ChipSpec = { label: 'Cancelling', ...IN_PROGRESS };
+
 /** One entry per ring state (the 84-01 RING_STATES values). */
 export const RING_STATE_CHIP: Record<RingState, ChipSpec> = {
     not_started: { label: 'Not started', tone: 'neutral', icon: 'ClockIcon' },

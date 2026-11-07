@@ -7,7 +7,7 @@ import { HealthNotice } from '../AutonomousOpsHealthChips';
 import { AlertOctagonIcon, ChevronRightIcon, ExternalLinkIcon, LayersIcon } from '../icons';
 import { RolloutChip } from './RolloutChip';
 import { HaltActions, RunningCancel, hasHaltActions } from './RolloutDialogs';
-import { LINK_LABELS, RING_STATE_CHIP, ROLLOUT_STATUS_CHIP, SIMULATION_CHIP, plural } from './rolloutCopy';
+import { CANCELLING_CHIP, LINK_LABELS, RING_STATE_CHIP, ROLLOUT_STATUS_CHIP, SIMULATION_CHIP, plural } from './rolloutCopy';
 
 /**
  * One rollout card (84-14, UI-SPEC section 4): a header with the name, the meta line and the status chips; the ring
@@ -95,7 +95,7 @@ export const RolloutCard: React.FC<RolloutCardProps> = ({ card, onOpenView, rend
     const [openRing, setOpenRing] = useState<number | null>(null);
     const started = card.startedAt ? formatWhen(card.startedAt, now) : null;
     const open = openRing === null ? undefined : card.rings.find(r => r.index === openRing);
-    const status = ROLLOUT_STATUS_CHIP[card.status] ?? UNKNOWN_RING_CHIP;
+    const status = card.cancelling ? CANCELLING_CHIP : (ROLLOUT_STATUS_CHIP[card.status] ?? UNKNOWN_RING_CHIP);
     const notReached = card.status === 'completed' && card.notReachedCount > 0;
     const haltActions = actions ?? (onChanged && hasHaltActions(card)
         ? <HaltActions card={card} tenantId={tenantId} onChanged={onChanged} />
@@ -150,6 +150,9 @@ export const RolloutCard: React.FC<RolloutCardProps> = ({ card, onOpenView, rend
             )}
             {!card.halt && card.status === 'running' && card.canCancel && onChanged && (
                 <div className="flex px-6 pb-4"><RunningCancel card={card} tenantId={tenantId} onChanged={onChanged} /></div>
+            )}
+            {card.cancelling && card.cancellingNote && (
+                <p role="status" className="break-words px-6 pb-4 text-sm text-gray-600 dark:text-gray-400">{card.cancellingNote}</p>
             )}
             {open && renderRingDetail && <div id={detailId} className="px-6 pb-4">{renderRingDetail(open, card)}</div>}
             {card.closedText && (

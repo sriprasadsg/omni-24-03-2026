@@ -342,6 +342,10 @@ LIFECYCLE_CONTROL = {
 CANCEL_NOTE_RUNNING = ("Cancelling stops new installs now. Computers that already installed keep the patches; nothing "
                        "is reverted. The rollout ends when the installs in progress finish.")
 
+# The notice on a running rollout whose Cancel is settling (WR-30): who asked, and why nothing happens yet.
+CANCELLING_NOTE = {"by": "Cancel requested by {name}. It ends when the installs in progress finish.",
+                   "anon": "Cancel requested. It ends when the installs in progress finish."}
+
 # ---------------------------------------------------------------- short explanations the routes return
 
 API_DETAIL = {

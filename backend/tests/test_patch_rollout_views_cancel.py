@@ -40,6 +40,20 @@ async def test_a_rollout_whose_cancel_is_settling_offers_neither_cancel_nor_resu
     assert halted["canResume"] is False and halted["canCancel"] is False
 
 
+async def test_a_rollout_whose_cancel_is_settling_says_who_asked_and_when(mongo_db):
+    await prepare(mongo_db)
+    await seed(mongo_db, cancelRequested=REQUEST)
+    got = await card(mongo_db)
+    assert got["cancelling"] is True and got["cancelRequestedBy"] == "Ann" and got["cancelRequestedAt"]
+    assert got["cancellingNote"] == "Cancel requested by Ann. It ends when the installs in progress finish."
+    await seed(mongo_db, "r2", cancelRequested={"by": {"id": "u1"}, "at": NOW})
+    nameless = await card(mongo_db, "r2")
+    assert nameless["cancelRequestedBy"] is None and nameless["cancellingNote"] == messages.CANCELLING_NOTE["anon"]
+    await seed(mongo_db, "r3")
+    plain = await card(mongo_db, "r3")
+    assert plain["cancelling"] is False and plain["cancellingNote"] is None and plain["cancelRequestedAt"] is None
+
+
 async def test_a_halted_rollout_keeps_its_buttons_and_has_no_note(mongo_db):
     await prepare(mongo_db)
     await seed(mongo_db, status="halted", rings=[ring(0, "Canary", "halted")],
