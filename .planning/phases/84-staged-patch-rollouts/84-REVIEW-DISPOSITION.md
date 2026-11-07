@@ -3,6 +3,50 @@ phase: 84
 review: 84-REVIEW.md
 titles: json
 findings:
+  - id: WR-25
+    severity: warning
+    disposition: open
+    title: "A revert still re-installs a removed package that left its config behind (reopens WR-15)"
+  - id: WR-26
+    severity: warning
+    disposition: open
+    title: "An expired `sent` instruction is judged \"not delivered\" although the agent already fetched it"
+  - id: WR-27
+    severity: warning
+    disposition: open
+    title: "A queued revert that was never fetched is declared \"did not answer\" after 6 hours and the instruction is left live"
+  - id: WR-28
+    severity: warning
+    disposition: open
+    title: "A revert the agent answered FAILURE is reported as \"the computer did not answer\""
+  - id: WR-29
+    severity: warning
+    disposition: open
+    title: "Cancel closes unfetched instructions with the \"a check after the install did not pass\" text"
+  - id: WR-30
+    severity: warning
+    disposition: open
+    title: "A rollout whose Cancel is settling shows no sign of it"
+  - id: WR-31
+    severity: warning
+    disposition: open
+    title: "A controller pass that loaded the rollout before the Cancel stamp can still decide and send"
+  - id: WR-32
+    severity: warning
+    disposition: open
+    title: "The 409 for a manual rollback tells the user to \"Revert it from Rollouts\", which only works for a halted rollout"
+  - id: IN-24
+    severity: info
+    disposition: open
+    title: "`masked` and `not-found` units both read `absent`, including a running masked unit"
+  - id: IN-25
+    severity: info
+    disposition: open
+    title: "A watched name that is in neither baseline list keeps the services signal at \"no data\" for good"
+  - id: IN-26
+    severity: info
+    disposition: open
+    title: "`save_to` leaves a stale temporary file on failure and does not sync the directory"
   - id: CR-01
     severity: critical
     disposition: fixed
@@ -207,66 +251,77 @@ findings:
     severity: info
     disposition: deferred
     title: "[frontend] Minor robustness points"
-open: 0
-total: 51
-recorded: 2026-11-07T01:13:55.165Z
+open: 11
+total: 62
+recorded: 2026-11-07T09:51:31.025Z
 ---
 
 # Phase 84: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-01 | critical | fixed | 84-23 b4b12a817 (a refused canary row stores only the attempt, is retried, then fails the host with a reason) |
-| CR-02 | critical | fixed | 84-23 b4b12a817, 96f904ebb (a held or suggested canary row is the ring's Install line with Approve and Deny, shown on the card) |
-| CR-03 | critical | fixed | 84-25 8eff5e5ea, 39bd6c2b2, 03c9d443e (absent token, pre-change service baseline, Windows error 1060) |
-| CR-04 | critical | fixed | 84-26 4e4e6bacf (every apt downgrade passes --no-remove) |
-| WR-01 | warning | fixed | 84-23 d0f68b449 (rollout_not_delivered ignored by the circuit breaker; 84-27 910b6d309 adds rollout_no_result) |
-| WR-02 | warning | fixed | 84-27 910b6d309, c1e95941c, 6992b583f (inflight.close_job on every abandoned install path) |
-| WR-03 | warning | fixed | 84-27 910b6d309, c1e95941c (in-flight install and revert bounds); 84-28 41af2a7c8, f6d8e13f5 (Cancel of a running rollout) |
-| WR-04 | warning | fixed | 84-27 c1e95941c (a denied or expired computer stays waiting, not_approved) |
-| WR-05 | warning | deferred | A Reboot or Revert-restart card that expires during a stop later halts and reverts the ring; it is the reboots.py path, untouched by these fixes; next review round (most important open item). Owner: next Phase 84 review round. |
-| WR-06 | warning | fixed | 84-27 6992b583f (settle.recover_unsent, send exceptions end the row) |
-| WR-07 | warning | deferred | Claim-before-document needs a crash between two inserts; separate Start change with a startup sweep. |
-| WR-08 | warning | deferred | Only overlapping windows mis-mark not reached; windows.py maths change scheduled separately. |
-| WR-09 | warning | deferred | The legacy route still denies (500 instead of 403); fail-closed, different route. |
-| WR-10 | warning | fixed | 84-24 ca8a7fa74 (manual rollback refuses a rollout's own jobs with 409) |
-| WR-11 | warning | deferred | Audit role attribution, not a rollout safety truth. |
-| WR-12 | warning | deferred | A unique per-tenant settings index needs a duplicate-merging migration, which runs on live only by the user. |
-| WR-13 | warning | fixed | 84-26 f0697f33f (non-boolean require_reversible is an error) |
-| WR-14 | warning | fixed | 84-26 946ce3133 (per-package save, serde defaults, .bad copy, fsync before rename) |
-| WR-15 | warning | fixed | 84-26 4e4e6bacf (revert_precheck: a package that is gone installs nothing) |
-| WR-16 | warning | deferred | heartbeat.rs is the user's uncommitted work; a cost issue, not a safety one. |
-| WR-17 | warning | deferred | The vendor flag limit is documented; revert answers not_uninstallable honestly. |
-| WR-18 | warning | deferred | --no-remove (84-26) is the safety net; a dnf refresh needs a privileged-call change. |
-| WR-19 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. |
-| WR-20 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. |
-| WR-21 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. |
-| WR-22 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. |
-| WR-23 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. |
-| WR-24 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. |
-| IN-01 | info | deferred | Info level, triaged with the next review. |
-| IN-02 | info | deferred | Info level, triaged with the next review. |
-| IN-03 | info | deferred | Info level, triaged with the next review. |
-| IN-04 | info | deferred | Info level, triaged with the next review. |
-| IN-05 | info | deferred | Info level, triaged with the next review. |
-| IN-06 | info | deferred | Info level, triaged with the next review. |
-| IN-07 | info | deferred | Info level, triaged with the next review. |
-| IN-08 | info | deferred | Info level, triaged with the next review. |
-| IN-09 | info | deferred | Info level, triaged with the next review. |
-| IN-10 | info | deferred | Info level, triaged with the next review. |
-| IN-11 | info | deferred | Info level, triaged with the next review. |
-| IN-12 | info | deferred | Info level, triaged with the next review. IN-12 also touches legacy state in the agent job records. |
-| IN-13 | info | deferred | Info level, triaged with the next review. |
-| IN-14 | info | deferred | Info level, triaged with the next review. IN-14 is the user's uncommitted agent WIP, not Phase 84. |
-| IN-15 | info | deferred | Info level, triaged with the next review. |
-| IN-16 | info | deferred | Info level, triaged with the next review. |
-| IN-17 | info | deferred | Info level, triaged with the next review. |
-| IN-18 | info | deferred | Info level, triaged with the next review. |
-| IN-19 | info | deferred | Info level, triaged with the next review. |
-| IN-20 | info | deferred | Info level, triaged with the next review. |
-| IN-21 | info | deferred | Info level, triaged with the next review. |
-| IN-22 | info | deferred | Info level, triaged with the next review. |
-| IN-23 | info | deferred | Info level, triaged with the next review. |
+| WR-25 | warning | open | - |
+| WR-26 | warning | open | - |
+| WR-27 | warning | open | - |
+| WR-28 | warning | open | - |
+| WR-29 | warning | open | - |
+| WR-30 | warning | open | - |
+| WR-31 | warning | open | - |
+| WR-32 | warning | open | - |
+| IN-24 | info | open | - |
+| IN-25 | info | open | - |
+| IN-26 | info | open | - |
+| CR-01 | critical | fixed | 84-23 b4b12a817 (a refused canary row stores only the attempt, is retried, then fails the host with a reason) (not in the current review) |
+| CR-02 | critical | fixed | 84-23 b4b12a817, 96f904ebb (a held or suggested canary row is the ring's Install line with Approve and Deny, shown on the card) (not in the current review) |
+| CR-03 | critical | fixed | 84-25 8eff5e5ea, 39bd6c2b2, 03c9d443e (absent token, pre-change service baseline, Windows error 1060) (not in the current review) |
+| CR-04 | critical | fixed | 84-26 4e4e6bacf (every apt downgrade passes --no-remove) (not in the current review) |
+| WR-01 | warning | fixed | 84-23 d0f68b449 (rollout_not_delivered ignored by the circuit breaker; 84-27 910b6d309 adds rollout_no_result) (not in the current review) |
+| WR-02 | warning | fixed | 84-27 910b6d309, c1e95941c, 6992b583f (inflight.close_job on every abandoned install path) (not in the current review) |
+| WR-03 | warning | fixed | 84-27 910b6d309, c1e95941c (in-flight install and revert bounds); 84-28 41af2a7c8, f6d8e13f5 (Cancel of a running rollout) (not in the current review) |
+| WR-04 | warning | fixed | 84-27 c1e95941c (a denied or expired computer stays waiting, not_approved) (not in the current review) |
+| WR-05 | warning | deferred | A Reboot or Revert-restart card that expires during a stop later halts and reverts the ring; it is the reboots.py path, untouched by these fixes; next review round (most important open item). Owner: next Phase 84 review round. (not in the current review) |
+| WR-06 | warning | fixed | 84-27 6992b583f (settle.recover_unsent, send exceptions end the row) (not in the current review) |
+| WR-07 | warning | deferred | Claim-before-document needs a crash between two inserts; separate Start change with a startup sweep. (not in the current review) |
+| WR-08 | warning | deferred | Only overlapping windows mis-mark not reached; windows.py maths change scheduled separately. (not in the current review) |
+| WR-09 | warning | deferred | The legacy route still denies (500 instead of 403); fail-closed, different route. (not in the current review) |
+| WR-10 | warning | fixed | 84-24 ca8a7fa74 (manual rollback refuses a rollout's own jobs with 409) (not in the current review) |
+| WR-11 | warning | deferred | Audit role attribution, not a rollout safety truth. (not in the current review) |
+| WR-12 | warning | deferred | A unique per-tenant settings index needs a duplicate-merging migration, which runs on live only by the user. (not in the current review) |
+| WR-13 | warning | fixed | 84-26 f0697f33f (non-boolean require_reversible is an error) (not in the current review) |
+| WR-14 | warning | fixed | 84-26 946ce3133 (per-package save, serde defaults, .bad copy, fsync before rename) (not in the current review) |
+| WR-15 | warning | fixed | 84-26 4e4e6bacf (revert_precheck: a package that is gone installs nothing) (not in the current review) |
+| WR-16 | warning | deferred | heartbeat.rs is the user's uncommitted work; a cost issue, not a safety one. (not in the current review) |
+| WR-17 | warning | deferred | The vendor flag limit is documented; revert answers not_uninstallable honestly. (not in the current review) |
+| WR-18 | warning | deferred | --no-remove (84-26) is the safety net; a dnf refresh needs a privileged-call change. (not in the current review) |
+| WR-19 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. (not in the current review) |
+| WR-20 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. (not in the current review) |
+| WR-21 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. (not in the current review) |
+| WR-22 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. (not in the current review) |
+| WR-23 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. (not in the current review) |
+| WR-24 | warning | deferred | UI behaviour with no safety impact, UI unpublished and DEV-1..DEV-4 still await the user; next UI round. (not in the current review) |
+| IN-01 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-02 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-03 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-04 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-05 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-06 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-07 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-08 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-09 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-10 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-11 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-12 | info | deferred | Info level, triaged with the next review. IN-12 also touches legacy state in the agent job records. (not in the current review) |
+| IN-13 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-14 | info | deferred | Info level, triaged with the next review. IN-14 is the user's uncommitted agent WIP, not Phase 84. (not in the current review) |
+| IN-15 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-16 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-17 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-18 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-19 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-20 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-21 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-22 | info | deferred | Info level, triaged with the next review. (not in the current review) |
+| IN-23 | info | deferred | Info level, triaged with the next review. (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
