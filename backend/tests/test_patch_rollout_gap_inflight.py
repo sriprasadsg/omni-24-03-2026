@@ -198,11 +198,11 @@ async def test_a_revert_the_agent_fails_or_never_answers_reads_not_reverted_and_
     await controller.tick(db, now=at)
 
     got = await rv.host_doc(db, "l1")
-    assert (got["state"], got["notRevertedReason"]) == ("not_reverted", "no_answer")
-    assert rm.not_reverted("no_answer") == "Not reverted: the computer did not answer. The patch is still installed."
+    code, words = ("agent_failed", "reported an error") if how == "failure" else ("no_answer", "did not answer")   # WR-28
+    assert (got["state"], got["notRevertedReason"]) == ("not_reverted", code)
+    assert rm.not_reverted(code) == f"Not reverted: the computer {words}. The patch is still installed."
     block = rv_block(await db.patch_rollouts.find_one({"id": "r1"}), await store.host_docs(db, T, "r1"))
-    assert "1 computer could not be reverted: the computer did not answer. The patch is still installed on it." \
-        in block["reverts"]
+    assert f"1 computer could not be reverted: the computer {words}. The patch is still installed on it." in block["reverts"]
     job = await db.patch_deployment_jobs.find_one({"id": got["revertJobId"]})
     assert job["status"] == "Failed" and job["statusLog"][-1]["level"] == "error"
     try:

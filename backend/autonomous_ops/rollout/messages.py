@@ -151,10 +151,11 @@ NOT_REVERTED_REASON = {
     "version_not_offered": "the earlier version is no longer offered by the package source",
     "agent_unsupported": "this computer's agent doesn't support it yet",
     "no_answer": "the computer did not answer",
+    "agent_failed": "the computer reported an error",
 }
 NOT_REVERTED = {code: f"Not reverted: {reason}. The patch is still installed."
                 for code, reason in NOT_REVERTED_REASON.items()}
-# A computer whose recorded reason is not one of the four above: still honest, never reads as reverted.
+# A computer whose recorded reason is not one of the five above: still honest, never reads as reverted.
 NOT_REVERTED_OTHER = "Not reverted. The patch is still installed."
 
 REVERT_SUMMARY = {

@@ -248,11 +248,11 @@ async def _row_outcome(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
         return None
     # The computer never had the revert, answered FAILURE, or stayed silent past RESULT_DEADLINE: it is Not reverted
     # (never reverted, never reverting for ever), and the revert job it will not answer is closed.
-    await inflight.close_job(db, tenant_id, job_id, now, rm.NOT_REVERTED["no_answer"])
-    await inflight.cancel_unfetched(db, tenant_id, instruction_id, now)       # a late fetch must not run it (WR-27)
     refused = inflight.status_of(task) in inflight.NOT_DELIVERED_STATES
-    return {"outcome": "not_reverted", "reason": "not_delivered" if refused else "no_answer", "reboot": False,
-            "at": now}
+    reason = "not_delivered" if refused else ("agent_failed" if outcome == "failed" else "no_answer")     # WR-28
+    await inflight.close_job(db, tenant_id, job_id, now, rm.NOT_REVERTED.get(reason, rm.NOT_REVERTED_OTHER))
+    await inflight.cancel_unfetched(db, tenant_id, instruction_id, now)       # a late fetch must not run it (WR-27)
+    return {"outcome": "not_reverted", "reason": reason, "reboot": False, "at": now}
 
 
 async def _result_words(db, tenant_id: str, host: Dict[str, Any], action_id: str, found: Dict[str, Any]) -> str:
