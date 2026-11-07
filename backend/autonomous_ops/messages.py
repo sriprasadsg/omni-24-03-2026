@@ -93,6 +93,7 @@ REASON_TEXT = {
     "rollout_installed": "The patches were installed on this computer and the computer reported success.",
     "rollout_install_failed": "The computer reported that the patch install did not finish.",
     "rollout_not_delivered": "The computer did not receive the install in time, so it was marked as failed.",
+    "rollout_no_result": "The computer did not answer within 6 hours.",
     "rollout_halted": "The rollout stopped here because a check after the install did not pass.",
     "rollout_closed": "The rollout was closed before this step ran, so nothing was done.",
     "rollout_line_denied": "A person denied this step, so the rollout stopped here.",

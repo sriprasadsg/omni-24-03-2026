@@ -24,12 +24,10 @@ from typing import Any, Dict, List, Optional
 
 from .. import ledger, messages
 from ..scope import raw
-from . import MAX_ATTEMPTS, messages as rm, store
+from . import MAX_ATTEMPTS, inflight, messages as rm, store
 from .installs import deferred_pending, retry_fields, unresolved
 
 logger = logging.getLogger(__name__)
-
-_NOT_DELIVERED = ("refused", "cancelled_by_stop", "cancelled")
 
 
 def result_key(agent_id: str) -> str:
@@ -59,15 +57,6 @@ def verdict_of(entry: Dict[str, Any], patch_ids: List[str]) -> Dict[str, Any]:
             "deferred": deferred}
 
 
-async def _instruction_status(db, tenant_id: str, instruction_id: Optional[str]) -> Optional[str]:
-    if not instruction_id:
-        return None
-    doc = await raw(db).agent_instructions.find_one({"id": instruction_id, "tenantId": tenant_id},
-                                                    {"_id": 0, "status": 1})
-    status = (doc or {}).get("status")
-    return status.strip().lower() if isinstance(status, str) else None
-
-
 async def _entry_of(db, tenant_id: str, job_id: Optional[str], agent_id: str):
     """(job, this computer's result entry or None)."""
     job = await raw(db).patch_deployment_jobs.find_one({"id": job_id, "tenantId": tenant_id},
@@ -95,6 +84,7 @@ class Progress:
     inflight: bool = False
     outstanding: bool = False                 # an approval row is waiting for a person or for the window
     failed: Optional[str] = None
+    failure_code: Optional[str] = None        # set when the computer is failed without a result (no answer)
     reported: List[Any] = field(default_factory=list)
     reboot: bool = False
     installed: List[str] = field(default_factory=list)
@@ -132,13 +122,27 @@ async def _settle_auto(db, tenant_id: str, host: Dict[str, Any], now: datetime, 
             await ledger.transition(db, tenant_id, action_id, ("dispatching",), to_state, reasonCode=code,
                                     result={"jobId": host.get("installJobId"), "agentStatus": entry.get("status")}, **words)
         return
-    status = await _instruction_status(db, tenant_id, host.get("installInstructionId"))
-    if status in _NOT_DELIVERED:
+    task = await inflight.load_instruction(db, tenant_id, host.get("installInstructionId"))
+    outcome = inflight.instruction_outcome(task, now, host.get("installDispatchedAt"))
+    if outcome == "not_delivered":
         if action_id:
             await ledger.transition(db, tenant_id, action_id, ("dispatching",), "failed",
                                     reasonCode="rollout_not_delivered",
                                     reasonText=messages.REASON_TEXT["rollout_not_delivered"])
+        await inflight.close_job(db, tenant_id, host.get("installJobId"), now,
+                                 messages.REASON_TEXT["rollout_not_delivered"])
         prog.retry = retry_fields(host, int(host.get("attempt") or 1))
+        return
+    if outcome in ("failed", "no_result"):
+        code = "rollout_install_failed" if outcome == "failed" else "rollout_no_result"
+        prog.failed = inflight.failure_words(task, messages.REASON_TEXT[code]) if outcome == "failed" \
+            else messages.REASON_TEXT[code]
+        prog.failure_code = code
+        prog.auto_done = True
+        if action_id:
+            await ledger.transition(db, tenant_id, action_id, ("dispatching",), "failed", reasonCode=code,
+                                    reasonText=messages.REASON_TEXT[code], **_words("failed", [], [], host))
+        await inflight.close_job(db, tenant_id, host.get("installJobId"), now, messages.REASON_TEXT[code])
         return
     prog.inflight = True
 
@@ -176,11 +180,24 @@ async def _settle_lines(db, tenant_id: str, host: Dict[str, Any], now: datetime,
                 prog.settled_lines.append(action_id)
                 continue
             instruction = (row.get("instructionIds") or [None])[-1]
-            if await _instruction_status(db, tenant_id, instruction) in _NOT_DELIVERED:
+            task = await inflight.load_instruction(db, tenant_id, instruction)
+            outcome = inflight.instruction_outcome(task, now, row.get("updatedAt"))
+            if outcome == "not_delivered":
                 await ledger.transition(db, tenant_id, action_id, ("dispatching",), "failed",
                                         reasonCode="rollout_not_delivered",
                                         reasonText=messages.REASON_TEXT["rollout_not_delivered"])
+                await inflight.close_job(db, tenant_id, params.get("job_id"), now,
+                                         messages.REASON_TEXT["rollout_not_delivered"])
                 prog.reraise += ids
+                prog.settled_lines.append(action_id)
+            elif outcome in ("failed", "no_result"):
+                code = "rollout_install_failed" if outcome == "failed" else "rollout_no_result"
+                prog.failed = prog.failed or (inflight.failure_words(task, messages.REASON_TEXT[code])
+                                              if outcome == "failed" else messages.REASON_TEXT[code])
+                prog.failure_code = prog.failure_code or code
+                await ledger.transition(db, tenant_id, action_id, ("dispatching",), "failed", reasonCode=code,
+                                        reasonText=messages.REASON_TEXT[code], **_words("failed", [], [], host))
+                await inflight.close_job(db, tenant_id, params.get("job_id"), now, messages.REASON_TEXT[code])
                 prog.settled_lines.append(action_id)
             else:
                 prog.inflight = True
@@ -231,6 +248,8 @@ async def _settle_host(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[s
     attempt = int(fields.get("attempt", host.get("attempt") or 0))
     if prog.failed:
         fields.update({"state": "failed", "failureMessage": prog.failed, "waitReason": None})
+        if prog.failure_code:
+            fields["failureCode"] = prog.failure_code
     elif prog.reraise and attempt >= MAX_ATTEMPTS:
         fields.update({"state": "failed", "waitReason": None,
                        "failureMessage": messages.REASON_TEXT["rollout_not_delivered"]})
