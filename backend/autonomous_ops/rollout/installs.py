@@ -115,6 +115,18 @@ def retry_fields(host: Dict[str, Any], attempt: int) -> Dict[str, Any]:
     return {**base, "state": "waiting"}
 
 
+async def cancel_stamped(db, tenant_id: str, rollout: Dict[str, Any]) -> bool:
+    """True when a Cancel was requested since the controller loaded the rollout (WR-31). Read fresh, only the stamp:
+    nothing may create a row or an instruction once it is set (D-16). A fault reads as not stamped; ``halt`` and the
+    claim on a row are still compare-and-set."""
+    try:
+        doc = await store.rollouts(db).find_one({"id": rollout["id"], "tenantId": tenant_id}, {"_id": 0, "cancelRequested": 1})
+    except Exception as exc:
+        logger.error("autonomous_ops: rollout %s cancel stamp unreadable: %s", rollout.get("id"), exc)
+        return False
+    return bool((doc or {}).get("cancelRequested"))
+
+
 async def canary_auto(db, tenant_id: str, rollout: Dict[str, Any], ring_index: int, hosts: List[Dict[str, Any]],
                       now: datetime, window_close: datetime) -> Dict[str, int]:
     """Decide the canary ring for the computers that need a decision, in (hostname, agent id) order: one
@@ -135,6 +147,8 @@ async def canary_auto(db, tenant_id: str, rollout: Dict[str, Any], ring_index: i
     budget = max(0, RATE_LIMIT_PER_WINDOW - recent)
     waiting = [h for h in hosts if h.get("ring") == ring_index and needs_decision(h, ring_index)]
     for host in sorted(waiting, key=lambda h: (str(h.get("hostname") or "").casefold(), h["agentId"])):
+        if await cancel_stamped(db, tenant_id, rollout):
+            break
         agent = await host_agent(db, tenant_id, host, permitted, now)
         if agent is None:
             counts["skipped"] += 1
@@ -204,6 +218,8 @@ async def raise_ring(db, tenant_id: str, rollout: Dict[str, Any], ring_index: in
             counts["skipped"] += 1
             continue
         entries.append(lines.install_entry(host, unresolved(host) + [p for p in deferred_pending(host) if p not in unresolved(host)]))
+    if await cancel_stamped(db, tenant_id, rollout):
+        return counts
     made = await lines.raise_line(db, tenant_id, rollout, ring_index, "install", entries, now)
     for key, value in made.items():
         counts[key] += value
@@ -213,6 +229,11 @@ async def raise_ring(db, tenant_id: str, rollout: Dict[str, Any], ring_index: in
 async def _send(db, tenant_id: str, rollout: Dict[str, Any], host: Dict[str, Any], action_id: str, job_id: str,
                 attempt: int, now: datetime, window_close: datetime, counts: Dict[str, int],
                 patch_ids: List[str]) -> None:
+    if await cancel_stamped(db, tenant_id, rollout):          # a Cancel landed after the row was claimed: send nothing
+        await ledger.transition(db, tenant_id, action_id, ("dispatching",), "failed", reasonCode="rollout_closed",
+                                reasonText=messages.REASON_TEXT["rollout_closed"])
+        counts["skipped"] += 1
+        return
     from patch_core_endpoints import new_patch_job
     job = new_patch_job(job_id, tenant_id, patch_ids, [host["agentId"]], [host["agentId"]], "Autonomous Ops",
                         "Rollout", None, now.isoformat(), "In Progress")

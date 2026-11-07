@@ -21,7 +21,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import approvals, gate, ledger, protected
-from autonomous_ops.rollout import controller, lifecycle, lines, messages as rm, start, store
+from autonomous_ops.rollout import controller, installs, lifecycle, lines, messages as rm, start, store
 from tests import test_patch_rollout_revert as rv
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_platform_stop
@@ -156,6 +156,7 @@ async def test_an_install_instruction_that_expired_unread_is_not_delivered_and_t
     row = (await rows(db))[0]
     assert (row["state"], row["reasonCode"]) == ("failed", "rollout_not_delivered")
     assert (await db.patch_rollouts.find_one({"id": rollout_id}))["status"] == "running"       # not a failure of the computer
+    assert (await instruction(db, "a1"))["status"] == "cancelled"                  # a late fetch can not run it (WR-27)
 
 
 async def test_an_install_nobody_answered_does_not_count_toward_the_circuit_breaker(mongo_db):
@@ -387,14 +388,6 @@ async def test_an_install_the_agent_fetched_is_not_called_undelivered_when_the_w
     assert (await host_doc(db, "a1"))["failureCode"] == "rollout_no_result"
 
 
-async def test_an_install_instruction_nobody_fetched_is_cancelled_when_it_is_given_up(mongo_db):
-    db = mongo_db
-    await canary_in_flight(db)
-    assert (await instruction(db, "a1"))["status"] == "pending"
-    await controller.tick(db, now=NOW + timedelta(hours=3, minutes=1))
-    assert (await instruction(db, "a1"))["status"] == "cancelled"
-
-
 async def test_a_queued_revert_that_was_never_fetched_keeps_waiting_and_is_not_declared_unanswered(mongo_db):
     db = mongo_db
     await rv.world(db)
@@ -447,3 +440,58 @@ async def test_only_a_pending_instruction_is_cancelled(mongo_db):
     assert await inflight.cancel_unfetched(db, T, "i-s", NOW) is False
     assert await inflight.cancel_unfetched(db, "other", "i-p", NOW) is False
     assert [(await db.agent_instructions.find_one({"id": i}))["status"] for i in ("i-p", "i-s")] == ["cancelled", "sent"]
+
+
+# ---------------------------------------------------------------- WR-31: a Cancel that lands after the controller loaded the rollout
+
+async def loaded(db, *, ring=0):
+    """The rollout and the hosts of ``ring`` as a controller pass read them (before any Cancel stamp)."""
+    rollout = (await store.active_rollouts(db, T, ("running",)))[0]
+    return rollout, [h for h in await store.host_docs(db, T, rollout["id"]) if h.get("ring") == ring]
+
+
+async def stamp_cancel(db, rollout):
+    await db.patch_rollouts.update_one({"id": rollout["id"]}, {"$set": {"cancelRequested": {"by": ACTOR, "at": NOW}}})
+
+
+async def test_a_cancel_after_the_rollout_was_loaded_still_stops_the_canary_install(mongo_db):
+    db = mongo_db
+    await base(db)
+    await host(db, "a1", canary=True)
+    await begin(db)
+    rollout, hosts = await loaded(db)
+    await stamp_cancel(db, rollout)
+    assert "cancelRequested" not in rollout                                            # the copy the pass works from is stale
+
+    made = await installs.canary_auto(db, T, rollout, 0, hosts, NOW, NOW + timedelta(hours=3))
+    assert made["sent"] == made["raised"] == made["held"] == 0
+    assert await rows(db) == [] and await instruction(db, "a1") is None and (await host_doc(db, "a1"))["state"] == "waiting"
+
+
+async def test_a_cancel_between_the_claim_and_the_send_ends_the_row_and_sends_nothing(mongo_db, monkeypatch):
+    db = mongo_db
+    await base(db)
+    await host(db, "a1", canary=True)
+    await begin(db)
+    rollout, hosts = await loaded(db)
+    answers = iter([False, True])                       # clear when the pass starts the host, stamped by the time it sends
+
+    async def stamped(*args):
+        return next(answers)
+
+    monkeypatch.setattr(installs, "cancel_stamped", stamped)
+    made = await installs.canary_auto(db, T, rollout, 0, hosts, NOW, NOW + timedelta(hours=3))
+    assert made["sent"] == 0 and await instruction(db, "a1") is None and await db.patch_deployment_jobs.count_documents({}) == 0
+    assert [(r["state"], r["reasonCode"]) for r in await rows(db)] == [("failed", "rollout_closed")]
+
+
+async def test_a_cancel_after_the_rollout_was_loaded_raises_no_approval_line_for_a_later_ring(mongo_db):
+    db = mongo_db
+    await base(db)
+    await host(db, "a1", canary=True)
+    await host(db, "b1")
+    await begin(db)
+    rollout, ring_one = await loaded(db, ring=1)
+    await stamp_cancel(db, rollout)
+    made = await installs.raise_ring(db, T, rollout, 1, ring_one, NOW)
+    assert made["raised"] == 0 and await rows(db) == []
