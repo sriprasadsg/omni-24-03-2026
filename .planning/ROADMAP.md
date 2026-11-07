@@ -315,7 +315,7 @@ Plans:
 
 *Execution shape: Phase 81 first; Phases 82, 83 and 85 can then run in parallel; Phase 84 follows 83; Phase 86 closes the milestone after 82–85. Ships inert: shadow mode and the environment dry-run floor stay on until an operator lifts a tenant (Phase 86). v4.2 Phases 75–80 above are untouched and resume after this milestone.*
 
-- [ ] **Phase 81: Autonomy Gate, Stop Switch & Activity Ledger** - One code-owned decision gate, a stop switch, write-ahead decision records and a read-only Autonomous Ops screen, with the legacy LLM remediation path removed
+- [x] **Phase 81: Autonomy Gate, Stop Switch & Activity Ledger** - One code-owned decision gate, a stop switch, write-ahead decision records and a read-only Autonomous Ops screen, with the legacy LLM remediation path removed (completed 2026-11-07)
 - [ ] **Phase 82: Platform Self-Healing & Scheduled Retention** - An external watchdog restarts what fails within a budget, warns before certificates expire or disks fill, pages on-call, and retention runs on a schedule
 - [ ] **Phase 83: Autonomous Security Response** - Findings become undoable containment on their own and destructive approval cards, each verified, deduplicated and undoable from the Activity screen
 - [x] **Phase 84: Staged Patch Rollouts** - Ring-based patch rollouts with soak, a real health gate, maintenance windows and one approval per stage; halts on failure and reverts where supported (completed 2026-11-07)
@@ -335,7 +335,7 @@ Plans:
   4. Every decision writes an intent record before dispatch (dispatch is refused if the record cannot be written), every state change is mirrored into the hash-chained audit ledger, and decision records are kept longer than generic retention. An approval dispatches exactly once even if clicked twice, and an approval left pending past its expiry counts as denied. Automatic sweeps run one at a time across the deployment, and a two-tenant test shows no action or record crosses tenants. Agent online/offline status refreshes every 5 minutes as documented.
   5. An operator with the Autonomous Ops screen enabled and the matching permission opens it from the catalogue and sees actions in the states Pending, Done, Undone, Failed, Refused and Suggested, each with what ran, why (the rule), the target and the result; in shadow mode "would have done" entries are clearly labelled as a simulation. A copy check fails the build if Autonomous Ops screens or docs use any of the banned terms listed in ACTV-08.
 
-**Plans**: 18/18 plans executed (12/12 original plans executed in 5 waves; 6 gap-closure plans 81-13..81-18 in waves 5-8, not executed)
+**Plans**: 18/18 plans complete (12/12 original plans executed in 5 waves; 6 gap-closure plans 81-13..81-18 in waves 5-8, not executed)
 **UI hint**: yes
 **Research**: None — internal composition over code already read (standard patterns).
 **Live-only verification** (operator steps, not unit-testable): apply migration 024 and restart the backend; flip the platform stop on the live server and confirm a real agent poll holds back a queued automatic instruction without a restart; confirm agent online/offline status refreshes on the 5-minute cadence. Until Phase 83 adds a security sweep nothing automatic runs, so live Activity data is limited to gate and shadow entries — intended.
@@ -636,7 +636,7 @@ Plans:
 | 78. Organization & Endpoint Cost API | 0/TBD | Not started | - |
 | 79. License Cost & Per-Endpoint Allocation | 0/TBD | Not started | - |
 | 80. Costs Tab in the ITAM Console | 0/TBD | Not started | - |
-| 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | In Progress | - |
+| 81. Autonomy Gate, Stop Switch & Activity Ledger | 18/18 | Complete    | 2026-11-07 |
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | In Progress | - |
 | 83. Autonomous Security Response | 20/20 | In Progress | - |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |

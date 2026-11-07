@@ -61,9 +61,7 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 
 ### Active
 
-- [ ] Per-tenant autonomy level with audit, undo and a global stop switch (v4.3)
 - [ ] Autonomous security response through the existing remediation engine, destructive actions approval-gated (v4.3)
-- [ ] Fix review findings WR-25, WR-26, WR-27 and WR-31 before agent 2.1.17 is published or rollouts are enabled for real tenants (Phase 84 UAT decision, 2026-11-07)
 - [ ] Platform self-healing watchdog, expiry/disk warnings, scheduled retention (v4.3)
 - [ ] AI first-line ticket answers with escalation (v4.3)
 - [ ] Autonomous Ops activity view with undo (v4.3)
@@ -97,7 +95,8 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 - ✓ **ITAM procurement & workflow** — Purchase order/supplier tracking, warranty alerts, straight-line depreciation, asset request + approval workflow with email/Slack notifications (v4.1 Phase 71, ITAM-PRO-01..05)
 - ✓ **ITAM reporting & dashboards** — Closed-vocabulary custom report builder, 6 pre-built reports, PDF/Excel/CSV export, 4-tile KPI dashboard with drill-down (v4.1 Phase 72, ITAM-REP-01..04)
 - ✓ **ITAM API & integrations** — Dual session/API-key auth with scope narrowing across all ITAM routers, 8 tenant-bracketed webhook event types, Jira/ServiceNow ticketing bridge with dedup guards (v4.1 Phase 73, ITAM-API-01/02/03)
-- ✓ **Staged patch rollouts** — rings from agent groups with a soak and a real health gate (install result, post-install inventory, post-reboot heartbeat, key services, where a service the computer does not have reads `absent` and is judged against the pre-change baseline), failure-rate halt with a minimum sample, revert where the OS supports it, Change Management windows, automatic installs only in the canary ring and only for reversible classes, one approval per stage, Cancel of a running rollout keeps patches (v4.3 Phase 84, PTCH-01..07; built, not yet deployed)
+- ✓ **Staged patch rollouts** — rings from agent groups with a soak and a real health gate (install result, post-install inventory, post-reboot heartbeat, key services, where a service the computer does not have reads `absent` and is judged against the pre-change baseline), failure-rate halt with a minimum sample, revert where the OS supports it, Change Management windows, automatic installs only in the canary ring and only for reversible classes, one approval per stage, Cancel of a running rollout keeps patches (v4.3 Phase 84, PTCH-01..07; built, not yet deployed). Its review warnings WR-25..WR-32 were all fixed on 2026-11-07, ahead of agent 2.1.17 (the user's UAT decision)
+- ✓ **Autonomy gate, stop switch and activity ledger** — one code-owned decision gate for every automatic action (platform stop, eligibility, tenant stop, level, class, protected targets, blast-radius cap, cooldown), a write-ahead intent record before any dispatch, platform and tenant stops honoured at agent delivery without a restart, shadow mode on by default, a circuit breaker to Suggest, the Autonomous Ops screen, and the legacy LLM remediation path removed; a structural test fails on any other queue writer (v4.3 Phase 81, GATE-01..14, ACTV-01/03/08; backend live, verified 2026-11-07)
 - ✓ **Fail-closed sidebar, view gate & role visibility** — a catalogue shows only when the role holds its permission, a render-time gate guards every navigation path with an in-place no-access panel and a guaranteed landing view, a "what can this role see" view, real server-side custom tenant roles, and permissions refresh on a 403 or window focus without re-login (v4.2 Phase 77, ACC-06..09)
 
 ### Out of Scope
@@ -171,6 +170,9 @@ Any tenant can see exactly which compliance controls pass or fail across their e
 | A rollout row the gate holds at the Suggest level becomes that ring's Install line with its own Approve and Deny; Start still refuses only Off (v4.3 Phase 84, KD-84-G1) | The breaker or unreadable settings can drop a tenant to Suggest mid-ring; a Start-time refusal could never unwedge that | Done — 84-23 |
 | A watched service the computer does not have reports the token `absent`, judged against the host's pre-change service baseline, never `unknown` (v4.3 Phase 84, KD-84-G2) | `unknown` reads as no data, which halts and then reverts a healthy ring; `absent` keeps "missing data halts" for services that exist but do not report | Done — 84-25, ships in agent 2.1.17 |
 | Cancel of a running rollout stops new work, reverts nothing and ends once installs in flight settle; Resume is refused while cancelling (v4.3 Phase 84, KD-84-G3 per D-16) | Reverts follow only a failed ring; an operator cancelling a healthy rollout must not have patched hosts rolled back | Done — 84-28 |
+| An operator's Undo click reads "Undone." as soon as the undo instruction is queued (v4.3 Phase 81, D-12, accepted in UAT) | The click is the approval; the screen reports the request rather than waiting on the agent | Accepted 2026-11-05 |
+| Multi-step operator playbooks may run automatically before review warnings WR-10..WR-13 close (v4.3 Phase 81, accepted in UAT) | All six vendored playbooks are single step, the one live caller is an approval-class action, and shadow mode is on | Accepted 2026-11-05 |
+| The documented XDR-grandfathered queue writers (monitoring, hunt, snapshot, auto-update verbs) stay outside the gate and the stop for now (v4.3 Phase 81, accepted in UAT) | They are not autonomous actions in the gate's sense; they are listed by name in the structural test and fenced later | Accepted 2026-11-05 |
 
 **Note (2026-07-06, resolved 2026-07-20):** This file's Requirements/Milestone sections had drifted since v1.1 and weren't kept current through v2.0/v2.1/v3.0/v3.1 — a pre-existing maintenance gap. Corrected at the v3.2 milestone kickoff (2026-07-20): Current Milestone and v2 Backlog Candidates rewritten against verified codebase state (one backlog item, scheduled-report auto-email, turned out to already be shipped in Phase 10). The Validated/Out of Scope requirement lists below still predate v2.0+ and remain a known gap — full catch-up still deferred to a proper `/gsd-complete-milestone` pass.
 
@@ -192,4 +194,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-07 after Phase 84 transition*
+*Last updated: 2026-11-07 after Phase 81 transition*

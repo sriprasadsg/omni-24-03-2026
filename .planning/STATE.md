@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v4.3
 milestone_name: Autonomous Ops
-current_phase: 81
-current_phase_name: Autonomy Gate, Stop Switch & Activity Ledger
-status: planning
-stopped_at: Phase 84 complete, ready to plan Phase 81
-last_updated: "2026-11-07T12:35:32.256Z"
+current_phase: 82
+current_phase_name: Platform Self-Healing & Scheduled Retention
+status: verifying
+stopped_at: Phase 81 complete; next /gsd-verify-work 82 (Phase 82 built, UAT items wait on the operator)
+last_updated: "2026-11-07T13:40:10.540Z"
 last_activity: 2026-11-07
-last_activity_desc: Phase 84 complete, transitioned to Phase 81
-state_head: 33bab13f1c32d031d0ad0a640d4cad566836b3a3
+last_activity_desc: Phase 81 complete, transitioned to Phase 82
+state_head: 29f39e223311744ae155962c81ef2e28ca850abe
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 99
   completed_plans: 99
-  percent: 15
+  percent: 29
 ---
 
 # Project State
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-07)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 84 complete; fix review findings WR-25, WR-26, WR-27, WR-31 before agent 2.1.17 ships, then close Phases 81–83 and 87 and plan 85
+**Current focus:** Phases 81 and 84 complete (84 review warnings WR-25..32 all fixed 2026-11-07); close Phases 82, 83 and 87 (built, UAT items need the operator), then plan 85
 
 ## Current Phase
 
@@ -881,8 +881,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-07T07:37:17.537Z
-**Stopped at:** Phase 84 complete (UAT 7/7, verification passed); next: /gsd-code-review 84 --fix for WR-25, WR-26, WR-27, WR-31 (user decision, before agent 2.1.17 is published)
+**Last session:** 2026-11-07T13:45:00Z
+**Stopped at:** Phase 81 complete (re-verified passed 6/6, UAT 7/7); next /gsd-verify-work 82 (Phase 82 is built; 4 UAT items wait on the operator)
 **Resume file:** None
 
 ## Accumulated Context
@@ -908,11 +908,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 84 (Staged Patch Rollouts) — COMPLETE 2026-11-07 (not deployed). Phases 81, 82, 83 and 87 are executed and await verification close; 85 and 86 are not planned. The tool's "next phase 81" means the first phase not yet marked complete, not a phase to plan.
-Plan: 29 of 29
-Status: Phase 84 complete; next /gsd-code-review 84 --fix (WR-25, WR-26, WR-27, WR-31 before agent 2.1.17 ships)
-Last activity: 2026-11-07 — Phase 84 UAT 7/7 passed, verification passed, phase marked complete
-Progress: 1/7 phases complete ([█░░░░░░░░░] 14%)
+Phase: 82 — Platform Self-Healing & Scheduled Retention — EXECUTED (17/17 plans), awaiting UAT and verification close; not a phase to plan. Phases 83 and 87 are in the same state; 85 and 86 are not planned.
+Plan: 17 of 17
+Status: Awaiting UAT (1/5 passed; items 1-4 need the operator on the live VM)
+Last activity: 2026-11-07 — Phase 81 complete (verification re-run passed 6/6 after the 84 GATE-03 follow-up 5a429902f)
+Progress: 2/7 phases complete (81, 84) ([███░░░░░░░] 29%)
 
 ## Deferred Items
 
