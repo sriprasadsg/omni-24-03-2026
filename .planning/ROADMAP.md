@@ -560,15 +560,17 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 23 plans in 5 waves
+**Plans**: 23 plans in 6 waves
 
 Plans:
 **Wave 1**
-- [ ] 85-01-PLAN.md — Tracer: a portal ticket gets one cited answer through the gate (post at Undoable-auto with Post answers, staff draft by default) and the requester reads it back
 - [ ] 85-02-PLAN.md — Contracts: every server sentence, the four starter IT articles, the frozen tray contract, UI copy and types, copy gate over the new directories
-- [ ] 85-03-PLAN.md — Ledger: a separate desk rate pool, desk rows outside the Phase 81 breaker, the hand-off row writer and the audited desk-field updater
+- [ ] 85-03-PLAN.md — Autonomous Ops layer: the gate seam for a ticket action (ticket_answer and ticket_withdraw for the service desk only, the ticket-ownership step, the row's desk field, Activity words), a separate desk rate pool, desk rows outside the Phase 81 breaker, the hand-off row writer and the audited desk-field updater
 
 **Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 85-01-PLAN.md — Tracer: a portal ticket gets one cited answer through the gate (post at Undoable-auto with Post answers, staff draft by default) and the requester reads it back
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 85-04-PLAN.md — Gate edges and the D-03 outcome matrix: desk hourly pool to drafts, drafts never expire, approve/deny closed, undo handler registry, agent queue and reconciler fenced, Activity desk rows
 - [ ] 85-05-PLAN.md — Sanitiser and prompt hardened; fixed rules before the model (sensitive, fulfilment, critical, ask-for-a-person, tenant words); English heuristic
 - [ ] 85-06-PLAN.md — Retrieval cut-off re-pinned on the real starters; strict output checks
@@ -579,13 +581,13 @@ Plans:
 - [ ] 85-11-PLAN.md — Desk settings: switch, words, restore, status line; routes mounted and required
 - [ ] 85-12-PLAN.md — Hand-off through the tenant's queue rules, staff-only reason, requester notice, gap rows
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 85-13-PLAN.md — Full pipeline (every stage, every hand-off, stop and moved-ticket edges) and the prompt-injection set
 - [ ] 85-14-PLAN.md — Portal: send, edit, discard drafts; This fixed it and I still need help; cited articles; working-day return date
 - [ ] 85-15-PLAN.md — Knowledge Base back end: Help desk mark and edit, idempotent starter copy, grouped knowledge-gap list
 - [ ] 85-16-PLAN.md — Autonomous Ops screen: Service desk settings card and desk Activity rows with Undo
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 85-17-PLAN.md — Worker under a renewed lock, 10-minute queue limit and caps, three-working-day return, migration 032, startup
 - [ ] 85-18-PLAN.md — Undo a posted answer (also during a stop) and the desk-only breaker
 - [ ] 85-19-PLAN.md — Tray routes: create, My tickets list, confirm, help, cited article; enforced projection and contract tests
@@ -593,7 +595,7 @@ Plans:
 - [ ] 85-21-PLAN.md — Knowledge Base screen: Help desk switch, article dialog, Add starter IT articles, Knowledge gaps tab
 - [ ] 85-22-PLAN.md — Operator script: measure the real CPU speed, run the eval sets live, calibrate on a real knowledge base
 
-**Wave 5** *(blocked on Wave 4 completion)*
+**Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 85-23-PLAN.md — Agent 2.1.18, all gates together, the validation map, the user's live list
 
 **UI hint**: yes
