@@ -9,7 +9,6 @@ carries the window is released.
 """
 import pathlib
 import re
-
 import pytest
 
 from service_desk import tray_contract as c
@@ -37,88 +36,57 @@ def code(text):
     return "\n".join(code_lines(text))
 
 
-def strip_strings_and_comments(text):
-    """Blank out comments, here-strings and quoted strings so brackets can be counted."""
-    out, i, n = [], 0, len(text)
-    while i < n:
-        ch = text[i]
-        if text.startswith("<#", i):
-            j = text.find("#>", i)
-            i = n if j < 0 else j + 2
-        elif ch == "#":
-            j = text.find("\n", i)
-            i = n if j < 0 else j
-        elif text.startswith("@'", i) or text.startswith('@"', i):
-            q = text[i + 1]
-            m = re.compile(r"\n" + q + "@").search(text, i)
-            i = n if not m else m.end()
-        elif ch == "'":
-            i += 1
-            while i < n:
-                if text[i] == "'":
-                    if text.startswith("''", i):
-                        i += 2
-                        continue
-                    break
-                i += 1
-            i += 1
-        elif ch == '"':
-            i += 1
-            while i < n:
-                if text[i] == "`":
+def skip_token(text, i):
+    """Index just after the comment, here-string or quoted string starting at i; None when none starts there."""
+    n, ch = len(text), text[i]
+    if text.startswith("<#", i):
+        j = text.find("#>", i)
+        return n if j < 0 else j + 2
+    if ch == "#":
+        j = text.find("\n", i)
+        return n if j < 0 else j
+    if text.startswith("@'", i) or text.startswith('@"', i):
+        m = re.compile(r"\n" + text[i + 1] + "@").search(text, i)
+        return n if not m else m.end()
+    if ch in "'\"":
+        i += 1
+        while i < n:
+            if ch == '"' and text[i] == "`":
+                i += 2
+                continue
+            if text[i] == ch:
+                if ch == "'" and text.startswith("''", i):
                     i += 2
                     continue
-                if text[i] == '"':
-                    break
-                i += 1
+                break
+            i += 1
+        return i + 1
+    return None
+
+
+def strip_strings_and_comments(text):
+    """Blank out comments, here-strings and quoted strings so brackets can be counted."""
+    out, i = [], 0
+    while i < len(text):
+        j = skip_token(text, i)
+        if j is None:
+            out.append(text[i])
             i += 1
         else:
-            out.append(ch)
-            i += 1
+            i = j
     return "".join(out)
 
 
 def matching(text, open_index):
     """Index of the bracket closing the one at open_index (strings and comments skipped)."""
     pairs = {"{": "}", "(": ")", "[": "]"}
-    stack, i, n = [], open_index, len(text)
-    while i < n:
+    stack, i = [], open_index
+    while i < len(text):
+        j = skip_token(text, i)
+        if j is not None:
+            i = j
+            continue
         ch = text[i]
-        if text.startswith("<#", i):
-            j = text.find("#>", i)
-            i = n if j < 0 else j + 2
-            continue
-        if ch == "#":
-            j = text.find("\n", i)
-            i = n if j < 0 else j
-            continue
-        if text.startswith("@'", i) or text.startswith('@"', i):
-            q = text[i + 1]
-            m = re.compile(r"\n" + q + "@").search(text, i)
-            i = n if not m else m.end()
-            continue
-        if ch == "'":
-            i += 1
-            while i < n:
-                if text[i] == "'":
-                    if text.startswith("''", i):
-                        i += 2
-                        continue
-                    break
-                i += 1
-            i += 1
-            continue
-        if ch == '"':
-            i += 1
-            while i < n:
-                if text[i] == "`":
-                    i += 2
-                    continue
-                if text[i] == '"':
-                    break
-                i += 1
-            i += 1
-            continue
         if ch in pairs:
             stack.append(pairs[ch])
         elif ch in ")}]":
@@ -151,10 +119,8 @@ def block_after(text, anchor_regex):
 
 def top_level_keys(block):
     """Keys of a PowerShell hashtable body (depth 0 only), whatever the line layout."""
-    keys, depth, cur, i, n = [], 0, [], 0, len(block)
-    cleaned = strip_strings_and_comments(block)
-    # strip_strings_and_comments removes quoted text, which is fine: keys are bare words.
-    for ch in cleaned:
+    keys, depth, cur = [], 0, []
+    for ch in strip_strings_and_comments(block):   # keys are bare words, so quoted text can go
         if ch in "{([":
             depth += 1
         elif ch in "})]":
@@ -211,7 +177,6 @@ def test_script_brackets_are_balanced(path):
         assert flat.count(open_ch) == flat.count(close_ch), (
             f"{path.name}: {open_ch}{close_ch} unbalanced "
             f"({flat.count(open_ch)} vs {flat.count(close_ch)})")
-    # and every opener closes in order
     depth_stack = []
     for ch in flat:
         if ch in "{([":
