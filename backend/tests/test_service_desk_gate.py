@@ -20,6 +20,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import approvals, desk_gate, dispatch_check, gate, ledger, messages, reconciler, views
+from tests._autonomous_ops_http import api  # noqa: F401  (fixture: both routers on one app; also sets the autouse env)
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_platform_stop, seed_tenant
 
@@ -234,3 +235,137 @@ async def test_another_dispatchers_suggestion_still_expires(world):
     await _decide(world, req)
     (row,) = await _rows(world)
     assert isinstance(row["approval"]["expiresAt"], datetime)
+
+
+# ---------------------------------------------------------------- Task 2: approve, deny, undo, agent queue, reconciler
+
+APPROVER = {"username": "alice", "display": "Alice", "tier": "tenant"}
+
+
+async def _desk_row(db, ticket, *, state="suggested", phase="posted", undoable=True, tenant="t1"):
+    """One recorded desk row: a draft (suggested) or an answer that was posted (executed)."""
+    if state == "suggested":
+        d = await _decide(db, desk_request(tenant, ticket, force_suggest=True))
+    else:
+        d = await _decide(db, desk_request(tenant, ticket))
+        assert d.state == "dispatching"
+        await ledger.transition(db, tenant, d.action_id, ("dispatching",), state,
+                                **{"desk.phase": phase, "desk.undoable": undoable})
+    return d.action_id
+
+
+@pytest.mark.parametrize("what", ["approve", "deny"])
+async def test_approve_and_deny_refuse_a_desk_draft(world, what):
+    """protects=T-85-12 / D-10: a draft is sent, edited or discarded on the ticket only."""
+    action_id = await _desk_row(world, "k1")
+    if what == "approve":
+        out = await approvals.approve(world, "t1", action_id, approver=APPROVER)
+    else:
+        out = await approvals.deny(world, "t1", action_id, approver=APPROVER, reason="no")
+    assert out == {"status": "refused", "reason": "desk_draft"}
+    (row,) = await _rows(world)
+    assert row["state"] == "suggested" and row["approval"]["approver"] is None
+    assert await world.agent_instructions.count_documents({}) == 0
+
+
+async def test_approve_still_reports_not_found_for_an_unknown_row(world):
+    assert (await approvals.approve(world, "t1", "AO-none", approver=APPROVER))["status"] == "not_found"
+    assert (await approvals.deny(world, "t1", "AO-none", approver=APPROVER))["status"] == "not_found"
+
+
+async def test_undo_calls_the_handler_registered_for_the_desk(world, monkeypatch):
+    """protects=D-12: the desk's own withdraw is plugged in by registration (85-18 owns it)."""
+    calls = []
+
+    async def fake(db, tenant_id, row, *, actor):
+        calls.append((tenant_id, row["id"], actor))
+        return {"status": "undone", "desk_breaker_tripped": False}
+
+    monkeypatch.setitem(approvals._UNDO_HANDLERS, "service_desk", fake)
+    action_id = await _desk_row(world, "k1", state="executed")
+    out = await approvals.undo(world, "t1", action_id, actor=APPROVER)
+    assert out == {"status": "undone", "desk_breaker_tripped": False}
+    assert calls == [("t1", action_id, APPROVER)]
+
+
+async def test_undo_with_no_desk_handler_refuses_and_writes_nothing(world):
+    """protects=T-85-15: fail closed."""
+    assert "service_desk" not in approvals._UNDO_HANDLERS
+    action_id = await _desk_row(world, "k1", state="executed")
+    before = await _rows(world)
+    out = await approvals.undo(world, "t1", action_id, actor=APPROVER)
+    assert out == {"status": "refused", "reason": "not_undoable"}
+    assert await _rows(world) == before and before[0]["state"] == "executed"
+    assert await world.agent_instructions.count_documents({}) == 0
+
+
+@pytest.mark.parametrize("command", ["ticket_answer", "ticket_withdraw"])
+@pytest.mark.parametrize("dispatcher", ["service_desk", "instruction", "remediation"])
+async def test_bind_refuses_every_ticket_command_for_every_row(world, command, dispatcher):
+    """protects=T-85-13 (assumption-delta companion): no ticket command can be bound to an agent dispatch."""
+    row = {"id": "AO-x", "tenantId": "t1", "dispatcher": dispatcher, "targets": ["a1"], "command": command,
+           "params": {}, "actions": [command]}
+    out = await dispatch_check.bind(world, "t1", row, command=command, agent_id="a1", params={}, kind="action")
+    assert out == "unregistered_action"
+
+
+async def test_gate_execute_never_writes_a_ticket_command_to_an_agent_queue(world):
+    action_id = await _desk_row(world, "k1", state="executed")
+    for command, kind in (("ticket_answer", "action"), ("ticket_withdraw", "undo")):
+        out = await gate.execute(world, "t1", action_id, command=command, agent_id="a1", params={}, kind=kind)
+        assert out.get("status") != "queued"
+    assert await world.agent_instructions.count_documents({}) == 0
+
+
+async def test_the_reconciler_leaves_a_dispatching_desk_row_untouched(world):
+    d = await _decide(world, desk_request("t1", "k1"))
+    assert d.state == "dispatching"
+    long_ago = datetime.now(timezone.utc) - timedelta(hours=3)
+    await world.autonomy_actions.update_one({"id": d.action_id}, {"$set": {"updatedAt": long_ago}})
+    before = (await _rows(world))[0]
+    await reconciler.tick(world, now=datetime.now(timezone.utc) + timedelta(hours=2))
+    (after,) = await _rows(world)
+    assert after["state"] == "dispatching" and after["updatedAt"] == before["updatedAt"]
+
+
+async def test_the_reconciler_still_fails_a_stuck_security_row(world):
+    """The desk skip is by dispatcher only: a stuck instruction row is still failed as before."""
+    await world.agents.insert_one({"id": "a1", "tenantId": "t1", "hostname": "h1", "ipAddress": "10.1.1.5"})
+    req = gate.ActionRequest(tenant_id="t1", kind="security", origin="test", actions=["block_ip"], targets=["a1"],
+                             params={"ip_address": "203.0.113.7"}, dedupe_key="t1|block_ip|203.0.113.7")
+    d = await _decide(world, req)
+    await world.autonomy_actions.update_one({"id": d.action_id}, {"$set": {
+        "updatedAt": datetime.now(timezone.utc) - timedelta(hours=3)}})
+    await reconciler.tick(world, now=datetime.now(timezone.utc) + timedelta(hours=2))
+    (row,) = await _rows(world)
+    assert row["state"] == "failed"
+
+
+async def test_the_undo_route_reports_deskBreakerTripped(api, monkeypatch):
+    """protects=D-25: the undo body says whether the desk's own breaker tripped."""
+    await seed_tenant(api.db, "t1", shadow=False)
+    await api.db.tickets.insert_many([{"id": "k1", "tenantId": "t1", "ticket_number": "TKT-0001"},
+                                      {"id": "k2", "tenantId": "t1", "ticket_number": "TKT-0002"}])
+    tripped = {"value": True}
+
+    async def fake(db, tenant_id, row, *, actor):
+        await ledger.transition(db, tenant_id, row["id"], ("executed",), "undone", actor=actor)
+        return {"status": "undone", "desk_breaker_tripped": tripped["value"]}
+
+    monkeypatch.setitem(approvals._UNDO_HANDLERS, "service_desk", fake)
+    first = await _desk_row(api.db, "k1", state="executed")
+    done = await api.call("POST", f"/api/autonomous-ops/actions/{first}/undo", role="security_analyst")
+    assert done.status_code == 200, done.text
+    assert done.json()["deskBreakerTripped"] is True and done.json()["breakerTripped"] is False
+    tripped["value"] = False
+    second = await _desk_row(api.db, "k2", state="executed")
+    done = await api.call("POST", f"/api/autonomous-ops/actions/{second}/undo", role="security_analyst")
+    assert done.status_code == 200 and done.json()["deskBreakerTripped"] is False
+
+
+async def test_the_approve_route_gives_the_desk_draft_words(api):
+    await seed_tenant(api.db, "t1", shadow=False)
+    await api.db.tickets.insert_one({"id": "k1", "tenantId": "t1", "ticket_number": "TKT-0001"})
+    action_id = await _desk_row(api.db, "k1")
+    done = await api.call("POST", f"/api/autonomous-ops/actions/{action_id}/approve", role="tenant_admin")
+    assert done.status_code == 409 and done.json()["detail"] == messages.API_DETAIL["desk_draft"]

@@ -37,6 +37,7 @@ from types import SimpleNamespace
 from typing import Callable, Dict, Optional
 
 from . import OPEN_STATES, approvals, breaker, followups, ledger, messages, scope, verify
+from .desk_gate import DISPATCHER as _DESK_DISPATCHER            # "service_desk": the desk worker owns its rows
 from .rollout import DISPATCHER_NAME as _ROLLOUT_DISPATCHER      # "patch_rollout": its rows belong to the controller
 from .scope import raw
 
@@ -130,6 +131,8 @@ async def _reconcile_dispatches(db, tenant_id: str, now: datetime) -> Dict[str, 
     for row in sorted(rows, key=lambda r: (str(r.get("createdAt")), r.get("id", ""))):
         if row.get("dispatcher") == _ROLLOUT_DISPATCHER:
             continue        # owned by the rollout controller, like a live remediation owns its multi-step row
+        if row.get("dispatcher") == _DESK_DISPATCHER:
+            continue        # a desk answer is posted on the ticket, never to an agent: no instruction to follow (Phase 85)
         updated = row.get("updatedAt") or row.get("createdAt")
         if isinstance(updated, datetime) and updated.tzinfo is None:
             updated = updated.replace(tzinfo=timezone.utc)

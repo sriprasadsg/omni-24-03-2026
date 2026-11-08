@@ -22,6 +22,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 
 from . import APPROVAL_TTL, PLATFORM_TENANT_ID, agent_support, ledger, messages, protected, registry, settings
 from . import breaker, decision_row, dispatch_check, gate
+from .desk_gate import DISPATCHER as DESK_DISPATCHER
 from .rollout import DISPATCHER_NAME as ROLLOUT_DISPATCHER
 from .scope import raw
 
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 _OPEN = ("awaiting_approval", "suggested")
 _UNDOABLE = ("executed", "verified")
 Dispatcher = Callable[[Any, Dict[str, Any], Dict[str, Any]], Awaitable[Dict[str, Any]]]
+UndoHandler = Callable[..., Awaitable[Dict[str, Any]]]
 
 
 def _now(now: Optional[datetime]) -> datetime:
@@ -67,6 +69,16 @@ def register_dispatcher(name: str, fn: Dispatcher) -> None:
     """Add a dispatcher (plan 81-08 registers remediation). ``fn(db, row, approver)`` is async,
     is called with the row already ``approved`` and returns a dict."""
     _DISPATCHERS[name] = fn
+
+
+_UNDO_HANDLERS: Dict[str, UndoHandler] = {}
+
+
+def register_undo_handler(name: str, fn: UndoHandler) -> None:
+    """Add the undo of one dispatcher (Phase 85: the service desk withdraws a posted answer). ``fn(db, tenant_id,
+    row, actor=actor)`` is async and returns the same dict ``undo`` returns. A dispatcher with no handler keeps
+    the instruction undo; the desk, with none, is refused (it can never fall through to an agent undo)."""
+    _UNDO_HANDLERS[name] = fn
 
 
 # ---------------------------------------------------------------- approve
@@ -139,6 +151,8 @@ async def approve(db, tenant_id: str, action_id: str, *, approver: Dict[str, Any
     row = await ledger.get(db, tenant_id, action_id)
     if row is None:
         return {"status": "not_found"}
+    if row.get("dispatcher") == DESK_DISPATCHER:    # D-10: a draft is sent, edited or discarded on the ticket only
+        return {"status": "refused", "reason": "desk_draft"}
     if await gate._stopped(db, tenant_id):          # D-12; an unreadable stop counts as stopped
         return {"status": "stopped"}
     dispatcher = _DISPATCHERS.get(row.get("dispatcher") or "instruction")
@@ -197,8 +211,11 @@ async def approve(db, tenant_id: str, action_id: str, *, approver: Dict[str, Any
 
 async def deny(db, tenant_id: str, action_id: str, *, approver: Dict[str, Any], reason: str = "") -> Dict[str, Any]:
     """Deny a card. Dispatches nothing, so it stays allowed during a stop."""
-    if await ledger.get(db, tenant_id, action_id) is None:
+    found = await ledger.get(db, tenant_id, action_id)
+    if found is None:
         return {"status": "not_found"}
+    if found.get("dispatcher") == DESK_DISPATCHER:  # D-10: a draft is discarded on the ticket, not from Activity
+        return {"status": "refused", "reason": "desk_draft"}
     row = await ledger.transition(
         db, tenant_id, action_id, _OPEN, "denied", actor=approver,
         **{"approval.approver": dict(approver), "approval.decidedAt": _now(None), "approval.reason": reason or ""})
@@ -232,6 +249,11 @@ async def undo(db, tenant_id: str, action_id: str, *, actor: Dict[str, Any]) -> 
     row = await ledger.get(db, tenant_id, action_id)
     if row is None:
         return {"status": "not_found"}
+    handler = _UNDO_HANDLERS.get(row.get("dispatcher") or "")
+    if handler is not None:
+        return await handler(db, tenant_id, row, actor=actor)     # the dispatcher's own undo (Phase 85)
+    if row.get("dispatcher") == DESK_DISPATCHER:        # fail closed: no desk handler, nothing is written
+        return {"status": "refused", "reason": "not_undoable"}
     if row.get("dispatcher") == ROLLOUT_DISPATCHER:     # R13: a rollout's installs are put back only by its halt
         return {"status": "refused", "reason": "not_undoable"}
     if row.get("state") == "undone":

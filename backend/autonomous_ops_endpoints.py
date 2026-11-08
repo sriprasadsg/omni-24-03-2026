@@ -407,6 +407,7 @@ async def _decide(action_id: str, tenant_id: Optional[str], user, what: str, rea
             db, tenant, action_id, caller, can_act=caller.can_control and caller.interactive)}
         if what == "undo":
             body["breakerTripped"] = bool(out.get("breaker_tripped"))
+            body["deskBreakerTripped"] = bool(out.get("desk_breaker_tripped"))
         return body
     except HTTPException:
         raise
