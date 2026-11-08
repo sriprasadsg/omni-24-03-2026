@@ -75,6 +75,14 @@ async def get_notifications(
     perms = await rbac_service.get_user_permissions(current_user)
     if "*" not in perms and "manage:agents" not in perms:
         query["metadata.audience"] = {"$ne": "tenant_admins"}
+    # A notice addressed to one person (metadata.recipient, stored lowercase) is read by that person only;
+    # notices with no recipient stay tenant-wide as before (D-33).
+    me = [n for n in (str(getattr(current_user, f, "") or "").strip().casefold() for f in ("username", "email")) if n]
+    query["$and"] = [{"$or": [
+        {"metadata.recipient": {"$exists": False}},
+        {"metadata.recipient": None},
+        {"metadata.recipient": {"$in": me}},
+    ]}]
     notifications = await db.notifications.find(
         query,
         {"_id": 0}

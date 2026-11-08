@@ -13,12 +13,16 @@ import asyncio
 import json
 import os
 import sys
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from auth_types import TokenData
 from service_desk import messages, projection, store
+from tenant_context import reset_tenant_id, set_tenant_id
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.service_desk_support import desk_app, portal_user, seed_desk_tenant
 
@@ -26,6 +30,8 @@ SECRET = "the admin password is hunter2-staff-only"
 REPLY = "Please restart the laptop and try again"
 ALICE = portal_user("t1", "alice@x.co")           # the reporter
 BOB = portal_user("t1", "bob@x.co")               # the assigned technician
+CAROL = portal_user("t1", "carol@x.co")
+OTHER_ALICE = portal_user("t2", "alice@x.co")
 TICKET = {"title": "My laptop will not start", "description": "It shows a black screen", "assignee": "bob@x.co"}
 
 
@@ -67,6 +73,19 @@ async def _comment(world, ticket_id, text, *, user=BOB, **extra):
 
 async def _stored(db, ticket_id):
     return await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+
+
+async def _feed(db, user, *, perms=("view:dashboard",), tenant="t1"):
+    """GET /api/notifications as ``user`` (the function the route runs, permissions stubbed)."""
+    import notification_endpoints as ne
+    from database import TenantIsolatedDatabase
+    token = set_tenant_id(tenant)
+    try:
+        with patch.object(ne, "get_database", return_value=TenantIsolatedDatabase(db)):
+            with patch.object(ne.rbac_service, "get_user_permissions", AsyncMock(return_value=list(perms))):
+                return await ne.get_notifications(current_user=user, limit=50)
+    finally:
+        reset_tenant_id(token)
 
 
 # ---------------------------------------------------------------- Task 1: the visibility flag
@@ -150,3 +169,115 @@ async def test_the_requester_projection_returns_requester_comments_only(world):
     view = await world.call("GET", f"/api/tickets/{ticket['id']}/service-desk", user=ALICE)
     assert view.status_code == 200
     assert "hunter2" not in view.text and "before the flag" not in view.text and REPLY in view.text
+
+
+# ---------------------------------------------------------------- Task 2: notices and the reader
+
+async def _spy_recipients(monkeypatch):
+    import ticket_notifications
+    sent = []
+    original = ticket_notifications._send
+
+    async def spy(*args, **kwargs):
+        sent.append(kwargs)
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(ticket_notifications, "_send", spy)
+    return sent
+
+
+async def _notices(db, event):
+    return await db.notifications.find({"metadata.event": event}, {"_id": 0}).to_list(20)
+
+
+async def test_a_staff_comment_notice_has_no_text_and_does_not_address_the_reporter(world, monkeypatch):
+    """protects=T-85-26; fails_when=any part of the staff comment is in the notice, the reporter is a recipient,
+    or the notice is not tagged for ticket staff."""
+    sent = await _spy_recipients(monkeypatch)
+    ticket = await _raise(world)
+    await world.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"watchers": ["carol@x.co", "alice@x.co"]}})
+    assert (await _comment(world, ticket["id"], SECRET)).status_code == 200
+    await _drain()
+    notices = await _notices(world.db, "ticket_comment_added")
+    assert len(notices) == 1
+    notice = notices[0]
+    assert "hunter2" not in json.dumps(notice) and "admin password" not in json.dumps(notice)
+    assert notice["metadata"]["audience"] == "ticket_staff" and "recipient" not in notice["metadata"]
+    assert len(sent) == 1 and sent[0]["message"] == "New staff comment on ticket 'My laptop will not start'"
+    assert "alice@x.co" not in sent[0]["recipients"] and "carol@x.co" in sent[0]["recipients"]
+    comment_pushes = [p for p in world.pushed if p["metadata"].get("event") == "ticket_comment_added"]
+    assert len(comment_pushes) == 1 and "hunter2" not in json.dumps(world.pushed)
+    assert comment_pushes[0]["message"] == sent[0]["message"]
+
+
+async def test_a_requester_comment_notice_keeps_the_preview_and_names_the_reporter(world, monkeypatch):
+    """protects=D-33; fails_when=the preview is dropped, the recipient tag is missing or not lowercase, or the
+    preview goes out on the tenant-wide socket."""
+    sent = await _spy_recipients(monkeypatch)
+    ticket = await _raise(world, user=portal_user("t1", "Alice@X.co"))
+    assert (await _comment(world, ticket["id"], REPLY, visibility="requester")).status_code == 200
+    await _drain()
+    notices = await _notices(world.db, "ticket_comment_added")
+    assert len(notices) == 1
+    assert len(sent) == 1 and REPLY in sent[0]["message"]
+    assert notices[0]["metadata"]["recipient"] == "alice@x.co" and "audience" not in notices[0]["metadata"]
+    pushes = [p for p in world.pushed if p["metadata"].get("event") == "ticket_comment_added"]
+    assert len(pushes) == 1 and pushes[0]["message"] == "" and REPLY not in json.dumps(world.pushed)
+
+
+async def test_a_mention_notice_is_tagged_with_the_mentioned_address(world):
+    """protects=D-33 mentions; fails_when=the mention notice has no recipient tag or keeps the original case."""
+    ticket = await _raise(world)
+    assert (await _comment(world, ticket["id"], "please look, @Carol@X.co")).status_code == 200
+    await _drain()
+    mentions = await _notices(world.db, "mention")
+    assert len(mentions) == 1 and mentions[0]["metadata"]["recipient"] == "carol@x.co"
+
+
+async def test_the_feed_serves_a_tagged_notice_only_to_its_recipient(world):
+    """protects=T-85-27; fails_when=a user reads a notice tagged for someone else, an untagged notice (or one
+    with a null tag, or no metadata) stops reaching the tenant, another tenant's notice leaks, or the
+    tenant-admin audience filter stops applying."""
+    await world.db.notifications.insert_many([
+        {"alert_id": "mine", "tenantId": "t1", "sent_at": "2026-11-08T00:00:01", "metadata": {"recipient": "alice@x.co"}},
+        {"alert_id": "open", "tenantId": "t1", "sent_at": "2026-11-08T00:00:02", "metadata": {"event": "x"}},
+        {"alert_id": "null-tag", "tenantId": "t1", "sent_at": "2026-11-08T00:00:03", "metadata": {"recipient": None}},
+        {"alert_id": "no-meta", "tenantId": "t1", "sent_at": "2026-11-08T00:00:04", "metadata": None},
+        {"alert_id": "admins", "tenantId": "t1", "sent_at": "2026-11-08T00:00:05", "metadata": {"audience": "tenant_admins"}},
+        {"alert_id": "other-tenant", "tenantId": "t2", "sent_at": "2026-11-08T00:00:06", "metadata": {"recipient": "alice@x.co"}},
+    ])
+    alice = [n["alert_id"] for n in await _feed(world.db, ALICE)]
+    assert alice == ["no-meta", "null-tag", "open", "mine"]
+    bob = [n["alert_id"] for n in await _feed(world.db, BOB)]
+    assert bob == ["no-meta", "null-tag", "open"]
+    admin = [n["alert_id"] for n in await _feed(world.db, BOB, perms=("view:dashboard", "manage:agents"))]
+    assert admin == ["admins", "no-meta", "null-tag", "open"]
+    foreign = [n["alert_id"] for n in await _feed(world.db, OTHER_ALICE, tenant="t2")]
+    assert foreign == ["other-tenant"]
+
+
+async def test_the_feed_matches_the_recipient_case_insensitively_and_by_email(world):
+    """protects=D-33 casefold; fails_when=a mixed-case username, or a user known by email, misses its notice."""
+    await world.db.notifications.insert_one(
+        {"alert_id": "mine", "tenantId": "t1", "sent_at": "2026-11-08T00:00:01", "metadata": {"recipient": "alice@x.co"}})
+    assert [n["alert_id"] for n in await _feed(world.db, TokenData(username="  ALICE@x.CO ", tenant_id="t1"))] == ["mine"]
+    by_email = SimpleNamespace(username="alice", email="Alice@X.co", role="user", tenant_id="t1")
+    assert [n["alert_id"] for n in await _feed(world.db, by_email)] == ["mine"]
+    assert await _feed(world.db, TokenData(username="", tenant_id="t1")) == []
+
+
+async def test_staff_only_text_reaches_neither_the_reporters_feed_nor_the_tenants(world):
+    """protects=PROH-85-05 end to end; fails_when=the secret appears anywhere the reporter or another user
+    reads, or the requester-visible reply fails to reach the reporter (and only the reporter)."""
+    ticket = await _raise(world)
+    assert (await _comment(world, ticket["id"], SECRET)).status_code == 200
+    assert (await _comment(world, ticket["id"], REPLY, visibility="requester")).status_code == 200
+    await _drain()
+    alice = await _feed(world.db, ALICE)
+    carol = await _feed(world.db, CAROL)
+    bob = await _feed(world.db, BOB)
+    everything = json.dumps([alice, carol, bob, world.pushed])
+    assert "hunter2" not in everything and REPLY not in everything
+    reply_notice = lambda feed: [n for n in feed if n["metadata"].get("recipient")]   # noqa: E731
+    assert len(reply_notice(alice)) == 1 and reply_notice(alice)[0]["metadata"]["recipient"] == "alice@x.co"
+    assert reply_notice(carol) == [] and reply_notice(bob) == []       # the technician wrote it; the notice is the reporter's

@@ -391,7 +391,7 @@ class TicketsService(TicketsConfigMixin):
         try:
             import asyncio
             from ticket_notifications import notify_comment_added
-            asyncio.create_task(notify_comment_added(updated, author, text))
+            asyncio.create_task(notify_comment_added(updated, author, text, visibility=visibility))
         except Exception:
             pass
 

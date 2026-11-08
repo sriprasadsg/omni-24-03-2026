@@ -92,9 +92,11 @@ class NotificationService:
         if tenant_id:
             try:
                 from websocket_manager import broadcast_notification as _ws_broadcast
+                # The socket reaches every user of the tenant. A notice addressed to one person
+                # (metadata.recipient) pushes only its title there; its text is not broadcast (D-33).
                 await _ws_broadcast(tenant_id, {
                     "title": title,
-                    "message": message,
+                    "message": "" if (metadata or {}).get("recipient") else message,
                     "severity": severity,
                     "alert_id": results["alert_id"],
                     "metadata": metadata,

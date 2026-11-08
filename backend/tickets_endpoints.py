@@ -312,7 +312,7 @@ async def add_comment(
                     ),
                     severity="info",
                     recipients=[email],
-                    metadata={"ticket_id": ticket_id, "event": "mention"},
+                    metadata={"ticket_id": ticket_id, "event": "mention", "recipient": email.casefold()},
                 ))
         except Exception:
             pass

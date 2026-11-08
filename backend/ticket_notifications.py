@@ -131,16 +131,30 @@ async def notify_escalated(ticket: Dict[str, Any], actor: str, reason: str) -> N
     )
 
 
-async def notify_comment_added(ticket: Dict[str, Any], author: str, preview: str) -> None:
-    recipients = [r for r in _recipients(ticket) if r != author]
+async def notify_comment_added(ticket: Dict[str, Any], author: str, preview: str, visibility: str = "staff") -> None:
+    """A comment notice. Staff-only text never leaves the staff: that notice has no preview, is not addressed
+    to the reporter and is tagged for ticket staff. A requester-visible comment keeps its preview and is
+    tagged with the one person it is for, so the notifications reader serves it to that person only (D-33)."""
+    reporter = str(ticket.get("reporter") or "").strip().casefold()
+    title = f"[{ticket.get('ticket_number')}] New comment by {author}"
+    if visibility == "requester":
+        if not reporter or reporter == str(author or "").strip().casefold():
+            return                      # no one to tell, and an untagged preview would reach the whole feed
+        recipients = [r for r in _recipients(ticket) if r != author]
+        message = f"'{preview[:100]}...' — on ticket '{ticket.get('title', '')}'"
+        metadata = {"ticket_id": ticket.get("id"), "event": "ticket_comment_added", "recipient": reporter}
+    else:
+        recipients = [r for r in _recipients(ticket) if r != author and r.casefold() != reporter]
+        message = f"New staff comment on ticket '{ticket.get('title', '')}'"
+        metadata = {"ticket_id": ticket.get("id"), "event": "ticket_comment_added", "audience": "ticket_staff"}
     if not recipients:
         return
     await _send(
-        title=f"[{ticket.get('ticket_number')}] New comment by {author}",
-        message=f"'{preview[:100]}...' — on ticket '{ticket.get('title', '')}'",
+        title=title,
+        message=message,
         severity="info",
         recipients=recipients,
-        metadata={"ticket_id": ticket.get("id"), "event": "ticket_comment_added"},
+        metadata=metadata,
         tenant_id=ticket.get("tenantId", ""),
     )
 
