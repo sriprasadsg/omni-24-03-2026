@@ -37,7 +37,7 @@ $ServiceName = @('OmniAgentRust','OmniAgent') |
 if (-not $ServiceName) { $ServiceName = 'OmniAgentRust' }
 
 # The agent writes tray-config.json only after it has registered and obtained a
-# token. On a fresh boot the tray may start first — wait rather than die.
+# token. On a fresh boot the tray may start first - wait rather than die.
 $cfg = $null
 for ($i = 0; $i -lt 60; $i++) {
     if (Test-Path $ConfigPath) {
@@ -88,13 +88,14 @@ function Sync-TrayConfig {
 Sync-TrayConfig
 
 $Templates = @(
-    @{ Name='Install Software'; Type='task';     Priority='medium'; Prefix='Software Install Request: ' },
-    @{ Name='Access Request';   Type='task';     Priority='medium'; Prefix='Access Request: ' },
-    @{ Name='Report an Issue';  Type='bug';      Priority='high';   Prefix='Issue: ' },
-    @{ Name='Hardware Request'; Type='task';     Priority='low';    Prefix='Hardware Request: ' },
-    @{ Name='Security Concern'; Type='security'; Priority='high';   Prefix='Security Concern: ' },
-    @{ Name='Custom Request';   Type='task';     Priority='medium'; Prefix='' }
+    @{ Id='install_software'; Name='Install Software'; Type='task';     Priority='medium'; Prefix='Software Install Request: ' },
+    @{ Id='access_request';   Name='Access Request';   Type='task';     Priority='medium'; Prefix='Access Request: ' },
+    @{ Id='report_issue';     Name='Report an Issue';  Type='bug';      Priority='high';   Prefix='Issue: ' },
+    @{ Id='hardware_request'; Name='Hardware Request'; Type='task';     Priority='low';    Prefix='Hardware Request: ' },
+    @{ Id='security_concern'; Name='Security Concern'; Type='security'; Priority='high';   Prefix='Security Concern: ' },
+    @{ Id='custom';           Name='Custom Request';   Type='task';     Priority='medium'; Prefix='' }
 )
+# The Id is the service desk's template id (tray contract, 85-02); the server decides how each is handled.
 
 # Failures used to show only "check connection", whatever happened, so nobody
 # could tell an unenrolled agent from a certificate or server problem. Say what
@@ -153,7 +154,19 @@ function Get-EndpointInfo {
     }
 }
 
-# ── Ticket dialog ───────────────────────────────────────────────────────────────
+# The HTTP status code behind a failed request, or 0 when there was no response.
+function Get-ErrorStatusCode($err) {
+    try { if ($err.Exception.Response) { return [int]$err.Exception.Response.StatusCode } } catch { }
+    return 0
+}
+
+# The My tickets window and the answer polling live in a second script the agent writes next to this one.
+# A tray that cannot load it still raises tickets; it just has no My tickets item.
+$MyTicketsLoaded = $false
+try { . (Join-Path $PSScriptRoot 'tray_my_tickets.ps1'); $MyTicketsLoaded = $true }
+catch { Write-TrayLog "My tickets script not loaded: $($_.Exception.Message)" }
+
+# -- Ticket dialog ---------------------------------------------------------------
 function Show-TicketDialog($tpl) {
     Sync-TrayConfig
     $f = New-Object System.Windows.Forms.Form
@@ -182,14 +195,31 @@ function Show-TicketDialog($tpl) {
         Sync-TrayConfig
         if (-not (Test-Enrolled $status)) { return }
         $status.ForeColor = 'DimGray'; $status.Text = 'Submitting...'; $submit.Enabled = $false
-        $uri = "$Base/api/agents/$AgentId/ticket"
+        $newUri = "$Base/api/agents/$AgentId/tray/tickets"
+        $uri = $newUri
         try {
-            $body = @{
+            $newBody = @{
                 title = $t; description = $desc.Text; type = $tpl.Type; priority = $tpl.Priority
-                tags = @('user-raised', 'tray'); endpoint_info = (Get-EndpointInfo)
+                template = $tpl.Id; endpoint_info = (Get-EndpointInfo)
+                client = @{ features = @('my_tickets'); version = [string]$cfg.agent_version }
             } | ConvertTo-Json -Depth 5
-            $r = Invoke-RestMethod -Method Post -Uri $uri -Headers $Headers -ContentType 'application/json' -Body $body
-            $status.ForeColor = 'ForestGreen'; $status.Text = "Ticket $($r.ticket_number) created."
+            try {
+                $r = Invoke-RestMethod -Method Post -Uri $newUri -Headers $Headers -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($newBody)) -TimeoutSec 10
+                $made = "Ticket $($r.ticket_number) created. Choose My tickets in the tray menu to see any reply."
+                if ($r.message) { $made = [string]$r.message }
+                if (Get-Command Start-TicketWatch -ErrorAction SilentlyContinue) { Start-TicketWatch }
+            } catch {
+                # A server without the tray routes answers 404: raise the ticket the old way.
+                if ((Get-ErrorStatusCode $_) -ne 404) { throw }
+                $uri = "$Base/api/agents/$AgentId/ticket"
+                $body = @{
+                    title = $t; description = $desc.Text; type = $tpl.Type; priority = $tpl.Priority
+                    tags = @('user-raised', 'tray'); endpoint_info = (Get-EndpointInfo)
+                } | ConvertTo-Json -Depth 5
+                $r = Invoke-RestMethod -Method Post -Uri $uri -Headers $Headers -ContentType 'application/json' -Body $body -TimeoutSec 10
+                $made = "Ticket $($r.ticket_number) created."
+            }
+            $status.ForeColor = 'ForestGreen'; $status.Text = $made
             Write-TrayLog "ticket $($r.ticket_number) created"
             Start-Sleep -Seconds 2; $f.Close()
         } catch {
@@ -201,7 +231,7 @@ function Show-TicketDialog($tpl) {
     [void]$f.ShowDialog()
 }
 
-# ── Chat: initiate a session then open the shared chat window ────────────────────
+# -- Chat: initiate a session then open the shared chat window --------------------
 function Start-ChatWithIT {
     Sync-TrayConfig
     $f = New-Object System.Windows.Forms.Form
@@ -276,7 +306,7 @@ function Start-ChatWithIT {
     [void]$f.ShowDialog()
 }
 
-# ── Status ──────────────────────────────────────────────────────────────────────
+# -- Status ----------------------------------------------------------------------
 function Show-Status($notify) {
     Sync-TrayConfig
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -284,12 +314,13 @@ function Show-Status($notify) {
     $enrolled = if ($Token -and $AgentId) { 'connected' } elseif ($EnrollProblem) { "not connected - $EnrollProblem" } else { 'not connected yet' }
     $msg = "Agent service: $state`nServer: $Base`nAgent ID: $AgentId`nIT support: $enrolled"
     if ($msg.Length -gt 255) { $msg = $msg.Substring(0, 252) + '...' }   # balloon text limit
+    if ($script:TicketWatch) { $script:TicketWatch.PendingTicketId = $null }   # this balloon replaces an answer pop-up
     $notify.BalloonTipTitle = 'OmniAgent Status'
     $notify.BalloonTipText  = $msg
     $notify.ShowBalloonTip(6000)
 }
 
-# ── Tray icon + menu ────────────────────────────────────────────────────────────
+# -- Tray icon + menu ------------------------------------------------------------
 $notify = New-Object System.Windows.Forms.NotifyIcon
 $notify.Icon = [System.Drawing.SystemIcons]::Shield
 $notify.Text = 'OmniAgent - IT Support'
@@ -306,6 +337,10 @@ foreach ($tpl in $Templates) {
 }
 [void]$menu.Items.Add($ticketRoot)
 
+$myTicketsItem = New-Object System.Windows.Forms.ToolStripMenuItem 'My tickets'
+$myTicketsItem.Add_Click({ Show-MyTickets })
+if ($MyTicketsLoaded) { [void]$menu.Items.Add($myTicketsItem) }
+
 $chatItem = New-Object System.Windows.Forms.ToolStripMenuItem 'Chat with IT Support'
 $chatItem.Add_Click({ Start-ChatWithIT })
 [void]$menu.Items.Add($chatItem)
@@ -318,6 +353,9 @@ $statusItem.Add_Click({ Show-Status $notify })
 
 $notify.ContextMenuStrip = $menu
 $notify.Add_MouseClick({ if ($_.Button -eq 'Left') { Show-Status $notify } })
+
+# The answer check runs on a timer on this thread, so it must exist before the message loop starts.
+if ($MyTicketsLoaded) { Initialize-TicketWatch $myTicketsItem $notify }
 
 # Hidden form keeps the message loop alive without a taskbar window.
 $ctx = New-Object System.Windows.Forms.ApplicationContext
