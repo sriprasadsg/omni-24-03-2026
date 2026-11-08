@@ -49,7 +49,7 @@ REASON_CODES = (
     "settings_unreadable", "level_suggest", "suggest_requested", "unregistered_action", "class_approve",
     "playbook_raised", "class_auto", "no_target", "cross_tenant_target", "protected_target",
     "invalid_target", "blast_radius", "rate_limit", "duplicate", "suppressed_by_undo",
-    "ledger_unavailable", "agent_unsupported", "capability_off", "agent_offline", "range_block")
+    "ledger_unavailable", "agent_unsupported", "capability_off", "agent_offline", "range_block", "desk_rate_limit")
 # Refusals that never leave a row: the tenant is Off, so nothing is recorded (D-23).
 _UNRECORDED = frozenset({"no_tenant", "platform_tenant", "not_enabled", "level_off", "duplicate",
                          "suppressed_by_undo", "ledger_unavailable", "agent_unsupported",
@@ -270,6 +270,8 @@ async def _notice_rate_limit(ctx: _Ctx) -> None:
 async def _step_blast_radius(ctx: _Ctx) -> None:
     """D-17: one automatic decision touches exactly one host. D-20: at most 20 automatic
     actions in a rolling hour; the 21st waits for approval."""
+    if ctx.req.dispatcher == desk_gate.DISPATCHER:      # D-30: the desk has its own pool and never pages
+        return await desk_gate.rate_step(ctx)
     escalated = False
     if len(ctx.distinct) > HOST_CAP:
         ctx.escalate("blast_radius", "needs_approval", "blast_radius")

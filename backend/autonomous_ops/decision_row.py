@@ -23,6 +23,9 @@ CLAIM_KEYS = {"unblock_ip": "block_id", "unquarantine_file": "quarantine_id", "r
 
 # Dispatchers whose own text replaces the generic reason on the codes below (Phase 83 sweep, Phase 84 rollout).
 _OWN_WORDS_DISPATCHERS = frozenset({"security_response", "patch_rollout", "service_desk"})
+# Dispatchers whose suggested rows never expire as approvals: a service desk draft waits on the ticket until a
+# person sends, edits or discards it (D-10), so it carries no expiry.
+_NO_EXPIRY_DISPATCHERS = frozenset({"service_desk"})
 # Codes for which such a request's own text replaces the generic reason.
 _OWN_WORDS = frozenset({"class_auto", "suggest_requested", "playbook_raised", "class_approve", "suppressed_by_undo"})
 
@@ -88,7 +91,8 @@ def build_row(ctx: Any, state: str, outcome: str, code: str) -> Dict[str, Any]:
         "reasonCode": code, "reasonText": reason_text(req, outcome, code), "trace": ctx.trace,
         "dedupeKey": req.dedupe_key, "remediationId": req.remediation_id, "instructionIds": [],
         "approval": {"requiredBy": code if needs_card else None,
-                     "expiresAt": ctx.now + APPROVAL_TTL if needs_card else None,
+                     "expiresAt": (ctx.now + APPROVAL_TTL if needs_card and req.dispatcher not in _NO_EXPIRY_DISPATCHERS
+                                   else None),
                      "approver": None, "decidedAt": None},
         "undo": undo_block(spec, req.params or {}, multi=len(pairs) > 1),
         "autoDispatched": state == "dispatching",
