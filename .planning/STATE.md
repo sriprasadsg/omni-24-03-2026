@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-06-PLAN.md
-last_updated: "2026-11-08T20:07:08.518Z"
+stopped_at: Completed 85-07-PLAN.md
+last_updated: "2026-11-08T20:14:46.050Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: 06b65708d1d8c56c7793d067ffa3fac4bdbd19c5
+state_head: d8553ac5fcf97fb1f472a69b658fb37d7db8cd73
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 105
+  completed_plans: 106
   percent: 86
 ---
 
@@ -604,6 +604,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: Phase 85 plan 05: rules.evaluate and is_english are not wired into pipeline.py until 85-13; the tracer path still lets a sensitive ticket reach the model until then
 - [Phase 85]: 85-06: retrieval score is the mean of the whole-article and title+tags TF-IDF cosines; CUT 0.24, MIN_TERMS 2, MARGIN_FLOOR 0.22 pinned on the four starters (lowest match 0.3528, highest non-match 0.1260, margin 0.2268) — The whole-article cosine alone ranks a VPN fault below an unrelated home-network question; the title and tags name the subject. The margin is measured on gate_score because a one-word overlap scores up to 0.56 and is stopped only by MIN_TERMS.
 - [Phase 85]: 85-06: output checks require every link, email, phone, command and 4-digit number in a reply to occur as a whole token in the cited articles only; every failing rule hands over as output_check_failed — D-19 and DESK-03: nothing a reply carries may come from outside what it cites. 85-13 must pass the cited article texts into checks.check; until then such replies fail closed.
+- [Phase 85]: 85-07: the availability cache entry keeps the probing transport, shared per URL and tag in production (transport None); call_timeout rounds to two places; recent_gen_ms reads across tenants and counts only positive genMs
 
 ## Performance Metrics
 
@@ -864,6 +865,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P04 | 25 min | 3 tasks | 11 files |
 | Phase 85 P05 | 12 min | 3 tasks | 7 files |
 | Phase 85 P06 | 30 min | 2 tasks | 6 files |
+| Phase 85 P07 | 15 min | 3 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -898,8 +900,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-08T20:07:08.247Z
-**Stopped at:** Completed 85-06-PLAN.md
+**Last session:** 2026-11-08T20:14:41.717Z
+**Stopped at:** Completed 85-07-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -926,7 +928,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 7 of 23
+Plan: 8 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)

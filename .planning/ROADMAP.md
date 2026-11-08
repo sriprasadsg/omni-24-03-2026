@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 6/23 plans executed in 6 waves
+**Plans**: 7/23 plans executed in 6 waves
 
 Plans:
 **Wave 1**
@@ -574,7 +574,7 @@ Plans:
 - [x] 85-04-PLAN.md — Gate edges and the D-03 outcome matrix: desk hourly pool to drafts, drafts never expire, approve/deny closed, undo handler registry, agent queue and reconciler fenced, Activity desk rows
 - [x] 85-05-PLAN.md — Sanitiser and prompt hardened; fixed rules before the model (sensitive, fulfilment, critical, ask-for-a-person, tenant words); English heuristic
 - [x] 85-06-PLAN.md — Retrieval cut-off re-pinned on the real starters; strict output checks
-- [ ] 85-07-PLAN.md — Loopback model client (DESK-04 guard, busy, timeout), CPU-sized timeouts, structural fence around the desk
+- [x] 85-07-PLAN.md — Loopback model client (DESK-04 guard, busy, timeout), CPU-sized timeouts, structural fence around the desk
 - [ ] 85-08-PLAN.md — Comment visibility flag and notification privacy (recipient filter, no staff-only previews)
 - [ ] 85-09-PLAN.md — Who raised it: both agent routes stamp raised_via; intake level, stop and screen checks
 - [ ] 85-10-PLAN.md — Tray: Raise a Ticket on the new route, My tickets window, answer pop-up, agent embeds the second script
@@ -677,6 +677,6 @@ Plans:
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
-| 85. First-Line Service Desk | 6/23 | In Progress | - |
+| 85. First-Line Service Desk | 7/23 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
