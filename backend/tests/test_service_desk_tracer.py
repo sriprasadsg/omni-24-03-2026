@@ -169,3 +169,132 @@ async def test_with_nothing_stored_the_desk_drafts_for_staff_and_the_requester_s
     view = (await world.call("GET", f"/api/tickets/{ticket['id']}/service-desk", user=user)).json()
     assert view["isRequester"] is True and view["requester"]["items"] == []
 
+
+# ---------------------------------------------------------------- Task 2: who raised it, Off, unticked, Platform
+
+async def test_an_api_key_ticket_is_automation_and_gets_no_attempt(world):
+    """protects=D-01 / T-85-01: a ticket created with an API key is stored as automation, queued nowhere and
+    the body cannot claim otherwise; fails_when=automation raises a job or a row."""
+    key = portal_user("t1", "integration", auth_source="api_key")
+    ticket = await _raise(world, key, raised_via="portal", requester_channel={"portal": True})
+    stored = await _stored(world.db, ticket["id"])
+    assert stored["raised_via"] == "automation" and stored["requester_channel"]["portal"] is False
+    assert await world.db.service_desk_jobs.count_documents({}) == 0
+    job_id, calls = await _run(world)
+    assert job_id is None and calls == [] and await _rows(world.db) == []
+
+
+async def test_a_body_cannot_make_a_session_ticket_anything_but_what_the_server_decides(world):
+    """protects=T-85-01: a client body field raised_via never reaches the stored ticket; fails_when=it does."""
+    ticket = await _raise(world, ALICE, raised_via="automation")
+    assert (await _stored(world.db, ticket["id"]))["raised_via"] == "portal"
+
+
+async def test_mode_off_gives_no_job_and_the_ticket_flows_as_before(world):
+    """protects=D-04: a stored mode off queues nothing; fails_when=an Off tenant gets an attempt."""
+    await seed_desk_tenant(world.db, "t4", mode="off")
+    ticket = await _raise(world, portal_user("t4", "erin"))
+    assert (await _stored(world.db, ticket["id"]))["status"] == "open"
+    assert await world.db.service_desk_jobs.count_documents({}) == 0
+    assert await _rows(world.db, "t4") == []
+
+
+async def test_an_unticked_tenant_gets_no_job(world):
+    """protects=Phase 81 D-23: without the Autonomous Ops screen the desk never starts; fails_when=it does."""
+    await seed_desk_tenant(world.db, "t5", mode="post", ticked=False)
+    await _raise(world, portal_user("t5", "finn"))
+    assert await world.db.service_desk_jobs.count_documents({}) == 0
+
+
+async def test_the_platform_tenant_never_gets_a_job(world):
+    """protects=D-04: the Platform tenant is never queued; fails_when=intake accepts it."""
+    await seed_desk_tenant(world.db, PLATFORM_TENANT_ID, mode="post")
+    ticket = {"id": "tp1", "tenantId": PLATFORM_TENANT_ID, "ticket_number": "TKT-9999"}
+    assert await intake.on_ticket_created(world.db, ticket, via="portal") is None
+    assert await world.db.service_desk_jobs.count_documents({}) == 0
+
+
+async def test_a_ticket_is_queued_once(world):
+    """protects=one attempt per ticket: a second enqueue of the same ticket returns None and leaves one job."""
+    ticket = await _raise(world)
+    stored = await _stored(world.db, ticket["id"])
+    assert await intake.on_ticket_created(world.db, stored, via="portal") is None
+    assert await world.db.service_desk_jobs.count_documents({"ticketId": ticket["id"]}) == 1
+
+
+# ---------------------------------------------------------------- Task 2: articles
+
+async def test_only_the_tenants_own_help_desk_articles_are_candidates(world):
+    """protects=T-85-04: with only global, foreign and non-Help-desk articles the ticket gets no row and its
+    job ends no_article; fails_when=any of them is cited or the model is asked."""
+    await seed_desk_tenant(world.db, "t6", mode="post")
+    await seed_article(world.db, "t6", "kb-notes", title=PW_TITLE, content=PW_CONTENT, helpdesk=False)
+    await seed_article(world.db, "global", "kb-global2", title=PW_TITLE, content=PW_CONTENT)
+    await seed_article(world.db, "t1", "kb-pw-t1-only", title=PW_TITLE, content=PW_CONTENT)
+    ticket = await _raise(world, portal_user("t6", "gus"))
+    job_id, calls = await _run(world)
+    assert calls == [] and await _rows(world.db, "t6") == []
+    done = await world.db.service_desk_jobs.find_one({"id": job_id})
+    assert done["state"] == "done" and done["reason"] == "no_article"
+    assert (await _stored(world.db, ticket["id"]))["comments"] == []
+
+
+# ---------------------------------------------------------------- Task 2: the model
+
+async def test_a_model_that_cannot_be_reached_writes_nothing(world):
+    """protects=DESK-04: a failing tags probe sends no generate request, writes no row, ends offline."""
+    ticket = await _raise(world)
+    job_id, calls = await _run(world, fail_tags=True)
+    assert not [c for c in calls if c["path"] == "/api/generate"]
+    assert await _rows(world.db) == []
+    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "offline"
+    assert (await _stored(world.db, ticket["id"]))["comments"] == []
+
+
+async def test_a_different_model_tag_is_not_good_enough(world):
+    """protects=DESK-04: only llama3.2:1b installed means offline; there is no first-available fallback."""
+    await _raise(world)
+    job_id, calls = await _run(world, tags=("llama3.2:1b",))
+    assert [c["path"] for c in calls] == ["/api/tags"]
+    assert await _rows(world.db) == []
+    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "offline"
+
+
+async def test_a_client_for_a_non_loopback_host_sends_nothing(world):
+    """protects=D-15 / T-85-03: ticket text never leaves the loopback host; fails_when=a request is sent."""
+    stand_in, calls = ollama_transport(ANSWER, [1])
+    client = OllamaClient(base_url="http://10.0.0.4:11434", transport=stand_in)
+    assert client.refused is True and await client.available() is False
+    assert calls == []
+    await _raise(world)
+    job_id = await worker.run_once(world.db, client=client)
+    assert calls == [] and await _rows(world.db) == []
+    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "offline"
+
+
+async def test_a_loopback_host_with_a_look_alike_name_is_refused():
+    """protects=T-85-03: the allow-list matches the host, not a prefix of it."""
+    for url in ("http://127.0.0.1.example.com:11434", "http://localhost.example.com", "ftp://127.0.0.1"):
+        assert OllamaClient(base_url=url).refused is True
+    for url in ("http://127.0.0.1:11434", "http://localhost:11434", "http://[::1]:11434"):
+        assert OllamaClient(base_url=url).refused is False
+
+
+async def test_a_reply_that_cites_an_article_it_was_not_given_is_not_used(world):
+    """protects=T-85-05: cited [7] when one article was given: no row, no comment, job output_check_failed."""
+    ticket = await _raise(world)
+    job_id, calls = await _run(world, cited=[7])
+    assert len([c for c in calls if c["path"] == "/api/generate"]) == 1
+    assert await _rows(world.db) == []
+    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "output_check_failed"
+    assert (await _stored(world.db, ticket["id"]))["comments"] == []
+
+
+async def test_a_reply_that_is_not_the_agreed_shape_is_not_used(world):
+    """protects=T-85-05: free text, a missing citation and an empty citation list all fail the check."""
+    replies = ("Just reset it, here is a link: http://evil.example", '{"answer": "x"}', '{"answer": "x", "cited": []}')
+    for number, reply in enumerate(replies):
+        await _raise(world, portal_user("t1", f"user{number}"))
+        job_id, _ = await _run(world, reply_text=reply)
+        assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "output_check_failed"
+    assert await _rows(world.db) == []
