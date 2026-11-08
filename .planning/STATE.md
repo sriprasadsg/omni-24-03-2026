@@ -4,18 +4,18 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: planning
-stopped_at: Phase 85 planned (23 plans, 6 waves)
-last_updated: "2026-11-08T15:11:23.879Z"
+status: executing
+stopped_at: Completed 85-02-PLAN.md
+last_updated: "2026-11-08T16:32:56.070Z"
 last_activity: 2026-11-08
-last_activity_desc: Phase 85 planned - 23 plans in 6 waves, plan check passed
-state_head: 01632f2171c9b869fb4954a2dddccf7d6318035b
+last_activity_desc: Phase 85 execution started
+state_head: ef3c0785a08cbb40d961bc0a5d59ab3eda0173ac
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 99
-  percent: 81
+  completed_plans: 100
+  percent: 82
 ---
 
 # Project State
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-07)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phases 81, 82, 83, 84 and 87 complete (2026-11-07); discuss and plan Phase 85 (First-Line Service Desk), then 86 closes the milestone
+**Current focus:** Phase 85 — First-Line Service Desk
 
 ## Current Phase
 
@@ -593,6 +593,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 84]: 84-27: RESULT_DEADLINE 6 h after delivery and DISPATCH_CLAIM_BOUND 10 min (constants in rollout/inflight.py); FAILURE or silence fails the computer (rollout_no_result), an expired unread instruction is retried, a denied or expired approval keeps the computer waiting not_approved, a revert that never answers reads Not reverted: the computer did not answer
 - [Phase 84]: KD-84-G2: a unit the computer does not have is reported as the additive token absent (not unknown) and judged by the backend against the services the host showed when its install was queued (absent before and after leaves the list, present before fails, no record is no data)
 - [Phase 84]: KD-84-G3 (84-28, per D-16): Cancel of a running rollout stops new work and reverts nothing; cancelRequested {by, at} is stamped with a compare-and-set, rows closed, unfetched instructions ended; the rollout ends cancelled once no host is installing or restarting, at the latest RESULT_DEADLINE after the request; Resume and a second Cancel answer 409 while it settles; halt refuses a rollout with cancelRequested.
+- [Phase 85]: 85-02: starters.py is the single source of starter IT article text (no JSON fixture); hand-off reasons live only in STAFF_REASON_LABELS and every requester-facing text is generic
 
 ## Performance Metrics
 
@@ -847,6 +848,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 84 P25 | 30 min | 3 tasks | 10 files |
 | Phase 84 P28 | 15 min | 2 tasks | 19 files |
 | Phase 84 P29 | 12 min | 2 tasks | 4 files |
+| Phase 85 P02 | 15 min | 3 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -881,9 +883,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-08T13:49:52.389Z
-**Stopped at:** Phase 85 UI-SPEC approved
-**Resume file:** .planning/phases/85-first-line-service-desk/85-UI-SPEC.md
+**Last session:** 2026-11-08T16:32:55.812Z
+**Stopped at:** Completed 85-02-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -908,11 +910,11 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 85 (First-Line Service Desk) — READY TO EXECUTE
-Plan: Not started
+Phase: 85 (First-Line Service Desk) — EXECUTING
+Plan: 2 of 23
 Status: Ready to execute
-Last activity: 2026-11-08 — Phase 85 planned: 23 plans in 6 waves, plan check passed (0 blockers, 0 warnings after 1 revision); next /gsd-execute-phase 85
-Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 81%)
+Last activity: 2026-11-08 — Phase 85 execution started
+Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 82%)
 
 ## Deferred Items
 
