@@ -369,3 +369,76 @@ async def test_the_approve_route_gives_the_desk_draft_words(api):
     action_id = await _desk_row(api.db, "k1")
     done = await api.call("POST", f"/api/autonomous-ops/actions/{action_id}/approve", role="tenant_admin")
     assert done.status_code == 409 and done.json()["detail"] == messages.API_DETAIL["desk_draft"]
+
+
+# ---------------------------------------------------------------- Task 3: Activity rows
+
+def _present(row, *, can_act=True):
+    return views.present_row(row, viewer_is_platform_staff=False, can_act=can_act,
+                             now=datetime.now(timezone.utc))
+
+
+def _row(state, *, phase="drafted", undoable=False, shadow=False, result=None, command="ticket_answer"):
+    now = datetime.now(timezone.utc)
+    return {"id": "AO-1", "tenantId": "t1", "kind": "servicedesk", "dispatcher": "service_desk", "command": command,
+            "action": command, "actions": [command], "targets": [], "params": {"ticketId": "k1"}, "steps": [],
+            "rollback": [], "state": state, "shadow": shadow, "reasonCode": "suggest_requested",
+            "reasonText": "The desk is set to draft.", "reason": {"ruleId": "service_desk:answer", "inputs": {}},
+            "createdAt": now, "updatedAt": now, "activityResult": result,
+            "desk": {"ticketId": "k1", "ticketNumber": "TKT-0001", "title": "VPN", "phase": phase, "undoable": undoable},
+            "undo": {"available": True, "action": "ticket_withdraw", "params": {}, "undoneAt": None, "undoneBy": None}}
+
+
+def test_a_draft_row_links_to_its_ticket_and_reads_as_a_draft():
+    shown = _present(_row("suggested", result="Waiting for a person to send it."))
+    assert (shown["ticketId"], shown["ticketNumber"]) == ("k1", "TKT-0001")
+    assert shown["actionLabel"] == messages.DESK_ACTION_LABELS["draft"] == "Draft ticket answer"
+    assert shown["resultText"] == "Waiting for a person to send it."
+    assert shown["canUndo"] is False and shown["suggestion"] is None and shown["incidentId"] is None
+
+
+def test_a_simulated_draft_reads_as_a_draft_too():
+    shown = _present(_row("shadow", phase="drafted"))
+    assert shown["actionLabel"] == "Draft ticket answer" and shown["canUndo"] is False
+
+
+def test_a_posted_answer_offers_undo_to_a_person_who_may_act():
+    row = _row("executed", phase="posted", undoable=True, result="Posted on the ticket.")
+    shown = _present(row)
+    assert shown["canUndo"] is True and shown["undoHint"] == messages.DESK_UNDO_HINT
+    assert shown["actionLabel"] == messages.ACTION_LABELS["ticket_answer"] and shown["resultText"] == "Posted on the ticket."
+    assert _present({**row, "desk": {**row["desk"], "phase": "sent"}})["canUndo"] is True
+
+
+@pytest.mark.parametrize("change", [{"can_act": False}, {"shadow": True}, {"undoable": False}, {"phase": "confirmed"},
+                                    {"state": "undone"}, {"state": "failed"}])
+def test_undo_is_not_offered_when_it_would_mean_nothing(change):
+    kw = {"state": "executed", "phase": "posted", "undoable": True}
+    can_act = change.pop("can_act", True)
+    kw.update(change)
+    assert _present(_row(**kw), can_act=can_act)["canUndo"] is False
+
+
+def test_a_hand_off_row_links_to_its_ticket_and_has_no_undo():
+    shown = _present(_row("executed", phase="handed_off", command="ticket_handoff", result="Sent to a person."))
+    assert shown["ticketNumber"] == "TKT-0001" and shown["actionLabel"] == "Send ticket to a person"
+    assert shown["canUndo"] is False and shown["resultText"] == "Sent to a person."
+
+
+def test_a_security_row_has_no_ticket_fields_and_keeps_its_extras():
+    row = {"id": "AO-2", "tenantId": "t1", "kind": "security", "dispatcher": "instruction", "command": "block_ip",
+           "action": "block_ip", "actions": ["block_ip"], "targets": ["a1"], "params": {"ip_address": "203.0.113.7"},
+           "steps": [], "rollback": [], "state": "executed", "shadow": False, "reasonCode": "class_auto",
+           "reason": {"ruleId": "t", "inputs": {}}, "createdAt": datetime.now(timezone.utc),
+           "undo": {"available": True, "action": "unblock_ip", "params": {"ip_address": "203.0.113.7"}}}
+    shown = _present(row)
+    assert shown["ticketId"] is None and shown["ticketNumber"] is None
+    assert shown["actionLabel"] == messages.ACTION_LABELS["block_ip"] and shown["blockedUntil"] is None
+
+
+async def test_the_activity_list_shows_a_recorded_desk_draft(world):
+    action_id = await _desk_row(world, "k1")
+    row = await ledger.get(world, "t1", action_id)
+    shown = _present(row)
+    assert shown["ticketId"] == "k1" and shown["actionLabel"] == "Draft ticket answer"
+    assert shown["reasonText"] == row["reasonText"]

@@ -20,7 +20,7 @@ Row fields read, besides the ledger's own: ``blockedFrom`` / ``blockedUntil`` (b
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Set
 
-from . import dispatch_check, registry, response_messages as rm
+from . import desk_gate, desk_views, dispatch_check, registry, response_messages as rm
 from .rollout import DISPATCHER_NAME as ROLLOUT_DISPATCHER, messages as rollout_messages
 from .scope import raw
 
@@ -33,7 +33,7 @@ SUGGESTION_KINDS = ("single_signal", "vulnerability", "file_change", "correlatio
 _ITEM_KEYS = {"vulnerability": ("cve", "package"), "file_change": ("path",)}
 
 EMPTY_EXTRAS: Dict[str, Any] = {"canUndo": False, "undoHint": None, "incidentId": None, "blockedUntil": None,
-                                "suggestion": None}
+                                "suggestion": None, "ticketId": None, "ticketNumber": None}
 
 
 def _aware(value: Any) -> Optional[datetime]:
@@ -240,6 +240,8 @@ def row_extras(row: Dict[str, Any], *, host: Optional[str] = None, can_act: bool
     if row.get("kind") == "control":
         return out
     now = _aware(now) or datetime.now(timezone.utc)
+    if row.get("dispatcher") == desk_gate.DISPATCHER:     # Phase 85: a ticket answer, its own fields and Undo rule
+        return {**out, **desk_views.row_extras(row, can_act=can_act, now=now)}
     inputs = _dict(_dict(row.get("reason")).get("inputs"))
     until = _aware(row.get("blockedUntil"))
     spec = registry.resolve(row.get("command"))

@@ -18,7 +18,7 @@ from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_agent
 
 NOW = datetime(2026, 11, 1, 12, 0, 0, tzinfo=timezone.utc)
-KEYS = {"canUndo", "undoHint", "incidentId", "blockedUntil", "suggestion"}
+KEYS = {"canUndo", "undoHint", "incidentId", "blockedUntil", "suggestion", "ticketId", "ticketNumber"}   # 85-04 adds the desk ticket link
 
 
 def block_row(**over):
