@@ -605,4 +605,4 @@ Applicable considerations: 84. Resolved explicit: 64. Resolved backstop: 9. Dism
 - [x] Dimension 6 Registry Safety: PASS
 - [x] Dimension 7 Inventory Provenance: PASS (first-pass BLOCK resolved by revision 1: `Tool: none`, so no Component Inventory section; the Icon library row of the Design System table carries its enumeration command, count, file@hash and date)
 
-**Approval:** approved 2026-11-08 (gsd-ui-checker, second pass after one revision; UI Considerations probe resolved 84/84: 64 explicit, 9 backstop, 11 dismissed with reasons; researcher defaults R1..R14 not yet reviewed by the user)
+**Approval:** approved 2026-11-08 (gsd-ui-checker, second pass after one revision; UI Considerations probe resolved 84/84: 64 explicit, 9 backstop, 11 dismissed with reasons; researcher defaults R1..R14 all confirmed by the user on 2026-11-08, including R4 separate Service desk card, R12 staff name on the portal and "IT" in the tray, R3 return date shown)
