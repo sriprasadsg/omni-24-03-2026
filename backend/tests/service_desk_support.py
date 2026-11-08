@@ -26,12 +26,13 @@ _TIMINGS = {"eval_count": 40, "eval_duration": 4_000_000_000, "prompt_eval_count
 
 
 async def seed_desk_tenant(db, tid, *, level="undoable_auto", shadow=False, mode=None, ticked=True, screens=True):
-    """A tenant with the Autonomous Ops screen ticked (or not), the two ticket screens ticked (or not)
-    and, when ``mode`` is given, ``autonomy_settings.serviceDesk.mode`` stored (nothing stored otherwise)."""
+    """A tenant with the Autonomous Ops screen ticked (or not), the two ticket screens ticked (or not; the
+    Knowledge Base screen also needs its parent switch manage:settings, as tenant_features.switched_off
+    reads it) and, when ``mode`` is given, ``autonomy_settings.serviceDesk.mode`` stored (nothing stored otherwise)."""
     await seed_tenant(db, tid, level=level, max_level=level, shadow=shadow, ticked=ticked)
     if screens:
         await db.tenants.update_one({"id": tid}, {"$addToSet": {"enabledFeatures": {
-            "$each": ["screen:internalTickets", "screen:knowledgeBase"]}}})
+            "$each": ["screen:internalTickets", "screen:knowledgeBase", "manage:settings"]}}})
     if mode is not None:
         await db.autonomy_settings.update_one({"tenantId": tid}, {"$set": {"serviceDesk": {"mode": mode}}})
 

@@ -15,17 +15,21 @@ claim, and a spoofed claim can only produce a draft (the old tray has no window 
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from pymongo.errors import DuplicateKeyError
 
+import tenant_features
 from autonomous_ops import PLATFORM_TENANT_ID
 from autonomous_ops import settings as ao_settings
+from autonomous_ops.scope import raw
 
 from . import PERSON_RAISED, settings, store, ticket_writes, tray_contract
 
 logger = logging.getLogger(__name__)
 
+TICKETS_SCREEN = "screen:internalTickets"
+KNOWLEDGE_SCREEN = "screen:knowledgeBase"
 TRAY_TAG, USER_TAG, AGENT_TAG = "tray", "user-raised", "agent-raised"
 WINDOWS_USER_CAP = 200
 
@@ -59,6 +63,28 @@ def legacy_template(title: Any) -> str:
     return "custom"
 
 
+async def _stopped(db, tenant: str, tenant_stop: Any) -> bool:
+    """True when the platform or the tenant stop is on; an unreadable platform stop counts as on."""
+    if ao_settings.stop_active(tenant_stop):
+        return True
+    try:
+        return ao_settings.stop_active(await ao_settings.platform_stop(db))
+    except Exception as exc:
+        logger.debug("service_desk: platform stop unreadable for %s (treated as on): %s", tenant, exc)
+        return True
+
+
+async def _screens_on(db, tenant: str, screens: Iterable[str]) -> bool:
+    """True when none of ``screens`` is switched off for the tenant (an unreadable tenant is off)."""
+    try:
+        doc = await raw(db).tenants.find_one({"id": tenant}, {"_id": 0, "enabledFeatures": 1})
+    except Exception as exc:
+        logger.debug("service_desk: tenant %s features unreadable: %s", tenant, exc)
+        return False
+    off = tenant_features.switched_off((doc or {}).get("enabledFeatures"))
+    return not any(screen in off for screen in screens)
+
+
 async def on_ticket_created(db, ticket: Dict[str, Any], *, via: str,
                             now: Optional[datetime] = None) -> Optional[str]:
     """Queue ``ticket`` for one attempt. Returns the job id, or None when nothing was queued."""
@@ -71,7 +97,13 @@ async def on_ticket_created(db, ticket: Dict[str, Any], *, via: str,
             return None
         if (await settings.load(db, tenant)).mode == "off":
             return None
-        if not (await ao_settings.load(db, tenant)).eligible:
+        tenant_settings = await ao_settings.load(db, tenant)
+        if not tenant_settings.eligible or ao_settings.effective_level(tenant_settings) == "off":
+            return None
+        if await _stopped(db, tenant, tenant_settings.stop):
+            logger.debug("service_desk: tenant %s is stopped; ticket %s gets no attempt", tenant, ticket_id)
+            return None
+        if not await _screens_on(db, tenant, (TICKETS_SCREEN, KNOWLEDGE_SCREEN)):
             return None
         now = now or datetime.now(timezone.utc)
         job_id = "SDJ-" + uuid.uuid4().hex

@@ -185,3 +185,76 @@ def test_tray_claim_needs_lists_and_a_dict():
     assert intake.tray_claim(TRAY_TAGS, "jdoe") is None
     assert intake.tray_claim(TRAY_TAGS, {"username": 5}) is None
     assert intake.tray_claim(TRAY_TAGS, {"username": "   "}) is None
+
+
+# ------------------------------------------------------------------ the remaining eligibility checks
+
+async def _portal_ticket(world, user=ALICE):
+    response = await world.call("POST", "/api/tickets", user=user, json=BODY)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_an_eligible_portal_ticket_is_queued(world):
+    ticket = await _portal_ticket(world)
+    assert await _queued(world.db, ticket["id"]) == 1
+
+
+async def test_level_suggest_still_enqueues(world):
+    await seed_desk_tenant(world.db, "t1", level="suggest", mode="post")
+    ticket = await _portal_ticket(world)
+    assert await _queued(world.db, ticket["id"]) == 1
+
+
+async def test_level_off_gives_no_job_and_no_ledger_row(world):
+    await seed_desk_tenant(world.db, "t1", level="off", mode="post")
+    ticket = await _portal_ticket(world)
+    await _no_trace(world.db, ticket["id"])
+
+
+async def test_a_tenant_stop_gives_no_job_and_no_ledger_row(world):
+    await world.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"stop": {"active": True}}})
+    ticket = await _portal_ticket(world)
+    await _no_trace(world.db, ticket["id"])
+
+
+async def test_a_platform_stop_gives_no_job_and_no_ledger_row(world):
+    await world.db.system_settings.insert_one({"type": "autonomous_ops", "stop": {"active": True}})
+    ticket = await _portal_ticket(world)
+    await _no_trace(world.db, ticket["id"])
+
+
+async def test_an_unreadable_platform_stop_counts_as_on(world, monkeypatch):
+    from autonomous_ops import settings as ao_settings
+    monkeypatch.setattr(ao_settings, "platform_stop", AsyncMock(side_effect=RuntimeError("no database")))
+    ticket = await _portal_ticket(world)
+    await _no_trace(world.db, ticket["id"])
+
+
+async def test_a_stop_that_is_not_active_does_not_block(world):
+    await world.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"stop": {"active": False}}})
+    await world.db.system_settings.insert_one({"type": "autonomous_ops", "stop": {"active": False}})
+    ticket = await _portal_ticket(world)
+    assert await _queued(world.db, ticket["id"]) == 1
+
+
+@pytest.mark.parametrize("screen", ["screen:internalTickets", "screen:knowledgeBase"])
+async def test_a_switched_off_screen_gives_no_job_and_no_ledger_row(world, screen):
+    await world.db.tenants.update_one({"id": "t1"}, {"$pull": {"enabledFeatures": screen}})
+    ticket = await _portal_ticket(world)
+    await _no_trace(world.db, ticket["id"])
+
+
+async def test_the_desk_set_to_off_gives_no_job_and_no_ledger_row(world):
+    await world.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"serviceDesk": {"mode": "off"}}})
+    ticket = await _portal_ticket(world)
+    await _no_trace(world.db, ticket["id"])
+
+
+async def test_a_ticket_created_without_raised_via_is_automation_and_never_queued(world):
+    from tickets_service import tickets_service
+    ticket = await tickets_service.create_ticket(data={"title": "Asset warranty ending"}, reporter="itam-bridge",
+                                                 tenant_id="t1")
+    assert ticket["raised_via"] == "automation"
+    assert await intake.on_ticket_created(world.db, ticket, via="automation") is None
+    await _no_trace(world.db, ticket["id"])
