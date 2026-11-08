@@ -5,21 +5,25 @@ Drafts only with ``readable`` False, so the desk never posts on a setting it cou
 never raises. ``save`` and ``restore`` are the only writers: each value that really changes leaves one
 control row in the Autonomous Ops ledger (mirrored to the audit chain) naming the person, and saving the
 current values writes nothing (Phase 83 D-22). Post answers cannot be saved while the desk breaker is
-stored (D-25): the one way back is ``restore``. The status view is added below by 85-11 task 2.
+stored (D-25): the one way back is ``restore``. ``status_view`` builds what the settings card shows: why answers are or are not posted, whether the
+local model runs and how long an answer takes.
 """
 import logging
 import re
+import statistics
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pymongo import ReturnDocument
 
-from autonomous_ops import PLATFORM_TENANT_ID, ledger
+import tenant_features
+from autonomous_ops import PLATFORM_TENANT_ID, RATE_LIMIT_WINDOW, ledger
 from autonomous_ops import settings as ao_settings
 from autonomous_ops.scope import raw
 
-from . import DEFAULT_MODE, MODES, WORD_MAX, WORD_MIN, WORDS_MAX, messages
+from . import (DEFAULT_MODE, DESK_RATE_LIMIT, KIND, MODES, WORD_MAX, WORD_MIN, WORDS_MAX, messages, model,
+               runtime)
 
 logger = logging.getLogger(__name__)
 
@@ -232,3 +236,131 @@ async def restore(db, tenant_id: str, *, actor: Optional[Dict[str, Any]], scope:
                       **meta}})
         raise
     return await load(db, tenant_id)
+
+
+# ---------------------------------------------------------------- the status view
+
+TICKETS_SCREEN = "screen:internalTickets"
+KNOWLEDGE_SCREEN = "screen:knowledgeBase"
+TIMING_SAMPLES = 20
+
+
+async def _screens_on(db, tenant_id: str) -> bool:
+    """True when neither the Tickets nor the Knowledge Base screen is switched off (an unreadable tenant is off)."""
+    try:
+        doc = await raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "enabledFeatures": 1})
+    except Exception as exc:
+        logger.warning("service_desk: tenant %s features unreadable: %s", tenant_id, exc)
+        return False
+    off = tenant_features.switched_off((doc or {}).get("enabledFeatures"))
+    return TICKETS_SCREEN not in off and KNOWLEDGE_SCREEN not in off
+
+
+async def _stopped(db, tenant_stop: Any) -> bool:
+    """True when the tenant or platform stop is on; an unreadable platform stop counts as on."""
+    if ao_settings.stop_active(tenant_stop):
+        return True
+    try:
+        return ao_settings.stop_active(await ao_settings.platform_stop(db))
+    except Exception as exc:
+        logger.warning("service_desk: the platform stop could not be read (treated as on): %s", exc)
+        return True
+
+
+async def _hourly_limit_reached(db, tenant_id: str) -> bool:
+    """True when 20 desk answers were decided in the last hour; an unreadable ledger counts as reached."""
+    try:
+        recent = await ledger.count_auto_since(db, tenant_id, datetime.now(timezone.utc) - RATE_LIMIT_WINDOW,
+                                               pool="servicedesk")
+    except Exception as exc:
+        logger.warning("service_desk: the hourly count for %s could not be read (treated as reached): %s",
+                       tenant_id, exc)
+        return True
+    return recent >= DESK_RATE_LIMIT
+
+
+async def posting_blockers(db, tenant_id: str, desk: DeskSettings, ao: ao_settings.TenantSettings) -> List[Dict[str, Any]]:
+    """The conditions that are not met right now, in the order the card lists them."""
+    blockers: List[Dict[str, Any]] = []
+    level = ao_settings.effective_level(ao)
+    if level != "undoable_auto":
+        blockers.append({"code": "level", "level": level})
+    if ao_settings.shadow_state(ao)[0]:
+        blockers.append({"code": "shadow"})
+    if await _stopped(db, ao.stop):
+        blockers.append({"code": "stop"})
+    if await _hourly_limit_reached(db, tenant_id):
+        blockers.append({"code": "hourly_limit"})
+    if desk.breaker is not None:
+        blockers.append({"code": "desk_breaker"})
+    return blockers
+
+
+async def _model_state(client_factory: Optional[Callable[[], Any]]) -> Dict[str, Any]:
+    """Online only when the loopback client finds the exact tag; any failure is offline."""
+    tag: Optional[str] = None
+    try:
+        client = (client_factory or model.OllamaClient)()
+        tag = getattr(client, "model", None)
+        online = await client.available() is True
+    except Exception as exc:
+        logger.debug("service_desk: the model check failed: %s", exc)
+        online = False
+    return {"state": "online" if online else "offline", "tag": tag if isinstance(tag, str) else None}
+
+
+async def _timing(db, tenant_id: str) -> Dict[str, Any]:
+    """The median generation time of the tenant's last 20 desk rows that carry one, in seconds."""
+    values: List[float] = []
+    try:
+        cursor = raw(db).autonomy_actions.find(
+            {"tenantId": tenant_id, "kind": KIND, "reason.inputs.genMs": {"$type": "number", "$gt": 0}},
+            {"_id": 0, "reason.inputs.genMs": 1}).sort("createdAt", -1).limit(TIMING_SAMPLES)
+        for row in await cursor.to_list(length=TIMING_SAMPLES):
+            value = (((row or {}).get("reason") or {}).get("inputs") or {}).get("genMs")
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+                values.append(float(value))
+    except Exception as exc:
+        logger.warning("service_desk: answer times for %s could not be read: %s", tenant_id, exc)
+        values = []
+    median: Optional[float] = None
+    if values:
+        median = round(statistics.median(values) / 1000.0, 1)
+        median = int(median) if median.is_integer() else median
+    measured = (await runtime.load_measurement(db)).measured
+    return {"medianSeconds": median, "samples": len(values), "measured": measured}
+
+
+def _iso(value: Any) -> Optional[str]:
+    if isinstance(value, datetime):
+        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+    return value if isinstance(value, str) and value else None
+
+
+def _breaker_view(breaker: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if breaker is None:
+        return None
+    ids = breaker.get("actionIds")
+    return {"trippedAt": _iso(breaker.get("trippedAt")), "count": len(ids) if isinstance(ids, list) else 0}
+
+
+async def status_view(db, tenant_id: str, *, can_manage: bool, can_restore: bool,
+                      client_factory: Optional[Callable[[], Any]] = None) -> Dict[str, Any]:
+    """What the settings card shows (``DeskSettingsView`` in services/serviceDesk/types.ts).
+
+    ``effectiveMode`` is off while the Tickets or Knowledge Base screen is switched off. ``posting.blockers``
+    lists the unmet conditions, and only for Post answers: ``posting`` is True only when the saved mode is
+    post, the screens are on and nothing is unmet. The model check sends one small loopback request (cached
+    15 s, 2 s timeout); ``client_factory`` lets a test supply a stand-in client."""
+    desk = await load(db, tenant_id)
+    screens_on = await _screens_on(db, tenant_id)
+    blockers: List[Dict[str, Any]] = []
+    if desk.mode == "post":
+        blockers = await posting_blockers(db, tenant_id, desk, await ao_settings.load(db, tenant_id))
+    effective = desk.mode if screens_on else "off"
+    return {
+        "mode": desk.mode, "effectiveMode": effective, "readable": desk.readable, "screensOn": screens_on,
+        "words": list(desk.words), "maxWords": WORDS_MAX, "breaker": _breaker_view(desk.breaker),
+        "posting": {"posting": effective == "post" and not blockers, "blockers": blockers},
+        "model": await _model_state(client_factory), "timing": await _timing(db, tenant_id),
+        "canManage": bool(can_manage), "canRestore": bool(can_restore)}

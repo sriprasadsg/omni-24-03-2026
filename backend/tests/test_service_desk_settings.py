@@ -11,6 +11,7 @@ no_claim=the settings card (a later plan) and the real speed of the model on thi
 """
 import os
 import sys
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -200,3 +201,187 @@ async def test_a_value_that_was_not_understood_is_repaired_by_a_save(world):
     await world.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"serviceDesk": "junk"}})
     saved = await settings.save(world, "t1", {"words": ["payroll"]}, actor=ACTOR)
     assert saved.readable is True and saved.words == ["payroll"] and saved.mode == "drafts"
+
+
+# ================================================================== task 2: the status view
+
+def _client(tags=("llama3.2:3b",), **kwargs):
+    transport, calls = ollama_transport("answer", [1], tags=tags, **kwargs)
+    return (lambda: model.OllamaClient(transport=transport)), calls
+
+
+async def _view(db, tenant="t1", factory=None, **kwargs):
+    factory = factory or _client()[0]
+    return await settings.status_view(db, tenant, can_manage=True, can_restore=True, client_factory=factory, **kwargs)
+
+
+async def _desk_post_ready(db, tenant="t1"):
+    """Level Undoable-auto, shadow off, no stop, saved mode post: every condition met."""
+    await seed_desk_tenant(db, tenant, level="undoable_auto", shadow=False, mode="post")
+
+
+async def _desk_rows(db, tenant, gen_ms=(), *, count=0, age=timedelta(minutes=5)):
+    now = datetime.now(timezone.utc)
+    tag = uuid.uuid4().hex[:6]
+    rows = [{"id": f"AO-{tenant}-{tag}-g{i}", "tenantId": tenant, "kind": "servicedesk", "state": "executed",
+             "autoDispatched": True, "createdAt": now - timedelta(minutes=i + 1),
+             "reason": {"ruleId": "service_desk:answer", "inputs": {"genMs": ms}}} for i, ms in enumerate(gen_ms)]
+    rows += [{"id": f"AO-{tenant}-{tag}-c{i}", "tenantId": tenant, "kind": "servicedesk", "state": "executed",
+              "autoDispatched": True, "createdAt": now - age, "reason": {"ruleId": "service_desk:answer", "inputs": {}}}
+             for i in range(count)]
+    if rows:
+        await db.autonomy_actions.insert_many(rows)
+
+
+async def test_a_tenant_with_nothing_stored_reads_drafts_with_the_full_shape(world):
+    view = await _view(world)
+    assert view["mode"] == "drafts" and view["effectiveMode"] == "drafts" and view["readable"] is True
+    assert view["screensOn"] is True and view["words"] == [] and view["maxWords"] == 50 and view["breaker"] is None
+    assert view["posting"] == {"posting": False, "blockers": []}
+    assert view["canManage"] is True and view["canRestore"] is True
+    assert set(view) == {"mode", "effectiveMode", "readable", "screensOn", "words", "maxWords", "breaker", "posting",
+                         "model", "timing", "canManage", "canRestore"}
+
+
+async def test_an_unreadable_value_reads_drafts_and_says_so(world):
+    await world.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"serviceDesk": {"mode": "bogus"}}})
+    view = await _view(world)
+    assert view["mode"] == "drafts" and view["readable"] is False and view["posting"]["posting"] is False
+
+
+async def test_post_with_suggest_level_and_shadow_on_lists_both_blockers(world):
+    await seed_desk_tenant(world, "t1", level="suggest", shadow=True, mode="post")
+    view = await _view(world)
+    assert view["posting"] == {"posting": False,
+                               "blockers": [{"code": "level", "level": "suggest"}, {"code": "shadow"}]}
+
+
+async def test_the_deployment_master_alone_keeps_shadow_on(world, monkeypatch):
+    await _desk_post_ready(world)
+    monkeypatch.setenv("AUTONOMOUS_REMEDIATION_DRY_RUN", "true")
+    view = await _view(world)
+    assert view["posting"] == {"posting": False, "blockers": [{"code": "shadow"}]}
+
+
+async def test_all_conditions_met_is_posting(world):
+    await _desk_post_ready(world)
+    view = await _view(world)
+    assert view["posting"] == {"posting": True, "blockers": []} and view["effectiveMode"] == "post"
+
+
+async def test_a_tenant_stop_and_a_platform_stop_are_blockers(world):
+    await _desk_post_ready(world)
+    await world.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"stop": {"active": True}}})
+    assert (await _view(world))["posting"]["blockers"] == [{"code": "stop"}]
+    await world.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"stop": None}})
+    await world.system_settings.insert_one({"type": "autonomous_ops", "stop": {"active": True}})
+    assert (await _view(world))["posting"]["blockers"] == [{"code": "stop"}]
+
+
+async def test_an_unreadable_platform_stop_counts_as_stopped(world, monkeypatch):
+    await _desk_post_ready(world)
+
+    async def broken(db):
+        raise RuntimeError("down")
+    monkeypatch.setattr(settings.ao_settings, "platform_stop", broken)
+    assert (await _view(world))["posting"]["blockers"] == [{"code": "stop"}]
+
+
+async def test_twenty_desk_answers_in_the_last_hour_block_posting_nineteen_do_not(world):
+    await _desk_post_ready(world)
+    await _desk_rows(world, "t1", count=19)
+    assert (await _view(world))["posting"]["posting"] is True
+    await _desk_rows(world, "t1", count=1)
+    view = await _view(world)
+    assert view["posting"] == {"posting": False, "blockers": [{"code": "hourly_limit"}]}
+
+
+async def test_desk_answers_older_than_an_hour_and_other_tenants_rows_do_not_count(world):
+    await _desk_post_ready(world)
+    await seed_tenant(world, "t2", shadow=False)
+    await _desk_rows(world, "t1", count=25, age=timedelta(hours=2))
+    await _desk_rows(world, "t2", count=25)
+    assert (await _view(world))["posting"]["blockers"] == []
+
+
+async def test_a_stored_breaker_is_a_blocker_and_shows_when_and_how_many(world):
+    await _desk_post_ready(world)
+    await world.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {
+        "serviceDesk": {"mode": "post", "breaker": {"trippedAt": NOW, "actionIds": ["a", "b", "c"]}}}})
+    view = await _view(world)
+    assert {"code": "desk_breaker"} in view["posting"]["blockers"] and view["posting"]["posting"] is False
+    assert view["breaker"] == {"trippedAt": "2026-01-01T12:00:00+00:00", "count": 3}
+
+
+async def test_drafts_and_off_show_no_blocker_list_and_never_posting(world):
+    for mode in ("drafts", "off"):
+        await seed_desk_tenant(world, "t1", level="suggest", shadow=True, mode=mode)
+        view = await _view(world)
+        assert view["posting"] == {"posting": False, "blockers": []} and view["mode"] == mode
+
+
+async def test_the_model_is_online_only_for_the_exact_tag(world):
+    online = (await _view(world))["model"]
+    assert online == {"state": "online", "tag": "llama3.2:3b"}
+    other, calls = _client(tags=("llama3.2:1b",))
+    model.clear_probe_cache()
+    assert (await _view(world, factory=other))["model"]["state"] == "offline"
+    assert all(c["path"] == "/api/tags" for c in calls)        # the status line never generates
+
+
+async def test_a_failing_or_non_loopback_model_is_offline_and_a_factory_error_too(world):
+    broken, _ = _client(fail_tags=True)
+    assert (await _view(world, factory=broken))["model"]["state"] == "offline"
+    model.clear_probe_cache()
+    transport, calls = ollama_transport("a", [1])
+    remote = lambda: model.OllamaClient(base_url="http://203.0.113.9:11434", transport=transport)  # noqa: E731
+    assert (await _view(world, factory=remote))["model"]["state"] == "offline" and calls == []
+
+    def explode():
+        raise RuntimeError("no client")
+    assert (await _view(world, factory=explode))["model"] == {"state": "offline", "tag": None}
+
+
+async def test_the_typical_answer_time_is_the_median_of_the_last_twenty_rows(world):
+    await _desk_rows(world, "t1", [60000, 100000, 140000])
+    assert (await _view(world))["timing"] == {"medianSeconds": 100, "samples": 3, "measured": False}
+    await _desk_rows(world, "t1", [1500, 2500])
+    assert (await _view(world))["timing"]["medianSeconds"] == 60       # 5 rows, middle one 60 s
+
+
+async def test_no_data_says_none_and_samples_zero_and_other_tenants_rows_are_ignored(world):
+    await seed_tenant(world, "t2", shadow=False)
+    await _desk_rows(world, "t2", [90000])
+    assert (await _view(world))["timing"] == {"medianSeconds": None, "samples": 0, "measured": False}
+
+
+async def test_only_the_newest_twenty_count(world):
+    await _desk_rows(world, "t1", [10000] * 20)                 # the newest twenty
+    now = datetime.now(timezone.utc)
+    await world.autonomy_actions.insert_many([
+        {"id": f"AO-old-{i}", "tenantId": "t1", "kind": "servicedesk", "state": "executed", "autoDispatched": True,
+         "createdAt": now - timedelta(days=2, minutes=i), "reason": {"inputs": {"genMs": 200000}}} for i in range(5)])
+    assert (await _view(world))["timing"] == {"medianSeconds": 10, "samples": 20, "measured": False}
+
+
+async def test_a_runtime_document_makes_the_timing_measured(world):
+    await runtime.save_measurement(world, {"model": "llama3.2:3b", "prefillTps": 12, "genTps": 4, "loadSeconds": 15})
+    assert (await _view(world))["timing"]["measured"] is True
+
+
+async def test_a_tenant_without_the_knowledge_base_screen_is_off(world):
+    await seed_desk_tenant(world, "t1", level="undoable_auto", shadow=False, mode="post", screens=False)
+    view = await _view(world)
+    assert view["screensOn"] is False and view["effectiveMode"] == "off" and view["mode"] == "post"
+    assert view["posting"]["posting"] is False
+    await seed_desk_tenant(world, "t1", level="undoable_auto", shadow=False, mode="post")
+    await world.tenants.update_one({"id": "t1"}, {"$pull": {"enabledFeatures": "screen:internalTickets"}})
+    assert (await _view(world))["screensOn"] is False
+
+
+async def test_the_status_view_never_sends_a_real_request(world):
+    """A client built with a mock transport is the only way a request leaves; the default factory is the
+    loopback client and its probe is bounded, so it is exercised only through the stand-in here."""
+    factory, calls = _client()
+    await _view(world, factory=factory)
+    assert [c["method"] + " " + c["path"] for c in calls] == ["GET /api/tags"]
