@@ -5,11 +5,11 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: planning
-stopped_at: Phase 87 complete; next /gsd-discuss-phase 85
-last_updated: "2026-11-07T14:42:56.527Z"
-last_activity: 2026-11-07
-last_activity_desc: Phase 87 complete, transitioned to Phase 85
-state_head: 422af6095b75af11f2505d3d60a85889bb357e4b
+stopped_at: Phase 85 context gathered
+last_updated: "2026-11-08T12:18:51.712Z"
+last_activity: 2026-11-08
+last_activity_desc: Phase 85 context gathered (fba7322a4)
+state_head: fba7322a4b819dde82875174ded77fd5f13767e6
 progress:
   total_phases: 7
   completed_phases: 5
@@ -881,9 +881,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-07T15:05:00Z
-**Stopped at:** Phase 87 complete (UAT 95/95, re-verified passed 5/5 after the SMTP resolver commit 422af6095); next /gsd-discuss-phase 85
-**Resume file:** None
+**Last session:** 2026-11-08T12:18:51.396Z
+**Stopped at:** Phase 85 context gathered
+**Resume file:** .planning/phases/85-first-line-service-desk/85-CONTEXT.md
 
 ## Accumulated Context
 
@@ -910,8 +910,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 — First-Line Service Desk
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-07 — Phase 87 complete (UAT 95/95, verification re-run passed 5/5)
+Status: Context gathered, ready to plan
+Last activity: 2026-11-08 — Phase 85 context gathered (D-01..D-29, fba7322a4)
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([███████░░░] 71%)
 
 ## Deferred Items
