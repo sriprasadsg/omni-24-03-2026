@@ -34,7 +34,7 @@ from pymongo.errors import DuplicateKeyError
 
 from . import (APPROVAL_TTL, COOLDOWN, HOST_CAP, INSTRUCTION_KINDS, OPEN_STATES, PLATFORM_TENANT_ID,
                RATE_LIMIT_PER_WINDOW, RATE_LIMIT_WINDOW, STAMP_SOURCE, STOP_EXEMPT_KINDS)
-from . import agent_support, decision_row, dispatch_check, ledger, messages, notify, protected, registry, settings
+from . import agent_support, decision_row, desk_gate, dispatch_check, ledger, messages, notify, protected, registry, settings
 from .scope import raw
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,7 @@ class ActionRequest:
     steps: Optional[List[Dict[str, Any]]] = None      # [{action, params}] in playbook order
     rollback: Optional[List[Dict[str, Any]]] = None   # compensation steps, same shape
     record_suppressed: bool = False    # record the refusal for an undo inside the cooldown instead of dropping it
+    desk: Optional[Dict[str, Any]] = None    # the service desk's row subdocument (Phase 85), copied onto the row
 
 
 @dataclass
@@ -217,6 +218,8 @@ async def _step_protected_targets(ctx: _Ctx) -> None:
     """GATE-08 / D-19: every target must be an agent of this tenant and none may be on the
     never-touch list; every IP parameter must parse and must not be on it either."""
     req = ctx.req
+    if req.dispatcher == desk_gate.DISPATCHER:      # DESK-01: a ticket, not an agent
+        return await desk_gate.ticket_owner_step(ctx)
     targets = req.targets if isinstance(req.targets, list) else []
     if not targets:
         return ctx.refuse("protected_targets", "no_target")

@@ -23,7 +23,7 @@ class ActionSpec:
     """name: the agent instruction command. cls: "auto" (runs on its own), "approve" (needs a
     person), "undo_only" (only the inverse of another action) or "probe" (read-only re-scan).
     undo: the command that puts it back, or None. target_kind: what the action protects
-    ("ip", "host" or "none"). ip_params: parameter names that carry an IP address. cidr_params: parameter
+    ("ip", "host" or "none"; "ticket" acts on a service desk ticket and is never sent to an agent). ip_params: parameter names that carry an IP address. cidr_params: parameter
     names that carry a whole network (Phase 83): a request holding one always needs a person.
     dispatchers: the only dispatchers allowed to ask for the action; empty means any dispatcher.
     install_patches is the one automatic action limited to a single dispatcher (PTCH-06)."""
@@ -50,6 +50,10 @@ ACTIONS = _specs(
     # only for the canary ring. Any other dispatcher is refused unregistered_action, at decide time
     # (gate._step_class) and again at delivery (dispatch_check.bind).
     ActionSpec("install_patches", "auto", undo="rollback_patches", dispatchers=("patch_rollout",)),
+    # DESK-01 / D-03: a fifth automatic action, only ever asked for by the service desk and only on a ticket
+    # of the caller's own tenant (desk_gate.ticket_owner_step). It writes a comment on a ticket, so it
+    # is never delivered to an agent (see agent_commands). ticket_withdraw is only its inverse.
+    ActionSpec("ticket_answer", "auto", undo="ticket_withdraw", target_kind="ticket", dispatchers=("service_desk",)),
     # These need a person.
     ActionSpec("isolate_host", "approve", undo="restore_host"),
     ActionSpec("kill_process", "approve"),
@@ -66,6 +70,7 @@ ACTIONS = _specs(
     ActionSpec("restore_host", "undo_only"),
     ActionSpec("rotate_key_rollback", "undo_only"),
     ActionSpec("rollback_patches", "undo_only"),
+    ActionSpec("ticket_withdraw", "undo_only", target_kind="ticket", dispatchers=("service_desk",)),
     # Read-only verify re-scans.
     ActionSpec("scan_file", "probe", target_kind="none"),
     ActionSpec("scan_ip", "probe", target_kind="none"),
@@ -91,6 +96,12 @@ def resolve(name) -> Optional[ActionSpec]:
 def commands() -> frozenset:
     """Every registered command name."""
     return frozenset(ACTIONS)
+
+
+def agent_commands() -> frozenset:
+    """Every registered command that can be sent to an agent: the ticket actions of the service desk
+    (target_kind "ticket") are decided by the gate but never delivered to an agent (DESK-01)."""
+    return frozenset(name for name, spec in ACTIONS.items() if spec.target_kind != "ticket")
 
 
 def playbook_raises(steps) -> bool:

@@ -15,9 +15,12 @@ Two audiences, kept apart on purpose (T-85-06, D-24):
   can see. They are generic and carry at most the ticket number and title.
 
 Templates use ``{name}`` fields and are filled with ``str.format``. Plain strings only, no HTML: the
-browser and the tray render every one of these as text. Stdlib only.
+browser and the tray render every one of these as text. Stdlib only, plus the Activity words that
+autonomous_ops/messages.py declares once (the Activity view lives there; the desk reads them).
 """
 from typing import Dict
+
+from autonomous_ops import messages as _ao_messages
 
 # ---------------------------------------------------------------- the five shared constants (D-13, D-22, D-24, D-25)
 # components/serviceDesk/serviceDeskCopy.ts holds the same five strings; a vitest test reads this file.
@@ -72,11 +75,12 @@ DRAFT_REASON_TEXT: Dict[str, str] = {
 
 # ---------------------------------------------------------------- Activity rows (UI-SPEC section 5)
 
-# The action labels of a desk row (the "What ran" cell).
+# The action labels of a desk row (the "What ran" cell). Declared once in autonomous_ops/messages.py
+# (85-03) so the two modules cannot drift; this is the desk's view of them.
 ACTION_LABELS = {
-    "post": "Post ticket answer",
-    "draft": "Draft ticket answer",
-    "handoff": "Send ticket to a person",
+    "post": _ao_messages.ACTION_LABELS["ticket_answer"],
+    "draft": _ao_messages.DESK_ACTION_LABELS["draft"],
+    "handoff": _ao_messages.ACTION_LABELS["ticket_handoff"],
 }
 
 # The Result cell of each row shape. ``{articles}`` is filled with plural(n, "article", "articles").
@@ -95,7 +99,7 @@ ACTIVITY: Dict[str, str] = {
     "simulation_result": "Would have posted the answer to ticket {number}. Nothing was posted.",
 }
 
-UNDO_HINT = "Hides the answer from the requester and sends the ticket to a person."
+UNDO_HINT = _ao_messages.DESK_UNDO_HINT
 UNDO_TOAST = "Answer withdrawn. Ticket {number} went to a person."
 UNDO_TOAST_BREAKER = ("Answer withdrawn. 3 answers were withdrawn within 24 hours, so the service desk "
                       "dropped to Drafts only. A person with manage access can restore it.")

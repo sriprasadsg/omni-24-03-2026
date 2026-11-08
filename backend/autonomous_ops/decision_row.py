@@ -22,7 +22,7 @@ from . import APPROVAL_TTL, dispatch_check, messages, registry
 CLAIM_KEYS = {"unblock_ip": "block_id", "unquarantine_file": "quarantine_id", "restore_host": "isolation_id"}
 
 # Dispatchers whose own text replaces the generic reason on the codes below (Phase 83 sweep, Phase 84 rollout).
-_OWN_WORDS_DISPATCHERS = frozenset({"security_response", "patch_rollout"})
+_OWN_WORDS_DISPATCHERS = frozenset({"security_response", "patch_rollout", "service_desk"})
 # Codes for which such a request's own text replaces the generic reason.
 _OWN_WORDS = frozenset({"class_auto", "suggest_requested", "playbook_raised", "class_approve", "suppressed_by_undo"})
 
@@ -75,7 +75,7 @@ def build_row(ctx: Any, state: str, outcome: str, code: str) -> Dict[str, Any]:
     spec = ctx.specs[0] if ctx.specs else None
     needs_card = state in ("awaiting_approval", "suggested")
     pairs = dispatch_check.request_steps(req)
-    return {
+    row = {
         "tenantId": req.tenant_id, "kind": req.kind, "origin": req.origin, "dispatcher": req.dispatcher,
         "action": req.actions[0] if req.actions else None,
         "actions": [s.name for s in ctx.specs] or list(req.actions or []),
@@ -94,3 +94,6 @@ def build_row(ctx: Any, state: str, outcome: str, code: str) -> Dict[str, Any]:
         "autoDispatched": state == "dispatching",
         "createdAt": ctx.now, "updatedAt": ctx.now,
     }
+    if isinstance(getattr(req, "desk", None), dict):
+        row["desk"] = dict(req.desk)          # the service desk's own subdocument (Phase 85)
+    return row

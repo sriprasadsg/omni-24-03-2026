@@ -433,7 +433,10 @@ async def test_nothing_but_clear_turns_an_active_stop_off(live):
 def test_every_registry_command_maps_to_a_capability():
     import agent_capabilities
     from autonomous_ops import registry
-    missing = [n for n in sorted(registry.commands()) if agent_capabilities.instruction_capability({"type": n}) is None]
+    # Phase 85: the ticket actions are decided by the gate but never sent to an agent, so they map to none.
+    assert not {"ticket_answer", "ticket_withdraw"} & registry.agent_commands()
+    missing = [n for n in sorted(registry.agent_commands())
+               if agent_capabilities.instruction_capability({"type": n}) is None]
     assert missing == []
     want = {"restart_service": "remediation_executor", "quarantine_file": "remediation_executor",
             "unquarantine_file": "remediation_executor", "restore_host": "remediation_executor",

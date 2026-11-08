@@ -23,7 +23,8 @@ from autonomous_ops import registry as r
 
 # Phase 84 (PTCH-06, OQ1): install_patches is a deliberate fourth automatic action, limited to the
 # patch rollout dispatcher and, in the controller, to the canary ring. The original three are unchanged.
-AUTO = ("block_ip", "quarantine_file", "restart_service", "install_patches")
+# Phase 85 (DESK-01): ticket_answer is a fifth, limited to the service desk dispatcher, acting on a ticket.
+AUTO = ("block_ip", "quarantine_file", "restart_service", "install_patches", "ticket_answer")
 APPROVE = ("isolate_host", "kill_process", "reboot_host", "upgrade_software")
 
 
@@ -44,8 +45,20 @@ def test_install_patches_only_for_the_rollout_dispatcher():
     assert spec.cls == "auto" and spec.undo == "rollback_patches" and spec.dispatchers == ("patch_rollout",)
     assert r.resolve("rollback_patches").cls == "undo_only"
     for name, other in r.ACTIONS.items():
-        if name != "install_patches":
+        if name not in ("install_patches", "ticket_answer", "ticket_withdraw"):
             assert other.dispatchers == (), name
+
+
+def test_ticket_answer_only_for_the_service_desk():
+    """protects=DESK-01 / T-85-02: ticket_answer is automatic, undone by ticket_withdraw, acts on a ticket,
+    and only the service desk may ask for it; neither ticket command is ever sent to an agent."""
+    spec = r.resolve("ticket_answer")
+    assert spec.cls == "auto" and spec.undo == "ticket_withdraw"
+    assert spec.target_kind == "ticket" and spec.dispatchers == ("service_desk",)
+    undo = r.resolve("ticket_withdraw")
+    assert undo.cls == "undo_only" and undo.target_kind == "ticket" and undo.dispatchers == ("service_desk",)
+    assert not {"ticket_answer", "ticket_withdraw"} & r.agent_commands()
+    assert r.agent_commands() == r.commands() - {"ticket_answer", "ticket_withdraw"}
 
 
 def test_every_playbook_action_resolves_and_every_undo_is_registered():

@@ -31,7 +31,15 @@ ACTION_LABELS = {
     "scan_ip": "Re-scan IP address",
     "scan_url": "Re-scan web address",
     "scan_hash": "Re-check file hash",
+    # Phase 85 (DESK-01): the service desk's ticket actions. Declared here once; the desk reads these.
+    "ticket_answer": "Post ticket answer",
+    "ticket_withdraw": "Withdraw ticket answer",
+    "ticket_handoff": "Send ticket to a person",
 }
+
+# Service desk Activity words (Phase 85): a drafted answer is not an action that ran, so its label is separate.
+DESK_ACTION_LABELS = {"draft": "Draft ticket answer"}
+DESK_UNDO_HINT = "Hides the answer from the requester and sends the ticket to a person."
 
 # The action class lines shown under the label.
 CLASS_LINES = {"auto": "Automatic", "approve": "Needs approval"}
@@ -104,6 +112,8 @@ REASON_TEXT = {
     "rollout_restarted": "The computer restarted and came back as expected.",
     "rollout_no_new_boot": "The computer did not report a new start time after the restart was due.",
     "rollout_window_closed": "The maintenance window closed before this step could run, so it waits for the next one.",
+    # Service desk (Phase 85): why an answer was kept as a draft.
+    "desk_rate_limit": "20 answers were posted in the last hour, so this one is a draft.",
     **response_messages.REASON_TEXT,
 }
 
@@ -153,6 +163,7 @@ API_DETAIL = {
     "entry_limit": "The never-touch list is full.",
     "interactive": "An interactive sign-in is required for this action.",
     "invalid_reason": "A reason is required, up to 500 characters.",
+    "desk_draft": "Send, edit or discard this draft on the ticket.",
     **response_messages.API_DETAIL,
 }
 
