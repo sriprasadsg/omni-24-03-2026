@@ -169,6 +169,19 @@ API_DETAIL: Dict[str, str] = {
     "article_content": "Enter the article text.",
     "article_too_long": "The article is over {max} characters. Shorten it.",
     "edit_unchanged": "Change the text, or use Send as is.",
+    "mode_invalid": "Choose Off, Drafts only or Post answers.",
+    "not_tripped": "Post answers doesn't need restoring.",
+}
+
+# The three desk modes as a person reads them (the settings card, the activity list).
+MODE_LABELS: Dict[str, str] = {"off": "Off", "drafts": "Drafts only", "post": "Post answers"}
+
+# The reason line of a settings change in the activity list (the label is in autonomous_ops CONTROL_LABELS).
+CONTROL_REASONS: Dict[str, str] = {
+    "service_desk_mode_changed": "Service desk set to {mode}.",
+    "service_desk_words_changed": "{count} extra words send a ticket to a person: {words}.",
+    "service_desk_words_none": "No extra words are set now. The built-in rules still apply.",
+    "service_desk_restored": "Post answers restored. Answers post again once every condition is met.",
 }
 
 # ---------------------------------------------------------------- helpers

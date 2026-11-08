@@ -58,6 +58,10 @@ CONTROL_LABELS = {
     "rollout_resume_checked": "Rollout kept halted",
     "rollout_cancelled": "Rollout cancelled",
     "rollout_cancel_requested": "Rollout cancel requested",
+    # Phase 85: the service desk's own settings (service_desk/settings.py writes these control rows).
+    "service_desk_mode_changed": "Service desk setting changed",
+    "service_desk_words_changed": "Service desk words changed",
+    "service_desk_restored": "Service desk restored",
     **response_messages.CONTROL_LABELS,
 }
 
