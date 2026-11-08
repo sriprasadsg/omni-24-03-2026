@@ -132,6 +132,25 @@ Live validation is the user's step: install Ollama, pull `llama3.2:3b`, measure 
   - Nothing is seeded automatically.
 - **D-29:** Settles D18: the starter articles come from the platform (this phase writes them) and the tenant edits its copies. Answers default to drafts (D-03). The request templates and sensitive categories are fixed rules (D-02, D-23).
 
+### Post-research amendments (2026-11-08, user-approved after 85-RESEARCH.md)
+- **D-30 (amends D-03; research Open Question 1):** Posted ticket answers have their **own budget of 20 per hour per tenant**, separate from Phase 81's automatic-action pool. Answers beyond the desk's 20 become drafts. Desk rows never count toward the security rate limit or Phase 81's tenant-wide breaker (D-25 keeps its desk-only breaker).
+- **D-31 (Open Question 2):** A posted answer moves the ticket to the existing hold status **`pending_customer`**, which pauses the SLA. "I still need help", a requester reply, an Undo or the three-working-day return (D-08) moves it back to `open` for a person.
+- **D-32 (Open Question 3; narrows D-23):** A **self-service password how-to** ("forgot my password, how do I reset it") is answerable from the starter article. Unlocks, MFA resets, access grants, permission changes and suspected account compromise always go to a person. Test cases pin both sides.
+- **D-33 (Open Question 4; amends D-12):** The in-app notifications reader (`GET /api/notifications`) gets a **recipient filter**: a notice tagged with a recipient is shown only to that user, and untagged notices behave as today. The existing comment notice must also stop previewing staff-only text to the requester.
+- **D-34 (Open Question 5; qualifies D-06):** The Windows user name is **reported by the tray**. The computer's agent key is the boundary, and the user name is soft privacy between people on a shared PC. This is accepted, and the threat model and UAT must say so.
+- **D-35 (Open Question 6; settles D-20):** English is detected by a **built-in standard-library heuristic** (script check plus common English words), pinned by test cases. No new dependency.
+- **D-36 (Open Question 7; refines D-28):** Starter articles are **generic**: no product or vendor names, no URLs, no phone numbers. Placeholders such as "your company's VPN app" show the tenant what to edit.
+- **D-37 (research assumption A5; extends D-23):** A ticket with **`critical` priority always goes to a person**. `high`, `medium` and `low` stay eligible, since the tray's "Report an Issue" defaults to `high`.
+- **Research defaults adopted (85-RESEARCH.md; no further user input needed):**
+  - **Gate:** `gate.decide` with a `service_desk` dispatcher, registry rows `ticket_answer` (undo `ticket_withdraw`) and `ticket_withdraw`. A ticket-ownership check replaces the protected-targets step for this kind. The decision runs after generation, so a stop pressed during the slow call still blocks the post.
+  - **Draft rows** never expire as approvals.
+  - **Hand-offs are not gated.** They are the fail-safe direction and are written as direct `servicedesk` ledger rows.
+  - **Model client:** a desk-only loopback client in a new `backend/service_desk/` package (LLM imports stay out of `autonomous_ops/`). It sends an exact model tag, an explicit token cap, and a timeout sized from an operator-run measurement, with conservative defaults until that measurement exists.
+  - **DESK-04:** the model is unavailable when `/api/tags` fails or the tag is missing.
+  - **Retrieval:** TF-IDF cosine similarity over the tenant's Help desk articles (scikit-learn, already a dependency), plus a minimum of matched content terms. The cut-off is re-pinned on the real starter articles by fixture tests.
+  - **"Raised by a person"** is recorded by the server at creation (`raised_via`). The new tray uses a new route and announces its `my_tickets` support. Old trays keep the legacy route, and their answers become drafts.
+  - **Migration 032** only creates indexes. A missing desk setting reads as Drafts only, and a missing comment visibility reads as staff-only.
+
 ### Claude's Discretion
 - How the answer is registered with the gate (a non-agent action kind such as `ticket_comment` in `autonomous_ops/registry.py`), and the ledger `kind: servicedesk` row shape, as long as every attempt, draft, post, hand-off and undo is a ledger row and the gate's stop, level, shadow and rate-limit steps apply. Steps that only make sense for agent targets (protected targets, blast radius) may be skipped for this kind, with a test.
 - How "raised by a person" is detected: by creation path, not by client-supplied tags alone. The tray sends `user-raised` and `tray` itself, and `RaiseTicketRequest` accepts any tags.
