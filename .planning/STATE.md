@@ -5,17 +5,17 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-04-PLAN.md
-last_updated: "2026-11-08T19:42:34.230Z"
+stopped_at: Completed 85-05-PLAN.md
+last_updated: "2026-11-08T19:55:47.211Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: 5a196e1f452904036d7fa95a3552511d0c4b23e1
+state_head: e1dbc0d85ef412444f761471a62ca27174204151
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 103
-  percent: 84
+  completed_plans: 104
+  percent: 85
 ---
 
 # Project State
@@ -598,6 +598,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-01: tickets_endpoints hooks use lazy imports in create_ticket and fall back to automation / no job on any failure, keeping them apart from the user's attachment hunks
 - [Phase 85]: 85-01: reply checks in the tracer are citation, emptiness and length only; markup, link, address, phone, command and number rules are 85-06
 - [Phase 85]: 85-04: a desk row is refused by approve and deny before the stop check (always desk_draft); the desk's undo is delegated through approvals.register_undo_handler and fails closed (not_undoable) until 85-18 registers it
+- [Phase 85]: Phase 85 plan 05: phrase lists and language word sets live in service_desk/phrases.py (plan's 450-line fallback); rules.py re-exports the five lists
+- [Phase 85]: Phase 85 plan 05: account-compromise phrasing reports account_access (D-32); SECURITY has no bare hacked or compromised, the bare words end ACCOUNT_ACCESS so an unclassified compromise still goes to a person
+- [Phase 85]: Phase 85 plan 05: is_english gives no credit for words English shares with other languages or for bare acronyms (VPN), so 'VPN no funciona' is not English; five Latin-script languages only
+- [Phase 85]: Phase 85 plan 05: rules.evaluate and is_english are not wired into pipeline.py until 85-13; the tracer path still lets a sensitive ticket reach the model until then
 
 ## Performance Metrics
 
@@ -856,6 +860,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P03 | 35 min | 3 tasks | 10 files |
 | Phase 85 P01 | 7 min | 2 tasks | 18 files |
 | Phase 85 P04 | 25 min | 3 tasks | 11 files |
+| Phase 85 P05 | 12 min | 3 tasks | 7 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -890,8 +895,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-08T19:42:33.982Z
-**Stopped at:** Completed 85-04-PLAN.md
+**Last session:** 2026-11-08T19:55:46.937Z
+**Stopped at:** Completed 85-05-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -918,10 +923,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 5 of 23
+Plan: 6 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
-Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 84%)
+Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 85%)
 
 ## Deferred Items
 
