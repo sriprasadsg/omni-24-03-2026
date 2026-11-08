@@ -194,3 +194,85 @@ async def test_the_same_three_undone_rows_of_another_kind_still_trip_it(world):
     now = datetime.now(timezone.utc).replace(microsecond=0)
     await _seed(world, 3, kind="security", state="undone", finished=now - timedelta(minutes=5))
     assert await breaker.evaluate(world, "t1")
+
+
+# ---------------------------------------------------------------- Task 3: hand-off rows and the desk-field updater
+
+TICKET = {"id": "k1", "ticket_number": "TKT-0001", "title": "VPN drops"}
+RESULT = "Ticket TKT-0001 went to the normal queue. The requester was told a person will look at it."
+ANN = {"id": "u1", "name": "Ann"}
+
+
+async def _audit(db, suffix):
+    return await db.audit_logs.find({"tenantId": "t1", "action": f"autonomous_ops.servicedesk.{suffix}"}).to_list(10)
+
+
+async def test_a_hand_off_is_a_finished_audited_row_the_activity_view_can_present(world):
+    """protects=D-24: every hand-off is a ledger row with the full field set, one audit event, and a view
+    that reads it as done with the hand-off label."""
+    row = await ledger.record_desk_event(world, "t1", ticket=TICKET, reason_code="no_article",
+                                         reason_text="No article matched.", activity_result=RESULT)
+    assert row["id"].startswith("AO-")
+    assert (row["kind"], row["dispatcher"], row["origin"]) == ("servicedesk", "service_desk", "service_desk")
+    assert (row["command"], row["action"], row["actions"]) == ("ticket_handoff", "ticket_handoff", ["ticket_handoff"])
+    assert (row["targets"], row["target"], row["params"]) == ([], "TKT-0001", {"ticketId": "k1"})
+    assert (row["steps"], row["rollback"], row["state"], row["autoDispatched"]) == ([], [], "executed", False)
+    assert row["approval"] == {"requiredBy": None, "expiresAt": None, "approver": None, "decidedAt": None}
+    assert row["undo"] == {"available": False, "action": None, "params": {}, "undoneAt": None, "undoneBy": None}
+    assert (row["reasonCode"], row["reasonText"], row["activityResult"]) == ("no_article", "No article matched.", RESULT)
+    assert row["desk"] == {"ticketId": "k1", "ticketNumber": "TKT-0001", "title": "VPN drops",
+                           "phase": "handed_off", "reason": "no_article"}
+    assert row["finishedAt"] is not None
+    stored = await ledger.get(world, "t1", row["id"])
+    assert stored["state"] == "executed" and stored["desk"]["phase"] == "handed_off"
+    assert len(await _audit(world, "handoff")) == 1
+    assert (await audit_ledger.verify("t1", db=world))["valid"] is True
+    shown = views.present_row(stored, viewer_is_platform_staff=False)
+    assert shown["bucket"] == "done" and shown["actionLabel"] == "Send ticket to a person"
+    assert shown["canUndo"] is False
+
+
+async def test_a_hand_off_is_not_counted_as_an_automatic_action_or_by_the_breaker(world):
+    await ledger.record_desk_event(world, "t1", ticket=TICKET, reason_code="no_article", reason_text="x",
+                                   activity_result=RESULT)
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    assert await ledger.count_auto_since(world, "t1", since) == 0
+    assert await ledger.count_auto_since(world, "t1", since, pool="servicedesk") == 0
+    assert await ledger.recent_finished_auto(world, "t1") == []
+
+
+async def test_a_failed_hand_off_insert_raises_ledger_unavailable():
+    class _Down:
+        class autonomy_actions:
+            @staticmethod
+            async def insert_one(doc):
+                raise RuntimeError("down")
+
+    with pytest.raises(ledger.LedgerUnavailable):
+        await ledger.record_desk_event(_Down, "t1", ticket=TICKET, reason_code="no_article", reason_text="x",
+                                       activity_result=RESULT)
+
+
+async def test_set_desk_fields_changes_only_allow_listed_desk_keys_and_never_the_state(world):
+    """protects=T-85-11: one update, one audit event naming the actor; an unknown key is dropped."""
+    row = await ledger.record_desk_event(world, "t1", ticket=TICKET, reason_code="no_article", reason_text="x",
+                                         activity_result=RESULT)
+    updated = await ledger.set_desk_fields(world, "t1", row["id"],
+                                           {"phase": "sent", "sentBy": ANN, "bogus": 1, "state": "failed"},
+                                           event="sent", actor=ANN)
+    assert updated["state"] == "executed"
+    assert updated["desk"]["phase"] == "sent" and updated["desk"]["sentBy"] == ANN
+    assert "bogus" not in updated["desk"] and "bogus" not in updated and updated["desk"]["ticketId"] == "k1"
+    events = await _audit(world, "sent")
+    assert len(events) == 1 and events[0]["actor"]["userId"] == "Ann"
+    assert len(await _audit(world, "handoff")) == 1
+
+
+async def test_set_desk_fields_with_nothing_allowed_or_the_wrong_tenant_changes_nothing(world):
+    row = await ledger.record_desk_event(world, "t1", ticket=TICKET, reason_code="no_article", reason_text="x",
+                                         activity_result=RESULT)
+    assert await ledger.set_desk_fields(world, "t1", row["id"], {"bogus": 1, "state": "failed"}, event="x") is None
+    assert await ledger.set_desk_fields(world, "t2", row["id"], {"phase": "sent"}, event="sent", actor=ANN) is None
+    assert await ledger.set_desk_fields(world, "t1", "AO-missing", {"phase": "sent"}, event="sent") is None
+    assert (await ledger.get(world, "t1", row["id"]))["desk"]["phase"] == "handed_off"
+    assert await world.audit_logs.count_documents({"action": {"$regex": "servicedesk\\.(x|sent)$"}}) == 0

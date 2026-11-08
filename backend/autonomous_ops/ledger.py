@@ -203,6 +203,75 @@ async def set_display(db, tenant_id: str, action_id: str, **fields: Any) -> bool
     return done.matched_count > 0
 
 
+# The service desk's rows (Phase 85) share this collection but not the automatic-action pool or the breaker.
+DESK_KIND = "servicedesk"
+
+# The service desk's own fields on a desk row (Phase 85, DESK-02). Only these keys of ``desk`` can be updated.
+DESK_FIELDS = ("phase", "commentId", "draftReason", "undoable", "postedAt", "sentBy", "sentAt", "edited",
+               "discardedBy", "discardedAt", "confirmedAt", "helpedAt", "returnedAt", "withdrawnAt", "withdrawnBy",
+               "personReplied", "reason")
+HANDOFF_COMMAND = "ticket_handoff"
+
+
+def _desk_actor(actor) -> Optional[Dict[str, Any]]:
+    """The audit actor of a desk write: a person is named by their username, display name, name or id."""
+    if not isinstance(actor, dict):
+        return None
+    name = actor.get("username") or actor.get("display") or actor.get("name") or actor.get("id")
+    return {"username": str(name), "tier": actor.get("tier") or "user"} if name else None
+
+
+async def record_desk_event(db, tenant_id: str, *, ticket: Dict[str, Any], reason_code: str, reason_text: str,
+                            activity_result: str, actor: Optional[Dict[str, Any]] = None,
+                            now: Optional[datetime] = None, desk: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """A hand-off as a finished ``servicedesk`` row (D-24: every hand-off is recorded), mirrored to the audit
+    chain as ``servicedesk.handoff``. Never gated: a hand-off is the fail-safe direction. The row has the
+    field set ``decision_row.build_row`` writes, so every Activity view reads it. Raises ``LedgerUnavailable``
+    on a failed insert."""
+    now = _aware(now) if isinstance(now, datetime) else _now()
+    ticket = ticket if isinstance(ticket, dict) else {}
+    number = ticket.get("ticket_number") or ticket.get("ticketNumber")
+    doc = {
+        "id": "AO-" + uuid.uuid4().hex, "tenantId": tenant_id, "kind": DESK_KIND, "origin": "service_desk",
+        "dispatcher": "service_desk", "action": HANDOFF_COMMAND, "actions": [HANDOFF_COMMAND],
+        "command": HANDOFF_COMMAND, "targets": [], "target": number, "params": {"ticketId": ticket.get("id")},
+        "steps": [], "rollback": [], "state": "executed", "level": None, "shadow": False, "wouldHave": None,
+        "reason": {"ruleId": "service_desk:handoff", "inputs": {"reason": reason_code}},
+        "reasonCode": reason_code, "reasonText": reason_text, "activityResult": activity_result, "trace": [],
+        "dedupeKey": None, "remediationId": None, "instructionIds": [],
+        "approval": {"requiredBy": None, "expiresAt": None, "approver": None, "decidedAt": None},
+        "undo": {"available": False, "action": None, "params": {}, "undoneAt": None, "undoneBy": None},
+        "autoDispatched": False,
+        "desk": {**(desk if isinstance(desk, dict) else {}), "ticketId": ticket.get("id"), "ticketNumber": number,
+                 "title": ticket.get("title"), "phase": "handed_off", "reason": reason_code},
+        "createdAt": now, "updatedAt": now, "finishedAt": now}
+    try:
+        await _actions(db).insert_one(doc)
+    except Exception as exc:
+        raise LedgerUnavailable(f"hand-off could not be recorded: {exc}") from exc
+    doc.pop("_id", None)
+    await _mirror(db, tenant_id, "servicedesk.handoff", doc, _desk_actor(actor))
+    return doc
+
+
+async def set_desk_fields(db, tenant_id: str, action_id: str, fields: Dict[str, Any], *, event: str,
+                          actor: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """Set allow-listed ``desk.*`` keys of a desk row in one update and mirror ``servicedesk.<event>`` naming
+    the actor. The row's ``state`` is never touched (that is ``transition``'s job). Unknown keys are dropped;
+    nothing allowed, or no row of this tenant, returns None and writes no audit event."""
+    sets = {f"desk.{k}": v for k, v in (fields if isinstance(fields, dict) else {}).items() if k in DESK_FIELDS}
+    if not sets:
+        return None
+    doc = await _actions(db).find_one_and_update(
+        {"id": action_id, "tenantId": tenant_id, "kind": DESK_KIND}, {"$set": {**sets, "updatedAt": _now()}},
+        return_document=ReturnDocument.AFTER)
+    if doc is None:
+        return None
+    doc = _normalize(doc)
+    await _mirror(db, tenant_id, "servicedesk." + event, doc, _desk_actor(actor))
+    return doc
+
+
 async def get(db, tenant_id: str, action_id: str) -> Optional[Dict[str, Any]]:
     return _normalize(await _actions(db).find_one({"id": action_id, "tenantId": tenant_id}))
 
@@ -273,10 +342,6 @@ BREAKER_FAILURES = ("verify_failed", "agent_failed", "blocked_by_local_security"
 BREAKER_IGNORED = ("not_delivered", "no_result", "capability_off", "agent_unsupported", "agent_offline",
                    "hash_mismatch", "protected_path", "agent_refused", "locked", "dispatch_failed", "auto_reverted",
                    "ring_reverted", "rollout_halted", "rollout_closed", "rollout_not_delivered", "rollout_no_result")
-
-
-# The service desk's rows (Phase 85) share this collection but not the automatic-action pool or the breaker.
-DESK_KIND = "servicedesk"
 
 
 def _pool_filter(pool: str) -> Dict[str, Any]:
