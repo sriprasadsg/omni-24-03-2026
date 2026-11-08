@@ -20,7 +20,10 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from datetime import datetime, timedelta, timezone
+
 from service_desk import model as model_module
+from service_desk import runtime
 from service_desk.model import ModelBusy, ModelError, ModelTimeout, OllamaClient
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
@@ -270,3 +273,106 @@ def test_an_unreadable_meminfo_counts_as_enough():
 def test_the_real_meminfo_reader_answers_bytes_or_none():
     value = model_module._read_meminfo()
     assert value is None or value > 0
+
+
+# ------------------------------------------------------------------ DESK-05: timeouts from the measurement
+
+MEASURED = {"type": "service_desk_runtime", "model": "llama3.2:3b", "prefillTps": 40, "genTps": 8,
+            "loadSeconds": 10, "measuredAt": datetime(2026, 11, 8, 9, 0, tzinfo=timezone.utc), "samples": 5}
+
+
+async def test_with_no_runtime_document_the_defaults_apply_and_are_not_measured(mongo_db):
+    m = await runtime.load_measurement(mongo_db)
+    assert (m.prefill_tps, m.gen_tps, m.load_seconds, m.measured) == (10, 3, 20, False)
+    assert runtime.call_timeout(4000, 220, m) == 280.0
+
+
+async def test_a_stored_measurement_sizes_the_timeout(mongo_db):
+    await mongo_db.system_settings.insert_one(dict(MEASURED))
+    m = await runtime.load_measurement(mongo_db)
+    assert m.measured is True and (m.prefill_tps, m.gen_tps, m.load_seconds, m.samples) == (40, 8, 10, 5)
+    assert m.model == "llama3.2:3b"
+    assert runtime.call_timeout(4000, 220, m) == 88.75
+
+
+@pytest.mark.parametrize("bad", [
+    {"prefillTps": 0}, {"genTps": -1}, {"prefillTps": "fast"}, {"genTps": None}, {"loadSeconds": -5},
+    {"prefillTps": True}, {"genTps": float("nan")}])
+async def test_a_malformed_runtime_document_falls_back_to_the_defaults(mongo_db, bad):
+    await mongo_db.system_settings.insert_one({**MEASURED, **bad})
+    m = await runtime.load_measurement(mongo_db)
+    assert m.measured is False and (m.prefill_tps, m.gen_tps, m.load_seconds) == (10, 3, 20)
+
+
+async def test_an_unreadable_database_falls_back_to_the_defaults():
+    class Broken:
+        class system_settings:
+            @staticmethod
+            async def find_one(*_a, **_k):
+                raise RuntimeError("database down")
+
+    m = await runtime.load_measurement(Broken())
+    assert m.measured is False and runtime.call_timeout(4000, 220, m) == 280.0
+
+
+def test_enough_recent_rows_replace_the_generation_estimate_with_their_p95():
+    m = runtime.Measurement()
+    recent = [20000, 25000, 30000, 35000, 40000, 60000]          # nearest-rank p95 of six values is the largest
+    # 1.5 x (4000 / 4 / 10) prefill + 1.5 x 60 s generation + 20 s load
+    assert runtime.call_timeout(4000, 220, m, recent) == 150 + 90 + 20
+    assert runtime.estimate_seconds(4000, 220, m, recent) == 100 + 60 + 20
+
+
+def test_fewer_than_five_recent_rows_are_ignored():
+    m = runtime.Measurement()
+    assert runtime.call_timeout(4000, 220, m, [60000, 60000, 60000, 60000]) == 280.0
+
+
+def test_the_timeout_is_clamped_to_45_and_300_seconds():
+    fast = runtime.Measurement(prefill_tps=1000, gen_tps=1000, load_seconds=0, measured=True)
+    assert runtime.call_timeout(40, 10, fast) == 45.0
+    assert runtime.call_timeout(40000, 220, runtime.Measurement()) == 300.0
+    assert runtime.call_timeout(4000, 220, fast, [500000] * 5) == 300.0
+
+
+def test_the_estimate_is_the_unscaled_sum():
+    m = runtime.Measurement()
+    assert runtime.estimate_seconds(4000, 220, m) == round(1000 / 10 + 220 / 3 + 20, 2)
+    measured = runtime.Measurement(prefill_tps=40, gen_tps=8, load_seconds=10, measured=True)
+    assert runtime.estimate_seconds(4000, 220, measured) == 25 + 27.5 + 10
+
+
+async def _seed_action(db, action_id, *, gen_ms, minutes_ago, kind="servicedesk", tenant="t1"):
+    inputs = {} if gen_ms is None else {"genMs": gen_ms}
+    await db.autonomy_actions.insert_one({
+        "id": action_id, "tenantId": tenant, "kind": kind, "reason": {"inputs": inputs},
+        "createdAt": datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)})
+
+
+async def test_recent_gen_ms_reads_only_desk_rows_with_a_number_newest_first(mongo_db):
+    await _seed_action(mongo_db, "a1", gen_ms=30000, minutes_ago=30)
+    await _seed_action(mongo_db, "a2", gen_ms=20000, minutes_ago=10)
+    await _seed_action(mongo_db, "a3", gen_ms=None, minutes_ago=5)
+    await _seed_action(mongo_db, "a4", gen_ms=99000, minutes_ago=1, kind="isolate_host")
+    await _seed_action(mongo_db, "a5", gen_ms="slow", minutes_ago=2)
+    await _seed_action(mongo_db, "a6", gen_ms=0, minutes_ago=3)
+    await _seed_action(mongo_db, "a7", gen_ms=25000, minutes_ago=20, tenant="t2")
+    assert await runtime.recent_gen_ms(mongo_db) == [20000, 25000, 30000]
+    assert await runtime.recent_gen_ms(mongo_db, limit=2) == [20000, 25000]
+
+
+async def test_save_measurement_keeps_exactly_one_document(mongo_db):
+    await runtime.save_measurement(mongo_db, dict(MEASURED))
+    await runtime.save_measurement(mongo_db, {**MEASURED, "genTps": 9, "samples": 7})
+    rows = await mongo_db.system_settings.find({"type": "service_desk_runtime"}).to_list(10)
+    assert len(rows) == 1
+    assert (rows[0]["genTps"], rows[0]["samples"], rows[0]["prefillTps"]) == (9, 7, 40)
+    assert (await runtime.load_measurement(mongo_db)).gen_tps == 9
+
+
+@pytest.mark.parametrize("bad", [{"prefillTps": 0}, {"genTps": -2}, {"genTps": "8"}, {"loadSeconds": -1},
+                                 {"prefillTps": None}])
+async def test_save_measurement_rejects_non_positive_rates(mongo_db, bad):
+    with pytest.raises(ValueError):
+        await runtime.save_measurement(mongo_db, {**MEASURED, **bad})
+    assert await mongo_db.system_settings.count_documents({"type": "service_desk_runtime"}) == 0
