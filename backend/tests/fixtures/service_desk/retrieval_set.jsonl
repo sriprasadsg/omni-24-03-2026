@@ -1,0 +1,101 @@
+{"_comment": "Retrieval set written for Phase 85 plan 06 (D-18, DESK-02). Every question is invented for this phase and scored against service_desk.starters.STARTERS. expect is match (article is the starter key that must be cited first) or none (an IT question no starter covers). overlap marks a question no starter answers that still names the subject of one; retrieval cannot tell it from a match, so it is accepted here and left to the model's cite-none reply and the D-19 checks."}
+{"id": "rs-m01", "question": "I forgot my password and cannot sign in", "expect": "match", "article": "password_reset"}
+{"id": "rs-m02", "question": "How do I reset my password?", "expect": "match", "article": "password_reset"}
+{"id": "rs-m03", "question": "Need to change my password, how do I do that", "expect": "match", "article": "password_reset"}
+{"id": "rs-m04", "question": "Forgot password link, where is the reset link for my account", "expect": "match", "article": "password_reset"}
+{"id": "rs-m05", "question": "password reset email never arrived, I checked my spam folder", "expect": "match", "article": "password_reset"}
+{"id": "rs-m06", "question": "I want to choose a new password for my work account", "expect": "match", "article": "password_reset"}
+{"id": "rs-m07", "question": "my pasword reset code did not arrive, how do I reset the password", "expect": "match", "article": "password_reset"}
+{"id": "rs-m08", "question": "Please tell me how to reset my own password, I have forgotten it", "expect": "match", "article": "password_reset"}
+{"id": "rs-m09", "question": "How can I change my sign-in password myself?", "expect": "match", "article": "password_reset"}
+{"id": "rs-m10", "question": "The reset link for my password does not come to my inbox", "expect": "match", "article": "password_reset"}
+{"id": "rs-m11", "question": "Forgotten password, what are the password rules for the new one", "expect": "match", "article": "password_reset"}
+{"id": "rs-m12", "question": "my laptop keeps asking for my old password after I changed the password", "expect": "match", "article": "password_reset"}
+{"id": "rs-m13", "question": "VPN will not connect from home", "expect": "match", "article": "vpn"}
+{"id": "rs-m14", "question": "My VPN keeps dropping while I work", "expect": "match", "article": "vpn"}
+{"id": "rs-m15", "question": "VPN says connection failed", "expect": "match", "article": "vpn"}
+{"id": "rs-m16", "question": "The vpn app disconnects every few minutes on my home network", "expect": "match", "article": "vpn"}
+{"id": "rs-m17", "question": "cannot connect to the company VPN, the connection fails", "expect": "match", "article": "vpn"}
+{"id": "rs-m18", "question": "VPN keeps disconnecting when I work from a coffee shop", "expect": "match", "article": "vpn"}
+{"id": "rs-m19", "question": "VPN connnection failed again, I tried restarting the VPN app", "expect": "match", "article": "vpn"}
+{"id": "rs-m20", "question": "Unable to connect to the VPN server from my phone hotspot", "expect": "match", "article": "vpn"}
+{"id": "rs-m21", "question": "vpn connection fails after I enter the one-time code", "expect": "match", "article": "vpn"}
+{"id": "rs-m22", "question": "I work from home and the VPN app will not connect to the server", "expect": "match", "article": "vpn"}
+{"id": "rs-m23", "question": "the VPN drops the connection again and again", "expect": "match", "article": "vpn"}
+{"id": "rs-m24", "question": "VPN client shows connection failed, restarting did not help", "expect": "match", "article": "vpn"}
+{"id": "rs-m25", "question": "printer will not print", "expect": "match", "article": "printer"}
+{"id": "rs-m26", "question": "My print job is stuck in the queue", "expect": "match", "article": "printer"}
+{"id": "rs-m27", "question": "The printer shows offline", "expect": "match", "article": "printer"}
+{"id": "rs-m28", "question": "I sent a document to the printer but it does not print, nothing comes out", "expect": "match", "article": "printer"}
+{"id": "rs-m29", "question": "printer is offline and my print jobs are stuck", "expect": "match", "article": "printer"}
+{"id": "rs-m30", "question": "printer paper jam error and the print job will not clear", "expect": "match", "article": "printer"}
+{"id": "rs-m31", "question": "Cant print, the prnter says offline", "expect": "match", "article": "printer"}
+{"id": "rs-m32", "question": "How do I cancel a stuck print job in the queue", "expect": "match", "article": "printer"}
+{"id": "rs-m33", "question": "the office printer does not respond when I print from home", "expect": "match", "article": "printer"}
+{"id": "rs-m34", "question": "printing from my phone, the printer is missing from the list", "expect": "match", "article": "printer"}
+{"id": "rs-m35", "question": "my document does not print and the printer display shows an error", "expect": "match", "article": "printer"}
+{"id": "rs-m36", "question": "the print-queue is stuck and the printer is offline", "expect": "match", "article": "printer"}
+{"id": "rs-m37", "question": "How do I raise a ticket from the tray icon?", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m38", "question": "Where do I find my tickets in the tray app", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m39", "question": "The tray icon is missing from my taskbar", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m40", "question": "the tray app says the agent is not connected", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m41", "question": "how do I check the agent status from the tray icon", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m42", "question": "A message from the IT support agent popped up with an answer, how do I tell them it fixed my problem", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m43", "question": "Right click the tray icon, there is no raise a ticket option", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m44", "question": "agent status in the tray shows not connected, what should I do", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m45", "question": "how to use the IT support tray app to see my tickets", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m46", "question": "Where is the My tickets menu of the IT support agent", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m47", "question": "tray icon not showing next to the clock, agent not working", "expect": "match", "article": "agent_tray"}
+{"id": "rs-m48", "question": "In the tray app, which button tells IT the answer did not solve my problem? I still need help", "expect": "match", "article": "agent_tray"}
+{"id": "rs-n01", "question": "Excel crashes when I open a large spreadsheet", "expect": "none"}
+{"id": "rs-n02", "question": "My laptop is very slow after the update", "expect": "none"}
+{"id": "rs-n03", "question": "Outlook keeps asking for credentials every morning", "expect": "none"}
+{"id": "rs-n04", "question": "The monitor flickers and goes black", "expect": "none"}
+{"id": "rs-n05", "question": "Teams meeting has no audio from my headset", "expect": "none"}
+{"id": "rs-n06", "question": "Please give me access to the shared finance drive", "expect": "none"}
+{"id": "rs-n07", "question": "Please install Adobe Reader on my computer", "expect": "none"}
+{"id": "rs-n08", "question": "Laptop battery drains within an hour", "expect": "none"}
+{"id": "rs-n09", "question": "Bluetooth mouse does not move the cursor", "expect": "none"}
+{"id": "rs-n10", "question": "My keyboard types the wrong characters", "expect": "none"}
+{"id": "rs-n11", "question": "Wi-Fi in the meeting room is very slow", "expect": "none"}
+{"id": "rs-n12", "question": "Email attachments will not open on my laptop", "expect": "none"}
+{"id": "rs-n13", "question": "I need a second monitor for my desk", "expect": "none"}
+{"id": "rs-n14", "question": "Blue screen error on startup", "expect": "none"}
+{"id": "rs-n15", "question": "How do I order a new laptop for a new employee", "expect": "none"}
+{"id": "rs-n16", "question": "Zoom camera shows a black picture", "expect": "none"}
+{"id": "rs-n17", "question": "My computer restarts by itself in the middle of work", "expect": "none"}
+{"id": "rs-n18", "question": "Cannot open PDF files, they show an error", "expect": "none"}
+{"id": "rs-n19", "question": "Calendar invites do not appear in my Outlook", "expect": "none"}
+{"id": "rs-n20", "question": "How do I connect my laptop to the projector in the conference room", "expect": "none"}
+{"id": "rs-n21", "question": "Software update keeps failing with error code 0x80070005", "expect": "none"}
+{"id": "rs-n22", "question": "The shared drive is very slow today", "expect": "none"}
+{"id": "rs-n23", "question": "Antivirus warning about a file I downloaded", "expect": "none"}
+{"id": "rs-n24", "question": "My mobile phone does not receive company email", "expect": "none"}
+{"id": "rs-n25", "question": "How do I set up my out of office reply", "expect": "none"}
+{"id": "rs-n26", "question": "My laptop fan is very loud and hot", "expect": "none"}
+{"id": "rs-n27", "question": "Browser keeps showing certificate warnings", "expect": "none"}
+{"id": "rs-n28", "question": "OneDrive sync is stuck on processing changes", "expect": "none"}
+{"id": "rs-n29", "question": "Can I get a headset for video calls", "expect": "none"}
+{"id": "rs-n30", "question": "Webcam is not detected by the computer", "expect": "none"}
+{"id": "rs-n31", "question": "Screen resolution changed after I plugged in the dock", "expect": "none"}
+{"id": "rs-n32", "question": "USB drive is not recognised by my laptop", "expect": "none"}
+{"id": "rs-n33", "question": "Our team needs a new shared mailbox", "expect": "none"}
+{"id": "rs-n34", "question": "Excel formula shows a wrong result", "expect": "none"}
+{"id": "rs-n35", "question": "I spilled coffee on my keyboard, what now", "expect": "none"}
+{"id": "rs-n36", "question": "The conference room display will not turn on", "expect": "none"}
+{"id": "rs-n37", "question": "How do I sign up for the security awareness training", "expect": "none"}
+{"id": "rs-n38", "question": "My phone cannot join the guest Wi-Fi network", "expect": "none"}
+{"id": "rs-n39", "question": "A colleague left, please remove their access to the team folder", "expect": "none"}
+{"id": "rs-n40", "question": "Sound is crackling when I play videos", "expect": "none"}
+{"id": "rs-n41", "question": "I need a different keyboard layout on my laptop", "expect": "none"}
+{"id": "rs-n42", "question": "How do I share my screen in the video meeting", "expect": "none"}
+{"id": "rs-n43", "question": "The scanner in the copy room does not send scans to email", "expect": "none"}
+{"id": "rs-n44", "question": "What is the company policy on using personal phones for work", "expect": "none"}
+{"id": "rs-n45", "question": "Where can I find the Wi-Fi guest password for visitors", "expect": "none"}
+{"id": "rs-n46", "question": "The ticket I raised last week has not been answered", "expect": "none"}
+{"id": "rs-n47", "question": "My home network is slow and video calls freeze", "expect": "none"}
+{"id": "rs-n48", "question": "The software on my laptop needs a new licence key", "expect": "none"}
+{"id": "rs-o01", "question": "Order new toner for the office printer", "expect": "overlap"}
+{"id": "rs-o02", "question": "Can I install the VPN app on my personal phone", "expect": "overlap"}
+{"id": "rs-n51", "question": "How do I set a password policy for all employees", "expect": "none"}
+{"id": "rs-n52", "question": "Move my printer settings to a new laptop", "expect": "none"}
