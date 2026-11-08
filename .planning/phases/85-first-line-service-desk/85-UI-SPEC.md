@@ -1,7 +1,8 @@
 ---
 phase: "85"
 slug: first-line-service-desk
-status: draft
+status: approved
+reviewed_at: "2026-11-08"
 shadcn_initialized: false
 preset: none
 created: "2026-11-08"
@@ -469,38 +470,98 @@ Destructive and consequential actions in this phase, and the confirmation approa
 
 ## UI Considerations
 
-> Populated by the ui-phase UI-consideration probe (Step 9.5) after checker approval; replaced, not appended, on a re-run. Empty and error COPY lives in the Copywriting Contract; this section records state coverage and references those rows.
+> Populated by the ui-phase UI-consideration probe (Step 9.5) after checker approval on 2026-11-08; replaced, not appended, on a re-run. Empty and error COPY lives in the Copywriting Contract; this section records state coverage and references those rows.
 
-Draft coverage for the probe to confirm or replace. Surfaces and kinds: S1 Service desk card and status line (form, static-content), S2 mode group and readiness list (interactive-control, list-collection), S3 tenant words (form, list-collection), S4 draft panel and edit mode (form, interactive-control, long-text), S5 comment composer and marks (interactive-control, list-collection), S6 requester answer panel (interactive-control, static-content, long-text), S7 cited articles (list-collection, long-text), S8 Activity desk rows and Undo (list-collection, interactive-control), S9 Knowledge Base rows, toggle and dialogs (list-collection, form, interactive-control), S10 Knowledge gaps tab (list-collection), S11 tray window (list-collection, form, interactive-control, long-text).
+Probe engine: `.claude/gsd-core/bin/lib/ui-consideration-probe.cjs`. Surfaces and detected kinds (confirmed by the user, none missed): S1 Service desk card (form, list-collection, interactive-control), S2 mode group and readiness list (form, list-collection), S3 tenant words (form, list-collection, interactive-control, static-content), S4 staff draft panel (form, interactive-control, static-content), S5 comment composer and marks (form, list-collection, interactive-control), S6 requester answer panel (form, interactive-control, static-content), S7 cited articles (list-collection, interactive-control, static-content), S8 Activity desk rows and Undo (list-collection, interactive-control, static-content), S9 Knowledge Base rows, toggle and dialogs (form, list-collection, interactive-control, static-content), S10 Knowledge gaps tab (list-collection, nav, interactive-control, static-content), S11 tray My tickets window (form, list-collection, interactive-control, static-content).
 
-Applicable state considerations resolved: 22 covered, 2 backstop, 0 unresolved.
+Applicable considerations: 84. Resolved explicit: 64. Resolved backstop: 9. Dismissed with a reason: 11. Unresolved: 0. Resolutions approved by the user on 2026-11-08.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | S3 words | ✅ covered | No words shows `No extra words yet. The built-in rules still apply.` |
-| empty | S10 gaps | ✅ covered | Two empty-state cards: desk above Off, and desk Off (copy in the contract). |
-| empty | S9 Help desk articles | ✅ covered | The amber note `The service desk has no Help desk articles to cite...` shows to managers with zero marked articles and the desk above Off. |
-| empty | S11 tray list | ✅ covered | The conversation box reads `You haven't raised any tickets from this computer yet...`; both buttons disabled. |
-| loading | S1 card | ✅ covered | `h-4 w-64` skeleton collapsed, three `h-16` skeletons expanded, `aria-busy`; Save shows `Saving...`. |
-| loading | S10 gaps | ✅ covered | Three `h-24` skeleton cards with `aria-busy`; dismiss shows `Dismissing...`. |
-| loading | S4/S6 buttons | ✅ covered | Each action shows its pending label, disables the row's buttons, and sends one request per click. |
-| loading | S11 tray | ✅ covered | `Loading your tickets...` on open, `Saving...` during a request. |
-| error | S1 card | ✅ covered | Load error block with `Try again`; save error block; 403 toast; unreadable settings block. |
-| error | S4/S6 actions | ✅ covered | `role="alert"` text under the buttons with the server message and fallback; 409 texts shown verbatim and the ticket refetches. |
-| error | S7 articles | ✅ covered | `Couldn't load this article. Try again.` and `This article is no longer available.` |
-| error | S11 tray | ✅ covered | Not-enrolled and request-failed messages in `Firebrick` using `Get-FailureText`; the last list stays. |
-| populated | S2 readiness | ✅ covered | Five rows, each met or not met with its text, and a summary chip. |
-| populated | S8 rows | ✅ covered | Ten row shapes with Why, Result, and Undo only where `canUndo`. |
-| partial | S4 draft | ✅ covered | Disabled buttons with reason lines for closed ticket, person already replied, no requester, already handled; the draft-reason line varies by cause. |
-| partial | S6 requester | ✅ covered | Confirmed, still-need-help, handed-off, withdrawn and staff-replied variants each have their notice. |
-| partial | S5 composer | ✅ covered | `Reply to requester` disabled with a reason on automated tickets; the choice resets to `Staff only` after each send. |
-| overflow | S10 gaps | ✅ covered | 10 groups then `Show more gaps`; first 3 ticket links then `Show all {n} tickets`. |
-| overflow | S3 words | ✅ covered | Wrapping chips up to 50; the 51st is refused with `You can add up to 50 words.` |
-| zero-one-many | S10, S8 | ✅ covered | `1 ticket` vs `{n} tickets`; `1 article` vs `{n} articles`; singular forms in the tab count and the Service desk summary (`1 extra word`). |
-| long-text | S4, S6, S7 | ✅ covered | Answers, article text and titles wrap (`whitespace-pre-wrap break-words`); article regions scroll at `max-h-64`; nothing is truncated. |
-| long-text | S9 titles and S10 questions | ✅ covered | Titles wrap; the gap question is capped at 200 characters by the server's stripping, never ellipsised in the UI. |
-| overflow | S11 tray | 🧪 backstop | { statement: "In the 800x560 tray window the title column ellipsizes, the conversation and article boxes scroll, and no control overlaps another at 100% and 150% Windows display scaling", verification: backstop } |
-| long-text | S11 tray | 🧪 backstop | { statement: "A 60-character title, a 900-character answer and five cited articles render without clipping the footer, note box or buttons in the tray window", verification: backstop } |
+| Category | Element | Status | Resolution / Reason |
+|----------|---------|--------|---------------------|
+| empty | S1 card | ✅ resolved (explicit) | With no measurement the card shows `Answer time not measured yet.` plus the safe-defaults line, and the status chip reads `Not checked` until the model is checked. |
+| loading | S1 card | ✅ resolved (explicit) | Collapsed shows an `h-4 w-64` skeleton; expanded shows three `h-16` skeletons with `aria-busy="true"`; Save shows `Saving...`. |
+| error | S1 card | ✅ resolved (explicit) | Load failure shows the red `Couldn't load service desk settings...` block with `Try again`; save failure shows the red block above the footer; 403 closes the form with its toast; unreadable settings show the blue drafts-until-they-load block. |
+| populated | S1 card | ✅ resolved (explicit) | The summary line reads mode · model status · typical answer time · word count (e.g. `Drafts only · Local model online · Typical answer time 1 min 40 s · 2 extra words`) with the variants listed in section 2. |
+| partial | S1 card | ✅ resolved (explicit) | Unreadable settings and the Tickets/Knowledge Base-off block each have their own copy; a missing measurement shows `Answer time not measured yet.` |
+| overflow | S1 card | 🧪 resolved (backstop) | { statement: "The Service desk summary line and status line wrap inside the card at a 320px viewport with no horizontal scroll and no truncation", verification: backstop } |
+| zero-one-many | S1 card | ✅ resolved (explicit) | The summary uses `1 extra word` / `{n} extra words` and the timing line `Median of the last {n} answers.`; with no words the words part is left out of the summary. |
+| long-text | S1 card | 🧪 resolved (backstop) | { statement: "A long server save-error message and the model tag wrap (`break-words`) inside the card without overflowing it", verification: backstop } |
+| empty | S2 mode/readiness | ✅ resolved (explicit) | When the saved mode is not `Post answers` the readiness list is hidden; the mode group always shows its three options. |
+| loading | S2 mode/readiness | ✅ resolved (explicit) | The readiness list loads with the card (S1 skeleton); the two confirm dialogs show `Saving...` / `Restoring...` on the accent button and Esc is ignored while a request is in flight. |
+| error | S2 mode/readiness | ✅ resolved (explicit) | A failed save from a dialog shows the S1 save-error block; the readiness list renders the server `posting.blockers` and never guesses. |
+| populated | S2 mode/readiness | ✅ resolved (explicit) | Five readiness rows, each `CheckCircleIcon` met text or `ClockIcon` not-met text, with the `Posting` or `Drafts for now` summary chip. |
+| partial | S2 mode/readiness | ✅ resolved (explicit) | Each unmet condition shows its own not-met text; the Post answers dialog adds the amber `Answers will stay drafts for now: {first blocker}` block; `Post answers` is disabled with `Restore Post answers first.` while the desk breaker is tripped. |
+| overflow | S2 mode/readiness | ➖ dismissed | Reason: Fixed set of 3 option cards and 5 readiness rows; nothing grows with data. |
+| zero-one-many | S2 mode/readiness | ➖ dismissed | Reason: Always exactly 3 options and 5 rows; there is no count copy. |
+| long-text | S2 mode/readiness | 🧪 resolved (backstop) | { statement: "A not-met readiness row with a long `{level}` value or server blocker text wraps inside its row beside the icon without overlapping the chip", verification: backstop } |
+| empty | S3 words | ✅ resolved (explicit) | No words shows `No extra words yet. The built-in rules still apply.` |
+| loading | S3 words | ✅ resolved (explicit) | Words load with the card (S1 skeleton) and save with the card's single Save (`Saving...`). |
+| error | S3 words | ✅ resolved (explicit) | Inline `role="alert"` validation: `Enter a word or phrase.`, `Use 2 to 40 characters: ...`, `{word} is already on the list.`, `You can add up to 50 words.`; save failures use the S1 save-error block. |
+| populated | S3 words | ✅ resolved (explicit) | Words show as wrapping chips in a `ul` labelled `Extra words`, each with a `Remove {word}` button, and the counter `{n}/50 words`. |
+| partial | S3 words | ✅ resolved (explicit) | Input that fails the 2-40 character rule is refused with the inline message and is never added as a chip. |
+| overflow | S3 words | ✅ resolved (explicit) | Chips wrap; the 51st word is refused with `You can add up to 50 words.` |
+| zero-one-many | S3 words | ✅ resolved (explicit) | The counter reads `{n}/50 words` and the S1 summary uses `1 extra word` / `{n} extra words`. |
+| long-text | S3 words | ✅ resolved (explicit) | A word is capped at 40 characters by validation, so a chip never exceeds the row. |
+| empty | S4 draft panel | ✅ resolved (explicit) | The panel renders only while a draft is waiting and `canActOnDraft`; in edit mode `Send edit` is disabled when the text is empty or unchanged (`Change the text, or use Send as is.`). |
+| loading | S4 draft panel | ✅ resolved (explicit) | The clicked button shows `Sending...` / `Discarding...`, all three actions are disabled, and one request is sent per click. |
+| error | S4 draft panel | ✅ resolved (explicit) | A `role="alert"` line under the buttons shows `Couldn't send the answer: {server message}. Try again.` (or the discard variant) and re-enables the buttons; 409 `already_handled` shows the server text and refetches. |
+| partial | S4 draft panel | ✅ resolved (explicit) | Resolved/closed, person-already-replied, already-handled and no-requester states each disable or replace the actions with their own reason line; the draft-reason line varies by cause (seven texts). |
+| overflow | S4 draft panel | ✅ resolved (explicit) | Answer text is `whitespace-pre-wrap break-words`; expanded cited articles scroll inside `max-h-64`. |
+| long-text | S4 draft panel | ✅ resolved (explicit) | The edit textarea shows `{n}/{max}` from the server `maxAnswerLength` and `Send edit` is disabled over the limit; long answer text wraps and is never truncated. |
+| empty | S5 composer/marks | ✅ resolved (explicit) | Existing comments carry no chip; one muted line above the list explains `Comments are visible to staff only unless marked "Sent to requester".` |
+| loading | S5 composer/marks | ➖ dismissed | Reason: The visibility picker makes no request of its own; comment sending keeps the existing ticket screen behaviour. |
+| error | S5 composer/marks | ➖ dismissed | Reason: The picker makes no request; send errors use the existing ticket screen behaviour. |
+| populated | S5 composer/marks | ✅ resolved (explicit) | Requester-visible comments show `Sent to requester`; AI answers show `AI-assisted` plus `Sent by {name}` or `Posted automatically`; withdrawn answers show `Withdrawn` with a `Show original` disclosure for staff; drafts show `Draft`. |
+| partial | S5 composer/marks | ✅ resolved (explicit) | `Reply to requester` is disabled with `This ticket was raised by an automated source, so there is no requester to reply to.` and the choice resets to `Staff only` after every send and on ticket switch. |
+| overflow | S5 composer/marks | ➖ dismissed | Reason: Two fixed picker options; chips are one per comment in a wrapping row. |
+| zero-one-many | S5 composer/marks | ➖ dismissed | Reason: Marks are per comment and show no count. |
+| long-text | S5 composer/marks | 🧪 resolved (backstop) | { statement: "A long comment with its `AI-assisted` and `Sent by {name}` marks wraps in the comment list without the chips overlapping the text", verification: backstop } |
+| empty | S6 requester panel | ✅ resolved (explicit) | With nothing visible to the requester (desk off, queued, draft only) no panel renders and the ticket looks as it does today. |
+| loading | S6 requester panel | ✅ resolved (explicit) | The panel renders only after the requester view loads (no skeleton); `This fixed it` shows `Saving...` and `Send to IT` shows `Sending...`, with both buttons disabled while pending. |
+| error | S6 requester panel | ✅ resolved (explicit) | A `role="alert"` line shows `Couldn't save your answer: {server message}. Try again.` (fallback copy) and re-enables the buttons; a 409 shows the server text and refetches. |
+| partial | S6 requester panel | ✅ resolved (explicit) | Confirmed, still-need-help, handed-off, withdrawn, no-reply-in-3-days and staff-replied states each show their own notice; resolved/closed by staff removes the buttons. |
+| overflow | S6 requester panel | ✅ resolved (explicit) | Answer text is `whitespace-pre-wrap break-words`; cited articles scroll in `max-h-64`; the note textarea is capped at 1,000 characters with a counter. |
+| long-text | S6 requester panel | ✅ resolved (explicit) | Long answers and IT replies wrap and are never truncated; the optional note shows its 1,000-character counter. |
+| empty | S7 cited articles | ➖ dismissed | Reason: An answer always cites at least one article (D-19 output check), so the list is never empty. |
+| loading | S7 cited articles | ✅ resolved (explicit) | Expanding an article shows `Loading article...` (12/400 muted) until the text arrives. |
+| error | S7 cited articles | ✅ resolved (explicit) | A failed load shows `Couldn't load this article. Try again.` with a `Try again` text button; a deleted article shows `This article is no longer available.` and keeps its title. |
+| populated | S7 cited articles | ✅ resolved (explicit) | Each citation is a disclosure button (`FileTextIcon`, title 14/600, rotating chevron, `aria-expanded`) that expands to the read-only article text with the `Read-only. This is the article the answer was based on.` note. |
+| partial | S7 cited articles | ✅ resolved (explicit) | An article deleted after citation keeps its title in the list with `This article is no longer available.` |
+| overflow | S7 cited articles | ✅ resolved (explicit) | The expanded article region is `max-h-64 overflow-y-auto p-4`. |
+| zero-one-many | S7 cited articles | ➖ dismissed | Reason: The list shows no count copy; one or several citations render the same way. |
+| long-text | S7 cited articles | ✅ resolved (explicit) | Titles are `break-words` and article text is `whitespace-pre-wrap break-words`. |
+| empty | S8 activity rows | ➖ dismissed | Reason: Desk rows appear in the existing Phase 81 activity list, which already has its empty state. |
+| loading | S8 activity rows | ➖ dismissed | Reason: Inherited from the existing Phase 81 activity list loading state. |
+| error | S8 activity rows | ✅ resolved (explicit) | Undo failure shows `Couldn't undo this action: {server message}. Try again.` (Phase 83 copy); `Undo` shows `Undoing...` while pending. |
+| populated | S8 activity rows | ✅ resolved (explicit) | The ten desk row shapes in section 5 (posted, confirmed, person replied, draft kept, sent, discarded, hand-off, withdrawn, failed, simulation), with Undo only where `canUndo`. |
+| partial | S8 activity rows | ✅ resolved (explicit) | Undo is hidden once the requester confirms or a person replies, and the row says why (`A person replied after this answer. Undo is no longer available.`). |
+| overflow | S8 activity rows | ➖ dismissed | Reason: Inherits the Phase 81 activity list paging and row wrapping. |
+| zero-one-many | S8 activity rows | 🧪 resolved (backstop) | { statement: "Desk row copy reads `1 Help desk article` / `1 cited article` when n is 1 and the plural forms otherwise", verification: backstop } |
+| long-text | S8 activity rows | 🧪 resolved (backstop) | { statement: "A 200-character ticket title quoted in the Why cell wraps without breaking the five-column activity row", verification: backstop } |
+| empty | S9 Knowledge Base | ✅ resolved (explicit) | With zero Help desk articles and the desk above Off, managers see the amber `The service desk has no Help desk articles to cite...` block; with no starters missing the button is replaced by `Starter IT articles added`. |
+| loading | S9 Knowledge Base | ✅ resolved (explicit) | The Help desk switch is non-optimistic and disabled while pending; dialogs show `Adding...` / `Saving...`. |
+| error | S9 Knowledge Base | ✅ resolved (explicit) | Inline red `Couldn't change this article: {server message}. Try again.`; the starter and article dialogs show their red failure blocks. |
+| populated | S9 Knowledge Base | ✅ resolved (explicit) | Rows show `Help desk`, `Starter copy` or `Platform reference` chips, the `Help desk` switch, `Edit article` and `Delete`; the `Help desk ({k})` filter pill joins the tab row. |
+| partial | S9 Knowledge Base | ✅ resolved (explicit) | Platform reference rows show `Shared reference. Never used for ticket answers.` with no switch and no edit; starter copies open with the blue replace-the-wording block. |
+| overflow | S9 Knowledge Base | ✅ resolved (explicit) | Long titles wrap (`break-words`); the article content textarea is `min-h-72` and scrolls. |
+| zero-one-many | S9 Knowledge Base | 🧪 resolved (backstop) | { statement: "The readiness note reads `1 article is marked Help desk.` when k is 1, and the starter toast reads `Added 1 starter article.` when n is 1", verification: backstop } |
+| long-text | S9 Knowledge Base | ✅ resolved (explicit) | Title is 1-200 characters and content shows `{n}/{max}` with `The article is over {max} characters. Shorten it.` |
+| empty | S10 gaps | ✅ resolved (explicit) | Two empty-state cards: `No knowledge gaps` (desk above Off) and `The service desk is off` (desk Off). |
+| loading | S10 gaps | ✅ resolved (explicit) | Three `h-24` skeleton cards with `aria-busy`; `Dismiss gap` shows `Dismissing...`. |
+| error | S10 gaps | ✅ resolved (explicit) | A red `role="alert"` block `Couldn't load knowledge gaps. Check your connection and try again.` with `Try again`. |
+| populated | S10 gaps | ✅ resolved (explicit) | Group cards ordered by ticket count then last asked: question 14/600, `{n} tickets · Last asked {relative}`, first 3 ticket links, `Write article` and `Dismiss gap`. |
+| partial | S10 gaps | ✅ resolved (explicit) | Other-language tickets show only as a count line; the dismissed view shows `Restore gap` instead of the two actions; fulfilment and sensitive tickets never appear (footnote). |
+| overflow | S10 gaps | ✅ resolved (explicit) | 10 groups then `Show more gaps`; first 3 ticket links then `Show all {n} tickets`. |
+| zero-one-many | S10 gaps | ✅ resolved (explicit) | `1 ticket` vs `{n} tickets` in the meta line and tab count `Knowledge gaps ({n})`. |
+| long-text | S10 gaps | ✅ resolved (explicit) | The question is capped at 200 characters by the server's stripping and wraps (`break-words`), never ellipsised. |
+| empty | S11 tray | ✅ resolved (explicit) | No tickets: the conversation box reads `You haven't raised any tickets from this computer yet. Choose Raise a Ticket in the tray menu.` and both action buttons are disabled. |
+| loading | S11 tray | ✅ resolved (explicit) | `Loading your tickets...` (DimGray) on open with both action buttons disabled; `Saving...` while a request runs, with the clicked button disabled. |
+| error | S11 tray | ✅ resolved (explicit) | `Firebrick` messages for not enrolled (`This computer is not connected to IT support. {why}`) and failed requests (`Couldn't load your tickets. {why}` / `Couldn't send that. {why}`) via `Get-FailureText`; the last list stays and `Refresh tickets` retries. |
+| populated | S11 tray | ✅ resolved (explicit) | The list shows at most 20 tickets from the last 60 days, newest first, and the conversation box uses the plain-text entry format in section 8. |
+| partial | S11 tray | ✅ resolved (explicit) | Confirmed, resolved, with-IT and withdrawn tickets disable the buttons with their DimGray reason line; tickets from an older tray are not listed. |
+| overflow | S11 tray | 🧪 resolved (backstop) | { statement: "In the 800x560 tray window the title column ellipsizes, the conversation and article boxes scroll, and no control overlaps another at 100% and 150% Windows display scaling", verification: backstop } |
+| zero-one-many | S11 tray | ✅ resolved (explicit) | The menu item reads `My tickets ({n} new)` only when n is at least 1, otherwise `My tickets`. |
+| long-text | S11 tray | 🧪 resolved (backstop) | { statement: "A 60-character title, a 900-character answer and five cited articles render without clipping the footer, note box or buttons in the tray window", verification: backstop } |
 
 ---
 
@@ -536,12 +597,12 @@ Applicable state considerations resolved: 22 covered, 2 backstop, 0 unresolved.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
-- [ ] Dimension 7 Inventory Provenance: PASS (`Tool: none`, so no Component Inventory section; the one inventory-style claim, the Icon library row of the Design System table, carries its enumeration command, count, file@hash and date)
+- [x] Dimension 1 Copywriting: PASS (re-check FLAG accepted: `Undo` stays a single word as the inherited Phase 83 row action, with the full `aria-label` `Undo: Post ticket answer on {TKT-number}`; first-pass single-word CTA FLAG resolved by revision 1: `Edit article`, `Discard draft`, `Dismiss gap`, `Restore gap`, `Add word`, `Back to answer`, `Refresh tickets`)
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS (first-pass FLAG resolved by revision 1: tray window coordinates snapped to the 4 px grid)
+- [x] Dimension 6 Registry Safety: PASS
+- [x] Dimension 7 Inventory Provenance: PASS (first-pass BLOCK resolved by revision 1: `Tool: none`, so no Component Inventory section; the Icon library row of the Design System table carries its enumeration command, count, file@hash and date)
 
-**Approval:** pending
+**Approval:** approved 2026-11-08 (gsd-ui-checker, second pass after one revision; UI Considerations probe resolved 84/84: 64 explicit, 9 backstop, 11 dismissed with reasons; researcher defaults R1..R14 not yet reviewed by the user)
