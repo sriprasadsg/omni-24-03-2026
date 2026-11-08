@@ -275,17 +275,36 @@ BREAKER_IGNORED = ("not_delivered", "no_result", "capability_off", "agent_unsupp
                    "ring_reverted", "rollout_halted", "rollout_closed", "rollout_not_delivered", "rollout_no_result")
 
 
-async def count_auto_since(db, tenant_id: str, since: datetime) -> int:
-    """Automatic decisions created strictly after ``since`` (shadow and control rows excluded)."""
-    return await _actions(db).count_documents({"tenantId": tenant_id, **_AUTO_ROWS, "createdAt": {"$gt": since}})
+# The service desk's rows (Phase 85) share this collection but not the automatic-action pool or the breaker.
+DESK_KIND = "servicedesk"
+
+
+def _pool_filter(pool: str) -> Dict[str, Any]:
+    """The ``kind`` filter of one automatic-action pool (D-30): "actions" is every automatic row that is not a
+    control row and not a service desk row (the Phase 81 to 84 limit); "servicedesk" is the desk's own."""
+    if pool == "actions":
+        return {"kind": {"$nin": ["control", DESK_KIND]}}
+    if pool == "servicedesk":
+        return {"kind": DESK_KIND}
+    raise ValueError(f"unknown pool {pool!r}")
+
+
+async def count_auto_since(db, tenant_id: str, since: datetime, *, pool: str = "actions") -> int:
+    """Automatic decisions of one pool created strictly after ``since`` (shadow and control rows excluded).
+    D-30: the default pool leaves out service desk rows, so a ticket flood never pushes a security or patch
+    action to approval; ``pool="servicedesk"`` counts only the desk's own rows."""
+    flt = {"tenantId": tenant_id, **_AUTO_ROWS, **_pool_filter(pool), "createdAt": {"$gt": since}}
+    return await _actions(db).count_documents(flt)
 
 
 async def recent_finished_auto(db, tenant_id: str, n: int = 3) -> list:
     """The tenant's ``n`` most recently finished automatic rows that can count toward the breaker, newest
     first. A row whose reasonCode is in ``BREAKER_IGNORED`` is left out, so it is transparent; a row with no
     reasonCode stays in (Phase 81). A restart is left out too: one dead service spends its budget of three
-    in minutes, and that budget and its card already bound restarts per service (WR-04)."""
-    found = _actions(db).find({"tenantId": tenant_id, **_AUTO_ROWS, "finishedAt": {"$ne": None},
+    in minutes, and that budget and its card already bound restarts per service (WR-04). A service desk row is
+    left out as well (D-25): three withdrawn answers must never lower the tenant's level; the desk has its own
+    breaker."""
+    found = _actions(db).find({"tenantId": tenant_id, **_AUTO_ROWS, **_pool_filter("actions"), "finishedAt": {"$ne": None},
                                "reasonCode": {"$nin": list(BREAKER_IGNORED)}, "command": {"$ne": "restart_service"}},
                               {"_id": 0}).sort("finishedAt", -1).limit(n)
     return [_normalize(r) async for r in found]

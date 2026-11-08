@@ -123,3 +123,74 @@ def test_the_desk_words_are_declared_once_in_the_autonomous_ops_messages():
     assert messages.DESK_UNDO_HINT == "Hides the answer from the requester and sends the ticket to a person."
     assert messages.REASON_TEXT["desk_rate_limit"] == "20 answers were posted in the last hour, so this one is a draft."
     assert messages.API_DETAIL["desk_draft"] == "Send, edit or discard this draft on the ticket."
+
+
+# ---------------------------------------------------------------- Task 2: two pools, desk rows outside the breaker
+
+async def _seed(db, n, *, kind, state="executed", auto=True, minutes=10, tenant="t1", finished=None, tag="s"):
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    docs = []
+    for i in range(n):
+        created = now - timedelta(minutes=minutes, seconds=i)
+        docs.append({"id": f"AO-{tag}-{kind}-{state}-{i}", "tenantId": tenant, "kind": kind, "state": state,
+                     "autoDispatched": auto, "createdAt": created, "updatedAt": created,
+                     "finishedAt": finished if finished is not None else created, "command": "ticket_answer"
+                     if kind == ledger.DESK_KIND else "block_ip", "targets": [],
+                     "reason": {"ruleId": "t", "inputs": {}}})
+    if docs:
+        await db.autonomy_actions.insert_many(docs)
+
+
+async def test_twenty_desk_rows_leave_the_actions_pool_empty(world):
+    """protects=D-30 / PROH-85-08 / T-85-09: a ticket flood is counted only in the desk pool."""
+    await _seed(world, 20, kind=ledger.DESK_KIND)
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    assert await ledger.count_auto_since(world, "t1", since) == 0
+    assert await ledger.count_auto_since(world, "t1", since, pool="actions") == 0
+    assert await ledger.count_auto_since(world, "t1", since, pool="servicedesk") == 20
+
+
+async def test_twenty_security_rows_leave_the_desk_pool_empty(world):
+    await _seed(world, 20, kind="security")
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    assert await ledger.count_auto_since(world, "t1", since) == 20
+    assert await ledger.count_auto_since(world, "t1", since, pool="servicedesk") == 0
+
+
+async def test_shadow_and_control_rows_are_in_neither_pool(world):
+    await _seed(world, 1, kind=ledger.DESK_KIND, state="shadow", tag="a")
+    await _seed(world, 1, kind="control", state="recorded", tag="b")
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    assert await ledger.count_auto_since(world, "t1", since) == 0
+    assert await ledger.count_auto_since(world, "t1", since, pool="servicedesk") == 0
+
+
+async def test_a_flood_of_desk_rows_does_not_push_a_security_action_to_approval(world):
+    """protects=T-85-09 through the real gate: 20 desk rows, then an automatic block_ip is still allowed."""
+    await _seed(world, 20, kind=ledger.DESK_KIND)
+    await world.agents.insert_one({"id": "a1", "tenantId": "t1", "hostname": "h1", "ipAddress": "10.1.1.5"})
+    req = gate.ActionRequest(tenant_id="t1", kind="security", origin="test", actions=["block_ip"], targets=["a1"],
+                             params={"ip_address": "203.0.113.7"}, dedupe_key="t1|block_ip|203.0.113.7")
+    d = await _decide(world, req)
+    assert (d.outcome, d.reason) == ("allow_auto", "class_auto")
+
+
+async def test_an_unknown_pool_is_an_error(world):
+    with pytest.raises(ValueError):
+        await ledger.count_auto_since(world, "t1", datetime.now(timezone.utc), pool="other")
+
+
+async def test_three_withdrawn_desk_answers_never_trip_the_breaker(world):
+    """protects=D-25 / PROH-85-08 / T-85-10: undone desk rows are not in recent_finished_auto."""
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    await _seed(world, 3, kind=ledger.DESK_KIND, state="undone", finished=now - timedelta(minutes=5))
+    assert await ledger.recent_finished_auto(world, "t1", n=10) == []
+    assert not await breaker.evaluate(world, "t1")
+    assert (await settings.load(world, "t1")).level == "undoable_auto"
+
+
+async def test_the_same_three_undone_rows_of_another_kind_still_trip_it(world):
+    """The exclusion is the desk's alone: three undone security rows lower the level as before."""
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    await _seed(world, 3, kind="security", state="undone", finished=now - timedelta(minutes=5))
+    assert await breaker.evaluate(world, "t1")
