@@ -1,0 +1,151 @@
+{"_comment": "Escalation set written for Phase 85 plan 05 (DESK-02, DESK-03, D-32). Every ticket is invented. expect is the hand-off reason the fixed rules must give, or null when the ticket stays answerable. Hidden and full-width characters are written as JSON escapes."}
+{"id": "sec-01", "title": "I think I clicked a phishing link", "description": "It asked for my login details", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-02", "title": "Got a suspicious email", "description": "It claims to be from the finance team and has an attachment", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-03", "title": "Malware warning on my laptop", "description": "A red banner keeps coming up", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-04", "title": "All my files are encrypted", "description": "There is a note asking for money, ransomware maybe", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-05", "title": "Possible data breach", "description": "A customer list was emailed outside the company", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-06", "title": "Security Concern: something odd", "description": "Strange popups on the screen", "type": "task", "priority": "medium", "template": "security_concern", "words": [], "expect": "security_topic"}
+{"id": "sec-07", "title": "Strange network traffic overnight", "description": "", "type": "security", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-08", "title": "My laptop was hacked", "description": "The screen shows a message from someone", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-09", "title": "Lost my laptop on the train", "description": "It was in my bag", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-10", "title": "Sent the report to the wrong person", "description": "Can you recall it", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-11", "title": "The scanner found a virus", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-12", "title": "Security Concern: unknown USB stick found", "description": "Found in the car park", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-13", "title": "Phi\u200bshing email", "description": "Looks odd", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-14", "title": "\uff30\uff48\uff49\uff53\uff48\uff49\uff4e\uff47 mail received", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "sec-15", "title": "Unauthorised access to the shared mailbox", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "bil-01", "title": "Wrong invoice for March", "description": "The amount is higher than the quote", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-02", "title": "I was charged twice for the licence", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-03", "title": "Need a refund for the cancelled course", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-04", "title": "Why is my bill higher this month", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-05", "title": "Credit card on file has expired", "description": "Please update it", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-06", "title": "Can you send me a receipt for the software purchase", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-07", "title": "Purchase order approval is stuck", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-08", "title": "Please cancel my subscription to the design tool", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-09", "title": "Payment failed for the cloud account", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-10", "title": "Expense reimbursement for the headset", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "bil-11", "title": "Question about pricing for extra storage", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "leg-01", "title": "Our lawyer needs a copy of the email thread", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-02", "title": "Legal hold request for the sales mailbox", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-03", "title": "Subpoena received for employee records", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-04", "title": "GDPR data subject request from a customer", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-05", "title": "Is it fine to use this font? Copyright question", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-06", "title": "A supplier threatened to sue us", "description": "Over the late delivery", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-07", "title": "Please remove the NDA attachment from the shared folder", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-08", "title": "Court order to preserve chat logs", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-09", "title": "Harassment complaint about messages in chat", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "leg-10", "title": "Right to be forgotten request", "description": "A former customer asked", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "acc-01", "title": "Please unlock my account", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-02", "title": "I'm locked out of my computer", "description": "After three wrong tries", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-03", "title": "Reset my MFA, I got a new phone", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-04", "title": "My 2FA codes stopped working", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-05", "title": "Need access to the finance shared folder", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-06", "title": "Please give me admin rights on my laptop", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-07", "title": "Access Request: CRM", "description": "For the new project", "type": "task", "priority": "medium", "template": "access_request", "words": [], "expect": "account_access"}
+{"id": "acc-08", "title": "Someone logged in as me last night", "description": "I saw a sign-in alert", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-09", "title": "My account was hacked", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-10", "title": "My authenticator app is gone", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-11", "title": "Change my permissions on the team site", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-12", "title": "Please add me to the sales distribution group", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-13", "title": "Account has been compromised", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-14", "title": "unl\u200bock my account", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-15", "title": "Access Request: shared drive", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-16", "title": "My password was changed by someone else", "description": "I did not do it", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "acc-17", "title": "I forgot my password and now my account is locked", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "per-01", "title": "Can a real person call me about this?", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-02", "title": "I want an agent, not a bot", "description": "My laptop will not charge", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-03", "title": "Escalate this to someone senior", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-04", "title": "Talk to a human please", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-05", "title": "Let me speak to a technician", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-06", "title": "Please get me a human", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-07", "title": "I'd like to talk to someone about my laptop", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-08", "title": "Connect me to a person", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-09", "title": "Put me through to the service desk team", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-10", "title": "Call me on my desk phone", "description": "The headset is not working", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-11", "title": "I need a live agent", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-12", "title": "Speak to your manager", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-13", "title": "This bot is not helping, get me a person", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-14", "title": "\uff34\uff41\uff4c\uff4b \uff54\uff4f \uff41 \uff48\uff55\uff4d\uff41\uff4e", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-15", "title": "tAlK tO a HuMaN", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-16", "title": "TALK TO A HU\u200bMAN", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-17", "title": "Please transfer me to an agent", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "per-18", "title": "Is this a real person?", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "asked_for_person"}
+{"id": "ful-01", "title": "Software Install Request: Slack", "description": "", "type": "task", "priority": "medium", "template": "install_software", "words": [], "expect": "fulfilment_request"}
+{"id": "ful-02", "title": "Need a second monitor", "description": "For my desk", "type": "task", "priority": "medium", "template": "hardware_request", "words": [], "expect": "fulfilment_request"}
+{"id": "ful-03", "title": "Software Install Request: Photoshop", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "fulfilment_request"}
+{"id": "ful-04", "title": "Hardware Request: new mouse", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "fulfilment_request"}
+{"id": "ful-05", "title": "Add dark mode to the portal", "description": "", "type": "feature", "priority": "medium", "template": null, "words": [], "expect": "fulfilment_request"}
+{"id": "ful-06", "title": "Please install the report tool on my laptop", "description": "", "type": "feature", "priority": "medium", "template": null, "words": [], "expect": "fulfilment_request"}
+{"id": "ful-07", "title": "Install a code editor", "description": "", "type": "task", "priority": "medium", "template": "install_software", "words": [], "expect": "fulfilment_request"}
+{"id": "ful-08", "title": "software install request: zoom", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "fulfilment_request"}
+{"id": "ful-09", "title": "Keyboard", "description": "A wired one please", "type": "task", "priority": "medium", "template": "hardware_request", "words": [], "expect": "fulfilment_request"}
+{"id": "ful-10", "title": "hardware request: docking station", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "fulfilment_request"}
+{"id": "ful-11", "title": "Invoice for the new monitor", "description": "", "type": "task", "priority": "medium", "template": "hardware_request", "words": [], "expect": "fulfilment_request"}
+{"id": "cri-01", "title": "VPN is down for the whole office", "description": "", "type": "task", "priority": "critical", "template": null, "words": [], "expect": "critical_priority"}
+{"id": "cri-02", "title": "Phishing mail reached everyone", "description": "", "type": "task", "priority": "critical", "template": null, "words": [], "expect": "critical_priority"}
+{"id": "cri-03", "title": "Mail server unreachable", "description": "", "type": "task", "priority": "CRITICAL", "template": null, "words": [], "expect": "critical_priority"}
+{"id": "cri-04", "title": "Server down", "description": "", "type": "bug", "priority": "critical", "template": null, "words": [], "expect": "critical_priority"}
+{"id": "cri-05", "title": "Software Install Request: agent", "description": "", "type": "task", "priority": "critical", "template": "install_software", "words": [], "expect": "critical_priority"}
+{"id": "cri-06", "title": "Everything is slow", "description": "", "type": "incident", "priority": " Critical ", "template": null, "words": [], "expect": "critical_priority"}
+{"id": "typ-01", "title": "Why does the report take so long", "description": "", "type": "problem", "priority": "medium", "template": null, "words": [], "expect": "type_not_answered"}
+{"id": "typ-02", "title": "Move the office printer", "description": "", "type": "change", "priority": "medium", "template": null, "words": [], "expect": "type_not_answered"}
+{"id": "typ-03", "title": "Quarterly review of laptops", "description": "", "type": "epic", "priority": "medium", "template": null, "words": [], "expect": "type_not_answered"}
+{"id": "typ-04", "title": "Tidy the asset list", "description": "", "type": "story", "priority": "medium", "template": null, "words": [], "expect": "type_not_answered"}
+{"id": "typ-05", "title": "Printer is jammed", "description": "", "type": null, "priority": "medium", "template": null, "words": [], "expect": "type_not_answered"}
+{"id": "ten-01", "title": "Payroll portal will not load", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["payroll"], "expect": "tenant_word"}
+{"id": "ten-02", "title": "The badge printer jams", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["badge printer"], "expect": "tenant_word"}
+{"id": "ten-03", "title": "Project-Falcon files are missing", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["Project-Falcon"], "expect": "tenant_word"}
+{"id": "ten-04", "title": "PAYROLL question", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["payroll"], "expect": "tenant_word"}
+{"id": "ten-05", "title": "The cafe tablet is frozen", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["Caf\u00e9"], "expect": "tenant_word"}
+{"id": "ten-06", "title": "Screen is flickering", "description": "It happens when I open the payroll spreadsheet", "type": "task", "priority": "medium", "template": null, "words": ["payroll"], "expect": "tenant_word"}
+{"id": "ten-07", "title": "Pay\u200broll question", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["payroll"], "expect": "tenant_word"}
+{"id": "ten-08", "title": "Badge printer on floor 2 is out of paper", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["badge printer", "payroll"], "expect": "tenant_word"}
+{"id": "ten-09", "title": "Falcon dashboard is blank", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["falcon"], "expect": "tenant_word"}
+{"id": "ten-10", "title": "Is my payroll! page broken?", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["payroll"], "expect": "tenant_word"}
+{"id": "ten-11", "title": "Slow login to the ERP", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["  erp  "], "expect": "tenant_word"}
+{"id": "ten-12", "title": "payrollsystem is slow", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["payroll"], "expect": null}
+{"id": "ten-13", "title": "Screen is flickering", "description": "", "type": "task", "priority": "medium", "template": null, "words": [".*"], "expect": null}
+{"id": "ten-14", "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["(a+)+$"], "expect": null}
+{"id": "ten-15", "title": "Screen is flickering", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["", "   ", null, 5], "expect": null}
+{"id": "ten-16", "title": "Screen is flickering", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "emp-01", "title": "", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "empty_ticket"}
+{"id": "emp-02", "title": "<script>nothing()</script>", "description": "<b></b>", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "empty_ticket"}
+{"id": "emp-03", "title": "", "description": "", "type": "security", "priority": "critical", "template": null, "words": [], "expect": "empty_ticket"}
+{"id": "emp-04", "title": "?!", "description": "...", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "empty_ticket"}
+{"id": "ord-01", "title": "Strange traffic", "description": "", "type": "security", "priority": "critical", "template": null, "words": [], "expect": "critical_priority"}
+{"id": "ord-02", "title": "Please pay the invoice", "description": "", "type": "feature", "priority": "medium", "template": null, "words": [], "expect": "fulfilment_request"}
+{"id": "ord-03", "title": "Install the antivirus, my laptop has malware", "description": "", "type": "task", "priority": "medium", "template": "install_software", "words": [], "expect": "fulfilment_request"}
+{"id": "ord-04", "title": "Invoice dispute, my lawyer will call", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "billing_topic"}
+{"id": "ord-05", "title": "Legal hold on the mailbox, please unlock my account", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "legal_topic"}
+{"id": "ord-06", "title": "Talk to a human, unlock my account", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "account_access"}
+{"id": "ord-07", "title": "Talk to a human about the payroll page", "description": "", "type": "task", "priority": "medium", "template": null, "words": ["payroll"], "expect": "asked_for_person"}
+{"id": "ord-08", "title": "Phishing invoice received", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": "security_topic"}
+{"id": "ord-09", "title": "Access Request: billing portal", "description": "invoice access", "type": "task", "priority": "medium", "template": "access_request", "words": [], "expect": "account_access"}
+{"id": "ord-10", "title": "Phishing email about the hardware", "description": "", "type": "change", "priority": "medium", "template": null, "words": [], "expect": "type_not_answered"}
+{"id": "ord-11", "title": "Order a laptop", "description": "my account was hacked", "type": "task", "priority": "medium", "template": "hardware_request", "words": [], "expect": "fulfilment_request"}
+{"id": "nul-01", "title": "VPN keeps disconnecting every ten minutes", "description": "Only when I work from home", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-02", "title": "Printer on the second floor is jammed", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-03", "title": "Wi-Fi is slow in the meeting room", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-04", "title": "I forgot my password, how do I reset it", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-05", "title": "How can I change my password?", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-06", "title": "Where do I reset my password", "description": "I cannot find the page", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-07", "title": "Password reset steps please", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-08", "title": "I want to change my password, what are the rules for a good one", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-09", "title": "Forgot password link does not send the email", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-10", "title": "Email keeps crashing when I open large messages", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-11", "title": "My monitor shows no signal", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-12", "title": "Keyboard stopped working after the update", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-13", "title": "VPN not connecting from home", "description": "", "type": "task", "priority": "high", "template": null, "words": [], "expect": null}
+{"id": "nul-14", "title": "Spreadsheet formula shows an error", "description": "", "type": "bug", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-15", "title": "Email delays this morning", "description": "", "type": "incident", "priority": "low", "template": null, "words": [], "expect": null}
+{"id": "nul-16", "title": "Video call audio echoes", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-17", "title": "How do I connect to the guest network", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-18", "title": "Can someone help me set up my headset", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-19", "title": "Issue: laptop battery drains fast", "description": "", "type": "task", "priority": "medium", "template": "report_issue", "words": [], "expect": null}
+{"id": "nul-20", "title": "Slow computer", "description": "Takes ten minutes to start", "type": "task", "priority": "medium", "template": "custom", "words": [], "expect": null}
+{"id": "nul-21", "title": "My agent is offline in the dashboard", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-22", "title": "Mouse pointer jumps around", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-23", "title": "The web page does not load", "description": "Other sites work fine", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-24", "title": "I need to print double sided", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-25", "title": "Issues with the conference room screen", "description": "", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
+{"id": "nul-26", "title": "Reset my password, the email never arrived", "description": "I checked my spam folder", "type": "task", "priority": "medium", "template": null, "words": [], "expect": null}
