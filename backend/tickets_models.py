@@ -1,5 +1,5 @@
 """Pydantic request models and shared helpers for the tickets API."""
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
@@ -76,6 +76,7 @@ class BulkUpdateRequest(BaseModel):
 
 class AddCommentRequest(BaseModel):
     text: str = Field(..., max_length=10_000)
+    visibility: Literal["staff", "requester"] = "staff"
 
 
 class LinkTicketRequest(BaseModel):

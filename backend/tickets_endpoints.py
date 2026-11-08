@@ -277,11 +277,20 @@ async def add_comment(
     current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
 ) -> Dict[str, Any]:
     try:
+        if body.visibility == "requester":
+            # D-11: a reply to the requester needs a requester who can read it.
+            from service_desk import PERSON_RAISED, messages as _desk_messages, projection as _desk_projection
+            target = await tickets_service.get_ticket(ticket_id, tenant_id=_effective_tenant(current_user))
+            if not target:
+                raise HTTPException(status_code=404, detail="Ticket not found")
+            if target.get("raised_via") not in PERSON_RAISED or not _desk_projection.can_see(target):
+                raise HTTPException(status_code=400, detail=_desk_messages.API_DETAIL["no_reply_target"])
         updated = await tickets_service.add_comment(
             ticket_id,
             author=_actor(current_user),
             text=body.text,
             tenant_id=_effective_tenant(current_user),
+            visibility=body.visibility,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

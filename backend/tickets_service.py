@@ -360,18 +360,23 @@ class TicketsService(TicketsConfigMixin):
         author: str,
         text: str,
         tenant_id: str = "",
+        visibility: str = "staff",
     ) -> Optional[Dict[str, Any]]:
         db    = get_database()
         self._require_tenant(tenant_id)
         query = {"id": ticket_id, "tenantId": tenant_id}
+        if visibility not in ("staff", "requester"):
+            visibility = "staff"
         comment = {
             "id":         str(uuid.uuid4()),
             "author":     author,
             "text":       text,
             "created_at": _now(),
             "edited":     False,
+            "visibility": visibility,
         }
-        history = self._history_entry(author, "commented", {"preview": text[:80]})
+        # History is read by everyone who can open the ticket's history: a staff-only comment keeps no text there.
+        history = self._history_entry(author, "commented", {"preview": text[:80]} if visibility == "requester" else {})
         result = await db[self.COL].update_one(
             query,
             {
