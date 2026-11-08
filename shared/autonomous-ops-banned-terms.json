@@ -48,7 +48,10 @@
   "directories": [
     "backend/autonomous_ops/rollout",
     "components/patchRollouts",
-    "services/patchRollouts"
+    "services/patchRollouts",
+    "backend/service_desk",
+    "components/serviceDesk",
+    "services/serviceDesk"
   ],
   "catalogueViews": ["autonomousOps"]
 }

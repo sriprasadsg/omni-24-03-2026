@@ -64,6 +64,9 @@ const EXPECTED_DIRECTORIES = [
   'backend/autonomous_ops/rollout',
   'components/patchRollouts',
   'services/patchRollouts',
+  'backend/service_desk',
+  'components/serviceDesk',
+  'services/serviceDesk',
 ];
 
 const RULES: Rule[] = rulesFile.rules as Rule[];
@@ -233,7 +236,9 @@ describe('ACTV-08 directories', () => {
   });
 
   it('every .ts and .tsx file under the frontend directories passes every rule', () => {
-    expect(FRONTEND_DIRECTORIES).toEqual(['components/patchRollouts', 'services/patchRollouts']);
+    expect(FRONTEND_DIRECTORIES).toEqual([
+      'components/patchRollouts', 'services/patchRollouts', 'components/serviceDesk', 'services/serviceDesk',
+    ]);
     const { missingOrEmpty, problems } = scanDirectories(FRONTEND_DIRECTORIES, RULES);
     expect(missingOrEmpty).toEqual([]);
     expect(problems).toEqual([]);

@@ -219,6 +219,9 @@ EXPECTED_DIRECTORIES = [
     "backend/autonomous_ops/rollout",
     "components/patchRollouts",
     "services/patchRollouts",
+    "backend/service_desk",
+    "components/serviceDesk",
+    "services/serviceDesk",
 ]
 
 
@@ -265,7 +268,7 @@ def test_every_listed_directory_exists_and_holds_a_scannable_file():
 def test_every_python_file_under_the_backend_directories_passes_every_rule():
     data = load_rules()
     backend = [rel for rel in data["directories"] if rel.startswith("backend/")]
-    assert backend == ["backend/autonomous_ops/rollout"]
+    assert backend == ["backend/autonomous_ops/rollout", "backend/service_desk"]
     missing_or_empty, problems = scan_directories(backend, data["rules"])
     assert missing_or_empty == []
     assert problems == []
