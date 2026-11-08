@@ -395,6 +395,7 @@ def register_all_routers(app: FastAPI) -> None:
         ("tickets_workflow_endpoints",      {}),
         ("tickets_config_endpoints",        {}),
         ("tickets_endpoints",               {}),
+        ("service_desk_endpoints",          {}),
         ("tenant_dashboards_endpoints",     {}),
         ("problem_management_endpoints",    {}),
         ("change_management_endpoints",     {}),

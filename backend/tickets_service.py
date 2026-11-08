@@ -5,6 +5,7 @@ import logging
 
 from tickets_helpers import _now, _sla_due, _compute_sla, _SLA_HOURS, LINK_TYPES  # noqa: F401
 from tickets_config_mixin import TicketsConfigMixin
+from service_desk import RAISED_VIA
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,15 @@ class TicketsService(TicketsConfigMixin):
         data: Dict[str, Any],
         reporter: str,
         tenant_id: str = "",
+        raised_via: str = "automation",
+        requester_channel: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        # raised_via and requester_channel are set by the server from how the ticket arrived,
+        # never read from `data`, so a request body cannot claim a person raised it.
+        if raised_via not in RAISED_VIA:
+            raised_via = "automation"
+        channel = {"portal": False, "tray": False, "myTickets": False, "windowsUser": None, "template": None}
+        channel.update(requester_channel or {})
         db         = get_database()
         count      = await db[self.COL].count_documents({})
         priority   = data.get("priority", "medium")
@@ -188,6 +197,8 @@ class TicketsService(TicketsConfigMixin):
             "comments":       [],
             "history":        [],
             "total_hours_logged": 0.0,
+            "raised_via":     raised_via,
+            "requester_channel": channel,
             "created_at":     created_at,
             "updated_at":     created_at,
         }

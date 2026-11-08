@@ -165,10 +165,21 @@ async def create_ticket(
             "user_agent": request.headers.get("User-Agent", "unknown"),
         }
 
+    # Who raised it is decided here, from how the caller signed in, never from the request body.
+    raised_via, requester_channel = "automation", None
+    try:
+        from autonomous_ops import views as _ao_views
+        if _effective_tenant(current_user) and _ao_views.is_interactive(current_user):
+            raised_via, requester_channel = "portal", {"portal": True}
+    except Exception:
+        pass
+
     ticket = await tickets_service.create_ticket(
         data=data,
         reporter=_actor(current_user),
         tenant_id=_effective_tenant(current_user),
+        raised_via=raised_via,
+        requester_channel=requester_channel,
     )
 
     if not ticket.get("assignee"):
@@ -179,6 +190,13 @@ async def create_ticket(
                 actor="system", tenant_id=_effective_tenant(current_user),
             )
             ticket["assignee"] = assigned
+
+    try:
+        from service_desk import intake as _desk_intake
+        await _desk_intake.on_ticket_created(get_database(), ticket, via=raised_via)
+    except Exception:
+        import logging as _log
+        _log.getLogger(__name__).exception("service desk intake failed; the ticket is unaffected")
 
     try:
         from ticket_webhook_service import dispatch_event
