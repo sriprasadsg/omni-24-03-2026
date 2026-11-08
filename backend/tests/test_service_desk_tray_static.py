@@ -384,3 +384,151 @@ def test_response_fields_read_by_the_poll_are_in_the_contract(second):
         used = set(re.findall(r"\$" + var + r"\.(\w+)", poll))
         assert used and used <= set(allowed), f"${var} reads {used - set(allowed)}"
 
+
+
+# ---------------------------------------------------------------- Task 2: the My tickets and article windows
+
+def numbers_on_grid(second):
+    """(line, text) of every Location, Size, ClientSize, MaximumSize and column width off the 4 px grid."""
+    bad = []
+    for ln in code_lines(second):
+        for m in re.finditer(r"\.(?:Location|Size|MaximumSize)\s*=\s*'(\d+)\s*,\s*(\d+)'", ln):
+            if any(int(g) % 4 for g in m.groups()):
+                bad.append(ln.strip())
+        for m in re.finditer(r"System\.Drawing\.(?:Size|Point)\(\s*(\d+)\s*,\s*(\d+)\s*\)", ln):
+            if any(int(g) % 4 for g in m.groups()):
+                bad.append(ln.strip())
+        for m in re.finditer(r"Columns\.Add\('[^']*',\s*(\d+)\)", ln):
+            if int(m.group(1)) % 4:
+                bad.append(ln.strip())
+    return bad
+
+
+def test_both_windows_are_defined(second):
+    assert "function Show-MyTickets" in second
+    assert "function Show-TrayArticle" in second
+
+
+def test_my_tickets_form_is_800x560_fixed_with_close_as_cancel(second):
+    body = function_body(second, "Show-MyTickets")
+    assert "ClientSize = New-Object System.Drawing.Size(800, 560)" in body   # 800x560
+    assert "FormBorderStyle = 'FixedDialog'" in body
+    assert "MaximizeBox = $false" in body and "MinimizeBox = $false" in body
+    assert "StartPosition = 'CenterScreen'" in body and "TopMost = $true" in body
+    assert "$f.CancelButton = $btnClose" in body
+    assert "AcceptButton" not in body.replace("$f.AcceptButton = $null", "")
+    assert body.index("Sync-TrayConfig") < body.index("Test-Enrolled")
+    assert "[void]$f.ShowDialog()" in body
+
+
+def test_every_position_and_size_is_a_multiple_of_4(second):
+    assert numbers_on_grid(second) == []
+
+
+def test_grid_check_catches_an_off_grid_control():
+    assert numbers_on_grid("$x.Location = '12,30'") != []
+    assert numbers_on_grid("$x.Size = '292,400'") == []
+    assert numbers_on_grid("New-Object System.Drawing.Size(801, 560)") != []
+    assert numbers_on_grid("[void]$list.Columns.Add('Title', 142)") != []
+
+
+def test_my_tickets_layout_matches_ui_spec_section_8(second):
+    body = function_body(second, "Show-MyTickets")
+    layout = [
+        ("lblList", "12,12", None), ("list", "12,32", "292,400"), ("lblFootnote", "12,436", "292,32"),
+        ("lblTitle", "320,12", "456,20"), ("lblStatus", "320,36", "456,20"), ("convo", "320,56", "456,252"),
+        ("lblBased", "320,312", "456,16"), ("links", "320,332", "456,44"), ("lblFooter", "320,380", "456,32"),
+        ("lblNote", "320,416", "456,16"), ("note", "320,432", "456,24"),
+        ("btnFixed", "320,464", "112,28"), ("btnHelp", "440,464", "132,28"),
+        ("btnRefresh", "580,464", "100,28"), ("btnClose", "688,464", "88,28"),
+        ("lblFeedback", "12,500", "764,40"),
+    ]
+    for name, loc, size in layout:
+        assert re.search(r"\$%s\.Location = '%s'" % (name, loc), body), f"{name} is not at {loc}"
+        if size:
+            assert re.search(r"\$%s\.Size = '%s'" % (name, size), body), f"{name} is not {size}"
+    assert re.search(r"Columns\.Add\('Ticket', 64\)", body)
+    assert re.search(r"Columns\.Add\('Title', 140\)", body)
+    assert re.search(r"Columns\.Add\('Status', 80\)", body)
+    assert "MaxLength = %d" % c.NOTE_MAX in body
+
+
+def test_my_tickets_fixed_labels_are_present(second):
+    for label in ("Your tickets", "Based on these articles (click one to read it):",
+                  "Tell IT what is still wrong (optional)", "This fixed it", "I still need help",
+                  "Refresh tickets", "Close"):
+        assert f"'{label}'" in second, label
+
+
+def test_tab_order_and_accessible_names(second):
+    body = function_body(second, "Show-MyTickets")
+    order = ["list", "convo", "links", "note", "btnFixed", "btnHelp", "btnRefresh", "btnClose"]
+    for index, name in enumerate(order):
+        assert re.search(r"\$%s\.TabIndex = %d\b" % (name, index), body), f"{name} is not tab stop {index}"
+    for name, label in (("list", "Your tickets"), ("btnFixed", "This fixed it"),
+                        ("btnHelp", "I still need help"), ("btnRefresh", "Refresh tickets"),
+                        ("btnClose", "Close"), ("note", "Tell IT what is still wrong (optional)")):
+        assert re.search(r"\$%s\.AccessibleName = '%s'" % (name, re.escape(label)), body), name
+
+
+def test_state_texts_are_present(second):
+    for text in ("Loading your tickets...", "Saving...", "Couldn't load your tickets.",
+                 "Couldn't send that.", "Thanks. Your ticket is marked resolved.",
+                 "Sent to IT. A person will take over.", "Choose Raise a Ticket in the tray menu.",
+                 "This article is no longer available.", "Based on: "):
+        assert text in second, text
+    for colour in ("DimGray", "ForestGreen", "Firebrick"):
+        assert f"'{colour}'" in second
+    assert "$dp.empty" in second and "$dp.footnote" in second and "$dp.footer" in second
+
+
+def test_window_never_claims_privacy(second):
+    assert "privat" not in second.lower()
+    assert "Showing tickets you raised from this computer as" in second   # only the fallback when the server sent none
+
+
+def test_confirm_help_and_article_routes_are_the_contract_routes(second):
+    for name in ("confirm", "help", "article"):
+        assert route_in_script(name) in second, name
+    assert c.METHODS["confirm"] == c.METHODS["help"] == "POST" and c.METHODS["article"] == "GET"
+    assert second.count(f"?{c.USER_PARAM}=") >= 2   # the list and the article
+    payloads = [block_after(second[m.start():], r"@\{") for m in re.finditer(r"\$payload\s*=\s*@\{", second)]
+    assert [top_level_keys(p) for p in payloads] == [list(c.CONFIRM_FIELDS), list(c.HELP_FIELDS)]
+    assert "Substring(0, %d)" % c.NOTE_MAX in second
+
+
+def test_response_fields_read_by_the_windows_are_in_the_contract(second):
+    reads = {
+        "tk": (set(c.TICKET_FIELDS), set(c.TICKET_FIELDS) - {"updatedAt"}),
+        "en": (set(c.ENTRY_FIELDS), set(c.ENTRY_FIELDS)),
+        "ci": (set(c.CITATION_FIELDS), set(c.CITATION_FIELDS)),
+        "dp": (set(c.DISPLAY_FIELDS), set(c.DISPLAY_FIELDS)),
+        "ar": (set(c.ARTICLE_FIELDS), set(c.ARTICLE_FIELDS)),
+        "lr": (set(c.LIST_RESPONSE_FIELDS), {"tickets", "display"}),
+    }
+    for var, (allowed, required) in reads.items():
+        used = set(re.findall(r"\$" + var + r"\.(\w+)", code(second)))
+        assert used <= allowed, f"${var} reads {sorted(used - allowed)} which the contract does not have"
+        assert required <= used, f"${var} never reads {sorted(required - used)}"
+
+
+def test_article_window_matches_ui_spec(second):
+    body = function_body(second, "Show-TrayArticle")
+    assert "ClientSize = New-Object System.Drawing.Size(520, 432)" in body
+    assert "'Article - '" in body or '"Article - ' in body
+    for needle in ("$box.Location = '12,12'", "$box.Size = '480,340'", "$btnClose.Location = '412,364'",
+                   "$btnClose.Size = '80,28'", "ReadOnly = $true", "$f.CancelButton = $btnClose",
+                   "TopMost = $true", "FormBorderStyle = 'FixedDialog'"):
+        assert needle in body, needle
+    assert body.index("Sync-TrayConfig") < body.index("Test-Enrolled")
+
+
+def test_citations_open_the_article_window_not_a_browser(second):
+    assert "LinkClicked" in second and "Show-TrayArticle" in second
+    assert "Start-Process" not in second
+
+
+def test_requests_send_the_utf8_body_the_server_expects(second):
+    posts = [ln for ln in code_lines(second) if "-Method Post" in ln]
+    assert len(posts) == 1
+    assert "charset=utf-8" in posts[0] and "GetBytes(" in posts[0]
