@@ -5,17 +5,17 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-02-PLAN.md
-last_updated: "2026-11-08T16:32:56.070Z"
+stopped_at: Completed 85-03-PLAN.md
+last_updated: "2026-11-08T19:13:52.622Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: ef3c0785a08cbb40d961bc0a5d59ab3eda0173ac
+state_head: 5fcee93121bad623fb82518b9de23ccb23f63374
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 100
-  percent: 82
+  completed_plans: 101
+  percent: 83
 ---
 
 # Project State
@@ -594,6 +594,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 84]: KD-84-G2: a unit the computer does not have is reported as the additive token absent (not unknown) and judged by the backend against the services the host showed when its install was queued (absent before and after leaves the list, present before fails, no record is no data)
 - [Phase 84]: KD-84-G3 (84-28, per D-16): Cancel of a running rollout stops new work and reverts nothing; cancelRequested {by, at} is stamped with a compare-and-set, rows closed, unfetched instructions ended; the rollout ends cancelled once no host is installing or restarting, at the latest RESULT_DEADLINE after the request; Resume and a second Cancel answer 409 while it settles; halt refuses a rollout with cancelRequested.
 - [Phase 85]: 85-02: starters.py is the single source of starter IT article text (no JSON fixture); hand-off reasons live only in STAFF_REASON_LABELS and every requester-facing text is generic
+- [Phase 85]: 85-03: ticket_answer/ticket_withdraw added alongside the agent target model via desk_gate.ticket_owner_step; desk rows use their own automatic-action pool and are excluded from the Phase 81 breaker; Activity words live once in autonomous_ops/messages.py and service_desk/messages.py refers to them
 
 ## Performance Metrics
 
@@ -849,6 +850,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 84 P28 | 15 min | 2 tasks | 19 files |
 | Phase 84 P29 | 12 min | 2 tasks | 4 files |
 | Phase 85 P02 | 15 min | 3 tasks | 11 files |
+| Phase 85 P03 | 35 min | 3 tasks | 10 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -883,8 +885,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-08T16:32:55.812Z
-**Stopped at:** Completed 85-02-PLAN.md
+**Last session:** 2026-11-08T19:13:52.374Z
+**Stopped at:** Completed 85-03-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -911,10 +913,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 2 of 23
+Plan: 3 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
-Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 82%)
+Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 83%)
 
 ## Deferred Items
 

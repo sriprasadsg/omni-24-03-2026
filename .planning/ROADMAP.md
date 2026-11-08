@@ -560,12 +560,12 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 1/23 plans executed in 6 waves
+**Plans**: 2/23 plans executed in 6 waves
 
 Plans:
 **Wave 1**
 - [x] 85-02-PLAN.md — Contracts: every server sentence, the four starter IT articles, the frozen tray contract, UI copy and types, copy gate over the new directories
-- [ ] 85-03-PLAN.md — Autonomous Ops layer: the gate seam for a ticket action (ticket_answer and ticket_withdraw for the service desk only, the ticket-ownership step, the row's desk field, Activity words), a separate desk rate pool, desk rows outside the Phase 81 breaker, the hand-off row writer and the audited desk-field updater
+- [x] 85-03-PLAN.md — Autonomous Ops layer: the gate seam for a ticket action (ticket_answer and ticket_withdraw for the service desk only, the ticket-ownership step, the row's desk field, Activity words), a separate desk rate pool, desk rows outside the Phase 81 breaker, the hand-off row writer and the audited desk-field updater
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 85-01-PLAN.md — Tracer: a portal ticket gets one cited answer through the gate (post at Undoable-auto with Post answers, staff draft by default) and the requester reads it back
@@ -677,6 +677,6 @@ Plans:
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
-| 85. First-Line Service Desk | 1/23 | In Progress | - |
+| 85. First-Line Service Desk | 2/23 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
