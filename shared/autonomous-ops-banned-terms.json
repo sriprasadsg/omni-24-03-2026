@@ -43,7 +43,9 @@
     "components/AutonomousOpsResponseSettings.tsx",
     "components/AutonomousOpsResponseSettingsDialogs.tsx",
     "components/AutonomousOpsResponseSettingsPlatform.tsx",
-    "components/SwarmDashboard.tsx"
+    "components/SwarmDashboard.tsx",
+    "backend/service_desk_endpoints.py",
+    "backend/autonomous_ops_service_desk_endpoints.py"
   ],
   "directories": [
     "backend/autonomous_ops/rollout",

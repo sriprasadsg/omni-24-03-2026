@@ -385,3 +385,138 @@ async def test_the_status_view_never_sends_a_real_request(world):
     factory, calls = _client()
     await _view(world, factory=factory)
     assert [c["method"] + " " + c["path"] for c in calls] == ["GET /api/tags"]
+
+
+# ================================================================== task 3: the routes
+
+PATH = "/api/autonomous-ops/service-desk"
+ALL_SCOPES = ["view:autonomous_ops", "manage:autonomous_ops", "control:autonomous_ops"]
+
+
+class DeskSettingsApp:
+    """The settings router behind its catalogue guard, with the caller's identity chosen per request."""
+
+    def __init__(self, db, monkeypatch):
+        import httpx as _httpx  # noqa: F401
+        from fastapi import FastAPI
+
+        import autonomous_ops_service_desk_endpoints as endpoints
+        import rbac_utils
+        from api_key_auth import get_current_user_or_api_key
+        from catalogue_mounts import mount_dependencies
+        self.db, self.user = db, None
+        monkeypatch.setattr(endpoints, "get_database", lambda: db)
+        monkeypatch.setattr(rbac_utils, "get_database", lambda: db)
+        factory, self.model_calls = _client()
+        monkeypatch.setattr(settings, "CLIENT_FACTORY", factory)
+        self.app = FastAPI()
+        self.app.include_router(
+            endpoints.router, dependencies=mount_dependencies("autonomous_ops_service_desk_endpoints", "router"))
+        self.app.dependency_overrides[get_current_user_or_api_key] = lambda: self.user
+
+    async def call(self, method, path=PATH, *, role="tenant_admin", tenant="t1", username=None, auth="session",
+                   scopes=None, json=None):
+        from auth_types import TokenData
+        platform = role in ("super_admin", "platform_support", "platform_billing")
+        self.user = TokenData(username=username or f"{role}@example.test", role=role,
+                              tenant_id="platform-admin" if platform else tenant, scopes=scopes,
+                              auth_source="api_key" if auth == "api_key" else "session")
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app),
+                                     base_url="http://testserver") as client:
+            return await client.request(method, path, json=json)
+
+
+@pytest.fixture
+async def api(world, monkeypatch):
+    return DeskSettingsApp(world, monkeypatch)
+
+
+async def test_a_tenant_admin_reads_the_view_and_the_model_check_uses_only_the_stand_in(api):
+    got = await api.call("GET")
+    assert got.status_code == 200
+    body = got.json()
+    assert body["mode"] == "drafts" and body["canManage"] is True and body["canRestore"] is True
+    assert body["model"] == {"state": "online", "tag": "llama3.2:3b"}
+    assert [c["path"] for c in api.model_calls] == ["/api/tags"]
+
+
+async def test_put_changes_the_mode_and_words_and_returns_the_new_view_with_one_row_each(api):
+    done = await api.call("PUT", json={"mode": "post", "words": ["Payroll"]}, username="alice@example.test")
+    assert done.status_code == 200
+    body = done.json()
+    assert body["mode"] == "post" and body["words"] == ["payroll"]
+    rows = await _controls(api.db, "t1")
+    assert sorted(r["controlEvent"] for r in rows) == ["service_desk_mode_changed", "service_desk_words_changed"]
+    assert {r["actor"]["username"] for r in rows} == {"alice@example.test"}
+    same = await api.call("PUT", json={"mode": "post", "words": ["payroll"]})
+    assert same.status_code == 200 and len(await _controls(api.db, "t1")) == 2
+
+
+async def test_a_bad_word_is_422_with_the_screen_sentence_and_nothing_is_stored(api):
+    bad = await api.call("PUT", json={"words": ["pay$roll"]})
+    assert bad.status_code == 422 and bad.json()["detail"] == messages.API_DETAIL["word_shape"]
+    many = await api.call("PUT", json={"words": [f"w{i}x" for i in range(51)]})
+    assert many.status_code == 422 and many.json()["detail"] == "You can add up to 50 words."
+    dup = await api.call("PUT", json={"words": ["Payroll", "payroll"]})
+    assert dup.status_code == 422 and dup.json()["detail"] == "payroll is already on the list."
+    assert (await settings.load(api.db, "t1")).words == [] and await _controls(api.db, "t1") == []
+    for body in ({"mode": "auto"}, {"mode": "post", "extra": 1}, {"words": "payroll"}, {"words": [5]}):
+        assert (await api.call("PUT", json=body)).status_code == 422, body
+
+
+async def test_post_is_409_while_the_breaker_is_stored_and_restore_is_the_way_back(api):
+    await _breaker(api.db, "t1")
+    view = (await api.call("GET")).json()
+    assert view["breaker"]["count"] == 3
+    refused = await api.call("PUT", json={"mode": "post"})
+    assert refused.status_code == 409 and refused.json()["detail"] == "Restore Post answers first."
+    restored = await api.call("POST", PATH + "/restore", username="alice@example.test")
+    assert restored.status_code == 200 and restored.json()["mode"] == "post" and restored.json()["breaker"] is None
+    rows = await _controls(api.db, "t1", "service_desk_restored")
+    assert len(rows) == 1 and rows[0]["actor"]["username"] == "alice@example.test"
+    again = await api.call("POST", PATH + "/restore")
+    assert again.status_code == 409 and again.json()["detail"] == messages.API_DETAIL["not_tripped"]
+
+
+async def test_a_view_only_role_an_api_key_and_platform_support_are_refused(api):
+    await seed_tenant(api.db, "t1", shadow=False)
+    for method, path, body in (("GET", PATH, None), ("PUT", PATH, {"mode": "post"}), ("POST", PATH + "/restore", None)):
+        for kwargs in ({"role": "viewer"}, {"role": "analyst"}, {"role": "platform_support"},
+                       {"role": "tenant_admin", "auth": "api_key", "scopes": ALL_SCOPES}):
+            got = await api.call(method, path, json=body, **kwargs)
+            assert got.status_code == 403, (method, kwargs, got.status_code)
+    assert await _controls(api.db, "t1") == [] and (await _stored(api.db, "t1")) is None
+
+
+async def test_the_platform_tenant_is_409_on_all_three(api):
+    for method, path, body in (("GET", PATH, None), ("PUT", PATH, {"mode": "post"}), ("POST", PATH + "/restore", None)):
+        got = await api.call(method, path + "?tenantId=platform-admin", role="super_admin", json=body)
+        assert got.status_code == 409 and got.json()["detail"] == messages.API_DETAIL["platform_tenant"], method
+
+
+async def test_another_tenants_settings_are_never_touched(api):
+    await seed_tenant(api.db, "t2", shadow=False)
+    await api.call("PUT", json={"mode": "post", "words": ["payroll"]}, tenant="t1")
+    assert await _stored(api.db, "t2") is None and await _controls(api.db, "t2") == []
+
+
+def test_the_role_matrix_on_the_real_app():
+    """protects=the catalogue guard and the per-route permission both apply on the app as shipped; fails_when=a
+    role without manage, Platform Support or an API key reaches the desk switch (T-85-38)."""
+    from tests._autonomous_ops_http import _case, _probe
+    key = {"auth": "api_key", "scopes": ALL_SCOPES}
+    routes = (("GET", PATH), ("PUT", PATH), ("POST", PATH + "/restore"))
+    groups = {
+        "allowed": [_case(path, "tenant_admin", method=m) for m, path in routes]
+        + [_case(path + "?tenantId=t1", "super_admin", method=m) for m, path in routes],
+        "denied": [_case(path, role, method=m) for role in ("security_analyst", "incident_responder", "analyst",
+                                                            "viewer", "user", "itam_admin")
+                   for m, path in routes]
+        + [_case(path + "?tenantId=t1", role, method=m) for role in ("platform_support", "platform_billing")
+           for m, path in routes]
+        + [_case(path, "tenant_admin", method=m, **key) for m, path in routes]
+        + [_case(path + "?tenantId=t1", "super_admin", method=m, **key) for m, path in routes],
+    }
+    got = _probe(groups)
+    assert all(code in (200, 409, 422, 503) for code in got["allowed"]), got["allowed"]
+    assert all(code == 403 for code in got["denied"]), got["denied"]

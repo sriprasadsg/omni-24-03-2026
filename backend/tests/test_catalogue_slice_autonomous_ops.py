@@ -28,17 +28,21 @@ def test_guard_matches_manifest_and_is_the_mount():
     assert sorted(meta["write"]) == sorted(resolved_write(entry))
     assert MOUNT_GUARDS[("autonomous_ops_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
     assert MOUNT_GUARDS[("autonomous_ops_response_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
+    assert MOUNT_GUARDS[("autonomous_ops_service_desk_endpoints", "router")] is autonomous_ops.AUTONOMOUS_OPS_GUARD
     assert autonomous_ops.MOUNTS == {("autonomous_ops_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD,
-                                     ("autonomous_ops_response_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD}
+                                     ("autonomous_ops_response_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD,
+                                     ("autonomous_ops_service_desk_endpoints", "router"): autonomous_ops.AUTONOMOUS_OPS_GUARD}
 
 
 def test_every_tenant_route_carries_the_manifest_guard():
     records = run_real_app_walk()["routes"]
     manifest = load_manifest()
     entry = _entry()
-    mine = [r for r in records if r["module"] in ("autonomous_ops_endpoints", "autonomous_ops_response_endpoints")]
+    mine = [r for r in records if r["module"] in ("autonomous_ops_endpoints", "autonomous_ops_response_endpoints",
+                                                  "autonomous_ops_service_desk_endpoints")]
     assert {"/api/autonomous-ops/status", "/api/autonomous-ops/actions",
-            "/api/autonomous-ops/response-settings"} <= {r["path"] for r in mine}
+            "/api/autonomous-ops/response-settings", "/api/autonomous-ops/service-desk",
+            "/api/autonomous-ops/service-desk/restore"} <= {r["path"] for r in mine}
     offenders = []
     for record in mine:
         assert owner_of(record["path"], manifest)["view"] == "autonomousOps"
@@ -60,6 +64,17 @@ def test_response_settings_routers_are_required():
     import router_registry
     assert "autonomous_ops_response_endpoints" in router_registry._REQUIRED_ROUTERS
     assert "autonomous_ops_response_platform_endpoints" in router_registry._REQUIRED_ROUTERS
+
+
+def test_service_desk_settings_router_is_required_and_its_routes_are_all_guarded():
+    import router_registry
+    assert "autonomous_ops_service_desk_endpoints" in router_registry._REQUIRED_ROUTERS
+    records = [r for r in run_real_app_walk()["routes"] if r["module"] == "autonomous_ops_service_desk_endpoints"]
+    assert {(m, r["path"]) for r in records for m in r["methods"]} == {
+        ("GET", "/api/autonomous-ops/service-desk"), ("PUT", "/api/autonomous-ops/service-desk"),
+        ("POST", "/api/autonomous-ops/service-desk/restore")}
+    for record in records:
+        assert any(t["catalogue"] == "autonomousOps" for t in record["tags"]), record
 
 
 def test_platform_router_is_mounted_required_and_permission_checked():

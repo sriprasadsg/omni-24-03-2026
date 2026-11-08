@@ -53,6 +53,9 @@ _REQUIRED_ROUTERS: frozenset[str] = frozenset({
     "autonomous_ops_platform_endpoints",
     "autonomous_ops_response_endpoints",
     "autonomous_ops_response_platform_endpoints",
+    # Phase 85 (T-85-38): the service desk switch. A broken import here would leave Post answers
+    # unreachable, with no way to turn the desk off or restore it, so startup must fail instead.
+    "autonomous_ops_service_desk_endpoints",
 })
 
 
@@ -348,6 +351,7 @@ def register_all_routers(app: FastAPI) -> None:
     _load(app, "autonomous_ops_retention_endpoints", "router")  # Phase 82: retention review and confirm (Super Admin)
     _load(app, "autonomous_ops_response_endpoints", "router")  # Phase 83: response settings (tenant admin)
     _load(app, "autonomous_ops_response_platform_endpoints", "router")  # Phase 83: response settings for every organization
+    _load(app, "autonomous_ops_service_desk_endpoints", "router")  # Phase 85: service desk switch, words and restore
     _load(app, "watchdog_ingest_endpoints", "router")  # Phase 82: watchdog heartbeat/events (loopback + bearer token)
 
     # ── Optional / Feature Routers (non-fatal if missing) ────────────────────

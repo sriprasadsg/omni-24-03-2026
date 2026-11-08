@@ -244,6 +244,10 @@ TICKETS_SCREEN = "screen:internalTickets"
 KNOWLEDGE_SCREEN = "screen:knowledgeBase"
 TIMING_SAMPLES = 20
 
+# A test points this at a stand-in client (httpx.MockTransport) so no test ever reaches a real Ollama;
+# nothing sets it in production, where ``model.OllamaClient`` (loopback only) is built per call.
+CLIENT_FACTORY: Optional[Callable[[], Any]] = None
+
 
 async def _screens_on(db, tenant_id: str) -> bool:
     """True when neither the Tickets nor the Knowledge Base screen is switched off (an unreadable tenant is off)."""
@@ -300,7 +304,7 @@ async def _model_state(client_factory: Optional[Callable[[], Any]]) -> Dict[str,
     """Online only when the loopback client finds the exact tag; any failure is offline."""
     tag: Optional[str] = None
     try:
-        client = (client_factory or model.OllamaClient)()
+        client = (client_factory or CLIENT_FACTORY or model.OllamaClient)()
         tag = getattr(client, "model", None)
         online = await client.available() is True
     except Exception as exc:
@@ -351,7 +355,7 @@ async def status_view(db, tenant_id: str, *, can_manage: bool, can_restore: bool
     ``effectiveMode`` is off while the Tickets or Knowledge Base screen is switched off. ``posting.blockers``
     lists the unmet conditions, and only for Post answers: ``posting`` is True only when the saved mode is
     post, the screens are on and nothing is unmet. The model check sends one small loopback request (cached
-    15 s, 2 s timeout); ``client_factory`` lets a test supply a stand-in client."""
+    15 s, 2 s timeout); ``client_factory`` (or the module attribute ``CLIENT_FACTORY``) lets a test supply a stand-in client."""
     desk = await load(db, tenant_id)
     screens_on = await _screens_on(db, tenant_id)
     blockers: List[Dict[str, Any]] = []

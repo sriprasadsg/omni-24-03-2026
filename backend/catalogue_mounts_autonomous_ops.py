@@ -6,7 +6,8 @@ own ``_require_*`` dependency (autonomous_ops_endpoints). The guard authenticate
 ``get_current_user_or_api_key`` because an API key may read the status and activity and press a stop
 (D-10); the routes that must never run on a key refuse it themselves.
 
-The response-settings router (Phase 83) is mounted under the same guard.
+The response-settings router (Phase 83) and the service desk settings router (Phase 85) are mounted under the
+same guard.
 
 The platform routers (/api/platform/autonomous-ops) are outside every catalogue prefix and carry their
 own ``_require_platform_autonomy_control`` dependency instead.
@@ -29,4 +30,5 @@ AUTONOMOUS_OPS_GUARD = catalogue_guard(
 MOUNTS = {
     ("autonomous_ops_endpoints", "router"): AUTONOMOUS_OPS_GUARD,
     ("autonomous_ops_response_endpoints", "router"): AUTONOMOUS_OPS_GUARD,     # Phase 83: response settings
+    ("autonomous_ops_service_desk_endpoints", "router"): AUTONOMOUS_OPS_GUARD,     # Phase 85: service desk settings
 }

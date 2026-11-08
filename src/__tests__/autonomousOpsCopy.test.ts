@@ -56,6 +56,8 @@ const EXPECTED_FILES = [
   'components/AutonomousOpsResponseSettingsDialogs.tsx',
   'components/AutonomousOpsResponseSettingsPlatform.tsx',
   'components/SwarmDashboard.tsx',
+  'backend/service_desk_endpoints.py',
+  'backend/autonomous_ops_service_desk_endpoints.py',
 ];
 
 // Whole directories are walked recursively, so a file added later is covered without a list edit (UI-SPEC DEV-4).
