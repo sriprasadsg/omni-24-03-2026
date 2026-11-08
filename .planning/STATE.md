@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-10-PLAN.md
-last_updated: "2026-11-08T20:42:35.726Z"
+stopped_at: Completed 85-11-PLAN.md
+last_updated: "2026-11-08T20:52:51.206Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: 9d0925156a8c0100e547346bab98f62c3d78e6c9
+state_head: 25a1772596471e59bce4001c29f1a923fa8d786a
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 109
+  completed_plans: 110
   percent: 86
 ---
 
@@ -608,6 +608,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-08: a requester-visible comment by the reporter themself, or with no reporter, sends no notice (an untagged preview would reach the whole feed); recipient-tagged notices push only their title on the tenant-wide socket
 - [Phase 85]: 85-09: who raised a ticket is decided on the server for both agent routes (portal_agent only for a signed-in non-agent non-API-key caller; legacy tray only from the request's own tags plus a Windows user name, checked before agent-raised is appended); intake refuses level Off, tenant or platform stop (unreadable counts as on), and a switched-off Tickets or Knowledge Base screen (Knowledge Base also needs manage:settings)
 - [Phase 85]: 85-10: tray-seen.json keeps popped and read answer id lists so each answer pops up once while the menu count stays until the user opens it; My tickets window uses ClientSize 800x560; pop-up text is fixed in the script because the frozen list response has no pop-up fields
+- [Phase 85]: 85-11: Post answers is checked twice (before the write and as a filter on it) and restore is one atomic update; posting also requires the Tickets and Knowledge Base screens on
+- [Phase 85]: 85-11: timing.measured reads runtime.load_measurement (a valid service_desk_runtime document); the settings routes take an optional tenantId like the Phase 83 routes and the platform organization is 409
 
 ## Performance Metrics
 
@@ -872,6 +874,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P08 | 8 min | 2 tasks | 7 files |
 | Phase 85 P09 | 12 min | 2 tasks | 4 files |
 | Phase 85 P10 | 55 min | 2 tasks | 4 files |
+| Phase 85 P11 | 25 min | 3 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -906,8 +909,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-08T20:42:35.476Z
-**Stopped at:** Completed 85-10-PLAN.md
+**Last session:** 2026-11-08T20:52:50.932Z
+**Stopped at:** Completed 85-11-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -934,7 +937,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 11 of 23
+Plan: 12 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
