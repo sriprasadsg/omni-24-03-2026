@@ -8,6 +8,7 @@ import ast
 import json
 import re
 import time
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -223,3 +224,67 @@ def test_the_phrase_lists_are_plain_strings_and_the_password_howto_is_in_none_of
                   ("SECURITY", "BILLING", "LEGAL", "ACCOUNT_ACCESS", "ASK_FOR_PERSON") for p in getattr(rules, name)}
     for how_to in ("forgot my password", "reset my password", "change my password", "forgot password", "password"):
         assert how_to not in everything
+
+
+# ---------------------------------------------------------------- English only (Task 3, D-20, D-35)
+
+def test_every_case_in_the_language_set_gives_its_expected_answer():
+    wrong = []
+    for case in load("language_set.jsonl"):
+        got = "english" if rules.is_english(case["text"]) else "not_english"
+        if got != case["expect"]:
+            wrong.append(f"{case['id']}: {case['text']!r} expected {case['expect']}, got {got}")
+    assert not wrong, "\n".join(wrong)
+
+
+def test_the_language_set_is_big_enough_and_says_its_cases_are_invented():
+    cases = load("language_set.jsonl")
+    assert sum(c["expect"] == "english" for c in cases) >= 20
+    assert sum(c["expect"] == "not_english" for c in cases) >= 20
+    header = json.loads((FIXTURES / "language_set.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert "invented" in header["_comment"]
+    assert {"english", "not_english"} == {c["expect"] for c in cases}
+
+
+def unicodedata_name(ch):
+    return unicodedata.name(ch, "").split(" ")[0]
+
+
+def test_the_language_set_covers_every_language_the_plan_names():
+    texts = " ".join(c["text"] for c in load("language_set.jsonl") if c["expect"] == "not_english")
+    scripts = {name for ch in texts if ch.isalpha() for name in [unicodedata_name(ch)] if name != "LATIN"}
+    assert {"CJK", "HIRAGANA", "KATAKANA", "CYRILLIC", "ARABIC", "DEVANAGARI", "HANGUL"} <= scripts
+    for mixed in ("VPN no funciona", "la impresora no imprime", "mon mot de passe ne marche pas"):
+        assert mixed in texts
+
+
+@pytest.mark.parametrize("text", ["printer broken", "wifi down", "VPN not connecting", "can't print",
+                                  "email keeps crashing", "no internet", "no wifi and no internet", "12345", ""])
+def test_short_english_tickets_are_not_mistaken_for_another_language(text):
+    assert rules.is_english(text) is True
+
+
+@pytest.mark.parametrize("text", ["VPN no funciona", "la impresora no imprime", "mon mot de passe ne marche pas",
+                                  "wifi funktioniert nicht", "ordinateur lent"])
+def test_short_mixed_non_english_tickets_are_recognised(text):
+    assert rules.is_english(text) is False
+
+
+def test_the_script_share_decides_before_any_word_list():
+    assert rules.is_english("VPN " + chr(0x4E0D) + chr(0x80FD) + chr(0x8FDE) + chr(0x63A5)) is False
+    assert rules.is_english("printer broken " + chr(0x3B1)) is True        # one stray letter is not a language
+    assert rules.is_english(chr(0xFF50) + chr(0xFF52) + chr(0xFF49) + chr(0xFF4E) + chr(0xFF54) + " broken") is True
+
+
+def test_is_english_is_deterministic_and_takes_any_input():
+    for text in ("Mein Drucker druckt nicht mehr", "printer broken", "VPN no funciona"):
+        assert len({rules.is_english(text) for _ in range(5)}) == 1
+    assert rules.is_english(None) is True and rules.is_english(5) is True
+
+
+def test_the_language_check_needs_no_new_dependency():
+    source = Path(rules.__file__).read_text(encoding="utf-8")
+    body = ast.parse(source).body
+    imported = {n.names[0].name.split(".")[0] for n in body if isinstance(n, ast.Import)}
+    imported |= {n.module.split(".")[0] for n in body if isinstance(n, ast.ImportFrom) and not n.level and n.module}
+    assert imported <= {"re", "unicodedata", "typing"}, imported

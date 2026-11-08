@@ -1,0 +1,65 @@
+{"_comment": "Language set written for Phase 85 plan 05 (D-20, D-35). Every ticket is invented. expect is english or not_english. Non-Latin text is written as JSON escapes."}
+{"id": "lang-01", "text": "printer broken", "expect": "english"}
+{"id": "lang-02", "text": "wifi down", "expect": "english"}
+{"id": "lang-03", "text": "VPN not connecting", "expect": "english"}
+{"id": "lang-04", "text": "can't print", "expect": "english"}
+{"id": "lang-05", "text": "email keeps crashing", "expect": "english"}
+{"id": "lang-06", "text": "no internet", "expect": "english"}
+{"id": "lang-07", "text": "no wifi and no internet", "expect": "english"}
+{"id": "lang-08", "text": "my laptop will not turn on", "expect": "english"}
+{"id": "lang-09", "text": "The VPN drops every few minutes when I work from home", "expect": "english"}
+{"id": "lang-10", "text": "I cannot connect to the office Wi-Fi on my phone", "expect": "english"}
+{"id": "lang-11", "text": "screen is flickering after the update", "expect": "english"}
+{"id": "lang-12", "text": "need help with a slow computer", "expect": "english"}
+{"id": "lang-13", "text": "keyboard stopped working", "expect": "english"}
+{"id": "lang-14", "text": "monitor has no signal", "expect": "english"}
+{"id": "lang-15", "text": "the shared printer on floor 3 is jammed", "expect": "english"}
+{"id": "lang-16", "text": "How do I connect to the guest network?", "expect": "english"}
+{"id": "lang-17", "text": "mouse not responding", "expect": "english"}
+{"id": "lang-18", "text": "laptop battery drains very fast", "expect": "english"}
+{"id": "lang-19", "text": "unable to open attachments in email", "expect": "english"}
+{"id": "lang-20", "text": "VPN error 800 when connecting", "expect": "english"}
+{"id": "lang-21", "text": "headset has no sound in video calls", "expect": "english"}
+{"id": "lang-22", "text": "computer freezes when I open large files", "expect": "english"}
+{"id": "lang-23", "text": "Printer is offline again", "expect": "english"}
+{"id": "lang-24", "text": "backup failed last night", "expect": "english"}
+{"id": "lang-25", "text": "please help, the website does not load", "expect": "english"}
+{"id": "lang-26", "text": "I forgot my password, how do I reset it", "expect": "english"}
+{"id": "lang-27", "text": "12345", "expect": "english"}
+{"id": "lang-28", "text": "Is the server down?", "expect": "english"}
+{"id": "lang-29", "text": "Cannot sign in to the portal", "expect": "english"}
+{"id": "lang-30", "text": "Teams audio echoes", "expect": "english"}
+{"id": "lang-31", "text": "scanner not working", "expect": "english"}
+{"id": "lang-32", "text": "Where can I find the VPN setup guide", "expect": "english"}
+{"id": "lang-33", "text": "My new laptop is very slow", "expect": "english"}
+{"id": "lang-34", "text": "Please reset the shared mailbox rules", "expect": "english"}
+{"id": "lang-35", "text": "Printer in El Paso office is broken", "expect": "english"}
+{"id": "lang-36", "text": "Mi impresora no funciona y necesito ayuda", "expect": "not_english"}
+{"id": "lang-37", "text": "La VPN no se conecta desde casa", "expect": "not_english"}
+{"id": "lang-38", "text": "Mon ordinateur ne d\u00e9marre plus depuis ce matin", "expect": "not_english"}
+{"id": "lang-39", "text": "Le wifi ne fonctionne pas dans la salle de r\u00e9union", "expect": "not_english"}
+{"id": "lang-40", "text": "Mein Drucker druckt nicht mehr", "expect": "not_english"}
+{"id": "lang-41", "text": "Ich kann mich nicht mit dem VPN verbinden", "expect": "not_english"}
+{"id": "lang-42", "text": "Minha impressora n\u00e3o est\u00e1 funcionando", "expect": "not_english"}
+{"id": "lang-43", "text": "N\u00e3o consigo acessar meu e-mail", "expect": "not_english"}
+{"id": "lang-44", "text": "La stampante non funziona da stamattina", "expect": "not_english"}
+{"id": "lang-45", "text": "Non riesco a collegarmi alla rete wifi", "expect": "not_english"}
+{"id": "lang-46", "text": "\u30d7\u30ea\u30f3\u30bf\u30fc\u304c\u52d5\u304d\u307e\u305b\u3093", "expect": "not_english"}
+{"id": "lang-47", "text": "\u041d\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442 \u043f\u0440\u0438\u043d\u0442\u0435\u0440", "expect": "not_english"}
+{"id": "lang-48", "text": "\u0627\u0644\u0637\u0627\u0628\u0639\u0629 \u0644\u0627 \u062a\u0639\u0645\u0644", "expect": "not_english"}
+{"id": "lang-49", "text": "\u6253\u5370\u673a\u65e0\u6cd5\u6253\u5370", "expect": "not_english"}
+{"id": "lang-50", "text": "\u092a\u094d\u0930\u093f\u0902\u091f\u0930 \u0915\u093e\u092e \u0928\u0939\u0940\u0902 \u0915\u0930 \u0930\u0939\u093e \u0939\u0948", "expect": "not_english"}
+{"id": "lang-51", "text": "VPN no funciona", "expect": "not_english"}
+{"id": "lang-52", "text": "la impresora no imprime", "expect": "not_english"}
+{"id": "lang-53", "text": "mon mot de passe ne marche pas", "expect": "not_english"}
+{"id": "lang-54", "text": "wifi funktioniert nicht", "expect": "not_english"}
+{"id": "lang-55", "text": "impressora n\u00e3o imprime", "expect": "not_english"}
+{"id": "lang-56", "text": "stampante non stampa", "expect": "not_english"}
+{"id": "lang-57", "text": "ordinateur lent", "expect": "not_english"}
+{"id": "lang-58", "text": "VPN \u4e0d\u80fd\u8fde\u63a5", "expect": "not_english"}
+{"id": "lang-59", "text": "Outlook \u3092\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u3057\u3066\u304f\u3060\u3055\u3044", "expect": "not_english"}
+{"id": "lang-60", "text": "\ud504\ub9b0\ud130\uac00 \uc791\ub3d9\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4", "expect": "not_english"}
+{"id": "lang-61", "text": "No puedo iniciar sesi\u00f3n en mi cuenta", "expect": "not_english"}
+{"id": "lang-62", "text": "Je ne peux pas imprimer mon document", "expect": "not_english"}
+{"id": "lang-63", "text": "Der Bildschirm bleibt schwarz", "expect": "not_english"}
+{"id": "lang-64", "text": "O meu computador est\u00e1 muito lento", "expect": "not_english"}

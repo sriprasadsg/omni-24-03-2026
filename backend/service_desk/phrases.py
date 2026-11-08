@@ -84,3 +84,82 @@ ASK_FOR_PERSON = (
     "phone me", "ring me", "give me a call", "escalate", "escalation", "speak to your manager",
     "talk to your manager", "speak to a manager", "talk to a manager", "supervisor",
 )
+
+# ---------------------------------------------------------------- the English check (D-20, D-35)
+#
+# Small word sets for rules.is_english, pinned by tests/fixtures/service_desk/language_set.jsonl. English
+# evidence is plain function words and English IT vocabulary; "no", "a", "in", "me", "do", "as", "os", "um" and
+# every other word the languages share with English are deliberately left out of both sides, as are bare
+# acronyms such as "vpn", so a one-word acronym can never decide the language. Diacritics are stripped before
+# matching, so the words below are written without them.
+
+ENGLISH_WORDS = (
+    "the", "and", "or", "but", "if", "because", "is", "are", "was", "were", "be", "been", "am", "have", "has",
+    "had", "does", "did", "doesnt", "dont", "didnt", "isnt", "arent", "cant", "cannot", "couldnt", "wont", "will",
+    "would", "should", "can", "could", "may", "might", "must", "not", "never", "to", "of", "for", "from", "with",
+    "without", "by", "about", "after", "before", "when", "while", "where", "what", "which", "who", "how", "why",
+    "this", "that", "these", "those", "there", "here", "please", "help", "need", "needs", "want", "wants", "get",
+    "got", "keep", "keeps", "every", "again", "very", "too", "also", "still", "just", "only", "some", "any", "all",
+    "more", "new", "old", "slow", "slowly", "fast", "today", "yesterday", "morning", "last", "night", "week",
+    "time", "back", "off", "out", "up", "over", "under", "open", "opens", "close", "start", "starts", "stop",
+    "stops", "stopped", "work", "works", "working", "worked", "fix", "fixed", "change", "changed", "use", "using",
+    "used", "try", "tried", "trying", "see", "seen", "find", "found", "show", "shows", "showing", "say", "says",
+    "tell", "give", "take", "make", "go", "goes", "going", "my", "your", "our", "their", "his", "her", "you", "we",
+    "they", "he", "she", "it", "its", "i", "ive", "im", "something", "nothing", "everything", "anyone",
+    "someone", "everyone", "able", "unable", "like", "than", "then", "much", "many", "few", "own",
+    "printer", "printers", "printing", "print", "prints", "scanner", "laptop", "laptops", "computer", "computers",
+    "pc", "monitor", "monitors", "screen", "keyboard", "mouse", "headset", "phone", "battery", "charger", "cable",
+    "network", "connect", "connects", "connecting", "connected", "connection", "disconnect", "disconnects",
+    "disconnecting", "disconnected", "login", "log", "sign", "signin", "signed", "password", "account", "email",
+    "emails", "mail", "mailbox", "attachment", "attachments", "file", "files", "folder", "folders", "drive",
+    "backup", "backups", "update", "updates", "updated", "install", "installed", "installing", "software", "app",
+    "application", "website", "web", "page", "browser", "server", "down", "offline", "online", "error", "errors",
+    "crash", "crashes", "crashing", "crashed", "freeze", "freezes", "freezing", "frozen", "broken", "jammed",
+    "failed", "fails", "failing", "fail", "issue", "issues", "problem", "problems", "flickering", "blank", "black",
+    "sound", "audio", "video", "call", "calls", "meeting", "room", "office", "home", "floor", "shared", "guest",
+    "setup", "guide", "reset", "restart", "reboot", "turn", "turns", "large", "big", "small", "volume", "signal",
+    "echo", "echoes", "drain", "drains", "ticket", "support", "access", "slowly", "loading", "load", "loads",
+    "responding", "response", "respond", "download", "upload", "uploads", "downloads", "send", "sending",
+    "receive", "receiving", "message", "messages", "wireless", "device", "devices", "system", "service",
+    "services", "link", "button", "click", "clicking", "type", "typing", "windows", "program", "programs",
+)
+
+SPANISH_WORDS = (
+    "el", "los", "las", "un", "una", "unos", "unas", "del", "que", "por", "para", "con", "pero", "como", "mi",
+    "mis", "tu", "su", "se", "es", "esta", "esto", "estoy", "estamos", "funciona", "funcionan", "imprime",
+    "impresora", "ordenador", "computadora", "contrasena", "correo", "conectar", "conecta", "conectarme",
+    "puedo", "puede", "necesito", "ayuda", "desde", "casa", "muy", "lento", "lenta", "pantalla", "teclado",
+    "raton", "cuenta", "iniciar", "sesion", "ya", "mas", "tengo", "tiene", "nada", "cuando", "donde", "porque",
+    "favor", "hola", "gracias", "ayer", "hoy", "ahora", "otra", "sigue", "falla", "fallo",
+)
+
+FRENCH_WORDS = (
+    "le", "la", "les", "une", "des", "du", "de", "et", "est", "sont", "pas", "ne", "je", "nous", "vous", "mon",
+    "ma", "mes", "ton", "notre", "votre", "ce", "cette", "ces", "qui", "pour", "avec", "sans", "dans", "sur",
+    "mais", "ordinateur", "imprimante", "ecran", "clavier", "souris", "mot", "passe", "marche", "fonctionne",
+    "connecter", "connexion", "reseau", "demarre", "depuis", "matin", "salle", "reunion", "probleme", "besoin",
+    "aide", "imprimer", "impossible", "peux", "peut", "trop", "lent", "tres", "bonjour", "merci", "compte",
+    "courriel", "fichier", "aujourd", "hier", "toujours", "encore",
+)
+
+GERMAN_WORDS = (
+    "der", "das", "dem", "des", "ein", "eine", "einen", "einem", "ich", "mein", "meine", "mir", "mich", "wir",
+    "sie", "nicht", "kein", "keine", "und", "oder", "aber", "mit", "ohne", "ist", "sind", "kann", "konnen",
+    "funktioniert", "drucker", "druckt", "bildschirm", "tastatur", "maus", "passwort", "netzwerk", "verbinden",
+    "verbindung", "anmelden", "anmeldung", "fehler", "hilfe", "brauche", "mehr", "noch", "auch", "sehr",
+    "langsam", "schwarz", "bleibt", "wieder", "heute", "gestern", "rechner", "bitte", "funktionieren",
+)
+
+PORTUGUESE_WORDS = (
+    "uma", "uns", "umas", "da", "das", "na", "nas", "nos", "sem", "mas", "meu", "minha", "meus", "minhas",
+    "seu", "sua", "nao", "estou", "funcionando", "impressora", "computador", "rede", "senha", "conta", "acessar",
+    "acesso", "consigo", "preciso", "ajuda", "muito", "lento", "tela", "obrigado", "ainda", "hoje", "ontem",
+    "esta", "problema", "conectar", "imprime", "funciona", "voce", "nosso", "nossa",
+)
+
+ITALIAN_WORDS = (
+    "il", "lo", "gli", "uno", "della", "dei", "delle", "di", "senza", "mio", "miei", "tuo", "suo", "non", "sono",
+    "stampante", "schermo", "tastiera", "rete", "funziona", "funzionare", "riesco", "collegarmi", "collegare",
+    "connettere", "accedere", "aiuto", "ho", "molto", "lento", "oggi", "ieri", "stamattina", "grazie",
+    "buongiorno", "ancora", "stampa", "stampare", "alla", "nella", "sul", "problema",
+)

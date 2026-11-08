@@ -9,13 +9,16 @@ first matching hand-off reason in this fixed order:
 
 so a ticket that hits two rules always reports the earlier rule's reason. Every phrase and tenant word is
 normalised with ``sanitize.normalize_for_match`` and matched as an escaped literal with word boundaries;
-ticket text is never compiled as a pattern (T-85-18). Stdlib only (D-35).
+ticket text is never compiled as a pattern (T-85-18). ``is_english`` is the standard-library language check
+(D-20, D-35): script share plus small word sets, pinned by language_set.jsonl. Stdlib only.
 """
 import re
-from typing import Any, Dict, Iterable, Mapping, Optional, Pattern, Tuple
+import unicodedata
+from typing import Any, FrozenSet, Iterable, Mapping, Optional, Pattern, Tuple
 
 from . import ELIGIBLE_TYPES, WORD_MAX, WORDS_MAX
-from .phrases import ACCOUNT_ACCESS, ASK_FOR_PERSON, BILLING, LEGAL, SECURITY  # noqa: F401  (re-exported)
+from .phrases import (ACCOUNT_ACCESS, ASK_FOR_PERSON, BILLING, ENGLISH_WORDS, FRENCH_WORDS, GERMAN_WORDS,  # noqa: F401
+                      ITALIAN_WORDS, LEGAL, PORTUGUESE_WORDS, SECURITY, SPANISH_WORDS)
 from .sanitize import normalize_for_match
 from .tray_contract import LEGACY_TITLE_PREFIXES, TEMPLATE_CLASS
 
@@ -94,3 +97,47 @@ def evaluate(ticket: Mapping[str, Any], cleaned_text: str, words: Optional[Itera
     if _tenant_hit(text, words):
         return "tenant_word"
     return None
+
+
+# ---------------------------------------------------------------- English only (D-20, D-35)
+
+NON_LATIN_SHARE = 0.30          # more than this share of letters outside the Latin script: not English
+_ENGLISH: FrozenSet[str] = frozenset(normalize_for_match(w) for w in ENGLISH_WORDS)
+_FOREIGN: FrozenSet[str] = frozenset(
+    normalize_for_match(w) for words in (SPANISH_WORDS, FRENCH_WORDS, GERMAN_WORDS, PORTUGUESE_WORDS, ITALIAN_WORDS)
+    for w in words) - _ENGLISH
+
+
+def _is_latin_letter(ch: str) -> bool:
+    return unicodedata.name(ch, "").startswith("LATIN")
+
+
+def _english_token(token: str) -> bool:
+    """A word of the English set, allowing a plain plural, past or -ing ending."""
+    if token in _ENGLISH:
+        return True
+    forms = []
+    for ending, restore in (("ing", ""), ("ing", "e"), ("ed", ""), ("d", ""), ("es", ""), ("s", ""), ("ly", "")):
+        if token.endswith(ending) and len(token) > len(ending) + 2:
+            forms.append(token[:-len(ending)] + restore)
+    return any(form in _ENGLISH for form in forms)
+
+
+def is_english(text: Any) -> bool:
+    """True when the text reads as English. A text with no letters is English (it then fails retrieval).
+
+    More than 30% of the letters outside the Latin script means not English. Otherwise two different words from
+    the Spanish, French, German, Portuguese or Italian sets mean not English, and so does one such word when no
+    English word is there to outweigh it. The same input always gives the same answer."""
+    folded = normalize_for_match(text)
+    letters = [ch for ch in folded if ch.isalpha()]
+    if not letters:
+        return True
+    outside = sum(1 for ch in letters if not _is_latin_letter(ch))
+    if outside * 10 > len(letters) * 3:
+        return False
+    tokens = {token for token in folded.split() if token.isalpha()}
+    foreign = len(tokens & _FOREIGN)
+    if foreign >= 2:
+        return False
+    return not (foreign == 1 and not any(_english_token(token) for token in tokens))
