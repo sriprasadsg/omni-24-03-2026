@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-01-PLAN.md
-last_updated: "2026-11-08T19:27:02.219Z"
+stopped_at: Completed 85-04-PLAN.md
+last_updated: "2026-11-08T19:42:34.230Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: 2d792f4003370ea475b2826303ea634d68506df1
+state_head: 5a196e1f452904036d7fa95a3552511d0c4b23e1
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 102
+  completed_plans: 103
   percent: 84
 ---
 
@@ -597,6 +597,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-03: ticket_answer/ticket_withdraw added alongside the agent target model via desk_gate.ticket_owner_step; desk rows use their own automatic-action pool and are excluded from the Phase 81 breaker; Activity words live once in autonomous_ops/messages.py and service_desk/messages.py refers to them
 - [Phase 85]: 85-01: tickets_endpoints hooks use lazy imports in create_ticket and fall back to automation / no job on any failure, keeping them apart from the user's attachment hunks
 - [Phase 85]: 85-01: reply checks in the tracer are citation, emptiness and length only; markup, link, address, phone, command and number rules are 85-06
+- [Phase 85]: 85-04: a desk row is refused by approve and deny before the stop check (always desk_draft); the desk's undo is delegated through approvals.register_undo_handler and fails closed (not_undoable) until 85-18 registers it
 
 ## Performance Metrics
 
@@ -854,6 +855,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P02 | 15 min | 3 tasks | 11 files |
 | Phase 85 P03 | 35 min | 3 tasks | 10 files |
 | Phase 85 P01 | 7 min | 2 tasks | 18 files |
+| Phase 85 P04 | 25 min | 3 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -888,8 +890,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-08T19:27:01.970Z
-**Stopped at:** Completed 85-01-PLAN.md
+**Last session:** 2026-11-08T19:42:33.982Z
+**Stopped at:** Completed 85-04-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -916,7 +918,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 4 of 23
+Plan: 5 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 84%)
