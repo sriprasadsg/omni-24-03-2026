@@ -15,6 +15,7 @@ import logging
 from auth_roles import platform_scope_roles
 import agent_capabilities
 from autonomous_ops import delivery, verify as response_verify
+from service_desk import intake as desk_intake
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 logger = logging.getLogger("agent_tasks_endpoints")
@@ -389,11 +390,26 @@ async def raise_ticket_via_agent(
         "agent_hostname": agent_hostname,
         "tenant_name":    tenant_name,
     }
+    # Who raised it is decided here from how the caller signed in, never from the body: only a person
+    # signed in with a session (not an agent identity, not an API key) raises a portal_agent ticket.
+    raised_via, channel = "automation", None
+    try:
+        from autonomous_ops import views as _ao_views
+        if caller_role != "agent" and _ao_views.is_interactive(current_user):
+            raised_via, channel = "portal_agent", {"portal": True}
+    except Exception:
+        pass
     ticket = await tickets_service.create_ticket(
         data=ticket_data,
         reporter=reporter,
         tenant_id=tenant_id,
+        raised_via=raised_via,
+        requester_channel=channel,
     )
+    try:
+        await desk_intake.on_ticket_created(db, ticket, via=raised_via)
+    except Exception:
+        logger.exception("service desk intake failed; the ticket is unaffected")
 
     # ── 2. Also queue an instruction so the agent can do follow-up work ───────
     instr_id = str(uuid.uuid4())
@@ -438,6 +454,13 @@ async def create_ticket_from_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
     agent_hostname = agent.get("hostname") or agent.get("id", agent_id)
     agent_real_id  = agent.get("id", agent_id)
+    # Decided from the request's own tags before agent-raised is appended below (D-01).
+    windows_user = desk_intake.tray_claim(body.tags, body.endpoint_info)
+    raised_via, channel = "automation", None
+    if windows_user:
+        raised_via = "tray"
+        channel = {"tray": True, "myTickets": False, "windowsUser": windows_user,
+                   "template": desk_intake.legacy_template(body.title)}
     ticket_data = {
         "title":         body.title,
         "description":   body.description or "",
@@ -452,7 +475,13 @@ async def create_ticket_from_agent(
         data=ticket_data,
         reporter=agent_real_id,
         tenant_id=tenant_id,
+        raised_via=raised_via,
+        requester_channel=channel,
     )
+    try:
+        await desk_intake.on_ticket_created(db, ticket, via=raised_via)
+    except Exception:
+        logger.exception("service desk intake failed; the ticket is unaffected")
     logger.info("Ticket %s created by agent %s", ticket["ticket_number"], agent_id)
     return {"success": True, "ticket_id": ticket["id"], "ticket_number": ticket["ticket_number"]}
 
