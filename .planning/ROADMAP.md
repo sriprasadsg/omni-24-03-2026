@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 29/29 plans executed: 23 in 6 waves, plus a gap round of 6 plans in 5 waves (executed)
+**Plans**: 29/36 plans executed: 23 in 6 waves, a gap round of 6 plans in 5 waves (executed), and a second gap round of 7 plans in 7 waves for UAT gap G-85-4 (planned)
 
 Plans:
 **Wave 1**
@@ -605,6 +605,15 @@ Plans:
 - [x] 85-27-PLAN.md — A failure after a visible desk answer never produces a contradicting hand-off or a stuck ledger row; send_draft moves the status first (WR-102, WR-103) *(after 85-26)*
 - [x] 85-28-PLAN.md — Staff-only comment notices are hidden from the reporter in the feed and on the socket; one recipient filter for list, mark-read, read-all and delete (WR-201, WR-202) *(after 85-27)*
 - [x] 85-29-PLAN.md — A gap article must be a Help desk article (422); stable TTL, migration and --sets tests; the whole Phase 85 gate, VALIDATION and review dispositions (WR-203, WR-301..303) *(after all)*
+
+**Gap closure 2 (UAT G-85-4: CR-501, WR-502; user decisions 2026-11-09):** 7 plans in 7 waves, run in order
+- [ ] 85-30-PLAN.md — The ticket-staff permission manage:tickets on tenant admin, analyst, security analyst and incident responder; one is_ticket_staff test; tickable in the role editor; staff identities in the desk test world
+- [ ] 85-31-PLAN.md — The notice history uses the shared audience filter (tenantId, per-person rules for the Super Admin too, 403 without a tenant); staff-only notices for staff; a repository-wide reader scan (CR-501) *(after 85-30)*
+- [ ] 85-32-PLAN.md — Anyone who is neither staff nor the reporter gets 404 on another person's ticket (router guard) *(after 85-31)*
+- [ ] 85-33-PLAN.md — Requesters' lists, stats, ticket reports and CSV export hold only their own tickets; the projection takes an explicit staff input *(after 85-32)*
+- [ ] 85-34-PLAN.md — Staff-only ticket actions (bulk, edit, links, work log, approve, reject, escalate, merge, watchers, attachment delete) *(after 85-33)*
+- [ ] 85-35-PLAN.md — Desk drafts and cited-article staff branch for staff only; the knowledge-gap list for staff; one structure test over every ticket route *(after 85-34)*
+- [ ] 85-36-PLAN.md — The whole Phase 85 gate on the second gap round; CR-501 and WR-502 recorded fixed, AR-85-01/-04/-09 re-recorded, D-38..D-41, VALIDATION rows *(after all)*
 
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 85`) — measure `llama3.2:3b` CPU tokens per second once Ollama exists; calibrate the retrieval threshold; build prompt-injection and escalation eval sets.
