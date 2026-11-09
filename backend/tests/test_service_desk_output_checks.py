@@ -129,7 +129,8 @@ def test_checks_are_pure_and_import_no_model_no_settings_no_network():
             imported.add(("." * node.level) + (node.module or ""))
         elif isinstance(node, ast.Import):
             imported.update(a.name for a in node.names)
-    allowed = {"json", "re", "html", "unicodedata", "typing", "pydantic", "."}
+    # ".sanitize" is the desk's one fold (85-24): stdlib only, no model, settings or network.
+    allowed = {"json", "re", "html", "unicodedata", "typing", "pydantic", ".", ".sanitize"}
     assert imported <= allowed, imported - allowed
     assert checks.check(checks.Reply(answer="Wait.", cited=[1]), [1]) is None
 

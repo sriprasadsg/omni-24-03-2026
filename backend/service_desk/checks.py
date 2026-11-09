@@ -15,18 +15,22 @@ casefolded and with spaces collapsed, as a whole word or token in the text of th
 an article that was given but not cited does not count. A single ">" is not a redirect (menu paths such as
 "Settings > Network" are ordinary help text); ">>", "2>" and a ">" followed by a file name are.
 
+The reply is folded (sanitize.fold_text: compatibility forms, hidden and bidi characters, the ideographic
+dots) before any rule runs, and the cited article text is folded the same way, so a fragment is compared
+fold-to-fold; the folded answer is the one that is posted or stored, so the shown text is the checked text.
+
 ``verdict`` is the same for the raw model text and adds ``unparseable``. A reply that fails any rule is
 handed to a person with the reason ``output_check_failed`` (``HANDOFF_REASON``).
 """
 import html
 import json
 import re
-import unicodedata
 from typing import Iterable, List, Mapping, Optional
 
 from pydantic import BaseModel, StrictInt, StrictStr
 
 from . import ANSWER_MAX_CHARS, ANSWER_MAX_LINES
+from .sanitize import fold_text
 
 RULES = (
     "unparseable", "empty_answer", "no_citation", "unknown_citation", "too_long", "too_many_lines", "html",
@@ -67,11 +71,15 @@ class Reply(BaseModel):
 
 
 def parse_reply(text: str) -> Optional[Reply]:
-    """The reply as a Reply, or None for anything that is not exactly an answer with cited numbers."""
+    """The reply as a Reply, or None for anything that is not exactly an answer with cited numbers.
+
+    The answer is returned folded (sanitize.fold_text), so what a caller posts or stores is exactly the text
+    ``check`` accepts (D-19, CR-101)."""
     try:
-        return Reply.model_validate(json.loads(text))
+        reply = Reply.model_validate(json.loads(text))
     except Exception:
         return None
+    return Reply(answer=fold_text(reply.answer), cited=reply.cited)
 
 
 def handoff_reason(rule: str) -> str:
@@ -82,7 +90,7 @@ def handoff_reason(rule: str) -> str:
 
 
 def _norm(text: str) -> str:
-    return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+    return " ".join(fold_text(text).casefold().split())
 
 
 def _present(fragment: str, haystack: str) -> bool:
@@ -135,7 +143,7 @@ def check(reply: Reply, given_ids: Iterable[int], cited_texts: Optional[Mapping]
     numbers to the article text (None reads as no article text, so any link, address, phone, command or
     long number in the reply then fails)."""
     given = set(given_ids)
-    answer = reply.answer
+    answer = fold_text(reply.answer)
     if not answer.strip():
         return "empty_answer"
     if not reply.cited:

@@ -30,6 +30,7 @@ SYSTEM_PROMPT = (
 RAW_CAP = 20000                 # characters read from one raw field; the rest is dropped (fail closed)
 _SKIP_TAGS = frozenset(("script", "style", "head", "template", "noscript"))
 _KEEP_CONTROL = frozenset("\n\t")
+IDNA_DOTS = str.maketrans({"\u3002": ".", "\uff0e": ".", "\uff61": "."})   # the dots a browser reads as "."
 
 _SCHEME = r"(?:[a-z][a-z0-9+.-]{1,20}://|www\.|(?:javascript|data|vbscript|file|mailto):)"
 _URL = re.compile(_SCHEME + r"""[^\s<>"']*[^\s<>"'.,;:!?]""", re.IGNORECASE)
@@ -96,6 +97,17 @@ def _fold(text: str) -> str:
     return "".join(out)
 
 
+def fold_text(text: Any) -> str:
+    """The one fold of the desk: ticket text, phrase matching and every output-check comparison use it.
+
+    NFKC, hidden characters removed (see ``_fold``), NFKC again (so a mark that followed a removed character
+    recomposes with its letter), and the three IDNA dots U+3002, U+FF0E and U+FF61 mapped to ".".
+    ``fold_text(fold_text(s)) == fold_text(s)``; a non-string gives "". """
+    if not isinstance(text, str):
+        return ""
+    return unicodedata.normalize("NFKC", _fold(text)).translate(IDNA_DOTS)
+
+
 def neutralise_delimiters(text: str) -> str:
     """Remove the ticket and article tags the prompt uses, and every other angle bracket, from untrusted text."""
     return _DELIMITER.sub(" ", text).replace("<", " ").replace(">", " ")
@@ -105,8 +117,8 @@ def clean_text(value: Any, cap: int) -> str:
     """Plain, capped text from ticket text: no markup, no links, no addresses, no hidden characters."""
     if not isinstance(value, str):
         return ""
-    text = _strip_markup(_fold(value[:RAW_CAP]))
-    text = _strip_markup(_fold(html.unescape(text)))            # double-encoded tags decode once more
+    text = _strip_markup(fold_text(value[:RAW_CAP]))
+    text = _strip_markup(fold_text(html.unescape(text)))            # double-encoded tags decode once more
     text = _MD_IMAGE.sub(" ", text)
     text = _MD_LINK.sub(r" \1 ", text)
     text = _URL.sub(" ", text)
@@ -124,7 +136,7 @@ def normalize_for_match(text: Any) -> str:
     space, whitespace collapsed. The same input always gives the same output."""
     if not isinstance(text, str):
         return ""
-    folded = _fold(text[:RAW_CAP]).casefold()
+    folded = fold_text(text[:RAW_CAP]).casefold()
     folded = "".join(ch for ch in unicodedata.normalize("NFD", folded) if unicodedata.category(ch) != "Mn")
     folded = _MATCH_JOIN.sub("", unicodedata.normalize("NFC", folded))
     return " ".join(_MATCH_PUNCT.sub(" ", folded).split())
