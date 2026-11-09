@@ -117,6 +117,7 @@ async def reports(world, monkeypatch):
     monkeypatch.setattr(ticket_reports_endpoints, "get_database", lambda: world.db)
     world.app.include_router(ticket_reports_endpoints.router)
     world.app.state.limiter = Limiter(key_func=get_remote_address, enabled=False)
+    monkeypatch.setattr(ticket_reports_endpoints.limiter, "enabled", False)       # the routes' own decorator limiter (5/minute on the export)
     await _plant(world)
     return world
 
@@ -177,3 +178,51 @@ async def test_the_csv_export_holds_only_a_requesters_own_tickets(reports):
     assert await numbers(ALICE) == ["TKT-T1", "TKT-T2", "TKT-T3"]
     assert await numbers(ALICE, "?assignee=zed") == []
     assert await numbers(BOB) == ["TKT-T1", "TKT-T2", "TKT-T3", "TKT-T4", "TKT-T5", "TKT-T6"]
+
+
+# ---------------------------------------------------------------- the projection's staff input (85-33, Task 3)
+
+from service_desk import projection  # noqa: E402
+
+SECRET = "staff-only note about the refund"
+RAISED = {"id": "T1", "reporter": "alice@x.co", "desk": {"phase": "handed_off"}, "history": [
+    {"id": "h1", "actor": "bob@x.co", "action": "commented", "changes": {}, "created_at": "2026-11-01T10:00:00+00:00"}],
+    "comments": [{"id": "c1", "author": "bob@x.co", "text": SECRET, "visibility": "staff",
+                  "created_at": "2026-11-01T10:00:00+00:00"}]}
+
+
+def test_the_projection_without_a_staff_argument_fails_closed():
+    """protects=T-85-117 / PROH-85-24; fails_when=for_viewer or history_for_viewer called without staff hands a
+    non-reporter the stored ticket or the full history."""
+    carol = portal_user("t1", "carol@x.co")
+    shown = projection.for_viewer(RAISED, carol)
+    assert SECRET not in str(shown) and "desk" not in shown
+    assert projection.history_for_viewer(RAISED, RAISED["history"], carol) == []
+
+
+def test_staff_who_did_not_raise_the_ticket_get_it_stored_and_the_reporter_never_does():
+    """protects=D-11 / T-85-93; fails_when=staff lose the stored ticket or full history, or staff who raised the ticket get it."""
+    bob = staff_user("t1", "bob@x.co")
+    dave = staff_user("t1", "dave@x.co")
+    assert projection.for_viewer(RAISED, dave, staff=True) is RAISED
+    assert projection.history_for_viewer(RAISED, RAISED["history"], dave, staff=True) == RAISED["history"]
+    alice_staff = portal_user("t1", "alice@x.co", role="analyst")
+    assert SECRET not in str(projection.for_viewer(RAISED, alice_staff, staff=True))
+    assert projection.history_for_viewer(RAISED, RAISED["history"], alice_staff, staff=True) == []
+    assert SECRET not in str(projection.for_viewer(RAISED, bob, staff=False))
+    assert projection.for_viewer(None, bob, staff=True) is None
+
+
+async def test_a_reporter_with_the_admin_role_still_gets_the_projection_of_their_own_ticket(world):
+    """protects=T-85-93 / AR-85-09 over HTTP; fails_when=the stored ticket (staff comment, desk state) reaches a
+    reporter who also holds manage:tickets, or a staff member who did not raise it loses it."""
+    await _plant(world)
+    await world.db.tickets.update_one({"id": "T1"}, {"$set": {"desk": {"phase": "handed_off"}, "comments": [
+        {"id": "c1", "author": "bob@x.co", "text": SECRET, "visibility": "staff", "created_at": "2026-11-01T10:00:00+00:00"}]}})
+    admin_reporter = portal_user("t1", "alice@x.co", role="admin")
+    own = await world.call("GET", "/api/tickets/T1", user=admin_reporter)
+    assert own.status_code == 200 and SECRET not in own.text and "desk" not in own.json()
+    listed = await world.call("GET", "/api/tickets", user=admin_reporter)
+    assert listed.status_code == 200 and SECRET not in listed.text
+    stored = await world.call("GET", "/api/tickets/T1", user=BOB)
+    assert SECRET in stored.text and stored.json()["desk"] == {"phase": "handed_off"}
