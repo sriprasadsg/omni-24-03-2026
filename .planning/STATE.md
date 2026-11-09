@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-17-PLAN.md
-last_updated: "2026-11-09T02:41:33.714Z"
+stopped_at: Completed 85-18-PLAN.md
+last_updated: "2026-11-09T05:11:58.601Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: ec1648a3d6fd782ec9f80c7df0e026fd18d333e5
+state_head: 7f8b832f12d4fb501681bc4f0134abc2b354e804
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 116
+  completed_plans: 117
   percent: 86
 ---
 
@@ -623,6 +623,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-17: the 10-minute queue limit is enforced by a client wrapper around the one model call (timeout cut to the time left, a reply at or after the limit refused as a timeout), so pipeline.py is unchanged and nothing late is posted
 - [Phase 85]: 85-17: run_once returns the pass counts (jobs closed in order); None only when another runner holds the lock
 - [Phase 85]: 85-17: a job waiting behind a generation is handed off busy only when that pass ends (up to one call timeout past its 10 minutes); no generation is ever started late
+- [Phase 85]: 85-18: the ticket-side compare-and-set decides a withdrawal (a stale Activity row cannot withdraw a confirmed or answered ticket) and a failed hide puts the row back
+- [Phase 85]: 85-18: the desk breaker counts only rows with autoDispatched true and no desk.sentBy; it never calls the Phase 81 breaker, notify.notify or on-call
 
 ## Performance Metrics
 
@@ -894,6 +896,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P15 | 24 min | 3 tasks | 6 files |
 | Phase 85 P16 | 16 min | 3 tasks | 13 files |
 | Phase 85 P17 | 17 min | 3 tasks | 8 files |
+| Phase 85 P18 | 2.5 hours | 2 tasks | 7 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -928,8 +931,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T02:41:33.467Z
-**Stopped at:** Completed 85-17-PLAN.md
+**Last session:** 2026-11-09T05:11:58.331Z
+**Stopped at:** Completed 85-18-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -956,7 +959,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 18 of 23
+Plan: 19 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
