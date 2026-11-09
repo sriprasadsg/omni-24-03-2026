@@ -3,6 +3,7 @@ import type { AppView } from '../types';
 import { useUser } from '../contexts/UserContext';
 import { resolveAutonomousOpsScope, useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
 import { platformTier } from '../utils/permissions';
+import { canReadView } from '../utils/viewAccess';
 import { AutonomousOpsActivityList, EmptyStateCard } from './AutonomousOpsActivityList';
 import { AutonomousOpsDecisions } from './AutonomousOpsDecisions';
 import { buildOpenViewHandlers } from './AutonomousOpsRowActions';
@@ -52,9 +53,11 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
     const canFim = hasPermission('view:fim');
     // Draft a rollout also needs the right to start rollouts; that is display only, the server checks it again.
     const canDraft = hasPermission('manage:patches');
+    // A service desk row links to its ticket only for a viewer who may open Tickets (Phase 85).
+    const canTickets = canReadView('internalTickets', currentUser ?? null, hasPermission);
     const openers = useMemo(
-        () => buildOpenViewHandlers(onOpenView, { canPatch, canFim, canDraft }),
-        [onOpenView, canPatch, canFim, canDraft],
+        () => buildOpenViewHandlers(onOpenView, { canPatch, canFim, canDraft, canTickets }),
+        [onOpenView, canPatch, canFim, canDraft, canTickets],
     );
 
     // Response settings (D-22): holders of manage in an organization that is not the platform one; never Platform Support.

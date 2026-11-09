@@ -57,6 +57,9 @@ export interface AutonomousOpsRow {
     /** Block rows: when the block ends (ISO), used to fill the time in the result text. */
     blockedUntil?: string | null;
     suggestion?: AutonomousOpsSuggestion | null;
+    /** Phase 85: service desk rows only. The ticket the decision is about; null for every other row. */
+    ticketId?: string | null;
+    ticketNumber?: string | null;
 }
 
 /** The Activity chip of a platform-health row, chosen by the server. */
@@ -400,6 +403,8 @@ export interface UndoResult {
     status: 'undone';
     action: AutonomousOpsRow;
     breakerTripped: boolean;
+    /** Phase 85: true when withdrawing this answer was the third within 24 hours and the service desk dropped to Drafts only. */
+    deskBreakerTripped?: boolean;
 }
 
 /** POST /api/autonomous-ops/actions/{id}/undo[?tenantId=]: 409 {detail} when the action cannot be undone now. */

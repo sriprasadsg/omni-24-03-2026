@@ -3,8 +3,10 @@ import {
     AutonomousOpsApiError, AutonomousOpsOpenView, AutonomousOpsRow, undoAutonomousOpsAction,
 } from '../services/autonomousOpsApi';
 import { useAutonomousOpsStatus } from '../contexts/AutonomousOpsStatusContext';
+import { DESK_SETTINGS_CHANGED } from '../services/serviceDesk/settingsApi';
 import { showToast } from '../utils/toast';
 import { ChevronRightIcon, ExternalLinkIcon, RefreshCcwIcon } from './icons';
+import { ACTIVITY, fill } from './serviceDesk/serviceDeskCopy';
 
 /**
  * What a row can do and how suggestions stay readable in volume (83-10, UI-SPEC sections 3 and 5).
@@ -33,12 +35,16 @@ export interface OpenViewPayload {
  * Draft a rollout. The server checks again when the draft is read and when Start is pressed.
  */
 export type OpenViewHandlers =
-    Partial<Record<AutonomousOpsOpenView, (payload?: OpenViewPayload) => void>> & { draftRollout?: boolean };
+    Partial<Record<AutonomousOpsOpenView, (payload?: OpenViewPayload) => void>> & {
+        draftRollout?: boolean;
+        /** Phase 85: opens Tickets for a service desk row. Present only when the viewer may open that screen. */
+        internalTickets?: (ticketId: string | null) => void;
+    };
 
 /** Builds the openers from what the viewer may open; undefined when the screen cannot navigate at all. */
 export function buildOpenViewHandlers(
-    go: ((view: AutonomousOpsOpenView, payload?: OpenViewPayload) => void) | undefined,
-    can: { canPatch: boolean; canFim: boolean; canDraft: boolean },
+    go: ((view: AutonomousOpsOpenView | 'internalTickets', payload?: OpenViewPayload) => void) | undefined,
+    can: { canPatch: boolean; canFim: boolean; canDraft: boolean; canTickets?: boolean },
 ): OpenViewHandlers | undefined {
     if (!go) return undefined;
     const out: OpenViewHandlers = {};
@@ -47,6 +53,8 @@ export function buildOpenViewHandlers(
         if (can.canDraft) out.draftRollout = true;
     }
     if (can.canFim) out.fimMonitoring = () => go('fimMonitoring');
+    // The screen opens on Tickets; the ticket id reaches this handler so the screen can select it once it accepts an intent.
+    if (can.canTickets) out.internalTickets = () => go('internalTickets');
     return out;
 }
 
@@ -102,6 +110,9 @@ const BREAKER_TEXT =
 /** The server's sentence without its closing full stop, so it can sit inside the frame. */
 const quoted = (detail: string) => detail.trim().replace(/\.+$/, '');
 
+/** A service desk row is the one that names a ticket (Phase 85); its toasts and links use the desk's own words. */
+const isDeskRow = (row: AutonomousOpsRow): boolean => !!row.ticketNumber;
+
 export const RowActions: React.FC<{
     row: AutonomousOpsRow;
     tenantId: string | null;
@@ -126,7 +137,15 @@ export const RowActions: React.FC<{
             const cell = button.current?.closest<HTMLElement>('[data-result-cell]');
             if (out?.action?.id) onRowChanged(out.action); else onStale?.();
             cell?.focus();
-            if (out?.breakerTripped) {
+            if (isDeskRow(row)) {
+                // A withdrawn answer: the desk's breaker is its own, so the security breaker text never applies here.
+                if (out?.deskBreakerTripped) {
+                    showToast(ACTIVITY.undoToastBreaker, 'info');
+                    window.dispatchEvent(new Event(DESK_SETTINGS_CHANGED));
+                } else {
+                    showToast(fill(ACTIVITY.undoToast, { number: row.ticketNumber ?? '' }), 'success');
+                }
+            } else if (out?.breakerTripped) {
                 showToast(`Undo sent to ${hostOf(row)}. ${BREAKER_TEXT}`, 'info');
                 void refresh();
             } else {
@@ -142,7 +161,7 @@ export const RowActions: React.FC<{
         }
     };
 
-    const incident = row.bucket === 'pending' ? row.incidentId : null;
+    const incident = row.bucket === 'pending' && !isDeskRow(row) ? row.incidentId : null;
     const review = !!incident && !!decisionIds?.has(incident);
     const goToCard = () => {
         const card = document.getElementById(`approval-${incident}`);
@@ -165,11 +184,13 @@ export const RowActions: React.FC<{
                                 type="button"
                                 className={SECONDARY_BUTTON}
                                 disabled={pending}
-                                aria-label={`Undo: ${row.actionLabel} on ${hostOf(row)}`}
+                                aria-label={isDeskRow(row)
+                                    ? fill(ACTIVITY.undoAria, { number: row.ticketNumber ?? '' })
+                                    : `Undo: ${row.actionLabel} on ${hostOf(row)}`}
                                 onClick={undo}
                             >
                                 <RefreshCcwIcon size={16} aria-hidden="true" className={pending ? 'animate-spin' : ''} />
-                                {pending ? 'Undoing...' : 'Undo'}
+                                {pending ? ACTIVITY.undoing : ACTIVITY.undo}
                             </button>
                             {row.undoHint && <p className="break-words text-xs text-gray-500 dark:text-gray-400">{row.undoHint}</p>}
                         </>
@@ -285,6 +306,30 @@ export const TargetSummary: React.FC<{ row: AutonomousOpsRow }> = ({ row }) => {
     );
 };
 
+// ---------------------------------------------------------------- service desk rows (Phase 85)
+
+/**
+ * "Open ticket {TKT-number}" (UI-SPEC 5). A link through the Tickets opener when the viewer may open that screen,
+ * else the same words as plain text. Approve and Deny never appear on a desk row: a draft is decided on the ticket.
+ */
+export const DeskTicketLink: React.FC<{ row: AutonomousOpsRow; onOpenView?: OpenViewHandlers }> = ({ row, onOpenView }) => {
+    if (!row.ticketNumber) return null;
+    const label = fill(ACTIVITY.openTicket, { number: row.ticketNumber });
+    const open = onOpenView?.internalTickets;
+    return (
+        <div className="mt-2">
+            {open ? (
+                <button type="button" className={`${TEXT_BUTTON} inline-flex items-center gap-1`} onClick={() => open(row.ticketId ?? null)}>
+                    {label}
+                    <ExternalLinkIcon size={12} aria-hidden="true" />
+                </button>
+            ) : (
+                <span className={`break-words text-sm ${MUTED}`}>{label}</span>
+            )}
+        </div>
+    );
+};
+
 // ---------------------------------------------------------------- the Result cell
 
 /** Result text, then the suggestion body and the row actions, in one focusable wrapper (both layouts share it). */
@@ -292,6 +337,7 @@ export const ResultCell: React.FC<{ row: AutonomousOpsRow; text: string | null; 
     <div data-result-cell tabIndex={-1} className="min-w-0">
         <span className={`break-words text-sm ${MUTED}`} title={fullTimestamp(row)}>{text ?? Dash}</span>
         <SuggestionBody row={row} onOpenView={ctx.onOpenView} />
+        <DeskTicketLink row={row} onOpenView={ctx.onOpenView} />
         <RowActions row={row} tenantId={ctx.tenantId} decisionIds={ctx.decisionIds} onRowChanged={ctx.onRowChanged} onStale={ctx.onStale} />
     </div>
 );
