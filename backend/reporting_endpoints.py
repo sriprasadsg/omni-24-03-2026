@@ -205,13 +205,15 @@ async def get_notification_history(
     severity: str = None,
     _current_user: TokenData = Depends(get_current_user),
 ):
-    """Get notification history, optionally filtered by severity."""
+    """Get notification history, optionally filtered by severity: the notices the feed would serve this reader (the shared audience filter), a Super Admin's across every tenant."""
+    is_super = getattr(_current_user, "role", "") in _SUPER_ROLES
+    tenant_id = getattr(_current_user, "tenant_id", None) or getattr(_current_user, "tenantId", None)
+    if not tenant_id and not is_super:
+        raise HTTPException(status_code=403, detail="Tenant context required")
     try:
+        from notification_audience import reader_filter
         db = get_database()
-        _NOTIF_SUPER_ROLES = {"Super Admin", "super_admin", "platform-admin"}
-        user_role = getattr(_current_user, "role", "")
-        tenant_id = getattr(_current_user, "tenant_id", None) or getattr(_current_user, "tenantId", None)
-        query: dict = {} if user_role in _NOTIF_SUPER_ROLES else {"tenant_id": tenant_id}
+        query = await reader_filter(_current_user, tenant_id, all_tenants=is_super)
         if severity:
             query["severity"] = severity
         notifications = await db.notifications.find(query, {"_id": 0}).sort("sent_at", -1).limit(limit).to_list(length=limit)
