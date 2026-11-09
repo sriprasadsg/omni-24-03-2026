@@ -109,6 +109,25 @@ def _validated(changes: Dict[str, Any]) -> Dict[str, Any]:
     return clean
 
 
+@router.get("/docs/{doc_id}")
+async def get_doc(
+    doc_id: str,
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+) -> Dict[str, Any]:
+    """One of the caller's own articles with its text, for the Edit article dialog (the list leaves the text out).
+    A shared (platform) article or another tenant's matches nothing and answers 404, as for the edit route."""
+    tenant = tenant_of(current_user)
+    doc = await raw(get_database()).knowledge_docs.find_one({"id": doc_id, "tenantId": tenant}, {"_id": 0})
+    if doc is None:
+        raise _refuse(404, "article_not_found")
+    doc["helpdesk"] = doc.get("helpdesk") is True
+    doc.setdefault("starterKey", None)
+    doc.setdefault("tags", [])
+    doc["updatedAt"] = doc.get("updatedAt") or doc.get("createdAt")
+    doc["max"] = HELPDESK_CONTENT_MAX
+    return doc
+
+
 @router.patch("/docs/{doc_id}")
 async def patch_doc(
     doc_id: str,
