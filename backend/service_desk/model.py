@@ -54,6 +54,7 @@ class ModelReply:
     gen_ms: int = 0
     load_ms: int = 0
     total_ms: int = 0
+    prefill_ms: int = 0
 
 
 MEMORY_HEADROOM_BYTES = 1_500_000_000       # research A-assumed: model size plus 1.5 GB must be free
@@ -219,4 +220,5 @@ class OllamaClient:
             raise ModelError("the answer had no text")
         return ModelReply(text=text, prompt_tokens=_count(data.get("prompt_eval_count")),
                           eval_tokens=_count(data.get("eval_count")), gen_ms=_ms(data.get("eval_duration")),
-                          load_ms=_ms(data.get("load_duration")), total_ms=_ms(data.get("total_duration")))
+                          load_ms=_ms(data.get("load_duration")), total_ms=_ms(data.get("total_duration")),
+                          prefill_ms=_ms(data.get("prompt_eval_duration")))
