@@ -168,6 +168,30 @@ created: "2026-11-09"
 | T-85-103 | Tampering / Denial of Service | eval-script --sets test reaching a live database (85-29, WR-303) | medium | mitigate | Client factory and open_database replaced by raising recorders, Mongo URL variables deleted, exit 0 asserted | closed |
 | T-85-104 | Repudiation | date-dependent tests (85-29, WR-301) | low | mitigate | Fixtures drop the 90-day TTL indexes (desk_indexes_without_ttl), the 100-day row is asserted present, and the migration test keeps TTL coverage | closed |
 | T-85-SC | Tampering | dependencies (gap plans 85-24..85-29) | low | accept | No package is installed; `git diff c9e32ae76..HEAD` touches no dependency file | closed |
+| T-85-105 | Elevation of Privilege | a custom or requester role becoming ticket staff by default (85-30) | medium | mitigate | manage:tickets only on tenant_admin, analyst, security_analyst and incident_responder in `rbac_defaults.py`; no migration or seed for custom roles; `test_ticket_staff_access.py` pins user, viewer, platform_support and a custom role without it as non-staff | closed |
+| T-85-106 | Elevation of Privilege | an editor ticking manage:tickets on a role without holding it (85-30) | low | mitigate | Unchanged server ceiling `role_contents.assert_can_edit_contents` / `grantable_for`; the catalogue test shows it offered to a tenant admin who holds it | closed |
+| T-85-107 | Information Disclosure | GET /api/notifications/history reading every tenant notice (CR-501, 85-31) | high | mitigate | `reporting_endpoints.get_notification_history` builds its query from `notification_audience.reader_filter`, keyed on tenantId; non-super caller without a tenant gets 403; `test_notification_history_audience.py` | closed |
+| T-85-108 | Information Disclosure | Super Admin history serving other people's addressed notices (85-31) | medium | mitigate | `reader_filter(..., all_tenants=True)` drops only the tenant clause; recipient and exclusion rules stay; tested | closed |
+| T-85-109 | Tampering | a future route reading db.notifications without the filter (85-31) | medium | mitigate | `test_notification_audience_structure.py` scans the whole backend; only three system jobs are allow-listed | closed |
+| T-85-110 | Information Disclosure | ticket_staff notices reaching non-staff colleagues (85-31) | medium | mitigate | `notification_audience.reader_filter` adds the ticket_staff exclusion for callers failing `is_ticket_staff`; feed and history tests | closed |
+| T-85-111 | Information Disclosure | untagged ticket lifecycle notices reaching every tenant user (85-31) | low | accept | AR-85-12 | closed |
+| T-85-112 | Information Disclosure | another person's ticket served to any non-reporter view:dashboard user (WR-502, 85-32) | high | mitigate | `ticket_access.ticket_viewer()` as a router dependency on `tickets_endpoints.router`: 404 unless staff or reporter; HTTP tests on get, history, comment, upload and delete | closed |
+| T-85-113 | Information Disclosure | ticket id existence oracle, 403 versus 404 (85-32) | low | mitigate | The guard answers the same 404 "Ticket not found" as a missing ticket; tested | closed |
+| T-85-114 | Information Disclosure | the user's uncommitted attachment download route reading another person's attachment (85-32) | medium | mitigate | Not in committed history; when restored it sits on the guarded `tickets_endpoints.router`, so `ticket_viewer` covers it by construction and `test_ticket_staff_routes_structure.py` classifies it as viewer-guarded. A requester-404 test for it is a user follow-up | closed |
+| T-85-115 | Information Disclosure | ticket list, stats, reports and CSV export counting every tenant ticket (85-33) | medium | mitigate | Query-level own-tickets scope (`ticket_access.tickets_scope`, `_scope(current_user)` on the 7 report/export routes, `scope=` on list and stats); `test_ticket_staff_lists.py` compares totals and exports | closed |
+| T-85-116 | Tampering | regex characters in a user name widening the scope (85-33) | low | mitigate | `re.compile(f"^{re.escape(name)}$", re.IGNORECASE)` in `ticket_access.own_tickets_filter`; tested with a near-miss and a regex-character name | closed |
+| T-85-117 | Information Disclosure | a projection call forgetting the staff input (85-33) | medium | mitigate | `for_viewer`, `history_for_viewer` and `staff_view` take keyword-only `staff: bool = False` (requester projection by default); unit test | closed |
+| T-85-118 | Information Disclosure | AI chat /tickets skill listing the newest tenant ticket titles (85-33) | low | accept | AR-85-13 | closed |
+| T-85-119 | Elevation of Privilege | any view:dashboard user acting on another person's ticket (WR-502, 85-34) | high | mitigate | `has_permission(ticket_access.TICKET_STAFF)` on 9 routes in `tickets_endpoints.py`, merge in `tickets_workflow_endpoints.py`, both watcher routes in `tickets_config_endpoints.py`; the viewer guard on the workflow and config routers; `test_ticket_staff_actions.py` asserts 403/404 and an unchanged ticket | closed |
+| T-85-120 | Elevation of Privilege | a staff member acting as staff on a ticket they raised (85-34) | low | accept | AR-85-14 | closed |
+| T-85-121 | Elevation of Privilege | a colleague sending, editing or discarding another person's AI draft (WR-502, 85-35) | high | mitigate | `ticket_viewer` on the `service_desk_endpoints` router and async `_staff_only` (ticket staff who did not raise the ticket) on the draft routes; tests assert the draft is untouched | closed |
+| T-85-122 | Information Disclosure | draft text, reason and citations in the desk view for non-staff (85-35) | medium | mitigate | `projection.staff_view(..., staff=False)` default; the guard 404s non-staff non-reporters | closed |
+| T-85-123 | Information Disclosure | the cited-article reader's staff branch for non-staff (85-35) | low | mitigate | Requester view unless staff and not the reporter; tested | closed |
+| T-85-124 | Information Disclosure | requesters' questions in the knowledge-gap list for a non-staff KB editor (85-35) | low | mitigate | `knowledge_helpdesk_endpoints._require_ticket_access` depends on `has_permission(ticket_access.TICKET_STAFF)`; `test_service_desk_knowledge_gaps.py` refuses `kb_viewer` | closed |
+| T-85-125 | Tampering | a future /api/tickets route or router skipping the staff rules (85-35) | medium | mitigate | `test_ticket_staff_routes_structure.py` classifies every route of the five routers and the closed set of routers; mutation-checked | closed |
+| T-85-126 | Repudiation | AR-85-01, AR-85-04 and AR-85-09 still recorded as accepted after the user reversed them (85-36) | medium | mitigate | The three rows re-recorded as SUPERSEDED with the replacement rule (Accepted Risks Log) | closed |
+| T-85-127 | Tampering / Denial of Service | the gate writing into the live mongod (85-36) | medium | mitigate | Private mongod URLs on the gate command; omni_test_ databases on 27017 counted 0 before and 0 after (85-36-SUMMARY) | closed |
+| T-85-SC | Tampering | dependencies (gap plans 85-30..85-36) | low | accept | No package is installed; `git diff f8335a1ae..HEAD` touches no dependency file | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -192,6 +216,9 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 | AR-85-09 | T-85-93 | SUPERSEDED IN PART 2026-11-09 (G-85-4): colleagues keep the full view only when they are ticket staff; the part that stands is that a reporter who is ticket staff gets the requester view of their own ticket and keeps staff actions on it (T-85-120). Original rationale: A-85-G06: a reporter who also has staff permissions gets the requester view of their own ticket only, the same rule as the shipped service-desk route; colleagues keep the full view | planner (85-25 threat model), confirmed by gsd-security-auditor; superseded by the user's G-85-4 decision; re-verify with /gsd-secure-phase 85 | 2026-11-09 |
 | AR-85-10 | T-85-100 | A-85-G14: ticket_staff notices stored before 85-28 carry no exclusion but no comment text either (85-08); no migration | planner (85-28 threat model), confirmed by gsd-security-auditor | 2026-11-09 |
 | AR-85-11 | T-85-101 | A-85-G15: tenant_admins notices (pending agents, desk breaker) are still pushed to every tenant user on the socket while the feed hides them from non-admins; outside WR-201, reported to the user as a follow-up | planner (85-28 threat model), confirmed by gsd-security-auditor | 2026-11-09 |
+| AR-85-12 | T-85-111 | A-85-G21: ticket lifecycle notices written with no audience or recipient (created, status changed, assigned, SLA breached, escalated) still reach every tenant user in the feed and history; outside G-85-4 UD-1..UD-4, needs a product decision, reported to the user as a follow-up | planner (85-31 threat model), confirmed by secure-phase L1 audit | 2026-11-09 |
+| AR-85-13 | T-85-118 | A-85-G27: the AI chat `/tickets` skill (`skill_handlers_queries.handle_tickets`) lists the five newest tenant ticket titles and statuses to any chat user; outside /api/tickets, titles only, the skill receives no user identity; reported to the user as a follow-up | planner (85-33 threat model), confirmed by secure-phase L1 audit | 2026-11-09 |
+| AR-85-14 | T-85-120 | The standing part of AR-85-09: ticket staff keep staff actions on a ticket they raised (and get the requester projection of it); unchanged by G-85-4 | planner (85-34 threat model), confirmed by secure-phase L1 audit | 2026-11-09 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -216,6 +243,13 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 - **T-85-92 observation:** the AST guard inspects `return <Name>` forms only, so a future `return await service.x(...)` from a ticket route would not trip it.
 - **Outside the gap round:** the working copy of `backend/requirements.txt` has the user's uncommitted `aiosmtplib`/`scipy` additions. They are not in committed history; review them with the user's WIP.
 
+## Audit Notes — second gap round (2026-11-09, secure-phase L1, ASVS L1)
+
+- **Result:** SECURED by the L1 short-circuit (register authored at plan time, ASVS level 1, nothing open at or above high). The gap plans 85-30..85-36 added 23 unique threats, T-85-105..T-85-127, plus a T-85-SC row. 20 mitigations were found in committed code or tests by grep-depth evidence (file and test named in each row), and 3 are accepted (AR-85-12..14). Nothing is open at any severity.
+- **Test evidence:** the 85-36 gate on the final code passed 2,696 backend tests on committed code (2,694 on the working tree plus the 2 route-parity tests, which fail only because the user's uncommitted `shared/catalogue-gaps.json` expects their set-aside `reporting_endpoints.py` edits, and pass in a clean checkout of HEAD), 1,876 Vitest tests and the build.
+- **Audit scope:** the user's uncommitted edits to `backend/tickets_endpoints.py`, `backend/reporting_endpoints.py` and `shared/catalogue-access.json` were set aside during the run, so the audited files were the committed ones. The download route in those edits is T-85-114.
+- **Deployment note:** no migration grants manage:tickets to custom roles (T-85-105 by design, UD-3). Custom-role users, including custom Knowledge Base editors, lose staff access until a tenant admin ticks "Handle tickets as IT staff".
+
 ---
 
 ## Security Audit Trail
@@ -224,6 +258,7 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 |------------|---------------|--------|------|--------|
 | 2026-11-09 | 83 | 83 | 0 | gsd-security-auditor (sonnet), ASVS L1, block_on high |
 | 2026-11-09 (gap round) | 101 | 101 | 0 | gsd-security-auditor (sonnet), ASVS L1, block_on high: T-85-87..104 added, T-85-77 reclassified to mitigate |
+| 2026-11-09 (second gap round) | 124 | 124 | 0 | secure-phase L1 short-circuit (orchestrator), ASVS L1, block_on high: T-85-105..127 added, AR-85-12..14 accepted |
 
 ---
 
@@ -250,4 +285,12 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 |---|---|
 | Threats found | 101 |
 | Closed | 101 |
+| Open | 0 |
+
+## Security Audit 2026-11-09
+
+| Metric | Count |
+|---|---|
+| Threats found | 124 |
+| Closed | 124 |
 | Open | 0 |
