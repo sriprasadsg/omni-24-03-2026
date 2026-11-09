@@ -41,6 +41,13 @@ _VALID_TRANSITIONS: dict[str, set] = {
 }
 
 
+def _shown(ticket, user):
+    """A ticket as ``user`` may read it (D-11): the person who raised it gets the requester projection
+    (CR-401), everyone else the stored ticket. Every route that returns a ticket returns it through here."""
+    from service_desk import projection
+    return projection.for_viewer(ticket, user)
+
+
 # ── Ticket CRUD ───────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -110,7 +117,7 @@ async def get_ticket(
     ticket = await tickets_service.get_ticket(ticket_id, tenant_id=_effective_tenant(current_user))
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return ticket
+    return _shown(ticket, current_user)
 
 
 @router.post("")

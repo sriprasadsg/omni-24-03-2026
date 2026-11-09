@@ -2,7 +2,8 @@
 
 Only comments marked ``requester`` are projected; a comment with no visibility reads as staff, so
 every older comment stays staff-only without a data change. Plain data only; the portal and the tray
-render the text as text.
+render the text as text. ``for_viewer`` and ``history_for_viewer`` are the reporter projection of the legacy
+ticket JSON (CR-401, D-11): what the person who raised the ticket may read of their own ticket.
 """
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,8 +20,7 @@ def requester_items(ticket: Dict[str, Any], names: Optional[Dict[str, str]] = No
     """The requester-visible comments, oldest first. An answer that was withdrawn is left out (the requester
     reads the withdrawal notice instead). With ``names`` (lowercase user name -> profile name) a reply written
     by a person shows that person's name, or no name when there is no profile (the screen then says IT)."""
-    comments = [c for c in (ticket.get("comments") or []) if isinstance(c, dict) and c.get("visibility") == "requester"
-                and not _withdrawn(c)]
+    comments = [c for c in (ticket.get("comments") or []) if _requester_visible(c)]
     comments.sort(key=lambda c: (str(c.get("created_at") or ""), str(c.get("id") or "")))
     items = []
     for comment in comments:
@@ -36,6 +36,12 @@ def requester_items(ticket: Dict[str, Any], names: Optional[Dict[str, str]] = No
         items.append({"id": comment.get("id"), "kind": kind, "at": comment.get("created_at"),
                       "author": author, "text": comment.get("text"), "citations": citations})
     return items
+
+
+def _requester_visible(comment: Any) -> bool:
+    """A comment marked for the requester that is not a withdrawn answer: the one rule the answer panel and the
+    reporter's comment list both read, so they cannot drift."""
+    return isinstance(comment, dict) and comment.get("visibility") == "requester" and not _withdrawn(comment)
 
 
 def _withdrawn(comment: Dict[str, Any]) -> bool:
@@ -77,6 +83,78 @@ def is_reporter(ticket: Dict[str, Any], user: Any) -> bool:
     reporter = _text(ticket.get("reporter"))
     names = {_text(getattr(user, field, "")) for field in ("username", "email")} - {""}
     return bool(reporter) and reporter in names
+
+
+# ---------------------------------------------------------------- the reporter's own ticket (CR-401, D-11)
+
+REPORTER_AI_KEYS = ("state", "citations", "sentBy", "postedAt", "sentAt")     # what an AI comment keeps for the reporter
+REPORTER_DESK_KEYS: Tuple[str, ...] = ()      # no desk field is the reporter's: they read desk state only through requester_view
+REPORTER_HIDDEN_HISTORY_ACTIONS = ("draft_sent", "draft_discarded")
+_PREVIEW_CHARS = 80                           # tickets_service.add_comment keeps this much of a requester comment in history
+
+
+def requester_may_read(ticket: Dict[str, Any], comment: Any) -> bool:
+    """True when the reporter may read ``comment`` on their own ticket: a requester-visible comment that is not a
+    withdrawn answer, or any comment the reporter wrote themselves (the portal stores it as staff-only by default),
+    never an AI draft."""
+    if not isinstance(comment, dict) or comment.get("kind") == "ai_draft":
+        return False
+    return _requester_visible(comment) or same_person(ticket.get("reporter"), comment.get("author"))
+
+
+def _reporter_comment(comment: Dict[str, Any]) -> Dict[str, Any]:
+    shown = dict(comment)
+    if "ai" in shown and shown["ai"] is not None:
+        ai = shown["ai"] if isinstance(shown["ai"], dict) else {}
+        shown["ai"] = {key: ai[key] for key in REPORTER_AI_KEYS if key in ai}
+        if isinstance(ai.get("citations"), list):
+            shown["ai"]["citations"] = [{"articleId": c.get("articleId"), "title": c.get("title")}
+                                        for c in ai["citations"] if isinstance(c, dict)]
+    return shown
+
+
+def reporter_history(ticket: Dict[str, Any], entries: Any) -> List[Dict[str, Any]]:
+    """The history the reporter may read: no draft entry, and a commented entry only when the reporter wrote it,
+    the desk marked it for the requester, or its preview is the start of a comment they may read. Status,
+    assignment and every other entry stay."""
+    readable = {str(c.get("text") or "")[:_PREVIEW_CHARS] for c in (ticket.get("comments") or [])
+                if requester_may_read(ticket, c)}
+    shown = []
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict) or entry.get("action") in REPORTER_HIDDEN_HISTORY_ACTIONS:
+            continue
+        if entry.get("action") == "commented":
+            changes = entry.get("changes") if isinstance(entry.get("changes"), dict) else {}
+            if not (same_person(ticket.get("reporter"), entry.get("actor")) or changes.get("visibility") == "requester"
+                    or (isinstance(changes.get("preview"), str) and changes["preview"] in readable)):
+                continue
+        shown.append(entry)
+    return shown
+
+
+def reporter_ticket(ticket: Dict[str, Any]) -> Dict[str, Any]:
+    """The ticket as its reporter may read it: the comments they may read (an AI comment cut down to
+    ``REPORTER_AI_KEYS``), no desk field and the reporter history."""
+    shown = dict(ticket)
+    shown.pop("desk", None)                   # REPORTER_DESK_KEYS is empty: no desk field is the reporter's
+    if "comments" in ticket:
+        shown["comments"] = [_reporter_comment(c) for c in (ticket.get("comments") or []) if requester_may_read(ticket, c)]
+    if "history" in ticket:
+        shown["history"] = reporter_history(ticket, ticket.get("history"))
+    return shown
+
+
+def for_viewer(ticket: Optional[Dict[str, Any]], user: Any) -> Optional[Dict[str, Any]]:
+    """``ticket`` as ``user`` may read it: the reporter's projection for the person who raised it, the stored
+    ticket for everyone else (D-11)."""
+    if ticket is None or not is_reporter(ticket, user):
+        return ticket
+    return reporter_ticket(ticket)
+
+
+def history_for_viewer(ticket: Dict[str, Any], entries: Any, user: Any) -> Any:
+    """A history list as ``user`` may read it (the reporter history for the person who raised the ticket)."""
+    return reporter_history(ticket, entries) if is_reporter(ticket, user) else entries
 
 
 def iso(value: Any) -> Optional[str]:
