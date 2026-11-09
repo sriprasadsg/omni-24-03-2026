@@ -910,7 +910,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                           <span className="text-[9px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-semibold">PENDING APPROVAL</span>}
                         {t.desk?.draftWaiting === true && (t.reporter || '').toLowerCase() !== userEmail.toLowerCase() &&
                           <DeskChip tone="blue" icon={SparklesIcon}>{DRAFT_PANEL.chipDraftWaiting}</DeskChip>}
-                        {t.comments?.length > 0 && <span className="text-[10px] text-slate-500 flex items-center gap-0.5"><MessageSquare size={9}/>{t.comments.length}</span>}
+                        {visibleComments(t, userEmail, null).length > 0 && <span className="text-[10px] text-slate-500 flex items-center gap-0.5"><MessageSquare size={9}/>{visibleComments(t, userEmail, null).length}</span>}
                         {t.attachments?.length > 0 && <span className="text-[10px] text-slate-500 flex items-center gap-0.5"><Paperclip size={9}/>{t.attachments.length}</span>}
                       </div>
                     </td>
