@@ -9,6 +9,9 @@ works tickets may act on a draft (no approval tier, no MFA ask, D-10); a person-
 decision and never counts toward the desk's automatic pool or its breaker (it is not ``autoDispatched``).
 The only status this module sets besides the hold on the customer is ``resolved``, and only on the requester's
 own confirmation (D-07): the desk never resolves a ticket by itself and nothing here closes one.
+A person-sent answer follows the same order as the desk's own post: the status moves to pending_customer first,
+the draft turns into the visible answer only after that, and the status is put back when the turn is lost, so the
+requester never reads an answer on a ticket that did not move (WR-103).
 """
 import logging
 import uuid
@@ -84,7 +87,10 @@ async def _guarded(step: str, ticket_id: str, call) -> Any:
 async def send_draft(db, tenant_id: str, ticket_id: str, comment_id: str, *, actor: Dict[str, Any],
                      text: Optional[str] = None, now: Optional[datetime] = None) -> Dict[str, Any]:
     """Send the waiting draft ``comment_id`` to the requester as it stands, or with ``text`` as an edit (D-09).
-    The answer keeps its AI-assisted mark and its citations; the ticket then waits on the customer."""
+    The answer keeps its AI-assisted mark and its citations; the ticket then waits on the customer. The status
+    moves first by compare-and-set (a ticket a person already set to pending_customer needs no move), the draft
+    turns only when that worked, and a lost turn puts the status back to what it was (open, in progress or on
+    hold, never a closed status)."""
     now = _aware(now)
     ticket = await _read(db, tenant_id, ticket_id)
     if ticket is None:
@@ -106,16 +112,23 @@ async def send_draft(db, tenant_id: str, ticket_id: str, comment_id: str, *, act
             return refused("edit_unchanged")
         answer, edited = cleaned, True
 
+    prior = ticket.get("status") or ""
+    moved = False
+    if prior != "pending_customer":
+        moved = await ticket_writes.move_status(db, tenant_id, ticket_id, _SEND_FROM, "pending_customer",
+                                                actor=str(actor.get("id") or ""), now=now)
+        if not moved:
+            return await _refusal_after_lost_move(db, tenant_id, ticket_id, comment_id)
     sent_by = {"id": actor.get("id"), "name": actor.get("name")}
     won = await _turn_draft(
         db, tenant_id, ticket_id, comment_id,
         {"kind": "ai_answer", "visibility": "requester", "text": answer, "ai.state": "sent", "ai.sentBy": sent_by,
          "ai.sentAt": now.isoformat(), "ai.edited": edited}, actor=actor, action="draft_sent", now=now)
     if not won:
+        if moved:
+            await _put_status_back(db, tenant_id, ticket_id, comment_id, prior, actor, now)
         return refused("already_handled")
 
-    await _guarded("the status change", ticket_id, ticket_writes.move_status(
-        db, tenant_id, ticket_id, _SEND_FROM, "pending_customer", actor=str(actor.get("id") or ""), now=now))
     action_id = comment["ai"].get("actionId")
     desk = {"phase": "sent", "commentId": comment_id, "draftWaiting": False, "undoable": True, "postedAt": now,
             "sentBy": sent_by, "sentAt": now, "edited": edited}
@@ -124,6 +137,39 @@ async def send_draft(db, tenant_id: str, ticket_id: str, comment_id: str, *, act
     await _guarded("the Activity row", ticket_id, _row_sent(db, tenant_id, action_id, actor, desk, zone, now))
     await _guarded("the notice", ticket_id, notify.requester_notice(db, ticket, event="answer_sent"))
     return {"status": "sent", "commentId": comment_id, "edited": edited}
+
+
+async def _refusal_after_lost_move(db, tenant_id: str, ticket_id: str, comment_id: str) -> Dict[str, Any]:
+    """The status move lost: the ticket changed after the first read. Refuse with the code the fresh ticket gives
+    (closed, a person replied, no requester), else ``already_handled``; the comment stays a staff-only draft."""
+    fresh = await _read(db, tenant_id, ticket_id)
+    if fresh is None:
+        return refused("not_found")
+    if _draft(fresh, comment_id) is None:
+        return refused("already_handled")
+    code, _ = projection.blocked(fresh)
+    return refused(code, state=fresh.get("status")) if code else refused("already_handled")
+
+
+async def _put_status_back(db, tenant_id: str, ticket_id: str, comment_id: str, prior: str,
+                           actor: Dict[str, Any], now: datetime) -> None:
+    """The turn was lost after this call moved the status. Put it back to the status it moved from (read from the
+    ticket's own history: a person may have changed it between the first read and the move; ``prior`` when the
+    history shows nothing), unless the winner already sent the answer (it needs the status this call set) or the
+    ticket moved on again (the compare-and-set sees that)."""
+    fresh = await _read(db, tenant_id, ticket_id)
+    sent = next((c for c in (fresh or {}).get("comments") or []
+                 if isinstance(c, dict) and c.get("id") == comment_id and c.get("kind") == "ai_answer"), None)
+    if fresh is None or sent is not None:
+        return
+    origin = prior
+    for entry in reversed(fresh.get("history") or []):
+        change = ((entry.get("changes") or {}).get("status") or {}) if isinstance(entry, dict) else {}
+        if entry.get("action") == "updated" and change.get("to") == "pending_customer":
+            origin = change.get("from") if change.get("from") in _SEND_FROM else prior
+            break
+    await _guarded("the status put-back", ticket_id, ticket_writes.move_status(
+        db, tenant_id, ticket_id, ("pending_customer",), origin, actor=str(actor.get("id") or ""), now=now))
 
 
 async def _row_sent(db, tenant_id: str, action_id: Optional[str], actor: Dict[str, Any], desk: Dict[str, Any],

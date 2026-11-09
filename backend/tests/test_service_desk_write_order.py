@@ -338,3 +338,23 @@ async def test_two_people_sending_at_once_give_one_winner_one_status_change_and_
     assert after["status"] == "pending_customer" and draft_of(after)["kind"] == "ai_answer"
     assert _status_moves(after) == [{"from": "open", "to": "pending_customer"}]
     assert len(await notices(portal.db, "alice@x.co", "answer_sent")) == 1
+
+
+async def test_the_put_back_returns_to_the_status_the_send_moved_from(portal, monkeypatch):
+    """protects=PROH-85-04 a person moved the ticket to in_progress after the send's first read; fails_when=the
+    put-back sets the status the stale read showed instead of the one the send moved from."""
+    ticket, comment = await _waiting(portal)
+    stale = copy.deepcopy(await stored_ticket(portal.db, ticket))
+    await portal.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"status": "in_progress"}})
+    real, reads = lifecycle._read, []
+
+    async def stale_first(*args, **kwargs):
+        reads.append(1)
+        return stale if len(reads) == 1 else await real(*args, **kwargs)
+
+    async def lose_the_turn(*args, **kwargs):
+        return False
+    monkeypatch.setattr(lifecycle, "_read", stale_first)
+    monkeypatch.setattr(lifecycle, "_turn_draft", lose_the_turn)
+    assert (await _send(portal, ticket, comment))["reason"] == "already_handled"
+    assert (await stored_ticket(portal.db, ticket))["status"] == "in_progress"
