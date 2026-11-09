@@ -48,6 +48,13 @@ def _shown(ticket, user):
     return projection.for_viewer(ticket, user)
 
 
+def _shown_history(ticket, history, user):
+    """A ticket's history as ``user`` may read it: the reporter's own ticket drops the draft entries and the
+    comment entries they may not read (A-85-G08)."""
+    from service_desk import projection
+    return projection.history_for_viewer(ticket, history, user)
+
+
 # ── Ticket CRUD ───────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -73,13 +80,15 @@ async def list_tickets(
     if not tenant_id and not _is_super:
         raise HTTPException(status_code=400, detail="No tenant context — please log out and back in to refresh your session.")
     try:
-        return await tickets_service.list_tickets(
+        result = await tickets_service.list_tickets(
             tenant_id=tenant_id,
             status=status, priority=priority, ticket_type=type,
             assignee=assignee, assignee_group=assignee_group, reporter=reporter,
             search=search, sla_status=sla_status, overdue_only=overdue_only,
             page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir,
         )
+        result["tickets"] = [_shown(t, current_user) for t in result["tickets"]]
+        return result
     except Exception as exc:
         _log.getLogger(__name__).error("[tickets] list_tickets failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list tickets: {type(exc).__name__}")
@@ -213,7 +222,7 @@ async def create_ticket(
     except Exception:
         pass
 
-    return ticket
+    return _shown(ticket, current_user)
 
 
 @router.patch("/{ticket_id}")
@@ -244,7 +253,7 @@ async def update_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return updated
+    return _shown(updated, current_user)
 
 
 @router.delete("/{ticket_id}")
@@ -272,7 +281,8 @@ async def get_history(
     )
     if history is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return history
+    ticket = await tickets_service.get_ticket(ticket_id, tenant_id=_effective_tenant(current_user))
+    return _shown_history(ticket, history, current_user) if ticket else history
 
 
 # ── Comments ──────────────────────────────────────────────────────────────────
@@ -332,7 +342,7 @@ async def add_comment(
         except Exception:
             pass
 
-    return updated
+    return _shown(updated, current_user)
 
 
 # ── Ticket linking ────────────────────────────────────────────────────────────
@@ -352,7 +362,7 @@ async def add_link(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return updated
+    return _shown(updated, current_user)
 
 
 @router.delete("/{ticket_id}/links/{linked_id}")
@@ -368,7 +378,7 @@ async def remove_link(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return updated
+    return _shown(updated, current_user)
 
 
 # ── Work log / time tracking ──────────────────────────────────────────────────
@@ -388,7 +398,7 @@ async def log_work(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return updated
+    return _shown(updated, current_user)
 
 
 # ── Attachments ───────────────────────────────────────────────────────────────
@@ -556,7 +566,7 @@ async def approve_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return updated
+    return _shown(updated, current_user)
 
 
 @router.post("/{ticket_id}/reject")
@@ -573,7 +583,7 @@ async def reject_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return updated
+    return _shown(updated, current_user)
 
 
 # ── Escalation ────────────────────────────────────────────────────────────────
@@ -592,4 +602,4 @@ async def escalate_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return updated
+    return _shown(updated, current_user)

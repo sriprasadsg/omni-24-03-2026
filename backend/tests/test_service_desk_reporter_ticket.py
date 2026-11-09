@@ -15,6 +15,7 @@ import json
 import os
 import pathlib
 import sys
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -104,6 +105,10 @@ async def world(mongo_db, monkeypatch):  # noqa: F811
     await store.ensure_indexes(mongo_db)
     await seed_desk_tenant(mongo_db, "t1")
     await seed_desk_tenant(mongo_db, "t2")
+    import ticket_notifications
+    monkeypatch.setattr(ticket_notifications, "notify_comment_added", AsyncMock())
+    import service_desk.intake as intake
+    monkeypatch.setattr(intake, "on_ticket_created", AsyncMock())       # the desk's own intake is not under test here
     return desk_app(mongo_db, monkeypatch)
 
 
@@ -206,3 +211,158 @@ async def test_a_reporter_with_an_admin_role_still_gets_the_requester_view(world
     response = await world.call("GET", f"/api/tickets/{ticket_id}", user=ALICE_ADMIN)
     assert response.status_code == 200
     _clean(response.text)
+
+
+# ---------------------------------------------------------------- every other ticket-returning route
+
+BOB_NOTE = "bob's own private note on his own ticket"
+
+
+async def _bob_note(world, other_id):
+    await world.db.tickets.update_one({"id": other_id}, {"$set": {"comments": [
+        _comment("b1", "carol@x.co", BOB_NOTE, "staff", 1)]}})
+
+
+@pytest.mark.parametrize("query", ["", "?reporter=alice@x.co"])
+async def test_the_list_projects_the_reporters_ticket_and_leaves_the_others(world, query):
+    """protects=CR-401 on GET /api/tickets; fails_when=a planted staff text reaches the reporter in the list, or
+    a ticket raised by someone else loses a comment."""
+    ticket_id, other_id = await _plant(world)
+    await _bob_note(world, other_id)
+    response = await world.call("GET", f"/api/tickets{query}", user=ALICE)
+    assert response.status_code == 200
+    tickets = {t["id"]: t for t in response.json()["tickets"]}
+    assert ticket_id in tickets
+    _clean(json.dumps(tickets[ticket_id]))
+    assert "desk" not in tickets[ticket_id]
+    if not query:
+        assert [c["text"] for c in tickets[other_id]["comments"]] == [BOB_NOTE]
+    staff = await world.call("GET", "/api/tickets", user=BOB)
+    mine = next(t for t in staff.json()["tickets"] if t["id"] == ticket_id)
+    assert mine["desk"]["lastReason"] == "billing_topic" and len(mine["comments"]) == len(_planted_comments())
+
+
+async def test_patch_returns_the_projection_to_the_reporter_and_the_full_ticket_to_staff(world):
+    """protects=CR-401 on PATCH; fails_when=the reporter's update response carries a staff text, or staff lose it."""
+    ticket_id, _ = await _plant(world)
+    response = await world.call("PATCH", f"/api/tickets/{ticket_id}", user=ALICE, json={"priority": "high"})
+    assert response.status_code == 200 and response.json()["priority"] == "high"
+    _clean(response.text)
+    staff = await world.call("PATCH", f"/api/tickets/{ticket_id}", user=BOB, json={"priority": "low"})
+    assert staff.status_code == 200 and STAFF_TEXT in staff.text and staff.json()["desk"]["lastReason"] == "billing_topic"
+
+
+async def test_a_comment_by_the_reporter_comes_back_in_the_projection(world):
+    """protects=CR-401 / A-85-G05 on POST comments; fails_when=the reporter's new comment is missing from the
+    response (a portal comment is stored staff-only) or a staff text is in it."""
+    ticket_id, _ = await _plant(world)
+    response = await world.call("POST", f"/api/tickets/{ticket_id}/comments", user=ALICE, json={"text": "One more thing"})
+    assert response.status_code == 200
+    _clean(response.text)
+    assert "One more thing" in [c["text"] for c in response.json()["comments"]]
+    staff = await world.call("POST", f"/api/tickets/{ticket_id}/comments", user=BOB, json={"text": "Checking now"})
+    assert staff.status_code == 200 and STAFF_TEXT in staff.text and "desk" in staff.json()
+
+
+async def test_the_link_routes_project_for_the_reporter(world):
+    """protects=CR-401 on POST links and DELETE links; fails_when=either response carries a staff text or a desk key."""
+    ticket_id, other_id = await _plant(world)
+    linked = await world.call("POST", f"/api/tickets/{ticket_id}/links", user=ALICE,
+                              json={"linked_id": other_id, "link_type": "relates_to"})
+    assert linked.status_code == 200 and linked.json()["links"][0]["linked_id"] == other_id
+    _clean(linked.text)
+    removed = await world.call("DELETE", f"/api/tickets/{ticket_id}/links/{other_id}", user=ALICE)
+    assert removed.status_code == 200 and removed.json()["links"] == []
+    _clean(removed.text)
+    staff = await world.call("POST", f"/api/tickets/{ticket_id}/links", user=BOB,
+                             json={"linked_id": other_id, "link_type": "relates_to"})
+    assert staff.status_code == 200 and STAFF_TEXT in staff.text
+
+
+async def test_the_work_log_route_projects_for_the_reporter(world):
+    """protects=CR-401 on POST work-log; fails_when=the response carries a staff text or a desk key."""
+    ticket_id, _ = await _plant(world)
+    response = await world.call("POST", f"/api/tickets/{ticket_id}/work-log", user=ALICE,
+                                json={"hours": 1, "description": "checked"})
+    assert response.status_code == 200 and response.json()["work_logs"][0]["description"] == "checked"
+    _clean(response.text)
+
+
+@pytest.mark.parametrize("method,path,body", [
+    ("approve_ticket", "approve", {}), ("reject_ticket", "reject", {"reason": "no"}),
+    ("escalate_ticket", "escalate", {"reason": "slow"})])
+async def test_approve_reject_and_escalate_project_whatever_the_service_returns(world, monkeypatch, method, path, body):
+    """protects=CR-401 on the approval routes; fails_when=the route returns the service's full ticket to the
+    reporter, or changes it for staff."""
+    ticket_id, _ = await _plant(world)
+    full = await _stored(world, ticket_id)
+    import tickets_service
+    monkeypatch.setattr(tickets_service.tickets_service, method, AsyncMock(return_value=full))
+    response = await world.call("POST", f"/api/tickets/{ticket_id}/{path}", user=ALICE, json=body)
+    assert response.status_code == 200
+    _clean(response.text)
+    staff = await world.call("POST", f"/api/tickets/{ticket_id}/{path}", user=BOB, json=body)
+    assert staff.json()["comments"] == full["comments"] and staff.json()["desk"] == full["desk"]
+
+
+async def test_a_new_ticket_goes_back_to_its_creator_through_the_projection(world, monkeypatch):
+    """protects=CR-401 on POST /api/tickets; fails_when=the creator's response carries a desk key or a staff text."""
+    ticket_id, _ = await _plant(world)
+    full = await _stored(world, ticket_id)
+    import tickets_service
+    monkeypatch.setattr(tickets_service.tickets_service, "create_ticket", AsyncMock(return_value=full))
+    response = await world.call("POST", "/api/tickets", user=ALICE, json={"title": "Another one"})
+    assert response.status_code == 200
+    _clean(response.text)
+    assert "desk" not in response.json()
+    real = await _raise(world, ALICE, title="A plain new ticket")
+    assert "desk" not in real and real["reporter"] == "alice@x.co"
+
+
+# ---------------------------------------------------------------- history
+
+async def test_the_history_route_drops_what_the_reporter_may_not_read(world):
+    """protects=T-85-91 / A-85-G08; fails_when=a draft entry, a staff-only commented entry or an older preview of
+    a now staff-only comment reaches the reporter, a status entry or one of theirs is lost, or staff lose an entry."""
+    ticket_id, _ = await _plant(world)
+    response = await world.call("GET", f"/api/tickets/{ticket_id}/history", user=ALICE)
+    assert response.status_code == 200
+    assert sorted(h["id"] for h in response.json()) == sorted(KEPT_IDS)
+    for secret in (STAFF_TEXT, "draft_sent", "draft_discarded", "ai_draft", "staff_note"):
+        assert secret not in response.text
+    stored = await _stored(world, ticket_id)
+    staff = await world.call("GET", f"/api/tickets/{ticket_id}/history", user=BOB)
+    assert staff.json() == sorted(stored["history"], key=lambda h: h["created_at"], reverse=True)
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}/history", user=OTHER_ALICE)).status_code == 404
+
+
+# ---------------------------------------------------------------- the route check
+
+_PROJECTED = ("get_ticket", "list_tickets", "create_ticket", "update_ticket", "get_history", "add_comment", "add_link",
+              "remove_link", "log_work", "approve_ticket", "reject_ticket", "escalate_ticket")
+_TICKET_NAMES = ("ticket", "updated", "history", "result")
+
+
+def _routes():
+    tree = ast.parse((pathlib.Path(__file__).resolve().parents[1] / "tickets_endpoints.py").read_text(encoding="utf-8"))
+    return [n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and any(
+        isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute) and isinstance(d.func.value, ast.Name)
+        and d.func.value.id == "router" for d in n.decorator_list)]
+
+
+def _calls(fn):
+    return {c.func.id for c in ast.walk(fn) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+
+
+def test_every_route_that_returns_a_ticket_goes_through_the_projection():
+    """protects=T-85-92; fails_when=a route returns a ticket, updated, history or result value without _shown or
+    _shown_history, or one of the twelve named routes stops calling them."""
+    routes = {fn.name: fn for fn in _routes()}
+    for name in _PROJECTED:
+        assert name in routes, name
+        assert _calls(routes[name]) & {"_shown", "_shown_history"}, f"{name} skips the reporter projection"
+    for name, fn in routes.items():
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Return) and isinstance(node.value, ast.Name) and node.value.id in _TICKET_NAMES:
+                # the list returns its result dict, whose tickets were projected one by one (checked above)
+                assert name == "list_tickets", f"{name} returns {node.value.id} unprojected"
