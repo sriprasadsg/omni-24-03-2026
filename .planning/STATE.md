@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-33-PLAN.md
-last_updated: "2026-11-09T22:23:36.152Z"
+stopped_at: Completed 85-34-PLAN.md
+last_updated: "2026-11-09T22:38:13.255Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 85 execution started
-state_head: f7606565e62e63bac45b12f64f99f11a91b7e37e
+state_head: 283a1b71ae3e1c29cf0aea54dac01848fb89051a
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 135
-  completed_plans: 132
+  completed_plans: 133
   percent: 86
 ---
 
@@ -647,6 +647,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-31: GET /api/notifications/history and the four feed routes share notification_audience.reader_filter (tenantId-keyed; ticket_staff notices for manage:tickets staff only; Super Admin cross-tenant under per-person rules); a repository-wide AST scan guards every reader of db.notifications; ticket lifecycle notices without audience stay tenant-wide (T-85-111 follow-up)
 - [Phase 85]: 85-32: the ticket viewer guard is a router dependency (ticket_access.ticket_viewer); a caller who is neither ticket staff nor the reporter gets the same 404 as a missing ticket on every {ticket_id} route, ahead of each route's own permission check
 - [Phase 85]: 85-33: non-staff callers list, count, report and export only their own tickets, scoped in the Mongo query (tickets_scope); reports and CSV export included (A-85-G26); projection staff flag defaults to False (fail closed)
+- [Phase 85]: 85-34: staff actions on a ticket (bulk, edit, link, work log, attachment delete, approve, reject, escalate, merge, watchers) need manage:tickets; workflow and config ticket routers carry the viewer guard; CSAT stays the reporter's own (A-85-G28)
 
 ## Performance Metrics
 
@@ -934,6 +935,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P31 | 10 min | 2 tasks | 7 files |
 | Phase 85 P32 | 25 min | 2 tasks | 5 files |
 | Phase 85 P33 | 25 min | 3 tasks | 8 files |
+| Phase 85 P34 | 25 min | 2 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -968,8 +970,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T22:23:35.849Z
-**Stopped at:** Completed 85-33-PLAN.md
+**Last session:** 2026-11-09T22:38:12.967Z
+**Stopped at:** Completed 85-34-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -996,7 +998,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 5 of 36
+Plan: 6 of 36
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
