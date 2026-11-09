@@ -134,26 +134,39 @@ async def keep_draft(db, tenant: str, ticket: Dict[str, Any], *, action_id: str,
                      cited: List[retrieval.Match], matched: int, title: str, reason: str, shadow: bool,
                      now: datetime) -> None:
     """Keep the answer as a staff-only draft with ``reason`` (one of ``DRAFT_REASONS``) on the ticket and on the
-    row. A tenant in shadow gets the simulation sentence as the row's result (the Phase 81 wording)."""
+    row. A tenant in shadow gets the simulation sentence as the row's result (the Phase 81 wording). The draft
+    comment is the one write that may raise (nothing is visible yet); after it every step is guarded and the
+    desk write that shows the draft in the panel (``draftWaiting``) is tried once more (WR-102)."""
     comment_id = "sd-" + action_id
     await ticket_writes.add_comment(
         db, tenant, ticket["id"], comment_id=comment_id, kind="ai_draft", visibility="staff", text=text,
         author=SYSTEM_AUTHOR, now=now, ai={"actionId": action_id, "citations": _citations(cited), "state": "draft"})
-    await ticket_writes.set_desk(db, tenant, ticket["id"],
-                                 {"phase": "drafted", "actionId": action_id, "commentId": comment_id,
-                                  "draftWaiting": True, "draftReason": reason}, now=now)
-    await ledger.set_desk_fields(db, tenant, action_id, {"phase": "drafted", "commentId": comment_id,
-                                                         "draftReason": reason}, event="draft_kept")
-    result = (ao_messages.simulation_result(
-        messages.ACTIVITY["simulation_result"].format(number=ticket.get("ticket_number") or ""))
-        if shadow else messages.ACTIVITY["draft_result"])
-    await ledger.set_display(db, tenant, action_id,
-                             reasonText=_why(ticket, title, matched) + " " + messages.DRAFT_REASON_TEXT[reason],
-                             activityResult=result)
+    tid = ticket["id"]
+    drafted = {"phase": "drafted", "actionId": action_id, "commentId": comment_id, "draftWaiting": True,
+               "draftReason": reason}
+    desk_done: Any = _FAILED
+    try:
+        desk_done = await _step("the desk fields", tid, ticket_writes.set_desk(db, tenant, tid, drafted, now=now))
+        await _step("the row's desk fields", tid, ledger.set_desk_fields(
+            db, tenant, action_id, {"phase": "drafted", "commentId": comment_id, "draftReason": reason},
+            event="draft_kept"))
+        result = (ao_messages.simulation_result(
+            messages.ACTIVITY["simulation_result"].format(number=ticket.get("ticket_number") or ""))
+            if shadow else messages.ACTIVITY["draft_result"])
+        await _step("the Activity words", tid, ledger.set_display(
+            db, tenant, action_id, reasonText=_why(ticket, title, matched) + " " + messages.DRAFT_REASON_TEXT[reason],
+            activityResult=result))
+    finally:
+        if desk_done is _FAILED:
+            await _step("the desk fields (second try)", tid, ticket_writes.set_desk(db, tenant, tid, drafted, now=now))
 
 
 async def post_lost_to_draft(db, tenant: str, action_id: str) -> None:
-    """The row of a post that could not be made becomes the suggestion a draft needs (open, no expiry)."""
-    await ledger.transition(db, tenant, action_id, ("dispatching",), "suggested",
-                            **{"desk.phase": "drafted", "reasonCode": "suggest_requested",
-                               "approval.requiredBy": "suggest_requested"})
+    """The row of a post that could not be made becomes the suggestion a draft needs (open, no expiry). It never
+    raises: a failed move is logged and tried once more, so the staff draft that follows is always written."""
+    async def move():
+        return await ledger.transition(db, tenant, action_id, ("dispatching",), "suggested",
+                                       **{"desk.phase": "drafted", "reasonCode": "suggest_requested",
+                                          "approval.requiredBy": "suggest_requested"})
+    if await _step("the suggested move of the row", f"with action {action_id}", move()) is _FAILED:
+        await _step("the suggested move of the row (second try)", f"with action {action_id}", move())
