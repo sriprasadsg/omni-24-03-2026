@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 26/29 plans executed: 23 in 6 waves, plus a gap round of 6 plans in 5 waves (not executed)
+**Plans**: 27/29 plans executed: 23 in 6 waves, plus a gap round of 6 plans in 5 waves (not executed)
 
 Plans:
 **Wave 1**
@@ -602,7 +602,7 @@ Plans:
 - [x] 85-24-PLAN.md — Output checks run on the folded answer (hidden, full-width, ideographic-dot and look-alike characters) and the folded text is what is posted or drafted; the loopback model client ignores proxy settings (CR-101, WR-101)
 - [x] 85-25-PLAN.md — The reporter's own ticket JSON on every ticket route carries only what the requester may read, with no drafts and no desk fields; T-85-77 becomes a mitigation (CR-401 server half)
 - [x] 85-26-PLAN.md — The ticket screen's comment list fails closed for the reporter, driven by the same case table as the server (CR-401 UI half) *(after 85-24, 85-25)*
-- [ ] 85-27-PLAN.md — A failure after a visible desk answer never produces a contradicting hand-off or a stuck ledger row; send_draft moves the status first (WR-102, WR-103) *(after 85-26)*
+- [x] 85-27-PLAN.md — A failure after a visible desk answer never produces a contradicting hand-off or a stuck ledger row; send_draft moves the status first (WR-102, WR-103) *(after 85-26)*
 - [ ] 85-28-PLAN.md — Staff-only comment notices are hidden from the reporter in the feed and on the socket; one recipient filter for list, mark-read, read-all and delete (WR-201, WR-202) *(after 85-27)*
 - [ ] 85-29-PLAN.md — A gap article must be a Help desk article (422); stable TTL, migration and --sets tests; the whole Phase 85 gate, VALIDATION and review dispositions (WR-203, WR-301..303) *(after all)*
 
@@ -685,6 +685,6 @@ Plans:
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
-| 85. First-Line Service Desk | 26/29 | In Progress | - |
+| 85. First-Line Service Desk | 27/29 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
