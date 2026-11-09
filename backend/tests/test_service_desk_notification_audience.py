@@ -8,6 +8,8 @@ carries one, a colleague's mark-read, read-all or delete touches a notice addres
 colleague stops reading the staff notice or their own and the tenant-wide ones; no_claim=notices stored before the
 fix (they carry no exclusion, A-85-G14) and the tenant_admins push on the socket (A-85-G15).
 """
+import ast
+import inspect
 import json
 import os
 import sys
@@ -20,6 +22,7 @@ from fastapi import HTTPException
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from auth_types import TokenData
+from tenant_context import reset_tenant_id, set_tenant_id
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture the imported world needs)
 from tests.test_service_desk_comments import (  # noqa: F401  (world is a fixture)
     ALICE, BOB, CAROL, REPLY, SECRET, _comment, _drain, _feed, _notices, _raise, world,
@@ -115,3 +118,113 @@ async def test_other_notices_are_still_pushed_with_their_full_text(world, metada
     await get_notification_service(world.db).send_alert(
         title="T", message="M", severity="info", recipients=[], tenant_id="t1", channels=[], metadata=metadata)
     assert len(world.pushed) == 1 and world.pushed[0]["title"] == "T" and world.pushed[0]["message"] == "M"
+
+
+# ---------------------------------------------------------------- Task 3: the write routes
+
+READ = ("view:dashboard",)
+ADMIN = ("view:dashboard", "manage:agents")
+
+
+async def _seed(db):
+    def notice(alert_id, tenant="t1", **metadata):
+        return {"alert_id": alert_id, "tenantId": tenant, "sent_at": "2026-11-08T00:00:01", "read": False,
+                "metadata": metadata or None}
+    await db.notifications.insert_many([
+        notice("alice-only", recipient="alice@x.co"),
+        notice("carol-only", recipient="carol@x.co"),
+        notice("tenant-wide"),
+        notice("admins", audience="tenant_admins"),
+        notice("staff", audience="ticket_staff", excludeRecipients=["alice@x.co"]),
+        notice("other-tenant", tenant="t2"),
+    ])
+
+
+async def _call(db, route, user, *args, perms=READ, tenant="t1", **kwargs):
+    """Run a notification route function as ``user`` (the way the feed helper of the comments tests does)."""
+    import notification_endpoints as ne
+    from database import TenantIsolatedDatabase
+    token = set_tenant_id(tenant)
+    try:
+        with patch.object(ne, "get_database", return_value=TenantIsolatedDatabase(db)):
+            with patch.object(ne.rbac_service, "get_user_permissions", AsyncMock(return_value=list(perms))):
+                return await getattr(ne, route)(*args, current_user=user, **kwargs)
+    finally:
+        reset_tenant_id(token)
+
+
+async def _read_ids(db):
+    return sorted([n["alert_id"] for n in await db.notifications.find({"read": True}, {"_id": 0}).to_list(50)])
+
+
+async def test_a_colleague_cannot_mark_an_addressed_notice_read(world):
+    """protects=WR-202 / D-33 / T-85-99; fails_when=Carol marks Alice's notice read, or the refusal is not a 404."""
+    await _seed(world.db)
+    with pytest.raises(HTTPException) as refused:
+        await _call(world.db, "mark_as_read", CAROL, "alice-only")
+    assert refused.value.status_code == 404
+    assert (await world.db.notifications.find_one({"alert_id": "alice-only"}))["read"] is False
+
+
+async def test_a_colleague_cannot_delete_an_addressed_notice(world):
+    """protects=WR-202 / D-33 / T-85-99; fails_when=Carol deletes Alice's notice, or the refusal is not a 404."""
+    await _seed(world.db)
+    with pytest.raises(HTTPException) as refused:
+        await _call(world.db, "delete_notification", CAROL, "alice-only")
+    assert refused.value.status_code == 404
+    assert await world.db.notifications.count_documents({"alert_id": "alice-only"}) == 1
+
+
+async def test_read_all_without_ids_marks_only_what_the_reader_can_read(world):
+    """protects=WR-202 / PROH-85-17; fails_when=read-all touches Alice's notice, the tenant_admins notice, another
+    tenant's notice, or leaves Carol's own, the tenant-wide or the staff notice unread."""
+    await _seed(world.db)
+    result = await _call(world.db, "mark_all_as_read", CAROL, notification_ids=None)
+    assert result == {"success": True, "modified_count": 3}
+    assert await _read_ids(world.db) == ["carol-only", "staff", "tenant-wide"]
+
+
+async def test_read_all_with_an_unreadable_id_modifies_nothing_for_it(world):
+    """protects=WR-202; fails_when=listing Alice's notice id lets Carol mark it read."""
+    await _seed(world.db)
+    result = await _call(world.db, "mark_all_as_read", CAROL, notification_ids=["alice-only"])
+    assert result == {"success": True, "modified_count": 0}
+    assert await _read_ids(world.db) == []
+    mixed = await _call(world.db, "mark_all_as_read", CAROL, notification_ids=["alice-only", "carol-only"])
+    assert mixed["modified_count"] == 1 and await _read_ids(world.db) == ["carol-only"]
+
+
+async def test_the_reporter_keeps_her_own_notices_but_not_the_staff_one(world):
+    """protects=WR-202 / WR-201 on the writers; fails_when=Alice cannot mark read or delete her own addressed
+    notice, or can still mark the staff notice that excludes her."""
+    await _seed(world.db)
+    with pytest.raises(HTTPException) as refused:
+        await _call(world.db, "mark_as_read", ALICE, "staff")
+    assert refused.value.status_code == 404
+    assert await _call(world.db, "mark_as_read", ALICE, "alice-only") == {"success": True}
+    assert await _read_ids(world.db) == ["alice-only"]
+    assert await _call(world.db, "delete_notification", ALICE, "alice-only") == {"success": True}
+    assert await world.db.notifications.count_documents({"alert_id": "alice-only"}) == 0
+
+
+async def test_the_tenant_admin_notice_needs_manage_agents_to_be_changed(world):
+    """protects=WR-202 audience rule on the writers; fails_when=a user without manage:agents marks or deletes a
+    tenant_admins notice, or one with it cannot."""
+    await _seed(world.db)
+    with pytest.raises(HTTPException) as refused:
+        await _call(world.db, "mark_as_read", CAROL, "admins")
+    assert refused.value.status_code == 404
+    with pytest.raises(HTTPException):
+        await _call(world.db, "delete_notification", CAROL, "admins")
+    assert await _call(world.db, "mark_as_read", CAROL, "admins", perms=ADMIN) == {"success": True}
+    assert await _call(world.db, "delete_notification", CAROL, "admins", perms=ADMIN) == {"success": True}
+
+
+async def test_every_notification_route_starts_from_the_reader_filter():
+    """protects=WR-202 structure; fails_when=the list, mark-read, read-all or delete route builds its own query
+    again instead of calling _reader_filter."""
+    import notification_endpoints as ne
+    for name in ("get_notifications", "mark_as_read", "mark_all_as_read", "delete_notification"):
+        calls = [n for n in ast.walk(ast.parse(inspect.getsource(getattr(ne, name))))
+                 if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "_reader_filter"]
+        assert calls, f"{name} does not use _reader_filter"
