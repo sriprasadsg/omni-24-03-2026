@@ -65,9 +65,14 @@ async def _raise(world, user=ALICE, **extra):
     return response.json()
 
 
+def _first_job(counts):
+    """The id of the job a pass closed first (the pass reports counts since 85-17), or None."""
+    return counts["jobs"][0] if counts and counts["jobs"] else None
+
+
 async def _run(world, answer=ANSWER, cited=(1,), **transport):
     stand_in, calls = ollama_transport(answer, list(cited), **transport)
-    job_id = await worker.run_once(world.db, client=OllamaClient(transport=stand_in))
+    job_id = _first_job(await worker.run_once(world.db, client=OllamaClient(transport=stand_in)))
     return job_id, calls
 
 
@@ -277,7 +282,7 @@ async def test_a_client_for_a_non_loopback_host_sends_nothing(world):
     assert client.refused is True and await client.available() is False
     assert calls == []
     await _raise(world)
-    job_id = await worker.run_once(world.db, client=client)
+    job_id = _first_job(await worker.run_once(world.db, client=client))
     assert calls == [] and await _answers(world.db) == []
     assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "service_desk_offline"
 
