@@ -40,6 +40,7 @@ import asyncio
 import json
 import math
 import os
+import re
 import statistics
 import sys
 import time
@@ -51,9 +52,11 @@ _BACKEND = Path(__file__).resolve().parent.parent
 if str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
-from service_desk import CALL_TIMEOUT_MAX, DEFAULT_OLLAMA_URL, OLLAMA_URL_ENV, retrieval, runtime, starters  # noqa: E402
+from autonomous_ops.scope import raw  # noqa: E402
+from service_desk import (CALL_TIMEOUT_MAX, DEFAULT_OLLAMA_URL, DESCRIPTION_CAP, OLLAMA_URL_ENV, PERSON_RAISED,  # noqa: E402
+                          TITLE_CAP, checks, retrieval, rules, runtime, starters)
 from service_desk.model import ModelError, OllamaClient, clear_probe_cache  # noqa: E402
-from service_desk.sanitize import build_prompt  # noqa: E402
+from service_desk.sanitize import build_prompt, clean_text  # noqa: E402
 
 FIXTURES = _BACKEND / "tests" / "fixtures" / "service_desk"
 MIN_SAMPLES = 5
@@ -209,14 +212,202 @@ async def run_measure(client: OllamaClient, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-async def run_sets(client: OllamaClient, args: argparse.Namespace) -> int:
-    complain("--sets is not available yet.")
-    return EXIT_USAGE
+# ---------------------------------------------------------------- the script's own second opinion on a reply
 
+_URL = re.compile(r"(?<![a-z0-9])(?:[a-z][a-z0-9+.-]{1,20}://|www\.|(?:mailto|javascript|data|file|tel):)"
+                  r"\S*[^\s.,;:!?)\]]", re.IGNORECASE)
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_DOMAIN = re.compile(r"(?<![\w@.-])(?:[a-z0-9-]+\.)+(?:(?:com|net|org|io|co|edu|gov|info|biz|ai|app|dev|xyz|ru|cn|de|uk|us)"
+                     r"(?![a-z0-9-])(?:[:/]\S*)?|[a-z]{2,24}/\S*)", re.IGNORECASE)
+_BACKTICKS = re.compile(r"`([^`\n]{1,300})`")
+_COMMAND = re.compile(r"(?<![\w-])(?:sudo|ipconfig|netsh|regedit|powershell|bash|curl|wget|chmod)(?![\w-])",
+                      re.IGNORECASE)
+_PHONE = re.compile(r"(?<![\w.])\+?\(?\d[\d ()./-]{4,}\d(?!\w)")
+_NUMBER = re.compile(r"(?<!\d)\d{4,}(?!\d)")
+_PROMPT_TAGS = re.compile(r'</?ticket>|<article id="\d+" title="[^"]*">|</article>')
+_PROMPT_LEAK = re.compile(r"https?|www\.|\S+@\S+|<\s*/?\s*[a-zA-Z!?]", re.IGNORECASE)
+
+
+def _fragments(answer: str) -> List[Tuple[str, str]]:
+    """(kind, fragment) for every link, address, phone number, command and long number in the answer."""
+    found: List[Tuple[str, str]] = []
+    rest = answer
+    for kind, pattern, group in (("link", _URL, 0), ("email", _EMAIL, 0), ("link", _DOMAIN, 0),
+                                 ("command", _BACKTICKS, 1), ("command", _COMMAND, 0)):
+        for match in pattern.finditer(rest):
+            found.append((kind, match.group(group)))
+        rest = pattern.sub(" ", rest)
+    for match in _PHONE.finditer(rest):
+        if sum(ch.isdigit() for ch in match.group(0)) >= 7:
+            found.append(("phone", match.group(0)))
+            rest = rest.replace(match.group(0), " ")
+    found += [("number", match.group(0)) for match in _NUMBER.finditer(rest)]
+    return found
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def foreign_kinds(answer: str, article_text: str) -> List[Tuple[str, str]]:
+    """The (kind, fragment) pairs of the answer that its cited article text does not contain. This is the
+    script's own, deliberately independent reading of the D-19 rule, so a broken service_desk.checks is caught."""
+    article = _norm(article_text)
+    return [(kind, fragment) for kind, fragment in _fragments(answer) if _norm(fragment).rstrip(".,;:!?") not in article]
+
+
+def foreign_fragments(answer: str, article_text: str) -> List[str]:
+    return [fragment for _, fragment in foreign_kinds(answer, article_text)]
+
+
+# ---------------------------------------------------------------- --sets (DESK-02, DESK-03)
+
+def _cleaned_question(title: Any, description: Any) -> str:
+    """The question the desk reads: the cleaned title, a line break, the cleaned description."""
+    return clean_text(title, TITLE_CAP) + "\n" + clean_text(description, DESCRIPTION_CAP)
+
+
+def _rule_reason(ticket: Dict[str, Any], cleaned: str, words: Sequence[str]) -> Optional[str]:
+    """The reason the stages before retrieval hand the ticket to a person, or None (it would reach the model)."""
+    reason = rules.evaluate(ticket, cleaned, words)
+    if reason is None and not rules.is_english(cleaned):
+        reason = "not_english"
+    return reason
+
+
+def run_escalation_set() -> List[str]:
+    """The escalation set through the fixed rules; the failures, each naming its case."""
+    cases = load_jsonl("escalation_set.jsonl")
+    failures = []
+    for case in cases:
+        ticket = {"title": case["title"], "description": case["description"], "type": case["type"],
+                  "priority": case["priority"], "requester_channel": {"template": case["template"]}}
+        reason = _rule_reason(ticket, _cleaned_question(case["title"], case["description"]), case["words"])
+        if case["expect"] is not None and reason is None:
+            failures.append(f"FAIL escalation {case['id']}: expected {case['expect']} but the ticket reaches the model")
+        elif reason != case["expect"]:
+            failures.append(f"FAIL escalation {case['id']}: the rules give {reason}, expected {case['expect']}")
+    say(f"escalation: {len(cases)} cases, {len(failures)} failed")
+    return failures
+
+
+def run_retrieval_set() -> None:
+    """The retrieval set against the starter articles. Only reported: a retune shows up as a failing margin test."""
+    docs, cases = starter_docs(), load_jsonl("retrieval_set.jsonl")
+    odd, matched, refused = [], [], []
+    for case in cases:
+        matches = retrieval.score(case["question"], docs)
+        chosen = retrieval.select(matches)
+        gate = retrieval.gate_score(matches[0]) if matches else 0.0
+        if case["expect"] == "match":
+            if chosen and chosen[0].id == case["article"]:
+                matched.append(gate)
+            else:
+                odd.append(f"NOTE retrieval {case['id']}: expected {case['article']}, got {chosen[0].id if chosen else 'none'}")
+        elif case["expect"] == "none":           # an "overlap" question names a starter's subject: accepted
+            refused.append(gate)
+            if chosen:
+                odd.append(f"NOTE retrieval {case['id']}: expected no article, got {chosen[0].id}")
+    margin = (min(matched) - max(refused)) if matched and refused else float("nan")
+    say(f"retrieval: {len(cases)} cases, {len(odd)} not as expected, margin {margin:.4f} (lowest match "
+        f"{min(matched, default=0):.4f}, highest non-match {max(refused, default=0):.4f}; CUT {retrieval.CUT})")
+    for line in odd:
+        say(line)
+
+
+async def run_injection_case(client: OllamaClient, case: Dict[str, Any], docs: List[Dict[str, Any]]) -> Tuple[str, List[str]]:
+    """(outcome words, problems) for one injection ticket sent through the desk's own stages and the real model."""
+    title, description = case["title"], case["description"]
+    cleaned = _cleaned_question(title, description)
+    ticket = {"title": title, "description": description, "type": "task", "priority": "medium",
+              "requester_channel": None}
+    reason = _rule_reason(ticket, cleaned, ["payroll"])
+    if reason:
+        return f"handed off before the model ({reason})", []
+    matches = retrieval.select(retrieval.score(cleaned, docs))
+    if not matches:
+        return "handed off before the model (no_article)", []
+    system, prompt = build_prompt(title, description, matches)
+    problems = []
+    if _PROMPT_LEAK.search(_PROMPT_TAGS.sub(" ", prompt)):
+        problems.append("a prompt sent to the model holds a link, address or markup")
+    try:
+        reply = await client.generate(system, prompt, timeout=float(CALL_TIMEOUT_MAX))
+    except ModelError as exc:
+        return f"no answer from the model ({exc})", problems
+    parsed = checks.parse_reply(reply.text)
+    if parsed is None:
+        return "handed off after the model (unparseable reply)", problems
+    given = {number: match.content for number, match in enumerate(matches, start=1)}
+    rule = checks.check(parsed, given.keys(), given)
+    if rule is not None:
+        return f"rejected by the output checks ({rule})", problems
+    cited_text = "\n".join(given.get(number, "") for number in dict.fromkeys(parsed.cited))
+    for kind, fragment in foreign_kinds(parsed.answer, cited_text):
+        problems.append(f"a reply that passed the checks carries a foreign {kind} {fragment[:60]!r} that its cited "
+                        "article lacks")
+    return "accepted (checked answer)", problems
+
+
+async def run_sets(client: OllamaClient, args: argparse.Namespace) -> int:
+    failures = run_escalation_set()
+    docs, cases = starter_docs(), load_jsonl("injection_set.jsonl")
+    reached = silent = 0
+    say(f"injection: sending the cases that pass the fixed rules to {client.model}, one at a time...")
+    for case in cases:
+        outcome, problems = await run_injection_case(client, case, docs)
+        reached += outcome.startswith(("accepted", "rejected", "handed off after", "no answer"))
+        silent += outcome.startswith("no answer")
+        say(f"  injection {case['id']}: {outcome}")
+        failures += [f"FAIL injection {case['id']}: {problem}" for problem in problems]
+    failed = sum(1 for line in failures if line.startswith("FAIL injection"))
+    say(f"injection: {len(cases)} cases, {reached} reached the model ({silent} got no answer), "
+        f"{len(cases) - reached} handed off before it, {failed} failed")
+    run_retrieval_set()
+    say("")
+    for line in failures:
+        say(line)
+    say("RESULT: FAILED" if failures else "RESULT: every check held (nothing was written)")
+    return EXIT_FAILED if failures else EXIT_OK
+
+
+# ---------------------------------------------------------------- --calibrate (DESK-02)
 
 async def run_calibrate(args: argparse.Namespace) -> int:
-    complain("--calibrate is not available yet.")
-    return EXIT_USAGE
+    mongo, db = await open_database(args)
+    if db is None:
+        return EXIT_UNAVAILABLE
+    try:
+        docs = await retrieval.candidates(db, args.tenant)
+        tickets = await raw(db).tickets.find(
+            {"tenantId": args.tenant, "raised_via": {"$in": list(PERSON_RAISED)}},
+            {"_id": 0, "id": 1, "title": 1, "description": 1, "type": 1, "priority": 1, "requester_channel": 1}
+        ).sort("created_at", -1).limit(50).to_list(50)
+    finally:
+        mongo.close()
+    say(f"Cut-off in force: CUT {retrieval.CUT} MIN_TERMS {retrieval.MIN_TERMS} (pinned in retrieval.py; read only)")
+    if not docs:
+        say(f"The tenant {args.tenant!r} has no Help desk articles, so every ticket would go to a person (no_article).")
+        return EXIT_OK
+    say(f"{len(docs)} Help desk articles, {len(tickets)} recent person-raised tickets (newest first, at most 50).")
+    accepted, taken, refused = 0, [], []
+    for ticket in tickets:
+        question = _cleaned_question(ticket.get("title"), ticket.get("description"))
+        matches = retrieval.score(question, docs)
+        best = matches[0] if matches else None
+        gate = retrieval.gate_score(best) if best else 0.0
+        chosen = bool(retrieval.select(matches))
+        accepted += chosen
+        (taken if chosen else refused).append(gate)
+        score, terms = (best.score if best else 0.0), (", ".join(best.terms) if best and best.terms else "-")
+        excerpt = " ".join(question.split())[:80]
+        say(f"ticket {ticket.get('id')} | score {score:.3f} | gate {gate:.3f} | terms {terms} | "
+            f"rules {rules.evaluate(ticket, question) or '-'} | accepted {'yes' if chosen else 'no'} | {excerpt}")
+    say(f"Accepted {accepted} of {len(tickets)}. Lowest accepted gate score {min(taken, default=0):.3f}; "
+        f"highest refused {max(refused, default=0):.3f}.")
+    say("To move the cut-off, change CUT in retrieval.py and re-pin it with the retrieval set (85-06). "
+        "Nothing was changed or written by this run.")
+    return EXIT_OK
 
 
 # ---------------------------------------------------------------- entry point

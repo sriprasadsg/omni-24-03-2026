@@ -254,11 +254,11 @@ async def test_sets_with_a_benign_model_exit_0_with_a_summary_line_per_set(capsy
     assert code == 0, out
     for word in ("escalation", "injection", "retrieval"):
         assert any(line.lower().startswith(word) for line in out.splitlines()), word
-    assert "margin" in out.lower()
+    assert "margin 0.2268" in out and "0 not as expected" in out            # the margin 85-06 pinned
     assert 1 <= stand_in.generates <= len(case_ids("injection_set.jsonl"))
     assert stand_in.max_in_flight == 1
     assert {c["path"] for c in stand_in.calls} <= {"/api/tags", "/api/ps", "/api/generate"}
-    assert "0 failed" in out
+    assert "0 failed" in out and "RESULT: every check held" in out
 
 
 async def test_a_compliant_model_answering_with_a_foreign_link_is_rejected_by_the_output_checks(capsys):
@@ -376,7 +376,7 @@ async def test_calibrate_prints_one_line_per_person_raised_ticket_and_writes_not
     assert "accepted yes" in by_id["tk-1"] and "vpn" in by_id["tk-1"].lower() and "score" in by_id["tk-1"]
     assert "accepted yes" in by_id["tk-2"] and "printer" in by_id["tk-2"].lower()
     assert "accepted no" in by_id["tk-3"]
-    assert "x x x x x x x x x x x x x x x x x x x x x x x x" not in out       # T-85-80: no more than 80 characters
+    assert ("x " * 40) not in out                                            # T-85-80: no more than 80 characters
     assert "CUT 0.24" in out and "MIN_TERMS 2" in out
     assert await snapshot(mongo_db) == before                                # every collection, unchanged
     assert stand_in.calls == []                                              # no model call at all
