@@ -29,11 +29,11 @@ findings:
     title: "Smaller consistency items"
   - id: WR-201
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "the `ticket_staff` audience tag on staff-only comment notices is never enforced, so the feed and socket still tell the reporter"
   - id: WR-202
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "addressed notices can be marked read or deleted by any tenant user"
   - id: WR-203
     severity: warning
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 23
+open: 21
 total: 28
 recorded: 2026-11-09T10:13:07.744Z
 ---
@@ -130,8 +130,8 @@ recorded: 2026-11-09T10:13:07.744Z
 | WR-103 | warning | fixed | fixed ec308e6d9 (85-27) |
 | IN-101 | info | open | - |
 | IN-102 | info | open | - |
-| WR-201 | warning | open | - |
-| WR-202 | warning | open | - |
+| WR-201 | warning | fixed | fixed 9840a7fdf, b49c68fa4 (85-28) |
+| WR-202 | warning | fixed | fixed 89f7786bd (85-28) |
 | WR-203 | warning | open | - |
 | IN-201 | info | open | - |
 | IN-202 | info | open | - |
