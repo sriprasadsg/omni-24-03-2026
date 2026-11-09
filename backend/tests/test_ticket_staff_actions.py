@@ -145,3 +145,97 @@ async def test_a_reporter_with_an_admin_role_can_act_and_still_gets_the_requeste
     response = await world.call("PATCH", f"/api/tickets/{ticket_id}", user=ALICE_ADMIN, json={"priority": "high"})
     assert response.status_code == 200, response.text
     assert response.json()["priority"] == "high" and "desk" not in response.json()
+
+
+# ---------------------------------------------------------------- the workflow and config routers (Task 2)
+
+@pytest.fixture
+async def full_world(world, monkeypatch):
+    """The desk app with the workflow (CSAT, merge) and config (watchers, templates, fields) routers mounted too."""
+    import tickets_config_endpoints
+    import tickets_workflow_endpoints
+    monkeypatch.setattr(tickets_workflow_endpoints, "get_database", lambda: world.db)
+    world.app.include_router(tickets_workflow_endpoints.router)
+    world.app.include_router(tickets_config_endpoints.router)
+    return world
+
+
+async def _resolved(world, ticket_id):
+    await world.db.tickets.update_one({"id": ticket_id}, {"$set": {"status": "resolved"}})
+
+
+WORKFLOW_ACTIONS = {
+    "merge": ("POST", "/api/tickets/{id}/merge", lambda o: {"target_ticket_id": o}, lambda s: s["status"] == "closed"),
+    "add_watcher": ("POST", "/api/tickets/{id}/watchers", lambda o: {"email": "dave@x.co"},
+                    lambda s: s["watchers"] == ["dave@x.co"]),
+    "remove_watcher": ("DELETE", "/api/tickets/{id}/watchers/dave@x.co", lambda o: None,
+                       lambda s: s["watchers"] == []),
+}
+
+
+async def _workflow(world, name, user, ticket_id, other_id):
+    method, path, body, _ = WORKFLOW_ACTIONS[name]
+    return await world.call(method, path.format(id=ticket_id), user=user, json=body(other_id))
+
+
+async def _watched(world, ticket_id, name):
+    if name == "remove_watcher":                      # the watcher the removal would take off
+        await world.db.tickets.update_one({"id": ticket_id}, {"$set": {"watchers": ["dave@x.co"]}})
+
+
+@pytest.mark.parametrize("name", sorted(WORKFLOW_ACTIONS))
+async def test_the_reporter_cannot_merge_or_change_the_watchers_of_their_own_ticket(full_world, name):
+    """protects=WR-502 / UD-2 / PROH-85-25 / T-85-119; fails_when=the requester who raised the ticket gets anything
+    but 403 on merge or a watcher route, or the refused request changes either ticket."""
+    world = full_world
+    ticket_id, other_id = await _plant(world)
+    await _watched(world, ticket_id, name)
+    before, other_before = await _stored(world, ticket_id), await _stored(world, other_id)
+    response = await _workflow(world, name, ALICE, ticket_id, other_id)
+    assert response.status_code == 403, response.text
+    assert await _stored(world, ticket_id) == before and await _stored(world, other_id) == other_before
+
+
+@pytest.mark.parametrize("name", sorted(WORKFLOW_ACTIONS))
+async def test_staff_merge_and_change_the_watchers(full_world, name):
+    """protects=UD-2 for staff; fails_when=a technician is refused or the route stops changing the ticket."""
+    world = full_world
+    ticket_id, other_id = await _plant(world)
+    await _watched(world, ticket_id, name)
+    response = await _workflow(world, name, BOB, ticket_id, other_id)
+    assert response.status_code == 200, response.text
+    assert WORKFLOW_ACTIONS[name][3](await _stored(world, ticket_id)), name
+
+
+@pytest.mark.parametrize("name", sorted(WORKFLOW_ACTIONS))
+async def test_a_colleague_gets_404_on_merge_and_watchers_of_someone_elses_ticket(full_world, name):
+    """protects=WR-502 / T-85-119 (the viewer guard now sits on the workflow and config routers); fails_when=a
+    requester who did not raise the ticket gets anything but 404, or the ticket changes."""
+    world = full_world
+    ticket_id, other_id = await _plant(world)
+    await _watched(world, ticket_id, name)
+    before = await _stored(world, ticket_id)
+    response = await _workflow(world, name, CAROL, ticket_id, other_id)
+    assert response.status_code == 404, response.text
+    assert await _stored(world, ticket_id) == before
+
+
+async def test_the_reporter_rates_their_resolved_ticket_and_a_colleague_cannot(full_world):
+    """protects=UD-2 (a rating is the requester's answer) / WR-502; fails_when=the reporter cannot rate their own
+    resolved ticket, or a colleague reaches the rating route (404) or changes the stored rating."""
+    world = full_world
+    ticket_id, _ = await _plant(world)
+    await _resolved(world, ticket_id)
+    refused = await world.call("POST", f"/api/tickets/{ticket_id}/csat", user=CAROL, json={"rating": 1})
+    assert refused.status_code == 404 and "csat" not in await _stored(world, ticket_id)
+    rated = await world.call("POST", f"/api/tickets/{ticket_id}/csat", user=ALICE, json={"rating": 5, "comment": "thanks"})
+    assert rated.status_code == 200, rated.text
+    assert (await _stored(world, ticket_id))["csat"]["rating"] == 5
+
+
+async def test_the_routes_a_requester_needs_to_raise_a_ticket_stay_open(full_world):
+    """protects=the unchanged template and field routes; fails_when=the guard or the staff permission reaches a route
+    without a ticket id, so a requester can no longer read the templates or the field schema."""
+    world = full_world
+    assert (await world.call("GET", "/api/tickets/templates/list", user=ALICE)).status_code == 200
+    assert (await world.call("GET", "/api/tickets/schema/fields", user=ALICE)).status_code == 200
