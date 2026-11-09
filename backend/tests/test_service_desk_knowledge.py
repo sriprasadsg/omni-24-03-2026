@@ -225,6 +225,106 @@ async def test_the_list_says_when_the_desk_is_off_for_the_tenant(kb):
     assert (await kb.call("GET", "/api/knowledge/docs", tenant="t2")).json()["deskOff"] is False
 
 
+# ---------------------------------------------------------------- the starter copy (Task 2)
+
+STARTERS_PATH = "/api/knowledge/helpdesk/starters"
+
+
+async def _starter_docs(db, tenant="t1"):
+    return await db.knowledge_docs.find({"tenantId": tenant, "starterKey": {"$type": "string"}}, {"_id": 0}).to_list(50)
+
+
+async def test_the_starter_status_of_an_empty_tenant(kb):
+    """protects=DESK-07 empty; fails_when=the status is not total 4, missing 4 for a tenant with no copies."""
+    resp = await kb.call("GET", STARTERS_PATH)
+    assert resp.status_code == 200 and resp.json() == {"total": 4, "missing": 4}
+
+
+async def test_the_first_press_adds_the_four_starters_in_order_as_editable_help_desk_articles(kb):
+    """protects=D-28 the copy is the tenant's own; fails_when=a count or the order is wrong, a copy lacks the mark,
+    the key, the source or the tenant, or the text differs from service_desk.starters."""
+    resp = await kb.call("POST", STARTERS_PATH)
+    assert resp.status_code == 200
+    assert resp.json() == {"added": 4, "existing": 0, "addedKeys": STARTER_ORDER}
+    docs = {d["starterKey"]: d for d in await _starter_docs(kb.db)}
+    assert sorted(docs) == sorted(STARTER_ORDER)
+    for starter in starters.STARTERS:
+        doc = docs[starter["key"]]
+        assert doc["helpdesk"] is True and doc["source"] == "starter" and doc["tenantId"] == "t1"
+        assert doc["title"] == starter["title"] and doc["content"] == starter["content"]
+        assert doc["createdBy"] == "manager" and doc["updatedAt"]
+    assert await kb.db.knowledge_docs.count_documents({"tenantId": {"$ne": "t1"}}) == 0
+    assert (await kb.call("GET", STARTERS_PATH)).json() == {"total": 4, "missing": 0}
+
+
+async def test_pressing_it_again_adds_nothing_and_keeps_an_edited_copy(kb):
+    """protects=D-28 adjacency; fails_when=a second press adds a copy or overwrites the admin's edit."""
+    await kb.call("POST", STARTERS_PATH)
+    doc = (await _starter_docs(kb.db))[0]
+    await kb.call("PATCH", f"/api/knowledge/docs/{doc['id']}", json={"content": "Our own wording", "helpdesk": False})
+    again = await kb.call("POST", STARTERS_PATH)
+    assert again.json() == {"added": 0, "existing": 4, "addedKeys": []}
+    docs = await _starter_docs(kb.db)
+    assert len(docs) == 4
+    kept = next(d for d in docs if d["id"] == doc["id"])
+    assert kept["content"] == "Our own wording" and kept["helpdesk"] is False
+
+
+async def test_two_admins_at_once_leave_exactly_one_copy_of_each(kb):
+    """protects=T-85-58 the race; fails_when=two concurrent presses leave more than four starter documents or the
+    two answers do not account for four additions."""
+    first, second = await asyncio.gather(kb.call("POST", STARTERS_PATH), kb.call("POST", STARTERS_PATH))
+    assert first.status_code == 200 and second.status_code == 200
+    assert first.json()["added"] + second.json()["added"] == 4
+    assert first.json()["existing"] + second.json()["existing"] == 4
+    docs = await _starter_docs(kb.db)
+    assert sorted(d["starterKey"] for d in docs) == sorted(STARTER_ORDER)
+
+
+async def test_a_deleted_copy_is_the_only_one_added_back(kb):
+    """protects=DESK-07 ordering of the gap; fails_when=the call adds more than the missing starter."""
+    await kb.call("POST", STARTERS_PATH)
+    gone = next(d for d in await _starter_docs(kb.db) if d["starterKey"] == "printer")
+    assert (await kb.call("DELETE", f"/api/knowledge/docs/{gone['id']}")).status_code == 200
+    assert (await kb.call("GET", STARTERS_PATH)).json()["missing"] == 1
+    resp = await kb.call("POST", STARTERS_PATH)
+    assert resp.json() == {"added": 1, "existing": 3, "addedKeys": ["printer"]}
+    assert len(await _starter_docs(kb.db)) == 4
+
+
+async def test_each_tenant_gets_its_own_copies(kb):
+    """protects=tenant isolation; fails_when=one tenant's press changes another's status."""
+    await kb.call("POST", STARTERS_PATH, tenant="t1")
+    assert (await kb.call("GET", STARTERS_PATH, tenant="t2")).json()["missing"] == 4
+    assert (await kb.call("POST", STARTERS_PATH, tenant="t2")).json()["added"] == 4
+    assert len(await _starter_docs(kb.db, "t1")) == 4 and len(await _starter_docs(kb.db, "t2")) == 4
+
+
+async def test_the_starter_routes_need_the_article_permission_and_a_real_tenant(kb):
+    """protects=D-28 an admin action, not for the platform organization; fails_when=a ticket user or reader presses
+    it, or the platform tenant gets copies."""
+    for who in ("agent", "reader"):
+        assert (await kb.call("GET", STARTERS_PATH, who=who)).status_code == 403
+        assert (await kb.call("POST", STARTERS_PATH, who=who)).status_code == 403
+    for method in ("GET", "POST"):
+        resp = await kb.call(method, STARTERS_PATH, tenant="platform-admin")
+        assert resp.status_code == 403 and resp.json()["detail"] == messages.API_DETAIL["platform_tenant"]
+    assert await kb.db.knowledge_docs.count_documents({}) == 0
+
+
+def test_nothing_seeds_the_starters_automatically():
+    """protects=D-28 only an admin's press adds the copies; fails_when=a migration or startup hook calls copy_docs."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    users = []
+    for folder, _dirs, files in os.walk(root):
+        if "venv" in folder or "tests" in folder or "node_modules" in folder:
+            continue
+        for name in files:
+            if name.endswith(".py") and "copy_docs" in open(os.path.join(folder, name), encoding="utf-8").read():
+                users.append(name)
+    assert sorted(users) == ["knowledge_helpdesk_endpoints.py", "starters.py"]
+
+
 # ---------------------------------------------------------------- the inherited guard (Task 1)
 
 def _case(path, role, *, method="GET"):
@@ -234,7 +334,8 @@ def _case(path, role, *, method="GET"):
 def test_the_new_routes_inherit_the_knowledge_base_guard():
     """protects=the manage:settings guard of the Knowledge Base catalogue covers the included router; fails_when=
     a viewer (no manage:settings) reaches any new route, or the tenant administrator is refused by the guard."""
-    routes = [("PATCH", "/api/knowledge/docs/kb-x")]
+    routes = [("PATCH", "/api/knowledge/docs/kb-x"), ("GET", "/api/knowledge/helpdesk/starters"),
+              ("POST", "/api/knowledge/helpdesk/starters")]
     for role in ("nobody", "viewer"):
         denied = probe_real_app([_case(p, role, method=m) for m, p in routes])
         assert denied == [403] * len(routes), (role, dict(zip(routes, denied)))
