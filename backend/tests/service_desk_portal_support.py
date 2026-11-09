@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from service_desk import store, worker
 from service_desk.model import OllamaClient
-from tests.service_desk_support import desk_app, ollama_transport, portal_user, seed_article, seed_desk_tenant
+from tests.service_desk_support import (
+    desk_app, ollama_transport, portal_user, seed_article, seed_desk_tenant, staff_user)
 
 PW_TITLE = "Reset your own password"
 PW_CONTENT = ("If you forgot your password, open the sign-in page and choose Forgot password. Enter your work "
@@ -23,14 +24,14 @@ TICKET = {"title": "I forgot my password",
           "description": "I cannot sign in to my laptop because I forgot my password and I need to reset it"}
 
 ALICE = portal_user("t1", "alice@x.co")          # the reporter
-BOB = portal_user("t1", "bob@x.co")              # staff
-CAROL = portal_user("t1", "carol@x.co")          # more staff
+BOB = staff_user("t1", "bob@x.co")               # staff (manage:tickets)
+CAROL = staff_user("t1", "carol@x.co")           # more staff (manage:tickets)
 DAVE = portal_user("t1", "dave@x.co")            # another tenant than the Drafts only one (t2)
 DRAFT_ALICE = portal_user("t2", "alice@x.co")    # the reporter of a draft-only tenant ticket
-STAFF2 = portal_user("t2", "bob@x.co")
-STAFF3 = portal_user("t2", "carol@x.co")
+STAFF2 = staff_user("t2", "bob@x.co")             # staff (manage:tickets)
+STAFF3 = staff_user("t2", "carol@x.co")           # staff (manage:tickets)
 SHADOW_ALICE = portal_user("t3", "alice@x.co")
-SHADOW_STAFF = portal_user("t3", "bob@x.co")
+SHADOW_STAFF = staff_user("t3", "bob@x.co")       # staff (manage:tickets)
 
 
 async def build_world(mongo_db, monkeypatch):

@@ -22,7 +22,8 @@ from autonomous_ops import PLATFORM_TENANT_ID
 from service_desk import intake, store, worker
 from service_desk.model import OllamaClient
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.service_desk_support import (desk_app, ollama_transport, portal_user, seed_article, seed_desk_tenant)
+from tests.service_desk_support import (
+    desk_app, ollama_transport, portal_user, seed_article, seed_desk_tenant, staff_user)
 
 PW_TITLE = "Reset your own password"
 PW_CONTENT = ("If you forgot your password, open the sign-in page and choose Forgot password. Enter your work "
@@ -55,7 +56,7 @@ async def world(mongo_db, monkeypatch):  # noqa: F811
 
 
 ALICE = portal_user("t1", "alice")
-BOB = portal_user("t1", "bob")
+BOB = staff_user("t1", "bob")                      # staff (manage:tickets)
 CAROL = portal_user("t2", "carol")
 
 

@@ -24,13 +24,13 @@ from auth_types import TokenData
 from service_desk import messages, projection, store
 from tenant_context import reset_tenant_id, set_tenant_id
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.service_desk_support import desk_app, portal_user, seed_desk_tenant
+from tests.service_desk_support import desk_app, portal_user, seed_desk_tenant, staff_user
 
 SECRET = "the admin password is hunter2-staff-only"
 REPLY = "Please restart the laptop and try again"
 ALICE = portal_user("t1", "alice@x.co")           # the reporter
-BOB = portal_user("t1", "bob@x.co")               # the assigned technician
-CAROL = portal_user("t1", "carol@x.co")
+BOB = staff_user("t1", "bob@x.co")                # the assigned technician (staff, manage:tickets)
+CAROL = staff_user("t1", "carol@x.co")              # staff (manage:tickets)
 OTHER_ALICE = portal_user("t2", "alice@x.co")
 TICKET = {"title": "My laptop will not start", "description": "It shows a black screen", "assignee": "bob@x.co"}
 

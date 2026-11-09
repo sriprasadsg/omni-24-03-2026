@@ -4,7 +4,7 @@ Real-database helpers (use with ``tests._mongo_test_db.mongo_db``): ``seed_desk_
 ``seed_article``. ``ollama_transport`` is the stand-in for the local model (an ``httpx.MockTransport``
 plus the list of requests it received): no test reaches a real Ollama. ``desk_app`` mounts the two
 ticket routers on one app with the caller's identity chosen per request. Later plans add helpers in
-their own test files, not here.
+their own test files, not here, except ``staff_user``: the technician of the test world.
 """
 import json
 import os
@@ -81,6 +81,13 @@ def ollama_transport(answer: str, cited: List[int], *, tags=("llama3.2:3b",), st
 def portal_user(tenant, username, *, auth_source="session", role="user") -> TokenData:
     """A signed-in person (or, with auth_source api_key, an integration key) of ``tenant``."""
     return TokenData(username=username, role=role, tenant_id=tenant, mfa_verified=True, auth_source=auth_source)
+
+
+def staff_user(tenant, username, *, auth_source="session") -> TokenData:
+    """A technician of ``tenant``: the built-in role analyst, which holds manage:tickets (ticket staff,
+    G-85-4 UD-1, A-85-G18) and, like role user, neither manage:settings nor manage:agents. Requesters stay
+    on ``portal_user``."""
+    return portal_user(tenant, username, auth_source=auth_source, role="analyst")
 
 
 def _mock_rbac_db():

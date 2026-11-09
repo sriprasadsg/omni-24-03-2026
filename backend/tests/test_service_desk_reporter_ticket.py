@@ -23,12 +23,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from service_desk import projection, store
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.service_desk_support import desk_app, portal_user, seed_desk_tenant
+from tests.service_desk_support import desk_app, portal_user, seed_desk_tenant, staff_user
 
 CASES = json.loads((pathlib.Path(__file__).resolve().parents[2] / "shared" / "service-desk-requester-comments.json")
                    .read_text(encoding="utf-8"))
 ALICE = portal_user("t1", "alice@x.co")           # the reporter
-BOB = portal_user("t1", "bob@x.co")               # a technician who did not raise the ticket
+BOB = staff_user("t1", "bob@x.co")                # a technician who did not raise the ticket (staff, manage:tickets)
 ALICE_ADMIN = portal_user("t1", "alice@x.co", role="admin")
 OTHER_ALICE = portal_user("t2", "alice@x.co")
 
