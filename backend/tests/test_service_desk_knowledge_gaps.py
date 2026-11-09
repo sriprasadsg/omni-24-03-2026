@@ -107,9 +107,9 @@ def test_grouping_does_not_depend_on_the_order_the_rows_arrive_in():
     rows = _fake_rows(6)
     for row, text in zip(rows, ("vpn keeps dropping", "vpn dropping again", "vpn drops", "printer jam", "printer jam again", "new laptop")):
         row["text"] = text
-    first = [(gaps.group_id(g), [r["id"] for r in g]) for g in gaps.group(rows)]
+    first = [(gaps.oldest_id(g), [r["id"] for r in g]) for g in gaps.group(rows)]
     for ordering in (rows[::-1], rows[3:] + rows[:3], rows[1::2] + rows[::2]):
-        assert [(gaps.group_id(g), [r["id"] for r in g]) for g in gaps.group(list(ordering))] == first
+        assert [(gaps.oldest_id(g), [r["id"] for r in g]) for g in gaps.group(list(ordering))] == first
 
 
 async def test_groups_are_ordered_by_count_then_newest_then_id_and_the_same_every_call(kb):

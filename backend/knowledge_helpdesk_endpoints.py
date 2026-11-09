@@ -12,8 +12,13 @@ Included under /api/knowledge by ``knowledge_endpoints``, so the Knowledge Base 
 The Help desk mark, the article edit route and the flags the list carries; the idempotent copy of the four
 starter articles (D-28): a unique (tenantId, starterKey) index plus an upsert with $setOnInsert per starter, so
 a double press or two admins at once leave one copy of each.
+
+The knowledge-gap list (D-26, D-27): the questions the desk could not answer, grouped by text similarity. It shows
+requesters' questions to authors, so every gap route needs BOTH view:dashboard (ticket access) and manage:ai_risks
+(Knowledge Base editing) on top of the router guard. A group is found again by grouping the same rows.
 """
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -26,7 +31,7 @@ from autonomous_ops import PLATFORM_TENANT_ID
 from autonomous_ops.scope import raw
 from database import get_database
 from rbac_service import rbac_service
-from service_desk import HELPDESK_CONTENT_MAX, TITLE_CAP, messages, starters
+from service_desk import HELPDESK_CONTENT_MAX, TITLE_CAP, gaps, messages, starters
 from service_desk import settings as desk_settings
 
 logger = logging.getLogger(__name__)
@@ -35,6 +40,7 @@ router = APIRouter()
 
 TAGS_MAX = 20
 TAG_CAP = 40
+GROUP_NOT_FOUND = "Group not found."
 NOTHING_TO_CHANGE = "Change at least one field."
 TAGS_LIMIT = "Use up to 20 tags of 40 characters or fewer."
 
@@ -182,6 +188,106 @@ async def add_starters(
         else:
             existing += 1
     return {"added": len(added), "existing": existing, "addedKeys": added}
+
+
+async def _require_ticket_access(
+    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+) -> TokenData:
+    """D-27: a Knowledge Base editor without ticket access must not read what requesters asked."""
+    return current_user
+
+
+@router.get("/helpdesk/gaps")
+async def list_gaps(
+    dismissed: bool = False,
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+    _tickets: TokenData = Depends(_require_ticket_access),
+) -> Dict[str, Any]:
+    """The grouped questions no article covered (``dismissed=true`` adds the dismissed groups)."""
+    tenant = _eligible_tenant(current_user)
+    db = get_database()
+    view = await gaps.list_view(db, tenant, include_dismissed=dismissed)
+    view["deskOff"] = (await desk_settings.load(db, tenant)).mode == "off"
+    return view
+
+
+async def _move_group(group_identifier: str, user: TokenData, *, to_status: str, from_status: str) -> Dict[str, Any]:
+    tenant = _eligible_tenant(user)
+    db = get_database()
+    found = await gaps.find_group(db, tenant, group_identifier)
+    if found is None:
+        raise HTTPException(status_code=404, detail=GROUP_NOT_FOUND)
+    status, members = found
+    if status != from_status:                       # a second press: already where it should be
+        return {"status": to_status, "changed": 0}
+    changed = await gaps.set_status(db, tenant, [row["id"] for row in members], to_status, expect=from_status)
+    return {"status": to_status, "changed": changed}
+
+
+@router.post("/helpdesk/gaps/{group_id}/dismiss")
+async def dismiss_group(
+    group_id: str,
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+    _tickets: TokenData = Depends(_require_ticket_access),
+) -> Dict[str, Any]:
+    """Hide a group: every member is dismissed."""
+    return await _move_group(group_id, current_user, to_status="dismissed", from_status="open")
+
+
+@router.post("/helpdesk/gaps/{group_id}/restore")
+async def restore_group(
+    group_id: str,
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+    _tickets: TokenData = Depends(_require_ticket_access),
+) -> Dict[str, Any]:
+    """Bring a dismissed group back: every member is open again."""
+    return await _move_group(group_id, current_user, to_status="open", from_status="dismissed")
+
+
+class ArticleIn(BaseModel):
+    """A new article for the caller's tenant, optionally written to answer a gap group."""
+    model_config = ConfigDict(extra="forbid")
+    title: str
+    content: str
+    tags: List[str] = []
+    helpdesk: bool = True
+    gapGroupId: Optional[str] = None
+
+
+@router.post("/helpdesk/articles")
+async def write_article(
+    body: ArticleIn,
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+    _tickets: TokenData = Depends(_require_ticket_access),
+) -> Dict[str, Any]:
+    """Save a new article; with ``gapGroupId`` the group's members are marked written (and leave the list)."""
+    tenant = _eligible_tenant(current_user)
+    clean = _validated({"title": body.title, "content": body.content, "tags": body.tags})
+    db = get_database()
+    claimed: List[str] = []
+    claimed_from = ""
+    if body.gapGroupId:
+        found = await gaps.find_group(db, tenant, body.gapGroupId)
+        if found is None:
+            raise HTTPException(status_code=404, detail=GROUP_NOT_FOUND)
+        claimed_from, members = found
+        ids = [row["id"] for row in members]
+        # Claiming the rows first keeps a double press from saving two articles for one group.
+        if await gaps.set_status(db, tenant, ids, "written", expect=claimed_from) == 0:
+            raise HTTPException(status_code=404, detail=GROUP_NOT_FOUND)
+        claimed = ids
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {"id": "kb-" + uuid.uuid4().hex[:12], "tenantId": tenant, **clean, "source": "manual",
+           "helpdesk": body.helpdesk, "createdBy": getattr(current_user, "username", None) or "system",
+           "createdAt": now, "updatedAt": now}
+    try:
+        await raw(db).knowledge_docs.insert_one(dict(doc))
+    except Exception:
+        if claimed:
+            await gaps.set_status(db, tenant, claimed, claimed_from, expect="written")
+        raise
+    return {"success": True, "id": doc["id"], "doc_id": doc["id"], "title": doc["title"], "helpdesk": doc["helpdesk"],
+            "gapsWritten": len(claimed)}
 
 
 def shape_docs(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
