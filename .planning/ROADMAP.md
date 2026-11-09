@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 14/23 plans executed in 6 waves
+**Plans**: 15/23 plans executed in 6 waves
 
 Plans:
 **Wave 1**
@@ -584,7 +584,7 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 - [x] 85-13-PLAN.md — Full pipeline (every stage, every hand-off, stop and moved-ticket edges) and the prompt-injection set
 - [x] 85-14-PLAN.md — Portal: send, edit, discard drafts; This fixed it and I still need help; cited articles; working-day return date
-- [ ] 85-15-PLAN.md — Knowledge Base back end: Help desk mark and edit, idempotent starter copy, grouped knowledge-gap list
+- [x] 85-15-PLAN.md — Knowledge Base back end: Help desk mark and edit, idempotent starter copy, grouped knowledge-gap list
 - [ ] 85-16-PLAN.md — Autonomous Ops screen: Service desk settings card and desk Activity rows with Undo
 
 **Wave 5** *(blocked on Wave 4 completion)*
@@ -677,6 +677,6 @@ Plans:
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
-| 85. First-Line Service Desk | 14/23 | In Progress | - |
+| 85. First-Line Service Desk | 15/23 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |

@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-14-PLAN.md
-last_updated: "2026-11-09T01:14:12.359Z"
+stopped_at: Completed 85-15-PLAN.md
+last_updated: "2026-11-09T01:41:03.973Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: c1fa0c2e4269c297efcc844523a184cb808d956d
+state_head: b69be8a8445fbbb1dbf38327057e713cf45b38c7
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 113
+  completed_plans: 114
   percent: 86
 ---
 
@@ -616,6 +616,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-14: a person-sent draft turns the suggested row to executed with approval.approver set and is never autoDispatched; the comment compare-and-set (kind ai_draft, ai.state draft) picks the one winner of concurrent sends — Decision 8: a person's send stays outside the desk's hourly pool and breaker
 - [Phase 85]: 85-14: cited articles open only when cited on that ticket for that viewer, read with the ticket's own tenantId and helpdesk true; a removed, unmarked or forged-global citation answers available False with no text — T-85-51: a requester can never browse the knowledge base
 - [Phase 85]: 85-14: the requester return date is computed from desk.postedAt on every read (3 Monday-to-Friday days, same local hour, tenant zone or UTC) and never stored — Decision 5 and D-08
+- [Phase 85]: Phase 85 plan 15: the Platform tenant is refused (403) for the Help desk mark, starters and gap routes; dismiss/restore are idempotent (changed 0 on a second press); GET gaps?dismissed=true returns open plus dismissed groups
+- [Phase 85]: Phase 85 plan 15: gap grouping uses the desk's content words less scikit-learn English stop words, threshold 0.6, greedy newest-first; group id is the oldest member's row id
 
 ## Performance Metrics
 
@@ -884,6 +886,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P12 | 25 min | 2 tasks | 4 files |
 | Phase 85 P13 | 35 min | 3 tasks | 6 files |
 | Phase 85 P14 | 40 min | 3 tasks | 11 files |
+| Phase 85 P15 | 24 min | 3 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -918,8 +921,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T01:14:12.110Z
-**Stopped at:** Completed 85-14-PLAN.md
+**Last session:** 2026-11-09T01:41:03.689Z
+**Stopped at:** Completed 85-15-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -946,7 +949,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 15 of 23
+Plan: 16 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
