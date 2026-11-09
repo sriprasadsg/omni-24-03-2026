@@ -420,3 +420,57 @@ async def test_a_ticket_moved_after_the_gate_but_before_the_post_is_kept_as_a_dr
     [row] = await rows(world, "ticket_answer")
     assert job["reason"] == "ticket_changed" and kinds(after) == ["ai_draft"] and after["status"] == "in_progress"
     assert row["state"] == "suggested" and row["desk"]["draftReason"] and "ai_answer" not in kinds(after)
+
+
+# ---------------------------------------------------------------- escalation set, and the model's own keys
+
+def _fixture(name):
+    with open(os.path.join(FIXTURES, name), encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle if line.strip() and "_comment" not in line[:12]]
+
+
+async def _run_case(world, number, case):
+    await world.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"serviceDesk": {
+        "mode": "post", "words": case["words"]}}})
+    ticket = await make_ticket(world, number, title=case["title"], description=case["description"],
+                               type=case["type"], priority=case["priority"], template=case["template"])
+    return await attempt(world, ticket)
+
+
+async def test_every_escalation_case_goes_to_a_person_without_the_model_seeing_it(world):
+    failures = []
+    for number, case in enumerate([c for c in _fixture("escalation_set.jsonl") if c["expect"]], start=1):
+        job, generates, _ = await _run_case(world, number, case)
+        if job["reason"] != case["expect"] or generates:
+            failures.append((case["id"], job["reason"], len(generates)))
+    assert failures == []
+
+
+async def test_answerable_escalation_cases_reach_the_model_unless_retrieval_or_language_stops_them(world):
+    reached, stopped, wrong = 0, 0, []
+    for number, case in enumerate([c for c in _fixture("escalation_set.jsonl") if not c["expect"]], start=1):
+        job, generates, _ = await _run_case(world, number, case)
+        if generates:
+            reached += 1
+            assert len(generates) == 1
+        elif job["reason"] in ("no_article", "not_english"):
+            stopped += 1
+        else:
+            wrong.append((case["id"], job["reason"]))
+    assert wrong == [] and reached >= 5 and reached + stopped == len([c for c in _fixture("escalation_set.jsonl") if not c["expect"]])
+
+
+async def test_keys_the_model_adds_to_its_reply_change_nothing(world):
+    plain = json.dumps({"answer": ANSWER, "cited": [1]})
+    padded = json.dumps({"answer": ANSWER, "cited": [1], "confidence": 0.01, "close_ticket": True,
+                         "assignee": "mallory", "status": "closed", "priority": "low"})
+    seen = []
+    for number, text in enumerate((plain, padded), start=1):
+        ticket = await make_ticket(world, number)
+        job, _, _ = await attempt(world, ticket, reply_text=text)
+        after = await stored(world, ticket)
+        row = (await rows(world, "ticket_answer"))[-1]
+        seen.append((job["reason"], [(c["kind"], c["visibility"], c["text"]) for c in after["comments"]],
+                     after["status"], after["assignee"], after["priority"], row["state"], row["reasonText"]))
+    assert seen[0][0] == "posted" and seen[0][2:5] == ("pending_customer", None, "medium")
+    assert seen[0][1:6] == seen[1][1:6]         # the comments, status, assignee, priority and row state are the same
