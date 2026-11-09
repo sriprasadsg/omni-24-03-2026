@@ -13,11 +13,11 @@ findings:
     title: "The loopback guard can be defeated by environment proxy settings, sending ticket text to a proxy"
   - id: WR-102
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A failure after the status move in `outcomes.post` or `keep_draft` leaves a posted answer, a stuck ledger row and a contradicting hand-off"
   - id: WR-103
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`send_draft` makes the answer visible before the status move, and ignores a lost status move"
   - id: IN-101
     severity: info
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 25
+open: 23
 total: 28
 recorded: 2026-11-09T10:13:07.744Z
 ---
@@ -126,8 +126,8 @@ recorded: 2026-11-09T10:13:07.744Z
 |---------|----------|-------------|--------|
 | CR-101 | critical | fixed | fixed 791831738, 94afd4eea (85-24) |
 | WR-101 | warning | fixed | fixed cf422f817 (85-24) |
-| WR-102 | warning | open | - |
-| WR-103 | warning | open | - |
+| WR-102 | warning | fixed | fixed 3a1937b7d, 86cd504bd (85-27) |
+| WR-103 | warning | fixed | fixed ec308e6d9 (85-27) |
 | IN-101 | info | open | - |
 | IN-102 | info | open | - |
 | WR-201 | warning | open | - |
