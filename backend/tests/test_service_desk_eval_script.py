@@ -247,6 +247,21 @@ def case_ids(name):
         return [json.loads(line)["id"] for line in handle if line.strip() and "_comment" not in line[:12]]
 
 
+def reaching_the_model(script):
+    """How many injection cases get past the script's own pre-model stages (the rules, the language check and
+    retrieval, with the words and the starter articles run_sets uses): each one is one generate call."""
+    docs, count = script.starter_docs(), 0
+    for case in script.load_jsonl("injection_set.jsonl"):
+        ticket = {"title": case["title"], "description": case["description"], "type": "task", "priority": "medium",
+                  "requester_channel": None}
+        cleaned = script._cleaned_question(case["title"], case["description"])
+        if script._rule_reason(ticket, cleaned, ["payroll"]) is None and script.retrieval.select(
+                script.retrieval.score(cleaned, docs)):
+            count += 1
+    assert count >= 1
+    return count
+
+
 async def test_sets_with_a_benign_model_exit_0_with_a_summary_line_per_set(capsys):
     stand_in = StandIn(reply_with(BENIGN))
     code = await run_script(["--sets"], stand_in)
@@ -255,7 +270,7 @@ async def test_sets_with_a_benign_model_exit_0_with_a_summary_line_per_set(capsy
     for word in ("escalation", "injection", "retrieval"):
         assert any(line.lower().startswith(word) for line in out.splitlines()), word
     assert "margin 0.2268" in out and "0 not as expected" in out            # the margin 85-06 pinned
-    assert 1 <= stand_in.generates <= len(case_ids("injection_set.jsonl"))
+    assert stand_in.generates == reaching_the_model(load_script())
     assert stand_in.max_in_flight == 1
     assert {c["path"] for c in stand_in.calls} <= {"/api/tags", "/api/ps", "/api/generate"}
     assert "0 failed" in out and "RESULT: every check held" in out
@@ -301,9 +316,26 @@ async def test_a_prompt_that_carries_a_link_fails_the_run(capsys):
 
 
 async def test_sets_make_no_database_connection_and_no_request_but_the_model_ones(monkeypatch, capsys):
-    monkeypatch.delenv("MONGODB_URL", raising=False)
-    monkeypatch.delenv("MONGO_URI", raising=False)
-    assert await run_script(["--sets"], StandIn(reply_with(BENIGN))) == 0
+    """protects=WR-303 / T-85-103 --sets never opens a database (so it can never reach the live mongod);
+    fails_when=--sets builds a Mongo client or calls the script's open_database."""
+    import motor.motor_asyncio
+    for name in ("MONGODB_URL", "MONGO_URI", "MONGODB_URI"):
+        monkeypatch.delenv(name, raising=False)
+    built, opened = [], []
+
+    def no_client(*args, **kwargs):
+        built.append((args, kwargs))
+        raise AssertionError("--sets built a Mongo client")
+
+    async def no_open(args):
+        opened.append(args)
+        raise AssertionError("--sets opened a database")
+
+    monkeypatch.setattr(motor.motor_asyncio, "AsyncIOMotorClient", no_client)
+    script = load_script()
+    monkeypatch.setattr(script, "open_database", no_open)
+    assert await script.main(["--sets"], transport=StandIn(reply_with(BENIGN)).transport) == 0
+    assert built == [] and opened == []
     assert "not reachable" not in capsys.readouterr().err
 
 

@@ -15,14 +15,15 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service_desk import gaps, messages, store
+from service_desk import gaps, messages
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.service_desk_knowledge_support import OVER, KbApp
+from tests.service_desk_support import desk_indexes_without_ttl
 
 
 @pytest.fixture
 async def kb(mongo_db, monkeypatch):  # noqa: F811
-    await store.ensure_indexes(mongo_db)
+    await desk_indexes_without_ttl(mongo_db)
     return KbApp(mongo_db, monkeypatch)
 
 
@@ -143,6 +144,8 @@ async def test_only_open_no_article_rows_of_the_last_90_days_for_this_tenant_are
     body = (await kb.call("GET", GAPS_PATH)).json()
     assert [g["question"] for g in body["groups"]] == ["fresh question about toner"]
     assert body["dismissedCount"] == 1 and body["otherLanguageCount"] == 0
+    # The 90-day filter (not the TTL monitor) is what keeps the old row off the list: it is still stored.
+    assert await kb.db.service_desk_gaps.count_documents({"ticketId": "N2"}) == 1
 
 
 async def test_a_question_is_cut_to_200_characters_and_at_most_500_rows_are_read(kb):

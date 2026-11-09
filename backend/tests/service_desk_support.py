@@ -37,6 +37,19 @@ async def seed_desk_tenant(db, tid, *, level="undoable_auto", shadow=False, mode
         await db.autonomy_settings.update_one({"tenantId": tid}, {"$set": {"serviceDesk": {"mode": mode}}})
 
 
+async def desk_indexes_without_ttl(db):
+    """The desk indexes without the two 90-day TTL indexes (finished_ttl on service_desk_jobs, created_ttl on
+    service_desk_gaps). Fixtures that stamp rows from fixed clocks (or rows 100 days old) must not run with the TTL
+    monitor, which would delete them once the real date passes the stamp; migration 032's own test keeps covering
+    the TTL indexes."""
+    from autonomous_ops.scope import raw
+    from service_desk import store
+    await store.ensure_indexes(db)
+    handle = raw(db)
+    await handle.service_desk_jobs.drop_index("finished_ttl")
+    await handle.service_desk_gaps.drop_index("created_ttl")
+
+
 async def seed_article(db, tid, doc_id, *, title, content, helpdesk=True, tags=()):
     """A knowledge_docs row as the Knowledge Base stores it, with the Help desk mark on or off."""
     await db.knowledge_docs.insert_one({"id": doc_id, "tenantId": tid, "title": title, "content": content,

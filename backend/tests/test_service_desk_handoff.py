@@ -18,8 +18,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service_desk import DRAFT_REASONS, GAP_REASONS, HANDOFF_REASONS, gaps, handoff, messages, notify, store
+from service_desk import DRAFT_REASONS, GAP_REASONS, HANDOFF_REASONS, gaps, handoff, messages, notify
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.service_desk_support import desk_indexes_without_ttl
 
 NOW = datetime(2026, 11, 8, 10, 0, tzinfo=timezone.utc)
 
@@ -32,7 +33,7 @@ async def world(mongo_db, monkeypatch):  # noqa: F811
     import tickets_service
     from autonomous_ops import ledger
     await ledger.ensure_indexes(mongo_db)
-    await store.ensure_indexes(mongo_db)
+    await desk_indexes_without_ttl(mongo_db)
     for module in (tickets_service, tickets_config_mixin):
         monkeypatch.setattr(module, "get_database", lambda: mongo_db)
     # The normal "assigned to you" mail of the ticket queue is not what these tests look at.

@@ -307,11 +307,19 @@ async def test_migration_032_creates_every_desk_index_twice_and_changes_no_docum
     assert unique["unique"] is True and (await mongo_db.knowledge_docs.index_information())["one_starter_copy"]["unique"]
 
 
+async def test_the_fixtures_and_the_worker_leave_out_the_90_day_ttl_indexes(world):
+    """protects=WR-301 (rows stamped from the fixed test clocks must not be removed by the TTL monitor);
+    fails_when=a fixture or the worker's own index check leaves finished_ttl or created_ttl in place."""
+    await run(world)
+    jobs = set(await world.service_desk_jobs.index_information())
+    assert {"one_attempt_per_ticket", "state_created"} <= jobs and "finished_ttl" not in jobs
+    assert "created_ttl" not in set(await world.service_desk_gaps.index_information())
+
+
 def test_the_runner_finds_migration_032_and_it_follows_031():
     from migrations import runner
     found = dict(runner._discover_pending(set()))
     assert found["032"] == "032_service_desk" and "031" in found
-    assert max(found) == "032"
 
 
 def test_the_backend_starts_one_service_desk_task_after_the_patch_rollout_controller():

@@ -327,6 +327,9 @@ async def test_this_fixed_it_resolves_the_ticket_and_only_this_does(world):
     """protects=D-07: the requester's yes sets resolved with resolved_at, phase confirmed, confirmedAt and no
     Undo, and writes the Activity sentence; fails_when=another status, a missing resolved_at or Undo left on."""
     ticket = await _posted(world)
+    # The answer run stamps the hold start from the real clock; this test confirms at the fixed NOW, so the hold
+    # starts an hour before it and the test holds at any real date.
+    await world.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"hold_started_at": (NOW - timedelta(hours=1)).isoformat()}})
     assert await lifecycle.confirm(world.db, "t1", ticket["id"], requester=ALICE_ACTOR, now=NOW) == {"status": "confirmed"}
     after = await stored(world.db, ticket["id"])
     assert after["status"] == "resolved" and after["resolved_at"] == NOW.isoformat()

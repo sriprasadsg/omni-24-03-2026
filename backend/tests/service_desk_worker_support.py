@@ -12,8 +12,8 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import ledger
-from service_desk import intake, model, starters, store
-from tests.service_desk_support import seed_desk_tenant
+from service_desk import intake, model, starters
+from tests.service_desk_support import desk_indexes_without_ttl, seed_desk_tenant
 
 ANSWER = "Open your company's sign-in page and choose Forgot password."
 TITLE = "I forgot my password"
@@ -60,7 +60,7 @@ async def world(mongo_db, monkeypatch):
     monkeypatch.setattr(ticket_notifications, "notify_assigned", AsyncMock())
     monkeypatch.setattr(ticket_notifications, "notify_status_changed", AsyncMock())
     await ledger.ensure_indexes(mongo_db)
-    await store.ensure_indexes(mongo_db)
+    await desk_indexes_without_ttl(mongo_db)
     await add_tenant(mongo_db, "t1")
     return mongo_db
 
