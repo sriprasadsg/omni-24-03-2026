@@ -225,8 +225,8 @@ async def _bob_note(world, other_id):
 
 @pytest.mark.parametrize("query", ["", "?reporter=alice@x.co"])
 async def test_the_list_projects_the_reporters_ticket_and_leaves_the_others(world, query):
-    """protects=CR-401 on GET /api/tickets; fails_when=a planted staff text reaches the reporter in the list, or
-    a ticket raised by someone else loses a comment."""
+    """protects=CR-401 and UD-2 on GET /api/tickets; fails_when=a planted staff text reaches the reporter in the list,
+    the reporter's list holds another person's ticket, or staff see a ticket raised by someone else without its comment."""
     ticket_id, other_id = await _plant(world)
     await _bob_note(world, other_id)
     response = await world.call("GET", f"/api/tickets{query}", user=ALICE)
@@ -235,11 +235,12 @@ async def test_the_list_projects_the_reporters_ticket_and_leaves_the_others(worl
     assert ticket_id in tickets
     _clean(json.dumps(tickets[ticket_id]))
     assert "desk" not in tickets[ticket_id]
-    if not query:
-        assert [c["text"] for c in tickets[other_id]["comments"]] == [BOB_NOTE]
-    staff = await world.call("GET", "/api/tickets", user=BOB)
-    mine = next(t for t in staff.json()["tickets"] if t["id"] == ticket_id)
+    assert other_id not in tickets and BOB_NOTE not in response.text      # UD-2: the reporter lists only their own tickets
+    staff = await world.call("GET", "/api/tickets", user=staff_user("t1", "dave@x.co"))      # staff who raised neither ticket
+    by_id = {t["id"]: t for t in staff.json()["tickets"]}
+    mine = by_id[ticket_id]
     assert mine["desk"]["lastReason"] == "billing_topic" and len(mine["comments"]) == len(_planted_comments())
+    assert [c["text"] for c in by_id[other_id]["comments"]] == [BOB_NOTE]      # staff still list the other ticket with its comments
 
 
 async def test_patch_returns_the_projection_to_the_reporter_and_the_full_ticket_to_staff(world):

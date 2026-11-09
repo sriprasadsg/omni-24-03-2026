@@ -73,6 +73,7 @@ class TicketsService(TicketsConfigMixin):
         page_size: int = 50,
         sort_by: str = "created_at",
         sort_dir: int = -1,
+        scope: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         db = get_database()
         # list_tickets intentionally accepts tenant_id="" for Super Admin
@@ -95,6 +96,8 @@ class TicketsService(TicketsConfigMixin):
                 {"ticket_number": {"$regex": search, "$options": "i"}},
                 {"tags":          {"$regex": search, "$options": "i"}},
             ]
+        if scope:
+            query["$and"] = [scope]   # a non-staff caller's own-tickets filter (UD-2), ANDed with every other filter
 
         valid_sort = {"created_at", "updated_at", "priority", "status", "due_date", "ticket_number"}
         sort_field = sort_by if sort_by in valid_sort else "created_at"

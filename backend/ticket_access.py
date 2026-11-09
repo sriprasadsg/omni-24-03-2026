@@ -14,7 +14,8 @@ Module-level imports are limited to ``typing``, ``fastapi`` and ``rbac_service``
 ``authentication_service`` for the caller); the ticket modules are imported inside the guard so the
 ticket and notification modules can import this one without a cycle.
 """
-from typing import Iterable, Optional
+import re
+from typing import Any, Dict, Iterable, Optional
 
 from fastapi import Depends, HTTPException, Request
 
@@ -64,3 +65,18 @@ def ticket_viewer(detail: str = "Ticket not found"):
             raise HTTPException(status_code=404, detail=detail)
 
     return guard
+
+
+def own_tickets_filter(user) -> Dict[str, Any]:
+    """A MongoDB filter for the tickets ``user`` raised: the reporter equals the username or the email,
+    ignoring case. Each name is an anchored, escaped pattern, so regex characters in a name match only
+    themselves; a caller with no name gets an empty ``$in``, which matches nothing."""
+    names = {str(getattr(user, field, "") or "").strip() for field in ("username", "email")} - {""}
+    return {"reporter": {"$in": [re.compile(f"^{re.escape(name)}$", re.IGNORECASE) for name in sorted(names)]}}
+
+
+async def tickets_scope(user) -> Optional[Dict[str, Any]]:
+    """The query restriction for ticket lists, counts, reports and exports (UD-2, PROH-85-24): None for ticket
+    staff (the whole tenant), the caller's own-tickets filter for everybody else. It belongs in the database
+    query, never applied to the rows afterwards, so totals, pages and statistics agree with what is shown."""
+    return None if await is_ticket_staff(user) else own_tickets_filter(user)

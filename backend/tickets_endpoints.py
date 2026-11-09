@@ -81,13 +81,14 @@ async def list_tickets(
     _is_super = (current_user.role or "") in {"Super Admin", "superadmin", "super_admin", "platform-admin"}
     if not tenant_id and not _is_super:
         raise HTTPException(status_code=400, detail="No tenant context — please log out and back in to refresh your session.")
+    scope = await ticket_access.tickets_scope(current_user)     # None for staff, else the caller's own tickets (UD-2)
     try:
         result = await tickets_service.list_tickets(
             tenant_id=tenant_id,
             status=status, priority=priority, ticket_type=type,
             assignee=assignee, assignee_group=assignee_group, reporter=reporter,
             search=search, sla_status=sla_status, overdue_only=overdue_only,
-            page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir,
+            page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir, scope=scope,
         )
         result["tickets"] = [_shown(t, current_user) for t in result["tickets"]]
         return result
