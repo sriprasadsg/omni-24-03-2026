@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from service_desk import messages
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.service_desk_support import portal_user
+from tests.service_desk_support import portal_user, staff_user
 from tests.service_desk_portal_support import (ALICE, ANSWER, BOB, CAROL, DAVE, DRAFT_ALICE, STAFF2, STAFF3, build_world,
                                                desk_row, draft_of, notices, raise_and_run, stored)
 
@@ -379,7 +379,7 @@ async def test_a_reply_from_staff_shows_the_staff_name_or_none(world):
     """protects=R12: the profile name on the portal, no address when there is no profile; fails_when=an
     address is shown."""
     ticket = await _posted(world)
-    nameless = portal_user("t1", "zed@x.co")
+    nameless = staff_user("t1", "zed@x.co")           # a technician with no profile (staff since 85-32: a requester gets 404)
     await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=CAROL, json={"text": "One moment", "visibility": "requester"})
     await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=nameless, json={"text": "Me too", "visibility": "requester"})
     items = (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]["items"]

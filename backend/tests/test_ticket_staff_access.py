@@ -19,6 +19,7 @@ import os
 import sys
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -270,3 +271,74 @@ async def test_an_analyst_api_key_without_manage_tickets_is_a_requester(world):
                      auth_source="api_key", scopes=["view:dashboard", TICKETS])
     assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=narrow)).status_code == 404
     assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=wide)).status_code == 200
+
+
+# ---------------------------------------------------------------- the guard on the other ticket routes (85-32, Task 2)
+
+async def _stored(world, ticket_id):
+    return await world.db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+
+
+async def test_a_requester_gets_not_found_on_the_history_of_a_colleagues_ticket(world):
+    """protects=WR-502 on GET history; fails_when=a non-reporter reads the history, or staff and the reporter lose theirs."""
+    ticket_id = await _alices_ticket(world)
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}/history", user=CAROL)).status_code == 404
+    full = await world.call("GET", f"/api/tickets/{ticket_id}/history", user=BOB)
+    assert full.status_code == 200
+    assert [h for h in full.json() if h["action"] == "commented"]
+    projected = await world.call("GET", f"/api/tickets/{ticket_id}/history", user=ALICE)
+    assert projected.status_code == 200
+    assert len(projected.json()) < len(full.json())                  # the staff-only comment entry is dropped for the reporter
+
+
+async def test_a_requester_cannot_comment_on_a_colleagues_ticket(world):
+    """protects=PROH-85-23 on POST comments; fails_when=the comment is written, or the answer differs from a missing ticket's."""
+    ticket_id = await _alices_ticket(world)
+    before = (await _stored(world, ticket_id))["comments"]
+    response = await world.call("POST", f"/api/tickets/{ticket_id}/comments", user=CAROL, json={"text": "me too"})
+    assert (response.status_code, response.json()) == (404, {"detail": NOT_FOUND})
+    assert (await _stored(world, ticket_id))["comments"] == before
+    missing = await world.call("POST", "/api/tickets/TKT-nope/comments", user=CAROL, json={"text": "me too"})
+    assert (missing.status_code, missing.json()) == (404, {"detail": NOT_FOUND})
+
+
+async def _upload(world, user, ticket_id):
+    world.user = user
+    transport = httpx.ASGITransport(app=world.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.post(f"/api/tickets/{ticket_id}/attachments",
+                                 files={"file": ("notes.txt", b"hello", "text/plain")})
+
+
+async def test_a_requester_cannot_attach_to_a_colleagues_ticket_and_nothing_is_written(world, tmp_path, monkeypatch):
+    """protects=PROH-85-23 on POST attachments; fails_when=a file lands on disk or on the ticket for a non-reporter."""
+    import tickets_endpoints
+    monkeypatch.setattr(tickets_endpoints, "_UPLOAD_DIR", str(tmp_path))
+    ticket_id = await _alices_ticket(world)
+    response = await _upload(world, CAROL, ticket_id)
+    assert (response.status_code, response.json()) == (404, {"detail": NOT_FOUND})
+    assert list(tmp_path.iterdir()) == []
+    assert not (await _stored(world, ticket_id)).get("attachments")
+    own = await _upload(world, ALICE, ticket_id)
+    assert own.status_code == 200, own.text
+    assert len(list(tmp_path.iterdir())) == 1
+    assert len((await _stored(world, ticket_id))["attachments"]) == 1
+
+
+async def test_the_reporter_comments_on_their_own_ticket(world):
+    """protects=CR-401 unchanged; fails_when=the guard turns the reporter away from commenting."""
+    ticket_id = await _alices_ticket(world)
+    response = await world.call("POST", f"/api/tickets/{ticket_id}/comments", user=ALICE, json={"text": "still broken"})
+    assert response.status_code == 200, response.text
+    assert any(c["text"] == "still broken" for c in (await _stored(world, ticket_id))["comments"])
+
+
+async def test_a_custom_role_with_manage_settings_but_not_manage_tickets_cannot_delete(world, monkeypatch):
+    """protects=UD-3 on DELETE; fails_when=a role that may delete tickets but is not ticket staff reaches a colleague's ticket."""
+    ticket_id = await _alices_ticket(world)
+    admin_like = portal_user("t1", "ops@x.co", role="Technician")
+    monkeypatch.setattr(rbac_module, "get_database",
+                        lambda: _role_store(_technician("t1", ["view:dashboard", "manage:settings"])))
+    response = await world.call("DELETE", f"/api/tickets/{ticket_id}", user=admin_like)
+    assert (response.status_code, response.json()) == (404, {"detail": NOT_FOUND})
+    assert await _stored(world, ticket_id) is not None

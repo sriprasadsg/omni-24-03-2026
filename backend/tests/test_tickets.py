@@ -88,6 +88,7 @@ def _patched(tickets_db=None):
 # ---------------------------------------------------------------------------
 
 _VIEWER    = TokenData(username="v@test.com", role="user",        tenant_id="t1",   mfa_verified=True)
+_STAFF     = TokenData(username="st@test.com", role="analyst",    tenant_id="t1",   mfa_verified=True)  # holds manage:tickets
 _SUPER     = TokenData(username="s@test.com", role="Super Admin", tenant_id=None,   mfa_verified=True)
 _NO_TENANT = TokenData(username="n@test.com", role="user",        tenant_id="",     mfa_verified=True)
 
@@ -195,7 +196,7 @@ class TestGetTicket:
 
     def test_missing_ticket_returns_404(self):
         with _patched(_mock_db(find_one_doc=None)):
-            with TestClient(_app(_VIEWER)) as client:
+            with TestClient(_app(_STAFF)) as client:
                 r = client.get("/api/tickets/nonexistent")
         assert r.status_code == 404
 
@@ -204,6 +205,23 @@ class TestGetTicket:
             "id": "abc", "ticket_number": "TKT-0001", "title": "Bug",
             "status": "open", "priority": "high",
         }
+        with _patched(_mock_db(find_one_doc=doc)):
+            with TestClient(_app(_STAFF)) as client:
+                r = client.get("/api/tickets/abc")
+        assert r.status_code == 200
+        assert r.json()["id"] == "abc"
+
+    def test_a_requester_gets_404_on_a_ticket_someone_else_raised(self):
+        """G-85-4 UD-2 / WR-502: the ticket viewer guard answers like a missing ticket."""
+        doc = {"id": "abc", "title": "Bug", "status": "open", "reporter": "someone-else@test.com"}
+        with _patched(_mock_db(find_one_doc=doc)):
+            with TestClient(_app(_VIEWER)) as client:
+                r = client.get("/api/tickets/abc")
+        assert r.status_code == 404
+        assert r.json() == {"detail": "Ticket not found"}
+
+    def test_a_requester_reads_the_ticket_they_raised(self):
+        doc = {"id": "abc", "title": "Bug", "status": "open", "reporter": "v@test.com"}
         with _patched(_mock_db(find_one_doc=doc)):
             with TestClient(_app(_VIEWER)) as client:
                 r = client.get("/api/tickets/abc")
@@ -222,7 +240,7 @@ class TestTicketHistory:
     def test_missing_ticket_returns_404_not_empty_list(self):
         """Core regression: before the fix, this returned 200 with []."""
         with _patched(_mock_db(find_one_doc=None)):
-            with TestClient(_app(_VIEWER)) as client:
+            with TestClient(_app(_STAFF)) as client:
                 r = client.get("/api/tickets/ghost/history")
         assert r.status_code == 404
 
@@ -235,7 +253,7 @@ class TestTicketHistory:
             ],
         }
         with _patched(_mock_db(find_one_doc=doc)):
-            with TestClient(_app(_VIEWER)) as client:
+            with TestClient(_app(_STAFF)) as client:
                 r = client.get("/api/tickets/t1/history")
         assert r.status_code == 200
         assert isinstance(r.json(), list)
@@ -244,10 +262,17 @@ class TestTicketHistory:
     def test_existing_ticket_with_no_history_returns_empty_list(self):
         doc = {"id": "t2", "title": "Y", "status": "open", "history": []}
         with _patched(_mock_db(find_one_doc=doc)):
-            with TestClient(_app(_VIEWER)) as client:
+            with TestClient(_app(_STAFF)) as client:
                 r = client.get("/api/tickets/t2/history")
         assert r.status_code == 200
         assert r.json() == []
+
+    def test_a_requester_gets_404_on_the_history_of_someone_elses_ticket(self):
+        doc = {"id": "t3", "title": "Z", "status": "open", "reporter": "someone-else@test.com", "history": []}
+        with _patched(_mock_db(find_one_doc=doc)):
+            with TestClient(_app(_VIEWER)) as client:
+                r = client.get("/api/tickets/t3/history")
+        assert r.status_code == 404
 
 
 # ===========================================================================
