@@ -1,6 +1,6 @@
 import React from 'react';
 import { SparklesIcon } from '../icons';
-import { MARK } from './serviceDeskCopy';
+import { KB, MARK, fill } from './serviceDeskCopy';
 
 /**
  * Small pieces the ticket-screen desk components share (85-20): the chip anatomy and tones of 81-UI-SPEC (a 12px
@@ -86,4 +86,14 @@ export function failureMessage(e: unknown): string {
 export function failureStatus(e: unknown): number {
     const status = (e as { status?: unknown } | null)?.status;
     return typeof status === 'number' ? status : 0;
+}
+
+/**
+ * One failure line in plain words (UI-SPEC Copywriting Contract): `withMessage` filled with the server's own message,
+ * or `fallback` when it gave none. A refusal with no message and status 403 is the Platform organization's, which the
+ * service desk is not available to.
+ */
+export function failureLine(e: unknown, withMessage: string, fallback: string): string {
+    const message = failureMessage(e) || (failureStatus(e) === 403 ? KB.platformRefused.replace(/[.\s]+$/, '') : '');
+    return message ? fill(withMessage, { message }) : fallback;
 }

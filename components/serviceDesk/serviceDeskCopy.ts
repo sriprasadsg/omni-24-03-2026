@@ -305,6 +305,8 @@ export const KB = {
     addStarters: "Add starter IT articles",
     startersAdded: "Starter IT articles added",
     readiness: "{k} articles are marked Help desk. The service desk cites only these.",
+    readinessOne: "1 article is marked Help desk. The service desk cites only this one.",
+    filterHelpDeskEmpty: "No articles are marked Help desk yet.",
     noHelpdeskArticles: ("The service desk has no Help desk articles to cite, so every ticket goes to a person. "
         + "Add the starter articles or mark your own articles as Help desk."),
     chipHelpDesk: "Help desk",
@@ -321,6 +323,8 @@ export const KB = {
     toggleOn: "\"{title}\" can now be cited in answers to requesters.",
     toggleOff: "\"{title}\" will no longer be cited in answers.",
     toggleFailed: "Couldn't change this article: {message}. Try again.",
+    toggleFailedFallback: "Couldn't change this article. Check your connection and try again.",
+    platformRefused: "The service desk isn't available for the platform organization.",
     starterFailed: "Couldn't add the starter articles: {message}. Try again.",
     starterFailedFallback: "Couldn't add the starter articles. Check your connection and try again.",
     articleDialogEdit: "Edit article",
@@ -338,6 +342,10 @@ export const KB = {
     saveArticle: "Save article",
     saving: "Saving...",
     saveFailed: "Couldn't save the article: {message}. Try again.",
+    saveFailedFallback: "Couldn't save the article. Check your connection and try again.",
+    articleLoading: "Loading article...",
+    articleLoadFailed: "Couldn't load this article. Try again.",
+    tryAgain: "Try again",
 } as const;
 
 export const GAPS = {
@@ -366,6 +374,9 @@ export const GAPS = {
         + "need a new article show up here."),
     loadFailed: "Couldn't load knowledge gaps. Check your connection and try again.",
     tryAgain: "Try again",
+    listLabel: "Knowledge gap groups",
+    actionFailed: "Couldn't update this gap: {message}. Try again.",
+    actionFailedFallback: "Couldn't update this gap. Check your connection and try again.",
 } as const;
 
 // ---------------------------------------------------------------- toasts, errors, validation (Copywriting Contract)
@@ -376,6 +387,7 @@ export const TOASTS = {
     restored: "Post answers restored. Answers post again once every condition is met.",
     draftDiscarded: "Draft discarded.",
     startersAdded: "Added {n} starter articles. Edit them to match your setup.",
+    startersAddedOne: "Added 1 starter article. Edit it to match your setup.",
     startersNone: "Nothing to add. Your starter articles are already in your knowledge base.",
     articleSaved: "Article saved.",
     articleSavedGap: "Article saved and marked Help desk. The gap is closed.",
