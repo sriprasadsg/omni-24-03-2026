@@ -363,6 +363,11 @@ export const GAPS = {
     dismissing: "Dismissing...",
     restore: "Restore gap",
     showMore: "Show more gaps",
+    chipDismissed: "Dismissed",
+    restoring: "Restoring...",
+    count: "{n} tickets",
+    countOne: "1 ticket",
+    otherLanguageOne: "1 ticket was in another language and went to a person. The service desk answers in English only.",
     otherLanguage: "{n} tickets were in another language and went to a person. The service desk answers in English only.",
     footnote: ("Software and hardware requests, and security, billing, legal or account-access tickets, are "
         + "not counted as gaps."),

@@ -1,5 +1,6 @@
 import React from 'react';
 import { SparklesIcon } from '../icons';
+import { formatRelativeTime } from '../../utils/timeUtils';
 import { KB, MARK, fill } from './serviceDeskCopy';
 
 /**
@@ -96,4 +97,11 @@ export function failureStatus(e: unknown): number {
 export function failureLine(e: unknown, withMessage: string, fallback: string): string {
     const message = failureMessage(e) || (failureStatus(e) === 403 ? KB.platformRefused.replace(/[.\s]+$/, '') : '');
     return message ? fill(withMessage, { message }) : fallback;
+}
+
+/** "2 hours ago" in lower case for the middle of a sentence, or '' when the moment is missing or unreadable. */
+export function relativeWords(iso: string | null | undefined): string {
+    if (!parse(iso)) return '';
+    const text = formatRelativeTime(iso);
+    return text.charAt(0).toLowerCase() + text.slice(1);
 }
