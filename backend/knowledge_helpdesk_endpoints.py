@@ -9,7 +9,9 @@ Included under /api/knowledge by ``knowledge_endpoints``, so the Knowledge Base 
 * the Platform tenant is not eligible for the desk (nothing there can be marked Help desk);
 * Help desk content is capped at HELPDESK_CONTENT_MAX characters (T-85-59).
 
-Task 1 of the plan: the Help desk mark, the article edit route and the flags the list carries.
+The Help desk mark, the article edit route and the flags the list carries; the idempotent copy of the four
+starter articles (D-28): a unique (tenantId, starterKey) index plus an upsert with $setOnInsert per starter, so
+a double press or two admins at once leave one copy of each.
 """
 import logging
 from datetime import datetime, timezone
@@ -17,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
+from pymongo.errors import DuplicateKeyError
 
 from auth_types import TokenData
 from autonomous_ops import PLATFORM_TENANT_ID
@@ -134,6 +137,51 @@ async def starter_missing(db, tenant_id: str) -> int:
     """How many of the four starter articles the tenant has no copy of (a copy it edited or unmarked counts as had)."""
     have = set(await raw(db).knowledge_docs.distinct("starterKey", {"tenantId": tenant_id}))
     return sum(1 for starter in starters.STARTERS if starter["key"] not in have)
+
+
+def _eligible_tenant(user: TokenData) -> str:
+    """The caller's tenant, refused (403) for the Platform tenant: no desk articles there."""
+    tenant = tenant_of(user)
+    if not desk_eligible(tenant):
+        raise _refuse(403, "platform_tenant")
+    return tenant
+
+
+@router.get("/helpdesk/starters")
+async def starter_status(
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+) -> Dict[str, int]:
+    """How many of the four starter articles the caller's tenant does not have yet."""
+    tenant = _eligible_tenant(current_user)
+    return {"total": len(starters.STARTERS), "missing": await starter_missing(get_database(), tenant)}
+
+
+@router.post("/helpdesk/starters")
+async def add_starters(
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+) -> Dict[str, Any]:
+    """Copy the starters the tenant lacks as editable Help desk articles (D-28). Nothing is seeded automatically.
+
+    Idempotent: each starter is one upsert keyed on (tenantId, starterKey) that only inserts, so a second press
+    adds nothing, an edited copy is never overwritten, and two presses at once add each starter exactly once
+    (the loser of a race sees the unique index and counts the starter as existing)."""
+    tenant = _eligible_tenant(current_user)
+    docs = raw(get_database()).knowledge_docs
+    now = datetime.now(timezone.utc).isoformat()
+    added: List[str] = []
+    existing = 0
+    for doc in starters.copy_docs(tenant, {"username": getattr(current_user, "username", None)}, now):
+        try:
+            result = await docs.update_one({"tenantId": tenant, "starterKey": doc["starterKey"]},
+                                           {"$setOnInsert": doc}, upsert=True)
+        except DuplicateKeyError:
+            existing += 1
+            continue
+        if result.upserted_id is not None:
+            added.append(doc["starterKey"])
+        else:
+            existing += 1
+    return {"added": len(added), "existing": existing, "addedKeys": added}
 
 
 def shape_docs(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
