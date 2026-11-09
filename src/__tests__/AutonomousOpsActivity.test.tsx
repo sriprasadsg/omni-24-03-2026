@@ -83,6 +83,14 @@ function routeFetch(handlers: { status?: Handler; actions?: Handler; incidents?:
     }
     // 84-15: the Needs your decision section also reads rollout approval cards; none here.
     if (path === '/api/autonomous-ops/rollout-cards') return jsonRes({ items: [], total: 0, offset: 0, limit: 10, stopped: null });
+    // 85-16: the Service desk card reads its own settings; this screen's tests are about the activity list.
+    if (path === '/api/autonomous-ops/service-desk') {
+      return jsonRes({
+        mode: 'drafts', effectiveMode: 'drafts', readable: true, screensOn: true, words: [], maxWords: 50, breaker: null,
+        posting: { posting: false, blockers: [] }, model: { state: 'online', tag: null },
+        timing: { medianSeconds: null, samples: 0, measured: false }, canManage: true, canRestore: false,
+      });
+    }
     // 83-13: the Response settings panel reads its own settings; this screen's tests are about the activity list.
     if (path === '/api/autonomous-ops/response-settings') {
       return jsonRes({ twoSignal: true, blockHours: 24, watchedServices: [], readable: true, restartAvailable: true });

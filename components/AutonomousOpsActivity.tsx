@@ -10,6 +10,7 @@ import type { OpenViewPayload } from './AutonomousOpsRowActions';
 import { AutonomousOpsPlatformHealth } from './AutonomousOpsPlatformHealth';
 import { AutonomousOpsResponseSettings } from './AutonomousOpsResponseSettings';
 import { PlatformResponseSettings } from './AutonomousOpsResponseSettingsPlatform';
+import { DeskSettingsCard } from './serviceDesk/DeskSettingsCard';
 import { AutonomousOpsStatusCard } from './AutonomousOpsStatusCard';
 import { EyeIcon, RefreshCwIcon, ShieldLockIcon } from './icons';
 
@@ -126,6 +127,12 @@ export const AutonomousOpsActivity: React.FC<AutonomousOpsActivityProps> = ({ te
                             key={scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}
                             tenantId={scope.kind === 'tenant' ? scope.tenantId : null}
                             tenantName={status?.tenantName || 'this organization'}
+                        />
+                    )}
+                    {showResponseSettings && (
+                        <DeskSettingsCard
+                            key={`desk-${scope.kind === 'tenant' ? scope.tenantId ?? 'own' : 'own'}`}
+                            tenantId={scope.kind === 'tenant' ? scope.tenantId : null}
                         />
                     )}
                     <section className="space-y-4" aria-labelledby="autonomous-ops-activity-title">
