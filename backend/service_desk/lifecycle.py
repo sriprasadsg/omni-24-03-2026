@@ -1,4 +1,5 @@
-"""What people do with a desk answer after it exists: send, edit or discard a draft (D-09, D-10).
+"""What people do with a desk answer after it exists: send, edit or discard a draft (D-09, D-10), and what the
+requester answers: This fixed it or I still need help (D-07, D-31).
 
 Every change to a comment or a ticket here is a compare-and-set on the raw handle with an explicit tenantId, so a
 person who already acted is never overridden and two people racing for one draft give exactly one winner. A
@@ -6,7 +7,8 @@ function returns ``{"status": "sent" | "discarded", ...}`` or ``{"status": "refu
 ``code`` is a key of ``messages.API_DETAIL``; the routes turn a refusal into the text of that key. Anyone who
 works tickets may act on a draft (no approval tier, no MFA ask, D-10); a person-sent answer is a person's
 decision and never counts toward the desk's automatic pool or its breaker (it is not ``autoDispatched``).
-Nothing in this module closes a ticket.
+The only status this module sets besides the hold on the customer is ``resolved``, and only on the requester's
+own confirmation (D-07): the desk never resolves a ticket by itself and nothing here closes one.
 """
 import logging
 import uuid
@@ -17,11 +19,12 @@ from autonomous_ops import ledger
 from autonomous_ops.rollout import windows
 from autonomous_ops.scope import raw
 
-from . import ANSWER_MAX_CHARS, notify, projection, ticket_writes, workdays, messages
+from . import ANSWER_MAX_CHARS, handoff, messages, notify, projection, ticket_writes, workdays
 
 logger = logging.getLogger(__name__)
 
 _SEND_FROM = ("open", "in_progress", "on_hold")
+HELP_MAX_CHARS = 1000                    # the optional note with I still need help
 
 
 def _aware(now: Optional[datetime]) -> datetime:
@@ -182,3 +185,92 @@ async def _row_discarded(db, tenant_id: str, action_id: Optional[str], actor: Di
         return
     await ledger.set_display(db, tenant_id, action_id,
                              activityResult=messages.ACTIVITY["discarded_result"].format(name=by.get("name") or by.get("id")))
+
+
+# ---------------------------------------------------------------- the requester answers (D-07, D-31)
+
+async def confirm(db, tenant_id: str, ticket_id: str, *, requester: Dict[str, Any],
+                  now: Optional[datetime] = None) -> Dict[str, Any]:
+    """This fixed it: the requester resolves the ticket. The only way the desk's answer ends a ticket; the
+    status moves by compare-and-set from pending_customer, so a person who acted first is not overridden."""
+    now = _aware(now)
+    ticket = await _read(db, tenant_id, ticket_id)
+    if ticket is None:
+        return refused("not_found")
+    if not projection.confirmable(ticket):
+        return refused("not_confirmable")
+    moved = await ticket_writes.move_status(db, tenant_id, ticket_id, ("pending_customer",), "resolved",
+                                            actor=str(requester.get("id") or ""), now=now,
+                                            extra={"resolved_at": now.isoformat()})
+    if not moved:
+        return refused("not_confirmable")
+    await _guarded("the desk fields", ticket_id, ticket_writes.set_desk(
+        db, tenant_id, ticket_id, {"phase": "confirmed", "confirmedAt": now, "undoable": False}, now=now))
+    zone = await workdays.tenant_zone(db, tenant_id)
+    await _guarded("the Activity row", ticket_id, _row_answered(
+        db, tenant_id, (ticket.get("desk") or {}).get("actionId"), requester, "confirmed",
+        {"phase": "confirmed", "confirmedAt": now, "undoable": False},
+        messages.ACTIVITY["confirmed_result"].format(date=windows.day_text(now, zone))))
+    return {"status": "confirmed"}
+
+
+async def _row_answered(db, tenant_id: str, action_id: Optional[str], who: Dict[str, Any], event: str,
+                        fields: Dict[str, Any], result: Optional[str]) -> None:
+    """The answer's own row records what the requester decided and no longer offers Undo."""
+    if not action_id:
+        return
+    updated = await ledger.set_desk_fields(db, tenant_id, action_id, fields, event=event, actor=_ledger_actor(who))
+    if updated is not None and result:
+        await ledger.set_display(db, tenant_id, action_id, activityResult=result)
+
+
+async def still_need_help(db, tenant_id: str, ticket_id: str, *, requester: Dict[str, Any], text: Optional[str] = None,
+                          now: Optional[datetime] = None) -> Dict[str, Any]:
+    """I still need help: the ticket goes to a person. The optional note (up to 1000 characters) is stored as the
+    requester's own reply. There is no second attempt (D-31) and no notice to the requester, who just asked."""
+    now = _aware(now)
+    ticket = await _read(db, tenant_id, ticket_id)
+    if ticket is None:
+        return refused("not_found")
+    if not projection.confirmable(ticket):
+        return refused("not_confirmable")
+    note = text.strip() if isinstance(text, str) else ""
+    if len(note) > HELP_MAX_CHARS:
+        return refused("help_too_long")
+    who = str(requester.get("id") or "")
+    if not await ticket_writes.move_status(db, tenant_id, ticket_id, ("pending_customer",), "open", actor=who, now=now):
+        return refused("not_confirmable")
+    if note:
+        await _guarded("the requester's note", ticket_id, ticket_writes.add_comment(
+            db, tenant_id, ticket_id, comment_id="sd-help-" + uuid.uuid4().hex, kind="requester_reply",
+            visibility="requester", text=note, author=who, now=now))
+    fresh = await _read(db, tenant_id, ticket_id) or ticket
+    await _guarded("the hand-off", ticket_id, handoff.handoff(db, fresh, "did_not_help", now=now,
+                                                              notify_requester=False, actor=requester))
+    fields = {"phase": "helped", "helpedAt": now, "undoable": False}
+    await _guarded("the desk fields", ticket_id, ticket_writes.set_desk(db, tenant_id, ticket_id, fields, now=now))
+    await _guarded("the Activity row", ticket_id, _row_answered(
+        db, tenant_id, (ticket.get("desk") or {}).get("actionId"), requester, "helped", fields, None))
+    return {"status": "helped"}
+
+
+async def on_comment_added(db, ticket: Dict[str, Any], *, author: str, visibility: str,
+                           now: Optional[datetime] = None) -> None:
+    """Called after every comment on a ticket. The reporter writing to a ticket whose answer is with them is the
+    same as I still need help (without a second comment); a person replying to the requester ends Undo and
+    blocks any waiting draft."""
+    desk = ticket.get("desk")
+    tenant_id, ticket_id = ticket.get("tenantId"), ticket.get("id")
+    if not isinstance(desk, dict) or not tenant_id or not ticket_id:
+        return
+    now = _aware(now)
+    if projection.same_person(ticket.get("reporter"), author):
+        if projection.confirmable(ticket):
+            await still_need_help(db, tenant_id, ticket_id, requester={"id": author, "name": author}, now=now)
+        return
+    if visibility != "requester" or desk.get("personReplied") is True:
+        return
+    await ticket_writes.set_desk(db, tenant_id, ticket_id, {"personReplied": True, "undoable": False}, now=now)
+    result = messages.ACTIVITY["person_replied_result"] if desk.get("phase") in projection.ANSWERED_PHASES else None
+    await _row_answered(db, tenant_id, desk.get("actionId"), {"id": author, "name": author}, "person_replied",
+                        {"personReplied": True, "undoable": False}, result)

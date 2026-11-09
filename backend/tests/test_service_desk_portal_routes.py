@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from service_desk import messages
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
-from tests.service_desk_portal_support import (ANSWER, DAVE, DRAFT_ALICE, STAFF2, STAFF3, build_world, desk_row,
-                                               draft_of, notices, raise_and_run, stored)
+from tests.service_desk_portal_support import (ALICE, ANSWER, BOB, CAROL, DAVE, DRAFT_ALICE, STAFF2, STAFF3, build_world,
+                                               desk_row, draft_of, notices, raise_and_run, stored)
 
 SECRET = "internal-only: the admin password is hunter2"
 
@@ -223,3 +223,117 @@ async def test_the_requester_view_holds_no_staff_text_or_reason(world):
     mine = await world.call("GET", _path(ticket), user=DRAFT_ALICE)
     for word in (SECRET, ANSWER, "Kept as a draft", "mode_drafts", "draftReason", "hunter2"):
         assert word not in mine.text
+
+
+# ---------------------------------------------------------------- Task 2: This fixed it, I still need help, comments
+
+async def _posted(world):
+    return await raise_and_run(world, ALICE)
+
+
+async def test_the_reporter_confirms_and_the_view_says_so(world):
+    """protects=D-07: 200, resolved with resolved_at, the requester view shows the confirmation and no buttons;
+    fails_when=a colleague can confirm, or the view still offers the buttons."""
+    ticket = await _posted(world)
+    before = (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]
+    assert before["canConfirm"] is True and before["notice"] is None and before["confirmedAt"] is None
+
+    denied = await world.call("POST", _path(ticket, "/confirm"), user=BOB)
+    assert denied.status_code == 403 and denied.json()["detail"] == messages.API_DETAIL["not_requester"]
+    assert (await stored(world.db, ticket["id"]))["status"] == "pending_customer"
+
+    response = await world.call("POST", _path(ticket, "/confirm"), user=ALICE)
+    assert response.status_code == 200 and response.json() == {"status": "confirmed"}
+    after = await stored(world.db, ticket["id"])
+    assert after["status"] == "resolved" and after["resolved_at"] and after["desk"]["phase"] == "confirmed"
+    view = (await world.call("GET", _path(ticket), user=ALICE)).json()
+    assert view["status"] == "resolved" and view["requester"]["canConfirm"] is False
+    assert view["requester"]["notice"] == "confirmed" and view["requester"]["confirmedAt"]
+    again = await world.call("POST", _path(ticket, "/confirm"), user=ALICE)
+    assert again.status_code == 409 and again.json()["detail"] == messages.API_DETAIL["not_confirmable"]
+
+
+async def test_confirming_with_no_answer_waiting_is_a_conflict_and_a_stranger_gets_404(world):
+    """protects=D-07 not_confirmable; fails_when=a draft-only ticket resolves or another tenant learns of it."""
+    ticket, _ = await _draft(world)
+    response = await world.call("POST", _path(ticket, "/confirm"), user=DRAFT_ALICE)
+    assert response.status_code == 409 and response.json()["detail"] == messages.API_DETAIL["not_confirmable"]
+    assert (await stored(world.db, ticket["id"]))["status"] == "open"
+    for tail in ("/confirm", "/help"):
+        assert (await world.call("POST", _path(ticket, tail), user=DAVE)).status_code == 404
+
+
+async def test_i_still_need_help_by_the_reporter_goes_to_a_person(world):
+    """protects=D-07 / D-31: 200 with the note stored, open, helped, one hand-off row; a colleague gets 403; the
+    view then shows the helped notice; fails_when=a colleague can ask, or a second attempt starts."""
+    ticket = await _posted(world)
+    denied = await world.call("POST", _path(ticket, "/help"), user=BOB, json={"text": "me too"})
+    assert denied.status_code == 403 and denied.json()["detail"] == messages.API_DETAIL["not_requester"]
+
+    response = await world.call("POST", _path(ticket, "/help"), user=ALICE, json={"text": "still broken"})
+    assert response.status_code == 200 and response.json() == {"status": "helped"}
+    after = await stored(world.db, ticket["id"])
+    assert after["status"] == "open" and after["desk"]["phase"] == "helped"
+    [reply] = [c for c in after["comments"] if c.get("kind") == "requester_reply"]
+    assert reply["visibility"] == "requester" and reply["author"] == "alice@x.co" and reply["text"] == "still broken"
+    assert await world.db.service_desk_jobs.count_documents({}) == 1
+    view = (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]
+    assert view["notice"] == "helped" and view["canConfirm"] is False
+    assert "still broken" in str(view["items"])
+
+
+async def test_help_without_a_body_and_a_note_over_1000_characters(world):
+    """protects=D-31 the body is optional, and 1001 characters is a 422 with the table text; fails_when=either
+    differs."""
+    ticket = await _posted(world)
+    long = await world.call("POST", _path(ticket, "/help"), user=ALICE, json={"text": "n" * 1001})
+    assert long.status_code == 422 and long.json()["detail"] == "Use up to 1000 characters."
+    assert (await stored(world.db, ticket["id"]))["status"] == "pending_customer"
+    assert (await world.call("POST", _path(ticket, "/help"), user=ALICE)).status_code == 200
+    assert not [c for c in (await stored(world.db, ticket["id"]))["comments"] if c.get("kind") == "requester_reply"]
+
+
+async def test_the_reporter_typing_on_the_portal_sends_it_to_a_person(world):
+    """protects=D-31 through the real comment route: the same effect as the button, no second comment from the
+    desk, no new job; fails_when=the ticket stays with the customer."""
+    ticket = await _posted(world)
+    typed = await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=ALICE, json={"text": "It did not work"})
+    assert typed.status_code == 200
+    after = await stored(world.db, ticket["id"])
+    assert after["status"] == "open" and after["desk"]["phase"] == "helped"
+    assert [c["text"] for c in after["comments"] if c.get("author") == "alice@x.co"] == ["It did not work"]
+    assert await world.db.service_desk_jobs.count_documents({}) == 1
+    handoffs = await world.db.autonomy_actions.count_documents({"command": "ticket_handoff", "tenantId": "t1"})
+    assert handoffs == 1
+
+
+async def test_a_staff_reply_to_the_requester_ends_undo_and_a_staff_note_does_not(world):
+    """protects=UI-SPEC section 5 through the real comment route; fails_when=a note for staff ends Undo or a
+    reply to the requester does not."""
+    ticket = await _posted(world)
+    note = await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=BOB, json={"text": SECRET})
+    assert note.status_code == 200
+    assert (await stored(world.db, ticket["id"]))["desk"]["undoable"] is True
+    reply = await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=CAROL,
+                             json={"text": "Restart and try again", "visibility": "requester"})
+    assert reply.status_code == 200
+    after = await stored(world.db, ticket["id"])
+    assert after["desk"]["personReplied"] is True and after["desk"]["undoable"] is False
+    assert after["status"] == "pending_customer"
+    view = (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]
+    assert view["canConfirm"] is True and SECRET not in str(view)
+
+
+async def test_a_failing_hook_never_fails_the_comment(world, monkeypatch):
+    """protects=the hook is advisory: the comment is stored and the route answers 200; fails_when=a hook error
+    reaches the caller."""
+    from service_desk import lifecycle
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("hook down")
+
+    monkeypatch.setattr(lifecycle, "on_comment_added", boom)
+    ticket = await _posted(world)
+    response = await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=BOB, json={"text": "fine"})
+    assert response.status_code == 200
+    assert "fine" in str((await stored(world.db, ticket["id"]))["comments"])

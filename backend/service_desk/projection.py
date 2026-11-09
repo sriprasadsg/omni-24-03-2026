@@ -10,6 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from . import ANSWER_MAX_CHARS, PERSON_RAISED, messages
 
 CLOSED_STATUSES = ("resolved", "closed")
+ANSWERED_PHASES = ("posted", "sent")                # an answer is with the requester
+NOTICES = {"confirmed": "confirmed", "helped": "helped", "handed_off": "handed_off", "returned": "handed_off",
+           "withdrawn": "withdrawn"}                  # desk.phase -> the requester panel's notice
 
 
 def requester_items(ticket: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -39,6 +42,11 @@ def can_see(ticket: Dict[str, Any]) -> bool:
 
 def _text(value: Any) -> str:
     return value.strip().casefold() if isinstance(value, str) else ""
+
+
+def same_person(reporter: Any, name: Any) -> bool:
+    """True when ``name`` (a comment author or user name) is the ticket's reporter, ignoring case."""
+    return bool(_text(reporter)) and _text(reporter) == _text(name)
 
 
 def is_reporter(ticket: Dict[str, Any], user: Any) -> bool:
@@ -113,7 +121,18 @@ def staff_view(ticket: Dict[str, Any], row: Optional[Dict[str, Any]], viewer: An
             "blockedReason": code, "blockedText": text, "reporter": ticket.get("reporter")}
 
 
+def confirmable(ticket: Dict[str, Any]) -> bool:
+    """True while an answer is with the requester and the ticket waits on them: the only time they can say
+    This fixed it or I still need help."""
+    desk = ticket.get("desk") if isinstance(ticket.get("desk"), dict) else {}
+    return desk.get("phase") in ANSWERED_PHASES and ticket.get("status") == "pending_customer"
+
+
 def requester_view(ticket: Dict[str, Any], zone: str = "UTC") -> Dict[str, Any]:
-    """What the reporter's answer panel reads: the requester-visible items and whether a place to read them
-    exists. Never a draft, a staff-only comment or a reason."""
-    return {"items": requester_items(ticket), "canSee": can_see(ticket)}
+    """What the reporter's answer panel reads: the requester-visible items, whether they can answer it, the
+    notice that replaces the buttons once they have, and when they confirmed. Never a draft, a staff-only
+    comment or a reason."""
+    desk = ticket.get("desk") if isinstance(ticket.get("desk"), dict) else {}
+    return {"items": requester_items(ticket), "canSee": can_see(ticket), "canConfirm": confirmable(ticket),
+            "notice": NOTICES.get(desk.get("phase")), "confirmedAt": iso(desk.get("confirmedAt")),
+            "returnAt": None}

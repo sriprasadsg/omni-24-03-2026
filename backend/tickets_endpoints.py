@@ -297,6 +297,14 @@ async def add_comment(
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
+    try:
+        from service_desk import lifecycle as _desk_lifecycle
+        await _desk_lifecycle.on_comment_added(get_database(), updated, author=_actor(current_user),
+                                               visibility=body.visibility)
+    except Exception:
+        import logging as _log
+        _log.getLogger(__name__).exception("service desk comment hook failed; the comment is unaffected")
+
     # Detect @mentions in comment text and notify mentioned users
     mentions = re.findall(r'@([\w.+-]+@[\w.+-]+\.[a-z]+)', body.text, re.IGNORECASE)
     if mentions:
