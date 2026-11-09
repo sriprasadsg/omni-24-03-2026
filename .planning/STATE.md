@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: human_needed
-stopped_at: Phase 85 re-verified human_needed 7/7 after gap closure (CR-101, CR-401 closed); 4 UAT items in 85-UAT.md
-last_updated: "2026-11-09T17:17:20.159Z"
+status: executing
+stopped_at: Completed 85-30-PLAN.md
+last_updated: "2026-11-09T21:46:32.780Z"
 last_activity: 2026-11-09
-last_activity_desc: Phase 85 plan 85-29 complete (WR-203, WR-301..303 and the gap-round gate; code review, regression and verifier next)
-state_head: 2012211673da8be7938d0997456d99708a317447
+last_activity_desc: Phase 85 execution started
+state_head: 75b47f8d167c6ad91df20d5925e6c3be84a5295f
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 128
-  completed_plans: 128
+  total_plans: 135
+  completed_plans: 129
   percent: 86
 ---
 
@@ -643,6 +643,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-29: write_article refuses gapGroupId with helpdesk false (422, API_DETAIL gap_article_not_helpdesk) before any gap row is claimed; the Write article dialog is unchanged and shows the server sentence
 - [Phase 85]: 85-29: desk fixtures stamp rows from fixed clocks and so build the desk indexes without the two 90-day TTL indexes (desk_indexes_without_ttl); migration 032's own test keeps covering them
 - [Phase 85]: 85-29: gap-round gate green: backend 2179 passed (0 failed, 0 skipped), vitest 1873 passed, build exit 0; 11 review findings fixed, 17 open by the user's scope decision
+- [Phase 85]: 85-30: manage:tickets marks ticket staff (tenant_admin, analyst, security_analyst, incident_responder); custom roles start without it, no migration or seed (UD-3); is_ticket_staff in backend/ticket_access.py is the one staff test
 
 ## Performance Metrics
 
@@ -926,6 +927,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P27 | 60 min | 3 tasks | 5 files |
 | Phase 85 P28 | 30 min | 3 tasks | 6 files |
 | Phase 85 P29 | 60 min | 3 tasks | 12 files |
+| Phase 85 P30 | 20 min | 3 tasks | 13 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -960,8 +962,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T17:17:19.857Z
-**Stopped at:** Completed 85-29-PLAN.md
+**Last session:** 2026-11-09T21:46:32.489Z
+**Stopped at:** Completed 85-30-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -987,10 +989,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 85 (First-Line Service Desk) — HUMAN VERIFICATION NEEDED
-Plan: 29 of 29 done (gap-closure plans 85-24..85-29 complete; re-verified human_needed 7/7)
-Status: Human verification needed — next /gsd-verify-work 85 (4 items in 85-UAT.md)
-Last activity: 2026-11-09 — Phase 85 gap round executed (85-24..85-29), security re-audited (101 closed), gap-round code review (1 critical CR-501, 4 warnings, advisory), re-verified human_needed 7/7
+Phase: 85 (First-Line Service Desk) — EXECUTING
+Plan: 2 of 36
+Status: Ready to execute
+Last activity: 2026-11-09 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
