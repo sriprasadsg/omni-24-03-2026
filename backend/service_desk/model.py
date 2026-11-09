@@ -126,7 +126,9 @@ class OllamaClient:
             logger.error("service_desk: the model URL is not a loopback address, no call will be sent")
 
     def _http(self, timeout: httpx.Timeout) -> httpx.AsyncClient:
-        return httpx.AsyncClient(transport=self._transport, timeout=timeout, follow_redirects=False)
+        # Environment proxy settings are ignored so ticket text cannot leave the server through a proxy.
+        return httpx.AsyncClient(transport=self._transport, timeout=timeout, follow_redirects=False,
+                                 trust_env=False)
 
     async def _get(self, path: str) -> httpx.Response:
         timeout = httpx.Timeout(PROBE_TIMEOUT_SECONDS)
