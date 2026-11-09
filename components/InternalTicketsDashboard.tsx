@@ -13,18 +13,26 @@ import {
   deleteTicketAttachment, linkTickets, unlinkTickets, logTicketWork,
   escalateTicket, approveTicket, rejectTicket, addTicketWatcher,
   removeTicketWatcher, bulkUpdateTickets, fetchTicketTemplates,
-  fetchTicketFieldSchema, fetchAgents, authFetch,
+  fetchTicketFieldSchema, fetchAgents, authFetch, fetchTicket,
 } from '../services/apiService';
 import { useUser } from '../contexts/UserContext';
 import { Agent } from '../types';
 import { showToast } from '../utils/toast';
+import { TicketDraftPanel } from './serviceDesk/TicketDraftPanel';
+import { RequesterAnswerPanel } from './serviceDesk/RequesterAnswerPanel';
+import { ReplyVisibilityPicker, CommentMarks, CommentBody } from './serviceDesk/ReplyVisibilityPicker';
+import { DeskChip } from './serviceDesk/deskUi';
+import { DRAFT_PANEL, REPLY_PICKER, fill } from './serviceDesk/serviceDeskCopy';
+import { SparklesIcon } from './icons';
+import { fetchTicketDesk, postTicketComment } from '../services/serviceDesk/ticketApi';
+import type { TicketDeskView } from '../services/serviceDesk/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface WorkLog   { id: string; author: string; hours: number; description: string; created_at: string; }
 interface Attachment { id: string; filename: string; size: number; mimetype: string; stored_as: string; uploaded_by: string; created_at: string; }
 interface HistoryEntry { id: string; actor: string; action: string; changes: Record<string,any>; created_at: string; }
-interface Comment   { id: string; author: string; text: string; created_at: string; }
+interface Comment   { id: string; author: string; text: string; created_at: string; visibility?: string; kind?: string | null; ai?: { state?: string; sentBy?: { id?: string; name?: string } | null } | null; }
 interface TicketLink { linked_id: string; type: string; created_at: string; }
 
 interface Ticket {
@@ -37,6 +45,7 @@ interface Ticket {
   approval_required: boolean; approval_status: string;
   approved_by?: string; rejected_by?: string; rejection_reason?: string;
   custom_fields: Record<string,any>;
+  desk?: { draftWaiting?: boolean } | null;
   links: TicketLink[]; attachments: Attachment[];
   work_logs: WorkLog[]; total_hours_logged: number;
   comments: Comment[]; history: HistoryEntry[];
@@ -62,6 +71,7 @@ const PRIORITY_META: Record<string,{label:string;color:string;bg:string;icon:Rea
 const STATUS_META: Record<string,{label:string;color:string;bg:string;icon:React.ReactNode}> = {
   open:        { label:'Open',        color:'text-blue-600 dark:text-blue-400',   bg:'bg-blue-100 dark:bg-blue-900/40',   icon:<Circle size={11}/> },
   in_progress: { label:'In Progress', color:'text-yellow-700 dark:text-yellow-400', bg:'bg-yellow-100 dark:bg-yellow-900/40', icon:<Clock size={11}/> },
+  pending_customer: { label:REPLY_PICKER.statusWaiting, color:'text-yellow-700 dark:text-yellow-400', bg:'bg-yellow-100 dark:bg-yellow-900/40', icon:<Clock size={11}/> },
   resolved:    { label:'Resolved',    color:'text-green-600 dark:text-green-400',  bg:'bg-green-100 dark:bg-green-900/40',  icon:<CheckCircle size={11}/> },
   closed:      { label:'Closed',      color:'text-gray-600 dark:text-slate-400',  bg:'bg-gray-100 dark:bg-slate-700/40',  icon:<CheckCircle size={11}/> },
 };
@@ -474,6 +484,12 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
   const [mentionSuggest,  setMentionSuggest]  = useState<string[]>([]);
   const [editingTitle,    setEditingTitle]    = useState(false);
   const [titleDraft,      setTitleDraft]      = useState('');
+  // Service desk (85-20): the server's desk view of the open ticket, and the visibility of the reply being written.
+  const [deskView,        setDeskView]        = useState<TicketDeskView | null>(null);
+  const [replyTo,         setReplyTo]         = useState<'staff'|'requester'>('staff');
+  const [replyError,      setReplyError]      = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  selectedIdRef.current = selected?.id ?? null;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -536,6 +552,29 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
     if (activeTab === 'comments') bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selected?.comments?.length, activeTab]);
 
+  // ── Service desk (85-20) ──────────────────────────────────────────────────
+  const refreshDesk = useCallback(async (id: string) => {
+    try {
+      const view = await fetchTicketDesk(id);
+      if (selectedIdRef.current === id) setDeskView(view);
+    } catch { if (selectedIdRef.current === id) setDeskView(null); }
+  }, []);
+
+  useEffect(() => {
+    setDeskView(null); setReplyTo('staff'); setReplyError(null);
+    if (selected?.id) void refreshDesk(selected.id);
+  }, [selected?.id, refreshDesk]);
+
+  const handleDeskChanged = async () => {
+    if (!selected) return;
+    const id = selected.id;
+    try {
+      const fresh = await fetchTicket(id);
+      if (selectedIdRef.current === id) { setSelected(fresh); setTickets(prev => prev.map(x => x.id === fresh.id ? fresh : x)); }
+    } catch { /* the desk view below is still read again */ }
+    await refreshDesk(id);
+  };
+
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const handlePatch = async (updates: Record<string,any>) => {
@@ -547,12 +586,23 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
   const handleComment = async () => {
     if (!selected || !comment.trim() || sending) return;
-    setSending(true);
+    setSending(true); setReplyError(null);
+    const toRequester = replyTo === 'requester' && deskView?.canReplyToRequester === true;
     try {
-      const t = await addTicketComment(selected.id, comment.trim());
+      const t = toRequester
+        ? await postTicketComment(selected.id, comment.trim(), 'requester')
+        : await addTicketComment(selected.id, comment.trim());
       setSelected(t);
       setTickets(prev => prev.map(x => x.id === t.id ? t : x));
       setComment('');
+      setReplyTo('staff');
+      void refreshDesk(selected.id);
+    } catch (e) {
+      if (!toRequester) throw e;
+      const detail = (e as { detail?: unknown; status?: unknown })?.detail;
+      const message = typeof detail === 'string' ? detail.trim() : '';
+      setReplyError((e as { status?: unknown })?.status === 400 && message ? message
+        : message ? fill(REPLY_PICKER.sendFailed, { message: message.replace(/[.\s]+$/, '') }) : REPLY_PICKER.sendFailedFallback);
     } finally { setSending(false); }
   };
 
@@ -666,7 +716,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
   // ── Kanban ────────────────────────────────────────────────────────────────
 
-  const kanbanCols = ['open','in_progress','resolved','closed'];
+  const kanbanCols = ['open','in_progress','pending_customer','resolved','closed'];
   const byStatus   = (s: string) => tickets.filter(t => t.status === s);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
@@ -747,7 +797,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
             <select className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
               value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
               <option value="">All Status</option>
-              {['open','in_progress','resolved','closed'].map(s => <option key={s} value={s}>{s.replace('_',' ')}</option>)}
+              {['open','in_progress','pending_customer','resolved','closed'].map(s => <option key={s} value={s}>{s === 'pending_customer' ? REPLY_PICKER.statusWaiting : s.replace('_',' ')}</option>)}
             </select>
             <select className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white"
               value={filterPriority} onChange={e => setFilterPriority(e.target.value)}>
@@ -854,6 +904,8 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         {t.escalated && <span className="text-[9px] bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-semibold">ESCALATED</span>}
                         {t.approval_required && t.approval_status !== 'approved' &&
                           <span className="text-[9px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-semibold">PENDING APPROVAL</span>}
+                        {t.desk?.draftWaiting === true && (t.reporter || '').toLowerCase() !== userEmail.toLowerCase() &&
+                          <DeskChip tone="blue" icon={SparklesIcon}>{DRAFT_PANEL.chipDraftWaiting}</DeskChip>}
                         {t.comments?.length > 0 && <span className="text-[10px] text-slate-500 flex items-center gap-0.5"><MessageSquare size={9}/>{t.comments.length}</span>}
                         {t.attachments?.length > 0 && <span className="text-[10px] text-slate-500 flex items-center gap-0.5"><Paperclip size={9}/>{t.attachments.length}</span>}
                       </div>
@@ -987,6 +1039,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
             <StatusBadge s={selected.status}/>
             <PriorityBadge p={selected.priority}/>
             <SlaBadge status={selected.sla_status} mins={selected.sla_remaining_minutes}/>
+            {deskView?.draftWaiting === true && <DeskChip tone="blue" icon={SparklesIcon}>{DRAFT_PANEL.chipDraftWaiting}</DeskChip>}
             {['open','in_progress','resolved','closed']
               .filter(s => s !== selected.status)
               .map(s => (
@@ -995,6 +1048,13 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   → {s.replace('_',' ')}
                 </button>
               ))}
+          </div>
+
+          {/* Service desk: the draft for staff, the answer for the requester (85-20); empty when neither applies */}
+          <div className="max-h-[50vh] space-y-4 overflow-y-auto px-4 pt-4 empty:hidden">
+            {deskView && <TicketDraftPanel key={`draft-${selected.id}`} ticketId={selected.id} view={deskView}
+              actorName={(currentUser as any)?.name || userEmail} onChanged={handleDeskChanged} />}
+            {deskView && <RequesterAnswerPanel key={`answer-${selected.id}`} ticketId={selected.id} view={deskView} onChanged={handleDeskChanged} />}
           </div>
 
           {/* Tabs */}
@@ -1312,13 +1372,15 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
             {activeTab === 'comments' && (
               <>
                 <div className="space-y-3">
-                  {(selected.comments || []).map(c => (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{REPLY_PICKER.listNote}</p>
+                  {(selected.comments || []).filter(c => !(deskView?.isRequester && c.kind === 'ai_draft')).map(c => (
                     <div key={c.id} className="bg-gray-50 dark:bg-slate-800/60 rounded-xl p-3">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-teal-600 dark:text-teal-400">{c.author}</span>
                         <span className="text-[10px] text-slate-500">{fmtTime(c.created_at)}</span>
                       </div>
-                      <p className="text-sm text-gray-800 dark:text-slate-200 whitespace-pre-wrap">{c.text}</p>
+                      <CommentBody comment={c} className="text-sm text-gray-800 dark:text-slate-200 whitespace-pre-wrap break-words" />
+                      <CommentMarks comment={c} />
                     </div>
                   ))}
                   {(!selected.comments || selected.comments.length === 0) &&
@@ -1326,7 +1388,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   <div ref={bottomRef}/>
                 </div>
                 {!['resolved','closed'].includes(selected.status) && (
-                  <div className="sticky bottom-0 bg-white/80 dark:bg-slate-900/80 pt-2 flex gap-2 relative">
+                  <div className="sticky bottom-0 bg-white/80 dark:bg-slate-900/80 pt-2 relative">
                     {mentionSuggest.length > 0 && (
                       <div className="absolute bottom-full mb-1 left-0 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg shadow-xl w-64 z-10">
                         {mentionSuggest.map(e => (
@@ -1337,8 +1399,14 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         ))}
                       </div>
                     )}
+                    {!deskView?.isRequester && (
+                      <ReplyVisibilityPicker value={replyTo} onChange={setReplyTo} unknown={!deskView}
+                        canReplyToRequester={deskView?.canReplyToRequester === true} reporter={selected.reporter} />
+                    )}
+                    {replyError && <p role="alert" className="pb-2 text-sm text-red-700 dark:text-red-300 break-words">{replyError}</p>}
+                    <div className="flex gap-2">
                     <textarea rows={2} className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
-                      placeholder="Add a comment… (Enter to send, @ to mention)" value={comment}
+                      placeholder={replyTo === 'requester' && deskView?.canReplyToRequester ? REPLY_PICKER.placeholder : 'Add a comment… (Enter to send, @ to mention)'} value={comment}
                       onChange={e => {
                         const val = e.target.value;
                         setComment(val);
@@ -1353,9 +1421,12 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       }}
                       onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleComment(); }}} />
                     <button onClick={handleComment} disabled={sending || !comment.trim()}
+                      aria-label={replyTo === 'requester' && deskView?.canReplyToRequester ? REPLY_PICKER.sendLabel : undefined}
+                      title={replyTo === 'requester' && deskView?.canReplyToRequester ? REPLY_PICKER.sendLabel : undefined}
                       className="px-3 bg-teal-600 hover:bg-teal-500 text-white rounded-xl disabled:opacity-40 flex-shrink-0">
                       <Send size={15}/>
                     </button>
+                    </div>
                   </div>
                 )}
               </>

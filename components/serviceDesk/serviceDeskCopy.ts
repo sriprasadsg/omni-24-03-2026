@@ -248,6 +248,8 @@ export const REPLY_PICKER = {
     showOriginal: "Show original",
     listNote: "Comments are visible to staff only unless marked \"Sent to requester\".",
     statusWaiting: "Waiting on customer",
+    sendFailed: "Couldn't send the reply: {message}. Try again.",
+    sendFailedFallback: "Couldn't send the reply. Check your connection and try again.",
 } as const;
 
 // ---------------------------------------------------------------- 4. Requester answer panel
