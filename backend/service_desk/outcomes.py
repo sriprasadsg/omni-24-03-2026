@@ -5,7 +5,12 @@ spoken); this module only writes. The ticket's status moves first, by compare-an
 the ticket meanwhile is never overridden and the requester never reads an answer on a ticket a person has taken.
 Every row the desk writes gets its Activity words (``reasonText`` and ``activityResult``) here. Nothing in
 this module reads a key of the model's reply other than the answer text it is handed (PROH-85-01).
+
+Once the requester can read an answer (or a staff draft exists) no later write can undo it or hand the ticket
+off (WR-102): every follow-up step is guarded and logged by ``_step``, and the two writes the rest of the desk
+depends on (the desk phase and the row's move to ``executed``) are tried once more at the end.
 """
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List
@@ -16,6 +21,20 @@ from autonomous_ops import messages as ao_messages
 from . import COMMAND_ANSWER, DISPATCHER_NAME, KIND, SYSTEM_AUTHOR, messages, notify, retrieval, ticket_writes
 
 logger = logging.getLogger(__name__)
+
+_FAILED = object()                       # what a guarded step returns when it raised
+
+
+async def _step(label: str, ticket_id: str, call) -> Any:
+    """Run one write that follows a visible answer or draft. A failure is logged with the ticket and the step and
+    returns ``_FAILED``: the requester-visible change is already stored and must not be undone or contradicted."""
+    try:
+        return await call
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.error("service_desk: %s for ticket %s did not complete: %s", label, ticket_id, exc)
+        return _FAILED
 
 
 def build_request(ticket: Dict[str, Any], tenant: str, matches: List[retrieval.Match], model_reply: Any,
@@ -67,8 +86,9 @@ async def post(db, tenant: str, ticket: Dict[str, Any], *, action_id: str, text:
                matched: int, title: str, now: datetime) -> bool:
     """Post the answer to the requester and hold the ticket for their reply. False, with nothing left behind,
     when the ticket was moved by a person (the status compare-and-set lost) or the comment could not be written:
-    the caller then keeps the answer as a draft. On a post the row ends ``executed`` with its Activity words and
-    the requester gets one in-app notice."""
+    the caller then keeps the answer as a draft. After the comment is stored this never raises and returns True:
+    the row ends ``executed`` with its Activity words and the requester gets one in-app notice, and a step that
+    failed is logged; the desk phase and the executed move are tried once more at the end (WR-102)."""
     moved = await ticket_writes.move_status(db, tenant, ticket["id"], ("open",), "pending_customer",
                                             actor=SYSTEM_AUTHOR, now=now)
     if not moved:
@@ -86,17 +106,27 @@ async def post(db, tenant: str, ticket: Dict[str, Any], *, action_id: str, text:
         await ticket_writes.move_status(db, tenant, ticket["id"], ("pending_customer",), "open",
                                         actor=SYSTEM_AUTHOR, now=now)
         return False
-    await ticket_writes.set_desk(db, tenant, ticket["id"],
-                                 {"phase": "posted", "actionId": action_id, "commentId": comment_id,
-                                  "undoable": True, "postedAt": now, "draftWaiting": False}, now=now)
-    await ledger.transition(db, tenant, action_id, ("dispatching",), "executed",
-                            **{"desk.phase": "posted", "desk.postedAt": now, "desk.commentId": comment_id,
-                               "desk.undoable": True})
-    await ledger.set_display(
-        db, tenant, action_id, reasonText=_why(ticket, title, matched),
-        activityResult=messages.ACTIVITY["posted_result"].format(
-            n=len(cited), articles=messages.plural(len(cited), "article", "articles")))
-    await notify.requester_notice(db, ticket, event="answer_posted")
+    tid = ticket["id"]
+    posted = {"phase": "posted", "actionId": action_id, "commentId": comment_id, "undoable": True, "postedAt": now,
+              "draftWaiting": False}
+    row_fields = {"desk.phase": "posted", "desk.postedAt": now, "desk.commentId": comment_id, "desk.undoable": True}
+    desk_done: Any = _FAILED
+    row_done: Any = _FAILED
+    try:
+        desk_done = await _step("the desk fields", tid, ticket_writes.set_desk(db, tenant, tid, posted, now=now))
+        row_done = await _step("the executed move of the row", tid,
+                               ledger.transition(db, tenant, action_id, ("dispatching",), "executed", **row_fields))
+        await _step("the Activity words", tid, ledger.set_display(
+            db, tenant, action_id, reasonText=_why(ticket, title, matched),
+            activityResult=messages.ACTIVITY["posted_result"].format(
+                n=len(cited), articles=messages.plural(len(cited), "article", "articles"))))
+        await _step("the requester notice", tid, notify.requester_notice(db, ticket, event="answer_posted"))
+    finally:
+        if desk_done is _FAILED:
+            await _step("the desk fields (second try)", tid, ticket_writes.set_desk(db, tenant, tid, posted, now=now))
+        if row_done is _FAILED:
+            await _step("the executed move of the row (second try)", tid,
+                        ledger.transition(db, tenant, action_id, ("dispatching",), "executed", **row_fields))
     return True
 
 

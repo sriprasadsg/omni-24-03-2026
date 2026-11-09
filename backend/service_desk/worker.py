@@ -29,8 +29,8 @@ import distributed_lock
 from autonomous_ops.scope import raw
 
 from . import (CALL_TIMEOUT_MAX, DEFAULT_CALL_TIMEOUT, GLOBAL_QUEUE_CAP, HANDOFF_REASONS, LOCK_RENEW_EVERY,
-               LOCK_TTL_SECONDS, NUM_PREDICT, POLL_SECONDS, QUEUE_DEADLINE, TENANT_QUEUE_CAP, WORKER_LOCK, pipeline,
-               runtime, returns, settings, store)
+               LOCK_TTL_SECONDS, NUM_PREDICT, POLL_SECONDS, QUEUE_DEADLINE, SYSTEM_AUTHOR, TENANT_QUEUE_CAP,
+               WORKER_LOCK, pipeline, runtime, returns, settings, store)
 from .model import ModelTimeout, OllamaClient
 from .sanitize import build_prompt
 
@@ -97,15 +97,24 @@ async def _end(db, job: Dict[str, Any], outcome: str, now: datetime, counts: Dic
            else "answered"] += 1
 
 
+def _desk_wrote_answer(ticket: Dict[str, Any]) -> bool:
+    """True when the desk's own answer or draft comment is on the ticket, whatever ``desk.phase`` says: a crash
+    between the comment and the desk write leaves the phase at ``queued`` with the answer already visible."""
+    return any(isinstance(c, dict) and c.get("author") == SYSTEM_AUTHOR and c.get("kind") in ("ai_answer", "ai_draft")
+               for c in ticket.get("comments") or [])
+
+
 async def _to_a_person(db, job: Dict[str, Any], now: datetime, *, only_if_unanswered: bool = False) -> str:
     """The ticket goes to a person because the desk cannot answer in time: ``service_desk_busy``. Nothing is
     written when the ticket is gone or the desk is Off; during a stop it is the quiet ``desk_stopped``. With
-    ``only_if_unanswered`` a ticket the desk already answered or handed off is left as it is."""
+    ``only_if_unanswered`` a ticket the desk already answered, drafted or handed off is left as it is: that is
+    a desk phase past ``queued`` or a desk answer or draft comment already on the ticket (WR-102)."""
     tenant = job["tenantId"]
     ticket = await raw(db).tickets.find_one({"id": job.get("ticketId"), "tenantId": tenant}, {"_id": 0})
     if ticket is None:
         return "ticket_missing"
-    if only_if_unanswered and (ticket.get("desk") or {}).get("phase") not in (None, "queued"):
+    if only_if_unanswered and ((ticket.get("desk") or {}).get("phase") not in (None, "queued")
+                               or _desk_wrote_answer(ticket)):
         return "already_handled"
     if (await settings.load(db, tenant)).mode == "off":
         return "desk_off"
