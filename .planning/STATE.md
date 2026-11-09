@@ -4,11 +4,11 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: verifying
-stopped_at: Completed 85-23-PLAN.md
+status: gaps_found
+stopped_at: Phase 85 verification gaps_found (CR-101, CR-401)
 last_updated: "2026-11-09T07:04:46.718Z"
 last_activity: 2026-11-08
-last_activity_desc: Phase 85 execution started
+last_activity_desc: Phase 85 executed 23/23; verification gaps_found 6/7 (DESK-03 output side)
 state_head: 5ebb413a901d3b541a3475424caf70bbacebad53
 progress:
   total_phases: 7
@@ -973,8 +973,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
 Plan: 23 of 23
-Status: Phase complete — ready for verification
-Last activity: 2026-11-08 — Phase 85 execution started
+Status: Verification gaps found — next /gsd-plan-phase 85 --gaps
+Last activity: 2026-11-09 — Phase 85 executed 23/23, gates green; verification gaps_found 6/7 (CR-101 output-check bypass, CR-401 staff comments shown to reporter)
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
