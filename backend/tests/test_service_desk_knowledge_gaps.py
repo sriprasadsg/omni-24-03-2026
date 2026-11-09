@@ -242,14 +242,15 @@ async def test_an_article_without_a_group_is_still_saved_and_is_validated_like_a
 
 
 async def test_the_gap_routes_need_ticket_access_and_article_permission_together(kb):
-    """protects=D-27 / T-85-56; fails_when=a Knowledge Base editor without ticket access, a ticket user without the
+    """protects=D-27 / T-85-56 / T-85-124 / PROH-85-27 (ticket access is manage:tickets, G-85-4 UD-1); fails_when=a
+    Knowledge Base editor who is not ticket staff (with or without view:dashboard), a ticket user without the
     article permission, or a reader reaches any gap route, or the platform tenant is served."""
     await _gap(kb.db, "projector in room nine", "P1")
     group = (await _row(kb.db, "P1"))["id"]
     calls = [("GET", GAPS_PATH, None), ("POST", f"{GAPS_PATH}/{group}/dismiss", None),
              ("POST", f"{GAPS_PATH}/{group}/restore", None),
              ("POST", ARTICLES_PATH, {"title": "T", "content": "C", "gapGroupId": group})]
-    for who in ("editor", "agent", "reader"):
+    for who in ("kb_viewer", "editor", "agent", "reader"):
         for method, path, payload in calls:
             assert (await kb.call(method, path, who=who, json=payload)).status_code == 403, (who, path)
     assert (await _row(kb.db, "P1"))["status"] == "open" and await kb.db.knowledge_docs.count_documents({}) == 0

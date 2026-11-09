@@ -16,7 +16,8 @@ from rbac_service import rbac_service
 from service_desk import HELPDESK_CONTENT_MAX
 
 PERMISSIONS = {
-    "manager": ["manage:ai_risks", "view:dashboard"],       # edits articles and sees tickets
+    "manager": ["manage:ai_risks", "view:dashboard", "manage:tickets"],   # edits articles and is ticket staff
+    "kb_viewer": ["manage:ai_risks", "view:dashboard"],     # edits articles, sees the dashboard, is not ticket staff
     "editor": ["manage:ai_risks"],                          # Knowledge Base only
     "agent": ["view:dashboard"],                            # tickets only
     "reader": [],
