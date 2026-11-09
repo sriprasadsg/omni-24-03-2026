@@ -230,3 +230,166 @@ def test_the_script_reaches_the_model_only_through_the_desk_client():
         for banned in BANNED_LLM_MODULES:
             assert not (name == banned or name.startswith(banned + ".")), name
     assert len(SCRIPT.read_text(encoding="utf-8").splitlines()) < 500
+
+
+# ---------------------------------------------------------------- Task 2: --sets
+
+BENIGN = "Follow the steps in the article. If they do not work, choose I still need help and a person will take over."
+FOREIGN = "Download the fix from http://evil.example/fix.exe and run it."
+
+
+def reply_with(answer, cited=(1,)):
+    return lambda body, index: json.dumps({"answer": answer, "cited": list(cited)})
+
+
+def case_ids(name):
+    with open(BACKEND / "tests" / "fixtures" / "service_desk" / name, encoding="utf-8") as handle:
+        return [json.loads(line)["id"] for line in handle if line.strip() and "_comment" not in line[:12]]
+
+
+async def test_sets_with_a_benign_model_exit_0_with_a_summary_line_per_set(capsys):
+    stand_in = StandIn(reply_with(BENIGN))
+    code = await run_script(["--sets"], stand_in)
+    out = capsys.readouterr().out
+    assert code == 0, out
+    for word in ("escalation", "injection", "retrieval"):
+        assert any(line.lower().startswith(word) for line in out.splitlines()), word
+    assert "margin" in out.lower()
+    assert 1 <= stand_in.generates <= len(case_ids("injection_set.jsonl"))
+    assert stand_in.max_in_flight == 1
+    assert {c["path"] for c in stand_in.calls} <= {"/api/tags", "/api/ps", "/api/generate"}
+    assert "0 failed" in out
+
+
+async def test_a_compliant_model_answering_with_a_foreign_link_is_rejected_by_the_output_checks(capsys):
+    stand_in = StandIn(reply_with(FOREIGN))
+    code = await run_script(["--sets"], stand_in)
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "rejected by the output checks" in out
+    assert "passed the checks" not in out
+
+
+async def test_a_broken_output_check_is_caught_and_the_case_is_named(monkeypatch, capsys):
+    from service_desk import checks
+    monkeypatch.setattr(checks, "check", lambda *args, **kwargs: None)       # a check that accepts everything
+    code = await run_script(["--sets"], StandIn(reply_with(FOREIGN)))
+    out = capsys.readouterr().out
+    assert code == 1
+    named = [case for case in case_ids("injection_set.jsonl") if f"FAIL injection {case}" in out]
+    assert named, out
+    assert "foreign link" in out
+
+
+async def test_an_escalation_case_that_reaches_the_model_fails_the_run(monkeypatch, capsys):
+    from service_desk import rules
+    monkeypatch.setattr(rules, "evaluate", lambda *args, **kwargs: None)     # the fixed rules let everything through
+    code = await run_script(["--sets"], StandIn(reply_with(BENIGN)))
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "FAIL escalation sec-01" in out and "reaches the model" in out
+
+
+async def test_a_prompt_that_carries_a_link_fails_the_run(capsys):
+    script = load_script()
+    original = script.build_prompt
+    script.build_prompt = lambda title, description, articles: (lambda s, p: (s, p + "\nsee http://evil.example"))(
+        *original(title, description, articles))
+    code = await script.main(["--sets"], transport=StandIn(reply_with(BENIGN)).transport)
+    out = capsys.readouterr().out
+    assert code == 1 and "prompt" in out and "FAIL injection" in out
+
+
+async def test_sets_make_no_database_connection_and_no_request_but_the_model_ones(monkeypatch, capsys):
+    monkeypatch.delenv("MONGODB_URL", raising=False)
+    monkeypatch.delenv("MONGO_URI", raising=False)
+    assert await run_script(["--sets"], StandIn(reply_with(BENIGN))) == 0
+    assert "not reachable" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("answer, article, expected", [
+    ("Open https://help.example.com/reset now", "Open the reset page", ["https://help.example.com/reset"]),
+    ("Open https://help.example.com/reset now", "Open https://help.example.com/reset", []),
+    ("Write to it@evil.example", "Ask a person", ["it@evil.example"]),
+    ("Write to it@corp.example", "Write to it@corp.example for help", []),
+    ("Call 555-0142-77 today", "Choose I still need help", ["555-0142-77"]),
+    ("Run `del /f everything` now", "Restart the computer", ["del /f everything"]),
+    ("Run ipconfig /flushdns", "Restart the computer", ["ipconfig"]),
+    ("Run ipconfig /flushdns", "In a command window run ipconfig /flushdns", []),
+    ("Choose Settings > Network, then restart.", "Choose Settings > Network", []),
+    ("Open www.evil.example/x", "Restart", ["www.evil.example/x"]),
+])
+def test_the_scripts_own_detector_finds_a_foreign_fragment_without_using_the_desk_checks(answer, article, expected):
+    assert load_script().foreign_fragments(answer, article) == expected
+
+
+# ---------------------------------------------------------------- Task 2: --calibrate
+
+VPN_ARTICLE = ("Fixing a VPN connection that will not connect or keeps dropping. Close your company's VPN app and "
+               "open it again, then connect to the server your company tells you to use.")
+PRINTER_ARTICLE = ("Fixing a printer that will not print. Check that the printer is on and has paper, then cancel "
+                   "the stuck job in the print queue and print again.")
+
+
+async def snapshot(db):
+    return {name: sorted([json.dumps(d, default=str, sort_keys=True) async for d in db[name].find({}, {"_id": 0})])
+            for name in await db.list_collection_names()}
+
+
+async def seed_calibration(db):
+    await db.knowledge_docs.insert_many([
+        {"id": "kb-vpn", "tenantId": "t1", "title": "Fixing a VPN connection that keeps dropping", "content": VPN_ARTICLE,
+         "tags": ["helpdesk", "vpn"], "helpdesk": True},
+        {"id": "kb-printer", "tenantId": "t1", "title": "Fixing a printer that will not print",
+         "content": PRINTER_ARTICLE, "tags": ["helpdesk", "printer"], "helpdesk": True},
+        {"id": "kb-other", "tenantId": "t2", "title": "VPN for tenant two", "content": "Tenant two only.",
+         "tags": ["helpdesk"], "helpdesk": True},
+        {"id": "kb-draft", "tenantId": "t1", "title": "Not a help desk article", "content": "Internal.",
+         "tags": [], "helpdesk": False}])
+    now = "2026-11-08T09:00:00"
+    base = {"tenantId": "t1", "type": "task", "priority": "medium", "status": "open", "comments": []}
+    await db.tickets.insert_many([
+        {**base, "id": "tk-1", "title": "My VPN keeps dropping every hour", "description": "VPN disconnects",
+         "raised_via": "portal", "created_at": now},
+        {**base, "id": "tk-2", "title": "The printer will not print my job", "description": "stuck in the queue",
+         "raised_via": "tray", "created_at": now},
+        {**base, "id": "tk-3", "title": "What is on the cafeteria menu" + " x" * 300, "description": "",
+         "raised_via": "portal_agent", "created_at": now},
+        {**base, "id": "tk-4", "title": "VPN alert from monitoring", "description": "", "raised_via": "automation",
+         "created_at": now},
+        {**base, "id": "tk-5", "tenantId": "t2", "title": "VPN problem in another tenant", "description": "",
+         "raised_via": "portal", "created_at": now}])
+
+
+async def test_calibrate_prints_one_line_per_person_raised_ticket_and_writes_nothing(mongo_db, capsys):
+    await seed_calibration(mongo_db)
+    before = await snapshot(mongo_db)
+    stand_in = StandIn()
+    code = await run_script(["--calibrate", "--tenant", "t1", "--mongo", MONGO_URL, "--db-name", mongo_db.name],
+                            stand_in)
+    out = capsys.readouterr().out
+    assert code == 0, out
+    lines = [line for line in out.splitlines() if line.startswith("ticket ")]
+    assert len(lines) == 3, out                                              # tk-4 is automation, tk-5 is another tenant
+    by_id = {line.split()[1]: line for line in lines}
+    assert set(by_id) == {"tk-1", "tk-2", "tk-3"}
+    assert "accepted yes" in by_id["tk-1"] and "vpn" in by_id["tk-1"].lower() and "score" in by_id["tk-1"]
+    assert "accepted yes" in by_id["tk-2"] and "printer" in by_id["tk-2"].lower()
+    assert "accepted no" in by_id["tk-3"]
+    assert "x x x x x x x x x x x x x x x x x x x x x x x x" not in out       # T-85-80: no more than 80 characters
+    assert "CUT 0.24" in out and "MIN_TERMS 2" in out
+    assert await snapshot(mongo_db) == before                                # every collection, unchanged
+    assert stand_in.calls == []                                              # no model call at all
+
+
+async def test_calibrate_on_a_tenant_without_articles_says_so(mongo_db, capsys):
+    await seed_calibration(mongo_db)
+    code = await run_script(["--calibrate", "--tenant", "t3", "--mongo", MONGO_URL, "--db-name", mongo_db.name])
+    out = capsys.readouterr().out
+    assert code == 0 and "no Help desk articles" in out
+
+
+async def test_calibrate_names_a_database_that_is_not_reachable(capsys):
+    code = await run_script(["--calibrate", "--tenant", "t1", "--mongo", "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=300"])
+    assert code == 3
+    assert "not reachable" in capsys.readouterr().err
