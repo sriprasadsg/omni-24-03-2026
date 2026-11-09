@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 35/36 plans executed: 23 in 6 waves, a gap round of 6 plans in 5 waves (executed), and a second gap round of 7 plans in 7 waves for UAT gap G-85-4 (planned)
+**Plans**: 36/36 plans executed: 23 in 6 waves, a gap round of 6 plans in 5 waves (executed), and a second gap round of 7 plans in 7 waves for UAT gap G-85-4 (planned)
 
 Plans:
 **Wave 1**
@@ -613,7 +613,7 @@ Plans:
 - [x] 85-33-PLAN.md — Requesters' lists, stats, ticket reports and CSV export hold only their own tickets; the projection takes an explicit staff input *(after 85-32)*
 - [x] 85-34-PLAN.md — Staff-only ticket actions (bulk, edit, links, work log, approve, reject, escalate, merge, watchers, attachment delete) *(after 85-33)*
 - [x] 85-35-PLAN.md — Desk drafts and cited-article staff branch for staff only; the knowledge-gap list for staff; one structure test over every ticket route *(after 85-34)*
-- [ ] 85-36-PLAN.md — The whole Phase 85 gate on the second gap round; CR-501 and WR-502 recorded fixed, AR-85-01/-04/-09 re-recorded, D-38..D-41, VALIDATION rows *(after all)*
+- [x] 85-36-PLAN.md — The whole Phase 85 gate on the second gap round; CR-501 and WR-502 recorded fixed, AR-85-01/-04/-09 re-recorded, D-38..D-41, VALIDATION rows *(after all)*
 
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 85`) — measure `llama3.2:3b` CPU tokens per second once Ollama exists; calibrate the retrieval threshold; build prompt-injection and escalation eval sets.
@@ -694,6 +694,6 @@ Plans:
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
-| 85. First-Line Service Desk | 35/36 | In Progress | - |
+| 85. First-Line Service Desk | 36/36 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
