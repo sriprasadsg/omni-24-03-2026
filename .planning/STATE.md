@@ -4,12 +4,12 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: executing
-stopped_at: Completed 85-36-PLAN.md
-last_updated: "2026-11-09T23:16:16.409Z"
+status: human_needed
+stopped_at: Phase 85 re-verified human_needed 9/9 after the second gap round (CR-501, WR-502 closed); 5 UAT items in 85-UAT.md
+last_updated: "2026-11-09T23:35:48.589Z"
 last_activity: 2026-11-09
-last_activity_desc: Phase 85 execution started
-state_head: 9f3fa68c9d60fa1103e3ae53b01f939f32dd4487
+last_activity_desc: Phase 85 gap round G-85-4 executed (85-30..85-36), secure/validate/review/regression/verifier done; human_needed
+state_head: e938d9b088c75b04913d8720cf05da28e727015c
 progress:
   total_phases: 7
   completed_phases: 5
@@ -974,7 +974,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Session
 
 **Last session:** 2026-11-09T23:16:16.117Z
-**Stopped at:** Completed 85-36-PLAN.md
+**Stopped at:** Phase 85 re-verified human_needed 9/9 after the second gap round (CR-501, WR-502 closed); 5 UAT items in 85-UAT.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1000,10 +1000,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 8 of 36
-Status: Ready to execute
-Last activity: 2026-11-09 — Phase 85 execution started
+Phase: 85 (First-Line Service Desk) — HUMAN VERIFICATION NEEDED
+Plan: 36 of 36
+Status: human_needed
+Last activity: 2026-11-09 — Phase 85 second gap round (85-30..85-36) executed and re-verified human_needed 9/9
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
