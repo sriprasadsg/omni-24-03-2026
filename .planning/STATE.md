@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-21-PLAN.md
-last_updated: "2026-11-09T06:09:20.805Z"
+stopped_at: Completed 85-22-PLAN.md
+last_updated: "2026-11-09T06:18:10.727Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: 414702efa161cbac3e31f6434db689a3b2d4751d
+state_head: 402f0a9225514decab152fac75c4998ed961c0a9
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 120
+  completed_plans: 121
   percent: 86
 ---
 
@@ -630,6 +630,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-20: the server's stored comment kinds reach the client through one tested map (ai_answer->answer, requester_reply->you, withdrawn_notice->withdrawn, handoff_notice->notice, null->reply, unknown->notice); the draft panel renders whenever the server supplies a draft and reads canActOnDraft/blockedReason for its blocked states; Reply to requester is Staff only by default and resets after every send and ticket switch
 - [Phase 85]: 85-21: Edit article reads its text through a new GET /api/knowledge/docs/{id} (the list excludes content and 85-15 built no read route); needs the backend restart
 - [Phase 85]: 85-21: gap ticket numbers are mono text until the Knowledge Base screen is given a ticket opener (App.tsx carries user changes); KnowledgeGapsTab already accepts onOpenTicket
+- [Phase 85]: 85-22: ModelReply gained prefill_ms so the operator script computes exact prefill speed; --db-name targets the database the environment names; --sets fails only on a foreign fragment that passed the checks or an escalation case reaching the model (retrieval margin is reported); --calibrate never changes CUT
 
 ## Performance Metrics
 
@@ -905,6 +906,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P19 | 22 min | 3 tasks | 10 files |
 | Phase 85 P20 | 12 min | 3 tasks | 10 files |
 | Phase 85 P21 | 25 min | 3 tasks | 13 files |
+| Phase 85 P22 | 14 min | 2 tasks | 3 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -939,8 +941,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T06:09:20.550Z
-**Stopped at:** Completed 85-21-PLAN.md
+**Last session:** 2026-11-09T06:18:06.056Z
+**Stopped at:** Completed 85-22-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -967,7 +969,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 22 of 23
+Plan: 23 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
