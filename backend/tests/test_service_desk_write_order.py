@@ -10,18 +10,27 @@ row stays dispatching, a draft is kept without draftWaiting, a lost status move 
 people sending at once move the status twice; no_claim=a database that keeps refusing the desk write for good
 (the answer then stays visible and the desk phase stays queued, assumption A-85-G11) and the HTTP routes.
 """
+import asyncio
+import copy
 import logging
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autonomous_ops import gate, ledger
-from service_desk import SYSTEM_AUTHOR, notify, outcomes, ticket_writes, worker
+from service_desk import SYSTEM_AUTHOR, lifecycle, notify, outcomes, projection, ticket_writes, worker
 from service_desk.model import OllamaClient
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.service_desk_portal_support import DRAFT_ALICE, at, build_world, draft_of, notices, raise_and_run
 from tests.service_desk_worker_support import (Clock, _desk_env, add_tenant, job, kinds, queue,  # noqa: F401
                                                rows, stand_in, stored, world)
+
+NOW = at(2026, 11, 9, 14, 30)
+BOB = {"id": "bob@x.co", "name": "Bob"}
+CAROL = {"id": "carol@x.co", "name": "Carol"}
 
 
 def fail_when(monkeypatch, module, name, when, *, times=1):
@@ -218,3 +227,114 @@ async def test_a_failed_suggested_move_after_a_lost_post_still_ends_with_the_sta
     assert kinds(after) == ["ai_draft"] and after["status"] == "in_progress"
     assert after["desk"]["draftWaiting"] is True and (await job(world, job_id))["reason"] == "ticket_changed"
     await _no_handoff(world, ticket, after)
+
+
+# ---------------------------------------------------------------- send_draft: the status moves first (WR-103)
+
+@pytest.fixture
+async def portal(mongo_db, monkeypatch):  # noqa: F811
+    return await build_world(mongo_db, monkeypatch)
+
+
+async def _waiting(portal):
+    """A ticket of the Drafts only tenant t2 with one waiting draft."""
+    ticket = await raise_and_run(portal, DRAFT_ALICE)
+    assert ticket["desk"]["draftWaiting"] is True
+    return ticket, draft_of(ticket)
+
+
+async def _send(portal, ticket, comment, actor=BOB):
+    return await lifecycle.send_draft(portal.db, "t2", ticket["id"], comment["id"], actor=actor, now=NOW)
+
+
+async def _untouched_draft(portal, ticket, comment):
+    """The comment is still a staff-only draft, the draft panel still shows it and the requester was not told."""
+    after = await stored_ticket(portal.db, ticket)
+    still = draft_of(after)
+    assert (still["kind"], still["visibility"], still["ai"]["state"]) == ("ai_draft", "staff", "draft")
+    assert after["desk"]["draftWaiting"] is True
+    assert projection.requester_items(after) == []
+    assert await notices(portal.db, "alice@x.co", "answer_sent") == []
+    return after
+
+
+async def stored_ticket(db, ticket):
+    return await db.tickets.find_one({"id": ticket["id"]}, {"_id": 0})
+
+
+def _status_moves(ticket):
+    return [h["changes"]["status"] for h in ticket["history"] if h["action"] == "updated" and "status" in h["changes"]]
+
+
+async def test_a_lost_status_move_refuses_the_send_and_the_comment_stays_a_draft(portal, monkeypatch):
+    """protects=WR-103 / T-85-97 the answer is visible only after the status moved; fails_when=the requester can
+    read an answer on a ticket whose move to pending_customer was lost."""
+    ticket, comment = await _waiting(portal)
+    real = ticket_writes.move_status
+
+    async def lose_the_hold(*args, **kwargs):
+        return False if args[4] == "pending_customer" else await real(*args, **kwargs)
+    monkeypatch.setattr(ticket_writes, "move_status", lose_the_hold)
+    assert await _send(portal, ticket, comment) == {"status": "refused", "reason": "already_handled"}
+    after = await _untouched_draft(portal, ticket, comment)
+    assert after["status"] == "open"
+
+
+async def test_a_ticket_resolved_while_the_send_runs_is_refused_with_the_fresh_reason(portal, monkeypatch):
+    """protects=WR-103 the refusal is the code the fresh ticket gives; fails_when=a person-sent answer is shown
+    on a resolved ticket, or the refusal names the wrong reason."""
+    ticket, comment = await _waiting(portal)
+    stale = copy.deepcopy(await stored_ticket(portal.db, ticket))
+    await portal.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"status": "resolved"}})
+    real, reads = lifecycle._read, []
+
+    async def stale_first(*args, **kwargs):
+        reads.append(1)
+        return stale if len(reads) == 1 else await real(*args, **kwargs)
+    monkeypatch.setattr(lifecycle, "_read", stale_first)
+    result = await _send(portal, ticket, comment)
+    assert result == {"status": "refused", "reason": "ticket_closed", "state": "resolved"}
+    after = await _untouched_draft(portal, ticket, comment)
+    assert after["status"] == "resolved"
+
+
+async def test_a_lost_turn_puts_the_status_back_and_refuses(portal, monkeypatch):
+    """protects=WR-103 / PROH-85-04 the status returns to what it was; fails_when=the ticket stays
+    pending_customer with no answer, or the put-back moves it anywhere else."""
+    ticket, comment = await _waiting(portal)
+
+    async def lose_the_turn(*args, **kwargs):
+        return False
+    monkeypatch.setattr(lifecycle, "_turn_draft", lose_the_turn)
+    assert await _send(portal, ticket, comment) == {"status": "refused", "reason": "already_handled"}
+    after = await _untouched_draft(portal, ticket, comment)
+    assert after["status"] == "open"
+    assert _status_moves(after)[-2:] == [{"from": "open", "to": "pending_customer"},
+                                         {"from": "pending_customer", "to": "open"}]
+
+
+async def test_a_ticket_a_person_already_set_to_pending_customer_still_sends_without_a_move(portal):
+    """protects=A-85-G12 the shipped behaviour for that case; fails_when=the send makes a status change of its
+    own or refuses."""
+    ticket, comment = await _waiting(portal)
+    assert await ticket_writes.move_status(portal.db, "t2", ticket["id"], ("open",), "pending_customer",
+                                           actor="bob@x.co", now=NOW)
+    before = _status_moves(await stored_ticket(portal.db, ticket))
+    assert (await _send(portal, ticket, comment))["status"] == "sent"
+    after = await stored_ticket(portal.db, ticket)
+    assert after["status"] == "pending_customer" and _status_moves(after) == before
+    assert draft_of(after)["kind"] == "ai_answer"
+
+
+async def test_two_people_sending_at_once_give_one_winner_one_status_change_and_one_notice(portal):
+    """protects=T-85-53 / WR-103 the status compare-and-set before the turn; fails_when=both win, the status
+    moves twice, is put back under the winner, or the requester is told twice."""
+    ticket, comment = await _waiting(portal)
+    results = await asyncio.gather(_send(portal, ticket, comment, BOB), _send(portal, ticket, comment, CAROL))
+    assert sorted(r["status"] for r in results) == ["refused", "sent"]
+    [loser] = [r for r in results if r["status"] == "refused"]
+    assert loser["reason"] == "already_handled"
+    after = await stored_ticket(portal.db, ticket)
+    assert after["status"] == "pending_customer" and draft_of(after)["kind"] == "ai_answer"
+    assert _status_moves(after) == [{"from": "open", "to": "pending_customer"}]
+    assert len(await notices(portal.db, "alice@x.co", "answer_sent")) == 1
