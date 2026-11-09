@@ -207,6 +207,28 @@ async def test_writing_an_article_from_a_group_saves_it_for_the_desk_and_marks_t
     assert await kb.db.knowledge_docs.count_documents({"tenantId": "t1"}) == 1
 
 
+async def test_an_article_from_a_group_must_be_a_help_desk_article_or_nothing_is_claimed(kb):
+    """protects=WR-203 / D-26 / D-17 a gap leaves the list only when an article the desk can cite answers it;
+    fails_when=a non-Help-desk article from a gap saves an article, marks a member written or hides the group, or
+    the refusal is not the desk sentence; also fails_when=helpdesk false without a group is refused."""
+    await _vpn_world(kb.db)
+    vpn = (await kb.call("GET", GAPS_PATH)).json()["groups"][0]
+    body = {"title": "Fix a dropping VPN", "content": "Restart the VPN app.", "tags": [], "helpdesk": False,
+            "gapGroupId": vpn["id"]}
+    refused = await kb.call("POST", ARTICLES_PATH, json=body)
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == messages.API_DETAIL["gap_article_not_helpdesk"]
+    assert await kb.db.knowledge_docs.count_documents({"tenantId": "t1"}) == 0
+    rows = await kb.db.service_desk_gaps.find({"ticketId": {"$in": ["T1", "T2", "T3"]}}).to_list(9)
+    assert len(rows) == 3 and {r["status"] for r in rows} == {"open"}
+    listed = (await kb.call("GET", GAPS_PATH)).json()["groups"]
+    assert [g["count"] for g in listed] == [3, 1] and listed[0]["id"] == vpn["id"]
+    plain = await kb.call("POST", ARTICLES_PATH, json={"title": "Plain", "content": "Steps.", "helpdesk": False})
+    assert plain.status_code == 200
+    assert (await kb.db.knowledge_docs.find_one({"id": plain.json()["id"]}))["helpdesk"] is False
+    assert {r["status"] for r in await kb.db.service_desk_gaps.find({"ticketId": {"$in": ["T1", "T2", "T3"]}}).to_list(9)} == {"open"}
+
+
 async def test_an_article_without_a_group_is_still_saved_and_is_validated_like_an_edit(kb):
     """protects=T-85-59 the same text rules as the edit route; fails_when=an empty title or an over-long text is saved."""
     ok = await kb.call("POST", ARTICLES_PATH, json={"title": "Plain", "content": "Steps.", "tags": []})

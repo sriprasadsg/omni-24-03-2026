@@ -182,6 +182,8 @@ API_DETAIL: Dict[str, str] = {
     "article_not_found": "Article not found.",
     "mode_invalid": "Choose Off, Drafts only or Post answers.",
     "not_tripped": "Post answers doesn't need restoring.",
+    "gap_article_not_helpdesk": ("An article written from a knowledge gap must be a Help desk article, so the "
+                                 "service desk can use it."),
 }
 
 # The three desk modes as a person reads them (the settings card, the activity list).

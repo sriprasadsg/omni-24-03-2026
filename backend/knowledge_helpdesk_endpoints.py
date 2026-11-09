@@ -279,9 +279,13 @@ async def write_article(
     current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
     _tickets: TokenData = Depends(_require_ticket_access),
 ) -> Dict[str, Any]:
-    """Save a new article; with ``gapGroupId`` the group's members are marked written (and leave the list)."""
+    """Save a new article; with ``gapGroupId`` the group's members are marked written (and leave the list).
+    A gap is answered only by an article the desk can cite, so ``gapGroupId`` with ``helpdesk`` false is refused
+    before any gap row is claimed."""
     tenant = _eligible_tenant(current_user)
     clean = _validated({"title": body.title, "content": body.content, "tags": body.tags})
+    if body.gapGroupId and body.helpdesk is not True:
+        raise _refuse(422, "gap_article_not_helpdesk")
     db = get_database()
     claimed: List[str] = []
     claimed_from = ""
