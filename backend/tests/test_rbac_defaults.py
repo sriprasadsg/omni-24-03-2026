@@ -25,7 +25,7 @@ GOLDEN = {
         "manage:mlops", "manage:mssp", "manage:patches", "manage:playbooks",
         "manage:procurement", "manage:rbac", "manage:retention_policies", "manage:sbom",
         "manage:sca", "manage:secrets", "manage:security_cases", "manage:security_playbooks",
-        "manage:settings", "manage:tracing", "manage:users", "remediate:agents", "request:assets",
+        "manage:settings", "manage:tickets", "manage:tracing", "manage:users", "remediate:agents", "request:assets",
         "view:active_response", "view:advanced_bi", "view:advanced_hunting",
         "view:agent_capabilities", "view:agent_groups", "view:agent_logs", "view:agents",
         "view:ai_governance", "view:analytics", "view:android_enterprise", "view:app_catalog",
@@ -53,19 +53,19 @@ GOLDEN = {
         "view:security", "view:threat_hunting", "view:tracing", "view:xdr",
     }),
     "analyst": frozenset({
-        "investigate:security", "view:agents", "view:assets", "view:attack_path", "view:audit_log",
+        "investigate:security", "manage:tickets", "view:agents", "view:assets", "view:attack_path", "view:audit_log",
         "view:autonomous_ops", "view:compliance", "view:dashboard", "view:devsecops", "view:dspm", "view:logs",
         "view:mdr", "view:profile", "view:reporting", "view:security", "view:threat_hunting",
         "view:threat_intel", "view:tracing", "view:vulnerabilities", "view:xdr",
     }),
     "security_analyst": frozenset({
-        "control:autonomous_ops", "investigate:security", "manage:security_cases", "view:assets",
+        "control:autonomous_ops", "investigate:security", "manage:security_cases", "manage:tickets", "view:assets",
         "view:attack_path", "view:audit_log", "view:autonomous_ops", "view:compliance", "view:dashboard", "view:dspm", "view:logs",
         "view:mdr", "view:profile", "view:security", "view:threat_hunting", "view:threat_intel",
         "view:tracing", "view:vulnerabilities", "view:xdr",
     }),
     "incident_responder": frozenset({
-        "control:autonomous_ops", "investigate:security", "manage:security_cases", "view:agents",
+        "control:autonomous_ops", "investigate:security", "manage:security_cases", "manage:tickets", "view:agents",
         "view:assets", "view:audit_log", "view:autonomous_ops", "view:dashboard", "view:logs", "view:mdr", "view:profile",
         "view:security", "view:threat_hunting", "view:xdr",
     }),
@@ -113,8 +113,8 @@ GOLDEN = {
     "partner_viewer": frozenset({"view:partner_portal"}),
 }
 
-GOLDEN_SIZES = {"tenant_admin": 133, "user": 22, "analyst": 20, "security_analyst": 19,
-                "incident_responder": 14, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4,
+GOLDEN_SIZES = {"tenant_admin": 134, "user": 22, "analyst": 21, "security_analyst": 20,
+                "incident_responder": 15, "viewer": 8, "itam_admin": 8, "itam_user": 5, "itam_viewer": 4,
                 "platform_support": 77, "platform_billing": 7,
                 "partner_admin": 2, "partner_viewer": 1}
 

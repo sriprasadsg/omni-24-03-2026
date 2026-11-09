@@ -168,7 +168,7 @@
     {"view": "aiRemediation", "label": "AI Remediation", "group": "automation", "nav": true, "permission": "view:ai_governance", "routes": ["/api/ai-remediation", "/api/ai/remediation"]},
     {"view": "rollback", "label": "Rollback & Checkpoints", "group": "automation", "nav": true, "permission": "manage:settings", "routes": ["/api/rollback"]},
     {"view": "tasks", "label": "My Tasks", "group": "automation", "nav": true, "permission": "view:profile", "routes": ["/api/tasks"]},
-    {"view": "internalTickets", "label": "Tickets", "group": "automation", "nav": true, "permission": "view:dashboard", "routes": ["/api/tickets"]},
+    {"view": "internalTickets", "label": "Tickets", "group": "automation", "nav": true, "permission": "view:dashboard", "write": ["manage:tickets", "view:dashboard"], "routes": ["/api/tickets"]},
     {"view": "problemManagement", "label": "Problem Management", "group": "automation", "nav": true, "permission": "view:security", "routes": ["/api/problems"]},
     {"view": "changeManagement", "label": "Change Management", "group": "automation", "nav": true, "permission": "manage:settings", "routes": ["/api/changes"]},
     {"view": "aiAssistantChat", "label": "AI Assistant", "group": "automation", "nav": true, "permission": "view:dashboard", "routes": ["/api/assistant", "/api/ai", "/api/voice"]},

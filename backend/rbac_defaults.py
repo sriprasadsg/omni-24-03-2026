@@ -37,6 +37,9 @@ PLATFORM_TENANT_ID = "platform-admin"
 TENANT_ADMIN_KEY = "tenant_admin"
 
 # Keyed by the RBACService._normalize_role output. Tuples are sorted and unique.
+# manage:tickets marks ticket staff (G-85-4): tenant_admin, analyst, security_analyst and
+# incident_responder, the super-admin wildcard, and custom roles only when a tenant admin ticks it;
+# user and viewer are requesters; platform_support is not ticket staff.
 ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
     # Tenant administrator (alias: admin, D-01). Excludes manage:tenants (D-06) and the D-03 catalogues.
     "tenant_admin": (
@@ -53,7 +56,7 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
         "manage:mlops", "manage:mssp", "manage:patches", "manage:playbooks",
         "manage:procurement", "manage:rbac", "manage:retention_policies", "manage:sbom",
         "manage:sca", "manage:secrets", "manage:security_cases", "manage:security_playbooks",
-        "manage:settings", "manage:tracing", "manage:users", "remediate:agents", "request:assets",
+        "manage:settings", "manage:tickets", "manage:tracing", "manage:users", "remediate:agents", "request:assets",
         "view:active_response", "view:advanced_bi", "view:advanced_hunting",
         "view:agent_capabilities", "view:agent_groups", "view:agent_logs", "view:agents",
         "view:ai_governance", "view:analytics", "view:android_enterprise", "view:app_catalog",
@@ -83,21 +86,21 @@ ROLE_DEFAULTS: Dict[str, Tuple[str, ...]] = {
     ),
     # Security analyst: investigation and threat-hunting access.
     "analyst": (
-        "investigate:security", "view:agents", "view:assets", "view:attack_path", "view:audit_log",
+        "investigate:security", "manage:tickets", "view:agents", "view:assets", "view:attack_path", "view:audit_log",
         "view:autonomous_ops", "view:compliance", "view:dashboard", "view:devsecops", "view:dspm", "view:logs",
         "view:mdr", "view:profile", "view:reporting", "view:security", "view:threat_hunting",
         "view:threat_intel", "view:tracing", "view:vulnerabilities", "view:xdr",
     ),
     # Deep security investigation with case management.
     "security_analyst": (
-        "control:autonomous_ops", "investigate:security", "manage:security_cases", "view:assets",
+        "control:autonomous_ops", "investigate:security", "manage:security_cases", "manage:tickets", "view:assets",
         "view:attack_path", "view:audit_log", "view:autonomous_ops", "view:compliance", "view:dashboard", "view:dspm", "view:logs",
         "view:mdr", "view:profile", "view:security", "view:threat_hunting", "view:threat_intel",
         "view:tracing", "view:vulnerabilities", "view:xdr",
     ),
     # Incident triage and security case management.
     "incident_responder": (
-        "control:autonomous_ops", "investigate:security", "manage:security_cases", "view:agents",
+        "control:autonomous_ops", "investigate:security", "manage:security_cases", "manage:tickets", "view:agents",
         "view:assets", "view:audit_log", "view:autonomous_ops", "view:dashboard", "view:logs", "view:mdr", "view:profile",
         "view:security", "view:threat_hunting", "view:xdr",
     ),
