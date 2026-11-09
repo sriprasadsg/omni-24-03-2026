@@ -21,6 +21,7 @@ from autonomous_ops import PLATFORM_TENANT_ID, views
 from autonomous_ops_endpoints import (_require_interactive_session, _require_manage, _tenant_for, _unavailable)
 from database import get_database
 from service_desk import settings as desk_settings
+from service_desk import withdraw as _withdraw  # noqa: F401  (importing it registers the desk's Undo handler, D-25)
 
 logger = logging.getLogger(__name__)
 

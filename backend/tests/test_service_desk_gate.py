@@ -9,7 +9,7 @@ alone, and Activity rows that link to their ticket; fails_when=Suggest or a forc
 21st answer becomes an approval card or a page, a draft expires, a draft can be approved from Activity,
 a desk undo runs without a registered handler, a ticket command reaches an agent, or an Activity row loses
 its ticket link or shows Undo when it cannot work; no_claim=the desk's own undo handler and breaker
-(plan 85-18).
+(plan 85-18, test_service_desk_withdraw.py).
 """
 import os
 import sys
@@ -288,9 +288,10 @@ async def test_undo_calls_the_handler_registered_for_the_desk(world, monkeypatch
     assert calls == [("t1", action_id, APPROVER)]
 
 
-async def test_undo_with_no_desk_handler_refuses_and_writes_nothing(world):
-    """protects=T-85-15: fail closed."""
-    assert "service_desk" not in approvals._UNDO_HANDLERS
+async def test_undo_with_no_desk_handler_refuses_and_writes_nothing(world, monkeypatch):
+    """protects=T-85-15: fail closed. The real handler (85-18) registers when service_desk.withdraw is imported,
+    so this test takes it out for its own run."""
+    monkeypatch.delitem(approvals._UNDO_HANDLERS, "service_desk", raising=False)
     action_id = await _desk_row(world, "k1", state="executed")
     before = await _rows(world)
     out = await approvals.undo(world, "t1", action_id, actor=APPROVER)

@@ -108,6 +108,13 @@ UNDO_TOAST_BREAKER = ("Answer withdrawn. 3 answers were withdrawn within 24 hour
 
 # Generic on purpose (T-85-06): the ticket number only, never a preview of any text.
 NOTICE_TITLE = "Your ticket {number} has an answer"
+# The notice when a person withdraws the answer (D-25): same rule, the ticket number only.
+WITHDRAWN_NOTICE_TITLE = "Your ticket {number} has an update"
+
+# The in-app notice to the organization's admins when the desk drops to Drafts only (D-25).
+BREAKER_NOTICE_TITLE = "Service desk dropped to Drafts only"
+BREAKER_NOTICE = ("3 answers were withdrawn within 24 hours, so the service desk stopped posting answers. "
+                  "A person with manage access can restore Post answers in the service desk settings.")
 
 # ---------------------------------------------------------------- the tray window (UI-SPEC section 8, D-05)
 # Every display string the tray shows comes from here, so a copy change needs no agent release.
@@ -186,6 +193,8 @@ CONTROL_REASONS: Dict[str, str] = {
     "service_desk_words_changed": "{count} extra words send a ticket to a person: {words}.",
     "service_desk_words_none": "No extra words are set now. The built-in rules still apply.",
     "service_desk_restored": "Post answers restored. Answers post again once every condition is met.",
+    "service_desk_breaker_tripped": ("3 answers were withdrawn within 24 hours, so the service desk dropped to "
+                                     "Drafts only."),
 }
 
 # ---------------------------------------------------------------- helpers

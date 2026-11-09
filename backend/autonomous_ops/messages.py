@@ -62,6 +62,7 @@ CONTROL_LABELS = {
     "service_desk_mode_changed": "Service desk setting changed",
     "service_desk_words_changed": "Service desk words changed",
     "service_desk_restored": "Service desk restored",
+    "service_desk_breaker_tripped": "Service desk dropped to Drafts only",
     **response_messages.CONTROL_LABELS,
 }
 
