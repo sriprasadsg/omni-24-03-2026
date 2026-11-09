@@ -8,12 +8,17 @@ it, the super-admin wildcard reaches it, and a custom role holds it only when it
 document lists it. Everybody else (user, viewer, platform_support, a custom role without the
 permission) is a requester.
 
-Later gap plans add the ticket viewer guard and the own-tickets scope here. Module-level imports
-are limited to ``typing`` and ``rbac_service`` so the ticket and notification modules can import
-this one without a cycle.
+``ticket_viewer`` (plan 85-32, WR-502) is the router guard of the ticket routes: only ticket staff and
+the ticket's reporter reach a ticket at all. A later gap plan adds the own-tickets scope here.
+Module-level imports are limited to ``typing``, ``fastapi`` and ``rbac_service`` (plus
+``authentication_service`` for the caller); the ticket modules are imported inside the guard so the
+ticket and notification modules can import this one without a cycle.
 """
 from typing import Iterable, Optional
 
+from fastapi import Depends, HTTPException, Request
+
+from authentication_service import get_current_user
 from rbac_service import rbac_service
 
 TICKET_STAFF = "manage:tickets"
@@ -36,3 +41,26 @@ async def is_ticket_staff(user, perms: Optional[Iterable[str]] = None) -> bool:
     if perms is None:
         perms = await rbac_service.get_user_permissions(user)
     return holds_ticket_staff(perms) and rbac_service._scopes_allow(user, TICKET_STAFF)
+
+
+def ticket_viewer(detail: str = "Ticket not found"):
+    """A router dependency: a route with a ``ticket_id`` path parameter answers 404 ``detail`` unless the
+    caller is ticket staff or the ticket's reporter (WR-502, PROH-85-23).
+
+    It is the same 404 as for a ticket that does not exist (never 403), so a requester cannot learn that
+    someone else's ticket id is real. Staff skip the ticket read; everybody else is checked against the
+    ticket of their own tenant (no tenant means no ticket). A route without ``ticket_id`` is not touched.
+    """
+    async def guard(request: Request, current_user=Depends(get_current_user)) -> None:
+        ticket_id = request.path_params.get("ticket_id")
+        if ticket_id is None or await is_ticket_staff(current_user):
+            return
+        import tickets_models
+        import tickets_service
+        from service_desk import projection
+        tenant_id = tickets_models._effective_tenant(current_user)
+        ticket = await tickets_service.tickets_service.get_ticket(ticket_id, tenant_id=tenant_id) if tenant_id else None
+        if not ticket or not projection.is_reporter(ticket, current_user):
+            raise HTTPException(status_code=404, detail=detail)
+
+    return guard

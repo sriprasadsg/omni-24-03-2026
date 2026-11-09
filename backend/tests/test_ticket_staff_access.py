@@ -7,8 +7,12 @@ staff, the role editor's catalogue offers it, and ticket_access.is_ticket_staff 
 fails_when=user, viewer, platform_support or an undocumented custom role counts as staff, a custom
 role of another tenant makes this tenant's role staff, an API key escapes its scopes, the role
 catalogue stops offering the permission, or an unreachable role store grants more than the built-in
-table; no_claim=any route enforcing staff (85-32 onward).
-Fake role store only (MagicMock/AsyncMock): no database is touched.
+table; no_claim=the staff-only actions (85-34), the list scope (85-33) and the desk routes (85-35).
+The permission section uses a fake role store only (MagicMock/AsyncMock). The HTTP section (plan 85-32,
+protects=WR-502 / UD-2 / UD-3 / PROH-85-23 / T-85-112 / T-85-113 / T-85-114) runs the ticket router on the
+throwaway database of tests/_mongo_test_db.py (skips without a MongoDB); fails_when=a caller who is neither
+ticket staff nor the reporter reads, comments on, attaches to or deletes another person's ticket, gets a
+status or detail different from a missing ticket's, or staff or the reporter are turned away.
 """
 import asyncio
 import os
@@ -26,6 +30,8 @@ import role_contents
 import role_endpoints
 import ticket_access
 from auth_types import TokenData
+from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.service_desk_support import desk_app, portal_user, seed_desk_tenant, staff_user
 
 TICKETS = "manage:tickets"
 STAFF_ROLES = ["tenant_admin", "admin", "analyst", "security_analyst", "incident_responder"]
@@ -159,3 +165,108 @@ def test_an_unreachable_role_store_falls_back_to_the_built_in_table(monkeypatch)
     assert _staff(_user("analyst")) is True
     assert _staff(_user("user")) is False
     assert _staff(_user("Technician")) is False
+
+
+# ---------------------------------------------------------------- the ticket viewer guard (85-32, HTTP)
+
+ALICE = portal_user("t1", "alice@x.co")           # the reporter
+CAROL = portal_user("t1", "carol@x.co")           # a requester who did not raise the ticket
+BOB = staff_user("t1", "bob@x.co")                # a technician (manage:tickets)
+OTHER_TENANT = portal_user("t2", "alice@x.co")
+STAFF_ONLY = "the admin password is hunter2-staff-only"
+NOT_FOUND = "Ticket not found"
+
+
+@pytest.fixture
+async def world(mongo_db, monkeypatch):  # noqa: F811
+    await seed_desk_tenant(mongo_db, "t1")
+    await seed_desk_tenant(mongo_db, "t2")
+    import service_desk.intake as intake
+    import ticket_notifications
+    monkeypatch.setattr(ticket_notifications, "notify_comment_added", AsyncMock())
+    monkeypatch.setattr(intake, "on_ticket_created", AsyncMock())
+    return desk_app(mongo_db, monkeypatch)
+
+
+async def _alices_ticket(world):
+    """Alice raises a ticket; bob adds a staff-only comment to it. Returns its id."""
+    made = await world.call("POST", "/api/tickets", user=ALICE, json={"title": "Laptop", "description": "black screen"})
+    assert made.status_code == 200, made.text
+    ticket_id = made.json()["id"]
+    note = await world.call("POST", f"/api/tickets/{ticket_id}/comments", user=BOB,
+                            json={"text": STAFF_ONLY, "visibility": "staff"})
+    assert note.status_code == 200, note.text
+    return ticket_id
+
+
+async def test_a_requester_who_did_not_raise_the_ticket_gets_not_found(world):
+    """protects=WR-502 / PROH-85-23 / T-85-112; fails_when=a non-reporter requester reads the ticket or its staff text."""
+    ticket_id = await _alices_ticket(world)
+    response = await world.call("GET", f"/api/tickets/{ticket_id}", user=CAROL)
+    assert response.status_code == 404
+    assert response.json() == {"detail": NOT_FOUND}
+    assert STAFF_ONLY not in response.text
+
+
+async def test_a_real_ticket_and_a_made_up_id_give_the_same_answer(world):
+    """protects=T-85-113; fails_when=the status or detail tells a requester that someone else's id is real."""
+    ticket_id = await _alices_ticket(world)
+    real = await world.call("GET", f"/api/tickets/{ticket_id}", user=CAROL)
+    made_up = await world.call("GET", "/api/tickets/TKT-does-not-exist", user=CAROL)
+    assert (real.status_code, real.json()) == (made_up.status_code, made_up.json()) == (404, {"detail": NOT_FOUND})
+
+
+async def test_staff_who_did_not_raise_it_get_the_stored_ticket(world):
+    """protects=CR-401 unchanged for staff; fails_when=staff are turned away or lose the staff-only comment."""
+    ticket_id = await _alices_ticket(world)
+    response = await world.call("GET", f"/api/tickets/{ticket_id}", user=BOB)
+    assert response.status_code == 200
+    assert STAFF_ONLY in response.text
+
+
+async def test_the_reporter_still_gets_the_requester_projection(world):
+    """protects=CR-401 unchanged; fails_when=the reporter is turned away or receives the staff-only comment."""
+    ticket_id = await _alices_ticket(world)
+    response = await world.call("GET", f"/api/tickets/{ticket_id}", user=ALICE)
+    assert response.status_code == 200
+    assert response.json()["id"] == ticket_id
+    assert STAFF_ONLY not in response.text
+
+
+async def test_the_reporter_passes_the_guard_with_the_name_in_another_case(world):
+    """protects=projection.is_reporter (case-insensitive); fails_when=a case difference locks the reporter out."""
+    ticket_id = await _alices_ticket(world)
+    shouting = TokenData(username="ALICE@X.CO", role="user", tenant_id="t1", mfa_verified=True)
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=shouting)).status_code == 200
+
+
+async def test_a_user_of_another_tenant_gets_not_found_even_as_staff_or_namesake(world):
+    """protects=tenant isolation; fails_when=a ticket of t1 is readable from t2."""
+    ticket_id = await _alices_ticket(world)
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=OTHER_TENANT)).status_code == 404
+    other_staff = staff_user("t2", "bob@x.co")
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=other_staff)).status_code == 404
+
+
+async def test_a_custom_role_reads_a_colleagues_ticket_only_with_manage_tickets(world, monkeypatch):
+    """protects=UD-3; fails_when=a custom role without manage:tickets reads a colleague's ticket, or one with it cannot."""
+    ticket_id = await _alices_ticket(world)
+    technician = portal_user("t1", "tech@x.co", role="Technician")
+    monkeypatch.setattr(rbac_module, "get_database", lambda: _role_store(_technician("t1", ["view:dashboard"])))
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=technician)).status_code == 404
+    monkeypatch.setattr(rbac_module, "get_database",
+                        lambda: _role_store(_technician("t1", ["view:dashboard", TICKETS])))
+    response = await world.call("GET", f"/api/tickets/{ticket_id}", user=technician)
+    assert response.status_code == 200
+    assert STAFF_ONLY in response.text
+
+
+async def test_an_analyst_api_key_without_manage_tickets_is_a_requester(world):
+    """protects=UD-3 scopes; fails_when=a key whose scopes lack manage:tickets reads a colleague's ticket."""
+    ticket_id = await _alices_ticket(world)
+    narrow = TokenData(username="key-1", role="analyst", tenant_id="t1", mfa_verified=True,
+                       auth_source="api_key", scopes=["view:dashboard"])
+    wide = TokenData(username="key-2", role="analyst", tenant_id="t1", mfa_verified=True,
+                     auth_source="api_key", scopes=["view:dashboard", TICKETS])
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=narrow)).status_code == 404
+    assert (await world.call("GET", f"/api/tickets/{ticket_id}", user=wide)).status_code == 200

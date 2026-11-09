@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
+import ticket_access
 from authentication_service import TokenData
 from rbac_service import rbac_service
 from tickets_models import (
@@ -17,7 +18,8 @@ from tickets_models import (
 from tickets_service import LINK_TYPES, tickets_service
 from database import mongodb, get_database
 
-router = APIRouter(prefix="/api/tickets", tags=["Internal Tickets"])
+router = APIRouter(prefix="/api/tickets", tags=["Internal Tickets"],
+                   dependencies=[Depends(ticket_access.ticket_viewer())])
 
 _UPLOAD_DIR = os.getenv("TICKET_ATTACHMENT_DIR", "")
 if not _UPLOAD_DIR:
