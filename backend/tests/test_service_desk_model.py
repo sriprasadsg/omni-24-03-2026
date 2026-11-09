@@ -9,12 +9,15 @@ a different tag is accepted, a burst of jobs sends one probe each, a busy or slo
 such, or call_timeout drifts from the written formula; no_claim=the hand-off wording and the worker's
 feasibility check (85-13, 85-17), the operator measurement script (85-22) and a real Ollama.
 """
+import ast
 import asyncio
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import httpcore
 import httpx
 import pytest
 
@@ -376,3 +379,33 @@ async def test_save_measurement_rejects_non_positive_rates(mongo_db, bad):
     with pytest.raises(ValueError):
         await runtime.save_measurement(mongo_db, {**MEASURED, **bad})
     assert await mongo_db.system_settings.count_documents({"type": "service_desk_runtime"}) == 0
+
+
+# ---------------------------------------------------------------- environment proxies (WR-101, D-15, T-85-89)
+
+async def test_the_loopback_client_ignores_environment_proxies(monkeypatch):
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        monkeypatch.setenv(name, "http://10.9.9.9:3128")
+    for name in ("NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    client = OllamaClient()
+    desk = client._http(httpx.Timeout(1))
+    control = httpx.AsyncClient(timeout=httpx.Timeout(1), follow_redirects=False)
+    try:
+        url = httpx.URL(client.base_url + "/api/generate")
+        assert isinstance(control._transport_for_url(url)._pool, httpcore.AsyncHTTPProxy)   # the environment is read
+        assert not isinstance(desk._transport_for_url(url)._pool, httpcore.AsyncHTTPProxy)
+    finally:
+        await desk.aclose()
+        await control.aclose()
+
+
+def test_every_async_client_of_the_desk_model_ignores_the_environment_and_redirects():
+    tree = ast.parse((Path(__file__).parent.parent / "service_desk" / "model.py").read_text(encoding="utf-8"))
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+             and n.func.attr == "AsyncClient"]
+    assert calls
+    for call in calls:
+        keywords = {k.arg: k.value for k in call.keywords}
+        for name in ("trust_env", "follow_redirects"):
+            assert isinstance(keywords.get(name), ast.Constant) and keywords[name].value is False, name
