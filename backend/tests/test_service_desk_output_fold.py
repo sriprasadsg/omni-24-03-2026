@@ -85,6 +85,99 @@ def test_parse_reply_returns_the_folded_answer():
     assert reply.answer == "ABC 1" and reply.cited == [1]
 
 
+# ---------------------------------------------------------------- the grid: 18 hidden characters x 7 templates
+
+HIDDEN = [0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF, 0x00AD, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066,
+          0x2067, 0x2068, 0x2069, 0x034F, 0x3164, 0xFE0F]
+TEMPLATES = [
+    ("Open https://evil.{H}example/reset now", "foreign_link"),
+    ("Visit evil.{H}com now", "foreign_link"),
+    ("Visit evil{H}.com now", "foreign_link"),
+    ("Mail a{H}@evil.com about it", "foreign_email"),
+    ("Mail x@evil{H}.com about it", "foreign_email"),
+    ("Call 555{H}0142{H}77 today", "foreign_phone"),
+    ("Then run ipc{H}onfig in the window", "foreign_command"),
+]
+
+
+def _grid():
+    return [pytest.param(chr(h), template, rule, id="U+%04X-%s" % (h, rule + str(i)))
+            for h in HIDDEN for i, (template, rule) in enumerate(TEMPLATES)]
+
+
+def test_the_grid_is_18_by_7():
+    assert len(HIDDEN) == 18 and len(TEMPLATES) == 7 and len(_grid()) == 126
+
+
+@pytest.mark.parametrize("hidden,template,rule", _grid())
+def test_a_hidden_character_never_hides_a_foreign_fragment(hidden, template, rule):
+    assert verdict(template.replace("{H}", hidden)) == rule
+
+
+@pytest.mark.parametrize("template,rule", TEMPLATES, ids=[r + str(i) for i, (_, r) in enumerate(TEMPLATES)])
+def test_the_control_without_a_hidden_character_gives_the_same_rule(template, rule):
+    assert verdict(template.replace("{H}", "")) == rule
+
+
+@pytest.mark.parametrize("answer,rule", [
+    ("Visit \uff45\uff56\uff49\uff4c\uff0e\uff43\uff4f\uff4d now", "foreign_link"),
+    ("Visit evil\uff0ecom", "foreign_link"),
+    ("Visit EVIL\u3002com", "foreign_link"),
+    ("Visit evil\uff61com", "foreign_link"),
+    ("Mail \uff41\uff20\uff45\uff56\uff49\uff4c\uff0e\uff43\uff4f\uff4d", "foreign_email"),
+    ("Mail x@evil\u3002com", "foreign_email"),
+    ("Call \uff15\uff15\uff15\uff10\uff11\uff14\uff12\uff12\uff17\uff17", "foreign_phone"),
+    ("Run \uff49\uff50\uff43\uff4f\uff4e\uff46\uff49\uff47 now", "foreign_command"),
+    ("Click \uff1cb\uff1ehere\uff1c/b\uff1e", "html"),
+], ids=["fw-domain", "fw-dot", "ideographic-stop", "halfwidth-stop", "fw-email", "email-ideographic-stop",
+        "fw-digits", "fw-command", "fw-tag"])
+def test_compatibility_forms_are_refused(answer, rule):
+    assert verdict(answer) == rule
+
+
+# ---------------------------------------------------------------- look-alike domains (A-85-G03)
+
+@pytest.mark.parametrize("answer", ["Visit \u0435vil.com now", "Visit evil.\u0441\u043em now",
+                                    "Visit m\u00fcnchen.de now"], ids=["cyrillic-label", "cyrillic-tld", "umlaut"])
+def test_a_look_alike_domain_is_a_link(answer):
+    assert verdict(answer) == "foreign_link"
+
+
+def test_a_look_alike_domain_in_the_cited_article_passes():
+    assert verdict("Visit m\u00fcnchen.de now", "See m\u00fcnchen.de for the office list.") is None
+
+
+def test_a_plain_english_word_with_a_diacritic_and_no_dot_passes():
+    assert verdict("Choose the caf\u00e9 printer from the list.", "Choose the caf\u00e9 printer from the list.") is None
+
+
+# ---------------------------------------------------------------- fold-to-fold and the fold's properties
+
+def test_answer_and_article_are_compared_fold_to_fold():
+    assert verdict("Visit evil." + ZWSP + "com now", "Go to evil.com today") is None
+    assert verdict("Visit portal.example.com now", "Go to portal." + ZWSP + "example.com today") is None
+
+
+def test_the_fold_is_idempotent_for_every_grid_string():
+    for hidden in HIDDEN:
+        for template, _rule in TEMPLATES:
+            sample = template.replace("{H}", chr(hidden))
+            once = sanitize.fold_text(sample)
+            assert sanitize.fold_text(once) == once
+            assert not any(unicodedata.category(ch) in ("Cf", "Cn", "Cs") for ch in once)
+
+
+def test_the_fold_keeps_newline_and_tab_and_recomposes():
+    assert sanitize.fold_text("a\nb\tc") == "a\nb\tc"
+    assert sanitize.fold_text("e" + ZWSP + "\u0301") == "\u00e9"
+
+
+def test_the_rules_are_unchanged():
+    assert checks.RULES == ("unparseable", "empty_answer", "no_citation", "unknown_citation", "too_long",
+                            "too_many_lines", "html", "foreign_link", "foreign_email", "foreign_phone",
+                            "foreign_command", "foreign_number")
+
+
 # ---------------------------------------------------------------- the pipeline: handed off, and stored folded
 
 async def test_a_hidden_character_link_is_handed_off_not_posted(world):
