@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-16-PLAN.md
-last_updated: "2026-11-09T01:58:57.057Z"
+stopped_at: Completed 85-17-PLAN.md
+last_updated: "2026-11-09T02:41:33.714Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: ea119853120356a225dfaf5ca9693f4af094eea8
+state_head: ec1648a3d6fd782ec9f80c7df0e026fd18d333e5
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 115
+  completed_plans: 116
   percent: 86
 ---
 
@@ -620,6 +620,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: Phase 85 plan 15: gap grouping uses the desk's content words less scikit-learn English stop words, threshold 0.6, greedy newest-first; group id is the oldest member's row id
 - [Phase 85]: 85-16: the Service desk readiness list shows only while the saved mode is Post answers, from the server's posting.blockers; the card never guesses a blocker for a staged mode
 - [Phase 85]: 85-16: desk Activity rows are recognised by ticketNumber and open Tickets through a new internalTickets opener; selecting the ticket on arrival waits for an App.tsx intent (user WIP file)
+- [Phase 85]: 85-17: the 10-minute queue limit is enforced by a client wrapper around the one model call (timeout cut to the time left, a reply at or after the limit refused as a timeout), so pipeline.py is unchanged and nothing late is posted
+- [Phase 85]: 85-17: run_once returns the pass counts (jobs closed in order); None only when another runner holds the lock
+- [Phase 85]: 85-17: a job waiting behind a generation is handed off busy only when that pass ends (up to one call timeout past its 10 minutes); no generation is ever started late
 
 ## Performance Metrics
 
@@ -890,6 +893,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P14 | 40 min | 3 tasks | 11 files |
 | Phase 85 P15 | 24 min | 3 tasks | 6 files |
 | Phase 85 P16 | 16 min | 3 tasks | 13 files |
+| Phase 85 P17 | 17 min | 3 tasks | 8 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -924,8 +928,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T01:58:56.795Z
-**Stopped at:** Completed 85-16-PLAN.md
+**Last session:** 2026-11-09T02:41:33.467Z
+**Stopped at:** Completed 85-17-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -952,7 +956,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 17 of 23
+Plan: 18 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
