@@ -75,6 +75,16 @@ async def _rows(db, tenant="t1"):
     return await db.autonomy_actions.find({"tenantId": tenant, "kind": "servicedesk"}, {"_id": 0}).to_list(20)
 
 
+async def _answers(db, tenant="t1"):
+    """The rows that carry an answer (a hand-off to a person is a servicedesk row of its own, 85-12/85-13)."""
+    return [r for r in await _rows(db, tenant) if r["command"] == "ticket_answer"]
+
+
+def _model_comments(ticket):
+    """The comments a model answer would have left on the ticket (the hand-off's own notes are not those)."""
+    return [c for c in ticket["comments"] if c["kind"] in ("ai_answer", "ai_draft")]
+
+
 async def _stored(db, ticket_id):
     return await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
 
@@ -233,10 +243,10 @@ async def test_only_the_tenants_own_help_desk_articles_are_candidates(world):
     await seed_article(world.db, "t1", "kb-pw-t1-only", title=PW_TITLE, content=PW_CONTENT)
     ticket = await _raise(world, portal_user("t6", "gus"))
     job_id, calls = await _run(world)
-    assert calls == [] and await _rows(world.db, "t6") == []
+    assert calls == [] and await _answers(world.db, "t6") == []
     done = await world.db.service_desk_jobs.find_one({"id": job_id})
     assert done["state"] == "done" and done["reason"] == "no_article"
-    assert (await _stored(world.db, ticket["id"]))["comments"] == []
+    assert _model_comments(await _stored(world.db, ticket["id"])) == []
 
 
 # ---------------------------------------------------------------- Task 2: the model
@@ -246,9 +256,9 @@ async def test_a_model_that_cannot_be_reached_writes_nothing(world):
     ticket = await _raise(world)
     job_id, calls = await _run(world, fail_tags=True)
     assert not [c for c in calls if c["path"] == "/api/generate"]
-    assert await _rows(world.db) == []
-    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "offline"
-    assert (await _stored(world.db, ticket["id"]))["comments"] == []
+    assert await _answers(world.db) == []
+    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "service_desk_offline"
+    assert _model_comments(await _stored(world.db, ticket["id"])) == []
 
 
 async def test_a_different_model_tag_is_not_good_enough(world):
@@ -256,8 +266,8 @@ async def test_a_different_model_tag_is_not_good_enough(world):
     await _raise(world)
     job_id, calls = await _run(world, tags=("llama3.2:1b",))
     assert [c["path"] for c in calls] == ["/api/tags"]
-    assert await _rows(world.db) == []
-    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "offline"
+    assert await _answers(world.db) == []
+    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "service_desk_offline"
 
 
 async def test_a_client_for_a_non_loopback_host_sends_nothing(world):
@@ -268,8 +278,8 @@ async def test_a_client_for_a_non_loopback_host_sends_nothing(world):
     assert calls == []
     await _raise(world)
     job_id = await worker.run_once(world.db, client=client)
-    assert calls == [] and await _rows(world.db) == []
-    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "offline"
+    assert calls == [] and await _answers(world.db) == []
+    assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "service_desk_offline"
 
 
 async def test_a_loopback_host_with_a_look_alike_name_is_refused():
@@ -285,9 +295,9 @@ async def test_a_reply_that_cites_an_article_it_was_not_given_is_not_used(world)
     ticket = await _raise(world)
     job_id, calls = await _run(world, cited=[7])
     assert len([c for c in calls if c["path"] == "/api/generate"]) == 1
-    assert await _rows(world.db) == []
+    assert await _answers(world.db) == []
     assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "output_check_failed"
-    assert (await _stored(world.db, ticket["id"]))["comments"] == []
+    assert _model_comments(await _stored(world.db, ticket["id"])) == []
 
 
 async def test_a_reply_that_is_not_the_agreed_shape_is_not_used(world):
@@ -297,4 +307,4 @@ async def test_a_reply_that_is_not_the_agreed_shape_is_not_used(world):
         await _raise(world, portal_user("t1", f"user{number}"))
         job_id, _ = await _run(world, reply_text=reply)
         assert (await world.db.service_desk_jobs.find_one({"id": job_id}))["reason"] == "output_check_failed"
-    assert await _rows(world.db) == []
+    assert await _answers(world.db) == []
