@@ -171,3 +171,83 @@ describe('the reporter on the first paint of the Comments tab', () => {
     expect(screen.getByText('Comments are visible to staff only unless marked "Sent to requester".')).toBeInTheDocument();
   });
 });
+
+describe('the reporter after a failed or different desk read', () => {
+  it('sees no hidden comment when the desk read fails', async () => {
+    setup('dana@acme.test', [ticket()], () => jsonRes({}, 500));
+    await openComments();
+    await waitFor(() => expect(deskReads).toBe(1));
+    await waitFor(() => expectShown(READABLE));
+    expectAbsent(HIDDEN);
+  });
+
+  it('sees no hidden comment when the signed-in email differs only in case and the desk view says requester', async () => {
+    setup('DANA@acme.test', [ticket()], () => jsonRes(desk({ isRequester: true, canReplyToRequester: false })));
+    await openComments();
+    await waitFor(() => expect(deskReads).toBe(1));
+    await waitFor(() => expectShown(READABLE));
+    expectAbsent(HIDDEN);
+  });
+
+  it('sees no hidden comment when the desk view says requester for a different email', async () => {
+    setup('someone.else@acme.test', [ticket()], () => jsonRes(desk({ isRequester: true, canReplyToRequester: false })));
+    await openComments();
+    await waitFor(() => expect(deskReads).toBe(1));
+    await waitFor(() => expectAbsent(HIDDEN));
+    expectShown(READABLE);
+  });
+
+  it('shows "No comments yet." and keeps the note when only staff-only comments exist', async () => {
+    const staffOnly = [
+      { id: 'c1', author: 'bob@acme.test', text: TEXT.staffOnly, created_at: at(1), visibility: 'staff' },
+      { id: 'c3', author: 'service-desk', text: TEXT.draft, created_at: at(3), visibility: 'staff', kind: 'ai_draft', ai: { state: 'draft' } },
+    ];
+    setup('dana@acme.test', [ticket({ comments: staffOnly })], never);
+    await openComments();
+    await waitFor(() => expect(deskReads).toBe(1));
+    expect(screen.getByText('No comments yet.')).toBeInTheDocument();
+    expect(screen.getByText('Comments are visible to staff only unless marked "Sent to requester".')).toBeInTheDocument();
+    expectAbsent([TEXT.staffOnly, TEXT.draft]);
+  });
+});
+
+describe('staff keep the full view (D-11)', () => {
+  it('sees every comment before the desk view loads', async () => {
+    setup('sam@acme.test', [ticket()], never);
+    await openComments();
+    await waitFor(() => expect(deskReads).toBe(1));
+    expectShown([TEXT.staffOnly, TEXT.noFlag, TEXT.draft, ...READABLE]);
+    expect(screen.getByText('This answer was withdrawn.')).toBeInTheDocument();
+  });
+
+  it('still sees every comment after the desk view answers isRequester false', async () => {
+    setup('sam@acme.test', [ticket()], () => jsonRes(desk({ isRequester: false })));
+    await openComments();
+    await waitFor(() => expect(deskReads).toBe(1));
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Reply to requester' })).toBeEnabled());
+    expectShown([TEXT.staffOnly, TEXT.noFlag, TEXT.draft, ...READABLE]);
+    expect(screen.getByText('This answer was withdrawn.')).toBeInTheDocument();
+  });
+});
+
+describe('the comment count of the ticket list row', () => {
+  const countOf = async () => {
+    const row = (await screen.findByText('Cannot reset password')).closest('tr')!;
+    return row.querySelector('svg.lucide-message-square')?.parentElement?.textContent ?? null;
+  };
+
+  it('counts only the comments the reporter may read', async () => {
+    setup('dana@acme.test', [ticket()], never);
+    expect(await countOf()).toBe('4');
+  });
+
+  it('counts every comment for staff', async () => {
+    setup('sam@acme.test', [ticket()], never);
+    expect(await countOf()).toBe('8');
+  });
+
+  it('shows no count for the reporter when nothing is readable', async () => {
+    setup('dana@acme.test', [ticket({ comments: [eightComments()[0]] })], never);
+    expect(await countOf()).toBeNull();
+  });
+});
