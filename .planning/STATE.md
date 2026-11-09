@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: planning
-stopped_at: Phase 85 gap-closure plans 85-24..85-29 created (plan check passed iteration 1)
-last_updated: "2026-11-09T15:13:59.132Z"
+status: executing
+stopped_at: Completed 85-24-PLAN.md
+last_updated: "2026-11-09T16:10:30.953Z"
 last_activity: 2026-11-09
-last_activity_desc: Phase 85 gap plans 85-24..85-29 created (CR-101, CR-401 + 9 backend review warnings), plan check passed
-state_head: 9cf7470ce6522daa9829eada61c65e6f5c64fef0
+last_activity_desc: Phase 85 plan 85-24 complete (CR-101, WR-101)
+state_head: 562d238c41475575dac9e02a9edf8b29c39a3f0a
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 128
-  completed_plans: 122
+  completed_plans: 123
   percent: 86
 ---
 
@@ -633,6 +633,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-22: ModelReply gained prefill_ms so the operator script computes exact prefill speed; --db-name targets the database the environment names; --sets fails only on a foreign fragment that passed the checks or an escalation case reaching the model (retrieval margin is reported); --calibrate never changes CUT
 - [Phase 85]: 85-23: agent version 2.1.18 carries the My tickets tray window; committed as two version lines only, the user's flate2 WIP left unstaged; _LATEST_AGENT_VERSION stays 2.1.14 until the user publishes
 - [Phase 85]: 85-23: Phase 85 automated gates all green together (1955 backend, 1840 vitest, build); validation map filled (nyquist_compliant true); DESK-01..07 left for phase verification to mark Complete; live steps are the user's ordered list
+- [Phase 85]: 85-24: one shared fold (sanitize.fold_text) runs on every model answer and cited article before the D-19 output checks and is what is posted or drafted; hidden characters are stripped, not rejected (RULES unchanged); dotted tokens with a non-ASCII letter are link fragments; the loopback client uses trust_env=False
 
 ## Performance Metrics
 
@@ -910,6 +911,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P21 | 25 min | 3 tasks | 13 files |
 | Phase 85 P22 | 14 min | 2 tasks | 3 files |
 | Phase 85 P23 | 17 min | 3 tasks | 3 files |
+| Phase 85 P24 | 45 min | 3 tasks | 7 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -944,8 +946,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T07:04:41.190Z
-**Stopped at:** Completed 85-23-PLAN.md
+**Last session:** 2026-11-09T16:10:30.681Z
+**Stopped at:** Completed 85-24-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -971,10 +973,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 85 (First-Line Service Desk) — READY TO EXECUTE
-Plan: 23 of 29 (gap-closure plans 85-24..85-29 not started)
-Status: Ready to execute — next /gsd-execute-phase 85 --gaps-only
-Last activity: 2026-11-09 — Phase 85 gap plans 85-24..85-29 created in 5 waves (CR-101, CR-401, WR-101..103, WR-201..203, WR-301..303), plan check passed (0 blockers, 0 warnings, 3 info); next /gsd-execute-phase 85 --gaps-only
+Phase: 85 (First-Line Service Desk) — EXECUTING
+Plan: 24 of 29 done (gap-closure plans 85-24..85-29 executing)
+Status: Executing Phase 85 gap closure (--gaps-only); 85-24 done
+Last activity: 2026-11-09 — Phase 85 plan 85-24 complete (CR-101, WR-101 fixed); next 85-25
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
