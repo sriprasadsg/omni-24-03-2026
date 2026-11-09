@@ -5,13 +5,14 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent, render } from '@testing-library/react';
 
 vi.mock('../../services/apiService', () => ({ API_BASE: '/api', authFetch: vi.fn() }));
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
 
 import { showToast } from '../../utils/toast';
-import { KB, fill } from '../../components/serviceDesk/serviceDeskCopy';
+import { ArticleEditDialog } from '../../components/serviceDesk/ArticleEditDialog';
+import { DIALOGS, KB, TOASTS, VALIDATION, fill } from '../../components/serviceDesk/serviceDeskCopy';
 import {
   addStarters, createArticle, dismissGap, fetchArticle, fetchGaps, fetchStarterStatus, patchArticle, restoreGap,
 } from '../../services/serviceDesk/knowledgeApi';
@@ -211,5 +212,223 @@ describe('the Help desk filter and the readiness note', () => {
     serve({ [`GET ${LIST}`]: docList([kbDoc({ helpdesk: true })], kbFlags({ helpdeskCount: 3 })) });
     await renderKb();
     expect(await screen.findByText(fill(KB.readiness, { k: 3 }))).toBeInTheDocument();
+  });
+});
+
+// ------------------------------------------------------------------------------------------ Add starter IT articles
+
+describe('Add starter IT articles', () => {
+  const STARTERS = '/api/knowledge/helpdesk/starters';
+  const open = async (flags = kbFlags()) => {
+    serve({ [`GET ${LIST}`]: () => docList([kbDoc()], flags), [`POST ${STARTERS}`]: jsonRes({ added: 4, existing: 0, addedKeys: [] }) });
+    await renderKb();
+    fireEvent.click(await screen.findByRole('button', { name: KB.addStarters }));
+    return screen.findByRole('dialog');
+  };
+
+  it('opens a dialog that names the topics and puts focus on Close without adding', async () => {
+    const dialog = await open();
+    expect(screen.getByRole('heading', { name: DIALOGS.starters.title })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(fill(DIALOGS.starters.body, { n: 4 }));
+    await waitFor(() => expect(screen.getByRole('button', { name: DIALOGS.starters.keep })).toHaveFocus());
+    expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull();
+  });
+
+  it('adds the articles with one request, says Adding... meanwhile, toasts the plural and reads the list again', async () => {
+    const answer = deferred<Response>();
+    serve({ [`GET ${LIST}`]: () => docList([kbDoc()]), [`POST ${STARTERS}`]: () => answer.promise });
+    await renderKb();
+    fireEvent.click(await screen.findByRole('button', { name: KB.addStarters }));
+    fireEvent.click(await screen.findByRole('button', { name: DIALOGS.starters.confirm }));
+    fireEvent.click(await screen.findByRole('button', { name: DIALOGS.starters.pending }));
+    expect(screen.getByRole('button', { name: DIALOGS.starters.pending })).toBeDisabled();
+    answer.resolve(jsonRes({ added: 4, existing: 0, addedKeys: ['password_reset', 'vpn', 'printer', 'agent_tray'] }));
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(fill(TOASTS.startersAdded, { n: 4 }), 'success'));
+    expect(calls('POST', STARTERS)).toHaveLength(1);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(calls('GET', LIST)).toHaveLength(2);
+  });
+
+  it('toasts the singular when one starter was added and the none-to-add words when nothing was', async () => {
+    for (const [added, text] of [[1, TOASTS.startersAddedOne], [0, TOASTS.startersNone]] as const) {
+      mockFetch.mockReset(); vi.mocked(showToast).mockReset();
+      serve({ [`GET ${LIST}`]: () => docList([kbDoc()], kbFlags({ starterMissing: 1 })), [`POST ${STARTERS}`]: jsonRes({ added, existing: 4 - added, addedKeys: [] }) });
+      const out = await renderKb();
+      fireEvent.click(await screen.findByRole('button', { name: KB.addStarters }));
+      fireEvent.click(await screen.findByRole('button', { name: DIALOGS.starters.confirm }));
+      await waitFor(() => expect(showToast).toHaveBeenCalledWith(text, 'success'));
+      out.unmount();
+    }
+    expect(TOASTS.startersAddedOne.startsWith('Added 1 starter article.')).toBe(true);
+  });
+
+  it('keeps the dialog open with a red block when the server refuses', async () => {
+    serve({ [`GET ${LIST}`]: () => docList([kbDoc()]), [`POST ${STARTERS}`]: jsonRes({ detail: 'Try later.' }, 500) });
+    await renderKb();
+    fireEvent.click(await screen.findByRole('button', { name: KB.addStarters }));
+    fireEvent.click(await screen.findByRole('button', { name: DIALOGS.starters.confirm }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(fill(KB.starterFailed, { message: 'Try later' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: DIALOGS.starters.confirm })).not.toBeDisabled();
+  });
+
+  it('replaces the button with Starter IT articles added when none is missing, and shows nothing without permission', async () => {
+    serve({ [`GET ${LIST}`]: () => docList([kbDoc()], kbFlags({ starterMissing: 0 })) });
+    await renderKb();
+    expect(await screen.findByText(KB.startersAdded)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: KB.addStarters })).toBeNull();
+  });
+});
+
+// ------------------------------------------------------------------------------------------ the article dialog
+
+describe('Edit article', () => {
+  const DETAIL = { id: 'kb-1', title: 'Printer fix', content: 'Turn it off and on.', tags: ['it', 'printer'], helpdesk: true, starterKey: null, max: 30 };
+  const openEdit = async (detail: Record<string, any> = DETAIL, listDoc: Record<string, any> = {}) => {
+    serve({
+      [`GET ${LIST}`]: () => docList([kbDoc({ helpdesk: true, ...listDoc })], kbFlags({ helpdeskCount: 1 })),
+      [`GET ${PATCH_1}`]: jsonRes(detail),
+      [`PATCH ${PATCH_1}`]: jsonRes({ id: 'kb-1' }),
+    });
+    await renderKb();
+    fireEvent.click(await screen.findByRole('button', { name: /^Edit article/ }));
+    await screen.findByRole('dialog');
+  };
+  const title = () => screen.getByLabelText(KB.fieldTitle) as HTMLInputElement;
+  const content = () => screen.getByLabelText(new RegExp(`^${KB.fieldContent}`)) as HTMLTextAreaElement;
+  const save = () => screen.getByRole('button', { name: KB.saveArticle });
+
+  it('loads the stored text, shows the counter from the server limit and the Help desk checkbox with its helper', async () => {
+    await openEdit();
+    await waitFor(() => expect(content().value).toBe('Turn it off and on.'));
+    expect(title().value).toBe('Printer fix');
+    expect(screen.getByLabelText(KB.fieldTags)).toHaveValue('it, printer');
+    expect(screen.getByText(fill(KB.contentCounter, { n: 19, max: 30 }))).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: KB.helpdeskCheckbox })).toBeChecked();
+    expect(screen.getByText(KB.helpdeskHelper)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: KB.articleDialogEdit })).toBeInTheDocument();
+    expect(content().className).toContain('min-h-72');
+  });
+
+  it('says Loading article... while the text arrives and offers Try again when it cannot load', async () => {
+    serve({ [`GET ${LIST}`]: () => docList([kbDoc()]), [`GET ${PATCH_1}`]: jsonRes({ detail: 'x' }, 500) });
+    await renderKb();
+    fireEvent.click(await screen.findByRole('button', { name: /^Edit article/ }));
+    expect(await screen.findByText(KB.articleLoadFailed)).toBeInTheDocument();
+    serve({ [`GET ${LIST}`]: () => docList([kbDoc()]), [`GET ${PATCH_1}`]: jsonRes(DETAIL) });
+    fireEvent.click(screen.getByRole('button', { name: KB.tryAgain }));
+    await waitFor(() => expect(content().value).toBe('Turn it off and on.'));
+  });
+
+  it('shows the blue replace-the-wording block on a starter copy only', async () => {
+    await openEdit({ ...DETAIL, starterKey: 'vpn' }, { starterKey: 'vpn' });
+    expect(await screen.findByText(KB.starterCopyNote)).toBeInTheDocument();
+  });
+
+  it('keeps Save article off until something changes, then sends only what changed and reads the list again', async () => {
+    await openEdit();
+    await waitFor(() => expect(content().value).not.toBe(''));
+    expect(save()).toBeDisabled();
+    fireEvent.change(title(), { target: { value: 'Printer fix v2' } });
+    expect(save()).not.toBeDisabled();
+    fireEvent.click(save());
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(TOASTS.articleSaved, 'success'));
+    expect(calls('PATCH', PATCH_1)).toHaveLength(1);
+    expect(bodyOf(calls('PATCH', PATCH_1)[0])).toEqual({ title: 'Printer fix v2' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(calls('GET', LIST)).toHaveLength(2);
+  });
+
+  it('sends the Help desk mark and the tags when they change', async () => {
+    await openEdit();
+    await waitFor(() => expect(content().value).not.toBe(''));
+    fireEvent.click(screen.getByRole('checkbox', { name: KB.helpdeskCheckbox }));
+    fireEvent.change(screen.getByLabelText(KB.fieldTags), { target: { value: 'it, printer, floor 2' } });
+    fireEvent.click(save());
+    await waitFor(() => expect(calls('PATCH', PATCH_1)).toHaveLength(1));
+    expect(bodyOf(calls('PATCH', PATCH_1)[0])).toEqual({ helpdesk: false, tags: ['it', 'printer', 'floor 2'] });
+  });
+
+  it('refuses an empty title, empty text and text over the limit in plain words without sending anything', async () => {
+    await openEdit();
+    await waitFor(() => expect(content().value).not.toBe(''));
+    fireEvent.change(title(), { target: { value: '   ' } });
+    fireEvent.click(save());
+    expect(screen.getByText(VALIDATION.titleEmpty)).toBeInTheDocument();
+    fireEvent.change(title(), { target: { value: 'Printer fix' } });
+    fireEvent.change(content(), { target: { value: '  ' } });
+    fireEvent.click(save());
+    expect(screen.getByText(VALIDATION.contentEmpty)).toBeInTheDocument();
+    fireEvent.change(content(), { target: { value: 'x'.repeat(31) } });
+    fireEvent.click(save());
+    expect(screen.getByText(fill(VALIDATION.contentTooLong, { max: 30 }))).toBeInTheDocument();
+    expect(calls('PATCH', PATCH_1)).toHaveLength(0);
+  });
+
+  it('shows Saving... while it saves, then the red block with the server message when it fails', async () => {
+    const answer = deferred<Response>();
+    serve({
+      [`GET ${LIST}`]: () => docList([kbDoc({ helpdesk: true })], kbFlags({ helpdeskCount: 1 })),
+      [`GET ${PATCH_1}`]: jsonRes(DETAIL),
+      [`PATCH ${PATCH_1}`]: () => answer.promise,
+    });
+    await renderKb();
+    fireEvent.click(await screen.findByRole('button', { name: /^Edit article/ }));
+    await waitFor(() => expect(content().value).not.toBe(''));
+    fireEvent.change(title(), { target: { value: 'New title' } });
+    fireEvent.click(save());
+    expect(await screen.findByRole('button', { name: KB.saving })).toBeDisabled();
+    answer.resolve(jsonRes({ detail: 'Change at least one field.' }, 422));
+    expect(await screen.findByRole('alert')).toHaveTextContent(fill(KB.saveFailed, { message: 'Change at least one field' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(save()).not.toBeDisabled();
+  });
+
+  it('throws the edits away with Close without saving', async () => {
+    await openEdit();
+    await waitFor(() => expect(content().value).not.toBe(''));
+    fireEvent.change(title(), { target: { value: 'Changed' } });
+    fireEvent.click(screen.getByRole('button', { name: KB.closeWithoutSaving }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(calls('PATCH', PATCH_1)).toHaveLength(0);
+  });
+
+  it('offers no Edit article on a platform reference row', async () => {
+    serve({ [`GET ${LIST}`]: () => docList([kbDoc({ tenantId: 'global' })]) });
+    await renderKb();
+    await screen.findByText('Printer fix');
+    expect(screen.queryByRole('button', { name: /^Edit article/ })).toBeNull();
+  });
+});
+
+describe('Write article (create mode)', () => {
+  const NEW = '/api/knowledge/helpdesk/articles';
+
+  it('opens with the gap question as the title and Help desk ticked, and saves with the group id', async () => {
+    serve({ [`POST ${NEW}`]: jsonRes({ id: 'kb-9', title: 'T', helpdesk: true, gapsWritten: 3 }) });
+    const onSaved = vi.fn();
+    render(<ArticleEditDialog mode="write" initialTitle="How do I reset my VPN?" gapGroupId="g-1" onClose={vi.fn()} onSaved={onSaved} />);
+    expect(screen.getByRole('heading', { name: KB.articleDialogWrite })).toBeInTheDocument();
+    expect((screen.getByLabelText(KB.fieldTitle) as HTMLInputElement).value).toBe('How do I reset my VPN?');
+    expect(screen.getByRole('checkbox', { name: KB.helpdeskCheckbox })).toBeChecked();
+    expect(screen.queryByText(KB.starterCopyNote)).toBeNull();
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${KB.fieldContent}`)), { target: { value: 'Open the VPN app and choose Reset.' } });
+    fireEvent.click(screen.getByRole('button', { name: KB.saveArticle }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(bodyOf(calls('POST', NEW)[0])).toEqual({
+      title: 'How do I reset my VPN?', content: 'Open the VPN app and choose Reset.', tags: [], helpdesk: true, gapGroupId: 'g-1',
+    });
+    expect(showToast).toHaveBeenCalledWith(TOASTS.articleSavedGap, 'success');
+    expect(calls('GET', '/api/knowledge/docs/kb-9')).toHaveLength(0);
+  });
+
+  it('toasts the plain saved words when the article answers no gap', async () => {
+    serve({ [`POST ${NEW}`]: jsonRes({ id: 'kb-9', title: 'T', helpdesk: true, gapsWritten: 0 }) });
+    const onSaved = vi.fn();
+    render(<ArticleEditDialog mode="write" initialTitle="Title" onClose={vi.fn()} onSaved={onSaved} />);
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${KB.fieldContent}`)), { target: { value: 'Text' } });
+    fireEvent.click(screen.getByRole('button', { name: KB.saveArticle }));
+    await waitFor(() => expect(showToast).toHaveBeenCalledWith(TOASTS.articleSaved, 'success'));
+    expect(bodyOf(calls('POST', NEW)[0])).not.toHaveProperty('gapGroupId');
   });
 });
