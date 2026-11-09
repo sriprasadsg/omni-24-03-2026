@@ -114,7 +114,7 @@ async def get_stats(
 @router.post("/bulk")
 async def bulk_update(
     body:         BulkUpdateRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     return await tickets_service.bulk_update(
         ticket_ids=body.ticket_ids,
@@ -235,7 +235,7 @@ async def create_ticket(
 async def update_ticket(
     ticket_id:    str,
     body:         UpdateTicketRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     if "status" in data:
@@ -357,7 +357,7 @@ async def add_comment(
 async def add_link(
     ticket_id:    str,
     body:         LinkTicketRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     if body.link_type not in LINK_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid link_type. Allowed: {LINK_TYPES}")
@@ -375,7 +375,7 @@ async def add_link(
 async def remove_link(
     ticket_id:    str,
     linked_id:    str,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     updated = await tickets_service.remove_link(
         ticket_id, linked_id,
@@ -393,7 +393,7 @@ async def remove_link(
 async def log_work(
     ticket_id:    str,
     body:         LogWorkRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     updated = await tickets_service.log_work(
         ticket_id,
@@ -530,7 +530,7 @@ async def upload_attachment(
 async def delete_attachment(
     ticket_id:     str,
     attachment_id: str,
-    current_user:  TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user:  TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     ticket = await tickets_service.get_ticket(
         ticket_id, tenant_id=_effective_tenant(current_user)
@@ -562,7 +562,7 @@ async def delete_attachment(
 async def approve_ticket(
     ticket_id:    str,
     body:         ApproveRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     updated = await tickets_service.approve_ticket(
         ticket_id,
@@ -579,7 +579,7 @@ async def approve_ticket(
 async def reject_ticket(
     ticket_id:    str,
     body:         RejectRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     updated = await tickets_service.reject_ticket(
         ticket_id,
@@ -598,7 +598,7 @@ async def reject_ticket(
 async def escalate_ticket(
     ticket_id:    str,
     body:         EscalateRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     updated = await tickets_service.escalate_ticket(
         ticket_id,

@@ -7,8 +7,10 @@ entry about a comment they cannot read, on any route of tickets_endpoints.py tha
 a technician who did not raise it still gets the stored ticket and another tenant gets 404; fails_when=a
 planted staff text, draft text, withdrawn text, desk reason or draft history entry reaches the reporter on a
 route, the reporter's own comment or a requester-visible one goes missing, staff lose any of it, the
-shared case table and projection.requester_may_read disagree, or a route that returns a ticket skips the
-projection; no_claim=the UI filter (85-26) and the desk routes.
+shared case table and projection.requester_may_read disagree, a route that returns a ticket skips the
+projection, or a reporter who holds manage:tickets (ALICE_ADMIN) stops getting the requester projection on the
+staff routes while the plain requester ALICE stops getting 403 there (85-34); no_claim=the UI filter (85-26) and
+the desk routes.
 """
 import ast
 import json
@@ -246,7 +248,9 @@ async def test_the_list_projects_the_reporters_ticket_and_leaves_the_others(worl
 async def test_patch_returns_the_projection_to_the_reporter_and_the_full_ticket_to_staff(world):
     """protects=CR-401 on PATCH; fails_when=the reporter's update response carries a staff text, or staff lose it."""
     ticket_id, _ = await _plant(world)
-    response = await world.call("PATCH", f"/api/tickets/{ticket_id}", user=ALICE, json={"priority": "high"})
+    refused = await world.call("PATCH", f"/api/tickets/{ticket_id}", user=ALICE, json={"priority": "high"})
+    assert refused.status_code == 403 and (await _stored(world, ticket_id))["priority"] == "medium"       # a requester may not edit (85-34)
+    response = await world.call("PATCH", f"/api/tickets/{ticket_id}", user=ALICE_ADMIN, json={"priority": "high"})
     assert response.status_code == 200 and response.json()["priority"] == "high"
     _clean(response.text)
     staff = await world.call("PATCH", f"/api/tickets/{ticket_id}", user=BOB, json={"priority": "low"})
@@ -268,11 +272,15 @@ async def test_a_comment_by_the_reporter_comes_back_in_the_projection(world):
 async def test_the_link_routes_project_for_the_reporter(world):
     """protects=CR-401 on POST links and DELETE links; fails_when=either response carries a staff text or a desk key."""
     ticket_id, other_id = await _plant(world)
-    linked = await world.call("POST", f"/api/tickets/{ticket_id}/links", user=ALICE,
-                              json={"linked_id": other_id, "link_type": "relates_to"})
+    body = {"linked_id": other_id, "link_type": "relates_to"}
+    refused = await world.call("POST", f"/api/tickets/{ticket_id}/links", user=ALICE, json=body)
+    assert refused.status_code == 403 and (await _stored(world, ticket_id))["links"] == []              # a requester may not link (85-34)
+    linked = await world.call("POST", f"/api/tickets/{ticket_id}/links", user=ALICE_ADMIN, json=body)
     assert linked.status_code == 200 and linked.json()["links"][0]["linked_id"] == other_id
     _clean(linked.text)
-    removed = await world.call("DELETE", f"/api/tickets/{ticket_id}/links/{other_id}", user=ALICE)
+    refused = await world.call("DELETE", f"/api/tickets/{ticket_id}/links/{other_id}", user=ALICE)
+    assert refused.status_code == 403 and len((await _stored(world, ticket_id))["links"]) == 1
+    removed = await world.call("DELETE", f"/api/tickets/{ticket_id}/links/{other_id}", user=ALICE_ADMIN)
     assert removed.status_code == 200 and removed.json()["links"] == []
     _clean(removed.text)
     staff = await world.call("POST", f"/api/tickets/{ticket_id}/links", user=BOB,
@@ -283,7 +291,10 @@ async def test_the_link_routes_project_for_the_reporter(world):
 async def test_the_work_log_route_projects_for_the_reporter(world):
     """protects=CR-401 on POST work-log; fails_when=the response carries a staff text or a desk key."""
     ticket_id, _ = await _plant(world)
-    response = await world.call("POST", f"/api/tickets/{ticket_id}/work-log", user=ALICE,
+    refused = await world.call("POST", f"/api/tickets/{ticket_id}/work-log", user=ALICE,
+                               json={"hours": 1, "description": "checked"})
+    assert refused.status_code == 403 and (await _stored(world, ticket_id))["work_logs"] == []         # a requester may not log work (85-34)
+    response = await world.call("POST", f"/api/tickets/{ticket_id}/work-log", user=ALICE_ADMIN,
                                 json={"hours": 1, "description": "checked"})
     assert response.status_code == 200 and response.json()["work_logs"][0]["description"] == "checked"
     _clean(response.text)
@@ -299,7 +310,9 @@ async def test_approve_reject_and_escalate_project_whatever_the_service_returns(
     full = await _stored(world, ticket_id)
     import tickets_service
     monkeypatch.setattr(tickets_service.tickets_service, method, AsyncMock(return_value=full))
-    response = await world.call("POST", f"/api/tickets/{ticket_id}/{path}", user=ALICE, json=body)
+    refused = await world.call("POST", f"/api/tickets/{ticket_id}/{path}", user=ALICE, json=body)
+    assert refused.status_code == 403 and await _stored(world, ticket_id) == full                     # a requester may not (85-34)
+    response = await world.call("POST", f"/api/tickets/{ticket_id}/{path}", user=ALICE_ADMIN, json=body)
     assert response.status_code == 200
     _clean(response.text)
     staff = await world.call("POST", f"/api/tickets/{ticket_id}/{path}", user=BOB, json=body)
