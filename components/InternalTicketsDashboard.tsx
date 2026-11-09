@@ -20,6 +20,7 @@ import { Agent } from '../types';
 import { showToast } from '../utils/toast';
 import { TicketDraftPanel } from './serviceDesk/TicketDraftPanel';
 import { RequesterAnswerPanel } from './serviceDesk/RequesterAnswerPanel';
+import { visibleComments } from './serviceDesk/requesterComments';
 import { ReplyVisibilityPicker, CommentMarks, CommentBody } from './serviceDesk/ReplyVisibilityPicker';
 import { DeskChip } from './serviceDesk/deskUi';
 import { DRAFT_PANEL, REPLY_PICKER, fill } from './serviceDesk/serviceDeskCopy';
@@ -727,6 +728,9 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
   const overdueCount  = stats?.overdue ?? 0;
   const escalatedCnt  = stats?.escalated ?? 0;
 
+  // The Comments tab list: the reporter's own view of their ticket holds only what they may read (CR-401, D-11).
+  const shownComments = selected ? visibleComments(selected, userEmail, deskView) : [];
+
   // ── RENDER ────────────────────────────────────────────────────────────────
 
   return (
@@ -1373,7 +1377,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
               <>
                 <div className="space-y-3">
                   <p className="text-xs text-gray-500 dark:text-gray-400">{REPLY_PICKER.listNote}</p>
-                  {(selected.comments || []).filter(c => !(deskView?.isRequester && c.kind === 'ai_draft')).map(c => (
+                  {shownComments.map(c => (
                     <div key={c.id} className="bg-gray-50 dark:bg-slate-800/60 rounded-xl p-3">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-teal-600 dark:text-teal-400">{c.author}</span>
@@ -1383,7 +1387,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       <CommentMarks comment={c} />
                     </div>
                   ))}
-                  {(!selected.comments || selected.comments.length === 0) &&
+                  {shownComments.length === 0 &&
                     <p className="text-slate-500 text-sm text-center py-6">No comments yet.</p>}
                   <div ref={bottomRef}/>
                 </div>
