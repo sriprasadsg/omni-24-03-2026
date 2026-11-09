@@ -293,7 +293,9 @@ def test_the_new_routes_inherit_the_knowledge_base_guard():
     """protects=the manage:settings guard of the Knowledge Base catalogue covers the included router; fails_when=
     a viewer (no manage:settings) reaches any new route, or the tenant administrator is refused by the guard."""
     routes = [("PATCH", "/api/knowledge/docs/kb-x"), ("GET", "/api/knowledge/helpdesk/starters"),
-              ("POST", "/api/knowledge/helpdesk/starters")]
+              ("POST", "/api/knowledge/helpdesk/starters"), ("GET", "/api/knowledge/helpdesk/gaps"),
+              ("POST", "/api/knowledge/helpdesk/gaps/g/dismiss"), ("POST", "/api/knowledge/helpdesk/gaps/g/restore"),
+              ("POST", "/api/knowledge/helpdesk/articles")]
     for role in ("nobody", "viewer"):
         denied = probe_real_app([_case(p, role, method=m) for m, p in routes])
         assert denied == [403] * len(routes), (role, dict(zip(routes, denied)))

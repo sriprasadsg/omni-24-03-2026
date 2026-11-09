@@ -31,3 +31,16 @@ async def record(db, tenant_id: str, *, ticket_id: str, ticket_number: Optional[
     result = await store.gaps(db).update_one(
         {"tenantId": tenant_id, "ticketId": ticket_id, "reason": reason}, {"$setOnInsert": document}, upsert=True)
     return result.upserted_id is not None
+
+
+GROUP_THRESHOLD = 0.6
+
+
+def group(rows, threshold=GROUP_THRESHOLD, similarity=None):
+    """Skeleton: every row alone."""
+    return [[row] for row in rows]
+
+
+def group_id(members):
+    """Skeleton: the first member's id."""
+    return members[0]["id"]
