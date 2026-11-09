@@ -18,6 +18,7 @@ nothing queues forever. Every read and write goes through the raw handle with an
 """
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional
@@ -29,13 +30,14 @@ from autonomous_ops.scope import raw
 
 from . import (CALL_TIMEOUT_MAX, DEFAULT_CALL_TIMEOUT, GLOBAL_QUEUE_CAP, HANDOFF_REASONS, LOCK_RENEW_EVERY,
                LOCK_TTL_SECONDS, NUM_PREDICT, POLL_SECONDS, QUEUE_DEADLINE, TENANT_QUEUE_CAP, WORKER_LOCK, pipeline,
-               runtime, settings, store)
+               runtime, returns, settings, store)
 from .model import ModelTimeout, OllamaClient
 from .sanitize import build_prompt
 
 logger = logging.getLogger(__name__)
 
 STALE_RUNNING_SECONDS = CALL_TIMEOUT_MAX + 60
+SWEEP_EVERY_SECONDS = 3600                # the return to a person is checked once an hour
 PASS_LIMIT = 200                          # waiting jobs looked at in one pass (the caps keep the real queue far smaller)
 DROPPED_OUTCOMES = ("ticket_missing", "desk_off", "error", "stale_running")    # no answer and no hand-off to report
 _REQUIRED_INDEXES = (("service_desk_jobs", "one_attempt_per_ticket"), ("knowledge_docs", "one_starter_copy"))
@@ -263,17 +265,38 @@ async def run_once(db, *, client: Optional[OllamaClient] = None, now: Optional[d
     return counts
 
 
-async def desk_loop(get_db: Optional[Callable[[], Any]] = None, sleep=asyncio.sleep) -> None:
-    """Run a pass every POLL_SECONDS. A failing pass is logged and the loop goes on."""
+async def _guarded(label: str, awaitable) -> Any:
+    """Await one part of a loop turn; a failure is logged and the loop goes on (cancellation is not swallowed)."""
+    try:
+        return await awaitable
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.error("service_desk: %s failed: %s", label, exc)
+        return None
+
+
+async def desk_loop(get_db: Optional[Callable[[], Any]] = None, sleep=asyncio.sleep,
+                    monotonic: Callable[[], float] = time.monotonic) -> None:
+    """Run a pass every POLL_SECONDS and the three-working-day return (``returns.sweep_due``) at most once an hour
+    (the first time at the first turn, so a restart catches up). A failing pass or sweep is logged and the loop
+    goes on."""
     if get_db is None:
         from database import get_database as get_db
+    last_sweep: Optional[float] = None
     while True:
         try:
-            counts = await run_once(get_db())
+            db = get_db()
+        except Exception as exc:
+            logger.error("service_desk: the database is not available: %s", exc)
+            db = None
+        if db is not None:
+            counts = await _guarded("the pass", run_once(db))
             if counts and counts["jobs"]:
                 logger.info("service_desk: pass %s", {k: v for k, v in counts.items() if k != "jobs"})
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            logger.error("service_desk: pass failed: %s", exc)
+            if last_sweep is None or monotonic() - last_sweep >= SWEEP_EVERY_SECONDS:
+                last_sweep = monotonic()
+                swept = await _guarded("the return sweep", returns.sweep_due(db, now=datetime.now(timezone.utc)))
+                if swept and swept.get("returned"):
+                    logger.info("service_desk: %s ticket(s) returned to a person after no reply", swept["returned"])
         await sleep(POLL_SECONDS)
