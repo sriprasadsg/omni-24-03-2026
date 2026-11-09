@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from service_desk import DRAFT_REASONS, GAP_REASONS, HANDOFF_REASONS, handoff, messages, notify, store
+from service_desk import DRAFT_REASONS, GAP_REASONS, HANDOFF_REASONS, gaps, handoff, messages, notify, store
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
 NOW = datetime(2026, 11, 8, 10, 0, tzinfo=timezone.utc)
@@ -275,3 +275,77 @@ async def test_the_notice_never_raises(world, monkeypatch):
     monkeypatch.setattr(notification_service.NotificationService, "send_alert",
                         AsyncMock(side_effect=RuntimeError("down")))
     assert await notify.requester_notice(world, _ticket(), event="x") is False
+
+
+# ---------------------------------------------------------------- the gap rows
+
+async def _gaps(db, tenant="t1"):
+    return await db.service_desk_gaps.find({"tenantId": tenant}, {"_id": 0}).to_list(50)
+
+
+async def test_only_no_article_and_not_english_leave_a_gap_row(world):
+    """protects=D-26: a gap exists exactly for the two gap reasons; fails_when=any other reason writes one."""
+    db = world
+    seen = set()
+    for number, reason in enumerate(HANDOFF_REASONS, start=1):
+        ticket = await _seed(db, number=number)
+        await handoff.handoff(db, ticket, reason, now=NOW)
+        if await db.service_desk_gaps.count_documents({"ticketId": ticket["id"]}):
+            seen.add(reason)
+    assert seen == {"no_article", "not_english"} == set(GAP_REASONS)
+
+
+async def test_a_gap_row_holds_the_cleaned_question_cut_to_300_characters(world):
+    db = world
+    long_title = "How do I connect? See https://intranet.example.com/vpn or mail it@example.com " + "x" * 400
+    ticket = await _seed(db, title=long_title)
+    await handoff.handoff(db, ticket, "no_article", now=NOW)
+    (row,) = await _gaps(db)
+    assert row["reason"] == "no_article" and row["status"] == "open" and row["id"].startswith("SDG-")
+    assert (row["ticketId"], row["ticketNumber"], row["tenantId"]) == ("k1", "TKT-0001", "t1")
+    assert len(row["text"]) <= 300 and row["text"].startswith("How do I connect?")
+    assert "http" not in row["text"] and "@" not in row["text"]
+    assert isinstance(row["createdAt"], datetime)
+
+
+async def test_the_caller_can_hand_over_the_question_and_not_english_is_kept(world):
+    db = world
+    ticket = await _seed(db, title="Hola", description="No puedo entrar")
+    await handoff.handoff(db, ticket, "not_english", now=NOW, question="Hola. No puedo entrar")
+    (row,) = await _gaps(db)
+    assert (row["reason"], row["text"]) == ("not_english", "Hola. No puedo entrar")
+
+
+async def test_a_second_hand_off_for_the_same_ticket_and_reason_writes_no_second_gap(world):
+    db = world
+    ticket = await _seed(db)
+    await handoff.handoff(db, ticket, "no_article", now=NOW)
+    await handoff.handoff(db, ticket, "no_article", now=NOW)
+    assert await gaps.record(db, "t1", ticket_id="k1", ticket_number="TKT-0001", text="again", reason="no_article",
+                             now=NOW) is False
+    assert len(await _gaps(db)) == 1
+    await handoff.handoff(db, ticket, "not_english", now=NOW)           # another reason is another row
+    assert sorted(g["reason"] for g in await _gaps(db)) == ["no_article", "not_english"]
+
+
+async def test_record_refuses_a_reason_that_is_not_a_gap_reason(world):
+    for reason in ("fulfilment_request", "security_topic", "busy", ""):
+        with pytest.raises(ValueError):
+            await gaps.record(world, "t1", ticket_id="k1", ticket_number="TKT-0001", text="x", reason=reason, now=NOW)
+    assert await _gaps(world) == []
+
+
+async def test_an_empty_question_leaves_no_row_but_the_hand_off_still_happens(world):
+    ticket = await _seed(world, title="")
+    assert await handoff.handoff(world, ticket, "no_article", now=NOW) is True
+    assert await _gaps(world) == []
+    assert len(await _rows(world)) == 1
+
+
+async def test_a_gap_row_is_kept_per_tenant(world):
+    mine = await _seed(world, number=1)
+    other = await _seed(world, number=2, tenant="t2")
+    await handoff.handoff(world, mine, "no_article", now=NOW)
+    await handoff.handoff(world, other, "no_article", now=NOW)
+    assert [g["ticketId"] for g in await _gaps(world, "t1")] == ["k1"]
+    assert [g["ticketId"] for g in await _gaps(world, "t2")] == ["k2"]

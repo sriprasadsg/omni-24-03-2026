@@ -8,7 +8,8 @@ Every escalation path ends here: the rules, no match, the model offline or busy,
 * adds one staff-only note naming the reason and, unless there is no one to read it, one plain notice
   for the requester that never names the reason (T-85-42);
 * marks the ticket ``desk.phase = handed_off`` and keeps the reason in ``desk.lastReason``;
-* writes one audited ledger row (D-24).
+* writes one audited ledger row (D-24);
+* keeps the cleaned question for the knowledge-gap list when no article covered it or it was not English (D-26).
 
 It pages no one and never raises the ticket's priority (D-22, T-85-43). Each step is wrapped on its own, so a
 failing write is logged and the rest still runs: the ticket must reach a person. Calling it again for the
@@ -20,7 +21,7 @@ from typing import Any, Dict, Optional
 
 from autonomous_ops import ledger
 from autonomous_ops.scope import raw, tenant_scope
-from service_desk import HANDOFF_REASONS, SYSTEM_AUTHOR, messages, projection, ticket_writes
+from service_desk import GAP_REASONS, HANDOFF_REASONS, SYSTEM_AUTHOR, gaps, messages, projection, ticket_writes
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,12 @@ async def _assign(db, ticket: Dict[str, Any], tenant: str, ticket_id: str) -> No
 
 
 async def handoff(db, ticket: Dict[str, Any], reason: str, *, now: Optional[datetime] = None,
-                  notify_requester: bool = True, actor: Optional[Dict[str, Any]] = None) -> bool:
+                  notify_requester: bool = True, actor: Optional[Dict[str, Any]] = None,
+                  question: Optional[str] = None) -> bool:
     """Send ``ticket`` to a person for ``reason`` (one of ``HANDOFF_REASONS``; ValueError otherwise).
-    True when this call recorded the hand-off, False when it had been recorded before."""
+    True when this call recorded the hand-off, False when it had been recorded before. ``question`` is the
+    text kept for the gap list when the reason is a gap reason; it defaults to the ticket title and is
+    cleaned and cut by ``gaps.record``."""
     if reason not in HANDOFF_REASONS:
         raise ValueError(f"not a hand-off reason: {reason!r}")
     tenant, ticket_id = ticket.get("tenantId"), ticket.get("id")
@@ -88,4 +92,11 @@ async def handoff(db, ticket: Dict[str, Any], reason: str, *, now: Optional[date
             activity_result=messages.ACTIVITY["handoff_result"].format(number=number), actor=actor, now=now)
     except Exception as exc:
         logger.error("service_desk: the hand-off of ticket %s was not recorded: %s", ticket_id, exc)
+
+    if reason in GAP_REASONS:
+        try:
+            await gaps.record(db, tenant, ticket_id=ticket_id, ticket_number=ticket.get("ticket_number"),
+                              text=question if question is not None else ticket.get("title"), reason=reason, now=now)
+        except Exception as exc:
+            logger.error("service_desk: the gap row for ticket %s was not saved: %s", ticket_id, exc)
     return True
