@@ -169,6 +169,10 @@ API_DETAIL: Dict[str, str] = {
     "article_content": "Enter the article text.",
     "article_too_long": "The article is over {max} characters. Shorten it.",
     "edit_unchanged": "Change the text, or use Send as is.",
+    "draft_empty": "Enter the answer text.",
+    "draft_too_long": "The answer is over {max} characters. Shorten it.",
+    "help_too_long": "Use up to {max} characters.",
+    "article_not_found": "Article not found.",
     "mode_invalid": "Choose Off, Drafts only or Post answers.",
     "not_tripped": "Post answers doesn't need restoring.",
 }

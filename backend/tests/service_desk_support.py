@@ -90,7 +90,7 @@ class DeskApp:
         import service_desk_endpoints
         self.db = db
         self.user = None
-        for module in (tickets_service, tickets_config_mixin, tickets_endpoints):
+        for module in (tickets_service, tickets_config_mixin, tickets_endpoints, service_desk_endpoints):
             monkeypatch.setattr(module, "get_database", lambda: db)
         rbac_db = _mock_rbac_db()
         monkeypatch.setattr(rbac_service, "get_database", lambda: rbac_db)
