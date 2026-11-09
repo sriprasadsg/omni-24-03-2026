@@ -61,6 +61,35 @@ def _validate_webhook_url(url: str) -> bool:
         return False
 
 
+def _reader_names(current_user: Any) -> List[str]:
+    """The reader's username and email, stripped and casefolded (empties dropped): how a notice names a person."""
+    return [n for n in (str(getattr(current_user, f, "") or "").strip().casefold() for f in ("username", "email")) if n]
+
+
+async def _reader_filter(current_user: Any, tenant_id: str) -> Dict[str, Any]:
+    """The notices ``current_user`` may read: the one filter of the list, mark-read, read-all and delete routes,
+    so nobody can change a notice they cannot read (D-33, WR-202)."""
+    query: Dict[str, Any] = {"tenantId": tenant_id}
+    # Alerts addressed to tenant admins (e.g. agents waiting for approval, spec C3) carry
+    # host details; users who cannot manage agents don't get them.
+    perms = await rbac_service.get_user_permissions(current_user)
+    if "*" not in perms and "manage:agents" not in perms:
+        query["metadata.audience"] = {"$ne": "tenant_admins"}
+    # A notice addressed to one person (metadata.recipient, stored lowercase) is read by that person only;
+    # notices with no recipient stay tenant-wide as before (D-33). A staff-only comment notice names the
+    # ticket's reporter in metadata.excludeRecipients and is never read by them (WR-201).
+    me = _reader_names(current_user)
+    query["$and"] = [
+        {"$or": [
+            {"metadata.recipient": {"$exists": False}},
+            {"metadata.recipient": None},
+            {"metadata.recipient": {"$in": me}},
+        ]},
+        {"metadata.excludeRecipients": {"$nin": me}},
+    ]
+    return query
+
+
 @router.get("")
 async def get_notifications(
     current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
@@ -69,20 +98,7 @@ async def get_notifications(
     """Get recent notifications for a tenant"""
     db = get_database()
     tenant_id = get_tenant_id()
-    query: Dict[str, Any] = {"tenantId": tenant_id}
-    # Alerts addressed to tenant admins (e.g. agents waiting for approval, spec C3) carry
-    # host details; users who cannot manage agents don't get them.
-    perms = await rbac_service.get_user_permissions(current_user)
-    if "*" not in perms and "manage:agents" not in perms:
-        query["metadata.audience"] = {"$ne": "tenant_admins"}
-    # A notice addressed to one person (metadata.recipient, stored lowercase) is read by that person only;
-    # notices with no recipient stay tenant-wide as before (D-33).
-    me = [n for n in (str(getattr(current_user, f, "") or "").strip().casefold() for f in ("username", "email")) if n]
-    query["$and"] = [{"$or": [
-        {"metadata.recipient": {"$exists": False}},
-        {"metadata.recipient": None},
-        {"metadata.recipient": {"$in": me}},
-    ]}]
+    query = await _reader_filter(current_user, tenant_id)
     notifications = await db.notifications.find(
         query,
         {"_id": 0}
