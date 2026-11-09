@@ -14,8 +14,8 @@ starter articles (D-28): a unique (tenantId, starterKey) index plus an upsert wi
 a double press or two admins at once leave one copy of each.
 
 The knowledge-gap list (D-26, D-27): the questions the desk could not answer, grouped by text similarity. It shows
-requesters' questions to authors, so every gap route needs BOTH view:dashboard (ticket access) and manage:ai_risks
-(Knowledge Base editing) on top of the router guard. A group is found again by grouping the same rows.
+requesters' questions to authors, so every gap route needs BOTH manage:tickets (ticket access: ticket staff, G-85-4
+UD-1) and manage:ai_risks (Knowledge Base editing) on top of the router guard. A group is found again by grouping the same rows.
 """
 import logging
 import uuid
@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from pymongo.errors import DuplicateKeyError
 
+import ticket_access
 from auth_types import TokenData
 from autonomous_ops import PLATFORM_TENANT_ID
 from autonomous_ops.scope import raw
@@ -210,9 +211,11 @@ async def add_starters(
 
 
 async def _require_ticket_access(
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> TokenData:
-    """D-27: a Knowledge Base editor without ticket access must not read what requesters asked."""
+    """D-27 with G-85-4 UD-1: ticket access is ticket staff (manage:tickets), because view:dashboard no longer
+    lets anyone read other people's tickets; a Knowledge Base editor who is not ticket staff must not read what
+    requesters asked."""
     return current_user
 
 
