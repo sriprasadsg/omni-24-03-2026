@@ -25,7 +25,7 @@ validated: "2026-11-09"
 | **Quick run command** | `backend/venv/bin/python -m pytest backend/tests/test_service_desk_sanitize.py backend/tests/test_service_desk_rules.py backend/tests/test_service_desk_retrieval.py backend/tests/test_service_desk_output_checks.py -q -p no:cacheprovider` (pure tests, no DB) |
 | **Full suite command** | `MONGO_TEST_URL=mongodb://127.0.0.1:27998 MONGODB_URL=mongodb://127.0.0.1:27998 MONGO_URI=mongodb://127.0.0.1:27998 TICKET_ATTACHMENT_DIR=$(mktemp -d) FILE_SHARE_DIR=$(mktemp -d) backend/venv/bin/python -m pytest backend/tests/test_service_desk_*.py backend/tests/test_autonomous_ops_*.py backend/tests/test_catalogue_slice_autonomous_ops.py backend/tests/test_catalogue_slice_billing_identity.py backend/tests/test_catalogue_slice_agents.py backend/tests/test_catalogue_slice_agents_dataplane.py backend/tests/test_catalogue_route_parity.py backend/tests/test_route_auth_baseline.py backend/tests/test_tickets.py backend/tests/test_notification_service.py backend/tests/test_patch_rollout_activity.py -q -p no:cacheprovider`; UI `npx vitest run src/__tests__` and `npm run build` |
 | **Rust (agent 2.1.18)** | `PATH=$HOME/.cargo/bin:$PATH CARGO_BUILD_JOBS=1 CARGO_PROFILE_DEV_DEBUG=0 CARGO_TARGET_DIR=agent-install/omni-agent-rs/target/nodebug cargo test --offline --manifest-path agent-install/omni-agent-rs/Cargo.toml --lib tray_` and `cargo check --offline --manifest-path agent-install/omni-agent-rs/Cargo.toml --lib --target x86_64-pc-windows-gnu` |
-| **Estimated runtime** | ~30 seconds per quick run; about 20 minutes for the full backend list on the private mongod (1,955 tests), about 4 minutes for vitest |
+| **Estimated runtime** | ~30 seconds per quick run; about 20 minutes for the full backend list on the private mongod (2,179 tests after the gap round), about 4 minutes for vitest |
 
 DB tests must use a private mongod, never the live one on 27017: `GLIBC_TUNABLES=glibc.pthread.rseq=1 /usr/bin/mongod --dbpath <scratch> --port 27998 --bind_ip 127.0.0.1 --fork --logpath <scratch>/m.log --pidfilepath <scratch>/m.pid`.
 
@@ -73,6 +73,12 @@ Requirement-level map from `85-RESEARCH.md` § Validation Architecture, with the
 | 85-22 T1-T2 (added) | 85-22 | 5 | DESK-02, DESK-03, DESK-05 | T-85-80, T-85-81 | Operator script: loopback only, only `--measure` writes, own foreign-fragment detector, calibrate writes nothing | unit + mongo | `pytest backend/tests/test_service_desk_eval_script.py` | ✅ | ✅ green |
 | 85-02 T3 (added) | 85-02 | 1 | D-05, D-06 | T-85-08 | The frozen tray-to-server contract pinned by literals | unit | `pytest backend/tests/test_service_desk_tray_contract.py` | ✅ | ✅ green |
 | 85-19 T3 (added) | 85-19 | 5 | D-05, D-06 | T-85-08 | Server routes agree with the frozen contract and the copy gate and catalogue ratchets | integration | `pytest backend/tests/test_service_desk_tray_server_contract.py backend/tests/test_autonomous_ops_copy.py backend/tests/test_catalogue_route_parity.py` | ✅ | ✅ green |
+| 85-24 (gap) | 85-24 | 5 | DESK-03 | T-85-87, T-85-88, T-85-89 | A hidden or compatibility character never hides a foreign link or address from the output checks; the loopback model client ignores environment proxies and redirects | unit + integration | `pytest backend/tests/test_service_desk_output_fold.py backend/tests/test_service_desk_model.py` | ✅ | ✅ green |
+| 85-25 (gap) | 85-25 | 5 | DESK-01 | T-85-90, T-85-91, T-85-92, T-85-93 | The reporter's ticket reads without the staff side on every route that returns a ticket; a technician or another tenant is unchanged | integration (http) | `pytest backend/tests/test_service_desk_reporter_ticket.py` | ✅ | ✅ green |
+| 85-26 (gap) | 85-26 | 5 | DESK-01 | T-85-94, T-85-95 | The requester's Comments tab never renders a staff-only comment or an unsent draft, on first paint or after a failed desk read | component | `npx vitest run src/__tests__/ServiceDeskRequesterComments.test.tsx` | ✅ | ✅ green |
+| 85-27 (gap) | 85-27 | 5 | DESK-01, DESK-05 | T-85-96, T-85-97 | A failed desk write after the answer is repaired and never handed off; a lost status move refuses the send | integration (injected failures) | `pytest backend/tests/test_service_desk_write_order.py` | ✅ | ✅ green |
+| 85-28 (gap) | 85-28 | 5 | DESK-01 | T-85-98, T-85-99, T-85-100, T-85-101 | A staff-only notice never reaches the reporter in the feed or on the socket; mark-read, read-all and delete use the reader's own filter | integration (http) | `pytest backend/tests/test_service_desk_notification_audience.py backend/tests/test_service_desk_comments.py` | ✅ | ✅ green |
+| 85-29 (gap) | 85-29 | 5 | DESK-05, DESK-06 | T-85-102, T-85-103, T-85-104 | An article from a gap must be a Help desk article (422, nothing claimed); fixtures leave out the 90-day TTL indexes; `--sets` opens no database | integration + unit | `pytest backend/tests/test_service_desk_knowledge_gaps.py backend/tests/test_service_desk_worker.py backend/tests/test_service_desk_eval_script.py` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -120,3 +126,5 @@ Requirement-level map from `85-RESEARCH.md` § Validation Architecture, with the
 | Gaps found | 0 |
 | Resolved | 0 |
 | Escalated | 0 |
+
+Gap round (plans 85-24 to 85-29), 2026-11-09: the full backend list on the private mongod passed 2179 tests with 0 failed and 0 skipped, `npx vitest run src/__tests__` passed 1873 tests in 117 files with 0 failed, and `npm run build` exited 0. Gaps found 0, resolved 0, escalated 0.

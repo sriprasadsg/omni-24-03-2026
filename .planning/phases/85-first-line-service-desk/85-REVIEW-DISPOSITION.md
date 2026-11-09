@@ -37,7 +37,7 @@ findings:
     title: "addressed notices can be marked read or deleted by any tenant user"
   - id: WR-203
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "writing an article from a gap with `helpdesk: false` marks the gap group written although the desk can never use the article"
   - id: IN-201
     severity: info
@@ -57,15 +57,15 @@ findings:
     title: "body-size bounds on the new Knowledge Base models are checked after full parsing"
   - id: WR-301
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A fixed \"now\" plus a 90-day TTL index makes the worker and hand-off tests flaky after about 2027-02-06"
   - id: WR-302
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The migration-number assertion breaks as soon as migration 033 ships"
   - id: WR-303
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The claim that `--sets` makes no database connection is not actually tested"
   - id: IN-301
     severity: info
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 21
+open: 17
 total: 28
 recorded: 2026-11-09T10:13:07.744Z
 ---
@@ -132,14 +132,14 @@ recorded: 2026-11-09T10:13:07.744Z
 | IN-102 | info | open | - |
 | WR-201 | warning | fixed | fixed 9840a7fdf, b49c68fa4 (85-28) |
 | WR-202 | warning | fixed | fixed 89f7786bd (85-28) |
-| WR-203 | warning | open | - |
+| WR-203 | warning | fixed | fixed 9cbe72e1b (85-29) |
 | IN-201 | info | open | - |
 | IN-202 | info | open | - |
 | IN-203 | info | open | - |
 | IN-204 | info | open | - |
-| WR-301 | warning | open | - |
-| WR-302 | warning | open | - |
-| WR-303 | warning | open | - |
+| WR-301 | warning | fixed | fixed 57325f0e7 (85-29) |
+| WR-302 | warning | fixed | fixed 57325f0e7 (85-29) |
+| WR-303 | warning | fixed | fixed 57325f0e7 (85-29) |
 | IN-301 | info | open | - |
 | IN-302 | info | open | - |
 | IN-303 | info | open | - |
