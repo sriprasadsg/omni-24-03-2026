@@ -192,7 +192,7 @@ async def _notices(db, event):
 
 async def test_a_staff_comment_notice_has_no_text_and_does_not_address_the_reporter(world, monkeypatch):
     """protects=T-85-26; fails_when=any part of the staff comment is in the notice, the reporter is a recipient,
-    or the notice is not tagged for ticket staff."""
+    the notice is not tagged for ticket staff, or the staff notice goes out on the tenant-wide socket (WR-201)."""
     sent = await _spy_recipients(monkeypatch)
     ticket = await _raise(world)
     await world.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"watchers": ["carol@x.co", "alice@x.co"]}})
@@ -206,8 +206,8 @@ async def test_a_staff_comment_notice_has_no_text_and_does_not_address_the_repor
     assert len(sent) == 1 and sent[0]["message"] == "New staff comment on ticket 'My laptop will not start'"
     assert "alice@x.co" not in sent[0]["recipients"] and "carol@x.co" in sent[0]["recipients"]
     comment_pushes = [p for p in world.pushed if p["metadata"].get("event") == "ticket_comment_added"]
-    assert len(comment_pushes) == 1 and "hunter2" not in json.dumps(world.pushed)
-    assert comment_pushes[0]["message"] == sent[0]["message"]
+    assert comment_pushes == [] and "hunter2" not in json.dumps(world.pushed)     # the socket reaches the reporter too
+    assert "bob@x.co" not in json.dumps(world.pushed)
 
 
 async def test_a_requester_comment_notice_keeps_the_preview_and_names_the_reporter(world, monkeypatch):

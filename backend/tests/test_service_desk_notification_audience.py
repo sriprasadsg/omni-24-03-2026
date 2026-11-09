@@ -84,3 +84,34 @@ async def test_a_staff_notice_of_a_ticket_with_no_reporter_reaches_everyone(worl
     assert len(notices) == 1 and not notices[0]["metadata"].get("excludeRecipients")
     for user in (ALICE, BOB, CAROL):
         assert len(_comment_notices(await _feed(world.db, user))) == 1
+
+
+# ---------------------------------------------------------------- Task 2: the socket
+
+async def test_a_staff_comment_is_not_pushed_on_the_tenant_socket_at_all(world):
+    """protects=WR-201 socket / T-85-98; fails_when=any push carries the staff notice (its event, ticket id,
+    excluded address or the author's name) to the tenant's sockets, or the notice is no longer stored once."""
+    await _staff_comment_world(world)
+    assert len(await _notices(world.db, "ticket_comment_added")) == 1
+    pushed = json.dumps(world.pushed)
+    assert [p for p in world.pushed if (p["metadata"] or {}).get("event") == "ticket_comment_added"] == []
+    assert "ticket_staff" not in pushed and "alice@x.co" not in pushed and "bob@x.co" not in pushed
+
+
+async def test_a_requester_reply_keeps_its_blank_push_for_the_recipient(world):
+    """protects=D-33 socket; fails_when=the recipient notice stops being pushed, or its message goes out."""
+    ticket = await _raise(world)
+    assert (await _comment(world, ticket["id"], REPLY, visibility="requester")).status_code == 200
+    await _drain()
+    pushes = [p for p in world.pushed if p["metadata"].get("event") == "ticket_comment_added"]
+    assert len(pushes) == 1 and pushes[0]["metadata"]["recipient"] == "alice@x.co" and pushes[0]["message"] == ""
+
+
+@pytest.mark.parametrize("metadata", [None, {"event": "x"}, {"audience": "tenant_admins"}])
+async def test_other_notices_are_still_pushed_with_their_full_text(world, metadata):
+    """protects=the push of every notice that is not a staff-only comment; fails_when=a notice without the
+    ticket_staff audience stops being pushed or loses its title or message."""
+    from notification_service import get_notification_service
+    await get_notification_service(world.db).send_alert(
+        title="T", message="M", severity="info", recipients=[], tenant_id="t1", channels=[], metadata=metadata)
+    assert len(world.pushed) == 1 and world.pushed[0]["title"] == "T" and world.pushed[0]["message"] == "M"
