@@ -4,8 +4,8 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: executing
-stopped_at: Completed 85-29-PLAN.md
+status: human_needed
+stopped_at: Phase 85 re-verified human_needed 7/7 after gap closure (CR-101, CR-401 closed); 4 UAT items in 85-UAT.md
 last_updated: "2026-11-09T17:17:20.159Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 85 plan 85-29 complete (WR-203, WR-301..303 and the gap-round gate; code review, regression and verifier next)
@@ -987,10 +987,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 29 of 29 done (gap-closure plans complete; phase verification next)
-Status: Ready to execute
-Last activity: 2026-11-09 — Phase 85 plan 85-28 complete (WR-201 and WR-202 fixed: notice audience in the feed, on the socket and on the write routes); next 85-29
+Phase: 85 (First-Line Service Desk) — HUMAN VERIFICATION NEEDED
+Plan: 29 of 29 done (gap-closure plans 85-24..85-29 complete; re-verified human_needed 7/7)
+Status: Human verification needed — next /gsd-verify-work 85 (4 items in 85-UAT.md)
+Last activity: 2026-11-09 — Phase 85 gap round executed (85-24..85-29), security re-audited (101 closed), gap-round code review (1 critical CR-501, 4 warnings, advisory), re-verified human_needed 7/7
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
