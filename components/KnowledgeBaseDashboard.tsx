@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
+import type { KbDocFlags } from '../services/serviceDesk/types';
+import { HealthNotice } from './serviceDesk/deskUi';
+import { HelpDeskChips, HelpDeskToggle, SharedReferenceLine } from './serviceDesk/HelpDeskToggle';
+import { KB, fill } from './serviceDesk/serviceDeskCopy';
+import { InfoIcon } from './icons';
 
 interface KBDoc {
   id: string;
@@ -10,7 +15,19 @@ interface KBDoc {
   createdAt: string;
   snippet?: string;
   relevance?: number;
+  /** Phase 85: the service desk may quote this article (never true on a platform article). */
+  helpdesk?: boolean;
+  starterKey?: string | null;
+  updatedAt?: string;
+  /** "global" marks a platform reference article. */
+  tenantId?: string;
 }
+
+/** What the server says about the caller and the desk; with an older server every flag reads off. */
+const NO_FLAGS: KbDocFlags = { canManageArticles: false, canSeeGaps: false, helpdeskCount: 0, starterMissing: 0, deskOff: true };
+
+const tabClass = (active: boolean) =>
+  `px-3 py-1.5 rounded-lg text-sm font-medium ${active ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`;
 
 interface SearchResult extends KBDoc {
   snippet: string;
@@ -25,8 +42,9 @@ export default function KnowledgeBaseDashboard() {
   const [showIngest, setShowIngest] = useState(false);
   const [ingestForm, setIngestForm] = useState({ title: '', content: '', source: '', tags: '' });
   const [ingesting, setIngesting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'browse' | 'search'>('browse');
+  const [activeTab, setActiveTab] = useState<'browse' | 'search' | 'helpdesk'>('browse');
   const [total, setTotal] = useState(0);
+  const [flags, setFlags] = useState<KbDocFlags>(NO_FLAGS);
 
   useEffect(() => { loadDocs(); }, []);
 
@@ -36,6 +54,13 @@ export default function KnowledgeBaseDashboard() {
       const d = await r.json();
       setDocs(d.docs || []);
       setTotal(d.count || 0);
+      setFlags({
+        canManageArticles: d.canManageArticles === true,
+        canSeeGaps: d.canSeeGaps === true,
+        helpdeskCount: Number(d.helpdeskCount) || 0,
+        starterMissing: Number(d.starterMissing) || 0,
+        deskOff: d.deskOff === true,
+      });
     } catch (e) { console.error(e); }
   }
 
@@ -85,12 +110,33 @@ export default function KnowledgeBaseDashboard() {
     setResults(prev => prev.filter(r => r.id !== id));
   }
 
+  /** The Help desk switch saved: show the new state and move the count by one without asking the server again. */
+  function markChanged(id: string, next: boolean) {
+    setDocs(prev => prev.map(d => (d.id === id ? { ...d, helpdesk: next } : d)));
+    setFlags(prev => ({ ...prev, helpdeskCount: Math.max(0, prev.helpdeskCount + (next ? 1 : -1)) }));
+  }
+
+  const manage = flags.canManageArticles;
+  const shown = activeTab === 'helpdesk' ? docs.filter(d => d.helpdesk) : docs;
+
   return (
     <div className="p-6 bg-transparent dark:bg-gray-900 min-h-screen text-gray-900 dark:text-white">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Knowledge Base</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">RAG-powered knowledge store — ingest docs, runbooks, policies, and query them with AI</p>
+          {manage && (
+            flags.helpdeskCount === 0 && !flags.deskOff ? (
+              <div className="mt-2 max-w-3xl">
+                <HealthNotice tone="amber" role="status"><p>{KB.noHelpdeskArticles}</p></HealthNotice>
+              </div>
+            ) : (
+              <p className="mt-2 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                <InfoIcon size={12} aria-hidden="true" />
+                {flags.helpdeskCount === 1 ? KB.readinessOne : fill(KB.readiness, { k: flags.helpdeskCount })}
+              </p>
+            )
+          )}
         </div>
         <button onClick={() => setShowIngest(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
           + Ingest Document
@@ -114,10 +160,14 @@ export default function KnowledgeBaseDashboard() {
       </div>
 
       <div className="flex gap-2 mb-4">
-        <button onClick={() => setActiveTab('browse')}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'browse' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
-          All Documents ({total})
+        <button onClick={() => setActiveTab('browse')} className={tabClass(activeTab === 'browse')}>
+          {fill(KB.filterAll, { total })}
         </button>
+        {manage && (
+          <button onClick={() => setActiveTab('helpdesk')} className={tabClass(activeTab === 'helpdesk')}>
+            {fill(KB.filterHelpDesk, { k: flags.helpdeskCount })}
+          </button>
+        )}
         {results.length > 0 && (
           <button onClick={() => setActiveTab('search')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'search' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
@@ -126,8 +176,10 @@ export default function KnowledgeBaseDashboard() {
         )}
       </div>
 
-      {activeTab === 'browse' && (
-        docs.length === 0 ? (
+      {(activeTab === 'browse' || activeTab === 'helpdesk') && (
+        shown.length === 0 && activeTab === 'helpdesk' ? (
+          <p className="py-10 text-center text-sm text-gray-600 dark:text-gray-400">{KB.filterHelpDeskEmpty}</p>
+        ) : docs.length === 0 ? (
           <div className="text-center py-20 text-gray-500 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-5xl mb-4">📚</div>
             <p className="text-lg">No documents in knowledge base</p>
@@ -138,10 +190,15 @@ export default function KnowledgeBaseDashboard() {
           </div>
         ) : (
           <div className="space-y-2">
-            {docs.map(doc => (
+            {shown.map(doc => {
+              const platform = doc.tenantId === 'global';
+              return (
               <div key={doc.id} className="bg-white dark:bg-gray-800 rounded-xl px-5 py-4 border border-gray-200 dark:border-gray-700 flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{doc.title || 'Untitled'}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-medium break-words">{doc.title || 'Untitled'}</h3>
+                    <HelpDeskChips helpdesk={doc.helpdesk === true} starter={!!doc.starterKey} platform={platform} />
+                  </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-600 dark:text-gray-400">
                     <span>Source: {doc.source}</span>
                     <span>Added: {new Date(doc.createdAt).toLocaleDateString()}</span>
@@ -153,11 +210,19 @@ export default function KnowledgeBaseDashboard() {
                       ))}
                     </div>
                   )}
+                  {manage && platform && <div className="mt-2"><SharedReferenceLine /></div>}
                 </div>
-                <button onClick={() => deleteDoc(doc.id)}
-                  className="text-gray-600 hover:text-red-600 dark:hover:text-red-400 text-xs shrink-0">Delete</button>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  {manage && !platform && (
+                    <HelpDeskToggle docId={doc.id} title={doc.title || 'Untitled'} checked={doc.helpdesk === true}
+                      onChanged={next => markChanged(doc.id, next)} />
+                  )}
+                  <button onClick={() => deleteDoc(doc.id)}
+                    className="text-gray-600 hover:text-red-600 dark:hover:text-red-400 text-xs shrink-0">Delete</button>
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )
       )}
