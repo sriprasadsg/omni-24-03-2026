@@ -89,7 +89,9 @@ class NotificationService:
 
         # Push to live WS clients (non-fatal). Skipped when broadcast module
         # is unavailable (e.g. CLI/test invocations without an event loop).
-        if tenant_id:
+        # A staff-only comment notice (metadata.audience ticket_staff) is not pushed at all: the tenant socket
+        # reaches every user and cannot leave the ticket's reporter out, so it is read from the feed only (WR-201).
+        if tenant_id and (metadata or {}).get("audience") != "ticket_staff":
             try:
                 from websocket_manager import broadcast_notification as _ws_broadcast
                 # The socket reaches every user of the tenant. A notice addressed to one person
