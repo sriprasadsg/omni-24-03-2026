@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from autonomous_ops import ledger
+from autonomous_ops import gate, ledger
 from service_desk import SYSTEM_AUTHOR, notify, outcomes, ticket_writes, worker
 from service_desk.model import OllamaClient
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
@@ -53,10 +53,10 @@ async def _run(db, **stand):
     return await worker.run_once(db, client=OllamaClient(transport=transport), clock=Clock())
 
 
-async def _no_handoff(db, ticket, after):
+async def _no_handoff(db, ticket, after, tenant="t1"):
     """No staff note, no hand-off notice, no ticket_handoff row and no lastReason: nothing contradicts the answer."""
     assert not {"staff_note", "handoff_notice"} & set(kinds(after))
-    assert [r["command"] for r in await rows(db)] == ["ticket_answer"]
+    assert [r["command"] for r in await rows(db, tenant)] == ["ticket_answer"]
     assert "lastReason" not in (after.get("desk") or {})
 
 
@@ -143,3 +143,78 @@ async def test_a_crash_after_the_comment_is_never_followed_by_a_hand_off(world, 
     await _no_handoff(world, ticket, after)
     assert await worker._to_a_person(world, await job(world, job_id), Clock()(), only_if_unanswered=True) \
         == "already_handled"
+
+
+# ---------------------------------------------------------------- keep_draft and post_lost_to_draft
+
+async def _drafts_world(db):
+    """A Drafts only tenant t2 with the starter articles; its one ticket is queued, so every answer is a draft."""
+    await add_tenant(db, "t2", mode="drafts")
+    return await queue(db, 1, tenant="t2")
+
+
+async def _draft_stands(db, ticket, job_id, *, reason="drafted"):
+    """The ticket ends with one staff-only draft the draft panel can see, the job reason drafted, no hand-off."""
+    after = await stored(db, ticket)
+    [draft] = [c for c in after["comments"] if c["kind"] == "ai_draft"]
+    assert draft["visibility"] == "staff" and draft["ai"]["state"] == "draft"
+    assert "ai_answer" not in kinds(after) and after["status"] == "open"
+    assert (await job(db, job_id))["reason"] == reason
+    await _no_handoff(db, ticket, after, "t2")
+    return after
+
+
+async def test_a_failed_desk_write_after_the_draft_is_repaired_and_keeps_the_draft_waiting(world, monkeypatch):
+    """protects=WR-102 draftWaiting reaches the ticket on the second try; fails_when=the draft is hidden from
+    the draft panel or the ticket is handed off after the draft was written."""
+    ticket, job_id = await _drafts_world(world)
+    fail_when(monkeypatch, ticket_writes, "set_desk", lambda a, k: _fields(a, k).get("phase") == "drafted")
+    await _run(world)
+    after = await _draft_stands(world, ticket, job_id)
+    assert after["desk"]["draftWaiting"] is True and after["desk"]["draftReason"] == "mode_drafts"
+    assert after["desk"]["phase"] == "drafted"
+
+
+async def test_a_failed_row_write_and_activity_words_after_the_draft_keep_the_draft_waiting(world, monkeypatch):
+    """protects=WR-102 the row's desk fields and Activity words are guarded; fails_when=either failure hands the
+    ticket off or leaves the draft without draftWaiting."""
+    ticket, job_id = await _drafts_world(world)
+    fail_when(monkeypatch, ledger, "set_desk_fields", lambda a, k: True, times=None)
+    fail_when(monkeypatch, ledger, "set_display", lambda a, k: True, times=None)
+    await _run(world)
+    after = await _draft_stands(world, ticket, job_id)
+    assert after["desk"]["draftWaiting"] is True
+
+
+async def test_a_desk_write_that_keeps_failing_after_the_draft_is_logged_and_never_handed_off(world, monkeypatch,
+                                                                                              caplog):
+    """protects=A-85-G11 the draft stays and the log names the ticket; fails_when=a stored draft is followed by
+    a hand-off."""
+    ticket, job_id = await _drafts_world(world)
+    fail_when(monkeypatch, ticket_writes, "set_desk", lambda a, k: _fields(a, k).get("phase") == "drafted",
+              times=None)
+    with caplog.at_level(logging.ERROR):
+        await _run(world)
+    await _draft_stands(world, ticket, job_id)
+    assert any(ticket["id"] in record.getMessage() for record in caplog.records)
+
+
+async def test_a_failed_suggested_move_after_a_lost_post_still_ends_with_the_staff_draft(world, monkeypatch):
+    """protects=WR-102 post_lost_to_draft is guarded and tried again; fails_when=the failed move hands the ticket
+    off, leaves the row dispatching or loses the draft."""
+    ticket, job_id = await queue(world, 1)
+    real = gate.decide
+
+    async def decide_then_a_person_moves_it(db, request, **kw):
+        decision = await real(db, request, **kw)
+        await world.tickets.update_one({"id": ticket["id"]}, {"$set": {"status": "in_progress"}})
+        return decision
+    monkeypatch.setattr(gate, "decide", decide_then_a_person_moves_it)
+    fail_when(monkeypatch, ledger, "transition", lambda a, k: _to_state(a, k) == "suggested")
+    await _run(world)
+    after = await stored(world, ticket)
+    [row] = await rows(world)
+    assert row["state"] == "suggested" and row["desk"]["phase"] == "drafted"
+    assert kinds(after) == ["ai_draft"] and after["status"] == "in_progress"
+    assert after["desk"]["draftWaiting"] is True and (await job(world, job_id))["reason"] == "ticket_changed"
+    await _no_handoff(world, ticket, after)
