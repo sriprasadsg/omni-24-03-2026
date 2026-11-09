@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-24-PLAN.md
-last_updated: "2026-11-09T16:10:30.953Z"
+stopped_at: Completed 85-25-PLAN.md
+last_updated: "2026-11-09T16:18:53.347Z"
 last_activity: 2026-11-09
-last_activity_desc: Phase 85 plan 85-24 complete (CR-101, WR-101)
-state_head: 562d238c41475575dac9e02a9edf8b29c39a3f0a
+last_activity_desc: Phase 85 plan 85-25 complete (CR-401 server half, reporter projection)
+state_head: 27ceff8b39478a3d4e5cc61efa137260256b0f3f
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 128
-  completed_plans: 123
+  completed_plans: 124
   percent: 86
 ---
 
@@ -634,6 +634,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-23: agent version 2.1.18 carries the My tickets tray window; committed as two version lines only, the user's flate2 WIP left unstaged; _LATEST_AGENT_VERSION stays 2.1.14 until the user publishes
 - [Phase 85]: 85-23: Phase 85 automated gates all green together (1955 backend, 1840 vitest, build); validation map filled (nyquist_compliant true); DESK-01..07 left for phase verification to mark Complete; live steps are the user's ordered list
 - [Phase 85]: 85-24: one shared fold (sanitize.fold_text) runs on every model answer and cited article before the D-19 output checks and is what is posted or drafted; hidden characters are stripped, not rejected (RULES unchanged); dotted tokens with a non-ASCII letter are link fragments; the loopback client uses trust_env=False
+- [Phase 85]: 85-25: the reporter's own ticket JSON is projected on every ticket-returning route (projection.for_viewer); own comments always readable, reporter with staff role still gets the requester view, history drops draft and unreadable commented entries
 
 ## Performance Metrics
 
@@ -912,6 +913,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P22 | 14 min | 2 tasks | 3 files |
 | Phase 85 P23 | 17 min | 3 tasks | 3 files |
 | Phase 85 P24 | 45 min | 3 tasks | 7 files |
+| Phase 85 P25 | 8 min | 2 tasks | 5 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -946,8 +948,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T16:10:30.681Z
-**Stopped at:** Completed 85-24-PLAN.md
+**Last session:** 2026-11-09T16:18:53.041Z
+**Stopped at:** Completed 85-25-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -974,9 +976,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 24 of 29 done (gap-closure plans 85-24..85-29 executing)
-Status: Executing Phase 85 gap closure (--gaps-only); 85-24 done
-Last activity: 2026-11-09 — Phase 85 plan 85-24 complete (CR-101, WR-101 fixed); next 85-25
+Plan: 25 of 29 done (gap-closure plans 85-24..85-29 executing)
+Status: Executing Phase 85 gap closure (--gaps-only); 85-25 done
+Last activity: 2026-11-09 — Phase 85 plan 85-25 complete (CR-401 server half fixed; UI half is 85-26); next 85-26
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
