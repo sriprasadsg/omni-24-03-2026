@@ -3,6 +3,42 @@ phase: 85
 review: 85-REVIEW.md
 titles: json
 findings:
+  - id: CR-501
+    severity: critical
+    disposition: open
+    title: "`GET /api/notifications/history` bypasses the whole notice audience filter (relates to WR-201, WR-202, D-33)"
+  - id: WR-501
+    severity: warning
+    disposition: open
+    title: "the reporter projection still returns staff-entered text outside comments (relates to CR-401)"
+  - id: WR-502
+    severity: warning
+    disposition: open
+    title: "staff-only comments stay readable by every tenant user who is not the reporter (CR-401 residual)"
+  - id: WR-503
+    severity: warning
+    disposition: open
+    title: "`send_draft` moves the status first but only undoes it when the turn is lost, not when the turn raises (relates to WR-103)"
+  - id: WR-504
+    severity: warning
+    disposition: open
+    title: "`outcomes.post` can revert the status of a ticket whose answer was actually stored (relates to WR-102)"
+  - id: IN-501
+    severity: info
+    disposition: open
+    title: "`email` is read from users that never carry one"
+  - id: IN-502
+    severity: info
+    disposition: open
+    title: "dashboard list row calls `visibleComments` twice and always with `deskView = null`"
+  - id: IN-503
+    severity: info
+    disposition: open
+    title: "the desk fold rewrites ideographic full stops in the posted answer"
+  - id: IN-504
+    severity: info
+    disposition: open
+    title: "TypeScript and Python name matching differ for non-ASCII names"
   - id: CR-101
     severity: critical
     disposition: fixed
@@ -115,43 +151,52 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 17
-total: 28
-recorded: 2026-11-09T10:13:07.744Z
+open: 26
+total: 37
+recorded: 2026-11-09T20:02:31.543Z
 ---
 
 # Phase 85: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-101 | critical | fixed | fixed 791831738, 94afd4eea (85-24) |
-| WR-101 | warning | fixed | fixed cf422f817 (85-24) |
-| WR-102 | warning | fixed | fixed 3a1937b7d, 86cd504bd (85-27) |
-| WR-103 | warning | fixed | fixed ec308e6d9 (85-27) |
-| IN-101 | info | open | - |
-| IN-102 | info | open | - |
-| WR-201 | warning | fixed | fixed 9840a7fdf, b49c68fa4 (85-28) |
-| WR-202 | warning | fixed | fixed 89f7786bd (85-28) |
-| WR-203 | warning | fixed | fixed 9cbe72e1b (85-29) |
-| IN-201 | info | open | - |
-| IN-202 | info | open | - |
-| IN-203 | info | open | - |
-| IN-204 | info | open | - |
-| WR-301 | warning | fixed | fixed 57325f0e7 (85-29) |
-| WR-302 | warning | fixed | fixed 57325f0e7 (85-29) |
-| WR-303 | warning | fixed | fixed 57325f0e7 (85-29) |
-| IN-301 | info | open | - |
-| IN-302 | info | open | - |
-| IN-303 | info | open | - |
-| CR-401 | critical | fixed | fixed 927bcff49, f4ce6404d (85-25, server); 82e9074c4, 3df8d5088 (85-26, screen) |
-| WR-401 | warning | open | - |
-| WR-402 | warning | open | - |
-| WR-403 | warning | open | - |
-| WR-404 | warning | open | - |
-| WR-405 | warning | open | - |
-| IN-401 | info | open | - |
-| IN-402 | info | open | - |
-| IN-403 | info | open | - |
+| CR-501 | critical | open | - |
+| WR-501 | warning | open | - |
+| WR-502 | warning | open | - |
+| WR-503 | warning | open | - |
+| WR-504 | warning | open | - |
+| IN-501 | info | open | - |
+| IN-502 | info | open | - |
+| IN-503 | info | open | - |
+| IN-504 | info | open | - |
+| CR-101 | critical | fixed | fixed 791831738, 94afd4eea (85-24) (not in the current review) |
+| WR-101 | warning | fixed | fixed cf422f817 (85-24) (not in the current review) |
+| WR-102 | warning | fixed | fixed 3a1937b7d, 86cd504bd (85-27) (not in the current review) |
+| WR-103 | warning | fixed | fixed ec308e6d9 (85-27) (not in the current review) |
+| IN-101 | info | open | - (not in the current review) |
+| IN-102 | info | open | - (not in the current review) |
+| WR-201 | warning | fixed | fixed 9840a7fdf, b49c68fa4 (85-28) (not in the current review) |
+| WR-202 | warning | fixed | fixed 89f7786bd (85-28) (not in the current review) |
+| WR-203 | warning | fixed | fixed 9cbe72e1b (85-29) (not in the current review) |
+| IN-201 | info | open | - (not in the current review) |
+| IN-202 | info | open | - (not in the current review) |
+| IN-203 | info | open | - (not in the current review) |
+| IN-204 | info | open | - (not in the current review) |
+| WR-301 | warning | fixed | fixed 57325f0e7 (85-29) (not in the current review) |
+| WR-302 | warning | fixed | fixed 57325f0e7 (85-29) (not in the current review) |
+| WR-303 | warning | fixed | fixed 57325f0e7 (85-29) (not in the current review) |
+| IN-301 | info | open | - (not in the current review) |
+| IN-302 | info | open | - (not in the current review) |
+| IN-303 | info | open | - (not in the current review) |
+| CR-401 | critical | fixed | fixed 927bcff49, f4ce6404d (85-25, server); 82e9074c4, 3df8d5088 (85-26, screen) (not in the current review) |
+| WR-401 | warning | open | - (not in the current review) |
+| WR-402 | warning | open | - (not in the current review) |
+| WR-403 | warning | open | - (not in the current review) |
+| WR-404 | warning | open | - (not in the current review) |
+| WR-405 | warning | open | - (not in the current review) |
+| IN-401 | info | open | - (not in the current review) |
+| IN-402 | info | open | - (not in the current review) |
+| IN-403 | info | open | - (not in the current review) |
 
 Dispositions: `open` (recorded, not yet triaged), `fixed`, `skipped`, `deferred`.
 Set `deferred` by hand and put the reason in the Source cell; both are preserved. A `|` in the reason is kept as prose and escaped on the next run.
