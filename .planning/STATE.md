@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-30-PLAN.md
-last_updated: "2026-11-09T21:46:32.780Z"
+stopped_at: Completed 85-31-PLAN.md
+last_updated: "2026-11-09T21:59:48.471Z"
 last_activity: 2026-11-09
 last_activity_desc: Phase 85 execution started
-state_head: 75b47f8d167c6ad91df20d5925e6c3be84a5295f
+state_head: 4f5ad02b931f5177b70850b8004cbef11626ce5a
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 135
-  completed_plans: 129
+  completed_plans: 130
   percent: 86
 ---
 
@@ -644,6 +644,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-29: desk fixtures stamp rows from fixed clocks and so build the desk indexes without the two 90-day TTL indexes (desk_indexes_without_ttl); migration 032's own test keeps covering them
 - [Phase 85]: 85-29: gap-round gate green: backend 2179 passed (0 failed, 0 skipped), vitest 1873 passed, build exit 0; 11 review findings fixed, 17 open by the user's scope decision
 - [Phase 85]: 85-30: manage:tickets marks ticket staff (tenant_admin, analyst, security_analyst, incident_responder); custom roles start without it, no migration or seed (UD-3); is_ticket_staff in backend/ticket_access.py is the one staff test
+- [Phase 85]: 85-31: GET /api/notifications/history and the four feed routes share notification_audience.reader_filter (tenantId-keyed; ticket_staff notices for manage:tickets staff only; Super Admin cross-tenant under per-person rules); a repository-wide AST scan guards every reader of db.notifications; ticket lifecycle notices without audience stay tenant-wide (T-85-111 follow-up)
 
 ## Performance Metrics
 
@@ -928,6 +929,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P28 | 30 min | 3 tasks | 6 files |
 | Phase 85 P29 | 60 min | 3 tasks | 12 files |
 | Phase 85 P30 | 20 min | 3 tasks | 13 files |
+| Phase 85 P31 | 10 min | 2 tasks | 7 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -962,8 +964,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T21:46:32.489Z
-**Stopped at:** Completed 85-30-PLAN.md
+**Last session:** 2026-11-09T21:59:48.180Z
+**Stopped at:** Completed 85-31-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -990,7 +992,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 2 of 36
+Plan: 3 of 36
 Status: Ready to execute
 Last activity: 2026-11-09 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
