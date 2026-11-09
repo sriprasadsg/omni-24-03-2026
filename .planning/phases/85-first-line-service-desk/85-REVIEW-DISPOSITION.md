@@ -81,7 +81,7 @@ findings:
     title: "An order-tolerant assertion hides the worker's ordering"
   - id: CR-401
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Requester's comment list renders staff-only comments and, while the desk view is loading or failed, unsent AI drafts"
   - id: WR-401
     severity: warning
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 26
+open: 25
 total: 28
 recorded: 2026-11-09T10:13:07.744Z
 ---
@@ -143,7 +143,7 @@ recorded: 2026-11-09T10:13:07.744Z
 | IN-301 | info | open | - |
 | IN-302 | info | open | - |
 | IN-303 | info | open | - |
-| CR-401 | critical | open | - |
+| CR-401 | critical | fixed | fixed 927bcff49, f4ce6404d (85-25, server); 82e9074c4, 3df8d5088 (85-26, screen) |
 | WR-401 | warning | open | - |
 | WR-402 | warning | open | - |
 | WR-403 | warning | open | - |
