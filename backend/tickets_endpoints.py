@@ -43,18 +43,20 @@ _VALID_TRANSITIONS: dict[str, set] = {
 }
 
 
-def _shown(ticket, user):
-    """A ticket as ``user`` may read it (D-11): the person who raised it gets the requester projection
-    (CR-401), everyone else the stored ticket. Every route that returns a ticket returns it through here."""
+async def _shown(ticket, user, staff=None):
+    """A ticket as ``user`` may read it (D-11): ticket staff who did not raise it get the stored ticket, everyone
+    else the requester projection (CR-401). ``staff`` is the caller's verdict when the route already has it. Every
+    route that returns a ticket returns it through here."""
     from service_desk import projection
-    return projection.for_viewer(ticket, user)
+    return projection.for_viewer(ticket, user, staff=await ticket_access.is_ticket_staff(user) if staff is None else staff)
 
 
-def _shown_history(ticket, history, user):
-    """A ticket's history as ``user`` may read it: the reporter's own ticket drops the draft entries and the
-    comment entries they may not read (A-85-G08)."""
+async def _shown_history(ticket, history, user, staff=None):
+    """A ticket's history as ``user`` may read it: everyone but ticket staff who did not raise the ticket gets the
+    reporter history, which drops the draft entries and the comment entries they may not read (A-85-G08)."""
     from service_desk import projection
-    return projection.history_for_viewer(ticket, history, user)
+    return projection.history_for_viewer(ticket, history, user,
+                                         staff=await ticket_access.is_ticket_staff(user) if staff is None else staff)
 
 
 # ── Ticket CRUD ───────────────────────────────────────────────────────────────
@@ -90,7 +92,7 @@ async def list_tickets(
             search=search, sla_status=sla_status, overdue_only=overdue_only,
             page=page, page_size=page_size, sort_by=sort_by, sort_dir=sort_dir, scope=scope,
         )
-        result["tickets"] = [_shown(t, current_user) for t in result["tickets"]]
+        result["tickets"] = [await _shown(t, current_user, staff=scope is None) for t in result["tickets"]]
         return result
     except Exception as exc:
         _log.getLogger(__name__).error("[tickets] list_tickets failed: %s", exc, exc_info=True)
@@ -130,7 +132,7 @@ async def get_ticket(
     ticket = await tickets_service.get_ticket(ticket_id, tenant_id=_effective_tenant(current_user))
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(ticket, current_user)
+    return await _shown(ticket, current_user)
 
 
 @router.post("")
@@ -226,7 +228,7 @@ async def create_ticket(
     except Exception:
         pass
 
-    return _shown(ticket, current_user)
+    return await _shown(ticket, current_user)
 
 
 @router.patch("/{ticket_id}")
@@ -257,7 +259,7 @@ async def update_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)
 
 
 @router.delete("/{ticket_id}")
@@ -286,7 +288,7 @@ async def get_history(
     if history is None:
         raise HTTPException(status_code=404, detail="Ticket not found")
     ticket = await tickets_service.get_ticket(ticket_id, tenant_id=_effective_tenant(current_user))
-    return _shown_history(ticket, history, current_user) if ticket else history
+    return await _shown_history(ticket, history, current_user) if ticket else history
 
 
 # ── Comments ──────────────────────────────────────────────────────────────────
@@ -346,7 +348,7 @@ async def add_comment(
         except Exception:
             pass
 
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)
 
 
 # ── Ticket linking ────────────────────────────────────────────────────────────
@@ -366,7 +368,7 @@ async def add_link(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)
 
 
 @router.delete("/{ticket_id}/links/{linked_id}")
@@ -382,7 +384,7 @@ async def remove_link(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)
 
 
 # ── Work log / time tracking ──────────────────────────────────────────────────
@@ -402,7 +404,7 @@ async def log_work(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)
 
 
 # ── Attachments ───────────────────────────────────────────────────────────────
@@ -570,7 +572,7 @@ async def approve_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)
 
 
 @router.post("/{ticket_id}/reject")
@@ -587,7 +589,7 @@ async def reject_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)
 
 
 # ── Escalation ────────────────────────────────────────────────────────────────
@@ -606,4 +608,4 @@ async def escalate_ticket(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Ticket not found")
-    return _shown(updated, current_user)
+    return await _shown(updated, current_user)

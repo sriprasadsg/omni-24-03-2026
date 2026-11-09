@@ -3,7 +3,8 @@
 Only comments marked ``requester`` are projected; a comment with no visibility reads as staff, so
 every older comment stays staff-only without a data change. Plain data only; the portal and the tray
 render the text as text. ``for_viewer`` and ``history_for_viewer`` are the reporter projection of the legacy
-ticket JSON (CR-401, D-11): what the person who raised the ticket may read of their own ticket.
+ticket JSON (CR-401, D-11): what a caller may read of a ticket. Only ticket staff who did not raise it get the stored
+ticket, told by the ``staff`` input, which defaults to False so a caller that forgets it gets the projection (T-85-117).
 """
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -144,17 +145,18 @@ def reporter_ticket(ticket: Dict[str, Any]) -> Dict[str, Any]:
     return shown
 
 
-def for_viewer(ticket: Optional[Dict[str, Any]], user: Any) -> Optional[Dict[str, Any]]:
-    """``ticket`` as ``user`` may read it: the reporter's projection for the person who raised it, the stored
-    ticket for everyone else (D-11)."""
-    if ticket is None or not is_reporter(ticket, user):
+def for_viewer(ticket: Optional[Dict[str, Any]], user: Any, *, staff: bool = False) -> Optional[Dict[str, Any]]:
+    """``ticket`` as ``user`` may read it (D-11): the stored ticket only for ticket staff who did not raise it, the
+    reporter projection for everybody else, including staff who raised it. ``staff`` defaults to False (fail closed)."""
+    if ticket is None or (staff and not is_reporter(ticket, user)):
         return ticket
     return reporter_ticket(ticket)
 
 
-def history_for_viewer(ticket: Dict[str, Any], entries: Any, user: Any) -> Any:
-    """A history list as ``user`` may read it (the reporter history for the person who raised the ticket)."""
-    return reporter_history(ticket, entries) if is_reporter(ticket, user) else entries
+def history_for_viewer(ticket: Dict[str, Any], entries: Any, user: Any, *, staff: bool = False) -> Any:
+    """A history list as ``user`` may read it: the full history only for ticket staff who did not raise the ticket,
+    the reporter history for everybody else. ``staff`` defaults to False (fail closed)."""
+    return entries if staff and not is_reporter(ticket, user) else reporter_history(ticket, entries)
 
 
 def iso(value: Any) -> Optional[str]:
