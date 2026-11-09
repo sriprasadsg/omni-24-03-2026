@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 
 vi.mock('../../services/apiService', () => ({ API_BASE: '/api', authFetch: vi.fn() }));
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
@@ -14,8 +14,9 @@ import { authFetch } from '../../services/apiService';
 import { showToast } from '../../utils/toast';
 import { CitedArticles } from '../../components/serviceDesk/CitedArticles';
 import { RequesterAnswerPanel } from '../../components/serviceDesk/RequesterAnswerPanel';
+import { TicketDraftPanel } from '../../components/serviceDesk/TicketDraftPanel';
 import { fetchTicketDesk, mapRequesterKind } from '../../services/serviceDesk/ticketApi';
-import { FOOTER, HANDOFF_NOTICE, MARK, WITHDRAWN_NOTICE } from '../../components/serviceDesk/serviceDeskCopy';
+import { DRAFT_PANEL, FOOTER, HANDOFF_NOTICE, MARK, REQUESTER, WITHDRAWN_NOTICE, fill } from '../../components/serviceDesk/serviceDeskCopy';
 
 const mockFetch = authFetch as unknown as ReturnType<typeof vi.fn>;
 const jsonRes = (body: unknown, status = 200) =>
@@ -346,5 +347,274 @@ describe('RequesterAnswerPanel: This fixed it and I still need help', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save your answer: Use up to 1000 characters. Try again.");
     expect(screen.getByLabelText("Tell IT what's still wrong (optional)")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send to IT' })).toBeEnabled();
+  });
+});
+
+// ------------------------------------------------------------------------------------------ the staff draft panel
+
+const draft = (over: Record<string, unknown> = {}) => ({
+  commentId: 'd-1', actionId: 'act-1', answer: 'Open Settings and choose Reset.', citations: CITES,
+  createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), articleCount: 2,
+  draftReason: 'mode_drafts', draftReasonText: 'Kept as a draft because the service desk is set to Drafts only.',
+  maxAnswerLength: 900, canActOnDraft: true, blockedReason: null, blockedText: null, reporter: 'Dana Lee', ...over,
+});
+
+const staffView = (over: Record<string, unknown> = {}) => ({
+  ticketId: TICKET, ticketNumber: 'TKT-0042', status: 'open', isRequester: false, requester: null,
+  draft: draft(over), canReplyToRequester: true, draftWaiting: true,
+}) as any;
+
+const panel = (view: any, onChanged = vi.fn()) => {
+  const out = render(<TicketDraftPanel ticketId={TICKET} view={view} actorName="Sam Rivera" onChanged={onChanged} />);
+  return { ...out, onChanged };
+};
+
+describe('TicketDraftPanel: the five zones', () => {
+  it('shows the header, the reason, the answer box, the consequence line and the three buttons', () => {
+    panel(staffView());
+    const section = document.getElementById('service-desk-draft')!;
+    expect(section).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('heading', { name: 'Draft answer' })).toBeInTheDocument();
+    expect(screen.getByText(/^Written by the service desk 2 hours ago from 2 articles\. Only staff can see this\.$/)).toBeInTheDocument();
+    expect(screen.getByText('Draft')).toBeInTheDocument();
+    expect(screen.getByText('Kept as a draft because the service desk is set to Drafts only.')).toBeInTheDocument();
+    expect(screen.getByText('What the requester will see')).toBeInTheDocument();
+    expect(screen.getByText(MARK)).toBeInTheDocument();
+    expect(screen.getByText('Open Settings and choose Reset.')).toBeInTheDocument();
+    expect(screen.getByText('Based on')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset your password' })).toBeInTheDocument();
+    expect(screen.getByText(FOOTER)).toBeInTheDocument();
+    const consequence = screen.getByText(fill(DRAFT_PANEL.consequence, { reporter: 'Dana Lee' }));
+    expect(screen.getByRole('button', { name: 'Send as is' })).toHaveAttribute('aria-describedby', consequence.id);
+    expect(screen.getByRole('button', { name: 'Edit and send' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeEnabled();
+  });
+
+  it('leaves the reason line out when the server supplies none', () => {
+    panel(staffView({ draftReason: null, draftReasonText: null }));
+    expect(screen.queryByText(/^Kept as a draft/)).toBeNull();
+  });
+
+  it('wraps a long answer and scrolls nothing away', () => {
+    const long = 'line '.repeat(400).trim();
+    panel(staffView({ answer: long }));
+    const text = screen.getByText(long);
+    expect(text.className).toContain('whitespace-pre-wrap');
+    expect(text.className).toContain('break-words');
+  });
+
+  it('renders nothing when no draft is waiting', () => {
+    const { container } = panel({ ...staffView(), draft: null, draftWaiting: false });
+    expect(container.firstChild).toBeNull();
+  });
+});
+
+describe('TicketDraftPanel: Send as is', () => {
+  it('posts send once, shows Sending... with all three disabled, then the result line with focus and refetches', async () => {
+    let release: (r: Response) => void = () => {};
+    mockFetch.mockImplementation(() => new Promise<Response>(resolve => { release = resolve; }));
+    const { onChanged } = panel(staffView());
+    const send = screen.getByRole('button', { name: 'Send as is' });
+    fireEvent.click(send);
+    fireEvent.click(send);
+    expect(await screen.findByRole('button', { name: 'Sending...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit and send' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeDisabled();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith('/api/tickets/t-1/service-desk/drafts/d-1/send', { method: 'POST', body: '{}' });
+    await act(async () => { release(jsonRes({ status: 'sent', commentId: 'd-1', edited: false })); });
+    const result = await screen.findByRole('status');
+    expect(result).toHaveTextContent(/^Sent to Dana Lee by Sam Rivera at \d\d:\d\d\. The ticket is waiting on the customer\.$/);
+    await waitFor(() => expect(result).toHaveFocus());
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Send as is' })).toBeNull();
+  });
+
+  it('shows the failure with the server message and re-enables the buttons', async () => {
+    mockFetch.mockResolvedValue(jsonRes({ detail: 'A person already replied, so this draft can not be sent' }, 500));
+    panel(staffView());
+    fireEvent.click(screen.getByRole('button', { name: 'Send as is' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't send the answer: A person already replied, so this draft can not be sent. Try again.");
+    expect(screen.getByRole('button', { name: 'Send as is' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Edit and send' })).toBeEnabled();
+  });
+
+  it('uses the fallback copy on a network failure', async () => {
+    mockFetch.mockRejectedValue(new Error('offline'));
+    panel(staffView());
+    fireEvent.click(screen.getByRole('button', { name: 'Send as is' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't send the answer. Check your connection and try again.");
+  });
+
+  it('replaces the buttons with the server text on a 409 already handled and refetches', async () => {
+    mockFetch.mockResolvedValue(jsonRes({ detail: 'This draft was already handled.' }, 409));
+    const { onChanged } = panel(staffView());
+    fireEvent.click(screen.getByRole('button', { name: 'Send as is' }));
+    expect(await screen.findByText('This draft was already handled.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send as is' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull();
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('TicketDraftPanel: Edit and send', () => {
+  const open = async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Edit and send' }));
+    return screen.findByLabelText('Edit the answer') as Promise<HTMLTextAreaElement>;
+  };
+
+  it('swaps in the textarea with the counter from the server limit, and Send edit starts disabled with the reason', async () => {
+    panel(staffView());
+    const box = await open();
+    expect(box).toHaveValue('Open Settings and choose Reset.');
+    expect(screen.getByText('31/900')).toBeInTheDocument();
+    expect(screen.getByText(DRAFT_PANEL.editHelper)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send edit' })).toBeDisabled();
+    expect(screen.getByText('Change the text, or use Send as is.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send as is' })).toBeNull();
+  });
+
+  it('enables Send edit for a changed text and posts it to edit', async () => {
+    mockFetch.mockResolvedValue(jsonRes({ status: 'sent', commentId: 'd-1', edited: true }));
+    const { onChanged } = panel(staffView());
+    const box = await open();
+    fireEvent.change(box, { target: { value: 'Open Settings, then choose Reset.' } });
+    expect(screen.queryByText('Change the text, or use Send as is.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Send edit' }));
+    expect(await screen.findByRole('status')).toHaveTextContent(/^Sent to Dana Lee by Sam Rivera at /);
+    expect(mockFetch).toHaveBeenCalledWith('/api/tickets/t-1/service-desk/drafts/d-1/edit',
+      { method: 'POST', body: JSON.stringify({ text: 'Open Settings, then choose Reset.' }) });
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('disables Send edit for empty text and for text over the server limit', async () => {
+    panel(staffView({ maxAnswerLength: 40 }));
+    const box = await open();
+    fireEvent.change(box, { target: { value: '   ' } });
+    expect(screen.getByRole('button', { name: 'Send edit' })).toBeDisabled();
+    fireEvent.change(box, { target: { value: 'x'.repeat(41) } });
+    expect(screen.getByText('41/40')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send edit' })).toBeDisabled();
+    fireEvent.change(box, { target: { value: 'x'.repeat(40) } });
+    expect(screen.getByRole('button', { name: 'Send edit' })).toBeEnabled();
+  });
+
+  it('restores the original text with Back to draft', async () => {
+    panel(staffView());
+    const box = await open();
+    fireEvent.change(box, { target: { value: 'something else' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Back to draft' }));
+    expect(screen.queryByLabelText('Edit the answer')).toBeNull();
+    expect(screen.getByText('Open Settings and choose Reset.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit and send' }));
+    expect(await screen.findByLabelText('Edit the answer')).toHaveValue('Open Settings and choose Reset.');
+  });
+
+  it('asks Discard your edits? on Esc with edits and leaves quietly without them', async () => {
+    panel(staffView());
+    let box = await open();
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(screen.queryByLabelText('Edit the answer')).toBeNull();
+    box = await open();
+    fireEvent.change(box, { target: { value: 'changed' } });
+    fireEvent.keyDown(box, { key: 'Escape' });
+    expect(screen.getByText('Discard your edits?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText('Edit the answer')).toHaveValue('changed');
+    fireEvent.keyDown(screen.getByLabelText('Edit the answer'), { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Discard edits' }));
+    expect(screen.queryByLabelText('Edit the answer')).toBeNull();
+    expect(screen.getByText('Open Settings and choose Reset.')).toBeInTheDocument();
+  });
+
+  it('shows the server refusal of an edit as the failure line and keeps the text', async () => {
+    mockFetch.mockResolvedValue(jsonRes({ detail: 'The answer is over 900 characters. Shorten it.' }, 422));
+    panel(staffView());
+    const box = await open();
+    fireEvent.change(box, { target: { value: 'a different answer' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send edit' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't send the answer: The answer is over 900 characters. Shorten it. Try again.");
+    expect(screen.getByLabelText('Edit the answer')).toHaveValue('a different answer');
+  });
+});
+
+describe('TicketDraftPanel: Discard draft', () => {
+  it('opens Discard this draft? with Keep draft first, and Keep draft closes it without a request', async () => {
+    panel(staffView());
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this draft?' });
+    expect(within(dialog).getByText(/^The requester never sees it\./)).toBeInTheDocument();
+    const buttons = within(dialog).getAllByRole('button');
+    expect(buttons.map(b => b.textContent)).toEqual(['Keep draft', 'Discard draft']);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep draft' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('posts discard from the red confirm, toasts Draft discarded. and shows the result line', async () => {
+    mockFetch.mockResolvedValue(jsonRes({ status: 'discarded', commentId: 'd-1' }));
+    const { onChanged } = panel(staffView());
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this draft?' });
+    const confirm = within(dialog).getByRole('button', { name: 'Discard draft' });
+    expect(confirm.className).toContain('bg-red-600');
+    fireEvent.click(confirm);
+    expect(await screen.findByRole('status')).toHaveTextContent(/^Draft discarded by Sam Rivera at \d\d:\d\d\.$/);
+    expect(mockFetch).toHaveBeenCalledWith('/api/tickets/t-1/service-desk/drafts/d-1/discard', { method: 'POST', body: '{}' });
+    expect(showToast).toHaveBeenCalledWith('Draft discarded.', 'success');
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Discarding... while pending and the discard failure inside the dialog', async () => {
+    let release: (r: Response) => void = () => {};
+    mockFetch.mockImplementation(() => new Promise<Response>(resolve => { release = resolve; }));
+    panel(staffView());
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this draft?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard draft' }));
+    expect(await within(dialog).findByRole('button', { name: 'Discarding...' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Keep draft' })).toBeDisabled();
+    await act(async () => { release(jsonRes({ detail: 'This draft was already handled.' }, 500)); });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent("Couldn't discard the draft: This draft was already handled. Try again.");
+    expect(within(dialog).getByRole('button', { name: 'Discard draft' })).toBeEnabled();
+  });
+});
+
+describe('TicketDraftPanel: blocked states', () => {
+  it('disables send and edit on a resolved ticket with the server text and keeps Discard draft', () => {
+    panel(staffView({
+      canActOnDraft: false, blockedReason: 'ticket_closed',
+      blockedText: "This ticket is resolved, so the draft can't be sent. You can still discard it.",
+    }));
+    expect(screen.getByText("This ticket is resolved, so the draft can't be sent. You can still discard it.")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send as is' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit and send' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeEnabled();
+  });
+
+  it('disables send and edit once a person already replied and keeps Discard draft', () => {
+    panel(staffView({
+      canActOnDraft: false, blockedReason: 'person_replied',
+      blockedText: "A person already replied, so this draft can't be sent. You can still discard it.",
+    }));
+    expect(screen.getByText(DRAFT_PANEL.personReplied)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send as is' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeEnabled();
+  });
+
+  it('replaces the actions with the no-requester text and leaves Discard draft only', () => {
+    panel(staffView({
+      canActOnDraft: false, blockedReason: 'no_requester',
+      blockedText: "This ticket has no requester who can see an answer, so the draft can't be sent.",
+    }));
+    expect(screen.getByText(DRAFT_PANEL.noRequester)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send as is' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit and send' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Discard draft' })).toBeEnabled();
+  });
+
+  it('falls back to the copy text for the blocked reason when the server sends none', () => {
+    panel(staffView({ canActOnDraft: false, blockedReason: 'ticket_closed', blockedText: null }));
+    expect(screen.getByText(fill(DRAFT_PANEL.closedBlocked, { state: 'open' }))).toBeInTheDocument();
   });
 });
