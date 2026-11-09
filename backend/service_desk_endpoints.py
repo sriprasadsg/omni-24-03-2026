@@ -1,17 +1,21 @@
 """The portal's service desk routes on a ticket (DESK-01): the view, and what staff and the requester do.
 
 ``GET /api/tickets/{ticket_id}/service-desk``: the ticket is read inside the caller's own tenant (any other
-ticket answers 404). The reporter gets the requester block and never a draft; everyone else in the tenant gets
-the staff draft panel and no requester block, so a draft or a staff note is never returned to the requester.
-Staff send, edit or discard a waiting draft (D-09, D-10); the reporter confirms the answer or asks for a person
-(D-07, D-31); every refusal reads the text of ``messages.API_DETAIL``. Every route needs ``view:dashboard``;
-who is the reporter and who is staff is decided per ticket, never by the client.
+ticket answers 404). The router carries the ticket viewer guard (G-85-4 UD-2): only ticket staff and the reporter
+reach any route here, everyone else gets the 404 of a ticket that does not exist. The reporter gets the requester
+block and never a draft; ticket staff who did not raise the ticket get the staff draft panel and no requester
+block, so a draft or a staff note is never returned to the requester. Ticket staff means ``manage:tickets``
+(``ticket_access``); only they send, edit or discard a waiting draft (D-09, D-10), and the reporter, staff or not,
+is refused 403 there. The reporter confirms the answer or asks for a person (D-07, D-31); every refusal reads the
+text of ``messages.API_DETAIL``. Every route needs ``view:dashboard``; who is the reporter and who is staff is
+decided per ticket, never by the client.
 """
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+import ticket_access
 from authentication_service import TokenData
 from autonomous_ops import ledger
 from autonomous_ops.scope import raw
@@ -21,7 +25,8 @@ from service_desk import ANSWER_MAX_CHARS, lifecycle, messages, projection, work
 from tickets_models import _effective_tenant
 from tickets_service import tickets_service
 
-router = APIRouter(prefix="/api/tickets", tags=["Service desk"])
+router = APIRouter(prefix="/api/tickets", tags=["Service desk"],
+                   dependencies=[Depends(ticket_access.ticket_viewer(messages.API_DETAIL["not_found"]))])
 
 _STATUS = {"not_found": 404, "already_handled": 409, "ticket_closed": 409, "person_replied": 409,
            "no_requester": 409, "not_confirmable": 409, "draft_empty": 422, "draft_too_long": 422,
@@ -79,8 +84,13 @@ def _refusal(result: Dict[str, Any]) -> HTTPException:
     return HTTPException(status_code=_STATUS.get(reason, 409), detail=text)
 
 
-def _staff_only(ticket: Dict[str, Any], user: TokenData) -> None:
-    if projection.is_reporter(ticket, user):
+async def _is_staff_for(ticket: Dict[str, Any], user: TokenData) -> bool:
+    """True for ticket staff who did not raise the ticket: the only people who act on a draft (G-85-4 UD-2)."""
+    return (not projection.is_reporter(ticket, user)) and await ticket_access.is_ticket_staff(user)
+
+
+async def _staff_only(ticket: Dict[str, Any], user: TokenData) -> None:
+    if not await _is_staff_for(ticket, user):
         raise HTTPException(status_code=403, detail=messages.API_DETAIL["staff_only"])
 
 
@@ -92,12 +102,13 @@ async def get_service_desk(
     ticket = await _ticket(ticket_id, current_user)
     db = get_database()
     is_requester = projection.is_reporter(ticket, current_user)
+    staff = await _is_staff_for(ticket, current_user)
     draft: Optional[Dict[str, Any]] = None
     waiting = projection.waiting_draft(ticket)
-    if waiting is not None and not is_requester:
+    if waiting is not None and staff:
         action_id = waiting["ai"].get("actionId")
         row = await ledger.get(db, ticket["tenantId"], action_id) if action_id else None
-        draft = projection.staff_view(ticket, row, current_user)
+        draft = projection.staff_view(ticket, row, current_user, staff=staff)
     zone = await workdays.tenant_zone(db, ticket["tenantId"])
     names = await _names(db, projection.staff_reply_authors(ticket)) if is_requester else None
     return {
@@ -105,14 +116,14 @@ async def get_service_desk(
         "isRequester": is_requester,
         "requester": projection.requester_view(ticket, zone, names) if is_requester else None,
         "draft": draft,
-        "canReplyToRequester": (not is_requester) and projection.can_reply(ticket),
+        "canReplyToRequester": staff and projection.can_reply(ticket),
         "draftWaiting": draft is not None,
     }
 
 
 async def _draft_action(ticket_id: str, comment_id: str, user: TokenData, act, **kwargs) -> Dict[str, Any]:
     ticket = await _ticket(ticket_id, user)
-    _staff_only(ticket, user)
+    await _staff_only(ticket, user)
     db = get_database()
     result = await act(db, ticket["tenantId"], ticket_id, comment_id, actor=await _actor(db, user), **kwargs)
     if result.get("status") == "refused":
@@ -192,11 +203,11 @@ async def read_cited_article(
     current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
 ) -> Dict[str, Any]:
     """Open one cited article read-only (D-14). Only an article cited on this ticket can be opened: by the
-    reporter, on an answer they can see; by staff, on an answer or the waiting draft. It is read from the
+    reporter, on an answer they can see; by ticket staff who did not raise it, on an answer or the waiting draft. It is read from the
     ticket's own tenant and only while it is in that tenant's Help desk set, never from the global set; a
     cited article that was deleted since answers ``available`` false with the title it was cited under."""
     ticket = await _ticket(ticket_id, current_user)
-    cited = projection.cited_articles(ticket, for_requester=projection.is_reporter(ticket, current_user))
+    cited = projection.cited_articles(ticket, for_requester=not await _is_staff_for(ticket, current_user))
     if article_id not in cited:
         raise HTTPException(status_code=404, detail=messages.API_DETAIL["article_not_found"])
     doc = await raw(get_database()).knowledge_docs.find_one(

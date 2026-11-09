@@ -204,11 +204,13 @@ def can_reply(ticket: Dict[str, Any]) -> bool:
     return ticket.get("raised_via") in PERSON_RAISED and can_see(ticket)
 
 
-def staff_view(ticket: Dict[str, Any], row: Optional[Dict[str, Any]], viewer: Any) -> Optional[Dict[str, Any]]:
-    """The staff draft panel (``DraftView``), or None: no draft is waiting, or ``viewer`` raised the ticket
-    (a requester never learns that a draft exists)."""
+def staff_view(ticket: Dict[str, Any], row: Optional[Dict[str, Any]], viewer: Any, *,
+               staff: bool = False) -> Optional[Dict[str, Any]]:
+    """The staff draft panel (``DraftView``), or None: no draft is waiting, ``viewer`` is not ticket staff (``staff``
+    False, the default; the caller decides it with ``ticket_access.is_ticket_staff``), or ``viewer`` raised the
+    ticket (a requester never learns that a draft exists)."""
     comment = waiting_draft(ticket)
-    if comment is None or is_reporter(ticket, viewer):
+    if comment is None or not staff or is_reporter(ticket, viewer):
         return None
     ai = comment["ai"]
     citations = [{"articleId": c.get("articleId"), "title": c.get("title")}
