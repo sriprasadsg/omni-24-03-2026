@@ -15,6 +15,7 @@ import { fetchPermissionCatalogue, createRole, updateRole, RoleApiError } from '
 import { showToast } from '../../utils/toast';
 import { RoleEditorModal } from '../../components/RoleEditorModal';
 import { UserContext } from '../../contexts/UserContext';
+import manifest from '../../shared/catalogue-access.json';
 
 const mCatalogue = fetchPermissionCatalogue as unknown as ReturnType<typeof vi.fn>;
 const mCreate = createRole as unknown as ReturnType<typeof vi.fn>;
@@ -209,5 +210,32 @@ describe('RoleEditorModal implied, locked and ceiling states', () => {
     expect(screen.getByRole('group', { name: 'Other' })).toBeTruthy();
     const raw = screen.getByText('x:unlabelled');
     expect(raw.className).toContain('font-mono');
+  });
+});
+
+describe('RoleEditorModal ticket staff permission (G-85-4 UD-3)', () => {
+  it('labels manage:tickets as IT staff handling, not the raw string', async () => {
+    mCatalogue.mockResolvedValue({ permissions: ['manage:tickets', 'view:agents'], superAdmin: false });
+    renderModal();
+    const box = (await screen.findByLabelText('Handle tickets as IT staff')) as HTMLInputElement;
+    expect(box.id).toBe('perm-manage:tickets');
+    expect(screen.queryByText('manage:tickets')).toBeNull();
+  });
+
+  it('files the row under the group of the Tickets screen in the manifest', async () => {
+    const tickets = manifest.catalogues.find(c => c.view === 'internalTickets')!;
+    const groupTitle = manifest.groups.find(g => g.id === tickets.group)!.title;
+    mCatalogue.mockResolvedValue({ permissions: ['manage:tickets', 'view:agents'], superAdmin: false });
+    renderModal();
+    const box = await screen.findByLabelText('Handle tickets as IT staff');
+    const group = screen.getByRole('group', { name: groupTitle });
+    expect(group.contains(box)).toBe(true);
+  });
+
+  it('still shows an unlabelled string raw', async () => {
+    mCatalogue.mockResolvedValue({ permissions: ['manage:tickets', 'x:unlabelled'], superAdmin: false });
+    renderModal();
+    await screen.findByLabelText('Handle tickets as IT staff');
+    expect(screen.getByText('x:unlabelled').className).toContain('font-mono');
   });
 });
