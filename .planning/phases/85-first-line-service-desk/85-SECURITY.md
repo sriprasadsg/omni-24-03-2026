@@ -140,7 +140,7 @@ created: "2026-11-09"
 | T-85-74 | Information Disclosure | article browsing | medium | mitigate | Only articles cited on the caller's own visible answer | closed |
 | T-85-75 | Denial of Service | tray polling | low | mitigate | Rate limits 30 and 10 per minute per agent; 20-ticket, 60-day list | closed |
 | T-85-76 | Information Disclosure | staff text sent to the requester by mistake | medium | mitigate | Staff only is the default and resets after every send; the info line names who will see a reply | closed |
-| T-85-77 | Information Disclosure | portal requester panel | low | accept | D-11: a presentation on the portal; staff with ticket access already see every comment; the tray routes are the enforced boundary (85-19) | closed |
+| T-85-77 | Information Disclosure | portal requester panel | low | mitigate | Was accepted (AR-85-06, D-11). Since the 85-25/85-26 gap round, the reporter's own ticket JSON is projected server-side on every ticket route (T-85-90, T-85-91, T-85-92), and the UI list fails closed (T-85-94) | closed |
 | T-85-78 | Information Disclosure | gap tab shown to a Knowledge Base-only user | medium | mitigate | Rendered only with canSeeGaps; the route checks both permissions (85-15) | closed |
 | T-85-79 | Tampering | secrets in Help desk articles | low | mitigate | The dialog's helper tells authors not to put secrets, passwords or internal notes in a Help desk article | closed |
 | T-85-80 | Information Disclosure | ticket text in --calibrate | medium | mitigate | Loopback model only; prints scores and terms, never ticket text beyond the cleaned first 80 characters | closed |
@@ -149,6 +149,25 @@ created: "2026-11-09"
 | T-85-85 | Tampering | user WIP shipped with the version commit | medium | mitigate | Only the two version lines are staged; the user decides on the uncommitted Rust work before building (live list step 0) | closed |
 | T-85-86 | Repudiation | unverified live behaviour | medium | mitigate | Every live-only check is an ordered user step in the SUMMARY; verification marks them human_needed until done | closed |
 | T-85-SC | Tampering | dependencies (all 23 plans) | low | accept | No package is installed (85-RESEARCH Package Legitimacy Audit: scikit-learn and httpx are existing dependencies) | closed |
+| T-85-87 | Information Disclosure / Spoofing | checks.check and parse_reply (gap 85-24, CR-101) | high | mitigate | One fold, sanitize.fold_text, runs on the answer and the cited article text before every rule. parse_reply returns the folded answer, and that is the text posted or drafted. Pinned by test_service_desk_output_fold.py (18x7 grid, folded-post tests) | closed |
+| T-85-88 | Spoofing | look-alike / IDN domains in an answer (85-24) | medium | mitigate | A dotted token with a non-ASCII letter is a link fragment (checks._IDN_DOMAIN, _take_idn) and must occur in a cited article; look-alike tests | closed |
+| T-85-89 | Information Disclosure | OllamaClient._http under environment proxies (85-24, WR-101) | medium | mitigate | The only httpx.AsyncClient is built with trust_env=False and follow_redirects=False. Pinned by a proxy transport test (with a control client) and an AST test | closed |
+| T-85-90 | Information Disclosure | ticket-returning routes for the reporter (85-25, CR-401) | high | mitigate | projection.for_viewer via _shown on list, create, get, patch, comments, links add/delete, work-log, approve, reject and escalate. The reporter's JSON has no ai_draft, no other person's staff-only comment, no withdrawn text and no desk field. Pinned by test_service_desk_reporter_ticket.py | closed |
+| T-85-91 | Information Disclosure | ticket history (85-25) | medium | mitigate | reporter_history drops draft and staff-only comment entries; applied in the ticket JSON and GET /{id}/history; tested | closed |
+| T-85-92 | Tampering | a future route skipping the projection (85-25) | medium | mitigate | An AST test requires the 12 routes to use _shown/_shown_history and rejects an unprojected `return ticket/updated/history/result` (it inspects `return <Name>` forms only) | closed |
+| T-85-93 | Elevation of Privilege | a reporter with staff permissions on their own ticket (85-25) | low | accept | AR-85-09 (A-85-G06) | closed |
+| T-85-94 | Information Disclosure | ticket screen comment list on first paint / failed desk read (85-26, CR-401) | high | mitigate | requesterComments.visibleComments decides the viewer from the ticket's reporter (case-insensitive email) as well as deskView, and fails closed when the desk view is missing and the email is empty. The Comments tab and the list-row count use it. Pinned by ServiceDeskRequesterComments.test.tsx | closed |
+| T-85-95 | Tampering | UI rule drifting from the server rule (85-26) | medium | mitigate | Backend and Vitest tests both read shared/service-desk-requester-comments.json | closed |
+| T-85-96 | Repudiation / Tampering | outcomes.post and keep_draft follow-up writes (85-27, WR-102) | medium | mitigate | Guarded steps with one re-attempt, no raise or hand-off after the visible change, worker belt (_desk_wrote_answer); test_service_desk_write_order.py | closed |
+| T-85-97 | Information Disclosure / Tampering | lifecycle.send_draft on a ticket that moved meanwhile (85-27, WR-103) | low | mitigate | Status compare-and-set first, visible turn second, status put back when the turn loses; tested | closed |
+| T-85-98 | Information Disclosure | staff-only comment notice in the reporter's feed and socket (85-28, WR-201) | medium | mitigate | excludeRecipients: [reporter] on the notice; _reader_filter in the feed; no tenant socket push for ticket_staff notices; test_service_desk_notification_audience.py | closed |
+| T-85-99 | Tampering | mark-read / read-all / delete on another user's addressed notice (85-28, WR-202) | medium | mitigate | All three write queries start from _reader_filter; tested | closed |
+| T-85-100 | Information Disclosure | ticket_staff notices stored before 85-28 | low | accept | AR-85-10 (A-85-G14) | closed |
+| T-85-101 | Information Disclosure | tenant_admins notices pushed tenant-wide on the socket | low | accept | AR-85-11 (A-85-G15) | closed |
+| T-85-102 | Tampering | write_article with gapGroupId and helpdesk false (85-29, WR-203) | low | mitigate | 422 gap_article_not_helpdesk before any database read or gap claim; tested | closed |
+| T-85-103 | Tampering / Denial of Service | eval-script --sets test reaching a live database (85-29, WR-303) | medium | mitigate | Client factory and open_database replaced by raising recorders, Mongo URL variables deleted, exit 0 asserted | closed |
+| T-85-104 | Repudiation | date-dependent tests (85-29, WR-301) | low | mitigate | Fixtures drop the 90-day TTL indexes (desk_indexes_without_ttl), the 100-day row is asserted present, and the migration test keeps TTL coverage | closed |
+| T-85-SC | Tampering | dependencies (gap plans 85-24..85-29) | low | accept | No package is installed; `git diff c9e32ae76..HEAD` touches no dependency file | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -167,9 +186,12 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 | AR-85-03 | T-85-37 | Holds answer ids only, in the user's own LOCALAPPDATA | planner (85 plan threat model), confirmed by gsd-security-auditor | 2026-11-09 |
 | AR-85-04 | T-85-55 | D-11: on the portal the panel is a presentation; staff with ticket access already see every comment; the tray routes are the enforced boundary | planner (85 plan threat model), confirmed by gsd-security-auditor | 2026-11-09 |
 | AR-85-05 | T-85-73 | D-34: soft scoping by the reported user name; a local user who can read tray-config.json could ask for another user's list; stated in the UAT and never claimed as private | planner (85 plan threat model), confirmed by gsd-security-auditor | 2026-11-09 |
-| AR-85-06 | T-85-77 | D-11: a presentation on the portal; staff with ticket access already see every comment; the tray routes are the enforced boundary (85-19) | planner (85 plan threat model), confirmed by gsd-security-auditor | 2026-11-09 |
+| AR-85-06 | T-85-77 | RETIRED 2026-11-09 (gap round): the user chose to fix CR-401 server-side; T-85-77 is now mitigated by T-85-90/91/92 and T-85-94. Original rationale: D-11, a presentation on the portal; the tray routes were the enforced boundary (85-19) | planner (85 plan threat model), retired by the user's gap-round decision, confirmed by gsd-security-auditor | 2026-11-09 |
 | AR-85-07 | T-85-82 | Sequential calls only; the operator runs it at a quiet time and watches API latency (docstring) | planner (85 plan threat model), confirmed by gsd-security-auditor | 2026-11-09 |
 | AR-85-08 | T-85-SC | No package is installed (85-RESEARCH Package Legitimacy Audit: scikit-learn and httpx are existing dependencies) | planner (85 plan threat model), confirmed by gsd-security-auditor | 2026-11-09 |
+| AR-85-09 | T-85-93 | A-85-G06: a reporter who also has staff permissions gets the requester view of their own ticket only, the same rule as the shipped service-desk route; colleagues keep the full view | planner (85-25 threat model), confirmed by gsd-security-auditor | 2026-11-09 |
+| AR-85-10 | T-85-100 | A-85-G14: ticket_staff notices stored before 85-28 carry no exclusion but no comment text either (85-08); no migration | planner (85-28 threat model), confirmed by gsd-security-auditor | 2026-11-09 |
+| AR-85-11 | T-85-101 | A-85-G15: tenant_admins notices (pending agents, desk breaker) are still pushed to every tenant user on the socket while the feed hides them from non-admins; outside WR-201, reported to the user as a follow-up | planner (85-28 threat model), confirmed by gsd-security-auditor | 2026-11-09 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -183,7 +205,16 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 - **Residual (85-08 notification fix):** `notification_service.send_alert` blanks `message` on the WebSocket push whenever `metadata.recipient` is set, and stored notices carry no message. Titles and metadata still go tenant-wide: comment titles are `[TKT-n] New comment by {author}`, and metadata includes the recipient address and ticket id. The @mention path puts a 120-character comment preview in the mentioned person's own feed, even for a staff-only comment, because mentioning someone is a deliberate act.
 - **T-85-02 note:** `registry.agent_commands()` has no production caller; it is pinned by tests only. The enforced controls are `dispatch_check.bind`, which refuses every ticket command, `gate._step_class` and `approvals.approve`.
 - **T-85-30 note:** a spoofed legacy tray claim needs that agent's own token. It yields `raised_via=tray` with `myTickets False`, so it can never be posted, listed or acted on through the tray. The cost of a spoof is one queued job, bounded by the queue caps.
-- **Hardening suggestion (not a register item, unverified):** `service_desk/model.py` builds `httpx.AsyncClient` without `trust_env=False`. A process-level `HTTP(S)_PROXY` without `NO_PROXY=127.0.0.1` could therefore route the loopback model call through a proxy.
+- **Hardening suggestion (not a register item, unverified):** `service_desk/model.py` builds `httpx.AsyncClient` without `trust_env=False`. A process-level `HTTP(S)_PROXY` without `NO_PROXY=127.0.0.1` could therefore route the loopback model call through a proxy. *(Done in the gap round: T-85-89, 85-24.)*
+
+## Audit Notes — gap round (2026-11-09, gsd-security-auditor, ASVS L1)
+
+- **Result:** SECURED. The gap plans 85-24..85-29 added 18 unique threats, T-85-87..T-85-104, plus a T-85-SC row. 14 mitigations were verified in committed code (`backend/tickets_endpoints.py` and `components/InternalTicketsDashboard.tsx` were audited through `git show HEAD:`, because the working copies hold the user's WIP), and 4 were accepted. Nothing is open at any severity.
+- **Test evidence:** the auditor ran 318 + 24 backend gap-round tests on the private mongod (27998) and 33 Vitest cases, all green. The 85-29 full gate on the final code passed 2,179 backend tests and 1,873 Vitest tests.
+- **T-85-77 reclassified:** the legacy-ticket-JSON residual above is mitigated. Every ticket-returning route projects the reporter's own ticket, AR-85-06 is retired, and T-85-29 (AR-85-01) and T-85-55 (AR-85-04) are now also backed by the server projection.
+- **85-08 residual updated:** staff-only comment notices are now neither in the reporter's feed nor on the socket (T-85-98). What remains tenant-wide on the socket is `tenant_admins` notices and requester-reply notice titles and metadata (AR-85-11).
+- **T-85-92 observation:** the AST guard inspects `return <Name>` forms only, so a future `return await service.x(...)` from a ticket route would not trip it.
+- **Outside the gap round:** the working copy of `backend/requirements.txt` has the user's uncommitted `aiosmtplib`/`scipy` additions. They are not in committed history; review them with the user's WIP.
 
 ---
 
@@ -192,6 +223,7 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-11-09 | 83 | 83 | 0 | gsd-security-auditor (sonnet), ASVS L1, block_on high |
+| 2026-11-09 (gap round) | 101 | 101 | 0 | gsd-security-auditor (sonnet), ASVS L1, block_on high: T-85-87..104 added, T-85-77 reclassified to mitigate |
 
 ---
 
@@ -210,4 +242,12 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 |---|---|
 | Threats found | 83 |
 | Closed | 83 |
+| Open | 0 |
+
+## Security Audit 2026-11-09
+
+| Metric | Count |
+|---|---|
+| Threats found | 101 |
+| Closed | 101 |
 | Open | 0 |
