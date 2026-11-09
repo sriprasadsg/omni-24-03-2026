@@ -3,9 +3,12 @@ import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
 import type { KbDocFlags } from '../services/serviceDesk/types';
 import { HealthNotice } from './serviceDesk/deskUi';
-import { HelpDeskChips, HelpDeskToggle, SharedReferenceLine } from './serviceDesk/HelpDeskToggle';
+import { ArticleEditDialog, type EditableArticle } from './serviceDesk/ArticleEditDialog';
+import { EditArticleButton, HelpDeskChips, HelpDeskToggle, SharedReferenceLine } from './serviceDesk/HelpDeskToggle';
+import { StarterArticlesDialog } from './serviceDesk/StarterArticlesDialog';
+import { SECONDARY_BUTTON } from './serviceDesk/deskUi';
 import { KB, fill } from './serviceDesk/serviceDeskCopy';
-import { InfoIcon } from './icons';
+import { InfoIcon, SparklesIcon } from './icons';
 
 interface KBDoc {
   id: string;
@@ -45,6 +48,8 @@ export default function KnowledgeBaseDashboard() {
   const [activeTab, setActiveTab] = useState<'browse' | 'search' | 'helpdesk'>('browse');
   const [total, setTotal] = useState(0);
   const [flags, setFlags] = useState<KbDocFlags>(NO_FLAGS);
+  const [editing, setEditing] = useState<EditableArticle | null>(null);
+  const [showStarters, setShowStarters] = useState(false);
 
   useEffect(() => { loadDocs(); }, []);
 
@@ -138,9 +143,19 @@ export default function KnowledgeBaseDashboard() {
             )
           )}
         </div>
-        <button onClick={() => setShowIngest(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
-          + Ingest Document
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {manage && (flags.starterMissing > 0 ? (
+            <button type="button" className={SECONDARY_BUTTON} onClick={() => setShowStarters(true)}>
+              <SparklesIcon size={16} aria-hidden="true" />
+              {KB.addStarters}
+            </button>
+          ) : (
+            <span className="text-xs text-gray-500 dark:text-gray-400">{KB.startersAdded}</span>
+          ))}
+          <button onClick={() => setShowIngest(true)} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium text-white">
+            + Ingest Document
+          </button>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 mb-6">
@@ -217,6 +232,10 @@ export default function KnowledgeBaseDashboard() {
                     <HelpDeskToggle docId={doc.id} title={doc.title || 'Untitled'} checked={doc.helpdesk === true}
                       onChanged={next => markChanged(doc.id, next)} />
                   )}
+                  {manage && !platform && (
+                    <EditArticleButton title={doc.title || 'Untitled'}
+                      onEdit={() => setEditing({ id: doc.id, title: doc.title, tags: doc.tags ?? [], starterKey: doc.starterKey })} />
+                  )}
                   <button onClick={() => deleteDoc(doc.id)}
                     className="text-gray-600 hover:text-red-600 dark:hover:text-red-400 text-xs shrink-0">Delete</button>
                 </div>
@@ -246,6 +265,16 @@ export default function KnowledgeBaseDashboard() {
             </div>
           ))}
         </div>
+      )}
+
+      {showStarters && (
+        <StarterArticlesDialog missing={flags.starterMissing} onClose={() => setShowStarters(false)}
+          onDone={() => { setShowStarters(false); loadDocs(); }} />
+      )}
+
+      {editing && (
+        <ArticleEditDialog mode="edit" doc={editing} onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); loadDocs(); }} />
       )}
 
       {showIngest && (
