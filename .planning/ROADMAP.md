@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 22/23 plans executed in 6 waves
+**Plans**: 23/23 plans executed in 6 waves
 
 Plans:
 **Wave 1**
@@ -596,7 +596,7 @@ Plans:
 - [x] 85-22-PLAN.md — Operator script: measure the real CPU speed, run the eval sets live, calibrate on a real knowledge base
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 85-23-PLAN.md — Agent 2.1.18, all gates together, the validation map, the user's live list
+- [x] 85-23-PLAN.md — Agent 2.1.18, all gates together, the validation map, the user's live list
 
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 85`) — measure `llama3.2:3b` CPU tokens per second once Ollama exists; calibrate the retrieval threshold; build prompt-injection and escalation eval sets.
@@ -677,6 +677,6 @@ Plans:
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
-| 85. First-Line Service Desk | 22/23 | In Progress | - |
+| 85. First-Line Service Desk | 23/23 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
