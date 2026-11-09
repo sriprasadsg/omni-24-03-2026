@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { authFetch } from '../services/apiService';
 import { showToast } from '../utils/toast';
-import type { KbDocFlags } from '../services/serviceDesk/types';
+import { fetchGaps } from '../services/serviceDesk/knowledgeApi';
+import type { KbDocFlags, KnowledgeGapGroup } from '../services/serviceDesk/types';
 import { HealthNotice } from './serviceDesk/deskUi';
 import { ArticleEditDialog, type EditableArticle } from './serviceDesk/ArticleEditDialog';
 import { EditArticleButton, HelpDeskChips, HelpDeskToggle, SharedReferenceLine } from './serviceDesk/HelpDeskToggle';
 import { StarterArticlesDialog } from './serviceDesk/StarterArticlesDialog';
 import { SECONDARY_BUTTON } from './serviceDesk/deskUi';
-import { KB, fill } from './serviceDesk/serviceDeskCopy';
+import { KnowledgeGapsTab } from './serviceDesk/KnowledgeGapsTab';
+import { GAPS, KB, fill } from './serviceDesk/serviceDeskCopy';
 import { InfoIcon, SparklesIcon } from './icons';
 
 interface KBDoc {
@@ -37,6 +39,12 @@ interface SearchResult extends KBDoc {
   relevance: number;
 }
 
+/** The Knowledge gaps tab: amber text while groups are open, so the need for an article is seen from the other tabs. */
+const gapTabClass = (active: boolean, open: boolean) => {
+  if (!open) return tabClass(active);
+  return `px-3 py-1.5 rounded-lg text-sm font-medium ${active ? 'bg-amber-100 text-amber-900 dark:bg-amber-400/20 dark:text-amber-200' : 'bg-white dark:bg-gray-800 text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200'}`;
+};
+
 export default function KnowledgeBaseDashboard() {
   const [docs, setDocs] = useState<KBDoc[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -45,13 +53,25 @@ export default function KnowledgeBaseDashboard() {
   const [showIngest, setShowIngest] = useState(false);
   const [ingestForm, setIngestForm] = useState({ title: '', content: '', source: '', tags: '' });
   const [ingesting, setIngesting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'browse' | 'search' | 'helpdesk'>('browse');
+  const [activeTab, setActiveTab] = useState<'browse' | 'search' | 'helpdesk' | 'gaps'>('browse');
   const [total, setTotal] = useState(0);
   const [flags, setFlags] = useState<KbDocFlags>(NO_FLAGS);
   const [editing, setEditing] = useState<EditableArticle | null>(null);
   const [showStarters, setShowStarters] = useState(false);
+  const [gapCount, setGapCount] = useState<number | null>(null);
+  const [gapsKey, setGapsKey] = useState(0);
+  const [writing, setWriting] = useState<KnowledgeGapGroup | null>(null);
 
   useEffect(() => { loadDocs(); }, []);
+
+  // The Knowledge gaps tab label carries the open count: read it once, when the server first says this person may see gaps.
+  useEffect(() => {
+    if (!flags.canSeeGaps) return undefined;
+    let cancelled = false;
+    fetchGaps(false).then(v => { if (!cancelled) setGapCount(v.groups.filter(g => g.status === 'open').length); }).catch(() => { /* the tab shows its own error */ });
+    return () => { cancelled = true; };
+  }, [flags.canSeeGaps]);
+  const onGapCount = useCallback((n: number) => setGapCount(n), []);
 
   async function loadDocs() {
     try {
@@ -183,6 +203,11 @@ export default function KnowledgeBaseDashboard() {
             {fill(KB.filterHelpDesk, { k: flags.helpdeskCount })}
           </button>
         )}
+        {flags.canSeeGaps && (
+          <button onClick={() => setActiveTab('gaps')} className={gapTabClass(activeTab === 'gaps', (gapCount ?? 0) > 0)}>
+            {gapCount === null ? GAPS.heading : fill(GAPS.tab, { n: gapCount })}
+          </button>
+        )}
         {results.length > 0 && (
           <button onClick={() => setActiveTab('search')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium ${activeTab === 'search' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
@@ -190,6 +215,10 @@ export default function KnowledgeBaseDashboard() {
           </button>
         )}
       </div>
+
+      {activeTab === 'gaps' && flags.canSeeGaps && (
+        <KnowledgeGapsTab refreshKey={gapsKey} onOpenCount={onGapCount} onWrite={setWriting} />
+      )}
 
       {(activeTab === 'browse' || activeTab === 'helpdesk') && (
         shown.length === 0 && activeTab === 'helpdesk' ? (
@@ -275,6 +304,11 @@ export default function KnowledgeBaseDashboard() {
       {editing && (
         <ArticleEditDialog mode="edit" doc={editing} onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); loadDocs(); }} />
+      )}
+
+      {writing && (
+        <ArticleEditDialog mode="write" initialTitle={writing.question} gapGroupId={writing.id} onClose={() => setWriting(null)}
+          onSaved={() => { setWriting(null); loadDocs(); setGapsKey(k => k + 1); }} />
       )}
 
       {showIngest && (
