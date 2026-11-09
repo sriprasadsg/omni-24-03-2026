@@ -3,6 +3,38 @@ phase: 85
 review: 85-REVIEW.md
 titles: json
 findings:
+  - id: WR-601
+    severity: warning
+    disposition: open
+    title: "`canSeeGaps` still derives from `view:dashboard`, so the Gaps tab is offered to people the routes refuse"
+  - id: WR-602
+    severity: warning
+    disposition: open
+    title: "Live WebSocket push still broadcasts `tenant_admins` notices (agent host details) to every user of the tenant"
+  - id: WR-603
+    severity: warning
+    disposition: open
+    title: "A requester can still set staff-only fields (assignee, assignee_group, watchers, approval_required, sla_hours, due_date) when creating a ticket"
+  - id: WR-604
+    severity: warning
+    disposition: open
+    title: "`reader_filter` does not fail closed on an empty tenant id; the feed, mark-read and delete routes can match notices with no tenant"
+  - id: IN-601
+    severity: info
+    disposition: open
+    title: "Stale module docstring in `ticket_access.py`"
+  - id: IN-602
+    severity: info
+    disposition: open
+    title: "The own-tickets filter and `is_reporter` can disagree on what \"the same person\" means"
+  - id: IN-603
+    severity: info
+    disposition: open
+    title: "The notice-reader structure test accepts a function that calls `reader_filter` but never uses the result"
+  - id: IN-604
+    severity: info
+    disposition: open
+    title: "No frontend code reads `manage:tickets`; the Tickets screen still offers staff actions to requesters"
   - id: CR-501
     severity: critical
     disposition: fixed
@@ -151,24 +183,32 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 24
-total: 37
-recorded: 2026-11-09T20:02:31.543Z
+open: 32
+total: 45
+recorded: 2026-11-09T23:26:00.237Z
 ---
 
 # Phase 85: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-501 | critical | fixed | fixed b7e178bd3, 4f5ad02b9 (85-31); tests 975d2d5dc |
-| WR-501 | warning | open | - |
-| WR-502 | warning | fixed | fixed 1a0a5d54b (85-30); fd671c60e (85-32); 6458b0f62, 59e98958d, 03d6efce5 (85-33); 638d655b7, 283a1b71a (85-34); 37b7f2890, 3f2045d09 (85-35) |
-| WR-503 | warning | open | - |
-| WR-504 | warning | open | - |
-| IN-501 | info | open | - |
-| IN-502 | info | open | - |
-| IN-503 | info | open | - |
-| IN-504 | info | open | - |
+| WR-601 | warning | open | - |
+| WR-602 | warning | open | - |
+| WR-603 | warning | open | - |
+| WR-604 | warning | open | - |
+| IN-601 | info | open | - |
+| IN-602 | info | open | - |
+| IN-603 | info | open | - |
+| IN-604 | info | open | - |
+| CR-501 | critical | fixed | fixed b7e178bd3, 4f5ad02b9 (85-31); tests 975d2d5dc (not in the current review) |
+| WR-501 | warning | open | - (not in the current review) |
+| WR-502 | warning | fixed | fixed 1a0a5d54b (85-30); fd671c60e (85-32); 6458b0f62, 59e98958d, 03d6efce5 (85-33); 638d655b7, 283a1b71a (85-34); 37b7f2890, 3f2045d09 (85-35) (not in the current review) |
+| WR-503 | warning | open | - (not in the current review) |
+| WR-504 | warning | open | - (not in the current review) |
+| IN-501 | info | open | - (not in the current review) |
+| IN-502 | info | open | - (not in the current review) |
+| IN-503 | info | open | - (not in the current review) |
+| IN-504 | info | open | - (not in the current review) |
 | CR-101 | critical | fixed | fixed 791831738, 94afd4eea (85-24) (not in the current review) |
 | WR-101 | warning | fixed | fixed cf422f817 (85-24) (not in the current review) |
 | WR-102 | warning | fixed | fixed 3a1937b7d, 86cd504bd (85-27) (not in the current review) |
