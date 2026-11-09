@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-20-PLAN.md
-last_updated: "2026-11-09T05:52:40.275Z"
+stopped_at: Completed 85-21-PLAN.md
+last_updated: "2026-11-09T06:09:20.805Z"
 last_activity: 2026-11-08
 last_activity_desc: Phase 85 execution started
-state_head: ac5bba0c7a1dc30f692144ebf2f80590083c4ea9
+state_head: 414702efa161cbac3e31f6434db689a3b2d4751d
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 122
-  completed_plans: 119
+  completed_plans: 120
   percent: 86
 ---
 
@@ -628,6 +628,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-19: the AI-assisted line above a tray answer is added by the tray script only; the server sends the stored answer text without the mark — The stored answer carries no mark and the script adds it once unless the text already starts with it, so it shows exactly once
 - [Phase 85]: 85-19: tray routes use the per-agent limiter (10 writes, 30 reads a minute) and a Windows-user match that is soft scoping (D-34) — Computers behind one address must not share a bucket; the user name is client-reported and the footnote never claims privacy
 - [Phase 85]: 85-20: the server's stored comment kinds reach the client through one tested map (ai_answer->answer, requester_reply->you, withdrawn_notice->withdrawn, handoff_notice->notice, null->reply, unknown->notice); the draft panel renders whenever the server supplies a draft and reads canActOnDraft/blockedReason for its blocked states; Reply to requester is Staff only by default and resets after every send and ticket switch
+- [Phase 85]: 85-21: Edit article reads its text through a new GET /api/knowledge/docs/{id} (the list excludes content and 85-15 built no read route); needs the backend restart
+- [Phase 85]: 85-21: gap ticket numbers are mono text until the Knowledge Base screen is given a ticket opener (App.tsx carries user changes); KnowledgeGapsTab already accepts onOpenTicket
 
 ## Performance Metrics
 
@@ -902,6 +904,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P18 | 2.5 hours | 2 tasks | 7 files |
 | Phase 85 P19 | 22 min | 3 tasks | 10 files |
 | Phase 85 P20 | 12 min | 3 tasks | 10 files |
+| Phase 85 P21 | 25 min | 3 tasks | 13 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -936,8 +939,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T05:52:35.618Z
-**Stopped at:** Completed 85-20-PLAN.md
+**Last session:** 2026-11-09T06:09:20.550Z
+**Stopped at:** Completed 85-21-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -964,7 +967,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 21 of 23
+Plan: 22 of 23
 Status: Ready to execute
 Last activity: 2026-11-08 — Phase 85 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
