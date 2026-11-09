@@ -57,6 +57,7 @@ GLOBAL_QUEUE_CAP = 30
 
 DESK_RATE_LIMIT = 20                    # D-30: automatic desk answers per rolling hour
 DESK_BREAKER_THRESHOLD = 3              # D-25: withdrawn answers in 24 hours
+DESK_BREAKER_WINDOW = timedelta(hours=24)
 RETURN_WORKING_DAYS = 3
 
 TITLE_CAP = 200

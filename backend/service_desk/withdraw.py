@@ -21,12 +21,15 @@ from autonomous_ops import PLATFORM_TENANT_ID, approvals, ledger
 from autonomous_ops.rollout import windows
 from autonomous_ops.scope import raw
 
-from . import COMMAND_WITHDRAW, DISPATCHER_NAME, SYSTEM_AUTHOR, handoff, messages, notify, ticket_writes, workdays
+from . import (COMMAND_WITHDRAW, DESK_BREAKER_THRESHOLD, DESK_BREAKER_WINDOW, DISPATCHER_NAME, SYSTEM_AUTHOR, handoff,
+               messages, notify, ticket_writes, workdays)
 
 logger = logging.getLogger(__name__)
 
 _UNDOABLE_STATES = ("executed", "verified")
 _POSTED_PHASES = ("posted", "sent")            # the answer is on the ticket; the same set the Activity row uses
+_EVENT = "service_desk_breaker_tripped"             # the control row and the notice carry this event name
+_DESK_ACTOR = {"username": "autonomous_ops", "display": "Service desk", "tier": "system"}
 _VISIBLE = ["posted", "sent"]                  # the comment states a requester can read
 
 
@@ -96,8 +99,44 @@ async def _step(label: str, ticket_id: str, call) -> Any:
 
 
 async def evaluate_breaker(db, tenant_id: str, *, now: Optional[datetime] = None) -> bool:
-    """Placeholder until the desk breaker lands (the next commit of this plan): never trips."""
-    return False
+    """Drop the desk to Drafts only after DESK_BREAKER_THRESHOLD (3) automatically posted answers were withdrawn
+    within DESK_BREAKER_WINDOW (24 hours). True when THIS call tripped it.
+
+    Only rows the desk posted on its own count: a draft a person sent (``desk.sentBy``) is that person's decision,
+    and an I still need help never makes a row undone. One compare-and-set on ``serviceDesk.mode`` decides the
+    winner, so concurrent withdrawals trip it once and notify once. The tenant's Autonomous Ops level, its own
+    breaker and the on-call page are never touched (D-25, PROH-85-08): the Phase 81 breaker module is not called."""
+    now = _now(now)
+    if tenant_id == PLATFORM_TENANT_ID:
+        return False
+    cursor = raw(db).autonomy_actions.find(
+        {"tenantId": tenant_id, "kind": ledger.DESK_KIND, "state": "undone", "autoDispatched": True,
+         "desk.sentBy": None, "undo.undoneAt": {"$gt": now - DESK_BREAKER_WINDOW}},
+        {"_id": 0, "id": 1}).sort("undo.undoneAt", -1).limit(DESK_BREAKER_THRESHOLD)
+    rows = await cursor.to_list(length=DESK_BREAKER_THRESHOLD)
+    if len(rows) < DESK_BREAKER_THRESHOLD:
+        return False
+    breaker = {"trippedAt": now, "actionIds": [r["id"] for r in rows]}
+    won = await raw(db).autonomy_settings.update_one(
+        {"tenantId": tenant_id, "serviceDesk.mode": "post", "serviceDesk.breaker": None},
+        {"$set": {"serviceDesk.mode": "drafts", "serviceDesk.breaker": breaker, "updatedAt": now,
+                  "updatedBy": "system"}})
+    if won.modified_count != 1:
+        return False                          # already at Drafts only or Off, or another withdrawal tripped it first
+    try:
+        await ledger.record_control(db, tenant_id, _EVENT, scope="tenant", actor=_DESK_ACTOR,
+                                    reason=messages.CONTROL_REASONS[_EVENT])
+    except Exception as exc:                  # the mode is already lowered; say so in the log
+        logger.error("service_desk: the desk breaker trip for %s was not recorded in the ledger: %s", tenant_id, exc)
+    try:
+        from notification_service import get_notification_service
+        await get_notification_service(raw(db)).send_alert(
+            messages.BREAKER_NOTICE_TITLE, messages.BREAKER_NOTICE, "warning", recipients=[], tenant_id=tenant_id,
+            channels=[], metadata={"source": "service_desk", "event": _EVENT,
+                                   "audience": "tenant_admins", "actionIds": breaker["actionIds"]})
+    except Exception as exc:
+        logger.warning("service_desk: the desk breaker notice for %s was not stored: %s", tenant_id, exc)
+    return True
 
 
 async def undo_answer(db, tenant_id: str, row: Dict[str, Any], *, actor: Dict[str, Any],

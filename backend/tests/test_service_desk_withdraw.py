@@ -23,9 +23,10 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from autonomous_ops import approvals, ledger
+from autonomous_ops import approvals, breaker, ledger
 from autonomous_ops import messages as ao_messages
 from service_desk import messages, projection, withdraw
+from catalogue_mounts import mount_dependencies
 from tests._autonomous_ops_http import Api
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.autonomy_support import seed_platform_stop
@@ -39,6 +40,10 @@ BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 async def world(mongo_db, monkeypatch):  # noqa: F811
     world = await build_world(mongo_db, monkeypatch)
     world.api = Api(mongo_db, monkeypatch)
+    import autonomous_ops_service_desk_endpoints as desk_routes
+    monkeypatch.setattr(desk_routes, "get_database", lambda: mongo_db)
+    world.api.app.include_router(desk_routes.router,
+                                 dependencies=mount_dependencies("autonomous_ops_service_desk_endpoints", "router"))
     return world
 
 
@@ -281,3 +286,178 @@ def test_the_handler_is_the_one_the_approvals_module_calls():
     assert approvals._UNDO_HANDLERS["service_desk"] is withdraw.undo_answer
     assert withdraw.DISPATCHER_NAME == "service_desk"
     assert ledger.DESK_KIND == "servicedesk"
+
+
+# ---------------------------------------------------------------- Task 2: the desk-only breaker
+
+LEVEL_KEYS = ("level", "maxLevel", "shadow", "stop", "breaker")
+
+
+async def _settings(db, tenant="t1"):
+    return await db.autonomy_settings.find_one({"tenantId": tenant}, {"_id": 0})
+
+
+async def _controls(db, tenant="t1"):
+    return await db.autonomy_actions.find({"tenantId": tenant, "kind": "control",
+                                           "controlEvent": "service_desk_breaker_tripped"}, {"_id": 0}).to_list(10)
+
+
+async def _withdraw_one(world):
+    """One more automatically posted answer withdrawn through the route. Returns (response, ticket, row)."""
+    ticket, row = await _posted(world)
+    return await _undo(world, row), ticket, row
+
+
+async def _seed_undone(db, n, *, tenant="t1", hours_ago=1.0, auto=True, sent=False):
+    """``n`` desk rows that were withdrawn ``hours_ago`` hours ago (written directly; the window is measured on
+    undo.undoneAt)."""
+    when = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    ids = []
+    for i in range(n):
+        row_id = f"AO-seed-{len(ids)}-{when.timestamp()}-{auto}-{sent}-{i}"
+        desk = {"ticketId": "x", "phase": "withdrawn"}
+        if sent:
+            desk["sentBy"] = {"id": "bob@x.co", "name": "Bob"}
+        await db.autonomy_actions.insert_one({
+            "id": row_id, "tenantId": tenant, "kind": "servicedesk", "state": "undone", "autoDispatched": auto,
+            "command": "ticket_answer", "desk": desk, "undo": {"available": True, "undoneAt": when},
+            "createdAt": when, "updatedAt": when, "finishedAt": when})
+        ids.append(row_id)
+    return ids
+
+
+async def test_the_third_withdrawal_drops_the_desk_to_drafts_only_and_the_second_does_not(world):
+    """protects=D-25 / T-85-68 three automatic answers withdrawn in 24 hours stop posting, the first two do not,
+    only the desk's own switch changes and the tenant's level and breaker stay as they were; fails_when=two
+    withdrawals trip it, the third does not, the tenant level changes, on-call is paged, or the trip is not
+    recorded and announced once."""
+    before = await _settings(world.db)
+    tickets, rows = [], []
+    for expected in (False, False):
+        done, ticket, row = await _withdraw_one(world)
+        assert done.status_code == 200 and done.json()["deskBreakerTripped"] is expected
+        tickets.append(ticket), rows.append(row)
+        assert (await _settings(world.db))["serviceDesk"]["mode"] == "post"
+    assert await _controls(world.db) == [] and await world.db.notifications.count_documents(
+        {"metadata.audience": "tenant_admins"}) == 0
+    done, ticket, row = await _withdraw_one(world)
+    rows.append(row)
+    assert done.status_code == 200 and done.json()["deskBreakerTripped"] is True and done.json()["breakerTripped"] is False
+
+    after = await _settings(world.db)
+    assert after["serviceDesk"]["mode"] == "drafts"
+    assert sorted(after["serviceDesk"]["breaker"]["actionIds"]) == sorted(r["id"] for r in rows)
+    assert after["serviceDesk"]["breaker"]["trippedAt"] is not None
+    assert {k: after.get(k) for k in LEVEL_KEYS} == {k: before.get(k) for k in LEVEL_KEYS}
+    assert after["level"] == "undoable_auto" and after["breaker"] is None
+    assert await breaker.evaluate(world.db, "t1") is False
+    [control] = await _controls(world.db)
+    assert control["reasonText"] == messages.CONTROL_REASONS["service_desk_breaker_tripped"]
+    assert control["actor"]["display"] == "Service desk"
+    assert await world.db.audit_logs.count_documents(
+        {"tenantId": "t1", "action": "autonomous_ops.service_desk_breaker_tripped"}) == 1
+    [notice] = await world.db.notifications.find({"metadata.event": "service_desk_breaker_tripped"}).to_list(5)
+    assert notice["metadata"]["audience"] == "tenant_admins" and notice["tenantId"] == "t1"
+    assert notice["title"] == messages.BREAKER_NOTICE_TITLE and notice["channels"] == {}
+    assert await world.db.oncall_outbox.count_documents({}) == 0
+    status = (await world.api.call("GET", "/api/autonomous-ops/service-desk", role="tenant_admin")).json()
+    assert status["mode"] == "drafts" and status["breaker"]["count"] == 3
+
+    later = await raise_and_run(world)                      # the desk now only drafts
+    assert (await desk_row(world.db, later))["state"] == "suggested"
+
+
+async def test_after_restore_the_next_qualifying_answer_posts_again(world):
+    """protects=D-25 / T-85-68 restore needs manage and ends the drop; fails_when=an analyst restores, or a
+    restored desk keeps drafting."""
+    await _seed_undone(world.db, 2)
+    done, _, _ = await _withdraw_one(world)
+    assert done.json()["deskBreakerTripped"] is True
+    path = "/api/autonomous-ops/service-desk/restore"
+    assert (await world.api.call("POST", path, role="analyst")).status_code == 403
+    assert (await _settings(world.db))["serviceDesk"]["mode"] == "drafts"
+    assert (await world.api.call("POST", path, role="tenant_admin")).status_code == 200
+    settings_now = await _settings(world.db)
+    assert settings_now["serviceDesk"]["mode"] == "post" and settings_now["serviceDesk"]["breaker"] is None
+    ticket = await raise_and_run(world)
+    row = await desk_row(world.db, ticket)
+    assert row["state"] == "executed" and ticket["status"] == "pending_customer"
+
+
+async def test_withdrawals_more_than_24_hours_apart_do_not_add_up(world):
+    """protects=D-25 the window is 24 hours; fails_when=an old withdrawal counts."""
+    await _seed_undone(world.db, 2, hours_ago=25)
+    done, _, _ = await _withdraw_one(world)
+    assert done.json()["deskBreakerTripped"] is False
+    assert (await _settings(world.db))["serviceDesk"]["mode"] == "post"
+    await _seed_undone(world.db, 1, hours_ago=23)
+    done, _, _ = await _withdraw_one(world)                  # two recent seeded or real ones plus this one: three
+    assert done.json()["deskBreakerTripped"] is True
+
+
+@pytest.mark.parametrize("flagged_auto", [False, True])
+async def test_a_draft_a_person_sent_never_counts(world, flagged_auto):
+    """protects=decision 8 a person's send is not an automatic answer, even if its row were marked automatic;
+    fails_when=three withdrawn sent drafts drop the desk to Drafts only."""
+    await world.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"serviceDesk.mode": "drafts"}})
+    rows = []
+    for _ in range(3):
+        ticket = await raise_and_run(world)
+        comment = draft_of(ticket)
+        sent = await world.call("POST", _path(ticket, f"/drafts/{comment['id']}/send"), user=BOB)
+        assert sent.status_code == 200, sent.text
+        row = await desk_row(world.db, ticket)
+        assert row["state"] == "executed" and row["desk"]["sentBy"]
+        if flagged_auto:
+            await world.db.autonomy_actions.update_one({"id": row["id"]}, {"$set": {"autoDispatched": True}})
+        rows.append(row)
+    await world.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"serviceDesk.mode": "post"}})
+    for row in rows:
+        done = await _undo(world, row)
+        assert done.status_code == 200 and done.json()["deskBreakerTripped"] is False
+    assert (await _settings(world.db))["serviceDesk"]["mode"] == "post" and await _controls(world.db) == []
+
+
+async def test_i_still_need_help_never_counts(world):
+    """protects=D-25 a requester asking for a person is not a withdrawn answer; fails_when=three of them trip it."""
+    for _ in range(3):
+        ticket, row = await _posted(world)
+        assert (await world.call("POST", _path(ticket, "/help"), user=ALICE, json={})).status_code == 200
+        assert (await _row(world.db, row["id"]))["state"] == "executed"
+    assert await withdraw.evaluate_breaker(world.db, "t1") is False
+    assert (await _settings(world.db))["serviceDesk"]["mode"] == "post" and await _controls(world.db) == []
+
+
+async def test_a_desk_already_at_drafts_only_trips_nothing(world):
+    """protects=D-25 nothing to drop, nothing to record; fails_when=a control row or a notice is written."""
+    await _seed_undone(world.db, 2)
+    _, row = await _posted(world)
+    await world.db.autonomy_settings.update_one({"tenantId": "t1"}, {"$set": {"serviceDesk.mode": "drafts"}})
+    done = await _undo(world, row)
+    assert done.status_code == 200 and done.json()["deskBreakerTripped"] is False
+    after = await _settings(world.db)
+    assert after["serviceDesk"]["mode"] == "drafts" and after["serviceDesk"].get("breaker") is None
+    assert await _controls(world.db) == [] and await world.db.notifications.count_documents(
+        {"metadata.event": "service_desk_breaker_tripped"}) == 0
+
+
+async def test_concurrent_evaluations_trip_once(world):
+    """protects=T-85-70 one compare-and-set decides; fails_when=two control rows or two notices."""
+    await _seed_undone(world.db, 3)
+    results = await asyncio.gather(withdraw.evaluate_breaker(world.db, "t1"), withdraw.evaluate_breaker(world.db, "t1"))
+    assert sorted(results) == [False, True]
+    assert len(await _controls(world.db)) == 1
+    assert await world.db.notifications.count_documents({"metadata.event": "service_desk_breaker_tripped"}) == 1
+
+
+async def test_the_breaker_counts_only_this_tenants_desk_rows_and_never_the_platform(world):
+    """protects=tenant isolation and PROH-85-08; fails_when=another tenant's withdrawals or a non-desk undone row
+    count, or the platform organization is touched."""
+    await _seed_undone(world.db, 3, tenant="t2")
+    await world.db.autonomy_actions.insert_many([
+        {"id": f"AO-sec-{i}", "tenantId": "t1", "kind": "security", "state": "undone", "autoDispatched": True,
+         "desk": None, "undo": {"undoneAt": datetime.now(timezone.utc)}} for i in range(3)])
+    assert await withdraw.evaluate_breaker(world.db, "t1") is False
+    assert await withdraw.evaluate_breaker(world.db, "platform-admin") is False
+    assert (await _settings(world.db))["serviceDesk"]["mode"] == "post"
+    assert (await _settings(world.db, "t2"))["serviceDesk"]["mode"] == "drafts"
