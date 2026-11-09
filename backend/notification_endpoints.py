@@ -110,8 +110,9 @@ async def mark_as_read(notification_id: str, current_user: TokenData = Depends(r
     """Mark a notification as read"""
     db = get_database()
     tenant_id = get_tenant_id()
+    # Only a notice the caller can read can be marked read (D-33, WR-202).
     result = await db.notifications.update_one(
-        {"alert_id": notification_id, "tenantId": tenant_id},
+        {**await _reader_filter(current_user, tenant_id), "alert_id": notification_id},
         {"$set": {"read": True, "read_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
@@ -127,12 +128,11 @@ async def mark_all_as_read(
     db = get_database()
     tenant_id = get_tenant_id()
     
+    # Everything the caller can read (not the whole tenant's notices), narrowed to the given ids when there are any.
+    query = await _reader_filter(current_user, tenant_id)
     if notification_ids:
-        query = {"alert_id": {"$in": notification_ids}, "tenantId": tenant_id}
-    else:
-        # Mark ALL notifications for tenant as read
-        query = {"tenantId": tenant_id}
-        
+        query["alert_id"] = {"$in": notification_ids}
+
     result = await db.notifications.update_many(
         query,
         {"$set": {"read": True, "read_at": datetime.now(timezone.utc).isoformat()}}
@@ -144,7 +144,7 @@ async def delete_notification(notification_id: str, current_user: TokenData = De
     """Delete a notification"""
     db = get_database()
     tenant_id = get_tenant_id()
-    result = await db.notifications.delete_one({"alert_id": notification_id, "tenantId": tenant_id})
+    result = await db.notifications.delete_one({**await _reader_filter(current_user, tenant_id), "alert_id": notification_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"success": True}
