@@ -7,7 +7,7 @@ render the text as text.
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import ANSWER_MAX_CHARS, PERSON_RAISED, messages
+from . import ANSWER_MAX_CHARS, PERSON_RAISED, RETURN_WORKING_DAYS, messages, workdays
 
 CLOSED_STATUSES = ("resolved", "closed")
 ANSWERED_PHASES = ("posted", "sent")                # an answer is with the requester
@@ -15,9 +15,12 @@ NOTICES = {"confirmed": "confirmed", "helped": "helped", "handed_off": "handed_o
            "withdrawn": "withdrawn"}                  # desk.phase -> the requester panel's notice
 
 
-def requester_items(ticket: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """The requester-visible comments, oldest first."""
-    comments = [c for c in (ticket.get("comments") or []) if isinstance(c, dict) and c.get("visibility") == "requester"]
+def requester_items(ticket: Dict[str, Any], names: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
+    """The requester-visible comments, oldest first. An answer that was withdrawn is left out (the requester
+    reads the withdrawal notice instead). With ``names`` (lowercase user name -> profile name) a reply written
+    by a person shows that person's name, or no name when there is no profile (the screen then says IT)."""
+    comments = [c for c in (ticket.get("comments") or []) if isinstance(c, dict) and c.get("visibility") == "requester"
+                and not _withdrawn(c)]
     comments.sort(key=lambda c: (str(c.get("created_at") or ""), str(c.get("id") or "")))
     items = []
     for comment in comments:
@@ -27,9 +30,29 @@ def requester_items(ticket: Dict[str, Any]) -> List[Dict[str, Any]]:
         if kind == "ai_answer":
             citations = [{"articleId": c.get("articleId"), "title": c.get("title")}
                          for c in (ai.get("citations") or []) if isinstance(c, dict)]
+        author = comment.get("author")
+        if names is not None and _staff_reply(ticket, comment):
+            author = names.get(_text(author))
         items.append({"id": comment.get("id"), "kind": kind, "at": comment.get("created_at"),
-                      "author": comment.get("author"), "text": comment.get("text"), "citations": citations})
+                      "author": author, "text": comment.get("text"), "citations": citations})
     return items
+
+
+def _withdrawn(comment: Dict[str, Any]) -> bool:
+    ai = comment.get("ai") if isinstance(comment.get("ai"), dict) else {}
+    return comment.get("kind") == "ai_answer" and ai.get("state") == "withdrawn"
+
+
+def _staff_reply(ticket: Dict[str, Any], comment: Dict[str, Any]) -> bool:
+    """A plain requester-visible comment written by someone other than the reporter."""
+    return not comment.get("kind") and _text(comment.get("author")) != _text(ticket.get("reporter"))
+
+
+def staff_reply_authors(ticket: Dict[str, Any]) -> List[str]:
+    """The user names behind the requester-visible staff replies (to look their profile names up)."""
+    return sorted({c["author"] for c in (ticket.get("comments") or [])
+                   if isinstance(c, dict) and c.get("visibility") == "requester" and _staff_reply(ticket, c)
+                   and isinstance(c.get("author"), str) and c["author"]})
 
 
 def can_see(ticket: Dict[str, Any]) -> bool:
@@ -128,11 +151,55 @@ def confirmable(ticket: Dict[str, Any]) -> bool:
     return desk.get("phase") in ANSWERED_PHASES and ticket.get("status") == "pending_customer"
 
 
-def requester_view(ticket: Dict[str, Any], zone: str = "UTC") -> Dict[str, Any]:
-    """What the reporter's answer panel reads: the requester-visible items, whether they can answer it, the
-    notice that replaces the buttons once they have, and when they confirmed. Never a draft, a staff-only
-    comment or a reason."""
+def _moment(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str) and value:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
+def return_at(ticket: Dict[str, Any], zone: str) -> Optional[str]:
+    """When a person from IT picks the ticket up if the requester stays silent (D-08): three working days after
+    the answer reached them, in the tenant's zone. Worked out here every time it is shown, never stored."""
+    posted = _moment((ticket.get("desk") or {}).get("postedAt")) if confirmable(ticket) else None
+    return workdays.add_working_days(posted, RETURN_WORKING_DAYS, zone).isoformat() if posted else None
+
+
+def requester_view(ticket: Dict[str, Any], zone: str = "UTC", names: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """What the reporter's answer panel reads: the requester-visible items, whether they can answer it, when a
+    person will pick it up, the notice that replaces the buttons once they have answered, and when they
+    confirmed. Never a draft, a staff-only comment or a reason."""
     desk = ticket.get("desk") if isinstance(ticket.get("desk"), dict) else {}
-    return {"items": requester_items(ticket), "canSee": can_see(ticket), "canConfirm": confirmable(ticket),
-            "notice": NOTICES.get(desk.get("phase")), "confirmedAt": iso(desk.get("confirmedAt")),
-            "returnAt": None}
+    return {"items": requester_items(ticket, names), "canSee": can_see(ticket), "canConfirm": confirmable(ticket),
+            "returnAt": return_at(ticket, zone), "notice": NOTICES.get(desk.get("phase")),
+            "confirmedAt": iso(desk.get("confirmedAt"))}
+
+
+def cited_articles(ticket: Dict[str, Any], *, for_requester: bool) -> Dict[str, str]:
+    """{article id: cited title} for the articles that may be opened from this ticket (D-14). The reporter:
+    those cited on an answer they can see (requester-visible, not withdrawn). Staff: those cited on any answer
+    and on the waiting draft."""
+    found: Dict[str, str] = {}
+    for comment in ticket.get("comments") or []:
+        if not isinstance(comment, dict) or not isinstance(comment.get("ai"), dict):
+            continue
+        ai, kind = comment["ai"], comment.get("kind")
+        if for_requester:
+            visible = kind == "ai_answer" and comment.get("visibility") == "requester" and not _withdrawn(comment)
+        else:
+            visible = kind == "ai_answer" or (kind == "ai_draft" and ai.get("state") == "draft")
+        if visible:
+            for citation in ai.get("citations") or []:
+                if isinstance(citation, dict) and isinstance(citation.get("articleId"), str):
+                    found.setdefault(citation["articleId"], citation.get("title") or "")
+    return found
+
+
+def cited_article_ids(ticket: Dict[str, Any], *, for_requester: bool) -> List[str]:
+    """The allow-list of article ids a viewer may open from this ticket."""
+    return list(cited_articles(ticket, for_requester=for_requester))

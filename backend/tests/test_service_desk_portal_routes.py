@@ -11,6 +11,7 @@ import asyncio
 import os
 import re
 import sys
+from datetime import datetime, timezone
 
 import pytest
 
@@ -18,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from service_desk import messages
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
+from tests.service_desk_support import portal_user
 from tests.service_desk_portal_support import (ALICE, ANSWER, BOB, CAROL, DAVE, DRAFT_ALICE, STAFF2, STAFF3, build_world,
                                                desk_row, draft_of, notices, raise_and_run, stored)
 
@@ -337,3 +339,111 @@ async def test_a_failing_hook_never_fails_the_comment(world, monkeypatch):
     response = await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=BOB, json={"text": "fine"})
     assert response.status_code == 200
     assert "fine" in str((await stored(world.db, ticket["id"]))["comments"])
+
+
+# ---------------------------------------------------------------- Task 3: return date, names and cited articles
+
+async def test_the_requester_view_gives_the_return_date_in_the_tenant_zone(world):
+    """protects=D-08 / R3: returnAt is 3 working days after desk.postedAt in the tenant's zone, worked out on every
+    read and never stored; it goes with the answer; fails_when=the zone is ignored, the date is stored or it
+    stays after a confirmation."""
+    ticket = await _posted(world)
+    await world.db.maintenance_settings.insert_one({"tenantId": "t1", "timeZone": "America/New_York"})
+    friday = datetime(2026, 10, 30, 20, 0, tzinfo=timezone.utc)                  # 16:00 in New York
+    await world.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"desk.postedAt": friday}})
+    view = (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]
+    assert view["returnAt"] == "2026-11-04T21:00:00+00:00"                       # Wednesday 16:00 after the clock change
+    assert "returnAt" not in (await stored(world.db, ticket["id"]))["desk"]
+
+    await world.db.maintenance_settings.delete_many({})
+    assert (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]["returnAt"] == "2026-11-04T20:00:00+00:00"
+    await world.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"desk.postedAt": friday.isoformat()}})
+    assert (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]["returnAt"] == "2026-11-04T20:00:00+00:00"
+
+    await world.call("POST", _path(ticket, "/confirm"), user=ALICE)
+    assert (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]["returnAt"] is None
+
+
+@pytest.mark.parametrize("phase,notice", [("confirmed", "confirmed"), ("helped", "helped"), ("handed_off", "handed_off"),
+                                          ("returned", "handed_off"), ("withdrawn", "withdrawn"), ("discarded", None),
+                                          ("drafted", None), ("posted", None)])
+async def test_the_notice_follows_the_desk_phase(world, phase, notice):
+    """protects=UI-SPEC section 4 the panel states; fails_when=a phase shows the wrong notice (a discarded draft
+    must show none)."""
+    ticket = await _posted(world)
+    await world.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"desk.phase": phase}})
+    assert (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]["notice"] == notice
+
+
+async def test_a_reply_from_staff_shows_the_staff_name_or_none(world):
+    """protects=R12: the profile name on the portal, no address when there is no profile; fails_when=an
+    address is shown."""
+    ticket = await _posted(world)
+    nameless = portal_user("t1", "zed@x.co")
+    await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=CAROL, json={"text": "One moment", "visibility": "requester"})
+    await world.call("POST", f"/api/tickets/{ticket['id']}/comments", user=nameless, json={"text": "Me too", "visibility": "requester"})
+    items = (await world.call("GET", _path(ticket), user=ALICE)).json()["requester"]["items"]
+    by_text = {i["text"]: i for i in items}
+    assert by_text["One moment"]["author"] == "Carol" and by_text["Me too"]["author"] is None
+    assert by_text[ANSWER]["kind"] == "ai_answer"
+
+
+async def test_a_withdrawn_answer_is_hidden_from_the_requester_and_kept_for_staff(world):
+    """protects=D-25 the requester never reads a withdrawn answer; fails_when=it is listed."""
+    ticket = await _posted(world)
+    await world.db.tickets.update_one({"id": ticket["id"], "comments.kind": "ai_answer"},
+                                      {"$set": {"comments.$.ai.state": "withdrawn"}})
+    mine = await world.call("GET", _path(ticket), user=ALICE)
+    assert mine.json()["requester"]["items"] == [] and ANSWER not in mine.text
+    assert draft_of(await stored(world.db, ticket["id"]))["text"] == ANSWER
+
+
+async def test_the_reporter_opens_only_the_articles_cited_on_their_answer(world):
+    """protects=D-14 / T-85-51: the cited article opens read-only; an uncited article of the same tenant, a global
+    one and an unknown id are 404; fails_when=a requester browses the knowledge base."""
+    ticket = await _posted(world)
+    opened = await world.call("GET", _path(ticket, "/articles/kb-pw"), user=ALICE)
+    assert opened.status_code == 200
+    body = opened.json()
+    assert body["articleId"] == "kb-pw" and body["title"] == "Reset your own password" and body["available"] is True
+    assert "Forgot password" in body["content"] and set(body) == {"articleId", "title", "content", "available"}
+    for article in ("kb-vpn", "kb-global", "nope"):
+        response = await world.call("GET", _path(ticket, f"/articles/{article}"), user=ALICE)
+        assert response.status_code == 404 and response.json()["detail"] == messages.API_DETAIL["article_not_found"]
+    assert (await world.call("GET", _path(ticket, "/articles/kb-pw"), user=STAFF2)).status_code == 404     # another tenant
+
+
+async def test_a_deleted_or_unmarked_article_answers_unavailable_with_its_cited_title(world):
+    """protects=D-14 the answer stays readable when its source goes; fails_when=a 404 or a 500 for a removed
+    article, or the text is still served after the Help desk mark is removed."""
+    ticket = await _posted(world)
+    await world.db.knowledge_docs.update_one({"id": "kb-pw", "tenantId": "t1"}, {"$set": {"helpdesk": False}})
+    first = (await world.call("GET", _path(ticket, "/articles/kb-pw"), user=ALICE)).json()
+    assert first == {"articleId": "kb-pw", "title": "Reset your own password", "content": "", "available": False}
+    await world.db.knowledge_docs.delete_one({"id": "kb-pw", "tenantId": "t1"})
+    second = await world.call("GET", _path(ticket, "/articles/kb-pw"), user=ALICE)
+    assert second.status_code == 200 and second.json() == first
+
+
+async def test_a_citation_naming_a_global_article_never_serves_it(world):
+    """protects=T-85-51 the read is scoped to the ticket's tenant: a forged citation of a global article gets
+    unavailable and no text; fails_when=the global article's text is returned."""
+    ticket = await _posted(world)
+    await world.db.tickets.update_one({"id": ticket["id"], "comments.kind": "ai_answer"}, {"$push": {
+        "comments.$.ai.citations": {"articleId": "kb-global", "title": "Forged"}}})
+    body = (await world.call("GET", _path(ticket, "/articles/kb-global"), user=ALICE)).json()
+    assert body == {"articleId": "kb-global", "title": "Forged", "content": "", "available": False}
+
+
+async def test_staff_open_the_articles_of_the_waiting_draft_and_the_reporter_does_not(world):
+    """protects=D-14 staff: the answer or the waiting draft; the reporter: only an answer they can see (a draft
+    is not one); fails_when=either side differs, or a discarded draft's article stays open to staff."""
+    ticket, comment = await _draft(world)
+    assert (await world.call("GET", _path(ticket, "/articles/kb-pw"), user=STAFF2)).status_code == 200
+    assert (await world.call("GET", _path(ticket, "/articles/kb-pw"), user=DRAFT_ALICE)).status_code == 404
+    assert (await world.call("GET", _path(ticket, "/articles/kb-vpn"), user=STAFF2)).status_code == 404
+    await world.call("POST", _path(ticket, f"/drafts/{comment['id']}/discard"), user=STAFF2)
+    assert (await world.call("GET", _path(ticket, "/articles/kb-pw"), user=STAFF2)).status_code == 404
+    sent, comment2 = await _draft(world)
+    await world.call("POST", _path(sent, f"/drafts/{comment2['id']}/send"), user=STAFF2)
+    assert (await world.call("GET", _path(sent, "/articles/kb-pw"), user=DRAFT_ALICE)).status_code == 200

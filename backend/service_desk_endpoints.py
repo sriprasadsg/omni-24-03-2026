@@ -57,6 +57,20 @@ async def _actor(db, user: TokenData) -> Dict[str, Any]:
     return {"id": username, "name": name}
 
 
+async def _names(db, usernames) -> Dict[str, str]:
+    """{lowercase user name: profile name} for the people who replied to the requester (R12). A person with no
+    profile name is left out, and the screen then says IT instead of showing an address."""
+    found: Dict[str, str] = {}
+    if usernames:
+        try:
+            async for doc in raw(db).users.find({"email": {"$in": list(usernames)}}, {"_id": 0, "email": 1, "name": 1}):
+                if isinstance(doc.get("name"), str) and doc["name"].strip() and isinstance(doc.get("email"), str):
+                    found[doc["email"].strip().casefold()] = doc["name"].strip()
+        except Exception:       # a name is a courtesy; the reply is shown without one
+            pass
+    return found
+
+
 def _refusal(result: Dict[str, Any]) -> HTTPException:
     reason = result.get("reason") or "not_found"
     limit = lifecycle.HELP_MAX_CHARS if reason == "help_too_long" else ANSWER_MAX_CHARS
@@ -85,10 +99,11 @@ async def get_service_desk(
         row = await ledger.get(db, ticket["tenantId"], action_id) if action_id else None
         draft = projection.staff_view(ticket, row, current_user)
     zone = await workdays.tenant_zone(db, ticket["tenantId"])
+    names = await _names(db, projection.staff_reply_authors(ticket)) if is_requester else None
     return {
         "ticketId": ticket.get("id"), "ticketNumber": ticket.get("ticket_number"), "status": ticket.get("status"),
         "isRequester": is_requester,
-        "requester": projection.requester_view(ticket, zone) if is_requester else None,
+        "requester": projection.requester_view(ticket, zone, names) if is_requester else None,
         "draft": draft,
         "canReplyToRequester": (not is_requester) and projection.can_reply(ticket),
         "draftWaiting": draft is not None,
@@ -168,3 +183,25 @@ async def still_need_help(
     if result.get("status") == "refused":
         raise _refusal(result)
     return result
+
+
+@router.get("/{ticket_id}/service-desk/articles/{article_id}")
+async def read_cited_article(
+    ticket_id:    str,
+    article_id:   str,
+    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+) -> Dict[str, Any]:
+    """Open one cited article read-only (D-14). Only an article cited on this ticket can be opened: by the
+    reporter, on an answer they can see; by staff, on an answer or the waiting draft. It is read from the
+    ticket's own tenant and only while it is in that tenant's Help desk set, never from the global set; a
+    cited article that was deleted since answers ``available`` false with the title it was cited under."""
+    ticket = await _ticket(ticket_id, current_user)
+    cited = projection.cited_articles(ticket, for_requester=projection.is_reporter(ticket, current_user))
+    if article_id not in cited:
+        raise HTTPException(status_code=404, detail=messages.API_DETAIL["article_not_found"])
+    doc = await raw(get_database()).knowledge_docs.find_one(
+        {"id": article_id, "tenantId": ticket["tenantId"], "helpdesk": True}, {"_id": 0, "id": 1, "title": 1, "content": 1})
+    if doc is None:
+        return {"articleId": article_id, "title": cited[article_id], "content": "", "available": False}
+    return {"articleId": article_id, "title": doc.get("title") if isinstance(doc.get("title"), str) else cited[article_id],
+            "content": doc.get("content") if isinstance(doc.get("content"), str) else "", "available": True}
