@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-27-PLAN.md
-last_updated: "2026-11-09T16:43:24.969Z"
+stopped_at: Completed 85-28-PLAN.md
+last_updated: "2026-11-09T16:50:40.340Z"
 last_activity: 2026-11-09
-last_activity_desc: Phase 85 plan 85-27 complete (WR-102 and WR-103, write order after a visible answer or draft)
-state_head: 99c6ad62dec753c89484118685601868afb11764
+last_activity_desc: Phase 85 plan 85-28 complete (WR-201 and WR-202, notice audience in the feed, on the socket and on the write routes)
+state_head: 015bb32f01cfae1d2c7b76869f72c1daa8fd2f46
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 128
-  completed_plans: 126
+  completed_plans: 127
   percent: 86
 ---
 
@@ -638,6 +638,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-26: the reporter's Comments tab and list-row count go through visibleComments (UI copy of requester_may_read pinned to shared/service-desk-requester-comments.json); an unknown viewer with no desk view is treated as the reporter (fail closed); CR-401 fixed
 - [Phase 85]: 85-27 A-85-G11: a desk write that keeps failing after the answer is visible leaves the answer in pending_customer with desk.phase queued and an error log naming the ticket; no hand-off is attempted
 - [Phase 85]: 85-27 A-85-G12/WR-103: send_draft moves the status first (skipped when already pending_customer), turns the draft second, and on a lost turn puts the status back to the one it moved from unless the winner already sent the answer
+- [Phase 85]: 85-28 A-85-G13: a ticket_staff comment notice is not pushed on the tenant socket at all (stored once, read from the feed), stronger than blanking title and message
+- [Phase 85]: 85-28 A-85-G14/G15: notices stored before the fix carry no excludeRecipients (no migration); tenant_admins notices are still pushed tenant-wide on the socket (follow-up for the user)
 
 ## Performance Metrics
 
@@ -919,6 +921,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P25 | 8 min | 2 tasks | 5 files |
 | Phase 85 P26 | 4 min | 2 tasks | 4 files |
 | Phase 85 P27 | 60 min | 3 tasks | 5 files |
+| Phase 85 P28 | 30 min | 3 tasks | 6 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -953,8 +956,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T16:43:24.697Z
-**Stopped at:** Completed 85-27-PLAN.md
+**Last session:** 2026-11-09T16:50:40.063Z
+**Stopped at:** Completed 85-28-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -981,9 +984,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 27 of 29 done (gap-closure plans 85-24..85-29 executing)
-Status: Executing Phase 85 gap closure (--gaps-only); 85-27 done
-Last activity: 2026-11-09 — Phase 85 plan 85-27 complete (WR-102 and WR-103 fixed: write order after a visible answer or draft); next 85-28
+Plan: 28 of 29 done (gap-closure plans 85-24..85-29 executing)
+Status: Executing Phase 85 gap closure (--gaps-only); 85-28 done
+Last activity: 2026-11-09 — Phase 85 plan 85-28 complete (WR-201 and WR-202 fixed: notice audience in the feed, on the socket and on the write routes); next 85-29
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
