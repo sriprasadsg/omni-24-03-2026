@@ -2,7 +2,8 @@
 
 ``clean_text`` is applied to every piece of ticket text before it is scored, shown to the model, matched
 against the fixed rules or stored in a gap row. It drops markup (and script, style, head, template and
-noscript contents), decodes entities, removes hidden and control characters, links, images and email
+noscript contents), decodes entities, removes hidden and control characters (format, unassigned, surrogate, default-ignorable and non-whitespace
+control code points), links, images and email
 addresses, and neutralises the tags the prompt itself uses. ``normalize_for_match`` is the one folded form
 every phrase list and tenant word is matched in. The prompt tells the model the ticket is data and gives
 it no tool to call, so the reply is only ever text that the checks in checks.py accept or reject.
@@ -30,6 +31,10 @@ SYSTEM_PROMPT = (
 RAW_CAP = 20000                 # characters read from one raw field; the rest is dropped (fail closed)
 _SKIP_TAGS = frozenset(("script", "style", "head", "template", "noscript"))
 _KEEP_CONTROL = frozenset("\n\t")
+# Default-ignorable code points that are not category Cf: invisible, but they survive a Cf-only filter.
+_IGNORABLE = frozenset(
+    [0x034F, 0x115F, 0x1160, 0x17B4, 0x17B5, 0x3164, 0xFFA0] + list(range(0x180B, 0x180E)) + [0x180F]
+    + list(range(0xFE00, 0xFE10)) + list(range(0xE0100, 0xE01F0)))
 IDNA_DOTS = str.maketrans({"\u3002": ".", "\uff0e": ".", "\uff61": "."})   # the dots a browser reads as "."
 
 _SCHEME = r"(?:[a-z][a-z0-9+.-]{1,20}://|www\.|(?:javascript|data|vbscript|file|mailto):)"
@@ -84,14 +89,16 @@ def _strip_markup(value: str) -> str:
 
 
 def _fold(text: str) -> str:
-    """NFKC, then remove hidden characters: format characters vanish, control whitespace becomes a space."""
+    """NFKC, then remove hidden characters: format (Cf), unassigned (Cn), surrogate (Cs), the default-ignorable
+    code points that are not Cf (_IGNORABLE) and non-whitespace controls vanish; control whitespace becomes a
+    space."""
     out = []
     for ch in unicodedata.normalize("NFKC", text):
         if ch in _KEEP_CONTROL:
             out.append(ch)
             continue
         category = unicodedata.category(ch)
-        if category == "Cf" or (category == "Cc" and not ch.isspace()):
+        if category in ("Cf", "Cn", "Cs") or ord(ch) in _IGNORABLE or (category == "Cc" and not ch.isspace()):
             continue
         out.append(" " if category == "Cc" else ch)
     return "".join(out)

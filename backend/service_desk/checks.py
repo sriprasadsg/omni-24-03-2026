@@ -8,9 +8,9 @@ and no reply field other than ``answer`` and ``cited`` is read. Stdlib and pydan
 ``check`` returns the first failing rule, in this order: the citation rules (empty_answer, no_citation,
 unknown_citation), the length rules (too_long, too_many_lines; blank lines are not counted), html (a tag, an
 entity left after decoding, a markdown image), then, for the extracted fragments, foreign_link (URLs with a
-scheme, www hosts, markdown link targets, bare domains), foreign_email, foreign_phone (a run of 7 or more
-digits with the usual separators), foreign_command (backtick spans, prompt lines, shell words and flags,
-pipes and redirects) and foreign_number (4 or more digits). A fragment passes only when it occurs, compared
+scheme, www hosts, markdown link targets, bare domains, and a dotted token with a non-ASCII letter such as a
+look-alike or IDN domain), foreign_email, foreign_phone (a run of 7 or more digits with the usual separators), foreign_command (backtick spans, prompt
+lines, shell words and flags, pipes and redirects) and foreign_number (4 or more digits). A fragment passes only when it occurs, compared
 casefolded and with spaces collapsed, as a whole word or token in the text of the articles the reply cites;
 an article that was given but not cited does not count. A single ">" is not a redirect (menu paths such as
 "Settings > Network" are ordinary help text); ">>", "2>" and a ">" followed by a file name are.
@@ -49,6 +49,7 @@ _EMAIL = re.compile(r"[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,6}")
 _BARE_DOMAIN = re.compile(
     r"(?<![\w@.-])(?:[a-z0-9-]{1,63}\.){1,6}(?:(?:" + _TLDS + r")(?![a-z0-9-])(?:[:/][^" + _NOT_URL_END
     + r"]*)?|[a-z]{2,24}/[^" + _NOT_URL_END + r"]*)", re.IGNORECASE)
+_IDN_DOMAIN = re.compile(r"(?<![\w@.-])(?:[\w-]{1,63}\.){1,6}\w[\w-]{0,62}\w")   # a look-alike or IDN domain
 _PHONE = re.compile(r"(?<![\w.])\+?\(?\d[\d ()./-]{4,}\d(?!\w)")
 _NUMBER = re.compile(r"(?<!\d)\d{4,}(?!\d)")
 
@@ -110,6 +111,16 @@ def _take(pattern: "re.Pattern", text: str, found: List[str], group: int = 0) ->
     return pattern.sub(blank, text)
 
 
+def _take_idn(text: str, found: List[str]) -> str:
+    """Like ``_take`` for ``_IDN_DOMAIN``, but only a dotted token with a non-ASCII character is a link."""
+    def blank(match):
+        if match.group(0).isascii():
+            return match.group(0)
+        found.append(match.group(0))
+        return " "
+    return _IDN_DOMAIN.sub(blank, text)
+
+
 def _blank_phone(match: "re.Match", found: List[str]) -> str:
     """Blank a run of 7 or more digits (a phone-like number); a shorter run is left for the number rule."""
     if sum(ch.isdigit() for ch in match.group(0)) < 7:
@@ -166,6 +177,7 @@ def check(reply: Reply, given_ids: Iterable[int], cited_texts: Optional[Mapping]
     rest = _take(_URL, rest, links)
     rest = _take(_EMAIL, rest, emails)
     rest = _take(_BARE_DOMAIN, rest, links)
+    rest = _take_idn(rest, links)
     rest = _take(_BACKTICKS, rest, commands, 1)
     rest = _take(_PROMPT_LINE, rest, commands, 1)
     rest = _take(_SHELL_OPERATOR, rest, commands)
