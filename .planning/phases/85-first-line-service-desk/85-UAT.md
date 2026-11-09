@@ -3,7 +3,7 @@ status: diagnosed
 phase: 85-first-line-service-desk
 source: [85-VERIFICATION.md]
 started: 2026-11-09T20:25:00Z
-updated: 2026-11-09T20:20:51Z
+updated: 2026-11-09T20:21:34Z
 ---
 
 ## Current Test
@@ -74,3 +74,8 @@ blocked: 0
     - "Draft send/edit/discard and cited-article reader require staff instead of 'not the reporter'; ticket_staff-audience notices hidden from non-staff"
     - "Test world: technician becomes a staff role; non-staff non-reporter cases added; AR-85-01/-04/-09 re-recorded as superseded"
   debug_session: ".planning/debug/85-notice-history-and-ticket-staff-audience.md"
+  user_decisions:  # locked by the user 2026-11-09 during UAT; the gap plan must follow them
+    - "Staff roles: new permission manage:tickets; built-in holders tenant_admin, analyst, security_analyst, incident_responder (super_admin via *). Roles user and viewer become requesters only. platform_support gets no ticket-staff access."
+    - "Scope: staff required for AI draft send/edit/discard and the cited-article reader, AND for bulk update, merge, approve, reject, escalate, work-log and watchers. Requesters keep comment, attach and confirm on their own tickets."
+    - "Custom tenant roles (Phase 77): start as non-staff (fail closed, no migration grant); tenant admins tick manage:tickets on technician roles."
+    - "Super Admin notice history: keep the cross-tenant view but apply the per-person audience rules (recipient / excludeRecipients / tenant_admins) like everyone else."
