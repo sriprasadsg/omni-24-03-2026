@@ -64,13 +64,13 @@
 
 ### 5. Service Desk
 
-- [ ] **DESK-01**: A new first-line ticket gets an answer drafted from the tenant's knowledge base with cited articles; at Undoable-auto a qualifying answer is posted marked "AI-assisted", at Suggest it is an internal draft, and the ticket closes only when the requester confirms.
-- [ ] **DESK-02**: A ticket is escalated to a person, never answered, when no article matches well enough, when the requester asks for a person, or when it concerns security, billing, legal or account access; the model's own confidence is never used to decide.
-- [ ] **DESK-03**: Ticket text can never trigger an action; links and HTML are stripped before the model sees it, and a prompt-injection test set passes.
-- [ ] **DESK-04**: When the language model is unavailable or only the mock provider is active, the ticket is escalated; no placeholder answer is ever posted.
-- [ ] **DESK-05**: Answers are generated asynchronously one at a time with timeouts sized for the CPU-only server, and the real response time is measured on it.
-- [ ] **DESK-06**: The operator sees the questions that had to be escalated because no article covered them (knowledge-gap list).
-- [ ] **DESK-07**: A starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) is available to seed a tenant's knowledge base.
+- [x] **DESK-01**: A new first-line ticket gets an answer drafted from the tenant's knowledge base with cited articles; at Undoable-auto a qualifying answer is posted marked "AI-assisted", at Suggest it is an internal draft, and the ticket closes only when the requester confirms.
+- [x] **DESK-02**: A ticket is escalated to a person, never answered, when no article matches well enough, when the requester asks for a person, or when it concerns security, billing, legal or account access; the model's own confidence is never used to decide.
+- [x] **DESK-03**: Ticket text can never trigger an action; links and HTML are stripped before the model sees it, and a prompt-injection test set passes.
+- [x] **DESK-04**: When the language model is unavailable or only the mock provider is active, the ticket is escalated; no placeholder answer is ever posted.
+- [x] **DESK-05**: Answers are generated asynchronously one at a time with timeouts sized for the CPU-only server, and the real response time is measured on it.
+- [x] **DESK-06**: The operator sees the questions that had to be escalated because no article covered them (knowledge-gap list).
+- [x] **DESK-07**: A starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) is available to seed a tenant's knowledge base.
 
 ### 6. Activity View
 
@@ -236,13 +236,13 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | PTCH-05 | Phase 84 | Complete |
 | PTCH-06 | Phase 84 | Complete |
 | PTCH-07 | Phase 84 | Complete |
-| DESK-01 | Phase 85 | Pending |
-| DESK-02 | Phase 85 | Pending |
-| DESK-03 | Phase 85 | Pending |
-| DESK-04 | Phase 85 | Pending |
-| DESK-05 | Phase 85 | Pending |
-| DESK-06 | Phase 85 | Pending |
-| DESK-07 | Phase 85 | Pending |
+| DESK-01 | Phase 85 | Complete |
+| DESK-02 | Phase 85 | Complete |
+| DESK-03 | Phase 85 | Complete |
+| DESK-04 | Phase 85 | Complete |
+| DESK-05 | Phase 85 | Complete |
+| DESK-06 | Phase 85 | Complete |
+| DESK-07 | Phase 85 | Complete |
 | ACTV-04 | Phase 86 | Pending |
 | ACTV-05 | Phase 86 | Pending |
 | ACTV-06 | Phase 86 | Pending |
