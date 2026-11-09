@@ -5,11 +5,11 @@ titles: json
 findings:
   - id: CR-101
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "Output checks (D-19) can be bypassed with hidden or compatibility characters, so a foreign link or email reaches the requester"
   - id: WR-101
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The loopback guard can be defeated by environment proxy settings, sending ticket text to a proxy"
   - id: WR-102
     severity: warning
@@ -115,7 +115,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 28
+open: 26
 total: 28
 recorded: 2026-11-09T10:13:07.744Z
 ---
@@ -124,8 +124,8 @@ recorded: 2026-11-09T10:13:07.744Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-101 | critical | open | - |
-| WR-101 | warning | open | - |
+| CR-101 | critical | fixed | fixed 791831738, 94afd4eea (85-24) |
+| WR-101 | warning | fixed | fixed cf422f817 (85-24) |
 | WR-102 | warning | open | - |
 | WR-103 | warning | open | - |
 | IN-101 | info | open | - |
