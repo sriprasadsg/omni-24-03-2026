@@ -234,6 +234,7 @@ export type Permission =
   | 'view:ai_governance'
   | 'manage:ai_risks'
   | 'manage:settings'
+  | 'manage:tickets'
   | 'manage:tenants'
   | 'manage:partners'
   | 'view:partner_portal'

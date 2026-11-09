@@ -34,6 +34,7 @@ const featureMap: Partial<Record<Permission, string>> = {
   'view:ai_governance': 'AI Governance',
   'manage:ai_risks': 'Manage AI Risks',
   'manage:settings': 'System Settings',
+  'manage:tickets': 'Handle tickets as IT staff',
   'manage:tenants': 'Tenant Management',
   'view:cloud_security': 'Cloud Security',
   'view:finops': 'FinOps & Billing',
