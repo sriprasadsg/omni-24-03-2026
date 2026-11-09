@@ -5,7 +5,7 @@ titles: json
 findings:
   - id: CR-501
     severity: critical
-    disposition: open
+    disposition: fixed
     title: "`GET /api/notifications/history` bypasses the whole notice audience filter (relates to WR-201, WR-202, D-33)"
   - id: WR-501
     severity: warning
@@ -13,7 +13,7 @@ findings:
     title: "the reporter projection still returns staff-entered text outside comments (relates to CR-401)"
   - id: WR-502
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "staff-only comments stay readable by every tenant user who is not the reporter (CR-401 residual)"
   - id: WR-503
     severity: warning
@@ -151,7 +151,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 26
+open: 24
 total: 37
 recorded: 2026-11-09T20:02:31.543Z
 ---
@@ -160,9 +160,9 @@ recorded: 2026-11-09T20:02:31.543Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| CR-501 | critical | open | - |
+| CR-501 | critical | fixed | fixed b7e178bd3, 4f5ad02b9 (85-31); tests 975d2d5dc |
 | WR-501 | warning | open | - |
-| WR-502 | warning | open | - |
+| WR-502 | warning | fixed | fixed 1a0a5d54b (85-30); fd671c60e (85-32); 6458b0f62, 59e98958d, 03d6efce5 (85-33); 638d655b7, 283a1b71a (85-34); 37b7f2890, 3f2045d09 (85-35) |
 | WR-503 | warning | open | - |
 | WR-504 | warning | open | - |
 | IN-501 | info | open | - |

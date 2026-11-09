@@ -151,6 +151,12 @@ Live validation is the user's step: install Ollama, pull `llama3.2:3b`, measure 
   - **"Raised by a person"** is recorded by the server at creation (`raised_via`). The new tray uses a new route and announces its `my_tickets` support. Old trays keep the legacy route, and their answers become drafts.
   - **Migration 032** only creates indexes. A missing desk setting reads as Drafts only, and a missing comment visibility reads as staff-only.
 
+### UAT amendments (2026-11-09, gap G-85-4, user-approved in 85-UAT.md)
+- **D-38 (UD-1; amends D-10 and D-11: who counts as staff):** Ticket staff is a new permission, **`manage:tickets`**. Built-in holders are tenant_admin, analyst, security_analyst and incident_responder; the Super Admin has it through `*`. The built-in roles `user` and `viewer` are requesters only, and `platform_support` gets no ticket-staff access.
+- **D-39 (UD-2; amends D-10 and D-11):** Staff is required to send, edit or discard an AI draft and to open the cited-article reader, and also for bulk update, merge, approve, reject, escalate, work-log and watchers. Requesters keep comment, attach and confirm on their own tickets. Anyone who is neither staff nor the reporter gets 404 on a ticket and on the desk routes, and ticket lists, stats and reports show them only their own tickets.
+- **D-40 (UD-3):** Custom tenant roles from Phase 77 start as non-staff (fail closed). No migration grants `manage:tickets`; tenant admins tick it on technician roles in the role editor.
+- **D-41 (UD-4; amends D-33):** The Super Admin keeps the cross-tenant view of notice history, but the history route applies the same audience filter as everyone else (recipient, excludeRecipients, tenant_admins, ticket_staff). Without a tenant a non-Super-Admin gets 403, and a notice that carries only a tenantId is handled by the shared filter.
+
 ### Claude's Discretion
 - How the answer is registered with the gate (a non-agent action kind such as `ticket_comment` in `autonomous_ops/registry.py`), and the ledger `kind: servicedesk` row shape, as long as every attempt, draft, post, hand-off and undo is a ledger row and the gate's stop, level, shadow and rate-limit steps apply. Steps that only make sense for agent targets (protected targets, blast radius) may be skipped for this kind, with a test.
 - How "raised by a person" is detected: by creation path, not by client-supplied tags alone. The tray sends `user-raised` and `tray` itself, and `RaiseTicketRequest` accepts any tags.
