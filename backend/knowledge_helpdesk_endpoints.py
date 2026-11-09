@@ -1,6 +1,167 @@
-"""Knowledge Base routes of the service desk (Phase 85, plan 85-15). Skeleton: the routes follow."""
-from fastapi import APIRouter
+"""Knowledge Base routes of the service desk (Phase 85, plan 85-15).
 
-from database import get_database  # noqa: F401  (tests patch it here)
+Included under /api/knowledge by ``knowledge_endpoints``, so the Knowledge Base catalogue guard
+(manage:settings) of that mount covers every route here. Rules that hold for all of them:
+
+* only the caller's own tenant is read or written, always through the raw handle with an explicit
+  tenantId; the shared platform documents (tenantId "global") answer 404 and are never marked Help desk
+  (D-16, D-17, T-85-57);
+* the Platform tenant is not eligible for the desk (nothing there can be marked Help desk);
+* Help desk content is capped at HELPDESK_CONTENT_MAX characters (T-85-59).
+
+Task 1 of the plan: the Help desk mark, the article edit route and the flags the list carries.
+"""
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict
+
+from auth_types import TokenData
+from autonomous_ops import PLATFORM_TENANT_ID
+from autonomous_ops.scope import raw
+from database import get_database
+from rbac_service import rbac_service
+from service_desk import HELPDESK_CONTENT_MAX, TITLE_CAP, messages, starters
+from service_desk import settings as desk_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+TAGS_MAX = 20
+TAG_CAP = 40
+NOTHING_TO_CHANGE = "Change at least one field."
+TAGS_LIMIT = "Use up to 20 tags of 40 characters or fewer."
+
+
+def _refuse(status: int, code: str, **values: Any) -> HTTPException:
+    detail = messages.API_DETAIL[code]
+    for key, value in values.items():
+        detail = detail.replace("{" + key + "}", str(value))
+    return HTTPException(status_code=status, detail=detail)
+
+
+def tenant_of(user: TokenData) -> str:
+    """The caller's tenant; a missing tenant or the shared "global" marker is refused."""
+    tenant = getattr(user, "tenant_id", None)
+    if not isinstance(tenant, str) or not tenant or tenant == "global":
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return tenant
+
+
+def desk_eligible(tenant_id: str) -> bool:
+    """False for the Platform tenant: the service desk is not available there."""
+    return tenant_id != PLATFORM_TENANT_ID
+
+
+def refuse_help_desk(tenant_id: str, content: str, *, too_long_status: int) -> None:
+    """Raise when ``tenant_id`` may not hold a Help desk article, or ``content`` is over the cap."""
+    if not desk_eligible(tenant_id):
+        raise _refuse(403, "platform_tenant")
+    if len(content) > HELPDESK_CONTENT_MAX:
+        raise _refuse(too_long_status, "article_too_long", max=HELPDESK_CONTENT_MAX)
+
+
+class DocPatch(BaseModel):
+    """A change to the caller's own article. Every key may be left out; no other key is accepted."""
+    model_config = ConfigDict(extra="forbid")
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tags: Optional[List[str]] = None
+    helpdesk: Optional[bool] = None
+
+
+def _validated(changes: Dict[str, Any]) -> Dict[str, Any]:
+    """The changes cleaned and checked in plain words (422 on the first problem)."""
+    clean: Dict[str, Any] = {}
+    if "title" in changes:
+        title = changes["title"].strip()
+        if not title:
+            raise _refuse(422, "article_title")
+        if len(title) > TITLE_CAP:
+            raise _refuse(422, "help_too_long", max=TITLE_CAP)
+        clean["title"] = title
+    if "content" in changes:
+        content = changes["content"].strip()
+        if not content:
+            raise _refuse(422, "article_content")
+        if len(content) > HELPDESK_CONTENT_MAX:
+            raise _refuse(422, "article_too_long", max=HELPDESK_CONTENT_MAX)
+        clean["content"] = content
+    if "tags" in changes:
+        tags = [t.strip() for t in changes["tags"] if t.strip()]
+        if len(tags) > TAGS_MAX or any(len(t) > TAG_CAP for t in tags):
+            raise HTTPException(status_code=422, detail=TAGS_LIMIT)
+        clean["tags"] = tags
+    if "helpdesk" in changes:
+        clean["helpdesk"] = changes["helpdesk"]
+    return clean
+
+
+@router.patch("/docs/{doc_id}")
+async def patch_doc(
+    doc_id: str,
+    body: DocPatch,
+    current_user: TokenData = Depends(rbac_service.has_permission("manage:ai_risks")),
+) -> Dict[str, Any]:
+    """Change the title, text, tags or Help desk mark of one of the caller's own articles (D-17)."""
+    tenant = tenant_of(current_user)
+    given = body.model_dump(exclude_none=True)
+    if not given:
+        raise HTTPException(status_code=422, detail=NOTHING_TO_CHANGE)
+    changes = _validated(given)
+    if changes.get("helpdesk") is True and not desk_eligible(tenant):
+        raise _refuse(403, "platform_tenant")
+    docs = raw(get_database()).knowledge_docs
+    scope = {"id": doc_id, "tenantId": tenant}         # never "global": a shared document matches nothing here
+    stored = await docs.find_one(scope, {"_id": 0, "content": 1, "helpdesk": 1})
+    if stored is None:
+        raise _refuse(404, "article_not_found")
+    marked = changes.get("helpdesk", bool(stored.get("helpdesk")))
+    text = changes.get("content", stored.get("content") if isinstance(stored.get("content"), str) else "")
+    if marked and len(text) > HELPDESK_CONTENT_MAX:
+        raise _refuse(422, "article_too_long", max=HELPDESK_CONTENT_MAX)
+    changes["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    result = await docs.update_one(scope, {"$set": changes})
+    if result.matched_count == 0:
+        raise _refuse(404, "article_not_found")
+    return await docs.find_one(scope, {"_id": 0})
+
+
+async def starter_missing(db, tenant_id: str) -> int:
+    """How many of the four starter articles the tenant has no copy of (a copy it edited or unmarked counts as had)."""
+    have = set(await raw(db).knowledge_docs.distinct("starterKey", {"tenantId": tenant_id}))
+    return sum(1 for starter in starters.STARTERS if starter["key"] not in have)
+
+
+def shape_docs(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The per-document fields the screen reads: helpdesk (absent reads False, and never True on a shared
+    document), starterKey and updatedAt (the creation time until the first edit)."""
+    for doc in docs:
+        doc["helpdesk"] = doc.get("helpdesk") is True and doc.get("tenantId") != "global"
+        doc.setdefault("starterKey", None)
+        doc["updatedAt"] = doc.get("updatedAt") or doc.get("createdAt")
+    return docs
+
+
+async def list_flags(db, user: TokenData) -> Dict[str, Any]:
+    """What the Knowledge Base screen reads about the caller and the desk."""
+    tenant = tenant_of(user)
+    held = await rbac_service.get_user_permissions(user)
+
+    def has(permission: str) -> bool:
+        return "*" in held or permission in held
+
+    if not desk_eligible(tenant):
+        return {"canManageArticles": False, "canSeeGaps": False, "helpdeskCount": 0, "starterMissing": 0,
+                "deskOff": True}
+    manage = has("manage:ai_risks")
+    return {
+        "canManageArticles": manage,
+        "canSeeGaps": manage and has("view:dashboard"),
+        "helpdeskCount": await raw(db).knowledge_docs.count_documents({"tenantId": tenant, "helpdesk": True}),
+        "starterMissing": await starter_missing(db, tenant),
+        "deskOff": (await desk_settings.load(db, tenant)).mode == "off",
+    }

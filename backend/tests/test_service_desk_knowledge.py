@@ -193,11 +193,15 @@ async def test_the_list_carries_the_flags_and_the_per_document_fields(kb):
     await seed_article(kb.db, "t1", "kb-1", title="One", content="c", helpdesk=True)
     await seed_article(kb.db, "t1", "kb-2", title="Two", content="c", helpdesk=False)
     await seed_article(kb.db, "t2", "kb-3", title="Foreign", content="c", helpdesk=True)
+    await kb.db.knowledge_docs.update_many({"tenantId": "t1"}, {"$set": {"createdAt": "2026-02-01T00:00:00+00:00"}})
+    await kb.db.knowledge_docs.update_one({"id": "kb-2"}, {"$set": {"updatedAt": "2026-03-01T00:00:00+00:00"}})
     body = (await kb.call("GET", "/api/knowledge/docs")).json()
     by_id = {d["id"]: d for d in body["docs"]}
     assert set(by_id) == {"kb-seed-1", "kb-1", "kb-2"}
     for doc in by_id.values():
         assert isinstance(doc["helpdesk"], bool) and "starterKey" in doc and doc["updatedAt"]
+    assert by_id["kb-1"]["updatedAt"] == "2026-02-01T00:00:00+00:00"      # never edited: the creation time
+    assert by_id["kb-2"]["updatedAt"] == "2026-03-01T00:00:00+00:00"
     assert by_id["kb-1"]["helpdesk"] is True and by_id["kb-2"]["helpdesk"] is False
     assert by_id["kb-seed-1"]["helpdesk"] is False
     assert body["canManageArticles"] is True and body["canSeeGaps"] is True

@@ -14,6 +14,7 @@ from database import get_database
 from authentication_service import get_current_user
 from auth_types import TokenData
 from rbac_service import rbac_service
+import knowledge_helpdesk_endpoints as helpdesk
 
 router = APIRouter(prefix="/api/knowledge", tags=["Knowledge Base"])
 
@@ -175,7 +176,7 @@ async def ingest_knowledge(
 ):
     """
     Ingest content into the knowledge base.
-    Body: { content, source?, title?, tags? }
+    Body: { content, source?, title?, tags?, helpdesk? }
     """
     content = data.get("content", "").strip()
     if not content:
@@ -187,7 +188,11 @@ async def ingest_knowledge(
     insert_tenant = getattr(current_user, "tenant_id", None) or None
     if not insert_tenant:
         raise HTTPException(status_code=403, detail="Tenant context required")
+    helpdesk_mark = data.get("helpdesk") is True
+    if helpdesk_mark:
+        helpdesk.refuse_help_desk(insert_tenant, content, too_long_status=400)
     doc_id = f"kb-{uuid.uuid4().hex[:12]}"
+    created_at = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": doc_id,
         "content": content,
@@ -196,10 +201,12 @@ async def ingest_knowledge(
         "tags": data.get("tags", []),
         "tenantId": insert_tenant,
         "createdBy": getattr(current_user, "username", "system"),
-        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "createdAt": created_at,
+        "updatedAt": created_at,
+        "helpdesk": helpdesk_mark,
     }
     await db.knowledge_docs.insert_one(doc)
-    return {"success": True, "doc_id": doc_id, "id": doc_id, "title": doc["title"]}
+    return {"success": True, "doc_id": doc_id, "id": doc_id, "title": doc["title"], "helpdesk": helpdesk_mark}
 
 
 @router.post("/query")
@@ -285,7 +292,7 @@ async def list_docs(
         {"$or": [{"tenantId": tenant_id}, {"tenantId": "global"}]},
         {"_id": 0, "content": 0},
     ).sort("createdAt", -1).limit(limit).to_list(length=limit)
-    return {"docs": docs, "count": len(docs)}
+    return {"docs": helpdesk.shape_docs(docs), "count": len(docs), **await helpdesk.list_flags(db, current_user)}
 
 
 @router.delete("/docs/{doc_id}")
@@ -302,3 +309,8 @@ async def delete_doc(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Document not found")
     return {"success": True}
+
+
+# Help desk routes (PATCH /docs/{id}, starters, gaps, articles): included here so the Knowledge Base catalogue
+# guard of this module's mount covers them.
+router.include_router(helpdesk.router)
