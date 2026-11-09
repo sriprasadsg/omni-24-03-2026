@@ -292,7 +292,7 @@ def _case(path, role, *, method="GET"):
 def test_the_new_routes_inherit_the_knowledge_base_guard():
     """protects=the manage:settings guard of the Knowledge Base catalogue covers the included router; fails_when=
     a viewer (no manage:settings) reaches any new route, or the tenant administrator is refused by the guard."""
-    routes = [("PATCH", "/api/knowledge/docs/kb-x"), ("GET", "/api/knowledge/helpdesk/starters"),
+    routes = [("PATCH", "/api/knowledge/docs/kb-x"), ("GET", "/api/knowledge/docs/kb-x"), ("GET", "/api/knowledge/helpdesk/starters"),
               ("POST", "/api/knowledge/helpdesk/starters"), ("GET", "/api/knowledge/helpdesk/gaps"),
               ("POST", "/api/knowledge/helpdesk/gaps/g/dismiss"), ("POST", "/api/knowledge/helpdesk/gaps/g/restore"),
               ("POST", "/api/knowledge/helpdesk/articles")]
@@ -301,3 +301,30 @@ def test_the_new_routes_inherit_the_knowledge_base_guard():
         assert denied == [403] * len(routes), (role, dict(zip(routes, denied)))
     allowed = probe_real_app([_case(p, "tenant_admin", method=m) for m, p in routes])
     assert 403 not in allowed, dict(zip(routes, allowed))
+
+
+# ---------------------------------------------------------------- reading one article to edit it (85-21)
+
+async def test_one_of_the_tenants_own_articles_can_be_read_with_its_text(kb):
+    """protects=the Edit article dialog starts from the stored text (the list leaves it out); fails_when=the text,
+    title, tags, mark or starter key is missing, or the answer carries another tenant's or a platform article."""
+    await _seed_global(kb.db)
+    await seed_article(kb.db, "t1", "kb-mine", title="Printer", content="Step 1\nStep 2", helpdesk=True)
+    await seed_article(kb.db, "t2", "kb-other", title="Theirs", content="Their text", helpdesk=False)
+    ok = await kb.call("GET", "/api/knowledge/docs/kb-mine")
+    assert ok.status_code == 200
+    body = ok.json()
+    assert (body["id"], body["title"], body["content"], body["helpdesk"]) == ("kb-mine", "Printer", "Step 1\nStep 2", True)
+    assert body["tags"] == [] or isinstance(body["tags"], list)
+    assert body["starterKey"] is None and body["max"] == HELPDESK_CONTENT_MAX
+    for doc_id in ("kb-seed-1", "kb-other", "kb-missing"):
+        resp = await kb.call("GET", f"/api/knowledge/docs/{doc_id}")
+        assert resp.status_code == 404 and resp.json()["detail"] == messages.API_DETAIL["article_not_found"]
+
+
+async def test_reading_one_article_needs_the_article_permission(kb):
+    """protects=the text of an article is an author's view; fails_when=a ticket user or a reader gets it."""
+    await seed_article(kb.db, "t1", "kb-a", title="T", content="C", helpdesk=False)
+    for who in ("agent", "reader"):
+        assert (await kb.call("GET", "/api/knowledge/docs/kb-a", who=who)).status_code == 403
+    assert (await kb.call("GET", "/api/knowledge/docs/kb-a", who="editor")).status_code == 200
