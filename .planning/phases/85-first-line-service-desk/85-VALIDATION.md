@@ -112,3 +112,11 @@ Requirement-level map from `85-RESEARCH.md` § Validation Architecture, with the
 - [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** validated 2026-11-09 for the automated gates (plan 85-23). The Manual-Only rows are open and belong to the user.
+
+## Validation Audit 2026-11-09
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
