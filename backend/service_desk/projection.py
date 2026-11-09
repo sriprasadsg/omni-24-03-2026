@@ -203,3 +203,92 @@ def cited_articles(ticket: Dict[str, Any], *, for_requester: bool) -> Dict[str, 
 def cited_article_ids(ticket: Dict[str, Any], *, for_requester: bool) -> List[str]:
     """The allow-list of article ids a viewer may open from this ticket."""
     return list(cited_articles(ticket, for_requester=for_requester))
+
+
+# ---------------------------------------------------------------- the tray window (D-05, D-11, D-14)
+
+TRAY_WITH_IT_PHASES = ("handed_off", "withdrawn", "helped")
+
+
+def _tray_citations(comment: Dict[str, Any]) -> List[Dict[str, Any]]:
+    ai = comment.get("ai") if isinstance(comment.get("ai"), dict) else {}
+    return [{"articleId": c["articleId"], "title": c.get("title") or ""}
+            for c in (ai.get("citations") or []) if isinstance(c, dict) and isinstance(c.get("articleId"), str)]
+
+
+def _tray_entry(ticket: Dict[str, Any], comment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """One tray entry for a requester-visible comment, or None for a comment the tray never shows. An allow-list
+    by comment kind: a draft, a staff note, the withdrawal notice (the withdrawn answer itself stands for it)
+    and any kind not named here stay out."""
+    kind = comment.get("kind")
+    text = comment.get("text") if isinstance(comment.get("text"), str) else ""
+    at = iso(comment.get("created_at"))
+    if kind == "ai_answer":
+        if _withdrawn(comment):
+            ai = comment["ai"]
+            return {"kind": "withdrawn", "at": iso(ai.get("withdrawnAt")) or at, "heading": "",
+                    "text": messages.WITHDRAWN_NOTICE, "citations": []}
+        return {"kind": "answer", "at": at, "heading": messages.TRAY_HEADINGS["answer"], "text": text,
+                "citations": _tray_citations(comment)}
+    if kind == "requester_reply":
+        return {"kind": "you", "at": at, "heading": messages.TRAY_HEADINGS["you"], "text": text, "citations": []}
+    if kind == "handoff_notice":
+        return {"kind": "notice", "at": at, "heading": "", "text": text, "citations": []}
+    if not kind and not same_person(ticket.get("reporter"), comment.get("author")):
+        return {"kind": "reply", "at": at, "heading": messages.TRAY_HEADINGS["reply"], "text": text, "citations": []}
+    return None
+
+
+def tray_status(ticket: Dict[str, Any]) -> str:
+    """The key of ``messages.TRAY_STATUS_TEXT`` for the ticket. A waiting draft is not a state the requester
+    can know about, so it reads as received."""
+    status = ticket.get("status") or ""
+    desk = ticket.get("desk") if isinstance(ticket.get("desk"), dict) else {}
+    if status in CLOSED_STATUSES:
+        return status
+    if confirmable(ticket):
+        return "answer_ready"
+    if status == "pending_customer":
+        return "waiting_for_you"
+    if desk.get("phase") in TRAY_WITH_IT_PHASES or status in ("in_progress", "on_hold") or person_replied(ticket):
+        return "with_it"
+    return "received"
+
+
+def tray_view(ticket: Dict[str, Any]) -> Dict[str, Any]:
+    """The one ticket entry of the tray's My tickets list (``tray_contract.TICKET_FIELDS``), built field by field
+    from what the requester may see and never a copy of the ticket (T-85-71): the requester-visible comments by
+    kind (answers with their citations, replies from IT, the requester's own notes, notices, a withdrawn answer as
+    the withdrawal notice), the status in the tray's words and whether the two buttons are on. A draft, a staff
+    note, a hand-off reason and the text of a withdrawn answer are never read into it. ``answerIds`` lists the
+    answers that are still the requester's to read (a withdrawn one is not)."""
+    visible = [c for c in (ticket.get("comments") or []) if isinstance(c, dict) and c.get("visibility") == "requester"]
+    entries = []
+    for comment in visible:
+        entry = _tray_entry(ticket, comment)
+        if entry is not None:
+            entries.append((entry["at"] or "", str(comment.get("id") or ""), entry))
+    entries.sort(key=lambda row: (row[0], row[1]))
+    answer_ids = [cid for _, cid, entry in entries if entry["kind"] == "answer"]
+    key = tray_status(ticket)
+    can_confirm = confirmable(ticket)
+    desk = ticket.get("desk") if isinstance(ticket.get("desk"), dict) else {}
+    reason = ""
+    if key in CLOSED_STATUSES:
+        reason = messages.TRAY_REASON_LINES["resolved"]
+    elif not can_confirm and desk.get("phase") == "withdrawn":
+        reason = messages.TRAY_REASON_LINES["withdrawn"]
+    elif not can_confirm and key == "with_it":
+        reason = messages.TRAY_REASON_LINES["with_it"]
+    return {"id": ticket.get("id"), "number": ticket.get("ticket_number"), "title": ticket.get("title") or "",
+            "status": ticket.get("status") or "", "statusText": messages.TRAY_STATUS_TEXT[key],
+            "canConfirm": can_confirm, "canHelp": can_confirm, "reasonLine": reason,
+            "entries": [entry for _, _, entry in entries], "answerIds": answer_ids,
+            "updatedAt": iso(ticket.get("updated_at"))}
+
+
+def tray_display(user: str) -> Dict[str, str]:
+    """The three display strings of the list response: the footnote (it says what is shown and does not claim
+    it is private, D-34), the line under the answer buttons and the empty-list text."""
+    return {"footnote": messages.TRAY_FOOTNOTE.format(user=user), "footer": messages.FOOTER,
+            "empty": messages.TRAY_EMPTY}

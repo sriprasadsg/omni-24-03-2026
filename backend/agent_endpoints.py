@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from agent_registry_endpoints import router as _registry
 from agent_core_endpoints import router as _core
 from agent_tasks_endpoints import router as _tasks
+from service_desk_tray_endpoints import router as _tray
 from agent_approval_endpoints import router as _approvals
 from agent_telemetry_endpoints import router as _telemetry
 from agent_heartbeat_endpoints import router as _heartbeat
@@ -21,6 +22,7 @@ router.include_router(_pending)  # static /pending paths first, before any /{age
 router.include_router(_registry)
 router.include_router(_core)
 router.include_router(_tasks)
+router.include_router(_tray)  # agent-key tray routes of the service desk (no catalogue guard, like the other agent routes)
 router.include_router(_approvals)
 router.include_router(_telemetry)
 router.include_router(_heartbeat)
