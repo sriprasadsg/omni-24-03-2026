@@ -525,6 +525,12 @@ async def run_startup_services() -> None:
     asyncio.create_task(_safe_bg_task(_patch_rollout_loop(), "patch_rollout_controller"),
                         name="patch_rollout_controller")
 
+    # Phase 85 (task service_desk_worker): the first-line service desk answers new portal tickets in the
+    # background and returns silent ones to a person. One runner and one generation at a time (renewed Mongo
+    # lock); with no local model every waiting ticket is handed to a person within one pass.
+    from service_desk.worker import desk_loop as _service_desk_loop
+    asyncio.create_task(_safe_bg_task(_service_desk_loop(), "service_desk_worker"), name="service_desk_worker")
+
     # Platform self-healing dead-man switch (Phase 82, HEAL-05): one in-app alarm when the watchdog stops
     # reporting. Armed only after its first heartbeat; one runner at a time (renewed Mongo lock).
     from autonomous_ops.selfheal import selfheal_loop as _autonomous_ops_selfheal_loop

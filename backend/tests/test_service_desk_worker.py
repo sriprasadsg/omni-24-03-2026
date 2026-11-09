@@ -269,3 +269,55 @@ async def test_an_error_in_one_job_drops_it_and_the_pass_goes_on(world, monkeypa
 async def test_an_empty_queue_is_an_empty_pass(world):
     counts, calls = await run(world)
     assert counts["jobs"] == [] and calls == []
+
+
+# ---------------------------------------------------------------- migration 032 and the startup task
+
+DESK_INDEXES = {
+    "service_desk_jobs": {"one_attempt_per_ticket", "state_created", "finished_ttl"},
+    "service_desk_gaps": {"tenant_status_created", "created_ttl"},
+    "knowledge_docs": {"tenant_helpdesk", "one_starter_copy"},
+    "tickets": {"tray_list", "desk_return_due"},
+}
+
+
+async def _counts(db):
+    return {name: await db[name].count_documents({}) for name in
+            ("tickets", "knowledge_docs", "autonomy_settings", "service_desk_jobs", "service_desk_gaps")}
+
+
+async def test_migration_032_creates_every_desk_index_twice_and_changes_no_document(mongo_db):  # noqa: F811
+    """protects=D-03 / D-11 (nothing backfilled: a missing serviceDesk setting reads Drafts, a missing comment
+    visibility reads staff); fails_when=a document is inserted or changed, an index is missing, a second run raises."""
+    import importlib
+    migration = importlib.import_module("migrations.032_service_desk")
+    await mongo_db.tickets.insert_one({"id": "k1", "tenantId": "t1", "comments": [{"id": "c1", "text": "old"}]})
+    await mongo_db.knowledge_docs.insert_one({"id": "d1", "tenantId": "t1", "title": "x", "content": "y"})
+    await mongo_db.autonomy_settings.insert_one({"tenantId": "t1", "level": "suggest"})
+    before = await _counts(mongo_db)
+    snapshot = [await mongo_db[c].find({}, {"_id": 0}).to_list(10) for c in ("tickets", "knowledge_docs", "autonomy_settings")]
+    await migration.up(mongo_db)
+    await migration.up(mongo_db)
+    assert await _counts(mongo_db) == before
+    assert snapshot == [await mongo_db[c].find({}, {"_id": 0}).to_list(10)
+                        for c in ("tickets", "knowledge_docs", "autonomy_settings")]
+    for collection, names in DESK_INDEXES.items():
+        assert names <= set(await mongo_db[collection].index_information()), collection
+    unique = (await mongo_db.service_desk_jobs.index_information())["one_attempt_per_ticket"]
+    assert unique["unique"] is True and (await mongo_db.knowledge_docs.index_information())["one_starter_copy"]["unique"]
+
+
+def test_the_runner_finds_migration_032_and_it_follows_031():
+    from migrations import runner
+    found = dict(runner._discover_pending(set()))
+    assert found["032"] == "032_service_desk" and "031" in found
+    assert max(found) == "032"
+
+
+def test_the_backend_starts_one_service_desk_task_after_the_patch_rollout_controller():
+    """The startup is read, not run: the real backend is the user's restart."""
+    source = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app_startup.py"),
+                  encoding="utf-8").read()
+    assert source.count('name="service_desk_worker"') == 1 and source.count("service_desk.worker import desk_loop") == 1
+    assert source.index('name="patch_rollout_controller"') < source.index('name="service_desk_worker"')
+    assert '_safe_bg_task(_service_desk_loop(), "service_desk_worker")' in source
