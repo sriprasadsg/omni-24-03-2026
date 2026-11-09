@@ -4,16 +4,16 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: gaps_found
-stopped_at: Phase 85 verification gaps_found (CR-101, CR-401)
-last_updated: "2026-11-09T07:04:46.718Z"
-last_activity: 2026-11-08
-last_activity_desc: Phase 85 executed 23/23; verification gaps_found 6/7 (DESK-03 output side)
-state_head: 5ebb413a901d3b541a3475424caf70bbacebad53
+status: planning
+stopped_at: Phase 85 gap-closure plans 85-24..85-29 created (plan check passed iteration 1)
+last_updated: "2026-11-09T15:13:59.132Z"
+last_activity: 2026-11-09
+last_activity_desc: Phase 85 gap plans 85-24..85-29 created (CR-101, CR-401 + 9 backend review warnings), plan check passed
+state_head: 9cf7470ce6522daa9829eada61c65e6f5c64fef0
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 122
+  total_plans: 128
   completed_plans: 122
   percent: 86
 ---
@@ -971,10 +971,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 23 of 23
-Status: Verification gaps found — next /gsd-plan-phase 85 --gaps
-Last activity: 2026-11-09 — Phase 85 executed 23/23, gates green; verification gaps_found 6/7 (CR-101 output-check bypass, CR-401 staff comments shown to reporter)
+Phase: 85 (First-Line Service Desk) — READY TO EXECUTE
+Plan: 23 of 29 (gap-closure plans 85-24..85-29 not started)
+Status: Ready to execute — next /gsd-execute-phase 85 --gaps-only
+Last activity: 2026-11-09 — Phase 85 gap plans 85-24..85-29 created in 5 waves (CR-101, CR-401, WR-101..103, WR-201..203, WR-301..303), plan check passed (0 blockers, 0 warnings, 3 info); next /gsd-execute-phase 85 --gaps-only
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
