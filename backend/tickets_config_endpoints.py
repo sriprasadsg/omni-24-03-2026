@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
 
+import ticket_access
 from authentication_service import TokenData
 from rbac_service import rbac_service
 from tickets_models import (
@@ -14,7 +15,8 @@ from tickets_models import (
 )
 from tickets_service import tickets_service
 
-router = APIRouter(prefix="/api/tickets", tags=["Ticket Config"])
+router = APIRouter(prefix="/api/tickets", tags=["Ticket Config"],
+                   dependencies=[Depends(ticket_access.ticket_viewer())])
 
 
 # ── Watchers ──────────────────────────────────────────────────────────────────
@@ -23,7 +25,7 @@ router = APIRouter(prefix="/api/tickets", tags=["Ticket Config"])
 async def add_watcher(
     ticket_id:    str,
     body:         WatcherRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     ok = await tickets_service.add_watcher(
         ticket_id, body.email, tenant_id=_effective_tenant(current_user)
@@ -37,7 +39,7 @@ async def add_watcher(
 async def remove_watcher(
     ticket_id:    str,
     email:        str,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     ok = await tickets_service.remove_watcher(
         ticket_id, email, tenant_id=_effective_tenant(current_user)

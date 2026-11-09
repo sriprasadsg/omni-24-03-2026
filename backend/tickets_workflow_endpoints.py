@@ -13,6 +13,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
+import ticket_access
 from authentication_service import TokenData
 from catalogue_mounts_settings_ops import TICKET_WEBHOOKS_GUARD
 from database import get_database
@@ -23,7 +24,8 @@ from tickets_models import (
 )
 from tickets_service import tickets_service
 
-router = APIRouter(prefix="/api/tickets", tags=["Ticket Workflows"])
+router = APIRouter(prefix="/api/tickets", tags=["Ticket Workflows"],
+                   dependencies=[Depends(ticket_access.ticket_viewer())])
 
 
 # ── CSAT ──────────────────────────────────────────────────────────────────────
@@ -64,7 +66,7 @@ async def submit_csat(
 async def merge_ticket(
     ticket_id: str,
     body: MergeRequest,
-    current_user: TokenData = Depends(rbac_service.has_permission("view:dashboard")),
+    current_user: TokenData = Depends(rbac_service.has_permission(ticket_access.TICKET_STAFF)),
 ) -> Dict[str, Any]:
     """Merge this ticket into target_ticket_id. Source ticket is closed as duplicate."""
     db = get_database()
