@@ -32,6 +32,7 @@ ALICE = portal_user("t1", "alice@x.co")           # the reporter
 BOB = staff_user("t1", "bob@x.co")                # the assigned technician (staff, manage:tickets)
 CAROL = staff_user("t1", "carol@x.co")              # staff (manage:tickets)
 OTHER_ALICE = portal_user("t2", "alice@x.co")
+STAFF = ("view:dashboard", "manage:tickets")      # what the technicians above hold as ticket staff
 TICKET = {"title": "My laptop will not start", "description": "It shows a black screen", "assignee": "bob@x.co"}
 
 
@@ -274,8 +275,8 @@ async def test_staff_only_text_reaches_neither_the_reporters_feed_nor_the_tenant
     assert (await _comment(world, ticket["id"], REPLY, visibility="requester")).status_code == 200
     await _drain()
     alice = await _feed(world.db, ALICE)
-    carol = await _feed(world.db, CAROL)
-    bob = await _feed(world.db, BOB)
+    carol = await _feed(world.db, CAROL, perms=STAFF)
+    bob = await _feed(world.db, BOB, perms=STAFF)
     everything = json.dumps([alice, carol, bob, world.pushed])
     assert "hunter2" not in everything and REPLY not in everything
     reply_notice = lambda feed: [n for n in feed if n["metadata"].get("recipient")]   # noqa: E731

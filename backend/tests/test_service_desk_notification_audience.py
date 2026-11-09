@@ -6,10 +6,10 @@ reaches the ticket's reporter (not in the feed, not on the tenant socket), and a
 the notices they can read; fails_when=the reporter's feed lists a staff-only comment notice, the tenant socket
 carries one, a colleague's mark-read, read-all or delete touches a notice addressed to someone else, or a
 colleague stops reading the staff notice or their own and the tenant-wide ones; no_claim=notices stored before the
-fix (they carry no exclusion, A-85-G14) and the tenant_admins push on the socket (A-85-G15).
+fix (they carry no exclusion, A-85-G14) and the tenant_admins push on the socket (A-85-G15). The structural test
+that every notice route calls the filter moved to test_notification_audience_structure.py (85-31), which scans the
+whole backend; ticket_staff notices are read by ticket staff only (G-85-4 UD-2).
 """
-import ast
-import inspect
 import json
 import os
 import sys
@@ -27,6 +27,12 @@ from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture the imported w
 from tests.test_service_desk_comments import (  # noqa: F401  (world is a fixture)
     ALICE, BOB, CAROL, REPLY, SECRET, _comment, _drain, _feed, _notices, _raise, world,
 )
+from tests.service_desk_support import portal_user
+
+
+READ = ("view:dashboard",)
+STAFF = ("view:dashboard", "manage:tickets")          # IT ticket staff (G-85-4 UD-1)
+ERIN = portal_user("t1", "erin@x.co")                  # a requester colleague: neither reporter nor staff
 
 
 def _comment_notices(feed):
@@ -59,8 +65,8 @@ async def test_the_reporter_never_reads_the_staff_notice_but_colleagues_do(world
     Carol or Bob stops reading it with its title."""
     await _staff_comment_world(world)
     alice = await _feed(world.db, ALICE)
-    carol = await _feed(world.db, CAROL)
-    bob = await _feed(world.db, BOB)
+    carol = await _feed(world.db, CAROL, perms=STAFF)
+    bob = await _feed(world.db, BOB, perms=STAFF)
     assert _comment_notices(alice) == []
     assert "New comment by bob@x.co" not in json.dumps(alice) and "hunter2" not in json.dumps(alice)
     assert len(_comment_notices(carol)) == 1 and "New comment by" in _comment_notices(carol)[0]["title"]
@@ -73,20 +79,22 @@ async def test_the_exclusion_matches_case_insensitively_and_by_email(world):
     assert _comment_notices(await _feed(world.db, TokenData(username="  ALICE@x.CO ", tenant_id="t1"))) == []
     by_email = SimpleNamespace(username="alice", email="Alice@X.co", role="user", tenant_id="t1")
     assert _comment_notices(await _feed(world.db, by_email)) == []
-    assert len(_comment_notices(await _feed(world.db, TokenData(username="  CAROL@x.CO ", tenant_id="t1")))) == 1
+    assert len(_comment_notices(await _feed(
+        world.db, TokenData(username="  CAROL@x.CO ", tenant_id="t1"), perms=STAFF))) == 1
 
 
-async def test_a_staff_notice_of_a_ticket_with_no_reporter_reaches_everyone(world):
-    """protects=WR-201 edge; fails_when=an empty exclusion hides the notice from someone, or the writer stores a
-    blank name."""
+async def test_a_staff_notice_of_a_ticket_with_no_reporter_reaches_every_staff_member(world):
+    """protects=WR-201 edge / D-11; fails_when=an empty exclusion hides the notice from a staff member, the writer
+    stores a blank name, or the requester colleague reads it (ticket_staff notices are for staff)."""
     ticket = await _raise(world)
     await world.db.tickets.update_one({"id": ticket["id"]}, {"$set": {"reporter": "", "watchers": ["carol@x.co"]}})
     assert (await _comment(world, ticket["id"], SECRET)).status_code == 200
     await _drain()
     notices = await _notices(world.db, "ticket_comment_added")
     assert len(notices) == 1 and not notices[0]["metadata"].get("excludeRecipients")
-    for user in (ALICE, BOB, CAROL):
-        assert len(_comment_notices(await _feed(world.db, user))) == 1
+    for user in (BOB, CAROL):
+        assert len(_comment_notices(await _feed(world.db, user, perms=STAFF))) == 1
+    assert _comment_notices(await _feed(world.db, ALICE)) == []
 
 
 # ---------------------------------------------------------------- Task 2: the socket
@@ -122,7 +130,6 @@ async def test_other_notices_are_still_pushed_with_their_full_text(world, metada
 
 # ---------------------------------------------------------------- Task 3: the write routes
 
-READ = ("view:dashboard",)
 ADMIN = ("view:dashboard", "manage:agents")
 
 
@@ -179,9 +186,31 @@ async def test_read_all_without_ids_marks_only_what_the_reader_can_read(world):
     """protects=WR-202 / PROH-85-17; fails_when=read-all touches Alice's notice, the tenant_admins notice, another
     tenant's notice, or leaves Carol's own, the tenant-wide or the staff notice unread."""
     await _seed(world.db)
-    result = await _call(world.db, "mark_all_as_read", CAROL, notification_ids=None)
+    result = await _call(world.db, "mark_all_as_read", CAROL, notification_ids=None, perms=STAFF)
     assert result == {"success": True, "modified_count": 3}
     assert await _read_ids(world.db) == ["carol-only", "staff", "tenant-wide"]
+
+
+async def test_read_all_without_ticket_staff_permission_leaves_the_staff_notice_alone(world):
+    """protects=D-11 / UD-2 / T-85-110 on the writers; fails_when=a reader without manage:tickets marks the
+    ticket_staff notice read with read-all, or read-all stops marking their own and the tenant-wide ones."""
+    await _seed(world.db)
+    result = await _call(world.db, "mark_all_as_read", CAROL, notification_ids=None)
+    assert result == {"success": True, "modified_count": 2}
+    assert await _read_ids(world.db) == ["carol-only", "tenant-wide"]
+    with pytest.raises(HTTPException) as refused:
+        await _call(world.db, "delete_notification", CAROL, "staff")
+    assert refused.value.status_code == 404
+
+
+async def test_a_requester_colleague_has_no_staff_comment_notice_in_the_feed(world):
+    """protects=D-11 / UD-2 / T-85-110; fails_when=Erin (a requester who is neither the reporter nor staff) lists
+    the staff-only comment notice, or Carol or Bob (manage:tickets) stop reading it, or Alice reads it."""
+    await _staff_comment_world(world)
+    assert _comment_notices(await _feed(world.db, ERIN)) == []
+    assert len(_comment_notices(await _feed(world.db, CAROL, perms=STAFF))) == 1
+    assert len(_comment_notices(await _feed(world.db, BOB, perms=STAFF))) == 1
+    assert _comment_notices(await _feed(world.db, ALICE)) == []
 
 
 async def test_read_all_with_an_unreadable_id_modifies_nothing_for_it(world):
@@ -199,7 +228,7 @@ async def test_the_reporter_keeps_her_own_notices_but_not_the_staff_one(world):
     notice, or can still mark the staff notice that excludes her."""
     await _seed(world.db)
     with pytest.raises(HTTPException) as refused:
-        await _call(world.db, "mark_as_read", ALICE, "staff")
+        await _call(world.db, "mark_as_read", ALICE, "staff", perms=STAFF)     # staff, but the notice excludes her
     assert refused.value.status_code == 404
     assert await _call(world.db, "mark_as_read", ALICE, "alice-only") == {"success": True}
     assert await _read_ids(world.db) == ["alice-only"]
@@ -218,13 +247,3 @@ async def test_the_tenant_admin_notice_needs_manage_agents_to_be_changed(world):
         await _call(world.db, "delete_notification", CAROL, "admins")
     assert await _call(world.db, "mark_as_read", CAROL, "admins", perms=ADMIN) == {"success": True}
     assert await _call(world.db, "delete_notification", CAROL, "admins", perms=ADMIN) == {"success": True}
-
-
-async def test_every_notification_route_starts_from_the_reader_filter():
-    """protects=WR-202 structure; fails_when=the list, mark-read, read-all or delete route builds its own query
-    again instead of calling _reader_filter."""
-    import notification_endpoints as ne
-    for name in ("get_notifications", "mark_as_read", "mark_all_as_read", "delete_notification"):
-        calls = [n for n in ast.walk(ast.parse(inspect.getsource(getattr(ne, name))))
-                 if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "_reader_filter"]
-        assert calls, f"{name} does not use _reader_filter"
