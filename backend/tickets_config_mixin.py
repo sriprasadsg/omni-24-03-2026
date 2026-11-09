@@ -14,11 +14,14 @@ class TicketsConfigMixin:
 
     # ── Stats ─────────────────────────────────────────────────────────────────
 
-    async def get_stats(self, reporter: Optional[str] = None, tenant_id: str = "") -> Dict[str, Any]:
+    async def get_stats(self, reporter: Optional[str] = None, tenant_id: str = "",
+                        scope: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         db          = get_database()
         base_filter: Dict[str, Any] = {"tenantId": tenant_id} if tenant_id else {}
         if reporter:
             base_filter["reporter"] = reporter
+        if scope:
+            base_filter["$and"] = [scope]      # a non-staff caller's own-tickets filter (UD-2): every count below inherits it
 
         async def _agg(group_key: str) -> Dict[str, int]:
             out: Dict[str, int] = {}

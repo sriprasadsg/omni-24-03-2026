@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import StreamingResponse
 
+import ticket_access
 from authentication_service import get_current_user
 from database import get_database
 from rate_limiter import limiter
@@ -38,6 +39,12 @@ def _now() -> datetime:
 
 def _tenant(user) -> str:
     return getattr(user, "tenant_id", "") or ""
+
+
+async def _scope(user) -> Dict[str, Any]:
+    """The own-tickets restriction of a caller who is not ticket staff (UD-2, A-85-G26), merged into every base filter."""
+    scope = await ticket_access.tickets_scope(user)
+    return {"$and": [scope]} if scope else {}
 
 
 # ── Shared filter builder ──────────────────────────────────────────────────────
@@ -70,7 +77,7 @@ async def get_summary(
     """Top-level KPIs: totals, open/closed split, SLA compliance rate, avg resolution."""
     db  = get_database()
     tid = _tenant(current_user)
-    bf  = _base_filter(tid, from_date, to_date)
+    bf  = {**_base_filter(tid, from_date, to_date), **await _scope(current_user)}
 
     total   = await db[COL].count_documents(bf)
     open_c  = await db[COL].count_documents({**bf, "status": {"$nin": ["resolved", "closed"]}})
@@ -136,7 +143,7 @@ async def get_trends(
     db  = get_database()
     tid = _tenant(current_user)
     since = (_now() - timedelta(days=days)).isoformat()
-    base  = {"tenantId": tid} if tid else {}
+    base  = {**({"tenantId": tid} if tid else {}), **await _scope(current_user)}
 
     # Group format depends on period
     date_fmt = "%Y-%m-%d" if period == "daily" else "%Y-W%V"
@@ -204,7 +211,7 @@ async def get_sla_report(
     """SLA compliance breakdown by priority."""
     db  = get_database()
     tid = _tenant(current_user)
-    bf  = _base_filter(tid, from_date, to_date)
+    bf  = {**_base_filter(tid, from_date, to_date), **await _scope(current_user)}
 
     sla_met      = await db[COL].count_documents({**bf, "sla_status": "met"})
     sla_breached = await db[COL].count_documents({**bf, "sla_status": "breached"})
@@ -254,7 +261,7 @@ async def get_resolution_report(
     """Average, median, and p90 resolution time in hours, broken down by priority and type."""
     db  = get_database()
     tid = _tenant(current_user)
-    bf  = _base_filter(tid, from_date, to_date)
+    bf  = {**_base_filter(tid, from_date, to_date), **await _scope(current_user)}
 
     closed_filter = {
         **bf,
@@ -352,7 +359,7 @@ async def get_assignee_report(
     """Per-assignee open, resolved, overdue, and average resolution time."""
     db  = get_database()
     tid = _tenant(current_user)
-    bf  = _base_filter(tid, from_date, to_date)
+    bf  = {**_base_filter(tid, from_date, to_date), **await _scope(current_user)}
     now = _now().isoformat()
 
     # Single pipeline: group, compute open/resolved/overdue/avg all server-side
@@ -417,7 +424,7 @@ async def get_ageing_report(
     """Open ticket count bucketed by age (how long they've been open)."""
     db  = get_database()
     tid = _tenant(current_user)
-    base = {"tenantId": tid} if tid else {}
+    base = {**({"tenantId": tid} if tid else {}), **await _scope(current_user)}
     now  = _now()
 
     open_tickets = await db[COL].find(
@@ -470,7 +477,7 @@ async def export_tickets_csv(
     """Download filtered tickets as a CSV file."""
     db  = get_database()
     tid = _tenant(current_user)
-    bf  = _base_filter(tid, from_date, to_date)
+    bf  = {**_base_filter(tid, from_date, to_date), **await _scope(current_user)}
     if status:
         bf["status"] = status
     if priority:

@@ -105,6 +105,7 @@ async def get_stats(
     return await tickets_service.get_stats(
         reporter=reporter,
         tenant_id=_effective_tenant(current_user),
+        scope=await ticket_access.tickets_scope(current_user),
     )
 
 
