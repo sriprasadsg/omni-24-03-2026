@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 85-first-line-service-desk
 source: [85-VERIFICATION.md]
 started: 2026-11-09T23:35:31Z
-updated: 2026-11-10T08:46:44.976Z
+updated: 2026-11-10T08:55:00Z
 ---
 
 ## Current Test
@@ -59,21 +59,49 @@ blocked: 0
   reason: "Found in UAT: printer starter answers are always refused (unknown_citation: model cites the article's step numbers 1-6 as article numbers); pipeline drops the check name and reply"
   severity: major
   test: 3
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  root_cause: "Articles reach the model as <article id=\"1\"> with bare numbers; the printer starter's steps 1-6 are read as article numbers (reply cites [1,2,3,4,5,6], reproduced 3/3), and check() fails the whole reply on the first unknown citation; the pipeline then drops the rule name and the reply"
+  artifacts:
+    - path: "backend/service_desk/sanitize.py"
+      issue: "build_prompt numbers articles 1..n (lines 160-163) and the system text asks for cited article numbers, which collide with numbered steps"
+    - path: "backend/service_desk/checks.py"
+      issue: "check() returns unknown_citation for any cited number not given, discarding an otherwise grounded answer"
+    - path: "backend/service_desk/pipeline.py"
+      issue: "lines 115-116 hand off output_check_failed without recording which rule failed"
+  missing:
+    - "Article ids that cannot collide with list numbering (or dropping ungiven citation numbers when a valid one remains), with the injection/escalation/retrieval sets still green"
+    - "The failing rule name in the ledger reason / staff note"
+    - "A test with a numbered-steps article whose reply cites step numbers, and a live re-check of the printer answer against the remaining rules"
+  debug_session: ".planning/debug/85-uat3-printer-unknown-citation.md"
 - gap_id: G-85-4b
   truth: "A requester (no manage:tickets) on the Tickets screen does not see staff-only controls (status transitions, escalate, watchers, work log, bulk, assign, merge), or any such action they can reach fails with a clear message instead of a silent 403"
   status: failed
   reason: "Found in UAT: staff controls shown to a User-role requester; PATCH, escalate and watchers answer 403 with nothing shown"
   severity: major
   test: 4
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  root_cause: "InternalTicketsDashboard renders every staff control for every viewer and never asks hasPermission('manage:tickets') (IN-604); its staff handlers await the API without try/catch, so the 403s become unhandled rejections with no toast"
+  artifacts:
+    - path: "components/InternalTicketsDashboard.tsx"
+      issue: "status buttons (~1056-1063), bulk bar (~864-870), watchers (~1276), Escalate (~1323-1335), Merge (~1339-1350), Work Log tab (~145) shown to non-staff; handlePatch (581-586), handleEscalate (651-655) and the watcher/work-log/link/approve/bulk handlers have no error handling; staff hint shown to requesters"
+  missing:
+    - "isTicketStaff = hasPermission('manage:tickets') gating the staff-only controls and the Work Log tab"
+    - "showToast error handling in every staff handler"
+    - "Frontend tests for the requester view of the ticket panel; user WIP in InternalTicketsDashboard.tsx and App.tsx kept out of commits"
+  debug_session: ".planning/debug/85-uat3-requester-staff-controls.md"
 - gap_id: G-85-5
   truth: "A requester creating a ticket cannot set staff-only fields (assignee, assignee_group, watchers, approval_required, sla_hours, due_date, also via template defaults), and a notice tagged with an audience (tenant_admins, ticket_staff) is never pushed over the tenant-wide WebSocket broadcast, including pending_agents._post_in_app"
   status: failed
   reason: "User reported: Fix both (Recommended) — fix WR-603 and WR-602 in this round together with G-85-3 and G-85-4b"
   severity: major
   test: 5
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  root_cause: "WR-603: POST /api/tickets passes body.model_dump() (and template defaults) into create_ticket for any view:dashboard caller, so requesters set staff-only fields such as watchers; WR-602: send_alert skips the socket only for audience ticket_staff and pending_agents._post_in_app broadcasts with no audience check"
+  artifacts:
+    - path: "backend/tickets_endpoints.py"
+      issue: "create_ticket (138-201) honours assignee, assignee_group, watchers, approval_required, sla_hours, due_date from non-staff, also via template_id merge (file carries user WIP)"
+    - path: "backend/notification_service.py"
+      issue: "send_alert (91-100) broadcasts tenant_admins notices to every tenant client"
+    - path: "backend/pending_agents.py"
+      issue: "_post_in_app (275-290) broadcasts hostname and seat usage with no audience check"
+  missing:
+    - "Drop staff-only keys for non-staff in create_ticket before and after the template merge, with tests"
+    - "Skip the tenant broadcast whenever metadata.audience is set; generic or no broadcast in _post_in_app; socket case in test_service_desk_notification_audience.py"
+  debug_session: ".planning/debug/85-uat3-wr602-wr603.md"
