@@ -1,107 +1,53 @@
 ---
-status: diagnosed
+status: testing
 phase: 85-first-line-service-desk
 source: [85-VERIFICATION.md]
-started: 2026-11-09T23:35:31Z
-updated: 2026-11-10T08:55:00Z
+started: 2026-11-10T13:28:33Z
+updated: 2026-11-10T13:28:33Z
 ---
 
 ## Current Test
 
-[testing complete]
+number: 1
+name: Restart the backend and re-run the G-85-3 printer ticket end to end
+expected: |
+  Raised as a requester on the portal at desk mode drafts, "My printer will not print" is drafted (or posted where
+  the gate allows) citing only "Fixing a printer that will not print", not handed off. If any reply is refused, the
+  staff note and the Activity row name the failing rule, and the requester sees only "A person from IT will look at this."
+awaiting: user response
 
 ## Tests
 
-### 1. Install Ollama and pull llama3.2:3b, then run the 85-22 measurement/calibration script on the CPU-only server
-expected: Real generation times recorded; call timeouts and the retrieval cut-off hold; DESK-05 real response time is reported
-result: pass
-note: "Run on Omniai-copy 2026-11-10 at the user's request. Ollama 0.40.16 (release archive, sha256 checked) as ollama.service on 127.0.0.1:11434, NUM_PARALLEL=1, MAX_LOADED_MODELS=1; llama3.2:3b pulled. --measure stored system_settings type service_desk_runtime: prefillTps 71.4, genTps 14.4, median total 9.36 s, p95 16.48 s, first load 5.1 s; 4,000-char prompt timeout 45 s. --sets exit 0: escalation 150/0 failed, injection 33 (25 reached the model, 8 handed off before it), 0 failed, retrieval 100/0 unexpected, margin 0.2268 (CUT 0.24). --calibrate: no tenant had Help desk articles (fresh DB), nothing to calibrate. Finding (minor): running --measure right after --measure --dry-run, as the documented order says, stores prefill ~7,000 tok/s from Ollama's prompt cache; re-measured after an Ollama restart. The script should unload the model (keep_alive 0) before measuring."
+# UAT round 4 (after the third gap round 85-37..85-42). Round 3's file (2 passed, gaps G-85-3, G-85-4b, G-85-5)
+# is in git at 31754ff6e / 8c3507d6f; those gaps are closed in code per 85-VERIFICATION.md (811b676e7).
 
-### 2. Restart the backend (migration 032 and the new manage:tickets role defaults) with Ollama absent and open a new first-line portal ticket
-expected: Ticket handed to a person (service_desk_offline); no placeholder answer is posted; a user-role account sees only its own tickets, an analyst sees all
-result: pass
-note: "Run by Claude against the live API on Omniai-copy 2026-11-10 at the user's request (the user's browser never reached this VM). Backend restarted 08:10:16 (migrations 031 + 032 applied, clean start); UI index-fZpr5iK1.js published by the user. ABC got the 4 starter articles (uat-setup) and switches manage:settings, screen:internalTickets, screen:knowledgeBase, view:autonomous_ops (left on for test 3). Temporary ABC accounts uat85-requester (User) and uat85-analyst (Analyst) signed in via /api/auth/login. With ollama.service stopped, the requester's Incident 'I forgot my password' (TKT-0001, raised via portal) -> desk job done, reason service_desk_offline; comments = staff_note 'Service desk: service desk offline.' (staff) + handoff_notice 'A person from IT will look at this.' (requester); no answer or placeholder. Requester sees 1 comment, analyst 2. With a 2nd ticket raised by the analyst: requester lists 1 (own), analyst lists 2, requester opening the analyst's ticket -> 404. Ollama restarted. Test accounts, tickets, desk jobs, autonomy_actions, notifications and login_events archived to ~/omni-archives/uat85-test2/ and removed; 8 hash-chained audit_logs entries left in place."
+### 1. Restart the backend and re-run the G-85-3 printer ticket end to end
+expected: Raised as a requester on the portal at desk mode drafts, "My printer will not print" is drafted (or posted where the gate allows) citing only "Fixing a printer that will not print", not handed off; if any reply is refused, the staff note and the Activity row name the failing rule, and the requester sees only "A person from IT will look at this."
+result: [pending]
 
-### 3. Portal round trip and Windows tray round trip (agent 2.1.18 published): requester sees the AI-assisted answer, confirms or says it did not help
-expected: Confirm closes the ticket; did-not-help hands off to a person; the reporter never sees staff-only comments or drafts in the browser
-result: issue
-reported: "Found by Claude in the portal run (user asked for it to be run via the API): a printer ticket ('My printer will not print') is always handed to a person with output_check_failed. Reproduced 3/3 offline: llama3.2:3b replies cited [1,2,3,4,5,6] for the one given article, reading the printer starter's numbered steps 1-6 as article numbers, so check() fails unknown_citation. The pipeline also drops the failing check name and the model reply, so staff only see 'Output check failed.'"
-severity: major
-note: "Portal half otherwise PASSED on the live API + published UI (index-fZpr5iK1.js) with temporary ABC accounts, desk mode drafts: password ticket drafted citing 'How to reset your own password'; requester saw nothing before the analyst sent it; after send the requester saw the ai_answer (status pending_customer, confirm offered); 'this fixed it' -> resolved; a second password ticket, sent then 'I still need help' -> status open, phase helped, staff_note for staff only. No staff_note or unsent draft was ever returned to the requester; in headless Chromium the requester's ticket view and Comments tab show only the sent answer (screenshots in ~/omni-archives/uat85-test3/). First run was invalid (agent build saturating the CPU -> 45 s model timeouts -> service_desk_busy hand-offs, nothing posted). Tray half NOT run: agent 2.1.18 built from cde304879 (sha256 4db385d7..., ~/omni-archives/agent-2.1.18/) but not published, and no Windows endpoint is enrolled on this VM. Copy nit: the requester's Comments tab shows the staff hint 'Comments are visible to staff only unless marked Sent to requester'."
+### 2. Publish the UI build (dist-new) and check the Tickets screen as a User-role requester, then as an analyst
+expected: The requester sees no status buttons, Escalate, Merge, Watchers, Approve/Deny, attachment delete, Work Log / Links tabs, row checkboxes, bulk bar or board drag; New Ticket has no Assignee, Group, Due Date, SLA Hours or approval input; the "staff only" hint is absent; own tickets, the answer panel, comments to IT and file upload/download still work. The analyst sees every control again.
+result: [pending]
 
-### 4. Sign in as a requester (role user) on the published Tickets screen
-expected: Only own tickets listed; staff actions that now answer 403 (assign, merge, bulk, watchers) are either hidden or fail with a clear message (IN-604: no frontend code reads manage:tickets)
-result: issue
-reported: "Found by Claude in headless Chromium on the published UI as a temporary ABC User-role requester: own-tickets listing is correct (3 own listed; the analyst's TKT-0004 not listed and 404 when opened), but the ticket panel shows staff controls (-> in progress / -> resolved / -> closed, Escalate with reason box, Add watcher, Work Log tab, row checkboxes for bulk) and they fail silently: PATCH /api/tickets/{id} 403, POST /escalate 403, POST /watchers 403, each only a console 'Failed to load resource: 403' with nothing shown to the user. Merge is disabled."
-severity: major
+### 3. Windows tray round trip (agent 2.1.18 published), the tray half of UAT test 3
+expected: Raise a Ticket from the tray, see the AI-assisted answer pop-up, and "this fixed it" / "I still need help" behave as on the portal.
+result: [pending]
 
-### 5. Decide on WR-603 (requester-set staff fields at ticket creation) and WR-602 (WebSocket push of audience-tagged notices) before deployment
-expected: Either the fix (drop staff-only keys for non-staff in create_ticket; skip the tenant broadcast when metadata.audience is set) or a written acceptance
-result: issue
-reported: "Fix both (Recommended) — fix WR-603 and WR-602 in this round together with G-85-3 and G-85-4b"
-severity: major
+### 4. After the restart, check G-85-5 live
+expected: A ticket created by a requester with watchers, assignee or approval_required in the body keeps none of the six staff-only fields; a pending-agent notice for a tenant with two users is seen only by a tenant admin in the feed, and no non-admin socket receives it.
+result: [pending]
+
+### 5. Decide on review findings WR-701 and WR-702 before deployment
+expected: Either the fixes (reportFailure on the title edit and the Start button of security-incident tickets, a catch in handleComment's staff-note branch, a try/catch in handleUpload; load() in the bulk catch) or a written acceptance.
+result: [pending]
 
 ## Summary
 
 total: 5
-passed: 2
-issues: 3
-pending: 0
+passed: 0
+issues: 0
+pending: 5
 skipped: 0
 blocked: 0
 
 ## Gaps
-
-# G-85-4 is taken by the second gap round (85-30..85-36); this round's test-4 gap is G-85-4b.
-- gap_id: G-85-3
-  truth: "A new first-line ticket that matches one Help desk article gets a usable AI-assisted answer or draft; a citation the model gets wrong does not throw away an otherwise grounded answer, and a refused answer records which check failed"
-  status: failed
-  reason: "Found in UAT: printer starter answers are always refused (unknown_citation: model cites the article's step numbers 1-6 as article numbers); pipeline drops the check name and reply"
-  severity: major
-  test: 3
-  root_cause: "Articles reach the model as <article id=\"1\"> with bare numbers; the printer starter's steps 1-6 are read as article numbers (reply cites [1,2,3,4,5,6], reproduced 3/3), and check() fails the whole reply on the first unknown citation; the pipeline then drops the rule name and the reply"
-  artifacts:
-    - path: "backend/service_desk/sanitize.py"
-      issue: "build_prompt numbers articles 1..n (lines 160-163) and the system text asks for cited article numbers, which collide with numbered steps"
-    - path: "backend/service_desk/checks.py"
-      issue: "check() returns unknown_citation for any cited number not given, discarding an otherwise grounded answer"
-    - path: "backend/service_desk/pipeline.py"
-      issue: "lines 115-116 hand off output_check_failed without recording which rule failed"
-  missing:
-    - "Article ids that cannot collide with list numbering (or dropping ungiven citation numbers when a valid one remains), with the injection/escalation/retrieval sets still green"
-    - "The failing rule name in the ledger reason / staff note"
-    - "A test with a numbered-steps article whose reply cites step numbers, and a live re-check of the printer answer against the remaining rules"
-  debug_session: ".planning/debug/85-uat3-printer-unknown-citation.md"
-- gap_id: G-85-4b
-  truth: "A requester (no manage:tickets) on the Tickets screen does not see staff-only controls (status transitions, escalate, watchers, work log, bulk, assign, merge), or any such action they can reach fails with a clear message instead of a silent 403"
-  status: failed
-  reason: "Found in UAT: staff controls shown to a User-role requester; PATCH, escalate and watchers answer 403 with nothing shown"
-  severity: major
-  test: 4
-  root_cause: "InternalTicketsDashboard renders every staff control for every viewer and never asks hasPermission('manage:tickets') (IN-604); its staff handlers await the API without try/catch, so the 403s become unhandled rejections with no toast"
-  artifacts:
-    - path: "components/InternalTicketsDashboard.tsx"
-      issue: "status buttons (~1056-1063), bulk bar (~864-870), watchers (~1276), Escalate (~1323-1335), Merge (~1339-1350), Work Log tab (~145) shown to non-staff; handlePatch (581-586), handleEscalate (651-655) and the watcher/work-log/link/approve/bulk handlers have no error handling; staff hint shown to requesters"
-  missing:
-    - "isTicketStaff = hasPermission('manage:tickets') gating the staff-only controls and the Work Log tab"
-    - "showToast error handling in every staff handler"
-    - "Frontend tests for the requester view of the ticket panel; user WIP in InternalTicketsDashboard.tsx and App.tsx kept out of commits"
-  debug_session: ".planning/debug/85-uat3-requester-staff-controls.md"
-- gap_id: G-85-5
-  truth: "A requester creating a ticket cannot set staff-only fields (assignee, assignee_group, watchers, approval_required, sla_hours, due_date, also via template defaults), and a notice tagged with an audience (tenant_admins, ticket_staff) is never pushed over the tenant-wide WebSocket broadcast, including pending_agents._post_in_app"
-  status: failed
-  reason: "User reported: Fix both (Recommended) — fix WR-603 and WR-602 in this round together with G-85-3 and G-85-4b"
-  severity: major
-  test: 5
-  root_cause: "WR-603: POST /api/tickets passes body.model_dump() (and template defaults) into create_ticket for any view:dashboard caller, so requesters set staff-only fields such as watchers; WR-602: send_alert skips the socket only for audience ticket_staff and pending_agents._post_in_app broadcasts with no audience check"
-  artifacts:
-    - path: "backend/tickets_endpoints.py"
-      issue: "create_ticket (138-201) honours assignee, assignee_group, watchers, approval_required, sla_hours, due_date from non-staff, also via template_id merge (file carries user WIP)"
-    - path: "backend/notification_service.py"
-      issue: "send_alert (91-100) broadcasts tenant_admins notices to every tenant client"
-    - path: "backend/pending_agents.py"
-      issue: "_post_in_app (275-290) broadcasts hostname and seat usage with no audience check"
-  missing:
-    - "Drop staff-only keys for non-staff in create_ticket before and after the template merge, with tests"
-    - "Skip the tenant broadcast whenever metadata.audience is set; generic or no broadcast in _post_in_app; socket case in test_service_desk_notification_audience.py"
-  debug_session: ".planning/debug/85-uat3-wr602-wr603.md"
