@@ -542,18 +542,20 @@ res = await _raw(db).tenants.update_one(
 | A7 | IPv4 `/24` and IPv6 `/48` as the narrowest-allowed CIDR widening floor | Network rule | Too strict for a real office /23, or too loose; the planner/user decides the floor |
 | A8 | Cross-tenant check also runs for `platform-admin` as the enrolling tenant, and platform agents count as "another tenant" for A | Q5 | A platform-owned test machine enrolled in a customer is held; benign but surprising |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **The seed for the Enterprise-default screens (120 of 208).**
+Q1-Q6 were answered by the user on 2026-11-10 (88-CONTEXT.md D-39..D-46). Q7 got no user decision; the planner declined it (see Q7).
+
+1. **The seed for the Enterprise-default screens (120 of 208).** RESOLVED by D-46: migration 034 ships the generated seed (19 Free, 69 Pro, 120 Enterprise of 208), with no review checkpoint before the migration; the Super Admin edits each plan's list on the Plans screen afterwards, and live tenants keep their screens (D-28).
    - Known: D-29 sends every switch with no catalogue ancestor to Enterprise; that includes `manage:settings`, `manage:rbac`, `manage:api_keys`, `screen:security`, `screen:ticketing`, `view:itam`, `view:autonomous_ops`.
    - Unclear: whether the user wants those on Free/Pro by default.
    - Recommendation: generate the seed, ship it as reviewed data in migration 034, and let the Plans screen edit it; no live tenant loses a screen under D-28.
-2. **Do the Platform number and D-26 agree?** D-18 sets Platform to 500 seats; D-26 says Platform has no plan limits. Recommendation: write 500, but the engine ignores `platform-admin` thereafter.
-3. **Should a tenant admin's own `/api/payments/subscribe` change the plan immediately?** Today it does (arbitrary string). Recommendation: validate the plan, allow only Free/Pro/Enterprise, and ask the user whether it should require Super Admin confirmation.
-4. **Is the Super Admin bound by a partner's screen ceiling when ticking a partner customer's screens (D-30)?** Today `update_tenant` is not. Recommendation: bind the Super Admin by the plan only; the partner ceiling limits the partner.
-5. **Direct <-> partner moves and `seatOverride`.** Recommendation in Q3.7; needs a decision and tests both ways.
-6. **Reason code for the trial hold:** D-05 says "the existing licence-expiry rule". Recommendation: separate `trial_ended` code with identical behavior, so the UI and platform alerts can say "trial ended".
-7. **Approve-all-from-this-network:** optional convenience for several Pending machines from one new office.
+2. **Do the Platform number and D-26 agree?** D-18 sets Platform to 500 seats; D-26 says Platform has no plan limits. Recommendation: write 500, but the engine ignores `platform-admin` thereafter. RESOLVED by D-41: the Platform organization has no seat limit at all and D-18's 500 does not apply to it; migration 034 leaves its stored number untouched (88-11).
+3. **Should a tenant admin's own `/api/payments/subscribe` change the plan immediately?** Today it does (arbitrary string). Recommendation: validate the plan, allow only Free/Pro/Enterprise, and ask the user whether it should require Super Admin confirmation. RESOLVED by D-39: the route only records the subscription and validates the plan name; it no longer changes the plan, which only the Super Admin (or the partner for its own customers) applies.
+4. **Is the Super Admin bound by a partner's screen ceiling when ticking a partner customer's screens (D-30)?** Today `update_tenant` is not. Recommendation: bind the Super Admin by the plan only; the partner ceiling limits the partner. RESOLVED by D-40: as recommended, only the customer's plan limits the Super Admin; the partner's ceiling limits only what the partner ticks.
+5. **Direct <-> partner moves and `seatOverride`.** Recommendation in Q3.7; needs a decision and tests both ways. RESOLVED by D-44: partner to direct keeps the seats as an override (unless equal to the plan's number); direct to partner clears the override and the partner's allotment decides.
+6. **Reason code for the trial hold:** D-05 says "the existing licence-expiry rule". Recommendation: separate `trial_ended` code with identical behavior, so the UI and platform alerts can say "trial ended". RESOLVED by D-45: a separate `trial_ended` reason ("trial ended") with the same behavior as an expired licence.
+7. **Approve-all-from-this-network:** optional convenience for several Pending machines from one new office. RESOLVED as declined (deferred) by the planner: the user made no decision on it (D-39..D-46 answer Q1-Q6 only), so no "approve every machine from this network" action is planned. Built instead (88-05): the bulk approve endpoint is unchanged and, through the same approve path, allows each approved `new_network` machine's exact observed address (/32, or /128 for IPv6); the single approve accepts a `widenTo` range within the D-42 limit (IPv4 /24, IPv6 /48). Either way, later machines from the allowed network enroll without a hold (D-07); machines already held from it are approved one by one or by selecting them for bulk approve. The user can ask for the convenience action in a later phase.
 
 ## Environment Availability
 
