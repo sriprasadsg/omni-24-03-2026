@@ -157,6 +157,10 @@ Live validation is the user's step: install Ollama, pull `llama3.2:3b`, measure 
 - **D-40 (UD-3):** Custom tenant roles from Phase 77 start as non-staff (fail closed). No migration grants `manage:tickets`; tenant admins tick it on technician roles in the role editor.
 - **D-41 (UD-4; amends D-33):** The Super Admin keeps the cross-tenant view of notice history, but the history route applies the same audience filter as everyone else (recipient, excludeRecipients, tenant_admins, ticket_staff). Without a tenant a non-Super-Admin gets 403, and a notice that carries only a tenantId is handled by the shared filter.
 
+### UAT amendments (2026-11-10, gap G-85-5, user-approved in 85-UAT.md)
+- **D-42 (UAT test 5, WR-603; amends D-39):** Someone who is not ticket staff cannot set the assignee, group, watchers, approval, SLA hours or due date when creating a ticket, also not through a template. The server drops them and the queue rules route the ticket.
+- **D-43 (UAT test 5, WR-602; amends D-33 and D-41):** A notice addressed to an audience is read from the feed only and never pushed on the tenant-wide socket. The pending-agent notices are included.
+
 ### Claude's Discretion
 - How the answer is registered with the gate (a non-agent action kind such as `ticket_comment` in `autonomous_ops/registry.py`), and the ledger `kind: servicedesk` row shape, as long as every attempt, draft, post, hand-off and undo is a ledger row and the gate's stop, level, shadow and rate-limit steps apply. Steps that only make sense for agent targets (protected targets, blast radius) may be skipped for this kind, with a test.
 - How "raised by a person" is detected: by creation path, not by client-supplied tags alone. The tray sends `user-raised` and `tray` itself, and `RaiseTicketRequest` accepts any tags.

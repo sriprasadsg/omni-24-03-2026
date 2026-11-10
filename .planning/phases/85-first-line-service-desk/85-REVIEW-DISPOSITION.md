@@ -9,11 +9,11 @@ findings:
     title: "`canSeeGaps` still derives from `view:dashboard`, so the Gaps tab is offered to people the routes refuse"
   - id: WR-602
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Live WebSocket push still broadcasts `tenant_admins` notices (agent host details) to every user of the tenant"
   - id: WR-603
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "A requester can still set staff-only fields (assignee, assignee_group, watchers, approval_required, sla_hours, due_date) when creating a ticket"
   - id: WR-604
     severity: warning
@@ -33,7 +33,7 @@ findings:
     title: "The notice-reader structure test accepts a function that calls `reader_filter` but never uses the result"
   - id: IN-604
     severity: info
-    disposition: open
+    disposition: fixed
     title: "No frontend code reads `manage:tickets`; the Tickets screen still offers staff actions to requesters"
   - id: CR-501
     severity: critical
@@ -183,7 +183,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 32
+open: 29
 total: 45
 recorded: 2026-11-09T23:26:00.237Z
 ---
@@ -193,13 +193,13 @@ recorded: 2026-11-09T23:26:00.237Z
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
 | WR-601 | warning | open | - |
-| WR-602 | warning | open | - |
-| WR-603 | warning | open | - |
+| WR-602 | warning | fixed | fixed 0efe58463 (85-39) |
+| WR-603 | warning | fixed | fixed 6fcb73084 (85-39) |
 | WR-604 | warning | open | - |
 | IN-601 | info | open | - |
 | IN-602 | info | open | - |
 | IN-603 | info | open | - |
-| IN-604 | info | open | - |
+| IN-604 | info | fixed | fixed 3f70dbf6a, 200daaaf9 (85-40); 4415379d6, ac80717e6 (85-41), screen half; the manifest write-entry note stays open |
 | CR-501 | critical | fixed | fixed b7e178bd3, 4f5ad02b9 (85-31); tests 975d2d5dc (not in the current review) |
 | WR-501 | warning | open | - (not in the current review) |
 | WR-502 | warning | fixed | fixed 1a0a5d54b (85-30); fd671c60e (85-32); 6458b0f62, 59e98958d, 03d6efce5 (85-33); 638d655b7, 283a1b71a (85-34); 37b7f2890, 3f2045d09 (85-35) (not in the current review) |
