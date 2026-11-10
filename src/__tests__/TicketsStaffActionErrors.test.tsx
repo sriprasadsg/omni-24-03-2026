@@ -165,3 +165,184 @@ describe('an error that carries no message', () => {
     await expectToast('Failed to escalate ticket');
   });
 });
+
+// ------------------------------------------------------------------------------------- every other staff action
+
+const openTab = async (name: string) => {
+  fireEvent.click(screen.getByRole('button', { name }));
+};
+const pendingApproval = () => ticket({ approval_required: true, approval_status: 'pending' });
+const rejectButton = () => screen.getByPlaceholderText('Rejection reason (required)').nextElementSibling as HTMLElement;
+
+describe('the ticket panel actions', () => {
+  it('a failed work log shows the error and keeps the typed hours', async () => {
+    api.logTicketWork.mockRejectedValue(new Error('Failed to log work'));
+    asStaff();
+    await openTicket();
+    await openTab('Work Log');
+    fireEvent.change(screen.getByPlaceholderText('Hours'), { target: { value: '1.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Log' }));
+    await expectToast('Failed to log work');
+    expect(api.logTicketWork).toHaveBeenCalledWith('t-1', 1.5, '');
+    expect(screen.getByPlaceholderText('Hours')).toHaveValue(1.5);
+  });
+
+  it('a failed link shows the error', async () => {
+    api.linkTickets.mockRejectedValue(new Error('Linked ticket not found'));
+    asStaff();
+    await openTicket();
+    await openTab('Links');
+    fireEvent.change(screen.getByPlaceholderText('Ticket ID (e.g. TKT-0012)…'), { target: { value: 'TKT-0099' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Link' }));
+    await expectToast('Linked ticket not found');
+  });
+
+  it('a failed unlink shows the error and keeps the link', async () => {
+    api.unlinkTickets.mockRejectedValue(new Error('Failed to remove link'));
+    asStaff([ticket({ links: [{ linked_id: 'TKT-0099', type: 'relates_to' }] })]);
+    await openTicket();
+    await openTab('Links');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove link TKT-0099' }));
+    await expectToast('Failed to remove link');
+    expect(screen.getByText('TKT-0099')).toBeInTheDocument();
+  });
+
+  it('a failed approval shows the error', async () => {
+    api.approveTicket.mockRejectedValue(new Error('Approval refused'));
+    asStaff([pendingApproval()]);
+    await openTicket();
+    fireEvent.click(screen.getByRole('button', { name: /^Approve$/ }));
+    await expectToast('Approval refused');
+  });
+
+  it('a failed rejection shows the error', async () => {
+    api.rejectTicket.mockRejectedValue(new Error('Rejection refused'));
+    asStaff([pendingApproval()]);
+    await openTicket();
+    fireEvent.change(screen.getByPlaceholderText('Rejection reason (required)'), { target: { value: 'Not needed' } });
+    fireEvent.click(rejectButton());
+    await expectToast('Rejection refused');
+    expect(api.rejectTicket).toHaveBeenCalledWith('t-1', 'Not needed');
+  });
+
+  it('a failed attachment delete shows the error and keeps the file', async () => {
+    api.deleteTicketAttachment.mockRejectedValue(new Error('Failed to delete attachment'));
+    asStaff();
+    await openTicket();
+    await openTab('Files');
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete notes.txt' }));
+    await expectToast('Failed to delete attachment');
+    expect(screen.getByText('notes.txt')).toBeInTheDocument();
+  });
+
+  it('a merge whose request throws shows the error', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    asStaff();
+    api.authFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/service-desk') && !init?.method) return jsonRes(desk());
+      if (url.endsWith('/merge')) throw new Error('Network down');
+      return jsonRes({});
+    });
+    await openTicket();
+    fireEvent.change(screen.getByPlaceholderText('Target ticket ID (e.g. abc-123)…'), { target: { value: 't-2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Merge' }));
+    await expectToast('Network down');
+    confirmSpy.mockRestore();
+  });
+
+  it('a merge answered not-ok keeps its own message', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    asStaff();
+    api.authFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/service-desk') && !init?.method) return jsonRes(desk());
+      if (url.endsWith('/merge')) return jsonRes({}, 404);
+      return jsonRes({});
+    });
+    await openTicket();
+    fireEvent.change(screen.getByPlaceholderText('Target ticket ID (e.g. abc-123)…'), { target: { value: 't-2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Merge' }));
+    await expectToast('Merge failed — check the target ticket ID');
+    confirmSpy.mockRestore();
+  });
+});
+
+describe('the list, the bulk bar and the board', () => {
+  it('a failed ticket delete from its row shows the error and keeps the row', async () => {
+    api.deleteTicket.mockRejectedValue(new Error('Failed to delete ticket'));
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    asStaff([ticket()], ['manage:settings']);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete TKT-0042' }));
+    await expectToast('Failed to delete ticket');
+    expect(screen.getByText('Cannot reset password')).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it('a failed bulk status change shows the error and keeps the selection', async () => {
+    api.bulkUpdateTickets.mockRejectedValue(new Error('Failed to update tickets'));
+    asStaff();
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select TKT-0042' }));
+    fireEvent.change(await screen.findByDisplayValue('Bulk action…'), { target: { value: 'status:resolved' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await expectToast('Failed to update tickets');
+    expect(api.bulkUpdateTickets).toHaveBeenCalledWith(['t-1'], { status: 'resolved' });
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('a successful bulk status change clears the selection and reloads the list', async () => {
+    api.bulkUpdateTickets.mockResolvedValue({});
+    asStaff();
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select TKT-0042' }));
+    const loadsBefore = api.fetchTickets.mock.calls.length;
+    fireEvent.change(await screen.findByDisplayValue('Bulk action…'), { target: { value: 'status:resolved' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(screen.queryByText('1 selected')).toBeNull());
+    expect(api.fetchTickets.mock.calls.length).toBeGreaterThan(loadsBefore);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('a failed bulk delete shows the error', async () => {
+    api.deleteTicket.mockRejectedValue(new Error('Failed to delete tickets'));
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    asStaff([ticket()], ['manage:settings']);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select TKT-0042' }));
+    fireEvent.change(await screen.findByDisplayValue('Bulk action…'), { target: { value: 'delete' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await expectToast('Failed to delete tickets');
+    confirmSpy.mockRestore();
+  });
+
+  it('a board drop whose update fails shows the error', async () => {
+    api.updateTicket.mockRejectedValue(new Error('Failed to update ticket'));
+    asStaff();
+    await screen.findByText('Cannot reset password');
+    fireEvent.click(screen.getByTitle('Kanban view'));
+    await screen.findByText('Cannot reset password');
+    const column = screen.getByText('In Progress').closest('div[class*="w-72"]')!;
+    fireEvent.drop(column, { dataTransfer: { getData: () => 't-1' } });
+    await expectToast('Failed to update ticket');
+    expect(api.updateTicket).toHaveBeenCalledWith('t-1', { status: 'in_progress' });
+  });
+});
+
+describe('the successful paths stay as they were', () => {
+  it('a logged piece of work shows the returned ticket', async () => {
+    api.logTicketWork.mockResolvedValue(ticket({ total_hours_logged: 2, work_logs: [{ id: 'w-1', hours: 2, description: 'Reset it', author: 'sam@acme.test', created_at: '2026-11-10T09:00:00Z' }] }));
+    asStaff();
+    await openTicket();
+    await openTab('Work Log');
+    fireEvent.change(screen.getByPlaceholderText('Hours'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Log' }));
+    expect(await screen.findByText('Reset it')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Hours')).toHaveValue(null);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('an approval clears the pending panel', async () => {
+    api.approveTicket.mockResolvedValue(ticket({ approval_required: true, approval_status: 'approved' }));
+    asStaff([pendingApproval()]);
+    await openTicket();
+    fireEvent.click(screen.getByRole('button', { name: /^Approve$/ }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Approve$/ })).toBeNull());
+    expect(toast).not.toHaveBeenCalled();
+  });
+});
