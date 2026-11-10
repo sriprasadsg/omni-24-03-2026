@@ -1,230 +1,131 @@
 ---
 phase: 85-first-line-service-desk
-reviewed: 2026-11-09T00:00:00Z
+reviewed: 2026-11-10T00:00:00Z
 depth: standard
-files_reviewed: 36
+files_reviewed: 25
 files_reviewed_list:
-  - backend/knowledge_helpdesk_endpoints.py
   - backend/notification_audience.py
-  - backend/notification_endpoints.py
-  - backend/rbac_defaults.py
-  - backend/reporting_endpoints.py
-  - backend/service_desk/projection.py
-  - backend/service_desk_endpoints.py
-  - backend/tests/service_desk_knowledge_support.py
-  - backend/tests/service_desk_portal_support.py
-  - backend/tests/service_desk_support.py
-  - backend/tests/test_notification_audience_structure.py
-  - backend/tests/test_notification_history_audience.py
-  - backend/tests/test_rbac_defaults.py
-  - backend/tests/test_service_desk_comments.py
-  - backend/tests/test_service_desk_knowledge_gaps.py
+  - backend/notification_service.py
+  - backend/pending_agents.py
+  - backend/scripts/service_desk_eval.py
+  - backend/service_desk/checks.py
+  - backend/service_desk/handoff.py
+  - backend/service_desk/messages.py
+  - backend/service_desk/model.py
+  - backend/service_desk/pipeline.py
+  - backend/service_desk/sanitize.py
+  - backend/tests/fixtures/service_desk/output_checks.jsonl
+  - backend/tests/test_pending_agents.py
+  - backend/tests/test_service_desk_citations.py
+  - backend/tests/test_service_desk_eval_script.py
+  - backend/tests/test_service_desk_injection.py
   - backend/tests/test_service_desk_notification_audience.py
-  - backend/tests/test_service_desk_portal_routes.py
-  - backend/tests/test_service_desk_reporter_ticket.py
-  - backend/tests/test_service_desk_staff_routes.py
-  - backend/tests/test_service_desk_tracer.py
-  - backend/tests/test_ticket_staff_access.py
-  - backend/tests/test_ticket_staff_actions.py
-  - backend/tests/test_ticket_staff_lists.py
-  - backend/tests/test_ticket_staff_routes_structure.py
-  - backend/tests/test_tickets.py
-  - backend/ticket_access.py
-  - backend/ticket_reports_endpoints.py
-  - backend/tickets_config_endpoints.py
-  - backend/tickets_config_mixin.py
+  - backend/tests/test_service_desk_output_checks.py
+  - backend/tests/test_service_desk_sanitize.py
+  - backend/tests/test_ticket_staff_create_fields.py
   - backend/tickets_endpoints.py
-  - backend/tickets_service.py
-  - backend/tickets_workflow_endpoints.py
-  - components/RoleEditorModal.tsx
-  - shared/catalogue-access.json
-  - src/__tests__/RoleEditorModal.test.tsx
-  - types.ts
+  - components/InternalTicketsDashboard.tsx
+  - src/__tests__/ServiceDeskReplyVisibility.test.tsx
+  - src/__tests__/ServiceDeskRequesterComments.test.tsx
+  - src/__tests__/TicketsRequesterControls.test.tsx
+  - src/__tests__/TicketsStaffActionErrors.test.tsx
 findings:
   critical: 0
-  warning: 4
+  warning: 2
   info: 4
-  total: 8
+  total: 6
 status: issues_found
 ---
 
-# Phase 85: Code Review Report (second gap round, G-85-4)
+# Phase 85: Code Review Report (third gap round, plans 85-37..85-41)
 
-**Reviewed:** 2026-11-09
-**Depth:** standard (incremental: `git diff 009402280..HEAD`, with surrounding code read as needed)
-**Files Reviewed:** 36
+**Reviewed:** 2026-11-10
+**Depth:** standard (diff against 101bc4e581770fa4339fd45429b535cdd3171dbe, whole files read for context)
+**Files Reviewed:** 25
 **Status:** issues_found
+
+This report replaces the second-gap-round report (101bc4e58, IDs CR-6xx/WR-6xx/IN-6xx; earlier reports 2f8ed35b1 and 009402280). This round uses the 7xx series. `backend/tickets_endpoints.py` and `components/InternalTicketsDashboard.tsx` were reviewed as `git show HEAD:<file>`; the user's uncommitted hunks (download route, Download button) were not reviewed.
 
 ## Summary
 
-Reviewed the G-85-4 changes (plans 85-30..85-35): the shared notice audience filter (CR-501), the
-`manage:tickets` ticket-staff test (`ticket_access.py`), the router-level `ticket_viewer` guard, the own-tickets
-scope in lists/stats/reports/CSV, the staff gating of draft and workflow routes, and the role table, manifest and
-role-editor additions. Working copies of `tickets_endpoints.py`, `reporting_endpoints.py` and
-`catalogue-access.json` equal HEAD, as stated.
+The server-side changes are sound. I traced all five areas and found no correctness or security defect in them:
 
-The core design holds up. I traced the following and found no defect:
-- The guard covers every `{ticket_id}` route of the five routers. Route registration order does not let a
-  single-segment `{ticket_id}` route shadow `/webhooks`, `/stats` or `/bulk`.
-- The `$and` own-tickets scope is not overwritten anywhere. `list_tickets`, `get_stats` and all report filters
-  spread or extend the base filter without a competing `$and` key.
-- Staff and API-key narrowing are consistent between `is_ticket_staff` and `has_permission`.
-- `projection` fails closed when `staff` is omitted, and there are no other call sites of `for_viewer`,
-  `history_for_viewer` or `staff_view`.
-- Role defaults merge from the table, so existing tenants' stored role documents need no migration.
-- The new permission is in the permission vocabulary through the role table and the manifest.
+- `checks.given_citations` and `parse_reply` (85-37).
+- The `rule=` hand-off path through `handoff`, `ledger.record_desk_event(desk=...)` and `OUTPUT_RULE_LABELS` (85-38). Every rule `check` or `verdict` can return is a key of the label table, and the rule stays in the staff note and ledger row only.
+- `notification_audience.broadcastable` in `send_alert` and `_post_in_app` (85-39).
+- The `create_ticket` field drop (85-39).
+- The A-id prompt change (85-37).
 
-The remaining problems are gaps around the new rules: one flag still follows the old rule, one live channel
-bypasses the new audience filter, requesters can still set staff-only fields at creation, and the shared filter
-does not fail closed. No critical issue.
+The two warnings are in the front end. Plan 85-41 set out to make every staff action report its failure, but a few handlers were left bare. One bulk-action path can also leave the list out of step with the server after a failure. The Info items are small robustness or dead-code notes.
+
+Not re-reported, per the orchestrator: A-85-G38, G39, G40, G43, and WR-601/604/IN-601..603.
 
 ## Warnings
 
-### WR-601: `canSeeGaps` still derives from `view:dashboard`, so the Gaps tab is offered to people the routes refuse
+### WR-701: Four staff-visible handlers still fail silently (85-41 "every staff handler" is not met)
 
-**File:** `backend/knowledge_helpdesk_endpoints.py:343` (routes at 213-226, 249-263, 283)
-**Issue:** Plan 85-35 moved every gap route (`/helpdesk/gaps`, dismiss, restore, `/helpdesk/articles`) to
-`manage:tickets` plus `manage:ai_risks` through `_require_ticket_access`. `list_flags` still computes
-`"canSeeGaps": manage and has("view:dashboard")`. `KnowledgeBaseDashboard.tsx:69-73, 206` uses that flag to show
-the tab and to fire `fetchGaps`.
-- A Knowledge Base editor with `manage:ai_risks` and `view:dashboard` but not `manage:tickets` (any custom role
-  built as the new D-40 default, or the built-in `user`/`viewer` plus an AI-risk grant) now sees a Gaps tab and a
-  count request that both 403.
-- The reverse case, `manage:tickets` plus `manage:ai_risks` but no `view:dashboard`, can use the routes but never
-  sees the tab.
-- `test_the_flags_follow_the_callers_permissions` (`tests/test_service_desk_knowledge.py:170`) still encodes the
-  old rule ("editor" = manage without view:dashboard) and passes only because "manager" holds both permissions. It
-  does not exercise the new rule.
+**File:** `components/InternalTicketsDashboard.tsx:1090,1092` (title edit), `:1287` (security-incident "Start Investigation"), `:622` (staff-note comment), `:630-641` (`handleUpload`)
+**Issue:** `reportFailure` was added to the other handlers but not to these four:
+- Title edit: `updateTicket(selected.id, {title: titleDraft}).then(t => setSelected(t))` in `onBlur` and `onKeyDown` has no `.catch`. A refused (403) or failed (500) rename is an unhandled promise rejection with no toast. The input has already closed, so the title reverts with no explanation, which is the same "silent failure" UAT G-85-4b reported.
+- Start Investigation: `onClick={() => updateTicket(selected.id, {status:'in_progress'}).then(t => setSelected(t))}` has the same problem.
+- Staff note: in `handleComment`, `if (!toRequester) throw e;` rethrows out of an async click handler. A failed staff-only note (the default reply target) gives no toast, and the typed comment stays in the box with no explanation.
+- Attachment upload: `await uploadTicketAttachment(...)` is outside any try/catch, so a rejected upload (size limit, 403) is an unhandled rejection with no message. The reload after it can also be skipped.
 
+Also, `handleUpload` shadows the event parameter `e` in its own `catch (e)`, and the first `const t = await fetchTickets({ }).then(() => null)` is a dead extra fetch.
 **Fix:**
-```python
-manage = has("manage:ai_risks")
-return {
-    "canManageArticles": manage,
-    "canSeeGaps": manage and has(ticket_access.TICKET_STAFF),   # same rule as _require_ticket_access
-    ...
+```tsx
+const patchTitle = async () => {
+  setEditingTitle(false);
+  try { setSelected(await updateTicket(selected.id, { title: titleDraft })); }
+  catch (e) { reportFailure(e, 'Failed to rename ticket'); }
+};
+// onBlur={patchTitle}; Enter -> patchTitle(); Start Investigation -> handlePatch({ status: 'in_progress' })
+// handleComment:  } catch (e) { if (!toRequester) { reportFailure(e, 'Failed to add note'); return; } ... }
+// handleUpload:   try { await uploadTicketAttachment(...) } catch (err) { reportFailure(err, 'Failed to upload attachment'); return; }
+```
+Add a test case for each to `TicketsStaffActionErrors.test.tsx`.
+
+### WR-702: Bulk delete or update that fails part-way leaves the list stale
+
+**File:** `components/InternalTicketsDashboard.tsx:760-776` (`handleBulkAction`)
+**Issue:** `await Promise.all(ids.map(id => deleteTicket(id)))` rejects on the first failure while the other deletes still run. The `catch` then shows a toast, but `setTickets(...)`, `setSelectedIds(new Set())` and `load()` sit inside the `try` after the await, so they never run. After a partial failure the screen still lists tickets that were deleted on the server, and the selection and bulk bar stay up. A second click on Apply re-sends deletes that now 404. The same applies to a `bulkUpdateTickets` failure, but there the data is unchanged, so it is harmless.
+**Fix:**
+```tsx
+} catch (e) {
+  reportFailure(e, action === 'delete' ? 'Failed to delete tickets' : 'Failed to update tickets');
+  load();                       // show what the server really holds
 }
 ```
-Better, derive both from one helper so the flag and the route guard cannot drift again. Add a case to the flags
-test for a role that holds `manage:ai_risks` and `view:dashboard` without `manage:tickets`. Note that
-`ticket_access.is_ticket_staff` also applies API-key scope narrowing, which `has()` here does not.
-
-### WR-602: Live WebSocket push still broadcasts `tenant_admins` notices (agent host details) to every user of the tenant
-
-**File:** `backend/notification_service.py:91-100` and `backend/pending_agents.py:275-290` (outside the listed files; same theme as CR-501)
-**Issue:** The new `reader_filter` hides `metadata.audience == "tenant_admins"` notices from users without
-`manage:agents`, but only on the REST routes. Two live-push paths ignore the audience:
-- `notification_service.send_alert` skips the socket only for `audience == "ticket_staff"`. Notices with
-  `audience == "tenant_admins"` (the desk breaker notice in `service_desk/withdraw.py:133-136`) go to
-  `broadcast_notification(tenant_id, ...)`, which emits to every connected client of the tenant
-  (`websocket_manager.py:380`).
-- `pending_agents._post_in_app` broadcasts the full title, message and metadata, with no audience check. The
-  text names the agent's hostname and seat usage, which the filter comment itself calls "host details of agents
-  waiting for approval (spec C3)".
-- `NotificationCenter.tsx:124` renders every pushed `notification` event.
-
-So a viewer or requester in the tenant receives in real time what the CR-501 fix now hides from the feed and
-history.
-
-**Fix:** Treat every audience-tagged notice like the `ticket_staff` one: skip the tenant broadcast whenever
-`metadata.audience` is set, or push to a per-permission room. In `_post_in_app`, skip the broadcast (the feed has
-the record) or broadcast only a generic title with no hostname or counts, since the socket cannot be filtered.
-```python
-if tenant_id and not (metadata or {}).get("audience"):
-    ...  # broadcast
-```
-Add the audience-tagged case to `test_service_desk_notification_audience.py`.
-
-### WR-603: A requester can still set staff-only fields (assignee, assignee_group, watchers, approval_required, sla_hours, due_date) when creating a ticket
-
-**File:** `backend/tickets_endpoints.py:138-201` (fields in `backend/tickets_models.py:34-52`; consumed at `tickets_service.py:173`)
-**Issue:** G-85-4 (D-39) makes assigning, watchers, approval, bulk update, merge and escalation staff-only.
-`POST /api/tickets` stays open to every `view:dashboard` caller (`create_ticket` is on the structure test's
-`OPEN_ROUTES` list with the reason "the reporter is set from the caller"). It passes `body.model_dump()` straight
-into `tickets_service.create_ticket`, so a requester supplies all those fields. The structure test classifies
-the route by its permission, not by which body fields it honours, so it cannot catch this.
-- `watchers` is the practical hole. `add_watcher` now needs `manage:tickets`, but a requester can put arbitrary
-  addresses (including addresses outside the tenant) in `watchers` at creation. `ticket_notifications._recipients`
-  emails watchers on escalation (reason and priority text), on staff-comment notices (ticket title) and other
-  events, so that address receives staff-side ticket traffic.
-- `assignee`/`assignee_group` let a requester route their ticket to a chosen technician and skip `auto_assign`.
-- `approval_required` and `sla_hours` let a requester influence workflow and SLA state.
-
-**Fix:** In `create_ticket`, drop the staff-only keys when the caller is not ticket staff:
-```python
-if not await ticket_access.is_ticket_staff(current_user):
-    for key in ("assignee", "assignee_group", "watchers", "approval_required", "sla_hours", "due_date"):
-        data.pop(key, None)
-```
-Also apply this to the `template_id` default-merge branch. Add a test that a requester's `watchers` and
-`assignee` are not stored.
-
-### WR-604: `reader_filter` does not fail closed on an empty tenant id; the feed, mark-read and delete routes can match notices with no tenant
-
-**File:** `backend/notification_audience.py:31` (callers: `backend/notification_endpoints.py:73, 87, 104, 119`)
-**Issue:** The filter is documented as the one audience filter, but for a non-`all_tenants` call it builds
-`{"tenantId": tenant_id}` with whatever it is given. If `get_tenant_id()` returns `None` or `""` (the history
-route guards this with a 403 for non-Super-Admins; the four notification routes do not), the query becomes
-`{"tenantId": None}`, which in MongoDB also matches documents where `tenantId` is missing or null. The code writes
-such documents: `approval_service.py:168-176` stores `"tenantId": request.get("tenantId") or None`, and the
-`tenantId` index is the only tenant guard. Those notices would then be listed, marked read and deleted across
-tenants by a caller with no tenant context. D-41 says a non-Super-Admin without a tenant must get 403. That is
-enforced for one route, not in the shared filter.
-
-**Fix:** Make the shared filter refuse instead of widening:
-```python
-if not all_tenants and not tenant_id:
-    raise HTTPException(status_code=403, detail="Tenant context required")
-```
-or return a match-nothing query, for example `{"tenantId": {"$in": []}}`. Then drop the duplicated check in
-`get_notification_history`.
+For delete, use `Promise.allSettled` and remove only the fulfilled ids from state; toast the count of failures.
 
 ## Info
 
-### IN-601: Stale module docstring in `ticket_access.py`
+### IN-701: `broadcastable` is imported outside the best-effort block, and it lives in a module that imports `rbac_service` and `ticket_access`
 
-**File:** `backend/ticket_access.py:11-13`
-**Issue:** The docstring says "A later gap plan adds the own-tickets scope here", but `own_tickets_filter` and
-`tickets_scope` are already in the same file (lines 70-82).
-**Fix:** Describe the module as it is: staff test, viewer guard, own-tickets scope.
+**File:** `backend/notification_service.py:95`, `backend/pending_agents.py:282`, `backend/notification_audience.py:12-13`
+**Issue:** The WebSocket push has always been wrapped in `try/except` and treated as non-fatal. The new `from notification_audience import broadcastable` runs before that `try`, after `notifications.insert_one` and after the email, SMS and Slack sends. `broadcastable` is a pure dict predicate, but `notification_audience` imports `rbac_service` and `ticket_access` at module level (and through them `authentication_service`, `database`, `jwt` and `fastapi`). If that import ever fails, for example in a CLI or test context or through a future import cycle, `send_alert` or `_post_in_app` raises after the notice was stored and sent, and the caller sees a failure. This is low likelihood in the running backend.
+**Fix:** Move `broadcastable` (and nothing else) into a small import-free module, or into `ticket_access`'s dependency-free top section. Alternatively put the import and the predicate call inside the existing `try`, with the safe default (no push) on failure.
 
-### IN-602: The own-tickets filter and `is_reporter` can disagree on what "the same person" means
+### IN-702: The "template approval stays" branch is unreachable through the product API
 
-**File:** `backend/ticket_access.py:70-75` vs `backend/service_desk/projection.py:73-86`
-**Issue:** `is_reporter` compares `strip().casefold()` of both sides: the stored reporter is stripped and fully
-Unicode casefolded. `own_tickets_filter` matches the caller's stripped name against the raw stored `reporter`
-with an anchored `re.IGNORECASE` regex. A stored reporter with leading or trailing whitespace, or a name whose
-casefold differs from simple case-insensitive matching (for example `ß`, Turkish dotted I), passes
-`ticket_viewer` (the person can open the ticket) but is missing from their list, stats and reports. The opposite
-mismatch is not possible. Both rules are meant to be one, per UD-2, so they should be defined once.
-**Fix:** Normalise `reporter` when it is written (`create_ticket` stores the stripped, casefolded actor) and note
-that invariant in `own_tickets_filter`, or allow optional surrounding whitespace in the pattern
-(`^\s*{name}\s*$`).
+**File:** `backend/tickets_endpoints.py:169-173` (HEAD), `backend/tickets_config_mixin.py:60-76,93`
+**Issue:** `create_template` writes only `type, priority, assignee, assignee_group, tags, title_template, body_template, custom_fields, sla_hours` into `defaults`, `CreateTemplateRequest` has no `approval_required`, and `update_template` allow-lists the same keys. No code path stores `defaults.approval_required`, so the `defaults.get("approval_required") is True` branch can only fire for a template document inserted by hand, as `test_ticket_staff_create_fields.py` does. The strict `is True` also means a hand-inserted truthy non-bool such as `"true"` or `1` is treated as no approval for a requester, while the same template creates a pending-approval ticket for staff. That is the fail-open direction the comment says it avoids. This does not contradict A-85-G38, but the decision currently protects nothing in production.
+**Fix:** Either add `approval_required` to the template create and update model and allow-list (so the decided behaviour exists), or note the branch as forward-looking. If kept, use `bool(defaults.get("approval_required"))` to match how `tickets_service.create_ticket` reads it.
 
-### IN-603: The notice-reader structure test accepts a function that calls `reader_filter` but never uses the result
+### IN-703: Bare-integer and Unicode-digit citation edge cases in `parse_reply`
 
-**File:** `backend/tests/test_notification_audience_structure.py:97-98` (touch list at 29-32)
-**Issue:** `filtered` is true if the function calls `reader_filter` anywhere. A route that calls it for show and
-queries with its own dict passes the scan (the header lists this under `no_claim`). The `_TOUCHING` set also
-omits `bulk_write`, `count`, `estimated_document_count` and `find_raw_batches`, so a route using one of them on
-`db.notifications` is not seen. The scan then relies only on the four-route floor.
-**Fix:** Require that a name assigned from `reader_filter(...)` (or the call itself) appears in the arguments of a
-touching call in the same function. Add the missing method names to `_TOUCHING`.
+**File:** `backend/service_desk/checks.py:81,84-92`
+**Issue:** (a) A JSON integer such as `1` is kept as article 1, but the string `"1"` maps to 0 (an unknown citation). The prompt and the Ollama schema now ask for `"A1"`-style strings, so a model that answers `"cited": ["1"]` is handed off as `unknown_citation`, while `[1]` would pass. The asymmetry is surprising but fail-closed. (b) `_A_ID = r"A(\d{1,6})"` uses `\d`, which in Python 3 matches any Unicode decimal digit, so `"A١"` (Arabic-Indic one) becomes article 1. No bypass follows, because the cited number must still be a given article, but it differs from the documented "A<n>" form.
+**Fix:** `_A_ID = re.compile(r"A([0-9]{1,6})")`, and decide explicitly whether a digit-only string should count as that article, then document it in `Reply`'s docstring.
 
-### IN-604: No frontend code reads `manage:tickets`; the Tickets screen still offers staff actions to requesters
+### IN-704: Template admin defaults for the queue and SLA are dropped for requesters
 
-**File:** `types.ts:237`, `components/RoleEditorModal.tsx:37` (only consumers); `shared/catalogue-access.json:171`
-**Issue:** The only frontend references to the new permission are the type and the role-editor label. Ticket
-screens do not check it, so a requester (`user`, `viewer`, a custom role without it) still sees assign, approve,
-escalate, merge, bulk and watcher controls that now return 403, and a staff-only draft panel is simply absent.
-The manifest `write` list for `internalTickets` still includes `view:dashboard`, so the catalogue guard does not
-narrow these writes; only the route-level guard does. If the plan defers the UI to a later phase, record it in
-the disposition file so it does not get lost.
-**Fix:** Gate the staff controls on `manage:tickets` in the ticket screens, and give the manifest `write` entry
-the same intent comment as the other mixed-permission entries.
+**File:** `backend/tickets_endpoints.py:169-171` (HEAD)
+**Issue:** After the template merge, all six staff-only keys are removed again for a requester, including `assignee_group`, `assignee` and `sla_hours`. Those values come from an admin-built template, not from the requester. A requester who picks a template therefore loses the template's queue and SLA routing and falls through to `auto_assign` and the priority SLA. That matches the stated "drop six fields before and after the template merge", so it is probably the decided behaviour, but it makes the template's routing fields useless on the portal. The negative assertions in the tests (`stored["sla_hours"] != 2`) would also pass for any other value, so they do not pin the replacement behaviour.
+**Fix:** If template routing should still apply, keep the template-sourced `assignee_group`, `assignee` and `sla_hours` and drop only the keys the request body supplied. Otherwise record the loss as decided and assert the exact fallback values in the tests.
 
 ---
 
-_Reviewed: 2026-11-09_
+_Reviewed: 2026-11-10_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
