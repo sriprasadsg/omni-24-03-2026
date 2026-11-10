@@ -20,6 +20,10 @@ DEFAULT_RECLAIM_DAYS = 30
 MAX_RECLAIM_DAYS = 365
 MAX_AGENTS_CEILING = 1_000_000
 
+# The platform-admin organization has no seat limit at all (D-26, D-41): it is the operator's own
+# tenant, so try_claim_seat always succeeds for it and seats_available reports the ceiling.
+EXEMPT_TENANT_ID = "platform-admin"
+
 # Agents in these states hold no seat; every other status (Online, Offline,
 # Degraded, ...) does.
 NON_SEAT_STATUSES = frozenset({"Pending", "Rejected", "Inactive", "Decommissioned", "Replaced", "Uninstalled"})
@@ -89,8 +93,12 @@ async def ensure_license(db, tenant_id: str) -> Dict[str, Any]:
 
 
 async def try_claim_seat(db, tenant_id: str) -> bool:
-    """Atomically take one seat; False when the tenant is at its limit."""
+    """Atomically take one seat; False when the tenant is at its limit. The platform organization
+    (EXEMPT_TENANT_ID) is never at a limit (D-41): it still counts its seats, it just never refuses."""
     await ensure_license(db, tenant_id)
+    if tenant_id == EXEMPT_TENANT_ID:
+        await _raw(db).tenants.update_one({"id": tenant_id}, {"$inc": {"license.seatsUsed": 1}})
+        return True
     res = await _raw(db).tenants.update_one(
         {"id": tenant_id, "$expr": {"$lt": ["$license.seatsUsed", "$license.maxAgents"]}},
         {"$inc": {"license.seatsUsed": 1}},
@@ -123,6 +131,8 @@ async def recount_seats(db, tenant_id: str) -> Tuple[Optional[int], int]:
 
 async def seats_available(db, tenant: Dict[str, Any]) -> int:
     """Read-only: free seats right now (used by the installer download pre-check)."""
+    if tenant.get("id") == EXEMPT_TENANT_ID:
+        return MAX_AGENTS_CEILING
     lic = license_of(tenant)
     used = lic["seatsUsed"] if lic["seatsUsed"] is not None else await count_seat_holders(db, tenant["id"])
     return max(0, lic["maxAgents"] - used)
@@ -136,6 +146,9 @@ async def update_license(db, tenant_id: str, max_agents: Optional[int] = None,
                          sub_limits: Any = _UNSET, expires_at: Any = _UNSET) -> Dict[str, Any]:
     """Change the seat count and/or reclaim window. Lowering below seatsUsed is allowed:
     running agents keep their seats, new enrollments are refused until seats free up.
+    A seat number written here is a person's choice, so it is also stored as ``license.seatOverride``
+    and a later plan edit leaves it alone (D-09); the route sends partner customers through
+    partner_pool.change_allotment instead.
     The C4 controls (already validated by the caller) are set when passed; an
     ``expires_at`` of None clears the expiry."""
     if max_agents is not None and not (0 <= max_agents <= MAX_AGENTS_CEILING):
@@ -147,6 +160,7 @@ async def update_license(db, tenant_id: str, max_agents: Optional[int] = None,
     if max_agents is not None:
         changes["license.maxAgents"] = max_agents
         changes["maxAgents"] = max_agents  # legacy readers, one release
+        changes["license.seatOverride"] = max_agents  # D-09
     if reclaim_days is not None:
         changes["license.inactiveReclaimDays"] = reclaim_days
     if allowlist_mode is not _UNSET:
@@ -159,6 +173,109 @@ async def update_license(db, tenant_id: str, max_agents: Optional[int] = None,
     if changes:
         await _raw(db).tenants.update_one({"id": tenant_id}, {"$set": changes})
     return await license_summary(db, tenant_id)
+
+
+# ---- plan-derived seats and the Super Admin override (Phase 88, D-03, D-09, D-10, D-14) ----------------
+# Every writer of a seat number lives in this module (or partner_pool for an allotment): a direct tenant's
+# number is its plan's seats unless license.seatOverride says a person chose another one.
+
+def _check_seats(value: Any) -> int:
+    """A whole number from 0 to MAX_AGENTS_CEILING; anything else (bool, float, str, out of range) is refused."""
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= MAX_AGENTS_CEILING:
+        raise ValueError(f"seats must be a whole number between 0 and {MAX_AGENTS_CEILING}")
+    return value
+
+
+def _direct_filter(tenant_id: Optional[str] = None) -> Dict[str, Any]:
+    """Direct tenants only: no partner pool decides their seats and they are not the platform organization."""
+    flt: Dict[str, Any] = {"type": {"$ne": "partner"}, "partnerId": {"$exists": False},
+                           "id": {"$ne": EXEMPT_TENANT_ID}}
+    if tenant_id is not None:
+        flt["id"] = {"$eq": tenant_id, "$ne": EXEMPT_TENANT_ID}
+    return flt
+
+
+async def _require_direct(db, tenant_id: str) -> None:
+    tenant = await _raw(db).tenants.find_one({"id": tenant_id}, {"_id": 0, "type": 1, "partnerId": 1})
+    if tenant is None:
+        raise LookupError(f"tenant {tenant_id} not found")
+    if tenant_id == EXEMPT_TENANT_ID or tenant.get("type") == "partner" or tenant.get("partnerId"):
+        raise ValueError("this organization's seats are not set by a plan or an override")
+
+
+async def set_seat_override(db, tenant_id: str, seats: int) -> Dict[str, Any]:
+    """Store ``seats`` as the tenant's own number (D-09): it survives every plan edit (D-10), even when it
+    equals the plan's number. Refused for a partner customer (its allotment decides) and the platform."""
+    _check_seats(seats)
+    await _require_direct(db, tenant_id)
+    await ensure_license(db, tenant_id)
+    await _raw(db).tenants.update_one(
+        _direct_filter(tenant_id),
+        {"$set": {"license.seatOverride": seats, "license.maxAgents": seats, "maxAgents": seats}})
+    return await license_summary(db, tenant_id)
+
+
+async def clear_seat_override(db, tenant_id: str, plan_seats: int) -> Dict[str, Any]:
+    """Return the tenant to its plan's seats: drop the override and write ``plan_seats`` (D-10)."""
+    _check_seats(plan_seats)
+    await _require_direct(db, tenant_id)
+    await ensure_license(db, tenant_id)
+    await _raw(db).tenants.update_one(
+        _direct_filter(tenant_id),
+        {"$unset": {"license.seatOverride": ""}, "$set": {"license.maxAgents": plan_seats, "maxAgents": plan_seats}})
+    return await license_summary(db, tenant_id)
+
+
+async def set_plan_seats(db, tenant_id: str, seats: int) -> bool:
+    """Write the plan's ``seats`` for one direct tenant that has no override; True when it changed anything
+    (used when a tenant changes plan and when a sign-up is approved)."""
+    _check_seats(seats)
+    await ensure_license(db, tenant_id)
+    res = await _raw(db).tenants.update_one(
+        {**_direct_filter(tenant_id), "license.seatOverride": {"$exists": False}},
+        {"$set": {"license.maxAgents": seats, "maxAgents": seats}})
+    return res.modified_count == 1
+
+
+async def apply_plan_seats(db, plan: str, seats: int) -> List[str]:
+    """A plan's seat number changed (D-14): set it on every direct tenant on that plan at once and return
+    the ids changed. Partner customers (their allotment is the partner's, D-11), the platform organization
+    (D-41) and tenants with a ``seatOverride`` are never touched; a tenant with no ``subscriptionTier``
+    counts as Free. Agents already running keep their seats even when the number falls below
+    ``seatsUsed`` (D-12): only new machines are held."""
+    _check_seats(seats)
+    on_plan: List[Dict[str, Any]] = [{"subscriptionTier": plan}]
+    if plan == "Free":
+        on_plan.append({"subscriptionTier": {"$exists": False}})
+    flt: Dict[str, Any] = {
+        "$or": on_plan, "type": {"$ne": "partner"}, "partnerId": {"$exists": False},
+        "id": {"$ne": EXEMPT_TENANT_ID}, "license.seatOverride": {"$exists": False},
+        "license.maxAgents": {"$ne": seats},
+    }
+    tenants = _raw(db).tenants
+    ids = await tenants.distinct("id", flt)
+    if not ids:
+        return []
+    # The second filter repeats every condition, so an override set after the lookup is still respected.
+    await tenants.update_many({**flt, "id": {"$in": ids}},
+                              {"$set": {"license.maxAgents": seats, "maxAgents": seats}})
+    return list(ids)
+
+
+async def raise_direct_seats(db, tenant_id: str, by: int) -> int:
+    """Add ``by`` seats to a direct tenant and keep the result as its override (D-09), in one pipeline
+    update so a concurrent plan edit can never separate the number from the override. Returns the new number."""
+    if not isinstance(by, int) or isinstance(by, bool) or not 0 < by <= MAX_AGENTS_CEILING:
+        raise ValueError(f"the raise must be a whole number between 1 and {MAX_AGENTS_CEILING}")
+    current = {"$ifNull": ["$license.maxAgents", {"$ifNull": ["$maxAgents", DEFAULT_MAX_AGENTS]}]}
+    doc = await _raw(db).tenants.find_one_and_update(
+        _direct_filter(tenant_id),
+        [{"$set": {"license.maxAgents": {"$min": [MAX_AGENTS_CEILING, {"$add": [current, by]}]}}},
+         {"$set": {"license.seatOverride": "$license.maxAgents", "maxAgents": "$license.maxAgents"}}],
+        projection={"_id": 0, "license.maxAgents": 1}, return_document=True)
+    if doc is None:
+        raise LookupError(f"direct tenant {tenant_id} not found")
+    return doc["license"]["maxAgents"]
 
 
 async def license_summary(db, tenant_id: str) -> Dict[str, Any]:

@@ -71,3 +71,33 @@ async def test_duplicate_target_assignment_becomes_409_not_500():
         await svc.assign_license_seat(db, "t-a", "lic-1", "user", "user-1")
     assert exc_info.value.status_code == 409
     assert "already has a seat" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_claims_racing_a_plan_edit_never_exceed_the_raised_limit():
+    """Phase 88 (D-14): 20 machines claim seats while the plan's number rises from 5 to 8; the atomic
+    conditional increment never lets seatsUsed pass either limit and the edit never loses a claim."""
+    import asyncio
+    import licensing
+    from tests._mongo_test_db import _URL
+    from motor.motor_asyncio import AsyncIOMotorClient
+    import uuid
+    client = AsyncIOMotorClient(_URL, serverSelectionTimeoutMS=1500)
+    try:
+        await client.admin.command("ping")
+    except Exception:
+        client.close()
+        pytest.skip(f"MongoDB not reachable at {_URL}")
+    name = f"omni_test_{uuid.uuid4().hex[:12]}"
+    db = client[name]
+    try:
+        await db.tenants.insert_one({"id": "t1", "subscriptionTier": "Free", "maxAgents": 5,
+                                     "license": {"maxAgents": 5, "seatsUsed": 0, "inactiveReclaimDays": 30}})
+        claims = [licensing.try_claim_seat(db, "t1") for _ in range(20)]
+        edit = licensing.apply_plan_seats(db, "Free", 8)
+        results = await asyncio.gather(edit, *claims)
+        used = (await db.tenants.find_one({"id": "t1"}))["license"]["seatsUsed"]
+        assert 5 <= used <= 8 and sum(1 for r in results[1:] if r) == used
+    finally:
+        await client.drop_database(name)
+        client.close()
