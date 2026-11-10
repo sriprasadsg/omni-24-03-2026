@@ -5,10 +5,11 @@ Every escalation path ends here: the rules, no match, the model offline or busy,
 
 * sends an unassigned ticket through the tenant's own queue rules (the same ``auto_assign`` a new ticket
   goes through) and never changes an assignee that is already set;
-* adds one staff-only note naming the reason and, unless there is no one to read it, one plain notice
+* adds one staff-only note naming the reason (and, for a failed output check, the rule that refused the
+  reply: G-85-3; the reply text itself is never kept) and, unless there is no one to read it, one plain notice
   for the requester that never names the reason (T-85-42);
 * marks the ticket ``desk.phase = handed_off`` and keeps the reason in ``desk.lastReason``;
-* writes one audited ledger row (D-24);
+* writes one audited ledger row (D-24), which carries ``desk.rule`` for a failed output check;
 * keeps the cleaned question for the knowledge-gap list when no article covered it or it was not English (D-26).
 
 It pages no one and never raises the ticket's priority (D-22, T-85-43). Each step is wrapped on its own, so a
@@ -44,18 +45,27 @@ async def _assign(db, ticket: Dict[str, Any], tenant: str, ticket_id: str) -> No
 
 async def handoff(db, ticket: Dict[str, Any], reason: str, *, now: Optional[datetime] = None,
                   notify_requester: bool = True, actor: Optional[Dict[str, Any]] = None,
-                  question: Optional[str] = None) -> bool:
+                  question: Optional[str] = None, rule: Optional[str] = None) -> bool:
     """Send ``ticket`` to a person for ``reason`` (one of ``HANDOFF_REASONS``; ValueError otherwise).
     True when this call recorded the hand-off, False when it had been recorded before. ``question`` is the
     text kept for the gap list when the reason is a gap reason; it defaults to the ticket title and is
-    cleaned and cut by ``gaps.record``."""
+    cleaned and cut by ``gaps.record``. ``rule`` is the output rule that refused the reply; it is only for
+    ``output_check_failed`` and must be a key of ``OUTPUT_RULE_LABELS`` (ValueError before any write otherwise)."""
     if reason not in HANDOFF_REASONS:
         raise ValueError(f"not a hand-off reason: {reason!r}")
+    if rule is not None and (reason != "output_check_failed" or rule not in messages.OUTPUT_RULE_LABELS):
+        raise ValueError(f"not an output rule for this hand-off: {rule!r}")
     tenant, ticket_id = ticket.get("tenantId"), ticket.get("id")
     if not (isinstance(tenant, str) and tenant and isinstance(ticket_id, str) and ticket_id):
         raise ValueError("a hand-off needs a ticket with an id and a tenantId")
     label = messages.STAFF_REASON_LABELS[reason]
     number = ticket.get("ticket_number") or ""
+    if rule is None:
+        note, reason_text, desk = messages.STAFF_NOTE.format(label=label), messages.sentence(label), None
+    else:
+        rule_label = messages.OUTPUT_RULE_LABELS[rule]
+        note = messages.STAFF_NOTE_RULE.format(label=label, rule=rule_label)
+        reason_text, desk = messages.sentence(f"{label} ({rule_label})"), {"rule": rule}
 
     try:
         await _assign(db, ticket, tenant, ticket_id)
@@ -66,7 +76,7 @@ async def handoff(db, ticket: Dict[str, Any], reason: str, *, now: Optional[date
     try:
         is_new = await ticket_writes.add_comment(
             db, tenant, ticket_id, comment_id=f"sd-note-{reason}-{ticket_id}", kind="staff_note",
-            visibility="staff", text=messages.STAFF_NOTE.format(label=label), author=SYSTEM_AUTHOR, now=now)
+            visibility="staff", text=note, author=SYSTEM_AUTHOR, now=now)
     except Exception as exc:
         logger.error("service_desk: the staff note for ticket %s was not saved: %s", ticket_id, exc)
     if not is_new:
@@ -88,8 +98,9 @@ async def handoff(db, ticket: Dict[str, Any], reason: str, *, now: Optional[date
 
     try:
         await ledger.record_desk_event(
-            db, tenant, ticket=ticket, reason_code=reason, reason_text=messages.sentence(label),
-            activity_result=messages.ACTIVITY["handoff_result"].format(number=number), actor=actor, now=now)
+            db, tenant, ticket=ticket, reason_code=reason, reason_text=reason_text,
+            activity_result=messages.ACTIVITY["handoff_result"].format(number=number), actor=actor, now=now,
+            desk=desk)
     except Exception as exc:
         logger.error("service_desk: the hand-off of ticket %s was not recorded: %s", ticket_id, exc)
 

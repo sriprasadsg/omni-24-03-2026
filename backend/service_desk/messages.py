@@ -9,8 +9,8 @@ Dictionary keys are identifiers, not words shown to anyone.
 
 Two audiences, kept apart on purpose (T-85-06, D-24):
 
-* ``STAFF_REASON_LABELS`` and ``DRAFT_REASON_TEXT`` are for staff only (Activity rows, staff notes, the
-  draft panel). A requester never sees a reason.
+* ``STAFF_REASON_LABELS``, ``OUTPUT_RULE_LABELS``, ``STAFF_NOTE_RULE`` and ``DRAFT_REASON_TEXT`` are for
+  staff only (Activity rows, staff notes, the draft panel). A requester never sees a reason or a rule.
 * ``HANDOFF_NOTICE``, ``WITHDRAWN_NOTICE``, ``NOTICE_TITLE`` and the ``TRAY_*`` texts are what a requester
   can see. They are generic and carry at most the ticket number and title.
 
@@ -36,6 +36,10 @@ OFFLINE_STATUS = "Offline: the local model isn't running"
 # The staff-only note naming the reason, added to a ticket the desk hands to a person.
 STAFF_NOTE = "Service desk: {label}."
 
+# The same note when the reason is a failed output check: it also names the rule that refused the reply
+# (G-85-3). ``{label}`` is the reason label, ``{rule}`` the label from OUTPUT_RULE_LABELS.
+STAFF_NOTE_RULE = "Service desk: {label} ({rule})."
+
 # Exactly one label per hand-off code. 85-01 declares the same 19 codes in service_desk/__init__.py and
 # 85-12 tests that the two stay equal.
 STAFF_REASON_LABELS: Dict[str, str] = {
@@ -58,6 +62,23 @@ STAFF_REASON_LABELS: Dict[str, str] = {
     "no_reply_to_ai_answer": "no reply to AI answer",
     "answer_withdrawn": "answer withdrawn",
     "desk_stopped": "automatic actions were stopped",
+}
+
+# One staff label per output rule of service_desk/checks.py (G-85-3). The keys equal checks.RULES; a test
+# keeps the two in step. Staff only: the rule never reaches a requester.
+OUTPUT_RULE_LABELS: Dict[str, str] = {
+    "unparseable": "the reply was not in the agreed form",
+    "empty_answer": "the answer was empty",
+    "no_citation": "the answer cited no article",
+    "unknown_citation": "no cited article was given",
+    "too_long": "the answer was too long",
+    "too_many_lines": "the answer had too many lines",
+    "html": "the answer held markup",
+    "foreign_link": "a link not in the cited articles",
+    "foreign_email": "an email address not in the cited articles",
+    "foreign_phone": "a phone number not in the cited articles",
+    "foreign_command": "a command not in the cited articles",
+    "foreign_number": "a number not in the cited articles",
 }
 
 # Why a drafted answer was kept as a draft (staff only, UI-SPEC section 3). One sentence per draft reason.

@@ -41,9 +41,11 @@ class Prepared:
 
 
 async def _handoff(db, ticket: Dict[str, Any], reason: str, *, now: Optional[datetime], question: Optional[str] = None,
-                   notify_requester: bool = True) -> str:
-    """Send the ticket to a person and return the reason as the job's outcome word."""
-    await handoff.handoff(db, ticket, reason, now=now, notify_requester=notify_requester, question=question)
+                   notify_requester: bool = True, rule: Optional[str] = None) -> str:
+    """Send the ticket to a person and return the reason as the job's outcome word. ``rule`` is the output
+    rule that refused the reply (staff note and ledger row only)."""
+    await handoff.handoff(db, ticket, reason, now=now, notify_requester=notify_requester, question=question,
+                          rule=rule)
     return reason
 
 
@@ -113,8 +115,9 @@ async def answer(db, prepared: Prepared, client: OllamaClient, *, now: Optional[
         return await _handoff(db, ticket, "service_desk_busy", now=now)
     parsed = parse_reply(model_reply.text)
     given = {n: m.content for n, m in enumerate(prepared.matches, start=1)}
-    if parsed is None or check(parsed, given.keys(), given) is not None:
-        return await _handoff(db, ticket, "output_check_failed", now=now)
+    failing = "unparseable" if parsed is None else check(parsed, given.keys(), given)
+    if failing is not None:
+        return await _handoff(db, ticket, "output_check_failed", now=now, rule=failing)
 
     # Read the ticket again: the generation took a while and a person may have acted meanwhile.
     fresh = await raw(db).tickets.find_one({"id": ticket["id"], "tenantId": tenant}, {"_id": 0})
