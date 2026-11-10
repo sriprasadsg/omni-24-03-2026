@@ -19,7 +19,9 @@ const api = vi.hoisted(() => {
 });
 vi.mock('../../services/apiService', () => ({ API_BASE: '/api', ...api }));
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
-vi.mock('../../contexts/UserContext', () => ({ useUser: () => ({ currentUser: { name: 'Sam Rivera', email: 'sam@acme.test' } }) }));
+vi.mock('../../contexts/UserContext', () => ({
+  useUser: () => ({ currentUser: { name: 'Sam Rivera', email: 'sam@acme.test' }, hasPermission: (p: string) => p === 'manage:tickets' }),
+}));
 vi.mock('../../components/TicketReportsDashboard', () => ({ default: () => null }));
 
 import InternalTicketsDashboard from '../../components/InternalTicketsDashboard';

@@ -433,7 +433,9 @@ const StatCard = ({label,value,color,sub,active,onClick}:{label:string;value:num
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
 const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ currentUserEmail = '' }) => {
-  const { currentUser } = useUser();
+  const { currentUser, hasPermission } = useUser();
+  // 85-40 (G-85-4b): the server refuses staff actions for a requester since 85-34; the screen hides them too.
+  const isTicketStaff = hasPermission?.('manage:tickets') === true;
   const userEmail = currentUserEmail || (currentUser as any)?.email || '';
 
   const [tickets,      setTickets]      = useState<Ticket[]>([]);
@@ -1028,9 +1030,9 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   }}
                 />
               ) : (
-                <h3 onClick={() => { setEditingTitle(true); setTitleDraft(selected.title); }}
-                  title="Click to edit"
-                  className="font-semibold text-sm text-gray-900 dark:text-white leading-snug cursor-pointer hover:text-teal-700 dark:hover:text-teal-300 transition-colors">{selected.title}</h3>
+                <h3 onClick={isTicketStaff ? () => { setEditingTitle(true); setTitleDraft(selected.title); } : undefined}
+                  title={isTicketStaff ? 'Click to edit' : undefined}
+                  className={`font-semibold text-sm text-gray-900 dark:text-white leading-snug transition-colors ${isTicketStaff ? 'cursor-pointer hover:text-teal-700 dark:hover:text-teal-300' : ''}`}>{selected.title}</h3>
               )}
             </div>
             <button onClick={() => setSelected(null)} className="flex-shrink-0 p-1 text-slate-500 hover:text-gray-900 dark:hover:text-white rounded transition-colors">
@@ -1044,7 +1046,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
             <PriorityBadge p={selected.priority}/>
             <SlaBadge status={selected.sla_status} mins={selected.sla_remaining_minutes}/>
             {deskView?.draftWaiting === true && <DeskChip tone="blue" icon={SparklesIcon}>{DRAFT_PANEL.chipDraftWaiting}</DeskChip>}
-            {['open','in_progress','resolved','closed']
+            {isTicketStaff && ['open','in_progress','resolved','closed']
               .filter(s => s !== selected.status)
               .map(s => (
                 <button key={s} onClick={() => handlePatch({status: s})}
@@ -1063,7 +1065,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
           {/* Tabs */}
           <div className="flex border-b border-gray-200 dark:border-slate-800 overflow-x-auto">
-            {TAB_CONFIG.map(tab => (
+            {TAB_CONFIG.filter(tab => isTicketStaff || (tab.key !== 'worklog' && tab.key !== 'links')).map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
                   activeTab === tab.key ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-transparent text-slate-500 hover:text-gray-700 dark:hover:text-slate-300'}`}>
@@ -1161,7 +1163,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                           {info.installer_url && <a href={info.installer_url} target="_blank" rel="noreferrer" className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:underline">View installer ↗</a>}
                         </div>
                         {info.requested_by && <p className="text-gray-600 dark:text-slate-400 text-xs">Requested by: <span className="text-gray-900 dark:text-white">{info.requested_by}</span></p>}
-                        {!isDone && !selected.approval_required && (
+                        {isTicketStaff && !isDone && !selected.approval_required && (
                           <div className="flex gap-2 pt-1">
                             <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-medium">
                               <ThumbsUp size={11}/> Approve Install
@@ -1189,7 +1191,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                           {info.duration && <div><span className="text-gray-600 dark:text-slate-400">Duration:</span><p className="text-gray-900 dark:text-white">{info.duration}</p></div>}
                           {info.justification && <div className="col-span-2"><span className="text-gray-600 dark:text-slate-400">Justification:</span><p className="text-gray-900 dark:text-white">{info.justification}</p></div>}
                         </div>
-                        {!isDone && (
+                        {isTicketStaff && !isDone && (
                           <div className="flex gap-2 pt-1">
                             <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-medium">
                               <ThumbsUp size={11}/> Grant Access
@@ -1216,7 +1218,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                           {info.cvss_score && <div><span className="text-gray-600 dark:text-slate-400">CVSS:</span><p className="text-gray-900 dark:text-white font-bold">{info.cvss_score}</p></div>}
                           {info.affected_component && <div className="col-span-2"><span className="text-gray-600 dark:text-slate-400">Component:</span><p className="text-gray-900 dark:text-white">{info.affected_component}</p></div>}
                         </div>
-                        {!isDone && (
+                        {isTicketStaff && !isDone && (
                           <div className="flex gap-2 pt-1">
                             <button onClick={() => updateTicket(selected.id, {status:'in_progress'}).then(t => setSelected(t))}
                               className="flex-1 py-1.5 bg-rose-700 hover:bg-rose-600 text-white text-xs rounded font-medium">
@@ -1233,7 +1235,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       <div className="rounded-xl border border-yellow-200 dark:border-yellow-700/40 bg-yellow-100 dark:bg-yellow-900/15 p-3 space-y-2">
                         <p className="text-yellow-800 dark:text-yellow-300 text-xs font-semibold flex items-center gap-1.5">⚙ Configuration Change</p>
                         {info.config_key && <p className="text-xs text-slate-300 font-mono bg-slate-800/60 rounded px-2 py-1">{info.config_key}: {String(info.config_value ?? '—')}</p>}
-                        {!isDone && (
+                        {isTicketStaff && !isDone && (
                           <div className="flex gap-2 pt-1">
                             <button onClick={handleApprove} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-medium">
                               <ThumbsUp size={11}/> Approve Change
@@ -1250,7 +1252,8 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   return null;
                 })()}
 
-                {/* Watchers */}
+                {/* Watchers (staff only) */}
+                {isTicketStaff && (
                 <div>
                   <p className="text-gray-600 dark:text-slate-400 text-xs mb-1">Watchers</p>
                   <div className="flex flex-wrap gap-1 mb-2">
@@ -1271,6 +1274,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       className="px-2 py-1 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-900 dark:text-white text-xs rounded"><Bell size={12}/></button>
                   </div>
                 </div>
+                )}
 
                 {/* Custom fields */}
                 {Object.keys(selected.custom_fields || {}).length > 0 && (
@@ -1291,6 +1295,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                 {selected.approval_required && selected.approval_status === 'pending' && (
                   <div className="bg-amber-100 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 rounded-xl p-3 space-y-2">
                     <p className="text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-center gap-1"><AlertTriangle size={12}/> Pending Approval</p>
+                    {isTicketStaff && (<>
                     <input className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-gray-900 dark:text-white focus:outline-none"
                       placeholder="Optional comment…" value={approvalComment}
                       onChange={e => setApprovalComment(e.target.value)} />
@@ -1308,11 +1313,12 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         </button>
                       </div>
                     </div>
+                    </>)}
                   </div>
                 )}
 
-                {/* Escalate */}
-                {!['resolved','closed'].includes(selected.status) && (
+                {/* Escalate (staff only) */}
+                {isTicketStaff && !['resolved','closed'].includes(selected.status) && (
                   <div className="space-y-1">
                     <p className="text-gray-600 dark:text-slate-400 text-xs">Escalate</p>
                     <div className="flex gap-2">
@@ -1328,7 +1334,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                 )}
 
                 {/* Merge ticket */}
-                {!['closed'].includes(selected.status) && (
+                {isTicketStaff && !['closed'].includes(selected.status) && (
                   <div className="space-y-1">
                     <p className="text-gray-600 dark:text-slate-400 text-xs">Merge into another ticket</p>
                     <div className="flex gap-2">
@@ -1376,7 +1382,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
             {activeTab === 'comments' && (
               <>
                 <div className="space-y-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{REPLY_PICKER.listNote}</p>
+                  {isTicketStaff && <p className="text-xs text-gray-500 dark:text-gray-400">{REPLY_PICKER.listNote}</p>}
                   {shownComments.map(c => (
                     <div key={c.id} className="bg-gray-50 dark:bg-slate-800/60 rounded-xl p-3">
                       <div className="flex items-center justify-between mb-1">
@@ -1482,10 +1488,12 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         <p className="text-sm text-gray-900 dark:text-white truncate">{a.filename}</p>
                         <p className="text-[10px] text-slate-500">{fileSize(a.size)} · {a.uploaded_by} · {fmtTime(a.created_at)}</p>
                       </div>
-                      <button onClick={() => handleDeleteAttachment(a.id)}
+                      {isTicketStaff && (
+                      <button onClick={() => handleDeleteAttachment(a.id)} aria-label={`Delete ${a.filename}`}
                         className="p-1 text-slate-600 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors flex-shrink-0">
                         <Trash2 size={13}/>
                       </button>
+                      )}
                     </div>
                   ))}
                   {(!selected.attachments || selected.attachments.length === 0) &&

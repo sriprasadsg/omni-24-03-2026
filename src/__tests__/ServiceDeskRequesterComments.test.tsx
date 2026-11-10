@@ -19,7 +19,10 @@ const api = vi.hoisted(() => {
 });
 vi.mock('../../services/apiService', () => ({ API_BASE: '/api', ...api }));
 vi.mock('../../utils/toast', () => ({ showToast: vi.fn() }));
-vi.mock('../../contexts/UserContext', () => ({ useUser: () => ({ currentUser: { name: 'Nobody', email: '' } }) }));
+const perms = vi.hoisted(() => new Set<string>());
+vi.mock('../../contexts/UserContext', () => ({
+  useUser: () => ({ currentUser: { name: 'Nobody', email: '' }, hasPermission: (p: string) => perms.has(p) }),
+}));
 vi.mock('../../components/TicketReportsDashboard', () => ({ default: () => null }));
 
 import InternalTicketsDashboard from '../../components/InternalTicketsDashboard';
@@ -133,6 +136,8 @@ let deskReads = 0;
 const never = () => new Promise<Response>(() => {});
 
 function setup(viewer: string, tickets: unknown[], reply: () => Response | Promise<Response>) {
+  perms.clear();
+  if (viewer === 'sam@acme.test') perms.add('manage:tickets'); // Sam is ticket staff; Dana is a requester (85-40)
   deskReply = reply;
   deskReads = 0;
   api.fetchTickets.mockResolvedValue({ tickets });
@@ -168,7 +173,7 @@ describe('the reporter on the first paint of the Comments tab', () => {
     await waitFor(() => expect(deskReads).toBe(1));
     expectAbsent(HIDDEN);
     expectShown(READABLE);
-    expect(screen.getByText('Comments are visible to staff only unless marked "Sent to requester".')).toBeInTheDocument();
+    expect(screen.queryByText('Comments are visible to staff only unless marked "Sent to requester".')).toBeNull();
   });
 });
 
@@ -197,7 +202,7 @@ describe('the reporter after a failed or different desk read', () => {
     expectShown(READABLE);
   });
 
-  it('shows "No comments yet." and keeps the note when only staff-only comments exist', async () => {
+  it('shows "No comments yet." and no staff note when only staff-only comments exist', async () => {
     const staffOnly = [
       { id: 'c1', author: 'bob@acme.test', text: TEXT.staffOnly, created_at: at(1), visibility: 'staff' },
       { id: 'c3', author: 'service-desk', text: TEXT.draft, created_at: at(3), visibility: 'staff', kind: 'ai_draft', ai: { state: 'draft' } },
@@ -206,7 +211,7 @@ describe('the reporter after a failed or different desk read', () => {
     await openComments();
     await waitFor(() => expect(deskReads).toBe(1));
     expect(screen.getByText('No comments yet.')).toBeInTheDocument();
-    expect(screen.getByText('Comments are visible to staff only unless marked "Sent to requester".')).toBeInTheDocument();
+    expect(screen.queryByText('Comments are visible to staff only unless marked "Sent to requester".')).toBeNull();
     expectAbsent([TEXT.staffOnly, TEXT.draft]);
   });
 });
