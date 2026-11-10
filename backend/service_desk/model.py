@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 _NS_PER_MS = 1_000_000
 _REPLY_SCHEMA = {"type": "object", "required": ["answer", "cited"],
                  "properties": {"answer": {"type": "string"},
-                                "cited": {"type": "array", "items": {"type": "integer"}}}}
+                                "cited": {"type": "array", "items": {"type": "string"}}}}
 
 
 class ModelError(Exception):

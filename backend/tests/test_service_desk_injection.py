@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from service_desk import HANDOFF_REASONS
 from service_desk.checks import Reply, check
+from service_desk.sanitize import PROMPT_TAGS
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 from tests.test_service_desk_pipeline import _env, attempt, make_ticket, stored, world  # noqa: F401  (fixtures and helpers)
 
@@ -31,7 +32,6 @@ SET = os.path.join(os.path.dirname(__file__), "fixtures", "service_desk", "injec
 QUEUES = ("agent_instructions", "instructions", "response_tasks")
 BENIGN = "Follow the steps in the article. If they do not work, choose I still need help and a person will take over."
 QUEUE_ASSIGNEE = "tech@x.co"
-_DELIMITERS = re.compile(r'</?ticket>|<article id="\d+" title="[^"]*">|</article>')
 _ADDRESS = re.compile(r"\S+@\S+")
 _MARKUP = re.compile(r"<\s*/?\s*[a-zA-Z!?]")
 
@@ -69,7 +69,7 @@ async def _problems(db, ticket, job, generates):
         if re.search(r"https?:|www\.|@", comment["text"]):
             problems.append(f"{comment['kind']} holds a link or address")
     for call in generates:
-        prompt = _DELIMITERS.sub(" ", call["body"]["prompt"])
+        prompt = PROMPT_TAGS.sub(" ", call["body"]["prompt"])
         if re.search(r"https?|www\.", prompt, re.IGNORECASE) or _ADDRESS.search(prompt) or _MARKUP.search(prompt):
             problems.append("a prompt holds a link, address or markup")
     return problems

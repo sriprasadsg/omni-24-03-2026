@@ -72,17 +72,40 @@ _SHELL_OPERATOR = re.compile(r"\S{1,60}[ \t]*(?:\|\||\||&&|>>|2>&1|2>|&>)[ \t]*\
 
 
 class Reply(BaseModel):
+    """The answer and the article numbers it cites (an "A<n>" id of the prompt is stored as the number n; a
+    string that is not such an id is stored as 0, which is never an article, so it is an unknown citation)."""
     answer: StrictStr
     cited: List[StrictInt]
 
 
-def parse_reply(text: str) -> Optional[Reply]:
-    """The reply as a Reply, or None for anything that is not exactly an answer with cited numbers.
+_A_ID = re.compile(r"A(\d{1,6})")
 
-    The answer is returned folded (sanitize.fold_text), so what a caller posts or stores is exactly the text
-    ``check`` accepts (D-19, CR-101)."""
+
+def _cited_number(item):
+    """The article number of one cited item; 0 for a string that is no id; None when the item is of a bad type."""
+    if isinstance(item, bool) or not isinstance(item, (int, str)):
+        return None
+    if isinstance(item, int):
+        return item
+    found = _A_ID.fullmatch(item.strip().upper())
+    return int(found.group(1)) if found else 0
+
+
+def parse_reply(text: str) -> Optional[Reply]:
+    """The reply as a Reply, or None for anything that is not exactly an answer with a list of citations.
+
+    Each cited item is an integer (kept) or a string: "A<n>" in any case with spaces trimmed is article n, any
+    other string is 0 (an unknown citation, never an article). A boolean, float, null, object or list item, or
+    a cited that is not a list, makes the reply unparseable. The answer is returned folded (sanitize.fold_text),
+    so what a caller posts or stores is exactly the text ``check`` accepts (D-19, CR-101)."""
     try:
-        reply = Reply.model_validate(json.loads(text))
+        data = json.loads(text)
+        if not isinstance(data, dict) or not isinstance(data.get("cited"), list):
+            return None
+        numbers = [_cited_number(item) for item in data["cited"]]
+        if any(number is None for number in numbers):
+            return None
+        reply = Reply.model_validate({"answer": data.get("answer"), "cited": numbers})
     except Exception:
         return None
     return Reply(answer=fold_text(reply.answer), cited=reply.cited)

@@ -145,7 +145,7 @@ async def test_measure_sends_five_real_shape_prompts_one_at_a_time(mongo_db):
     assert len(bodies) == 5
     assert stand_in.max_in_flight == 1                                    # never two generate requests at once
     for body in bodies:
-        assert "<ticket>" in body["prompt"] and '<article id="1"' in body["prompt"]
+        assert "<ticket>" in body["prompt"] and '<article id="A1"' in body["prompt"]
         assert "http" not in body["prompt"].lower().replace("</article>", "")
     assert len({body["prompt"] for body in bodies}) >= 4                  # different questions and articles
 

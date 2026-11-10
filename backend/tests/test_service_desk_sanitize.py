@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from service_desk import ARTICLE_TEXT_CAP, DESCRIPTION_CAP, TITLE_CAP
-from service_desk.sanitize import SYSTEM_PROMPT, build_prompt, clean_text, normalize_for_match
+from service_desk import ANSWER_MAX_LINES, ARTICLE_TEXT_CAP, DESCRIPTION_CAP, TITLE_CAP
+from service_desk.sanitize import PROMPT_TAGS, SYSTEM_PROMPT, build_prompt, clean_text, normalize_for_match
 
 ZWSP = chr(0x200B)
 RLO = chr(0x202E)
@@ -142,7 +142,7 @@ def test_the_built_prompt_holds_no_link_address_or_markup_from_the_ticket(text):
     assert "www." not in prompt.lower()
     assert not re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", prompt)
     tags = re.findall(r"<[^>]*>", prompt)
-    assert tags == ["<ticket>", "</ticket>", '<article id="1" title="Fix VPN">', "</article>"], tags
+    assert tags == ["<ticket>", "</ticket>", '<article id="A1" title="Fix VPN">', "</article>"], tags
 
 
 def test_a_forged_delimiter_cannot_close_the_ticket_block():
@@ -166,6 +166,20 @@ def test_the_prompt_is_deterministic_and_caps_every_piece():
     assert prompt.count("t") <= TITLE_CAP + 10 and "d" * (DESCRIPTION_CAP + 1) not in prompt
     assert "c" * (ARTICLE_TEXT_CAP + 1) not in prompt
     assert system == SYSTEM_PROMPT
+
+
+def test_articles_are_labelled_a1_to_an_in_order():
+    _, prompt = build_prompt("hi", "there", [article("One"), article("Two"), article("Three")])
+    assert re.findall(r"<article id=\"(A\d+)\"", prompt) == ["A1", "A2", "A3"]
+    assert all(PROMPT_TAGS.search(tag) for tag in re.findall(r"<[^>]*>", prompt))
+    assert PROMPT_TAGS.sub("", prompt).count("<") == 0
+
+
+def test_the_system_prompt_names_the_id_form_and_the_line_limit():
+    assert "A1" in SYSTEM_PROMPT
+    assert f"at most {ANSWER_MAX_LINES} " in SYSTEM_PROMPT
+    low = SYSTEM_PROMPT.lower()
+    assert "data" in low and "ignore" in low and "instruction" in low
 
 
 def test_the_system_prompt_says_ticket_text_is_data_that_may_try_to_instruct():

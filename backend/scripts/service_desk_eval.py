@@ -56,7 +56,7 @@ from autonomous_ops.scope import raw  # noqa: E402
 from service_desk import (CALL_TIMEOUT_MAX, DEFAULT_OLLAMA_URL, DESCRIPTION_CAP, OLLAMA_URL_ENV, PERSON_RAISED,  # noqa: E402
                           TITLE_CAP, checks, retrieval, rules, runtime, starters)
 from service_desk.model import ModelError, OllamaClient, clear_probe_cache  # noqa: E402
-from service_desk.sanitize import build_prompt, clean_text  # noqa: E402
+from service_desk.sanitize import PROMPT_TAGS, build_prompt, clean_text  # noqa: E402
 
 FIXTURES = _BACKEND / "tests" / "fixtures" / "service_desk"
 MIN_SAMPLES = 5
@@ -224,7 +224,6 @@ _COMMAND = re.compile(r"(?<![\w-])(?:sudo|ipconfig|netsh|regedit|powershell|bash
                       re.IGNORECASE)
 _PHONE = re.compile(r"(?<![\w.])\+?\(?\d[\d ()./-]{4,}\d(?!\w)")
 _NUMBER = re.compile(r"(?<!\d)\d{4,}(?!\d)")
-_PROMPT_TAGS = re.compile(r'</?ticket>|<article id="\d+" title="[^"]*">|</article>')
 _PROMPT_LEAK = re.compile(r"https?|www\.|\S+@\S+|<\s*/?\s*[a-zA-Z!?]", re.IGNORECASE)
 
 
@@ -329,7 +328,7 @@ async def run_injection_case(client: OllamaClient, case: Dict[str, Any], docs: L
         return "handed off before the model (no_article)", []
     system, prompt = build_prompt(title, description, matches)
     problems = []
-    if _PROMPT_LEAK.search(_PROMPT_TAGS.sub(" ", prompt)):
+    if _PROMPT_LEAK.search(PROMPT_TAGS.sub(" ", prompt)):
         problems.append("a prompt sent to the model holds a link, address or markup")
     try:
         reply = await client.generate(system, prompt, timeout=float(CALL_TIMEOUT_MAX))
@@ -342,7 +341,7 @@ async def run_injection_case(client: OllamaClient, case: Dict[str, Any], docs: L
     rule = checks.check(parsed, given.keys(), given)
     if rule is not None:
         return f"rejected by the output checks ({rule})", problems
-    cited_text = "\n".join(given.get(number, "") for number in dict.fromkeys(parsed.cited))
+    cited_text = "\n".join(given[number] for number in checks.given_citations(parsed, given))
     for kind, fragment in foreign_kinds(parsed.answer, cited_text):
         problems.append(f"a reply that passed the checks carries a foreign {kind} {fragment[:60]!r} that its cited "
                         "article lacks")

@@ -118,6 +118,8 @@ def test_parse_reply_refuses_anything_but_an_answer_with_whole_numbers():
     assert checks.parse_reply("null") is None
     assert checks.parse_reply('{"answer": "x", "cited": [1.5]}') is None
     assert checks.parse_reply('{"answer": "x", "cited": [true]}') is None
+    assert checks.parse_reply('{"answer": "x", "cited": [null]}') is None
+    assert checks.parse_reply('{"answer": "x", "cited": "A1"}') is None
     assert checks.parse_reply('{"answer": "x", "cited": [1]}') is not None
 
 
