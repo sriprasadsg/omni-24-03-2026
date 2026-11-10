@@ -1,6 +1,6 @@
 ---
 phase: 85-first-line-service-desk
-verified: 2026-11-10T13:40:00Z
+verified: 2026-11-10T14:05:00Z
 status: human_needed
 score: 9/9 must-haves verified
 covered_files:
@@ -102,13 +102,14 @@ covered_files:
   - backend/tests/test_ticket_staff_create_fields.py
   - src/__tests__/TicketsRequesterControls.test.tsx
   - src/__tests__/TicketsStaffActionErrors.test.tsx
-covered_digest: "v3:sha256:c49b28708bda0c0b8e0770b55878691bf9a339510872bdf2d4e1f8fcd800d92e"
+covered_digest: "v3:sha256:95aa123bb2ca27559d77d836ac76f40a8630d413488144bf1bfee5e4625684e1"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
   previous_status: human_needed
   previous_score: 9/9
   gaps_closed:
+    - "WR-701 / WR-702 (third-round review warnings, fixed 3d8a39763 after the previous verification): the four silent staff paths on the Tickets screen now toast, and a partly failed bulk delete reconciles the list and selection"
     - "G-85-3: printer starter answer refused with unknown_citation (step numbers read as article numbers); the failing rule was not recorded"
     - "G-85-4b: staff controls shown to a requester on the Tickets screen; staff actions failed silently"
     - "G-85-5 / WR-603: a requester could set assignee, group, watchers, approval, SLA, due date at ticket creation"
@@ -116,14 +117,6 @@ re_verification:
   gaps_remaining: []
   regressions: []
 advisory:
-  - finding: "WR-701: four staff-visible paths on the Tickets screen still fail without a toast: title edit (onBlur/Enter, no .catch), the security-incident 'Start Remediation'/'Start Investigation' status button (updateTicket(...).then without .catch), the staff-note branch of handleComment (rethrows), and handleUpload (no try/catch). Confirmed by reading HEAD:components/InternalTicketsDashboard.tsx lines ~1090/1092, ~1287, ~622 and ~630-641 of the committed file."
-    category: other
-    reason: "85-41's literal wording 'every staff handler' is not met by these four paths. Every action the plan enumerates (status buttons, board drop, bulk, escalate, approve, reject, merge, watchers, work log, link/unlink, attachment delete, ticket delete) does toast, and the UAT G-85-4b truth (requester sees no staff controls) is met by hiding, so a requester cannot reach any of these paths. A staff member with manage:tickets will rarely meet a 403 there; a 5xx or upload-size failure is still silent. Recorded open as WR-701 in 85-REVIEW-DISPOSITION.md. If the orchestrator reads the 85-41 truth literally this is a gap, not an advisory; treated here as a warning because the phase goal and the UAT gap truths do not depend on it."
-    evidence_status: "confirmed by reading committed code; not executed"
-  - finding: "WR-702: bulk delete that fails part-way (Promise.all rejects on first failure) leaves the list and selection stale; the toast is shown but load() / setSelectedIds sit after the await inside the try."
-    category: other
-    reason: "UI staleness after a partial failure; no data exposure and no effect on the DESK truths. Open in the disposition."
-    evidence_status: "confirmed by reading committed code (handleBulkAction); not executed"
   - finding: "IN-701..704 (broadcastable import outside the best-effort block; unreachable template-approval branch; bare-integer / Unicode-digit citation edge cases; template queue/SLA defaults dropped for requesters) and the older open WR-601, WR-604, IN-601..603."
     category: other
     reason: "Informational or narrow failure paths; none defeats a must-have. IN-703: parse_reply accepts a bare integer citation, which is deliberate (A-85-G34) and still mapped only through given_citations."
@@ -145,17 +138,16 @@ human_verification:
   - test: "After the restart, create a ticket as a requester with watchers/assignee/approval_required in the body, and trigger a pending-agent notice for a tenant with two users"
     expected: "The stored ticket keeps none of the six staff-only fields; only a tenant admin sees the pending-agent notice in the feed and no non-admin socket receives it"
     why_human: "Needs a live backend and live WebSocket clients; the code path and tests are verified here"
-  - test: "Decide on WR-701 (four silent staff paths) and WR-702 before deployment"
-    expected: "Either the fixes (a .catch with reportFailure on the title edit and the Start button, a catch in handleComment's staff-note branch, a try/catch in handleUpload; load() in the bulk catch) or a written acceptance"
-    why_human: "Product decision on whether 85-41's 'every staff handler' is read literally"
 ---
 
 # Phase 85: First-Line Service Desk Verification Report
 
 **Phase Goal:** New first-line tickets get a cited answer drafted from the tenant's knowledge base, posted, drafted or escalated by fixed rules, and anything the system is unsure of, anything sensitive, and everything while the language model is unavailable goes to a person.
-**Verified:** 2026-11-10T13:40:00Z
+**Verified:** 2026-11-10T14:05:00Z
 **Status:** human_needed
-**Re-verification:** Yes, after the third gap round (plans 85-37..85-42, UAT round 3 gaps G-85-3, G-85-4b, G-85-5)
+**Re-verification:** Yes, after the third gap round (plans 85-37..85-42, UAT round 3 gaps G-85-3, G-85-4b, G-85-5) and the WR-701/WR-702 fix (3d8a39763)
+
+Re-verification scope (14:05): `git diff 811b676e7..HEAD --stat` shows only `components/InternalTicketsDashboard.tsx` (+37/-10 in 3d8a39763), `src/__tests__/TicketsStaffActionErrors.test.tsx` (+95) and planning records (STATE, 85-REVIEW-DISPOSITION, 85-UAT); no backend or other covered source changed, so the backend truths 1-8 and their 397-test run stand as written. The covered file list is the same as before; only the digest moved (the changed test file is in it; the dashboard is read from HEAD and is not in the digest because the working tree carries user WIP).
 
 Evidence base: I read the committed code (`HEAD`), not the SUMMARY claims. For `backend/tickets_endpoints.py` and `components/InternalTicketsDashboard.tsx` I read `git show HEAD:<file>` because the working tree carries user WIP (attachment download route and button); those hunks are out of scope and do not touch the lines checked. Nothing was run against the live mongod (27017), the live backend or Ollama.
 
@@ -173,15 +165,15 @@ Evidence base: I read the committed code (`HEAD`), not the SUMMARY claims. For `
 | 6 | G-85-3 (85-37/85-38): the printer ticket whose reply cites [1..6] with one article given is drafted citing only the printer article, a refused reply records the failing rule for staff, never for the requester | VERIFIED | checks.py `given_citations`, `check`, `parse_reply` (A-ids and integers map to article n; other strings map to 0 = unknown; bool/float/non-list unparseable); sanitize.py `build_prompt` writes `<article id="A{n}" ...>` and SYSTEM_PROMPT asks for ids "such as A1 or A2" and `"cited": ["A1"]`; model.py schema items are strings; pipeline passes `rule=failing` to `_handoff`; handoff.py validates `rule` (ValueError before any write unless reason is `output_check_failed` and the rule is a key of `OUTPUT_RULE_LABELS`), writes the staff-only note `STAFF_NOTE_RULE`, `desk={"rule": rule}` and a reasonText naming the label into `ledger.record_desk_event`; the requester notice is still the generic `HANDOFF_NOTICE`. Tests: `test_the_printer_ticket_is_drafted_citing_only_the_printer_article`, `test_a_refused_reply_names_the_rule_to_staff_and_in_the_ledger_never_to_the_requester`, `test_an_unparseable_reply_records_the_rule_unparseable` all pass. Live proof is in 85-38-SUMMARY (eval sets exit 0, printer reproduction 3/3, byte-identical replies); I did not re-run it (Ollama is off limits for this verification). |
 | 7 | G-85-5 (85-39): a requester cannot set assignee, assignee_group, watchers, approval_required, sla_hours, due_date at creation, also via template defaults; staff still can | VERIFIED | `HEAD:backend/tickets_endpoints.py create_ticket`: `is_staff = await ticket_access.is_ticket_staff(current_user)`; for a non-staff caller the six keys (`_STAFF_ONLY_CREATE_FIELDS`) are popped from `body.model_dump()` before the template merge and popped again after it, with `approval_required` kept true only when the template's own defaults say true (A-85-G38, fail closed). `tickets_service.create_ticket` reads each via `data.get(...)` with defaults, so a popped key gives an empty/None value and priority-derived SLA/due date. `test_ticket_staff_create_fields.py` passes (inside the 397). |
 | 8 | G-85-5 (85-39): a notice with any `metadata.audience` is never pushed on the tenant WebSocket; `pending_agents._post_in_app` pushes nothing for the agent's tenant; one rule decides | VERIFIED | `notification_audience.broadcastable(metadata)` returns False whenever the key `audience` is present; `notification_service.send_alert` broadcasts only `if tenant_id and broadcastable(metadata)`; `pending_agents._post_in_app` returns before `broadcast_notification` when not broadcastable, and `post_to_recipients` tags the agent tenant's notice `audience: TENANT_ADMIN_AUDIENCE`. `grep broadcast_notification` over backend (excluding venv/tests) finds only those two call sites, both behind `broadcastable`; `test_notification_audience_structure` (AST scan, 5) and `test_service_desk_notification_audience` (31) pass. Remaining push is the platform tenant's untagged notice (A-85-G40, deliberate). |
-| 9 | G-85-4b (85-40/85-41): a requester (no manage:tickets) sees no staff-only control on the Tickets screen; staff actions that fail toast | VERIFIED (with WR-701 warning) | `HEAD:components/InternalTicketsDashboard.tsx`: `isTicketStaff = hasPermission?.('manage:tickets') === true` (line 447), `canDeleteTickets = ...'manage:settings'` (449), passed to `TicketModal` (1652). Gated by `isTicketStaff`: bulk bar (911) and row/ board checkboxes (943, 962), board drag (1021, 1035), title edit (1097), status buttons (1113), Work Log and Links tabs (1132), Approve / Grant Access / Start Remediation / Approve Change blocks (1230, 1258, 1285, 1302), Watchers (1320), approval Approve/Reject (1362), Escalate (1385), Merge (1401), attachment delete (1555), the staff hint (1449); delete controls follow `canDeleteTickets` (919, 993). New Ticket form: the six staff fields are shown only to staff (304, 410) and deleted from the payload for non-staff (235-237). Error toasts: one `reportFailure(e, fallback)` helper (596) used in `handlePatch`, `handleDeleteAttachment`, `handleLogWork`, `handleLink`, `handleUnlink`, `handleEscalate`, `handleAddWatcher`, `handleRemoveWatcher`, `handleApprove`, `handleReject`, `handleDelete`, `handleMerge` (non-ok response and catch) and `handleBulkAction`. Vitest: `TicketsRequesterControls`, `TicketsStaffActionErrors`, `ServiceDeskReplyVisibility`, `ServiceDeskRequesterComments`, `ServiceDeskTicketPanels` = 5 files, 166 passed (run against the working tree; the user WIP in this file adds only the download button and handler). Not met literally: WR-701 (see Advisory). |
+| 9 | G-85-4b (85-40/85-41): a requester (no manage:tickets) sees no staff-only control on the Tickets screen; every staff action that fails shows an error toast | VERIFIED | `HEAD:components/InternalTicketsDashboard.tsx`: `isTicketStaff = hasPermission?.('manage:tickets') === true` (line 447), `canDeleteTickets = ...'manage:settings'` (449), passed to `TicketModal` (1652). Gated by `isTicketStaff`: bulk bar (911) and row/ board checkboxes (943, 962), board drag (1021, 1035), title edit (1097), status buttons (1113), Work Log and Links tabs (1132), Approve / Grant Access / Start Remediation / Approve Change blocks (1230, 1258, 1285, 1302), Watchers (1320), approval Approve/Reject (1362), Escalate (1385), Merge (1401), attachment delete (1555), the staff hint (1449); delete controls follow `canDeleteTickets` (919, 993). New Ticket form: the six staff fields are shown only to staff (304, 410) and deleted from the payload for non-staff (235-237). Error toasts: one `reportFailure(e, fallback)` helper (596) used in `handlePatch`, `handleDeleteAttachment`, `handleLogWork`, `handleLink`, `handleUnlink`, `handleEscalate`, `handleAddWatcher`, `handleRemoveWatcher`, `handleApprove`, `handleReject`, `handleDelete`, `handleMerge` (non-ok response and catch) and `handleBulkAction`. Re-verified after 3d8a39763 (WR-701/702): the title rename (onBlur and Enter, 1107/1109) and the security-incident Start Remediation button (1304) now call `handlePatch`, which has the try/catch plus `reportFailure` (599-605); the staff-note branch of `handleComment` calls `reportFailure(e, 'Failed to add comment')` and returns instead of rethrowing (622); `handleUpload` wraps `uploadTicketAttachment` in try/catch with `reportFailure` (633-640); `handleBulkAction` delete uses `Promise.allSettled`, removes only the fulfilled ids from the list, keeps the refused ids selected, toasts and calls `load()` (775-786), and the outer catch also calls `load()` (790-791). Grep over HEAD finds no `updateTicket(...).then` without a catch left (the board drop at 1039 has `.catch(e => reportFailure(...))`; the three other `.then` are read-only loads with `.catch`). The 85-41 wording "every staff handler" is now met literally. Vitest: 5 files, 173 passed (the 166 of the previous verification plus the 7 new WR-701/702 cases; run against the working tree, whose only extra is the user WIP download button/handler). |
 
-**Score:** 9/9 truths verified (5 roadmap success criteria, the three gap-round truth groups G-85-3, G-85-5 and G-85-4b, and the records/gate truth below); 0 present-but-behavior-unverified. One non-blocking warning (WR-701) qualifies truth 9.
+**Score:** 9/9 truths verified (5 roadmap success criteria, the three gap-round truth groups G-85-3, G-85-5 and G-85-4b, and the records/gate truth below); 0 present-but-behavior-unverified. No warning qualifies any truth.
 
 ### Records and gate truth (85-42)
 
 | Item | Status | Evidence |
 |------|--------|----------|
-| Disposition, CONTEXT, SECURITY, VALIDATION records | VERIFIED | `85-REVIEW-DISPOSITION.md`: WR-602 fixed 0efe58463, WR-603 fixed 6fcb73084, IN-604 fixed (3f70dbf6a, 200daaaf9, 4415379d6, ac80717e6), with the manifest write-entry note left open; the file now also carries the round-3 review rows WR-701/702 and IN-701..704 as open (c546abb24, 9ff208510). `85-CONTEXT.md` lines 161-162 hold D-42 and D-43. `85-SECURITY.md`: AR-85-11 reads SUPERSEDED 2026-11-10 with the original rationale kept (line 232); T-85-05 and T-85-20 carry the 85-37 wording followed by "Earlier wording:"; threats_open 0, 137 threats (secure-phase 3b7609ceb). `85-VALIDATION.md` rows 85-37..85-41 (lines 88-92). |
+| Disposition, CONTEXT, SECURITY, VALIDATION records | VERIFIED | `85-REVIEW-DISPOSITION.md`: WR-602 fixed 0efe58463, WR-603 fixed 6fcb73084, IN-604 fixed (3f70dbf6a, 200daaaf9, 4415379d6, ac80717e6), with the manifest write-entry note left open; the round-3 review rows WR-701/702 are now `fixed` (3d8a39763, c41a583bd) and IN-701..704 remain open (c546abb24, 9ff208510). `85-CONTEXT.md` lines 161-162 hold D-42 and D-43. `85-SECURITY.md`: AR-85-11 reads SUPERSEDED 2026-11-10 with the original rationale kept (line 232); T-85-05 and T-85-20 carry the 85-37 wording followed by "Earlier wording:"; threats_open 0, 137 threats (secure-phase 3b7609ceb). `85-VALIDATION.md` rows 85-37..85-41 (lines 88-92). |
 | 85-42 gate figures (backend 2,744 passed, vitest 1,922, build exit 0) | taken as reported | Not re-run in full (the full backend suite is excluded by the verification rules). I ran the targeted desk and notification suites on the private mongod (397 passed) and the five relevant vitest files (166 passed). |
 
 ### Required Artifacts
@@ -194,7 +186,7 @@ Evidence base: I read the committed code (`HEAD`), not the SUMMARY claims. For `
 | `backend/service_desk/handoff.py`, `messages.py` | rule in note and ledger; `OUTPUT_RULE_LABELS` (12 labels = `checks.RULES`), `STAFF_NOTE_RULE` | VERIFIED | Labels cover all 12 rules; `test_there_is_one_staff_label_per_output_rule` passes |
 | `backend/notification_audience.py` | `broadcastable` | VERIFIED | Wired in `notification_service.py` and `pending_agents.py` |
 | `backend/tickets_endpoints.py` | staff-only create fields dropped | VERIFIED | HEAD content read |
-| `components/InternalTicketsDashboard.tsx` | `isTicketStaff` gating and toasts | VERIFIED (WR-701 warning) | HEAD content read |
+| `components/InternalTicketsDashboard.tsx` | `isTicketStaff` gating and toasts on every staff action | VERIFIED | HEAD content read after 3d8a39763 |
 | `backend/tests/test_service_desk_citations.py`, `test_ticket_staff_create_fields.py`; `src/__tests__/TicketsRequesterControls.test.tsx`, `TicketsStaffActionErrors.test.tsx` | tests for the above | VERIFIED | Exist and pass |
 
 ### Key Link Verification
@@ -222,9 +214,9 @@ Evidence base: I read the committed code (`HEAD`), not the SUMMARY claims. For `
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
 | Citation, hand-off rule, create-field, audience, output-check, injection, pipeline and eval-script suites | `MONGO_TEST_URL=mongodb://127.0.0.1:27998 MONGODB_URL=... MONGO_URI=... TICKET_ATTACHMENT_DIR=$(mktemp -d) venv/bin/python -m pytest` on 10 desk/notification test files | 397 passed in 81.7 s | PASS |
-| Requester and staff views of the Tickets screen, staff-action toasts, reply visibility, requester comments, ticket panels | `npx vitest run` on 5 files | 5 files, 166 tests passed | PASS |
+| Requester and staff views of the Tickets screen, staff-action toasts (incl. WR-701/702 cases), reply visibility, requester comments, ticket panels | `npx vitest run` on 5 ticket test files | 5 files, 173 tests passed | PASS |
 | Printer reproduction and DESK-03 sets on the live model | not run (Ollama excluded) | 85-38-SUMMARY reports eval exit 0 (escalation 150/0, injection 33 with 25 to the model 0 failed, retrieval 100/0, margin 0.2268) and printer 3/3 citing only the printer article | taken as reported |
-| Full backend suite, full vitest, build | not run | 85-42 gate: 2,744 / 1,922 / exit 0 | taken as reported |
+| Full backend suite, full vitest, build | not run | 85-42 gate: backend 2,744 / vitest 1,922 / exit 0; after 3d8a39763 the commit reports full vitest 1,929 and build exit 0 | taken as reported |
 
 ### Probe Execution
 
@@ -246,15 +238,15 @@ All seven IDs appear in PLAN frontmatter (counts across the 42 plans: DESK-01 34
 
 ### Anti-Patterns Found
 
-None blocking. Debt-marker grep (`TBD|FIXME|XXX`) over `backend/service_desk`, `notification_audience.py`, `ticket_access.py`, `components/serviceDesk` and the committed `InternalTicketsDashboard.tsx` / `tickets_endpoints.py` found nothing. The residual silent-failure paths are WR-701 and WR-702 above (warnings).
+None blocking. Debt-marker grep (`TBD|FIXME|XXX`) over `backend/service_desk`, `notification_audience.py`, `ticket_access.py`, `components/serviceDesk` and the committed `InternalTicketsDashboard.tsx` / `tickets_endpoints.py` found nothing. WR-701 and WR-702 are closed (see truth 9); the grep of HEAD found no remaining `TBD|FIXME|XXX`.
 
 ### Human Verification Required
 
-See `human_verification` in the frontmatter: restart plus printer ticket end to end (G-85-3), the published requester view of the Tickets screen (G-85-4b), the Windows tray half of UAT test 3 (agent 2.1.18), live check of the requester-field and audience-notice behaviour (G-85-5), and the WR-701 / WR-702 decision. The live backend runs the pre-round code and the UI build in dist-new is not published, so no code of this round has reached a running system; every truth above is verified in the committed code and by tests only.
+See `human_verification` in the frontmatter (four items): restart plus printer ticket end to end (G-85-3), the published requester view of the Tickets screen (G-85-4b), the Windows tray half of UAT test 3 (agent 2.1.18), live check of the requester-field and audience-notice behaviour (G-85-5), and the live backend runs the pre-round code and the UI build in dist-new is not published, so no code of this round has reached a running system; every truth above is verified in the committed code and by tests only.
 
 ### Gaps Summary
 
-No blocking gaps. The three UAT round 3 gaps are closed in the committed code and pinned by tests: the printer answer is accepted citing only its article and a refused reply names its rule for staff only; a requester can neither set staff-only fields at creation nor receive audience-addressed notices over the tenant socket; a requester's Tickets screen offers no staff control. The one deviation from a plan wording is WR-701 (four silent staff paths against 85-41's "every staff handler"), judged a warning because every enumerated action toasts and requesters cannot reach the rest. Remaining work is live: restart, publish, UAT round 4 on the printer ticket and the requester screen, agent 2.1.18 publish and tray test, and the WR-701/702 decision.
+No blocking gaps. The three UAT round 3 gaps are closed in the committed code and pinned by tests: the printer answer is accepted citing only its article and a refused reply names its rule for staff only; a requester can neither set staff-only fields at creation nor receive audience-addressed notices over the tenant socket; a requester's Tickets screen offers no staff control. The earlier deviation from the 85-41 wording (WR-701, four silent staff paths) and WR-702 (stale list after a partial bulk delete) were fixed in 3d8a39763 and are confirmed in the committed code and by 7 new tests. Remaining work is live: restart, publish, UAT round 4 on the printer ticket and the requester screen, agent 2.1.18 publish and tray test, .
 
 ---
 
