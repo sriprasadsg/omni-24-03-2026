@@ -20,6 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import licensing
 import partner_pool
 import pending_agents
+import plan_notices
+import plan_service
 from tests import _enrollment_harness as harness
 from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 
@@ -204,3 +206,102 @@ async def test_the_next_machine_is_held_at_the_limit_and_enrolls_one_below_it(mo
     assert (await _doc(mongo_db, "t1"))["license"]["seatsUsed"] == 5
     code, body = await harness.register(mongo_db, "m2", hardware=harness.hw("S2"))
     assert code == 202 and body["pendingReason"] == "seat_limit"
+
+
+# -- every manual seat write is an override: approve-and-raise, partner moves, announce ---------------
+
+async def _pending(db, tid, agent_id="a1"):
+    await db.agents.insert_one({"id": agent_id, "tenantId": tid, "hostname": f"host-{agent_id}",
+                                "status": "Pending", "pendingReason": "seat_limit"})
+
+
+async def test_approve_and_raise_on_a_direct_tenant_stores_an_override_and_tells_the_admins(mongo_db):
+    await _tenant(mongo_db, "t1", seats=10, used=10)
+    await _pending(mongo_db, "t1")
+    with patch("audit_ledger.event", new=AsyncMock()) as ledger:
+        out = await pending_agents.approve(mongo_db, "a1", "root@example.com", raise_limit_by=3)
+    stored = await _doc(mongo_db, "t1")
+    assert out["status"] == "Offline" and out["license"]["maxAgents"] == 13
+    assert (stored["license"]["maxAgents"], stored["license"]["seatOverride"], stored["maxAgents"]) == (13, 13, 13)
+    assert stored["license"]["seatsUsed"] == 11
+    await licensing.apply_plan_seats(mongo_db, "Free", 8)
+    assert await _seats(mongo_db, "t1") == 13
+    ledger.assert_awaited_once()
+    (action, tenant_id), kwargs = ledger.await_args.args, ledger.await_args.kwargs
+    assert (action, tenant_id, kwargs["before"], kwargs["after"]) == ("seats.changed", "t1", 10, 13)
+    assert kwargs["actor"] == {"email": "root@example.com"}
+    notices = await mongo_db.notifications.find({"tenantId": "t1", "metadata.event": "seats.changed"}).to_list(10)
+    assert len(notices) == 1 and notices[0]["metadata"]["audience"] == pending_agents.TENANT_ADMIN_AUDIENCE
+    assert "10" in notices[0]["message"] and "13" in notices[0]["message"]
+
+
+async def test_approve_and_raise_on_a_partner_customer_goes_through_the_pool_and_stores_no_override(mongo_db):
+    await _partner(mongo_db, pool=100, allocated=10)
+    await _tenant(mongo_db, "c1", seats=10, used=10, partnerId="p1")
+    await _pending(mongo_db, "c1")
+    with patch("audit_ledger.event", new=AsyncMock()) as ledger:
+        await pending_agents.approve(mongo_db, "a1", "root", raise_limit_by=2)
+    stored = await _doc(mongo_db, "c1")
+    assert stored["license"]["maxAgents"] == 12 and "seatOverride" not in stored["license"]
+    assert (await _doc(mongo_db, "p1"))["partner"]["allocated"] == 12
+    ledger.assert_not_awaited()
+
+
+async def test_announce_never_raises_and_still_stores_the_notice(mongo_db):
+    await _tenant(mongo_db, "t1")
+    with patch("audit_ledger.event", new=AsyncMock(side_effect=RuntimeError("ledger down"))):
+        await plan_notices.announce(mongo_db, "t1", event="seats.changed", title="T", message="M",
+                                    actor={"email": "x@example.com"}, before=1, after=2)
+    assert await mongo_db.notifications.count_documents({"tenantId": "t1", "metadata.event": "seats.changed"}) == 1
+
+
+async def test_announce_survives_a_notice_failure_and_skips_the_platform(mongo_db):
+    await _tenant(mongo_db, "t1")
+    with patch("audit_ledger.event", new=AsyncMock()) as ledger, \
+            patch.object(pending_agents, "_post_in_app", new=AsyncMock(side_effect=RuntimeError("feed down"))):
+        await plan_notices.announce(mongo_db, "t1", event="seats.changed", title="T", message="M", actor="a@b.c")
+        ledger.assert_awaited_once()
+        await plan_notices.announce(mongo_db, "platform-admin", event="seats.changed", title="T", message="M", actor="a")
+        ledger.assert_awaited_once()  # the platform organization gets no notice (D-26)
+
+
+async def test_moving_a_customer_to_direct_keeps_its_seats_as_an_override_unless_they_equal_the_plan(mongo_db):
+    await _partner(mongo_db, pool=100, allocated=35)
+    await _tenant(mongo_db, "big", seats=30, partnerId="p1", **{"license": {"maxAgents": 30, "seatsUsed": 0,
+                                                                              "seatOverride": 99}})
+    await _tenant(mongo_db, "plain", seats=5, partnerId="p1")
+    assert (await partner_pool.move_customer(mongo_db, "big", None))["seats"] == 30
+    assert (await partner_pool.move_customer(mongo_db, "plain", None))["seats"] == 5
+    big, plain = await _doc(mongo_db, "big"), await _doc(mongo_db, "plain")
+    assert "partnerId" not in big and big["license"]["seatOverride"] == 30 and big["license"]["maxAgents"] == 30
+    assert "partnerId" not in plain and "seatOverride" not in plain["license"]
+    assert (await _doc(mongo_db, "p1"))["partner"]["allocated"] == 0
+    await licensing.apply_plan_seats(mongo_db, "Free", 8)  # the plan edit moves the one without an override only
+    assert (await _seats(mongo_db, "big"), await _seats(mongo_db, "plain")) == (30, 8)
+
+
+async def test_moving_a_direct_customer_to_a_partner_drops_the_override_and_the_allotment_decides(mongo_db):
+    await _partner(mongo_db, pool=100, allocated=0, pid="p2")
+    await _tenant(mongo_db, "c1", seats=12, **{"license": {"maxAgents": 12, "seatsUsed": 0, "seatOverride": 12}})
+    assert (await partner_pool.move_customer(mongo_db, "c1", "p2"))["to"] == "p2"
+    stored = await _doc(mongo_db, "c1")
+    assert stored["partnerId"] == "p2" and "seatOverride" not in stored["license"]
+    assert stored["license"]["maxAgents"] == 12
+    assert (await _doc(mongo_db, "p2"))["partner"]["allocated"] == 12
+    assert await licensing.apply_plan_seats(mongo_db, "Free", 8) == []  # a partner customer is never edited by a plan
+
+
+async def test_a_custom_plan_customer_moved_to_direct_always_keeps_an_override(mongo_db):
+    await _partner(mongo_db, pool=100, allocated=7)
+    await _tenant(mongo_db, "c1", plan="Custom", seats=7, partnerId="p1")
+    await partner_pool.move_customer(mongo_db, "c1", None)
+    assert (await _doc(mongo_db, "c1"))["license"]["seatOverride"] == 7
+
+
+async def test_the_plan_table_decides_the_move_comparison(mongo_db):
+    await plan_service.ensure_plans(mongo_db)
+    await mongo_db.plans.update_one({"key": "Free"}, {"$set": {"seats": 30}})
+    await _partner(mongo_db, pool=100, allocated=30)
+    await _tenant(mongo_db, "c1", seats=30, partnerId="p1")
+    await partner_pool.move_customer(mongo_db, "c1", None)
+    assert "seatOverride" not in (await _doc(mongo_db, "c1"))["license"]  # 30 is Free's number in this table

@@ -418,8 +418,13 @@ async def approve(db, agent_id: str, actor: str, raise_limit_by: int = 0) -> Dic
                 raise DecisionError(409, "no_free_seat: the partner's seat pool has no room; enlarge the pool first",
                                     await licensing.license_summary(db, tenant_id))
         else:
-            await raw.tenants.update_one(
-                {"id": tenant_id}, {"$inc": {"license.maxAgents": raise_limit_by, "maxAgents": raise_limit_by}})
+            before = licensing.license_of(tenant)["maxAgents"]
+            after = await licensing.raise_direct_seats(db, tenant_id, raise_limit_by)  # stored as the override (D-09)
+            import plan_notices
+            await plan_notices.announce(
+                db, tenant_id, event="seats.changed", title="Agent seat limit changed", actor={"email": actor},
+                message=f"The agent seat limit changed from {before} to {after}.",
+                before=before, after=after, via="approve_and_raise")
     if not await licensing.try_claim_seat(db, tenant_id):
         raise DecisionError(409, "no_free_seat: the tenant has no free agent seat; raise its limit to approve",
                             await licensing.license_summary(db, tenant_id))

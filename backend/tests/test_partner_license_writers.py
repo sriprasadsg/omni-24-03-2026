@@ -237,7 +237,8 @@ BACKEND_DIR = os.path.join(os.path.dirname(__file__), "..")
 SEAT_WRITER_ALLOWLIST = {"licensing.py", "partner_pool.py", "tenant_docs.py", "pending_agents.py",
                          "authentication_endpoints.py"}
 # Modules the scanner must always see, so a scanner that goes blind cannot pass the test.
-SEAT_WRITERS_KNOWN = {"licensing.py", "partner_pool.py", "tenant_docs.py", "pending_agents.py"}
+# pending_agents.py left this set in Phase 88: its approve-and-raise goes through licensing.raise_direct_seats.
+SEAT_WRITERS_KNOWN = {"licensing.py", "partner_pool.py", "tenant_docs.py"}
 _SKIP_FILES = {"database_migrations.py"}
 
 

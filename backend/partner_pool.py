@@ -199,7 +199,9 @@ async def set_pool_size(db, partner_id: str, new_size: int) -> None:
 async def move_customer(db, customer_id: str, target_partner_id: Optional[str]) -> Dict[str, Any]:
     """Move a customer into another partner's pool, or (target None) out to direct. The target's pool
     is claimed first (D-18), the customer is switched with a compare-and-set, then the old pool is released.
-    The customer's screens, agents and license are never touched (D-19)."""
+    The customer's screens, agents and license are never touched (D-19). A move to direct keeps the customer's
+    seats as ``license.seatOverride`` unless they equal its plan's seats; a move to a partner drops the
+    override, because the allotment decides there (D-44)."""
     tenants = _raw(db).tenants
     doc = None
     if customer_id != "platform-admin":
@@ -225,7 +227,16 @@ async def move_customer(db, customer_id: str, target_partner_id: Optional[str]) 
                                free=free, needed=seats)
     cas = {"id": customer_id, "type": {"$ne": "partner"}, **_seats_filter(doc, seats),
            "partnerId": old if old else {"$exists": False}}
-    update = {"$set": {"partnerId": target_partner_id}} if target_partner_id else {"$unset": {"partnerId": ""}}
+    if target_partner_id:
+        update: Dict[str, Any] = {"$set": {"partnerId": target_partner_id}, "$unset": {"license.seatOverride": ""}}
+    else:
+        import plan_service  # late: plan_service imports licensing, which partner_pool already imports
+        plan = (await plan_service.plans(db))[plan_service.plan_key_of(doc)]
+        update = {"$unset": {"partnerId": ""}}
+        if plan["key"] == "Custom" or seats != plan["seats"]:
+            update["$set"] = {"license.seatOverride": seats}
+        else:
+            update["$unset"]["license.seatOverride"] = ""
     if (await tenants.update_one(cas, update)).modified_count != 1:
         if target_partner_id:
             await release(db, target_partner_id, seats)
