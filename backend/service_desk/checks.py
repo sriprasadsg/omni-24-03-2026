@@ -5,6 +5,11 @@ answer that cites only the articles the desk gave it and says nothing its cited 
 rejected. Every rule is a fixed, pure function of the reply and the cited article text: no model judgement
 and no reply field other than ``answer`` and ``cited`` is read. Stdlib and pydantic only.
 
+Citations the desk did not give are dropped, not punished (G-85-3): ``given_citations`` keeps only the cited
+numbers that name a given article, so a model that also cites an article's step numbers keeps its grounded
+answer. ``unknown_citation`` therefore means that none of the cited numbers is a given article, and the
+grounding rules compare only against the given articles the reply cites.
+
 ``check`` returns the first failing rule, in this order: the citation rules (empty_answer, no_citation,
 unknown_citation), the length rules (too_long, too_many_lines; blank lines are not counted), html (a tag, an
 entity left after decoding, a markdown image), then, for the extracted fragments, foreign_link (URLs with a
@@ -12,8 +17,8 @@ scheme, www hosts, markdown link targets, bare domains, and a dotted token with 
 look-alike or IDN domain), foreign_email, foreign_phone (a run of 7 or more digits with the usual separators), foreign_command (backtick spans, prompt
 lines, shell words and flags, pipes and redirects) and foreign_number (4 or more digits). A fragment passes only when it occurs, compared
 casefolded and with spaces collapsed, as a whole word or token in the text of the articles the reply cites;
-an article that was given but not cited does not count. A single ">" is not a redirect (menu paths such as
-"Settings > Network" are ordinary help text); ">>", "2>" and a ">" followed by a file name are.
+an article that was given but not cited, or cited but not given, does not count. A single ">" is not a
+redirect (menu paths such as "Settings > Network" are ordinary help text); ">>", "2>" and a ">" followed by a file name are.
 
 The reply is folded (sanitize.fold_text: compatibility forms, hidden and bidi characters, the ideographic
 dots) before any rule runs, and the cited article text is folded the same way, so a fragment is compared
@@ -134,8 +139,14 @@ def _is_html(answer: str) -> bool:
     return bool(_TAG.search(answer) or _TAG.search(decoded) or _ENTITY.search(answer) or _MD_IMAGE.search(answer))
 
 
-def _cited_text(reply: Reply, cited_texts: Optional[Mapping]) -> str:
-    """The normalised text of the articles the reply cites; none given means no text."""
+def given_citations(reply: Reply, given_ids: Iterable[int]) -> List[int]:
+    """The numbers the reply cites that name a given article: first-seen order, no duplicates (G-85-3, D-19)."""
+    given = set(given_ids)
+    return [number for number in dict.fromkeys(reply.cited) if number in given]
+
+
+def _cited_text(reply: Reply, cited_texts: Optional[Mapping], given_ids: Iterable[int]) -> str:
+    """The normalised text of the given articles the reply cites; none given means no text."""
     if not cited_texts:
         return ""
     by_number = {}
@@ -144,22 +155,22 @@ def _cited_text(reply: Reply, cited_texts: Optional[Mapping]) -> str:
             by_number[int(key)] = value if isinstance(value, str) else ""
         except (TypeError, ValueError):
             continue
-    return "\n".join(_norm(by_number.get(number, "")) for number in dict.fromkeys(reply.cited))
+    return "\n".join(_norm(by_number.get(number, "")) for number in given_citations(reply, given_ids))
 
 
 def check(reply: Reply, given_ids: Iterable[int], cited_texts: Optional[Mapping] = None) -> Optional[str]:
     """None when the reply may be used, else the name of the first failing rule.
 
     ``given_ids`` are the numbers of the articles the model was given; ``cited_texts`` maps each of those
-    numbers to the article text (None reads as no article text, so any link, address, phone, command or
-    long number in the reply then fails)."""
+    numbers to the article text; cited numbers outside ``given_ids`` are dropped (None reads as no article
+    text, so any link, address, phone, command or long number in the reply then fails)."""
     given = set(given_ids)
     answer = fold_text(reply.answer)
     if not answer.strip():
         return "empty_answer"
     if not reply.cited:
         return "no_citation"
-    if any(number not in given for number in reply.cited):
+    if not given_citations(reply, given):
         return "unknown_citation"
     if len(answer) > ANSWER_MAX_CHARS:
         return "too_long"
@@ -186,7 +197,7 @@ def check(reply: Reply, given_ids: Iterable[int], cited_texts: Optional[Mapping]
     rest = _PHONE.sub(lambda m: _blank_phone(m, phones), rest)
     _take(_NUMBER, rest, numbers)
 
-    allowed = _cited_text(reply, cited_texts)
+    allowed = _cited_text(reply, cited_texts, given)
     for rule, fragments in (("foreign_link", links), ("foreign_email", emails), ("foreign_phone", phones),
                             ("foreign_command", commands), ("foreign_number", numbers)):
         if any(not _present(fragment, allowed) for fragment in fragments):

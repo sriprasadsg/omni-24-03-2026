@@ -23,7 +23,7 @@ from autonomous_ops.scope import raw
 
 from . import (DESCRIPTION_CAP, NUM_PREDICT, SYSTEM_AUTHOR, TITLE_CAP, handoff, outcomes, projection, retrieval, rules,
                runtime, settings)
-from .checks import check, parse_reply
+from .checks import check, given_citations, parse_reply
 from .model import ModelError, OllamaClient
 from .sanitize import build_prompt, clean_text
 
@@ -130,7 +130,7 @@ async def answer(db, prepared: Prepared, client: OllamaClient, *, now: Optional[
                                      can_see=can_see)
     decision = await gate.decide(db, request, now=now)
 
-    cited = [prepared.matches[n - 1] for n in dict.fromkeys(parsed.cited)]
+    cited = [prepared.matches[n - 1] for n in given_citations(parsed, given)]
     details = dict(action_id=decision.action_id, text=parsed.answer, cited=cited, matched=len(prepared.matches),
                    title=clean_text(ticket.get("title"), TITLE_CAP), now=now)
     if decision.outcome == "refuse" or not decision.action_id:
