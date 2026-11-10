@@ -715,19 +715,32 @@ Plans:
 **Plans:** 16 plans
 
 Plans:
+**Wave 1**
 - [ ] 88-01-PLAN.md — prerequisite commit decision + tracer: plan seats and Free trial at creation, trial_ended hold, licence view
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 88-02-PLAN.md — plan seats, overrides, platform unlimited, approve-and-raise and partner moves as overrides
 - [ ] 88-03-PLAN.md — D-29 screen seed + shared ceiling function; partner customers limited by plan and partner ceiling
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 88-04-PLAN.md — one change_plan path for the Super Admin; payment route records only (D-39); plan-writer drift guard
 - [ ] 88-05-PLAN.md — allowed networks on the server-observed IP: learn first, hold new networks, approve with bounded range
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 88-06-PLAN.md — trial extension and override clear in the licence PATCH; sign-up trial; 7/1-day reminders
 - [ ] 88-07-PLAN.md — cross-tenant duplicate hold and silent-copy retirement at enrollment, without name leaks
 - [ ] 88-08-PLAN.md — Super Admin Plans API, seat edits applied at once
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 88-09-PLAN.md — cross-tenant approvals move the machine, heartbeat refusal, restore, hourly live-pair report
 - [ ] 88-10-PLAN.md — partner plan ceiling, customer plans and trials, partner plan change and trial extension
-- [ ] 88-11-PLAN.md — migration 034 (plans, seats, trials, networks, indexes) + read-only go-live check
 - [ ] 88-12-PLAN.md — UI: Plans screen in Tenant Management; Manage Tenant plan ceiling; Add Tenant defaults to Free
 - [ ] 88-13-PLAN.md — UI: tenant licence card on Agents; Super Admin licence panel plan, override, trial, networks
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 88-11-PLAN.md — migration 034 (plans, seats, trials, networks, indexes) + read-only go-live check
 - [ ] 88-14-PLAN.md — UI: Pending reasons, network range on approval, cross-tenant move, moved-agent restore
 - [ ] 88-15-PLAN.md — UI: partner plan ceiling form, portal plan and trial controls, picker plan limit
+
+**Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 88-16-PLAN.md — go-live hand-off (user restart, proxy pin, publish, push) + read-only live check
