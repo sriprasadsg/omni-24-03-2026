@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 38/42 plans executed: 23 in 6 waves, a gap round of 6 plans in 5 waves (executed), a second gap round of 7 plans in 7 waves for UAT gap G-85-4 (executed), and a third gap round of 6 plans in 6 waves for UAT gaps G-85-3, G-85-4b and G-85-5 (planned)
+**Plans**: 39/42 plans executed: 23 in 6 waves, a gap round of 6 plans in 5 waves (executed), a second gap round of 7 plans in 7 waves for UAT gap G-85-4 (executed), and a third gap round of 6 plans in 6 waves for UAT gaps G-85-3, G-85-4b and G-85-5 (planned)
 
 Plans:
 **Wave 1**
@@ -618,7 +618,7 @@ Plans:
 **Gap closure 3 (UAT round 3: G-85-3, G-85-4b, G-85-5; user decision 2026-11-10 to fix WR-602 and WR-603):** 6 plans in 6 waves, run in order (they share the git index for the user-WIP staging)
 - [x] 85-37-PLAN.md — A reply that cites an article's step numbers keeps only the given citation (the printer starter is drafted, not handed off); articles reach the model as A1..An (G-85-3)
 - [x] 85-38-PLAN.md — A refused answer names its failing output rule in the staff note and the ledger row, never to the requester; live re-check on llama3.2:3b: the DESK-03 sets and the printer answer 3/3 (G-85-3) *(after 85-37)*
-- [ ] 85-39-PLAN.md — A requester's new ticket keeps none of the staff-only fields (assignee, group, watchers, approval, SLA, due date), also via templates (WR-603); audience-tagged notices are never pushed on the tenant socket, pending-agent notices included (WR-602) (G-85-5) *(after 85-38)*
+- [x] 85-39-PLAN.md — A requester's new ticket keeps none of the staff-only fields (assignee, group, watchers, approval, SLA, due date), also via templates (WR-603); audience-tagged notices are never pushed on the tenant socket, pending-agent notices included (WR-602) (G-85-5) *(after 85-38)*
 - [ ] 85-40-PLAN.md — The Tickets screen hides staff-only controls from requesters (manage:tickets): panel, tabs, list, board and the New Ticket form (IN-604) (G-85-4b) *(after 85-39)*
 - [ ] 85-41-PLAN.md — Every staff action on the Tickets screen shows its failure in an error toast instead of failing silently (G-85-4b) *(after 85-40)*
 - [ ] 85-42-PLAN.md — The whole Phase 85 gate on the third gap round; WR-602, WR-603, IN-604 recorded fixed, AR-85-11 re-recorded, T-85-05/T-85-20 reworded, D-42 and D-43, VALIDATION rows *(after all)*
@@ -702,6 +702,6 @@ Plans:
 | 82. Platform Self-Healing & Scheduled Retention | 17/17 | Complete    | 2026-11-07 |
 | 83. Autonomous Security Response | 20/20 | Complete    | 2026-11-07 |
 | 84. Staged Patch Rollouts | 29/29 | Complete    | 2026-11-07 |
-| 85. First-Line Service Desk | 38/42 | In Progress | - |
+| 85. First-Line Service Desk | 39/42 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
