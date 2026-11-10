@@ -322,6 +322,7 @@ Plans:
 - [ ] **Phase 85: First-Line Service Desk** - New tickets are answered from the knowledge base with citations or escalated by fixed rules, and never answered when the model is unavailable
 - [ ] **Phase 86: Activity Reporting, Hardening & Live Validation** - Daily digest, per-rule statistics, export and a time-saved estimate, plus stop drills, two-tenant isolation checks and live validation across every automatic actor
 - [x] **Phase 87: Partner and Reseller Channel** - Partners appointed by the Super Admin hold a seat pool, create their own customer organizations and assign seats to them; partner admins see only their customers (completed 2026-11-07)
+- [ ] **Phase 88: Plan-Based Licensing & Network Enrollment Rules** - The tenant's plan sets its seats, allowed public networks, OS/server classes and features; new machines from outside the allowed networks, or already live in another tenant, wait for approval; running ones are never cut off
 
 ### Phase 81: Autonomy Gate, Stop Switch & Activity Ledger
 
@@ -705,3 +706,13 @@ Plans:
 | 85. First-Line Service Desk | 42/42 | In Progress | - |
 | 86. Activity Reporting, Hardening & Live Validation | 0/TBD | Not started | - |
 | 87. Partner and Reseller Channel | 15/15 | Complete    | 2026-11-07 |
+
+### Phase 88: Plan-Based Licensing & Network Enrollment Rules
+
+**Goal:** A tenant's subscription plan (Free / Pro / Enterprise / Custom, the tiers already in `tenants.subscriptionTier` and `billing_service.SUBSCRIPTION_LIMITS`) decides what it may enroll and use: its agent seat limit (today `license.maxAgents` is set by hand), how many allowed public networks (sites) it may register and whether the network rule is available, which OS/server classes it may enroll (the existing C4 OS-class sub-limits), and which features it unlocks (the `minTier` already in `feature_catalog.py`, never checked today). Network rule (decided 2026-11-10): a tenant lists its allowed public networks (IPs or CIDR ranges); a NEW machine enrolling from outside them is held Pending for approval, like the C4 hardware allowlist, and machines already enrolled are never cut off, so roaming laptops keep working. Cross-tenant duplicate hold (added 2026-11-10): a machine whose hardware (serial or SMBIOS UUID) belongs to a live seat-holding agent in another tenant is held Pending for platform approval instead of enrolling a second time, so one licence cannot cover the same computer in two organizations (today each tenant gives it its own agent id and nothing checks across tenants). Builds on hardware-bound seats (`seat_identity`), `asset_identity`, `machine_identity` (one agent id per machine), `license_rules.hold_reason`, `pending_agents` and the Phase 87 partner seat pools.
+**Requirements**: TBD
+**Depends on:** Phase 87
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 88 to break down)

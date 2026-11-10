@@ -5,17 +5,17 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: human_needed
-stopped_at: Phase 85 re-verified human_needed 9/9 after the third gap round (G-85-3, G-85-4b, G-85-5 closed in code); 5 UAT items in 85-UAT.md
-last_updated: "2026-11-10T13:12:31.324Z"
+stopped_at: Phase 88 context gathered (D-01..D-38, e1b9e88be)
+last_updated: "2026-11-10T18:19:32.184Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 85 gap round 3 executed (85-37..85-42), validate/secure/review/regression/verifier done; human_needed
-state_head: b1964f6343a75d51c0a8df4b80b3161b4193308d
+state_head: e1b9e88be2824431e4b708c95320186145083545
 progress:
-  total_phases: 7
-  completed_phases: 5
+  total_phases: 8
+  completed_phases: 6
   total_plans: 141
   completed_plans: 141
-  percent: 86
+  percent: 75
 ---
 
 # Project State
@@ -987,9 +987,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-10T13:12:31.005Z
-**Stopped at:** Completed 85-42-PLAN.md
-**Resume file:** None
+**Last session:** 2026-11-10T18:19:31.783Z
+**Stopped at:** Phase 88 context gathered (D-01..D-38, e1b9e88be)
+**Resume file:** .planning/phases/88-plan-based-licensing-network-enrollment-rules/88-CONTEXT.md
 
 ## Accumulated Context
 
@@ -1006,6 +1006,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - v4.3 Autonomous Ops started 2026-10-25 AHEAD of v4.2's open phases, by the user's choice: v4.2 is paused, not complete (77 complete; 75–76 deployed, awaiting verification; 78–80 costing not started) and resumes after v4.3. Its phase folders were deliberately NOT archived (`phases.clear` skipped), its requirements stay in REQUIREMENTS.md, and its milestone research was copied to `milestones/v4.2-research/` before v4.3 research reused `.planning/research/`. v4.3 phases start at 81 so 78–80 keep their numbers. The user asked for "ASI"; agreed scope is Autonomous Ops — never label it ASI or "Autopilot" (Windows Autopilot already exists).
 - Phase 74 added 2026-08-26: Interactive Remote Desktop Control (Zoho Assist parity) — upgrades the existing view-only screenshot-stream remote access feature to attended interactive control (input relay, consent gate, control:remote_access permission, audit log). First phase of a new post-v4.1 cycle; no milestone version assigned yet.
 - Phase 87 added: Partner and Reseller Channel (user request 2026-11-02: appoint retailers/dealers, seat pools of 100 or 1000)
+- Phase 88 added: Plan-Based Licensing & Network Enrollment Rules: plan sets seats, allowed public networks (new machines from outside held Pending, running ones never cut off), OS/server classes and features (user decisions 2026-11-10)
+- Phase 88 edited: edited fields: goal (added cross-tenant duplicate hold: hardware live in another tenant is held Pending)
 
 ### Pending Todos
 
@@ -1018,7 +1020,7 @@ Phase: 85 (First-Line Service Desk) — HUMAN VERIFICATION NEEDED
 Plan: 42 of 42
 Status: human_needed
 Last activity: 2026-11-10 — Phase 85 third gap round (85-37..85-42) executed and re-verified human_needed 9/9
-Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
+Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
 
 ## Deferred Items
 
