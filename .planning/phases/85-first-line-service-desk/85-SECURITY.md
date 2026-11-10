@@ -192,6 +192,20 @@ created: "2026-11-09"
 | T-85-126 | Repudiation | AR-85-01, AR-85-04 and AR-85-09 still recorded as accepted after the user reversed them (85-36) | medium | mitigate | The three rows re-recorded as SUPERSEDED with the replacement rule (Accepted Risks Log) | closed |
 | T-85-127 | Tampering / Denial of Service | the gate writing into the live mongod (85-36) | medium | mitigate | Private mongod URLs on the gate command; omni_test_ databases on 27017 counted 0 before and 0 after (85-36-SUMMARY) | closed |
 | T-85-SC | Tampering | dependencies (gap plans 85-30..85-36) | low | accept | No package is installed; `git diff f8335a1ae..HEAD` touches no dependency file | closed |
+| T-85-128 | Tampering | a reply mixing a given citation with ones that were not given (step numbers, injected ids) (85-37) | high | mitigate | `checks.given_citations` drops citations that were not given before any row is written; grounding uses only the given cited articles; a reply naming no given article is refused (`backend/service_desk/checks.py`, `pipeline.py`; `test_service_desk_citations.py`, output-check fixture rows) | closed |
+| T-85-129 | Tampering | the A-id prompt shape weakening the injection defences (85-37) | high | mitigate | Forged tags of any id form still neutralised by `sanitize._DELIMITER`; one `PROMPT_TAGS` pattern shared by the eval script and `test_service_desk_injection.py`; offline injection and sanitiser sets green | closed |
+| T-85-130 | Information Disclosure | the failing rule or the refused model text reaching the requester (85-38) | medium | mitigate | Rule label only in the staff-visibility note and the ledger row; the requester notice is unchanged; the refused reply is not stored (`handoff.py`, `messages.OUTPUT_RULE_LABELS`; tested on `projection.requester_items` in `test_service_desk_citations.py`) | closed |
+| T-85-131 | Repudiation | refused answers staff cannot tell apart (85-38) | low | mitigate | `desk.rule` and the reasonText name the rule on every output-check hand-off (`handoff.py`) | closed |
+| T-85-132 | Tampering | the A-id prompt behaving differently on the real model (85-38) | high | mitigate | Live on llama3.2:3b: `service_desk_eval.py --sets` 0 failed (escalation 150, injection 33, retrieval 100, margin 0.2268) and the printer reproduction passed 3/3 (85-38-SUMMARY) | closed |
+| T-85-133 | Elevation of Privilege | a requester setting assignee, group, watchers, approval or SLA fields at creation, directly or through template defaults (WR-603, 85-39) | high | mitigate | `create_ticket` drops `_STAFF_ONLY_CREATE_FIELDS` for non-staff before and after the template merge, approval kept true only from a template (`tickets_endpoints.py`; `test_ticket_staff_create_fields.py`, 5 tests) | closed |
+| T-85-134 | Information Disclosure | tenant_admins notices (agent hostname, seat usage, desk breaker) pushed to every tenant user on the socket (WR-602, 85-39) | medium | mitigate | `notification_audience.broadcastable` gates `send_alert` and `pending_agents._post_in_app`; never-pushed tests per audience and an AST scan of every `broadcast_notification` caller (`test_service_desk_notification_audience.py`, `test_pending_agents.py`) | closed |
+| T-85-135 | Information Disclosure | the platform tenant's untagged pending-agent notice pushed to platform users (85-39) | low | accept | AR-85-15 | closed |
+| T-85-136 | Elevation of Privilege | staff-only ticket controls offered to requesters on the Tickets screen (IN-604, 85-40) | medium | mitigate | Server refuses them since 85-34; the screen derives `isTicketStaff` from manage:tickets (delete from manage:settings) and hides every staff control (`InternalTicketsDashboard.tsx`; `TicketsRequesterControls.test.tsx`, 22 tests) | closed |
+| T-85-137 | Tampering | the New Ticket form sending staff-only fields for a requester (85-40) | low | mitigate | `TicketModal` neither shows nor sends the six fields for a requester (`TicketsRequesterControls.test.tsx` New Ticket case); the server drops them since 85-39 | closed |
+| T-85-138 | Repudiation | AR-85-11 still accepted and T-85-05 / T-85-20 describing the pre-85-37 citation rule (85-42) | medium | mitigate | AR-85-11 re-recorded SUPERSEDED; T-85-05 and T-85-20 carry the 85-37 wording with the earlier text after "Earlier wording:" (b1964f634) | closed |
+| T-85-139 | Tampering / Denial of Service | the gate writing into the live mongod (85-42) | medium | mitigate | Private mongod URLs on the gate command; omni_test_ databases on 27017 counted 0 before and 0 after (85-42-SUMMARY) | closed |
+| T-85-140 | Repudiation | a staff action failing silently on the Tickets screen (85-41) | low | mitigate | One `reportFailure` helper in the catch of every staff mutation; one test per action with a rejecting helper (`TicketsStaffActionErrors.test.tsx`) | closed |
+| T-85-SC | Tampering | dependencies (gap plans 85-37..85-42) | low | accept | No package is installed; `git diff 7916e185b..HEAD` touches no dependency file | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
 *Severity: critical > high > medium > low — only open threats at or above workflow.security_block_on count toward threats_open*
@@ -219,6 +233,7 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 | AR-85-12 | T-85-111 | A-85-G21: ticket lifecycle notices written with no audience or recipient (created, status changed, assigned, SLA breached, escalated) still reach every tenant user in the feed and history; outside G-85-4 UD-1..UD-4, needs a product decision, reported to the user as a follow-up | planner (85-31 threat model), confirmed by secure-phase L1 audit | 2026-11-09 |
 | AR-85-13 | T-85-118 | A-85-G27: the AI chat `/tickets` skill (`skill_handlers_queries.handle_tickets`) lists the five newest tenant ticket titles and statuses to any chat user; outside /api/tickets, titles only, the skill receives no user identity; reported to the user as a follow-up | planner (85-33 threat model), confirmed by secure-phase L1 audit | 2026-11-09 |
 | AR-85-14 | T-85-120 | The standing part of AR-85-09: ticket staff keep staff actions on a ticket they raised (and get the requester projection of it); unchanged by G-85-4 | planner (85-34 threat model), confirmed by secure-phase L1 audit | 2026-11-09 |
+| AR-85-15 | T-85-135 | A-85-G40: `pending_agents.post_to_recipients` writes an untagged notice to the platform tenant's feed, which every platform user reads through reader_filter; its push to the platform tenant's sockets is kept because the socket then shows the same people what the feed already shows them | planner (85-39 threat model), confirmed by secure-phase L1 audit | 2026-11-10 |
 
 *Accepted risks do not resurface in future audit runs.*
 
@@ -252,6 +267,15 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 
 ---
 
+## Audit Notes — third gap round (2026-11-10, secure-phase L1, ASVS L1)
+
+- **Result:** SECURED by the L1 short-circuit (register authored at plan time, ASVS level 1, nothing open at or above high). The gap plans 85-37..85-42 added 13 unique threats, T-85-128..T-85-140, plus a T-85-SC row. 12 mitigations were found in committed code, tests or the gate record by grep-depth evidence at HEAD 627311fe8 (file and test named in each row), and 1 is accepted (AR-85-15). Nothing is open at any severity.
+- **Superseded acceptance:** AR-85-11 (T-85-101) is superseded by T-85-134 (WR-602 fixed in 0efe58463).
+- **Test evidence:** the 85-42 gate passed 2,744 backend tests (0 failed, 0 skipped, private mongod), 1,922 Vitest tests and the build; the live re-check on llama3.2:3b is in 85-38-SUMMARY.
+- **Audit scope:** the user's uncommitted edits stayed in the working tree (backend/tickets_endpoints.py attachment download, components/InternalTicketsDashboard.tsx Download button, services/apiService.ts); every row cites committed code, which carries none of them.
+
+---
+
 ## Security Audit Trail
 
 | Audit Date | Threats Total | Closed | Open | Run By |
@@ -259,6 +283,7 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 | 2026-11-09 | 83 | 83 | 0 | gsd-security-auditor (sonnet), ASVS L1, block_on high |
 | 2026-11-09 (gap round) | 101 | 101 | 0 | gsd-security-auditor (sonnet), ASVS L1, block_on high: T-85-87..104 added, T-85-77 reclassified to mitigate |
 | 2026-11-09 (second gap round) | 124 | 124 | 0 | secure-phase L1 short-circuit (orchestrator), ASVS L1, block_on high: T-85-105..127 added, AR-85-12..14 accepted |
+| 2026-11-10 (third gap round) | 137 | 137 | 0 | secure-phase L1 short-circuit (orchestrator), ASVS L1, block_on high: T-85-128..140 added, AR-85-15 accepted, AR-85-11 superseded |
 
 ---
 
@@ -269,7 +294,7 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-11-09
+**Approval:** verified 2026-11-09, re-verified 2026-11-10 (third gap round)
 
 ## Security Audit 2026-11-09
 
@@ -293,4 +318,12 @@ Evidence for every row (file:line and pinning test) is in the gsd-security-audit
 |---|---|
 | Threats found | 124 |
 | Closed | 124 |
+| Open | 0 |
+
+## Security Audit 2026-11-10
+
+| Metric | Count |
+|---|---|
+| Threats found | 137 |
+| Closed | 137 |
 | Open | 0 |
