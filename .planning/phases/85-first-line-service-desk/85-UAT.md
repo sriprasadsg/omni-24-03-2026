@@ -3,7 +3,7 @@ status: testing
 phase: 85-first-line-service-desk
 source: [85-VERIFICATION.md]
 started: 2026-11-10T13:28:33Z
-updated: 2026-11-10T13:59:42Z
+updated: 2026-11-10T14:09:52Z
 ---
 
 ## Current Test
@@ -13,7 +13,7 @@ name: Windows tray round trip (agent 2.1.18 published), the tray half of UAT tes
 expected: |
   Raise a Ticket from the tray, see the AI-assisted answer pop-up, and "this fixed it" / "I still need help" behave
   as on the portal.
-awaiting: user response
+awaiting: a Windows PC enrolled in ABC with agent 2.1.18 (server side of the tray verified; see test 3)
 
 ## Tests
 
@@ -32,7 +32,9 @@ note: "Run by Claude in headless Chromium (gstack browse) on the published UI in
 
 ### 3. Windows tray round trip (agent 2.1.18 published), the tray half of UAT test 3
 expected: Raise a Ticket from the tray, see the AI-assisted answer pop-up, and "this fixed it" / "I still need help" behave as on the portal.
-result: [pending]
+result: blocked
+blocked_by: "No Windows PC enrolled in ABC; the tray (the Windows agent's My tickets window and answer pop-up) cannot run on this Linux VM. Agent 2.1.18 is published (894ca4203)."
+note: "SERVER SIDE verified by Claude at the user's request, 2026-11-10 14:08 UTC, against the live API: a temporary Windows agent (UAT85-TRAY-TEST, version 2.1.18) registered in ABC through /api/agents/register (status Online, 1 of 5 seats) and drove the five tray routes as Windows user UAT85TRAY\\dana. Ticket A (printer): create 200, stored raised_via tray, requester_channel {tray, myTickets, windowsUser, template report_issue}; desk drafted; before the analyst's send the tray list showed status 'Received - IT has your ticket.', no entries, canConfirm false; after the send it showed status pending_customer, 'Answer ready - please tell us if it fixed the problem.', one entry headed 'Answer from IT support (AI-assisted)' citing 'Fixing a printer that will not print', canConfirm and canHelp true, plus the footnote naming the Windows user; another Windows user on the same computer (UAT85TRAY\\sam) saw no ticket and got 404 on confirm; 'this fixed it' from the tray resolved it. Ticket B: drafted, sent, 'I still need help' from the tray -> status open, desk phase helped. No staff-only text appeared in any tray response. Not checked live: the cited-article route (a second token could not be issued: re-registering the existing agent answers 409, the enrollment lockout); it is covered by the tray unit tests. Temporary agent, asset, analyst, tickets, desk jobs, ledger rows, login event and the lazily migrated 'Legacy key' enrollment record archived to ~/omni-archives/uat85-r4-t3/ and removed; audit_logs left in place. Remaining human check: the real tray on a Windows PC enrolled in ABC (raise a ticket, the pop-up, the two buttons)."
 
 ### 4. After the restart, check G-85-5 live
 expected: A ticket created by a requester with watchers, assignee or approval_required in the body keeps none of the six staff-only fields; a pending-agent notice for a tenant with two users is seen only by a tenant admin in the feed, and no non-admin socket receives it.
@@ -49,8 +51,8 @@ note: "User chose to fix both (2026-11-10, 'fix WR-701 and WR-702 now'). Fixed i
 total: 5
 passed: 4
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
-blocked: 0
+blocked: 1
 
 ## Gaps
