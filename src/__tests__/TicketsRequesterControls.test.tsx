@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 
 const api = vi.hoisted(() => {
   const fn = () => vi.fn();
@@ -179,5 +179,112 @@ describe('ticket staff (manage:tickets) on the same ticket', () => {
     await openTicket();
     expect(screen.getByRole('button', { name: /Approve Install/ })).toBeInTheDocument();
     expect(screen.getByText(/Software Install Request/)).toBeInTheDocument();
+  });
+});
+
+// ------------------------------------------------------------------------------------ the list, the board and the form
+
+const listCheckboxes = async () => {
+  const table = (await screen.findByText('Cannot reset password')).closest('table')!;
+  return within(table).queryAllByRole('checkbox');
+};
+const FORM_LABELS = ['Assignee (email)', 'Team / Group', 'Due Date', 'SLA Hours (override)', 'Requires approval before processing'];
+const openForm = async () => {
+  await screen.findByText('Cannot reset password');
+  fireEvent.click(screen.getByRole('button', { name: /New Ticket/ }));
+  return screen.findByPlaceholderText('Brief summary of the issue');
+};
+
+describe('the list and the bulk bar', () => {
+  it('give a requester no row checkbox, no bulk bar and no delete button', async () => {
+    asRequester();
+    expect(await listCheckboxes()).toHaveLength(0);
+    expect(screen.queryByText(/selected$/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete TKT-0042' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: /Overdue only/ })).toBeInTheDocument();
+  });
+
+  it('give ticket staff the checkboxes and the bulk bar but no delete without manage:settings', async () => {
+    asStaff();
+    const boxes = await listCheckboxes();
+    expect(boxes).toHaveLength(2);
+    fireEvent.click(boxes[1]);
+    expect(await screen.findByText('1 selected')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Delete selected' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete TKT-0042' })).toBeNull();
+  });
+
+  it('give staff with manage:settings the row delete button and the Delete selected option', async () => {
+    asStaff([ticket()], ['manage:settings']);
+    const boxes = await listCheckboxes();
+    fireEvent.click(boxes[1]);
+    expect(await screen.findByRole('option', { name: 'Delete selected' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete TKT-0042' })).toBeInTheDocument();
+  });
+});
+
+describe('the board', () => {
+  const cards = async () => {
+    await screen.findByText('Cannot reset password');
+    fireEvent.click(screen.getByTitle('Kanban view'));
+    return (await screen.findByText('Cannot reset password')).closest('[draggable]') as HTMLElement | null;
+  };
+
+  it('makes no card draggable for a requester', async () => {
+    asRequester();
+    const card = await cards();
+    expect(card === null || card.getAttribute('draggable') !== 'true').toBe(true);
+  });
+
+  it('makes cards draggable for ticket staff', async () => {
+    asStaff();
+    const card = await cards();
+    expect(card?.getAttribute('draggable')).toBe('true');
+  });
+
+  it('does not move a ticket when a requester drops one on a column', async () => {
+    asRequester();
+    await cards();
+    const column = screen.getByText('In Progress').closest('div[class*="w-72"]')!;
+    fireEvent.drop(column, { dataTransfer: { getData: () => 't-1' } });
+    expect(api.updateTicket).not.toHaveBeenCalled();
+  });
+});
+
+describe('the New Ticket form', () => {
+  it('shows a requester no staff-only input', async () => {
+    asRequester();
+    await openForm();
+    FORM_LABELS.forEach(l => expect(screen.queryByText(l)).toBeNull());
+    expect(screen.getByText('Title *')).toBeInTheDocument();
+  });
+
+  it('shows ticket staff all five inputs', async () => {
+    asStaff();
+    await openForm();
+    FORM_LABELS.forEach(l => expect(screen.getByText(l)).toBeInTheDocument());
+  });
+
+  it('sends a requester payload without any staff-only key', async () => {
+    api.createTicket.mockResolvedValue(ticket({ ticket_number: 'TKT-0043' }));
+    asRequester();
+    const title = await openForm();
+    fireEvent.change(title, { target: { value: 'Printer jam' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Ticket' }));
+    await waitFor(() => expect(api.createTicket).toHaveBeenCalledTimes(1));
+    const payload = api.createTicket.mock.calls[0][0];
+    ['assignee', 'assignee_group', 'watchers', 'approval_required', 'sla_hours', 'due_date'].forEach(k => expect(payload).not.toHaveProperty(k));
+    expect(payload.title).toBe('Printer jam');
+  });
+
+  it('keeps the staff-only keys in the payload of ticket staff', async () => {
+    api.createTicket.mockResolvedValue(ticket({ ticket_number: 'TKT-0044' }));
+    asStaff();
+    const title = await openForm();
+    fireEvent.change(title, { target: { value: 'Rack swap' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Ticket' }));
+    await waitFor(() => expect(api.createTicket).toHaveBeenCalledTimes(1));
+    expect(api.createTicket.mock.calls[0][0]).toHaveProperty('assignee');
+    expect(api.createTicket.mock.calls[0][0]).toHaveProperty('approval_required');
   });
 });
