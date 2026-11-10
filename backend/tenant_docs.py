@@ -24,8 +24,11 @@ def build_tenant_doc(
     subscription_tier: str = "Free",
     notification_preferences: Optional[Dict[str, Any]] = None,
     partner_id: Optional[str] = None,
+    seat_override: Optional[int] = None,
+    trial: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """The document ``create_tenant`` has always stored, plus ``partnerId`` when one is given."""
+    """The document ``create_tenant`` has always stored, plus ``partnerId`` when one is given, the
+    ``license.seatOverride`` of an explicit seat number and the plan's ``trial`` record (Phase 88)."""
     now = datetime.now(timezone.utc).isoformat()
     doc: Dict[str, Any] = {
         "id": f"tenant_{uuid.uuid4().hex[:12]}",
@@ -43,6 +46,10 @@ def build_tenant_doc(
         "createdAt": now,
         "updatedAt": now,
     }
+    if seat_override is not None:
+        doc["license"]["seatOverride"] = seat_override
+    if trial is not None:
+        doc["trial"] = trial
     if partner_id:
         doc["partnerId"] = partner_id
     return doc

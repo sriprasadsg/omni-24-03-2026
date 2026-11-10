@@ -158,6 +158,8 @@ _REFUSAL_TEXT = {
                        "it will connect once approved.",
     REASON_DUPLICATE_HARDWARE: "duplicate_hardware_id: this machine is already enrolled as another agent that was "
                                "seen in the last 24 hours. It is waiting for approval.",
+    "trial_ended": "trial_ended: the free trial of this organization has ended. This computer is waiting for "
+                   "approval by your provider.",
 }
 
 
@@ -258,6 +260,7 @@ _REASON_TEXT = {
     "not_allowlisted": "the machine is not on the tenant's hardware allowlist",
     "key_exhausted": "its install key is used up, expired or revoked",
     "license_expired": "the tenant's agent license has expired",
+    "trial_ended": "the organization's free trial has ended",
 }
 
 

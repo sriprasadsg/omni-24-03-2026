@@ -14,6 +14,7 @@ import agent_capabilities
 from cache_service import invalidate_cache
 import license_rules
 import licensing
+import plan_service
 from rate_limiter import limiter
 from catalogue_mounts_billing_identity import (
     TENANT_BRANDING_DISPLAY, TENANT_CONTROLS_READ_GUARD, TENANT_MANAGEMENT_GUARD, TENANT_PLATFORM_STAFF,
@@ -60,7 +61,8 @@ class TenantCreate(BaseModel):
     # only. The Super Admin then ticks each feature and screen in Manage Tenant (spec C6).
     enabledFeatures: List[str] = Field(default_factory=lambda: list(tenant_features.START_FEATURES))
     notificationPreferences: Dict[str, Any] = {}
-    maxAgents: int = Field(licensing.DEFAULT_MAX_AGENTS, ge=0, le=licensing.MAX_AGENTS_CEILING)
+    # None follows the plan's seats (Phase 88, D-03); a number is an override (D-09).
+    maxAgents: Optional[int] = Field(None, ge=0, le=licensing.MAX_AGENTS_CEILING)
 
 @router.get("", dependencies=[Depends(TENANT_PLATFORM_STAFF)])
 async def get_tenants(current_user = Depends(get_current_user)):
@@ -103,10 +105,17 @@ async def create_tenant(data: TenantCreate, current_user = Depends(get_current_u
     if existing:
         raise HTTPException(status_code=400, detail="Tenant already exists")
         
+    # Seats and the Free trial come from the stored plan (D-03, D-23).
+    try:
+        terms = await plan_service.new_tenant_terms(mongodb.db, data.subscriptionTier, data.maxAgents)
+    except plan_service.PlanError as err:
+        raise HTTPException(status_code=err.status, detail=err.args[0])
+
     # The same builder a partner's customer comes from; no partnerId means a direct customer (D-12).
     tenant_doc = tenant_docs.build_tenant_doc(
-        data.name, max_agents=data.maxAgents, enabled_features=data.enabledFeatures,
-        subscription_tier=data.subscriptionTier, notification_preferences=data.notificationPreferences)
+        data.name, max_agents=terms["max_agents"], enabled_features=data.enabledFeatures,
+        subscription_tier=terms["plan"], notification_preferences=data.notificationPreferences,
+        seat_override=terms["seat_override"], trial=terms["trial"])
     tenant_id = tenant_doc["id"]
     
     await mongodb.db.tenants.insert_one(tenant_doc)
@@ -700,11 +709,11 @@ class LicenseUpdate(BaseModel):
 
 @router.get("/{tenant_id}/license", dependencies=[Depends(TENANT_CONTROLS_READ_GUARD)])
 async def get_tenant_license(tenant_id: str, current_user=Depends(get_current_user)):
-    """Seat limit and usage. Platform staff read any tenant; others only their own."""
+    """Seat limit, usage, plan, trial and learned networks. Platform staff read any tenant; others only their own."""
     _assert_tenant_read(current_user, tenant_id)
     if not await mongodb.db.tenants.find_one({"id": tenant_id}, {"_id": 1}):
         raise HTTPException(status_code=404, detail="Tenant not found")
-    return await licensing.license_summary(mongodb.db, tenant_id)
+    return await plan_service.licence_view(mongodb.db, tenant_id)
 
 
 @router.patch("/{tenant_id}/license", dependencies=[Depends(TENANT_PLATFORM_STAFF)])

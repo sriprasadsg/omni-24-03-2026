@@ -26,7 +26,8 @@ from tests._mongo_test_db import mongo_db  # noqa: F401  (fixture)
 SUPER = TokenData(username="root@example.com", role="Super Admin", tenant_id="platform-admin", mfa_verified=True)
 
 PRE_CHANGE_KEYS = {"id", "name", "subscriptionTier", "registrationKey", "enabledFeatures", "agentCapabilities",
-                   "notificationPreferences", "emailConfig", "maxAgents", "license", "createdAt", "updatedAt"}
+                   "notificationPreferences", "emailConfig", "maxAgents", "license", "createdAt", "updatedAt",
+                   "trial"}
 
 
 @pytest.fixture

@@ -1,7 +1,8 @@
 """Enrollment controls beyond the seat count (spec C4).
 
-A new enrollment is checked, in order, against: license expiry (``license_expired``),
-the hardware allowlist (``not_allowlisted``), the OS-class sub-limit
+A new enrollment is checked, in order, against: license expiry (``license_expired``), the end of
+a Free tenant's trial (``trial_ended``, Phase 88; the platform organization is exempt and a tenant
+with no trial record is admitted), the hardware allowlist (``not_allowlisted``), the OS-class sub-limit
 (``sublimit:os:<class>``) and the install key's default-group sub-limit
 (``sublimit:group:<id>``). The first rule it fails holds it Pending with that reason;
 the total seat limit (licensing.try_claim_seat) still applies after all of them.
@@ -22,10 +23,13 @@ from typing import Any, Dict, List, Optional
 
 import agent_allowlist
 import licensing
+import plan_service
+import plan_trial
 
 logger = logging.getLogger(__name__)
 
 REASON_EXPIRED = "license_expired"
+REASON_TRIAL_ENDED = "trial_ended"
 REASON_NOT_ALLOWLISTED = "not_allowlisted"
 REASON_KEY_EXHAUSTED = "key_exhausted"
 
@@ -134,6 +138,8 @@ async def hold_reason(db, tenant: Dict[str, Any], hardware: Dict[str, Any], plat
         pool_expiry = ((partner or {}).get("partner") or {}).get("expiresAt")
         if isinstance(pool_expiry, str) and expired({"expiresAt": pool_expiry}):
             return REASON_EXPIRED
+    if not plan_service.is_exempt(fresh) and plan_service.plan_key_of(fresh) == "Free" and plan_trial.ended(fresh):
+        return REASON_TRIAL_ENDED  # D-05, D-21: the Free trial is over; a missing trial record admits (fails open)
     if lic["allowlistMode"] == "enforce" and not await agent_allowlist.matches(db, tenant["id"], hardware):
         return REASON_NOT_ALLOWLISTED
     cls = os_class(hardware, platform)
