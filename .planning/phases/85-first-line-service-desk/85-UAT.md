@@ -3,18 +3,16 @@ status: testing
 phase: 85-first-line-service-desk
 source: [85-VERIFICATION.md]
 started: 2026-11-10T13:28:33Z
-updated: 2026-11-10T13:48:40Z
+updated: 2026-11-10T13:59:42Z
 ---
 
 ## Current Test
 
-number: 2
-name: Publish the UI build (dist-new) and check the Tickets screen as a User-role requester, then as an analyst
+number: 3
+name: Windows tray round trip (agent 2.1.18 published), the tray half of UAT test 3
 expected: |
-  The requester sees no status buttons, Escalate, Merge, Watchers, Approve/Deny, attachment delete, Work Log / Links
-  tabs, row checkboxes, bulk bar or board drag; New Ticket has no Assignee, Group, Due Date, SLA Hours or approval
-  input; the "staff only" hint is absent; own tickets, the answer panel, comments to IT and file upload/download still
-  work. The analyst sees every control again.
+  Raise a Ticket from the tray, see the AI-assisted answer pop-up, and "this fixed it" / "I still need help" behave
+  as on the portal.
 awaiting: user response
 
 ## Tests
@@ -29,7 +27,8 @@ note: "Run by Claude against the live API at the user's request, 2026-11-10 13:4
 
 ### 2. Publish the UI build (dist-new) and check the Tickets screen as a User-role requester, then as an analyst
 expected: The requester sees no status buttons, Escalate, Merge, Watchers, Approve/Deny, attachment delete, Work Log / Links tabs, row checkboxes, bulk bar or board drag; New Ticket has no Assignee, Group, Due Date, SLA Hours or approval input; the "staff only" hint is absent; own tickets, the answer panel, comments to IT and file upload/download still work. The analyst sees every control again.
-result: [pending]
+result: pass
+note: "Run by Claude in headless Chromium (gstack browse) on the published UI index-jGfWTNYG.js at https://127.0.0.1, 2026-11-10 13:55 UTC, at the user's request; temporary ABC requester (User) and analyst (Analyst) signed in through the login form; data: the printer ticket (drafted, answer sent by the analyst) with an attachment. Requester: list shows only own TKT-0001, no row checkboxes, bulk bar or row delete; ticket panel has the answer panel with 'This fixed it' / 'I still need help', tabs Details, Comments, History, Files only, no status buttons, Escalate, Merge, Watchers, add-watcher box, Approve, title not click-to-edit; Comments tab has no staff hint and shows only the sent AI answer; Files tab shows Download, no Delete; New Ticket has Title, Description, Type, Priority, Tags, Agent/Host only; board has 0 draggable cards. Live actions as the requester: upload (POST attachments 200, file listed with Download only), download (GET .../download 200, 38 B), comment (POST comments 200, shown, toast 'Sent to IT. A person will take over.'). Analyst: row checkboxes and the bulk bar (no Delete option: analyst lacks manage:settings, A-85-G42), status buttons, Escalate, Merge, Watchers + add-watcher box, all six tabs, editable title, staff hint, reply picker, Delete + Download per file, draggable board card, New Ticket with Assignee, Team/Group, Due Date, SLA Hours and 'Requires approval'. Screenshots in ~/omni-archives/uat85-r4-t2/. Observation: ABC requesters now also see the read-only Agents page, because the User role holds view:agents and ABC got screen:agents today. Temporary accounts, ticket, desk job, ledger rows, notices, login events archived and removed; the two uploaded files moved to the archive."
 
 ### 3. Windows tray round trip (agent 2.1.18 published), the tray half of UAT test 3
 expected: Raise a Ticket from the tray, see the AI-assisted answer pop-up, and "this fixed it" / "I still need help" behave as on the portal.
@@ -48,9 +47,9 @@ note: "User chose to fix both (2026-11-10, 'fix WR-701 and WR-702 now'). Fixed i
 ## Summary
 
 total: 5
-passed: 3
+passed: 4
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
