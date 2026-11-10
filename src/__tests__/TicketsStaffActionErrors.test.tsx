@@ -346,3 +346,98 @@ describe('the successful paths stay as they were', () => {
     expect(toast).not.toHaveBeenCalled();
   });
 });
+
+// ------------------------------------------------------------- the paths the third-round review found silent (WR-701)
+
+describe('the staff paths the review found silent (WR-701)', () => {
+  it('a refused rename by the Enter key shows the error', async () => {
+    api.updateTicket.mockRejectedValue(new Error('Rename refused'));
+    asStaff();
+    await openTicket();
+    fireEvent.click(screen.getByTitle('Click to edit'));
+    const box = screen.getByDisplayValue('Cannot reset password');
+    fireEvent.change(box, { target: { value: 'Password reset link expired' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await expectToast('Rename refused');
+    expect(api.updateTicket).toHaveBeenCalledWith('t-1', { title: 'Password reset link expired' });
+  });
+
+  it('a refused rename on leaving the box shows the error', async () => {
+    api.updateTicket.mockRejectedValue('nope');
+    asStaff();
+    await openTicket();
+    fireEvent.click(screen.getByTitle('Click to edit'));
+    fireEvent.blur(screen.getByDisplayValue('Cannot reset password'));
+    await expectToast('Failed to update ticket');
+  });
+
+  it('a refused Start Remediation on a security finding shows the error', async () => {
+    api.updateTicket.mockRejectedValue(new Error('Failed to update ticket'));
+    asStaff([ticket({ type: 'security' })]);
+    await openTicket();
+    fireEvent.click(screen.getByRole('button', { name: 'Start Remediation' }));
+    await expectToast('Failed to update ticket');
+    expect(api.updateTicket).toHaveBeenCalledWith('t-1', { status: 'in_progress' });
+  });
+
+  it('a refused staff note shows the error and keeps the typed note', async () => {
+    api.addTicketComment.mockRejectedValue(new Error('Failed to add comment'));
+    asStaff();
+    await openTicket();
+    await openTab('Comments');
+    const box = await screen.findByPlaceholderText('Add a comment… (Enter to send, @ to mention)');
+    fireEvent.change(box, { target: { value: 'Checked the AD account' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await expectToast('Failed to add comment');
+    expect(api.addTicketComment).toHaveBeenCalledWith('t-1', 'Checked the AD account');
+    expect(box).toHaveValue('Checked the AD account');
+  });
+
+  it('a refused upload shows the error', async () => {
+    api.uploadTicketAttachment.mockRejectedValue(new Error('File too large'));
+    const { container } = asStaff();
+    await openTicket();
+    await openTab('Files');
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'log.txt', { type: 'text/plain' })] } });
+    await expectToast('File too large');
+    expect(api.uploadTicketAttachment).toHaveBeenCalledWith('t-1', expect.any(File));
+  });
+});
+
+// ------------------------------------------------------------------------- a bulk delete that fails part-way (WR-702)
+
+describe('a bulk delete that fails part-way (WR-702)', () => {
+  it('drops only the deleted tickets, keeps the refused one selected and reloads the list', async () => {
+    const second = ticket({ id: 't-2', ticket_number: 'TKT-0043', title: 'VPN drops every hour' });
+    api.deleteTicket.mockImplementation(async (id: string) => {
+      if (id === 't-2') throw new Error('Failed to delete ticket');
+      return {};
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    asStaff([ticket(), second], ['manage:settings']);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all tickets' }));
+    api.fetchTickets.mockResolvedValue({ tickets: [second] }); // what the server holds after the partial delete
+    const loadsBefore = api.fetchTickets.mock.calls.length;
+    fireEvent.change(await screen.findByDisplayValue('Bulk action…'), { target: { value: 'delete' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await expectToast('Failed to delete ticket');
+    expect(api.deleteTicket).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.queryByText('Cannot reset password')).toBeNull());
+    expect(screen.getByText('VPN drops every hour')).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(api.fetchTickets.mock.calls.length).toBeGreaterThan(loadsBefore);
+    confirmSpy.mockRestore();
+  });
+
+  it('a failed bulk status change reloads the list', async () => {
+    api.bulkUpdateTickets.mockRejectedValue(new Error('Failed to update tickets'));
+    asStaff();
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select TKT-0042' }));
+    const loadsBefore = api.fetchTickets.mock.calls.length;
+    fireEvent.change(await screen.findByDisplayValue('Bulk action…'), { target: { value: 'status:resolved' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await expectToast('Failed to update tickets');
+    await waitFor(() => expect(api.fetchTickets.mock.calls.length).toBeGreaterThan(loadsBefore));
+  });
+});

@@ -619,7 +619,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
       setReplyTo('staff');
       void refreshDesk(selected.id);
     } catch (e) {
-      if (!toRequester) throw e;
+      if (!toRequester) { reportFailure(e, 'Failed to add comment'); return; }
       const detail = (e as { detail?: unknown; status?: unknown })?.detail;
       const message = typeof detail === 'string' ? detail.trim() : '';
       setReplyError((e as { status?: unknown })?.status === 400 && message ? message
@@ -630,14 +630,19 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selected || !e.target.files?.[0]) return;
     const file = e.target.files[0];
-    await uploadTicketAttachment(selected.id, file);
-    const t = await fetchTickets({ }).then(() => null); // reload selected
+    try {
+      await uploadTicketAttachment(selected.id, file);
+    } catch (err) {
+      reportFailure(err, 'Failed to upload attachment');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     // Re-fetch just the selected ticket
     try {
       const { tickets: list } = await fetchTickets({});
       const fresh = list.find((x: Ticket) => x.id === selected.id);
       if (fresh) { setSelected(fresh); setTickets(prev => prev.map(x => x.id === fresh.id ? fresh : x)); }
-    } catch (e) { console.error('Failed to reload ticket after attachment upload:', e); }
+    } catch (err) { console.error('Failed to reload ticket after attachment upload:', err); }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -766,13 +771,25 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
     try {
       if (action === 'delete') {
         if (!confirm(`Delete ${ids.length} tickets?`)) return;
-        await Promise.all(ids.map(id => deleteTicket(id)));
-        setTickets(prev => prev.filter(t => !ids.includes(t.id)));
+        // Every delete runs to the end; only the tickets the server removed leave the list and the selection (WR-702).
+        const results = await Promise.allSettled(ids.map(id => deleteTicket(id)));
+        const deleted = ids.filter((_id, i) => results[i].status === 'fulfilled');
+        setTickets(prev => prev.filter(t => !deleted.includes(t.id)));
+        const refused = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (refused) {
+          setSelectedIds(new Set(ids.filter(id => !deleted.includes(id))));
+          reportFailure(refused.reason, 'Failed to delete tickets');
+          load();
+          return;
+        }
       } else if (Object.keys(updates).length) {
         await bulkUpdateTickets(ids, updates);
       }
       setSelectedIds(new Set()); setBulkAction(''); load();
-    } catch (e) { reportFailure(e, action === 'delete' ? 'Failed to delete tickets' : 'Failed to update tickets'); }
+    } catch (e) {
+      reportFailure(e, action === 'delete' ? 'Failed to delete tickets' : 'Failed to update tickets');
+      load(); // show what the server holds now (WR-702)
+    }
   };
 
   // ── Kanban ────────────────────────────────────────────────────────────────
@@ -1087,9 +1104,9 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   className="bg-transparent border-b border-teal-500 text-gray-900 dark:text-white font-semibold text-sm w-full focus:outline-none"
                   value={titleDraft}
                   onChange={e => setTitleDraft(e.target.value)}
-                  onBlur={() => { updateTicket(selected.id, {title: titleDraft}).then(t => setSelected(t)); setEditingTitle(false); }}
+                  onBlur={() => { setEditingTitle(false); handlePatch({ title: titleDraft }); }}
                   onKeyDown={e => {
-                    if (e.key === 'Enter') { updateTicket(selected.id, {title: titleDraft}).then(t => setSelected(t)); setEditingTitle(false); }
+                    if (e.key === 'Enter') { setEditingTitle(false); handlePatch({ title: titleDraft }); }
                     if (e.key === 'Escape') setEditingTitle(false);
                   }}
                 />
@@ -1284,7 +1301,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         </div>
                         {isTicketStaff && !isDone && (
                           <div className="flex gap-2 pt-1">
-                            <button onClick={() => updateTicket(selected.id, {status:'in_progress'}).then(t => setSelected(t))}
+                            <button onClick={() => handlePatch({ status: 'in_progress' })}
                               className="flex-1 py-1.5 bg-rose-700 hover:bg-rose-600 text-white text-xs rounded font-medium">
                               Start Remediation
                             </button>
