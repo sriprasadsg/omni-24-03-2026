@@ -3,17 +3,18 @@ status: testing
 phase: 85-first-line-service-desk
 source: [85-VERIFICATION.md]
 started: 2026-11-10T13:28:33Z
-updated: 2026-11-10T13:33:23Z
+updated: 2026-11-10T13:48:40Z
 ---
 
 ## Current Test
 
-number: 1
-name: Restart the backend and re-run the G-85-3 printer ticket end to end
+number: 2
+name: Publish the UI build (dist-new) and check the Tickets screen as a User-role requester, then as an analyst
 expected: |
-  Raised as a requester on the portal at desk mode drafts, "My printer will not print" is drafted (or posted where
-  the gate allows) citing only "Fixing a printer that will not print", not handed off. If any reply is refused, the
-  staff note and the Activity row name the failing rule, and the requester sees only "A person from IT will look at this."
+  The requester sees no status buttons, Escalate, Merge, Watchers, Approve/Deny, attachment delete, Work Log / Links
+  tabs, row checkboxes, bulk bar or board drag; New Ticket has no Assignee, Group, Due Date, SLA Hours or approval
+  input; the "staff only" hint is absent; own tickets, the answer panel, comments to IT and file upload/download still
+  work. The analyst sees every control again.
 awaiting: user response
 
 ## Tests
@@ -23,7 +24,8 @@ awaiting: user response
 
 ### 1. Restart the backend and re-run the G-85-3 printer ticket end to end
 expected: Raised as a requester on the portal at desk mode drafts, "My printer will not print" is drafted (or posted where the gate allows) citing only "Fixing a printer that will not print", not handed off; if any reply is refused, the staff note and the Activity row name the failing rule, and the requester sees only "A person from IT will look at this."
-result: [pending]
+result: pass
+note: "Run by Claude against the live API at the user's request, 2026-11-10 13:43 UTC, after the backend restart at 13:38 (PID 3332111, round-3 backend live), with temporary ABC accounts (archived to ~/omni-archives/uat85-r4/ and removed). The requester raised 'My printer will not print' (incident, portal): desk job done, reason drafted; the analyst's desk view shows a draft citing only 'Fixing a printer that will not print' (answer: 'Check the printer's power, paper, and toner/ink, and clear any paper jams. Also, ensure the correct printer is chosen in the print dialog.'); ledger row ticket_answer kept as a draft (ABC is in shadow mode), no rule. Before the send the requester's ticket and desk view showed no comment and no draft; after the analyst sent it the requester saw only the ai_answer (status pending_customer, canConfirm true); 'this fixed it' resolved the ticket. No staff note or unsent draft was ever returned to the requester. No reply was refused, so the rule note was not exercised live (covered by the 85-38 tests)."
 
 ### 2. Publish the UI build (dist-new) and check the Tickets screen as a User-role requester, then as an analyst
 expected: The requester sees no status buttons, Escalate, Merge, Watchers, Approve/Deny, attachment delete, Work Log / Links tabs, row checkboxes, bulk bar or board drag; New Ticket has no Assignee, Group, Due Date, SLA Hours or approval input; the "staff only" hint is absent; own tickets, the answer panel, comments to IT and file upload/download still work. The analyst sees every control again.
@@ -35,7 +37,8 @@ result: [pending]
 
 ### 4. After the restart, check G-85-5 live
 expected: A ticket created by a requester with watchers, assignee or approval_required in the body keeps none of the six staff-only fields; a pending-agent notice for a tenant with two users is seen only by a tenant admin in the feed, and no non-admin socket receives it.
-result: [pending]
+result: pass
+note: "Run by Claude against the live API, same run and accounts as test 1, plus a temporary Tenant Admin enrolled in MFA through /api/mfa/setup + verify-setup. (a) The requester's POST /api/tickets with assignee x@example.com, assignee_group 'Team X', watchers [outsider@example.com], approval_required true, sla_hours 1, due_date 2026-12-01 stored assignee '', group '', watchers [], approval_required false, sla_hours 72 (priority default) and a computed due date; the analyst's identical request stored all six as sent. (b) Socket.IO clients for the requester, analyst and admin were connected first; all three received the untagged 'New Ticket' notices (positive control). Trigger: the Autonomous Ops stop for ABC, whose notice takes the same pending_agents.post_to_recipients -> _post_in_app path as the pending-agent notice (a real pending-agent notice needs an agent enrolling over the seat limit; not faked). The ABC notice was stored once with audience tenant_admins and NO socket (requester, analyst or admin) received it; the requester's and analyst's feeds do not show it. Not shown: the admin's feed did not show it either, because ABC's Tenant Admin does not hold manage:agents (the Agents screen is not ticked for ABC; reader_filter shows tenant_admins notices only to manage:agents holders). Finding: ABC's Tenant Admin holds control:autonomous_ops but not manage:autonomous_ops (only view:autonomous_ops is ticked), so the stop could be pressed but the resume answered 403 'Missing required permission: manage:autonomous_ops'; ABC's stop was put back to null directly in the database (prior value; settings archived) and the test rows archived and removed. 23 hash-chained audit_logs entries left in place."
 
 ### 5. Decide on review findings WR-701 and WR-702 before deployment
 expected: Either the fixes (reportFailure on the title edit and the Start button of security-incident tickets, a catch in handleComment's staff-note branch, a try/catch in handleUpload; load() in the bulk catch) or a written acceptance.
@@ -45,9 +48,9 @@ note: "User chose to fix both (2026-11-10, 'fix WR-701 and WR-702 now'). Fixed i
 ## Summary
 
 total: 5
-passed: 1
+passed: 3
 issues: 0
-pending: 4
+pending: 2
 skipped: 0
 blocked: 0
 
