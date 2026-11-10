@@ -371,6 +371,22 @@ async def test_hand_written_status_cannot_admit_a_pending_agent(mongo_db):
     assert exc.value.status_code == 409
 
 
+async def test_pending_alert_for_the_tenant_is_never_pushed_on_the_socket(mongo_db):
+    """protects=WR-602 / G-85-5 / PROH-85-32 / T-85-134: the tenant_admins alert (host name, seat usage) reaches
+    the feed only; the platform tenant's untagged notice keeps its push (A-85-G40); fails_when=the tenant's sockets
+    get a push, the platform one is lost, or a feed record is missing; no_claim=real WebSocket delivery."""
+    import websocket_manager
+    pushed = AsyncMock()
+    with patch.object(websocket_manager, "broadcast_notification", pushed):
+        await pending_agents.post_to_recipients(mongo_db, {"id": T, "name": "Acme"}, "Agent waiting", "WIN-7 wants a seat",
+                                                "warning", {"event": "agent_pending"})
+    assert [c.args[0] for c in pushed.await_args_list] == ["platform-admin"]
+    platform = await mongo_db.notifications.find_one({"tenantId": "platform-admin"})
+    tenant = await mongo_db.notifications.find_one({"tenantId": T})
+    assert "audience" not in (platform["metadata"] or {})
+    assert tenant["metadata"]["audience"] == "tenant_admins"
+
+
 async def test_notification_feed_keeps_admin_alerts_from_other_users(mongo_db):
     """protects=alerts addressed to tenant admins (host details) are not served to users who
     cannot manage agents; fails_when=a viewer reads them or an admin misses them;

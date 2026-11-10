@@ -6,10 +6,12 @@ reaches the ticket's reporter (not in the feed, not on the tenant socket), and a
 the notices they can read; fails_when=the reporter's feed lists a staff-only comment notice, the tenant socket
 carries one, a colleague's mark-read, read-all or delete touches a notice addressed to someone else, or a
 colleague stops reading the staff notice or their own and the tenant-wide ones; no_claim=notices stored before the
-fix (they carry no exclusion, A-85-G14) and the tenant_admins push on the socket (A-85-G15). The structural test
+fix (they carry no exclusion, A-85-G14). A notice with any audience is never pushed on the socket (85-39, WR-602;
+it replaces A-85-G15). The structural test
 that every notice route calls the filter moved to test_notification_audience_structure.py (85-31), which scans the
 whole backend; ticket_staff notices are read by ticket staff only (G-85-4 UD-2).
 """
+import ast
 import json
 import os
 import sys
@@ -118,14 +120,106 @@ async def test_a_requester_reply_keeps_its_blank_push_for_the_recipient(world):
     assert len(pushes) == 1 and pushes[0]["metadata"]["recipient"] == "alice@x.co" and pushes[0]["message"] == ""
 
 
-@pytest.mark.parametrize("metadata", [None, {"event": "x"}, {"audience": "tenant_admins"}])
-async def test_other_notices_are_still_pushed_with_their_full_text(world, metadata):
-    """protects=the push of every notice that is not a staff-only comment; fails_when=a notice without the
-    ticket_staff audience stops being pushed or loses its title or message."""
+@pytest.mark.parametrize("metadata", [None, {"event": "x"}])
+async def test_untagged_notices_are_still_pushed_with_their_full_text(world, metadata):
+    """protects=the push of every notice that carries no audience; fails_when=a notice without an audience
+    stops being pushed or loses its title or message."""
     from notification_service import get_notification_service
     await get_notification_service(world.db).send_alert(
         title="T", message="M", severity="info", recipients=[], tenant_id="t1", channels=[], metadata=metadata)
     assert len(world.pushed) == 1 and world.pushed[0]["title"] == "T" and world.pushed[0]["message"] == "M"
+
+
+@pytest.mark.parametrize("audience", ["tenant_admins", "ticket_staff", "anything_new"])
+async def test_a_notice_with_an_audience_is_stored_once_and_never_pushed(world, audience):
+    """protects=WR-602 / G-85-5 / PROH-85-32 / T-85-134; fails_when=a notice whose metadata carries any
+    audience reaches the tenant-wide socket (which cannot apply reader_filter), or is not stored exactly once."""
+    from notification_service import get_notification_service
+    await get_notification_service(world.db).send_alert(
+        title="T", message="host WIN-7 uses 5 of 5 seats", severity="info", recipients=[], tenant_id="t1",
+        channels=[], metadata={"audience": audience})
+    assert world.pushed == []
+    assert await world.db.notifications.count_documents({"metadata.audience": audience}) == 1
+
+
+@pytest.mark.parametrize("metadata, expected", [
+    (None, True), ({}, True), ({"event": "x"}, True), ({"recipient": "a@x.co"}, True),
+    ({"audience": "tenant_admins"}, False), ({"audience": "ticket_staff"}, False), ({"audience": "anything_new"}, False),
+    ("", True), ("audience", False), (["tenant_admins"], False),
+])
+def test_broadcastable_is_true_only_without_an_audience(metadata, expected):
+    """protects=WR-602 push rule; fails_when=a notice with an audience is broadcastable, or one without is not;
+    a non-dict value is broadcastable only when it is None or empty."""
+    from notification_audience import broadcastable
+    assert broadcastable(metadata) is expected
+
+
+def _broadcast_functions(tree):
+    """The functions of one module that import or call broadcast_notification (any alias) and whether each
+    also calls broadcastable."""
+    aliases = {"broadcast_notification"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            aliases |= {a.asname for a in node.names if a.name == "broadcast_notification" and a.asname}
+    found = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        uses, gated = False, False
+        for node in ast.walk(fn):
+            if isinstance(node, ast.ImportFrom) and any(a.name == "broadcast_notification" for a in node.names):
+                uses = True
+            elif isinstance(node, ast.Name) and node.id in aliases:
+                uses = True
+            elif isinstance(node, ast.Attribute) and node.attr == "broadcast_notification":
+                uses = True
+            if isinstance(node, ast.Call):
+                callee = node.func
+                if (isinstance(callee, ast.Name) and callee.id == "broadcastable") or \
+                        (isinstance(callee, ast.Attribute) and callee.attr == "broadcastable"):
+                    gated = True
+        if uses:
+            found.append((fn.name, gated))
+    return found
+
+
+def _scan_broadcast_callers(root):
+    skip = {"venv", "tests", "__pycache__", "node_modules"}
+    result = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip and not d.startswith(".")]
+        for name in filenames:
+            if not name.endswith(".py") or name == "websocket_manager.py":
+                continue
+            path = os.path.join(dirpath, name)
+            with open(path, "rb") as handle:
+                raw = handle.read()
+            if b"broadcast_notification" in raw:
+                result[os.path.relpath(path, root)] = _broadcast_functions(ast.parse(raw))
+    return result
+
+
+def test_every_caller_of_the_tenant_broadcast_asks_broadcastable_first():
+    """protects=WR-602 / PROH-85-32 for future callers; fails_when=a backend function pushes through
+    broadcast_notification without calling broadcastable, or the scan stops finding the two known callers."""
+    backend = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    callers = _scan_broadcast_callers(backend)
+    names = {(path, fn) for path, fns in callers.items() for fn, _ in fns}
+    assert ("notification_service.py", "send_alert") in names and ("pending_agents.py", "_post_in_app") in names
+    ungated = [(path, fn) for path, fns in callers.items() for fn, gated in fns if not gated]
+    assert ungated == []
+
+
+def test_the_caller_scan_fails_for_a_function_that_broadcasts_without_the_rule():
+    """protects=the scan itself; fails_when=an aliased or attribute call of broadcast_notification with no
+    broadcastable call passes, or a gated one fails."""
+    bad = ("async def a(t, m):\n    from websocket_manager import broadcast_notification as push\n    await push(t, m)\n"
+           "async def b(t, m):\n    import websocket_manager\n    await websocket_manager.broadcast_notification(t, m)\n")
+    good = ("async def c(t, m):\n    from notification_audience import broadcastable\n"
+            "    from websocket_manager import broadcast_notification\n"
+            "    if broadcastable(m):\n        await broadcast_notification(t, m)\n")
+    assert _broadcast_functions(ast.parse(bad)) == [("a", False), ("b", False)]
+    assert _broadcast_functions(ast.parse(good)) == [("c", True)]
 
 
 # ---------------------------------------------------------------- Task 3: the write routes

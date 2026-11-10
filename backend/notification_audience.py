@@ -47,3 +47,15 @@ async def reader_filter(user: Any, tenant_id: str, *, all_tenants: bool = False)
         {"metadata.excludeRecipients": {"$nin": me}},
     ]
     return query
+
+
+def broadcastable(metadata: Any) -> bool:
+    """Whether a notice may be pushed on the tenant-wide WebSocket: only when its metadata carries no audience.
+
+    The tenant socket reaches every connected user of the tenant and cannot apply ``reader_filter``, so a notice
+    addressed to an audience (``tenant_admins``, ``ticket_staff`` or any value added later) is stored once and read
+    from the feed only (WR-602). ``metadata`` that is not a dict is broadcastable only when it is None or empty.
+    """
+    if not isinstance(metadata, dict):
+        return not metadata
+    return "audience" not in metadata

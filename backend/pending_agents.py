@@ -277,6 +277,11 @@ async def _post_in_app(raw, tenant_id: str, title: str, message: str, severity: 
         "sent_at": now.isoformat(), "channels": {}, "tenantId": tenant_id, "tenant_id": tenant_id,
         "metadata": metadata,
     })
+    # An audience-tagged notice (the agent's tenant gets tenant_admins) is read from the feed only: the socket
+    # reaches every user of the tenant (WR-602). The platform tenant's untagged notice keeps its push (A-85-G40).
+    from notification_audience import broadcastable
+    if not broadcastable(metadata):
+        return alert_id
     try:
         from websocket_manager import broadcast_notification
         await broadcast_notification(tenant_id, {"title": title, "message": message, "severity": severity,
