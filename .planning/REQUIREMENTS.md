@@ -94,6 +94,16 @@
 - [x] **PART-07**: Only a Super Admin moves a customer to another partner or back to a direct customer; its seats return to the old partner's pool and the move is recorded in the audit ledger; every organization that existed before this phase stays a direct customer.
 - [x] **PART-08**: A partner sees a usage roll-up: pool size, seats handed out and free, and per customer the seats assigned and used, agents online and licence expiry, with a CSV export; no invoicing.
 
+### 8. Plan Licensing
+
+- [ ] **LIC-01**: A direct tenant's seat limit comes from its plan (Free 5, Pro 50, Enterprise 500, Custom by contract), with a Super Admin per-tenant override (any number) that survives plan changes and a move from a partner; a partner customer's seats stay the partner's allotment; the Platform organization is exempt; a tenant over its limit keeps every running agent and only new machines are held.
+- [ ] **LIC-02**: Every plan change (by the Super Admin, or by a partner for its own customers within the plans the Super Admin allows it) goes through one function that records it in the audit ledger and notifies the tenant's admins; the payment route only records a subscription and never changes the plan; new organizations start on the Free trial.
+- [ ] **LIC-03**: Free is a 14-day trial held in one persistent per-tenant record (one trial per tenant; today's Free tenants start at go-live, new ones at creation or sign-up approval): when it ends, new machines are held with the reason `trial_ended` while running agents and screens carry on; the Super Admin or the partner can extend it (audited); tenant admins, and the partner, are reminded 7 and 1 day before.
+- [ ] **LIC-04**: Each plan is a screen ceiling, seeded from `feature_catalog.py` minTier and editable by the Super Admin; the server refuses a screen outside it at every write path (for a partner, also outside the partner's ceiling; the Super Admin is limited by the plan only); screens already on stay on after a downgrade.
+- [ ] **LIC-05**: Every tenant has allowed networks: its first agent's server-observed public IP is learned automatically and at go-live every IP in use is allowed; a NEW machine from another network is held for the Super Admin, who allows that network (optionally widened to at most an IPv4 /24 or IPv6 /48) or refuses it; the tenant admin sees the reason but cannot approve; enrolled agents are never re-checked.
+- [ ] **LIC-06**: A machine whose BIOS serial or SMBIOS UUID belongs to a seat-holding agent seen in the last 24 hours in another tenant is held for the Super Admin without either organization seeing the other's name; approval moves it (the other copy Replaced, its seat freed, its tokens revoked); a silent copy elsewhere is retired by the new enrollment, with a platform alert and a Super Admin restore.
+- [ ] **LIC-07**: A Super Admin Plans screen edits each plan's seats, trial days and screen list, applying at once to direct tenants without an override; tenant admins see their plan, seat limit (override marked), allowed networks and trial days left on their licence panel.
+
 ## v2 Requirements (v4.3 deferred)
 
 - **AOPS-F1**: Per-tenant custom autonomy rules authored in the UI.
@@ -255,9 +265,16 @@ Each requirement maps to exactly one phase. v4.2 rows populated 2026-10-12; v4.3
 | PART-06 | Phase 87 | Complete |
 | PART-07 | Phase 87 | Complete |
 | PART-08 | Phase 87 | Complete |
+| LIC-01 | Phase 88 | Pending |
+| LIC-02 | Phase 88 | Pending |
+| LIC-03 | Phase 88 | Pending |
+| LIC-04 | Phase 88 | Pending |
+| LIC-05 | Phase 88 | Pending |
+| LIC-06 | Phase 88 | Pending |
+| LIC-07 | Phase 88 | Pending |
 
 **Coverage:**
-- v4.3 v1 requirements: 63 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8, PART 8) — 55 mapped to Phases 81–86 by the v4.3 roadmap (2026-10-25); PART-01..08 added 2026-11-02 for Phase 87 from 87-CONTEXT.md D-01..D-16; no orphans, no duplicates
+- v4.3 v1 requirements: 70 total (GATE 14, RESP 11, PTCH 7, HEAL 8, DESK 7, ACTV 8, PART 8, LIC 7) — 55 mapped to Phases 81–86 by the v4.3 roadmap (2026-10-25); PART-01..08 added 2026-11-02 for Phase 87 from 87-CONTEXT.md D-01..D-16; LIC-01..07 added 2026-11-10 for Phase 88 from 88-CONTEXT.md D-01..D-46 (IDs proposed in 88-RESEARCH.md); no orphans, no duplicates
 - v4.2 v1 requirements: 17 total (ACC 9, COST 8) — mapped to Phases 75–80, unchanged
 
 **Per phase (v4.3):** Phase 81 = 17 (GATE-01..14, ACTV-01, ACTV-03, ACTV-08) | Phase 82 = 8 (HEAL-01..08) | Phase 83 = 12 (RESP-01..11, ACTV-02) | Phase 84 = 7 (PTCH-01..07) | Phase 85 = 7 (DESK-01..07) | Phase 86 = 4 (ACTV-04..07)

@@ -70,6 +70,16 @@ Not in this phase: payments, invoices, prices or self-service upgrades (billing 
 - **D-37:** When the Super Admin approves a cross-tenant hold, the machine moves to B: A's agent is retired (marked Replaced) and its seat freed. One computer, one licence. — **Reversibility:** costly — a Replaced agent in A is not restored by any existing flow.
 - **D-38:** When A's copy is silent (no hold, D-35), B's enrollment also retires A's stale agent (Replaced, seat freed); A sees it as Replaced without B's name.
 
+### Settled after research (2026-11-10, user answers to 88-RESEARCH.md open questions)
+- **D-39:** The payment route (`POST /api/payments/subscribe`) only records the subscription and validates the plan name; it no longer changes the plan. The plan changes only when the Super Admin, or the partner for its own customers, applies it (refines D-13).
+- **D-40:** When the Super Admin ticks screens for a partner's customer, only the customer's plan limits it; the partner's screen ceiling limits only what the partner ticks (refines D-30).
+- **D-41:** The Platform organization is exempt with no seat limit at all; D-18's 500 seats does not apply to it (supersedes D-18 for Platform; D-26 stands).
+- **D-42:** When the Super Admin widens an allowed network to a range, the widest allowed is an IPv4 /24 or an IPv6 /48.
+- **D-43:** D-38 stays, with a safeguard: every retirement of another tenant's silent copy raises a platform alert naming both organizations (Super Admin only), and the Super Admin can restore the retired agent.
+- **D-44:** Moving a tenant from a partner to direct keeps its seats as an override (unless equal to its plan's number), so a later plan edit cannot shrink them; moving a tenant from direct to a partner clears the override and the partner's allotment decides.
+- **D-45:** A machine held because the Free trial ended shows its own reason, `trial_ended` ("trial ended"), with the same behavior as an expired licence.
+- **D-46:** Migration 034 ships the generated screen seed (research counts: 19 Free, 69 Pro, 120 Enterprise of 208 switches); the Super Admin edits each plan's list on the Plans screen afterwards. No review checkpoint before the migration. Live tenants keep their screens (D-28).
+
 ### Claude's Discretion
 - Field names, collection layout, the migration number (034 or later; 033 is the uncommitted machine-identities migration) and where the plan table lives, as long as D-14 (editable, applies at once) and D-18 (go-live numbers) hold.
 - Which IP the network rule checks. The agent reports its own `publicIp` (it controls that value); the server also sees the request's source address (`sourceIp`). Research must establish which one nginx passes through reliably and use a server-observed address, not the agent's claim, for the allow decision.
