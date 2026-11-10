@@ -135,6 +135,10 @@ async def get_ticket(
     return await _shown(ticket, current_user)
 
 
+# WR-603: the fields of a new ticket that only ticket staff (manage:tickets) may set.
+_STAFF_ONLY_CREATE_FIELDS = ("assignee", "assignee_group", "watchers", "approval_required", "sla_hours", "due_date")
+
+
 @router.post("")
 async def create_ticket(
     request:      Request,
@@ -148,6 +152,12 @@ async def create_ticket(
 
     data = body.model_dump(exclude_none=False)
 
+    # WR-603 / G-85-5: only ticket staff choose who handles a ticket or its approval and SLA settings.
+    is_staff = await ticket_access.is_ticket_staff(current_user)
+    if not is_staff:
+        for k in _STAFF_ONLY_CREATE_FIELDS:
+            data.pop(k, None)
+
     if body.template_id:
         tmpl = await tickets_service.list_templates(tenant_id=_effective_tenant(current_user))
         tmpl = next((t for t in tmpl if t["id"] == body.template_id), None)
@@ -156,6 +166,13 @@ async def create_ticket(
             for k, v in defaults.items():
                 if not data.get(k):
                     data[k] = v
+            if not is_staff:
+                # A template is built by an admin, so its approval requirement stays (fail closed, A-85-G38);
+                # every other staff-only default is dropped again for a requester.
+                for k in _STAFF_ONLY_CREATE_FIELDS:
+                    data.pop(k, None)
+                if defaults.get("approval_required") is True:
+                    data["approval_required"] = True
 
     # ── Auto-enrich from agent document when agent_id is supplied ────────────
     if body.agent_id:
