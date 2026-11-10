@@ -3,6 +3,30 @@ phase: 85
 review: 85-REVIEW.md
 titles: json
 findings:
+  - id: WR-701
+    severity: warning
+    disposition: open
+    title: "Four staff-visible handlers still fail silently (85-41 \"every staff handler\" is not met)"
+  - id: WR-702
+    severity: warning
+    disposition: open
+    title: "Bulk delete or update that fails part-way leaves the list stale"
+  - id: IN-701
+    severity: info
+    disposition: open
+    title: "`broadcastable` is imported outside the best-effort block, and it lives in a module that imports `rbac_service` and `ticket_access`"
+  - id: IN-702
+    severity: info
+    disposition: open
+    title: "The \"template approval stays\" branch is unreachable through the product API"
+  - id: IN-703
+    severity: info
+    disposition: open
+    title: "Bare-integer and Unicode-digit citation edge cases in `parse_reply`"
+  - id: IN-704
+    severity: info
+    disposition: open
+    title: "Template admin defaults for the queue and SLA are dropped for requesters"
   - id: WR-601
     severity: warning
     disposition: open
@@ -183,23 +207,29 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 29
-total: 45
-recorded: 2026-11-09T23:26:00.237Z
+open: 35
+total: 51
+recorded: 2026-11-10T13:20:39.006Z
 ---
 
 # Phase 85: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-601 | warning | open | - |
-| WR-602 | warning | fixed | fixed 0efe58463 (85-39) |
-| WR-603 | warning | fixed | fixed 6fcb73084 (85-39) |
-| WR-604 | warning | open | - |
-| IN-601 | info | open | - |
-| IN-602 | info | open | - |
-| IN-603 | info | open | - |
-| IN-604 | info | fixed | fixed 3f70dbf6a, 200daaaf9 (85-40); 4415379d6, ac80717e6 (85-41), screen half; the manifest write-entry note stays open |
+| WR-701 | warning | open | - |
+| WR-702 | warning | open | - |
+| IN-701 | info | open | - |
+| IN-702 | info | open | - |
+| IN-703 | info | open | - |
+| IN-704 | info | open | - |
+| WR-601 | warning | open | - (not in the current review) |
+| WR-602 | warning | fixed | fixed 0efe58463 (85-39) (not in the current review) |
+| WR-603 | warning | fixed | fixed 6fcb73084 (85-39) (not in the current review) |
+| WR-604 | warning | open | - (not in the current review) |
+| IN-601 | info | open | - (not in the current review) |
+| IN-602 | info | open | - (not in the current review) |
+| IN-603 | info | open | - (not in the current review) |
+| IN-604 | info | fixed | fixed 3f70dbf6a, 200daaaf9 (85-40); 4415379d6, ac80717e6 (85-41), screen half; the manifest write-entry note stays open (not in the current review) |
 | CR-501 | critical | fixed | fixed b7e178bd3, 4f5ad02b9 (85-31); tests 975d2d5dc (not in the current review) |
 | WR-501 | warning | open | - (not in the current review) |
 | WR-502 | warning | fixed | fixed 1a0a5d54b (85-30); fd671c60e (85-32); 6458b0f62, 59e98958d, 03d6efce5 (85-33); 638d655b7, 283a1b71a (85-34); 37b7f2890, 3f2045d09 (85-35) (not in the current review) |
