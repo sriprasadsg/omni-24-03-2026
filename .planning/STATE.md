@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: executing
-stopped_at: Completed 85-41-PLAN.md
-last_updated: "2026-11-10T12:44:23.688Z"
+status: verifying
+stopped_at: Completed 85-42-PLAN.md
+last_updated: "2026-11-10T13:12:31.324Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 85 gap round 3 (G-85-3, G-85-4b, G-85-5) execution started
-state_head: ac80717e635756d68de82021ed613bc57ebb1784
+state_head: b1964f6343a75d51c0a8df4b80b3161b4193308d
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 141
-  completed_plans: 140
+  completed_plans: 141
   percent: 86
 ---
 
@@ -656,6 +656,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: A-85-G41 (85-40): Work Log and Links tabs, the staff hint and the click-to-edit title are hidden for requesters; History stays
 - [Phase 85]: A-85-G42 (85-40): row delete and bulk Delete selected follow manage:settings, the permission of DELETE /api/tickets/{id}
 - [Phase 85]: 85-41: staff mutation failures on the Tickets screen show an error toast via one reportFailure helper; toast text is the apiService helper's fixed message (A-85-G43)
+- [Phase 85]: 85-42: third gap round gate green (backend 2744 passed, Vitest 1922, build 0); WR-602/WR-603/IN-604 recorded fixed, AR-85-11 superseded, D-42/D-43 recorded
 
 ## Performance Metrics
 
@@ -951,6 +952,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P39 | 20 min | 2 tasks | 7 files |
 | Phase 85 P40 | 10 min | 2 tasks | 4 files |
 | Phase 85 P41 | 20min | 2 tasks | 2 files |
+| Phase 85 P42 | 25min | 2 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -985,8 +987,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-10T12:44:23.373Z
-**Stopped at:** Completed 85-41-PLAN.md
+**Last session:** 2026-11-10T13:12:31.005Z
+**Stopped at:** Completed 85-42-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1014,7 +1016,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
 Plan: 42 of 42
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-10 — Phase 85 gap round 3 (85-37..85-42) execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
