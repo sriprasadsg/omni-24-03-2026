@@ -217,6 +217,46 @@ async def revoke_user_sessions(username: str, reason: str) -> None:
     logger.info("Revoked existing sessions for a user (%s)", reason)
 
 
+AGENT_TOKEN_DAYS = 90  # lifetime of the token POST /api/agents/register issues
+
+
+async def revoke_agent_tokens(db, agent_id: str, reason: str) -> None:
+    """End every token issued to agent ``agent_id`` so far: its id now belongs to a
+    newer install of the machine (machine_identity). The cutoff outlives the tokens."""
+    if not agent_id:
+        return
+    key = _cutoff_key(agent_id)
+    now = time.time()
+    _user_cutoff_cache[key] = max(now, _user_cutoff_cache.get(key, 0.0))
+    await getattr(db, "_db", db).revoked_tokens.update_one(
+        {"jti": key},
+        {"$max": {"cutoff": now},
+         "$set": {"type": "agent_cutoff", "reason": reason,
+                  "updatedAt": datetime.now(timezone.utc).isoformat(),
+                  "expiresAt": datetime.now(timezone.utc) + timedelta(days=AGENT_TOKEN_DAYS + 1)}},
+        upsert=True,
+    )
+    logger.info("Revoked earlier tokens of agent %s (%s)", agent_id, reason)
+
+
+async def agent_token_revoked(db, agent_id: str, iat: float, jti: Optional[str] = None) -> bool:
+    """True when this agent token's jti was revoked, or its agent's tokens issued at ``iat``
+    were cut off (revoke_agent_tokens). One indexed lookup covers both."""
+    if _cut_off(agent_id, iat) or (jti and jti in _revoked_jti_cache):
+        return True
+    clauses: list = [{"jti": _cutoff_key(agent_id), "cutoff": {"$gt": iat}}]
+    if jti:
+        clauses.append({"jti": jti})
+    doc = await getattr(db, "_db", db).revoked_tokens.find_one({"$or": clauses}, {"_id": 0, "jti": 1, "cutoff": 1})
+    if not doc:
+        return False
+    if doc.get("cutoff") is not None:
+        _user_cutoff_cache[_cutoff_key(agent_id)] = float(doc["cutoff"])
+    elif jti:
+        _revoked_jti_cache.add(jti)
+    return True
+
+
 async def refresh_token_cut_off(db, username: str, iat: float) -> bool:
     """True when ``username`` has a session cutoff later than ``iat``."""
     if _cut_off(username, iat):

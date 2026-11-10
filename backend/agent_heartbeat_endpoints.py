@@ -18,6 +18,7 @@ from agent_uninstall_endpoints import heartbeat_uninstall_protection
 import licensing
 import pending_agents
 import agent_capabilities
+import asset_identity
 from autonomous_ops import response_settings
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -246,8 +247,11 @@ async def report_heartbeat(
 
     hostname = payload.get("hostname")
     if hostname:
-        asset_id = f"asset-{hostname}"
+        # The asset enrollment bound to this machine's hardware (asset_identity); a
+        # same-named computer's asset-{hostname} is not this one's.
+        asset_id = (existing_agent or {}).get("assetId") or f"asset-{hostname}"
         asset_update: Dict[str, Any] = {
+            **asset_identity.hardware_key_field((existing_agent or {}).get("seatKey")),
             "ipAddress": payload.get("ipAddress"),
             "osName": payload.get("platform"),
             "lastScanned": datetime.now(timezone.utc).isoformat(),

@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 from database import get_database
 import logging
 import jwt
-from authentication_service import SECRET_KEY, ALGORITHM, is_agent_payload
+from authentication_service import SECRET_KEY, ALGORITHM, agent_token_revoked, is_agent_payload
 import pending_agents
 
 logger = logging.getLogger("agent_auth")
@@ -83,9 +83,9 @@ async def verify_agent_key(
             if not tenant_id or not agent_id:
                 raise HTTPException(status_code=403, detail="Invalid Agent Token")
 
-            jti = payload.get("jti")
-            raw = getattr(db, "_db", db)  # revoked_tokens is not tenant-scoped
-            if jti and await raw.revoked_tokens.find_one({"jti": jti}, {"_id": 1}):
+            # Its jti, or every token issued before the agent id passed to a newer
+            # install of the machine (machine_identity).
+            if await agent_token_revoked(db, agent_id, float(payload.get("iat") or 0), payload.get("jti")):
                 raise HTTPException(status_code=403, detail="Agent token has been revoked")
 
             tenant = await db.tenants.find_one({"id": tenant_id})

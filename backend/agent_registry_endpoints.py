@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks, Re
 from catalogue_mounts_agents import AGENTS_GUARD
 from typing import Dict, Any
 from database import get_database
-from authentication_service import get_current_user, create_access_token, SECRET_KEY, ALGORITHM, is_agent_payload
+from authentication_service import (get_current_user, create_access_token, SECRET_KEY, ALGORITHM, is_agent_payload,
+                                    agent_token_revoked, revoke_agent_tokens, AGENT_TOKEN_DAYS)
 from rbac_utils import require_permission
 from datetime import datetime, timezone, timedelta
 import hashlib
@@ -23,6 +24,8 @@ import agent_capabilities
 import licensing
 import pending_agents
 import seat_identity
+import asset_identity
+import machine_identity
 from auth_roles import platform_scope_roles
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
@@ -59,11 +62,8 @@ async def _proves_agent_identity(db, existing_agent: dict, tenant_id: str, data:
         return False
     if not is_agent_payload(payload) or payload.get("sub") != existing_agent.get("id") or payload.get("tenant_id") != tenant_id:
         return False
-    jti = payload.get("jti")
-    raw = getattr(db, "_db", db)  # revoked_tokens is not tenant-scoped
-    if jti and await raw.revoked_tokens.find_one({"jti": jti}, {"_id": 1}):
-        return False
-    return True
+    # Revoked by jti, or from an install the machine's id has since passed on from.
+    return not await agent_token_revoked(db, existing_agent["id"], float(payload.get("iat") or 0), payload.get("jti"))
 
 
 # An agent that shares this machine's serial/UUID and was seen this recently is
@@ -136,12 +136,33 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
     if not hostname:
         raise HTTPException(status_code=400, detail="Hostname required")
 
+    hardware = seat_identity.normalize_hardware(data.get("hardware"))
+    agent_seat_key = seat_identity.seat_key(hardware, data.get("device_id") or data.get("deviceId"))
+
     agent_id = f"agent-{uuid.uuid4().hex}"
     existing_agent = await db.agents.find_one({"hostname": hostname, "tenantId": tenant["id"]})
+    supersedes = False
+    if not existing_agent:
+        # One agent id per machine for life: a known machine enrolling under a new name, or
+        # again after its agent was deleted, gets the id (and record) it had.
+        async def _proves(rec):
+            return await _proves_agent_identity(db, rec, tenant["id"], data, request)
+
+        async def _live(rec):
+            return rec.get("status") not in licensing.NON_SEAT_STATUSES and _seen_within(rec, _HARDWARE_TAKEOVER_AFTER)
+
+        known = await machine_identity.known_machine(db, tenant["id"], agent_seat_key, _proves, _live)
+        agent_id = known.agent_id or agent_id
+        existing_agent, supersedes = known.record, known.supersedes
     agent_secret = None  # issued to new agents and to legacy agents upgrading
     if existing_agent and existing_agent.get("status") == pending_agents.REJECTED:
         raise HTTPException(status_code=403, detail="agent_rejected: this computer was rejected by the platform administrator")
-    if existing_agent and existing_agent.get("awaitingCredentials"):
+    if supersedes:
+        # The machine's own id, without its secret (a reinstall): the install that held it is
+        # superseded, so none of its tokens keep working.
+        await revoke_agent_tokens(db, agent_id, "machine enrolled again")
+        agent_secret = secrets.token_urlsafe(32)
+    elif existing_agent and existing_agent.get("awaitingCredentials"):
         # A record kept from a refused enrollment of an older agent build (spec C3): no
         # secret or token was ever issued for it, so there is no identity to prove.
         agent_id = existing_agent["id"]
@@ -162,9 +183,6 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
             agent_secret = secrets.token_urlsafe(32)
     else:
         agent_secret = secrets.token_urlsafe(32)
-
-    hardware = seat_identity.normalize_hardware(data.get("hardware"))
-    agent_seat_key = seat_identity.seat_key(hardware, data.get("device_id") or data.get("deviceId"))
 
     # ── Admission (spec C3): a denylisted machine is refused, an agent still waiting for
     # approval gets the pending answer again, and an enrollment that cannot take a seat
@@ -318,6 +336,8 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         else:
             raise e
 
+    await machine_identity.remember(db, tenant["id"], agent_seat_key, agent_id, hostname)
+
     if not existing_agent and install_key.get("defaultGroupId"):
         await license_rules.join_group(db, tenant["id"], install_key["defaultGroupId"], agent_id, "enrollment")
 
@@ -334,13 +354,16 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
 
     metrics = data.get("meta", {})
     os_info = metrics.get("os_info", {})
-    asset_id = f"asset-{hostname}"
+    # The asset is this machine's (serial, else UUID, else network interface), not
+    # whichever record carries its hostname.
+    asset_id = await asset_identity.resolve_asset_id(db, tenant["id"], hostname, hardware, agent_seat_key)
     existing_asset = await db.assets.find_one({"id": asset_id})
 
     asset_data = {
         "id": asset_id,
         "tenantId": tenant["id"],
         "hostname": hostname,
+        **asset_identity.hardware_key_field(agent_seat_key),
         "osName": data.get("platform", "Unknown"),
         "osVersion": data.get("osVersion", os_info.get("version", "Unknown")),
         "kernel": data.get("kernel", "Unknown"),
@@ -402,7 +425,7 @@ async def register_agent(request: Request, response: Response, data: Dict[str, A
         logger.warning("Evidence collection dispatch failed for host %s: %s", hostname, e)
 
     token_data = {"sub": agent_id, "role": "agent", "typ": "agent", "tenant_id": tenant["id"], "jti": str(uuid.uuid4())}
-    access_token = create_access_token(data=token_data, expires_delta=timedelta(days=90))
+    access_token = create_access_token(data=token_data, expires_delta=timedelta(days=AGENT_TOKEN_DAYS))
     result = {"success": True, "agentId": agent_id, "token": access_token}
     if agent_secret:
         # Returned once; the agent stores it and presents it to re-enroll.
