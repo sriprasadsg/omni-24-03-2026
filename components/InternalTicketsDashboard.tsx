@@ -643,20 +643,34 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
   const handleDeleteAttachment = async (attId: string) => {
     if (!selected) return;
-    await deleteTicketAttachment(selected.id, attId);
-    setSelected(prev => prev ? {...prev, attachments: prev.attachments.filter(a => a.id !== attId)} : prev);
+    try {
+      await deleteTicketAttachment(selected.id, attId);
+      setSelected(prev => prev ? {...prev, attachments: prev.attachments.filter(a => a.id !== attId)} : prev);
+    } catch (e) { reportFailure(e, 'Failed to delete attachment'); }
   };
 
   const handleLogWork = async () => {
     if (!selected || !workHours || Number(workHours) <= 0) return;
-    const t = await logTicketWork(selected.id, Number(workHours), workNote);
-    setSelected(t); setWorkHours(''); setWorkNote('');
+    try {
+      const t = await logTicketWork(selected.id, Number(workHours), workNote);
+      setSelected(t); setWorkHours(''); setWorkNote('');
+    } catch (e) { reportFailure(e, 'Failed to log work'); }
   };
 
   const handleLink = async () => {
     if (!selected || !linkId.trim()) return;
-    const t = await linkTickets(selected.id, linkId.trim(), linkType);
-    setSelected(t); setLinkId('');
+    try {
+      const t = await linkTickets(selected.id, linkId.trim(), linkType);
+      setSelected(t); setLinkId('');
+    } catch (e) { reportFailure(e, 'Failed to link tickets'); }
+  };
+
+  const handleUnlink = async (linkedId: string) => {
+    if (!selected) return;
+    try {
+      const t = await unlinkTickets(selected.id, linkedId);
+      setSelected(t);
+    } catch (e) { reportFailure(e, 'Failed to remove link'); }
   };
 
   const handleEscalate = async () => {
@@ -685,22 +699,28 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
   const handleApprove = async () => {
     if (!selected) return;
-    const t = await approveTicket(selected.id, approvalComment);
-    setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x)); setApprovalComment('');
+    try {
+      const t = await approveTicket(selected.id, approvalComment);
+      setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x)); setApprovalComment('');
+    } catch (e) { reportFailure(e, 'Failed to approve ticket'); }
   };
 
   const handleReject = async () => {
     if (!selected || !rejectReason.trim()) return;
-    const t = await rejectTicket(selected.id, rejectReason);
-    setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x)); setRejectReason('');
+    try {
+      const t = await rejectTicket(selected.id, rejectReason);
+      setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x)); setRejectReason('');
+    } catch (e) { reportFailure(e, 'Failed to reject ticket'); }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm('Delete this ticket?')) return;
-    await deleteTicket(id);
-    setTickets(prev => prev.filter(t => t.id !== id));
-    if (selected?.id === id) setSelected(null);
+    try {
+      await deleteTicket(id);
+      setTickets(prev => prev.filter(t => t.id !== id));
+      if (selected?.id === id) setSelected(null);
+    } catch (err) { reportFailure(err, 'Failed to delete ticket'); }
   };
 
   const handleCsat = async () => {
@@ -734,7 +754,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
       } else {
         showToast('Merge failed — check the target ticket ID', 'error');
       }
-    } catch (e) { console.error('Failed to merge tickets:', e); }
+    } catch (e) { reportFailure(e, 'Failed to merge tickets'); }
   };
 
   const handleBulkAction = async () => {
@@ -743,14 +763,16 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
     const [action, value] = bulkAction.split(':');
     const updates: Record<string,string> = action === 'status' ? { status: value } :
                                            action === 'priority' ? { priority: value } : {};
-    if (action === 'delete') {
-      if (!confirm(`Delete ${ids.length} tickets?`)) return;
-      await Promise.all(ids.map(id => deleteTicket(id)));
-      setTickets(prev => prev.filter(t => !ids.includes(t.id)));
-    } else if (Object.keys(updates).length) {
-      await bulkUpdateTickets(ids, updates);
-    }
-    setSelectedIds(new Set()); setBulkAction(''); load();
+    try {
+      if (action === 'delete') {
+        if (!confirm(`Delete ${ids.length} tickets?`)) return;
+        await Promise.all(ids.map(id => deleteTicket(id)));
+        setTickets(prev => prev.filter(t => !ids.includes(t.id)));
+      } else if (Object.keys(updates).length) {
+        await bulkUpdateTickets(ids, updates);
+      }
+      setSelectedIds(new Set()); setBulkAction(''); load();
+    } catch (e) { reportFailure(e, action === 'delete' ? 'Failed to delete tickets' : 'Failed to update tickets'); }
   };
 
   // ── Kanban ────────────────────────────────────────────────────────────────
@@ -1000,7 +1022,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       updateTicket(ticketId, {status: col}).then(updated => {
                         setTickets(prev => prev.map(t => t.id === ticketId ? updated : t));
                         if (selected?.id === ticketId) setSelected(updated);
-                      }).catch(() => {});
+                      }).catch(e => reportFailure(e, 'Failed to move ticket'));
                     }}>
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isOver ? 'ring-2 ring-teal-500' : ''} ${m.bg}`}>
                       {m.icon}
@@ -1607,7 +1629,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                         <span className="text-xs text-slate-500 mr-2">{l.type.replace(/_/g,' ')}</span>
                         <span className="text-sm text-gray-900 dark:text-white font-mono">{l.linked_id}</span>
                       </div>
-                      <button onClick={() => unlinkTickets(selected.id, l.linked_id).then(t => setSelected(t))}
+                      <button onClick={() => handleUnlink(l.linked_id)} aria-label={`Remove link ${l.linked_id}`}
                         className="p-1 text-slate-600 hover:text-red-600 dark:hover:text-red-400 rounded"><X size={12}/></button>
                     </div>
                   ))}
