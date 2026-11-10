@@ -5,11 +5,11 @@ titles: json
 findings:
   - id: WR-701
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Four staff-visible handlers still fail silently (85-41 \"every staff handler\" is not met)"
   - id: WR-702
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "Bulk delete or update that fails part-way leaves the list stale"
   - id: IN-701
     severity: info
@@ -207,7 +207,7 @@ findings:
     severity: info
     disposition: open
     title: "`postTicketComment` returns `Promise<any>`"
-open: 35
+open: 33
 total: 51
 recorded: 2026-11-10T13:20:39.006Z
 ---
@@ -216,8 +216,8 @@ recorded: 2026-11-10T13:20:39.006Z
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-701 | warning | open | - |
-| WR-702 | warning | open | - |
+| WR-701 | warning | fixed | fixed 3d8a39763 (user decision 2026-11-10, after the third-round review) |
+| WR-702 | warning | fixed | fixed 3d8a39763 (user decision 2026-11-10, after the third-round review) |
 | IN-701 | info | open | - |
 | IN-702 | info | open | - |
 | IN-703 | info | open | - |

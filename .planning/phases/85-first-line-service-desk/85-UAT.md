@@ -3,7 +3,7 @@ status: testing
 phase: 85-first-line-service-desk
 source: [85-VERIFICATION.md]
 started: 2026-11-10T13:28:33Z
-updated: 2026-11-10T13:28:33Z
+updated: 2026-11-10T13:33:23Z
 ---
 
 ## Current Test
@@ -39,14 +39,15 @@ result: [pending]
 
 ### 5. Decide on review findings WR-701 and WR-702 before deployment
 expected: Either the fixes (reportFailure on the title edit and the Start button of security-incident tickets, a catch in handleComment's staff-note branch, a try/catch in handleUpload; load() in the bulk catch) or a written acceptance.
-result: [pending]
+result: pass
+note: "User chose to fix both (2026-11-10, 'fix WR-701 and WR-702 now'). Fixed in 3d8a39763: title rename and Start Remediation go through handlePatch (error toast), a refused staff note and a refused upload show a toast, bulk delete uses allSettled (only the deleted tickets leave the list and the selection, the list reloads after any failure). Seven new cases in src/__tests__/TicketsStaffActionErrors.test.tsx, each failing on the previous code; disposition WR-701/WR-702 fixed (open 33 of 51). Part of the UI build; verify the visible behaviour in test 2 after the publish."
 
 ## Summary
 
 total: 5
-passed: 0
+passed: 1
 issues: 0
-pending: 5
+pending: 4
 skipped: 0
 blocked: 0
 
