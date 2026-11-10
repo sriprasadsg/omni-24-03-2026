@@ -591,11 +591,18 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
+  // A staff action that fails must say so (G-85-4b): the toast carries the error's message, else the fallback.
+  const reportFailure = (e: unknown, fallback: string) => {
+    showToast(e instanceof Error && e.message ? e.message : fallback, 'error');
+  };
+
   const handlePatch = async (updates: Record<string,any>) => {
     if (!selected) return;
-    const t = await updateTicket(selected.id, updates);
-    setSelected(t);
-    setTickets(prev => prev.map(x => x.id === t.id ? t : x));
+    try {
+      const t = await updateTicket(selected.id, updates);
+      setSelected(t);
+      setTickets(prev => prev.map(x => x.id === t.id ? t : x));
+    } catch (e) { reportFailure(e, 'Failed to update ticket'); }
   };
 
   const handleComment = async () => {
@@ -654,8 +661,26 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
 
   const handleEscalate = async () => {
     if (!selected) return;
-    const t = await escalateTicket(selected.id, escalateReason);
-    setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x)); setEscalateReason('');
+    try {
+      const t = await escalateTicket(selected.id, escalateReason);
+      setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x)); setEscalateReason('');
+    } catch (e) { reportFailure(e, 'Failed to escalate ticket'); }
+  };
+
+  const handleAddWatcher = async () => {
+    if (!selected) return;
+    try {
+      const t = await addTicketWatcher(selected.id, watcherEmail);
+      setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x)); setWatcherEmail('');
+    } catch (e) { reportFailure(e, 'Failed to add watcher'); }
+  };
+
+  const handleRemoveWatcher = async (email: string) => {
+    if (!selected) return;
+    try {
+      const t = await removeTicketWatcher(selected.id, email);
+      setSelected(t); setTickets(prev => prev.map(x => x.id === t.id ? t : x));
+    } catch (e) { reportFailure(e, 'Failed to remove watcher'); }
   };
 
   const handleApprove = async () => {
@@ -1277,7 +1302,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     {(selected.watchers || []).map(w => (
                       <span key={w} className="flex items-center gap-1 text-xs bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 px-2 py-0.5 rounded-full">
                         {w}
-                        <button onClick={() => removeTicketWatcher(selected.id, w).then(t => { setSelected(t); })}
+                        <button onClick={() => handleRemoveWatcher(w)} aria-label={`Remove watcher ${w}`}
                           className="text-slate-500 hover:text-red-600 dark:hover:text-red-400"><X size={9}/></button>
                       </span>
                     ))}
@@ -1286,8 +1311,8 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     <input className="flex-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-teal-500"
                       placeholder="Add watcher email…" value={watcherEmail}
                       onChange={e => setWatcherEmail(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { addTicketWatcher(selected.id, watcherEmail).then(()=>{}); setWatcherEmail(''); }}} />
-                    <button onClick={() => { addTicketWatcher(selected.id, watcherEmail); setWatcherEmail(''); }}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddWatcher(); }} />
+                    <button onClick={handleAddWatcher} aria-label="Add watcher"
                       className="px-2 py-1 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-900 dark:text-white text-xs rounded"><Bell size={12}/></button>
                   </div>
                 </div>
