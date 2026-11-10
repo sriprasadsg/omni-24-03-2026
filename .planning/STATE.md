@@ -5,16 +5,16 @@ milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
 status: executing
-stopped_at: Completed 85-39-PLAN.md
-last_updated: "2026-11-10T11:42:29.891Z"
+stopped_at: Completed 85-40-PLAN.md
+last_updated: "2026-11-10T12:37:10.516Z"
 last_activity: 2026-11-10
 last_activity_desc: Phase 85 gap round 3 (G-85-3, G-85-4b, G-85-5) execution started
-state_head: 0efe58463c66318e5e4b32e24e2ee2dc233670b1
+state_head: fd600b1ba734b6cb6bedb1901b2999396822ae34
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 141
-  completed_plans: 138
+  completed_plans: 139
   percent: 86
 ---
 
@@ -653,6 +653,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-38: only the failing output rule is recorded (desk.rule + staff label); refused reply text never stored; live re-check of 85-37 passed (--sets 0 failed, printer 3/3), A-85-G37 not needed
 - [Phase 85]: 85-39 A-85-G38: a requester's ticket keeps a template's approval_required true (fail closed); other staff-only template defaults are dropped for requesters
 - [Phase 85]: 85-39 A-85-G40: audience-tagged notices are feed-only (broadcastable); the platform tenant's untagged pending-agent notice keeps its push
+- [Phase 85]: A-85-G41 (85-40): Work Log and Links tabs, the staff hint and the click-to-edit title are hidden for requesters; History stays
+- [Phase 85]: A-85-G42 (85-40): row delete and bulk Delete selected follow manage:settings, the permission of DELETE /api/tickets/{id}
 
 ## Performance Metrics
 
@@ -946,6 +948,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P37 | 10 min | 2 tasks | 11 files |
 | Phase 85 P38 | 25 min | 2 tasks | 4 files |
 | Phase 85 P39 | 20 min | 2 tasks | 7 files |
+| Phase 85 P40 | 10 min | 2 tasks | 4 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -980,8 +983,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-10T11:42:29.589Z
-**Stopped at:** Completed 85-39-PLAN.md
+**Last session:** 2026-11-10T12:37:02.824Z
+**Stopped at:** Completed 85-40-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1008,7 +1011,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
 Phase: 85 (First-Line Service Desk) — EXECUTING
-Plan: 40 of 42
+Plan: 41 of 42
 Status: Ready to execute
 Last activity: 2026-11-10 — Phase 85 gap round 3 (85-37..85-42) execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
