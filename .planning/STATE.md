@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 88
 current_phase_name: Plan-Based Licensing & Network Enrollment Rules
-status: human_needed
-stopped_at: "Phase 88 PLANNED: 16 plans / 7 waves (3a52194f7, revision fbc72ad62), plan checker passed after 1 revision; next: /gsd-execute-phase 88 (88-01 opens with the uncommitted machine-identity prerequisite decision)"
-last_updated: "2026-11-10T21:03:08.594Z"
+status: executing
+stopped_at: Completed 88-01-PLAN.md
+last_updated: "2026-11-10T21:20:11.217Z"
 last_activity: 2026-11-10
-last_activity_desc: Phase 85 gap round 3 executed (85-37..85-42), validate/secure/review/regression/verifier done; human_needed
-state_head: fbc72ad62e93fdca8e29e2a93ee3815b91a43e9a
+last_activity_desc: Phase 88 execution started
+state_head: 5d20b1c26039484a5b47d809cc52469630c7812c
 progress:
   total_phases: 8
   completed_phases: 6
   total_plans: 157
-  completed_plans: 141
+  completed_plans: 142
   percent: 75
 ---
 
@@ -25,7 +25,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-07)
 
 **Core value:** Any tenant can see exactly which compliance controls pass or fail across their endpoints — with trustworthy, current evidence and a numeric score to prove it.
-**Current focus:** Phase 85 — First-Line Service Desk
+**Current focus:** Phase 88 — Plan-Based Licensing & Network Enrollment Rules
 
 ## Current Phase
 
@@ -657,6 +657,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: A-85-G42 (85-40): row delete and bulk Delete selected follow manage:settings, the permission of DELETE /api/tickets/{id}
 - [Phase 85]: 85-41: staff mutation failures on the Tickets screen show an error toast via one reportFailure helper; toast text is the apiService helper's fixed message (A-85-G43)
 - [Phase 85]: 85-42: third gap round gate green (backend 2744 passed, Vitest 1922, build 0); WR-602/WR-603/IN-604 recorded fixed, AR-85-11 superseded, D-42/D-43 recorded
+- [Phase 88]: 88-01: user committed the one-id-per-machine prerequisite as 91c85e11d (option-a) before Phase 88 enrollment code; trial ends for new machines only (>= rule), missing trial record fails open, platform-admin exempt
 
 ## Performance Metrics
 
@@ -953,6 +954,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P40 | 10 min | 2 tasks | 4 files |
 | Phase 85 P41 | 20min | 2 tasks | 2 files |
 | Phase 85 P42 | 25min | 2 tasks | 4 files |
+| Phase 88 P01 | 25 min | 2 tasks | 9 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -987,9 +989,9 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-10T18:45:57.431Z
-**Stopped at:** Phase 88 research + validation + patterns done (6783df1bc, 23164bf6e, c35ee3341 D-39..D-46 + LIC-01..07); next: /gsd-plan-phase 88 resumes at the planner (research/patterns reused)
-**Resume file:** .planning/phases/88-plan-based-licensing-network-enrollment-rules/88-RESEARCH.md
+**Last session:** 2026-11-10T21:20:10.903Z
+**Stopped at:** Completed 88-01-PLAN.md
+**Resume file:** None
 
 ## Accumulated Context
 
@@ -1016,10 +1018,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 88 (Plan-Based Licensing & Network Enrollment Rules) — READY TO EXECUTE
-Plan: 42 of 42
-Status: human_needed
-Last activity: 2026-11-10 — Phase 85 third gap round (85-37..85-42) executed and re-verified human_needed 9/9
+Phase: 88 (Plan-Based Licensing & Network Enrollment Rules) — EXECUTING
+Plan: 2 of 16
+Status: Ready to execute
+Last activity: 2026-11-10 — Phase 88 execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([████████░░] 75%)
 
 ## Deferred Items
