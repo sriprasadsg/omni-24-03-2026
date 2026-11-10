@@ -4,17 +4,17 @@ milestone: v4.3
 milestone_name: Autonomous Ops
 current_phase: 85
 current_phase_name: First-Line Service Desk
-status: human_needed
-stopped_at: Phase 85 re-verified human_needed 9/9 after the second gap round (CR-501, WR-502 closed); 5 UAT items in 85-UAT.md
-last_updated: "2026-11-09T23:35:48.589Z"
-last_activity: 2026-11-09
-last_activity_desc: Phase 85 gap round G-85-4 executed (85-30..85-36), secure/validate/review/regression/verifier done; human_needed
-state_head: e938d9b088c75b04913d8720cf05da28e727015c
+status: executing
+stopped_at: Completed 85-37-PLAN.md
+last_updated: "2026-11-10T11:22:24.961Z"
+last_activity: 2026-11-10
+last_activity_desc: Phase 85 gap round 3 (G-85-3, G-85-4b, G-85-5) execution started
+state_head: 61cc6c11bbf24769636d939fbf06c6ba928cd9a6
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 141
-  completed_plans: 135
+  completed_plans: 136
   percent: 86
 ---
 
@@ -649,6 +649,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 - [Phase 85]: 85-33: non-staff callers list, count, report and export only their own tickets, scoped in the Mongo query (tickets_scope); reports and CSV export included (A-85-G26); projection staff flag defaults to False (fail closed)
 - [Phase 85]: 85-34: staff actions on a ticket (bulk, edit, link, work log, attachment delete, approve, reject, escalate, merge, watchers) need manage:tickets; workflow and config ticket routers carry the viewer guard; CSAT stays the reporter's own (A-85-G28)
 - [Phase 85]: 85-35: service desk draft panel and draft actions need ticket staff who did not raise the ticket; desk router carries the viewer guard; knowledge-gap routes and Write article need manage:tickets (A-85-G30); structure test classifies every /api/tickets route
+- [Phase 85]: 85-37: citations the desk did not give are dropped (given_citations); unknown_citation only when none was given; prompt articles labelled A1..An (A-85-G33/G34/G35)
 
 ## Performance Metrics
 
@@ -939,6 +940,7 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 | Phase 85 P34 | 25 min | 2 tasks | 5 files |
 | Phase 85 P35 | 7 min | 2 tasks | 7 files |
 | Phase 85 P36 | 25 min | 2 tasks | 4 files |
+| Phase 85 P37 | 10 min | 2 tasks | 11 files |
 
 <!-- Phase 64 P01-P06 rows removed 2026-08-13: bogus data (duration 0, 1 task, 1 file each) —
      traced to fake "simulated" automation commits, not the real 6-plan Phase 69 (formerly 64)
@@ -973,8 +975,8 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 
 ## Session
 
-**Last session:** 2026-11-09T23:16:16.117Z
-**Stopped at:** Phase 85 re-verified human_needed 9/9 after the second gap round (CR-501, WR-502 closed); 5 UAT items in 85-UAT.md
+**Last session:** 2026-11-10T11:22:24.645Z
+**Stopped at:** Completed 85-37-PLAN.md
 **Resume file:** None
 
 ## Accumulated Context
@@ -1000,10 +1002,10 @@ User then requested planning all remaining phases (30-38) in one batch (typo'd a
 ## Current Position
 
 Milestone: v4.3 Autonomous Ops (v4.2 paused; its Phases 75–80 are unchanged and resume after v4.3)
-Phase: 85 (First-Line Service Desk) — HUMAN VERIFICATION NEEDED
-Plan: 36 of 42
-Status: human_needed
-Last activity: 2026-11-09 — Phase 85 second gap round (85-30..85-36) executed and re-verified human_needed 9/9
+Phase: 85 (First-Line Service Desk) — EXECUTING
+Plan: 38 of 42
+Status: Ready to execute
+Last activity: 2026-11-10 — Phase 85 gap round 3 (85-37..85-42) execution started
 Progress: 5/7 phases complete (81, 82, 83, 84, 87) ([█████████░] 86%)
 
 ## Deferred Items
