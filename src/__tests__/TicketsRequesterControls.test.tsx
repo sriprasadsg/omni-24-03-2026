@@ -201,7 +201,9 @@ describe('the list and the bulk bar', () => {
     expect(await listCheckboxes()).toHaveLength(0);
     expect(screen.queryByText(/selected$/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete TKT-0042' })).toBeNull();
-    expect(screen.getByRole('checkbox', { name: /Overdue only/ })).toBeInTheDocument();
+    fireEvent.click(document.querySelector('button svg[class*="lucide-filter"], button svg[class*="lucide-funnel"]')!.closest('button')!);
+    expect(await screen.findByRole('checkbox', { name: /Overdue only/ })).toBeInTheDocument(); // the filter boxes stay
+    expect(screen.getByRole('checkbox', { name: /My tickets/ })).toBeInTheDocument();
   });
 
   it('give ticket staff the checkboxes and the bulk bar but no delete without manage:settings', async () => {

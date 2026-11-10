@@ -153,7 +153,8 @@ const TicketModal: React.FC<{
   onCreate: (t: Ticket) => void;
   templates: any[];
   fieldSchema: any[];
-}> = ({ onClose, onCreate, templates, fieldSchema }) => {
+  isTicketStaff: boolean;
+}> = ({ onClose, onCreate, templates, fieldSchema, isTicketStaff }) => {
   const [form, setForm] = useState<Record<string,any>>({
     title:'', description:'', type:'task', priority:'medium',
     assignee:'', assignee_group:'', tags:'', due_date:'',
@@ -230,6 +231,10 @@ const TicketModal: React.FC<{
         tags: form.tags ? form.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
         template_id: selectedTemplate || undefined,
       };
+      // A requester never sends the staff-only fields (the server drops them since 85-39)
+      if (!isTicketStaff) {
+        for (const k of ['assignee', 'assignee_group', 'watchers', 'approval_required', 'sla_hours', 'due_date']) delete payload[k];
+      }
       // Only send agent fields when an agent was actually selected
       if (!form.agent_id) {
         delete payload.agent_id;
@@ -296,6 +301,7 @@ const TicketModal: React.FC<{
             </div>
           </div>
 
+          {isTicketStaff && (<>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Assignee (email)</label>
@@ -324,6 +330,7 @@ const TicketModal: React.FC<{
                 onChange={e => setForm(p => ({...p, sla_hours: e.target.value ? Number(e.target.value) : undefined}))} />
             </div>
           </div>
+          </>)}
 
           <div>
             <label className="block text-gray-600 dark:text-slate-400 text-xs mb-1">Tags (comma-separated)</label>
@@ -400,11 +407,13 @@ const TicketModal: React.FC<{
             </div>
           ))}
 
+          {isTicketStaff && (
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="rounded" checked={form.approval_required}
               onChange={e => setForm(p => ({...p, approval_required: e.target.checked}))} />
             <span className="text-gray-700 dark:text-slate-300 text-sm">Requires approval before processing</span>
           </label>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 px-6 pb-6">
@@ -436,6 +445,8 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
   const { currentUser, hasPermission } = useUser();
   // 85-40 (G-85-4b): the server refuses staff actions for a requester since 85-34; the screen hides them too.
   const isTicketStaff = hasPermission?.('manage:tickets') === true;
+  // DELETE /api/tickets/{id} needs manage:settings, not manage:tickets (A-85-G42)
+  const canDeleteTickets = hasPermission?.('manage:settings') === true;
   const userEmail = currentUserEmail || (currentUser as any)?.email || '';
 
   const [tickets,      setTickets]      = useState<Ticket[]>([]);
@@ -850,7 +861,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
           )}
 
           {/* Bulk action bar */}
-          {selected_ids.size > 0 && (
+          {isTicketStaff && selected_ids.size > 0 && (
             <div className="mt-2 flex items-center gap-2 bg-teal-100 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-700/40 rounded-lg px-3 py-2">
               <span className="text-teal-700 dark:text-teal-300 text-xs font-medium">{selected_ids.size} selected</span>
               <select className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-gray-900 dark:text-white"
@@ -858,7 +869,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                 <option value="">Bulk action…</option>
                 {['open','in_progress','resolved','closed'].map(s => <option key={s} value={`status:${s}`}>Set status: {s}</option>)}
                 {['critical','high','medium','low'].map(p => <option key={p} value={`priority:${p}`}>Set priority: {p}</option>)}
-                <option value="delete">Delete selected</option>
+                {canDeleteTickets && <option value="delete">Delete selected</option>}
               </select>
               <button onClick={handleBulkAction} disabled={!bulkAction}
                 className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white text-xs rounded disabled:opacity-40">Apply</button>
@@ -882,9 +893,11 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
               <thead className="sticky top-0 bg-white/90 dark:bg-slate-900/90 border-b border-gray-200 dark:border-slate-800 z-10">
                 <tr>
                   <th className="w-8 px-3 py-2">
-                    <input type="checkbox" className="rounded"
+                    {isTicketStaff && (
+                    <input type="checkbox" className="rounded" aria-label="Select all tickets"
                       checked={selected_ids.size === tickets.length && tickets.length > 0}
                       onChange={e => setSelectedIds(e.target.checked ? new Set(tickets.map(t => t.id)) : new Set())} />
+                    )}
                   </th>
                   {['ID','Title','Type','Priority','Status','SLA','Assignee','Due','Created'].map(h => (
                     <th key={h} className="px-3 py-2 text-left text-xs font-medium text-gray-600 dark:text-slate-400 whitespace-nowrap">{h}</th>
@@ -899,9 +912,11 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                   <tr key={t.id} onClick={() => openTicket(t)}
                     className={`cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-slate-800/40 ${selected?.id === t.id ? 'bg-gray-50 dark:bg-slate-800/60' : ''}`}>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" className="rounded"
+                      {isTicketStaff && (
+                      <input type="checkbox" className="rounded" aria-label={`Select ${t.ticket_number}`}
                         checked={selected_ids.has(t.id)}
                         onChange={e => setSelectedIds(prev => { const s = new Set(prev); e.target.checked ? s.add(t.id) : s.delete(t.id); return s; })} />
+                      )}
                     </td>
                     <td className="px-3 py-2 text-gray-600 dark:text-slate-400 text-xs whitespace-nowrap font-mono">{t.ticket_number}</td>
                     <td className="px-3 py-2 max-w-[260px]">
@@ -928,9 +943,11 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     </td>
                     <td className="px-3 py-2 text-slate-500 text-xs whitespace-nowrap">{fmt(t.created_at)}</td>
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
-                      <button onClick={e => handleDelete(t.id, e)} className="p-1 text-slate-600 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors">
+                      {canDeleteTickets && (
+                      <button onClick={e => handleDelete(t.id, e)} aria-label={`Delete ${t.ticket_number}`} className="p-1 text-slate-600 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors">
                         <Trash2 size={13}/>
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -954,7 +971,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                       e.preventDefault();
                       setDragOverColumn(null);
                       const ticketId = e.dataTransfer.getData('ticketId');
-                      if (!ticketId) return;
+                      if (!isTicketStaff || !ticketId) return;
                       updateTicket(ticketId, {status: col}).then(updated => {
                         setTickets(prev => prev.map(t => t.id === ticketId ? updated : t));
                         if (selected?.id === ticketId) setSelected(updated);
@@ -968,10 +985,10 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
                     <div className={`flex flex-col gap-2 overflow-y-auto flex-1 min-h-[60px] rounded-xl transition-colors ${isOver ? 'bg-teal-100 dark:bg-teal-900/10 ring-1 ring-teal-700/40' : ''}`}>
                       {colTickets.map(t => (
                         <div key={t.id}
-                          draggable={true}
+                          draggable={isTicketStaff}
                           onDragStart={e => { e.dataTransfer.setData('ticketId', t.id); e.dataTransfer.effectAllowed = 'move'; }}
                           onClick={() => openTicket(t)}
-                          className={`bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-teal-600/40 transition-all ${selected?.id===t.id ? 'border-teal-600/50' : ''}`}>
+                          className={`bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl p-3 ${isTicketStaff ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} hover:border-teal-600/40 transition-all ${selected?.id===t.id ? 'border-teal-600/50' : ''}`}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[10px] font-mono text-slate-500">{t.ticket_number}</span>
                             <PriorityBadge p={t.priority}/>
@@ -1585,6 +1602,7 @@ const InternalTicketsDashboard: React.FC<{ currentUserEmail?: string }> = ({ cur
           onCreate={t => { setTickets(prev => [t, ...prev]); setSelected(t); setActiveTab('details'); }}
           templates={templates}
           fieldSchema={fieldSchema}
+          isTicketStaff={isTicketStaff}
         />
       )}
 
