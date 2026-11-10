@@ -560,7 +560,7 @@ Plans:
   4. When the language model is unavailable or only the mock provider is active, the ticket is escalated and no placeholder answer is ever posted.
   5. Answers are generated asynchronously, one at a time, with timeouts sized for the CPU-only server, and the real response time is measured on it; a starter set of general IT help-desk articles (password reset, VPN, printer, agent tray app) can be seeded into a tenant's knowledge base.
 
-**Plans**: 36/36 plans executed: 23 in 6 waves, a gap round of 6 plans in 5 waves (executed), and a second gap round of 7 plans in 7 waves for UAT gap G-85-4 (planned)
+**Plans**: 36/41 plans executed: 23 in 6 waves, a gap round of 6 plans in 5 waves (executed), a second gap round of 7 plans in 7 waves for UAT gap G-85-4 (executed), and a third gap round of 5 plans in 5 waves for UAT gaps G-85-3, G-85-4b and G-85-5 (planned)
 
 Plans:
 **Wave 1**
@@ -614,6 +614,13 @@ Plans:
 - [x] 85-34-PLAN.md — Staff-only ticket actions (bulk, edit, links, work log, approve, reject, escalate, merge, watchers, attachment delete) *(after 85-33)*
 - [x] 85-35-PLAN.md — Desk drafts and cited-article staff branch for staff only; the knowledge-gap list for staff; one structure test over every ticket route *(after 85-34)*
 - [x] 85-36-PLAN.md — The whole Phase 85 gate on the second gap round; CR-501 and WR-502 recorded fixed, AR-85-01/-04/-09 re-recorded, D-38..D-41, VALIDATION rows *(after all)*
+
+**Gap closure 3 (UAT round 3: G-85-3, G-85-4b, G-85-5; user decision 2026-11-10 to fix WR-602 and WR-603):** 5 plans in 5 waves, run in order (they share the git index for the user-WIP staging)
+- [ ] 85-37-PLAN.md — A reply that cites an article's step numbers keeps only the given citation (the printer starter is drafted, not handed off); articles reach the model as A1..An (G-85-3)
+- [ ] 85-38-PLAN.md — A refused answer names its failing output rule in the staff note and the ledger row, never to the requester; live re-check on llama3.2:3b: the DESK-03 sets and the printer answer 3/3 (G-85-3) *(after 85-37)*
+- [ ] 85-39-PLAN.md — A requester's new ticket keeps none of the staff-only fields (assignee, group, watchers, approval, SLA, due date), also via templates (WR-603); audience-tagged notices are never pushed on the tenant socket, pending-agent notices included (WR-602) (G-85-5) *(after 85-38)*
+- [ ] 85-40-PLAN.md — The Tickets screen hides staff-only controls from requesters (manage:tickets) and every staff action shows its failure (IN-604) (G-85-4b) *(after 85-39)*
+- [ ] 85-41-PLAN.md — The whole Phase 85 gate on the third gap round; WR-602, WR-603, IN-604 recorded fixed, AR-85-11 re-recorded, D-42 and D-43, VALIDATION rows *(after all)*
 
 **UI hint**: yes
 **Research**: Needed (`/gsd-plan-phase --research-phase 85`) — measure `llama3.2:3b` CPU tokens per second once Ollama exists; calibrate the retrieval threshold; build prompt-injection and escalation eval sets.
