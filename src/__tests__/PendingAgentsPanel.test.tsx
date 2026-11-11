@@ -149,7 +149,8 @@ describe('PendingAgentsPanel Phase 88 holds', () => {
       .mockResolvedValue(list(true, []));
     render(<PendingAgentsPanel tenantId={null} />);
     await waitFor(() => screen.getByText('NET-LT-1'));
-    expect(screen.getByText(/Leave empty to allow only 198.51.100.9/)).toBeTruthy();
+    expect(screen.getByText((_, el) => el?.id === 'range-help-agent-n'
+      && /^Leave empty to allow only 198\.51\.100\.9\. A range must contain it and be at most a \/24 \(IPv6: \/48\)\.$/.test(el.textContent || ''))).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Allow network for NET-LT-1'));
     await waitFor(() => expect(authFetch).toHaveBeenCalledWith('/api/agents/pending/agent-n/approve',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ raiseLimitBy: 0 }) })));
@@ -191,7 +192,8 @@ describe('PendingAgentsPanel Phase 88 holds', () => {
     authFetch.mockResolvedValueOnce(list(true, [NEW_NET]))
       .mockResolvedValueOnce(fail(409, { error: 'no_free_seat: the tenant has no free agent seat',
         license: { maxAgents: 5, seatsUsed: 5, seatsAvailable: 0 } }))
-      .mockResolvedValue(ok({ networkAllowed: true, network: '198.51.100.0/24' }));
+      .mockResolvedValueOnce(ok({ networkAllowed: true, network: '198.51.100.0/24' }))
+      .mockResolvedValue(list(true, []));
     render(<PendingAgentsPanel tenantId={null} />);
     await waitFor(() => screen.getByText('NET-LT-1'));
     fireEvent.change(screen.getByLabelText('Range (optional)'), { target: { value: '198.51.100.0/24' } });
