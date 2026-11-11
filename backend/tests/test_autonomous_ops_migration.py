@@ -142,7 +142,7 @@ def test_migration_is_discovered_by_the_runner():
 def _tenant_payload():
     import tenant_endpoints
     return tenant_endpoints.TenantCreate(name="Hook Co", subscriptionTier="Free", maxAgents=5,
-                                         enabledFeatures=["view:overview"])
+                                         enabledFeatures=["view:dashboard"])
 
 
 def _super():
