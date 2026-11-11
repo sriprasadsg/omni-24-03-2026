@@ -21,11 +21,12 @@ from fastapi import HTTPException
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
+import cross_tenant
 import licensing
 import network_rules
 import seat_identity
 from hold_reasons import (  # noqa: F401  (re-exported: callers and tests import these from here)
-    REASON_DUPLICATE_HARDWARE, REASON_NEW_NETWORK, REASON_SEAT_LIMIT, reason_text, refusal_text)
+    REASON_CROSS_TENANT, REASON_DUPLICATE_HARDWARE, REASON_NEW_NETWORK, REASON_SEAT_LIMIT, reason_text, refusal_text)
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ ALERT_WINDOW = timedelta(minutes=60)
 PLATFORM_TENANT_ID = "platform-admin"
 TENANT_ADMIN_AUDIENCE = "tenant_admins"
 
-_PENDING_FIELDS_UNSET = {"pendingReason": "", "pendingSince": "", "pendingAlertedAt": ""}
+_PENDING_FIELDS_UNSET = {"pendingReason": "", "pendingSince": "", "pendingAlertedAt": "", "crossTenant": ""}
 
 
 def _raw(db):
@@ -394,6 +395,8 @@ async def approve(db, agent_id: str, actor: str, raise_limit_by: int = 0,
     agent = await _undecided(raw, agent_id)
     tenant_id = agent["tenantId"]
     cidr = _network_to_allow(agent, widen_to)
+    if await cross_tenant.before_approval(db, agent):
+        raise DecisionError(409, "reason_changed: this computer is enrolled in another organization; review it again")
     if raise_limit_by:
         await licensing.ensure_license(db, tenant_id)
         tenant = await raw.tenants.find_one({"id": tenant_id}, {"_id": 0, "partnerId": 1, "license": 1, "maxAgents": 1})
@@ -433,6 +436,7 @@ async def approve(db, agent_id: str, actor: str, raise_limit_by: int = 0,
     if agent["status"] == REJECTED and denyable(agent.get("seatKey")):
         await raw.agent_denylist.delete_one({"tenantId": tenant_id, "seatKey": agent["seatKey"]})
     forget_status(agent_id)
+    await cross_tenant.after_admission(db, agent, actor)
     if agent.get("enrollmentGroupId"):  # the install key's default group (spec C4)
         import license_rules
         await license_rules.join_group(db, tenant_id, agent["enrollmentGroupId"], agent_id, actor)
@@ -467,7 +471,7 @@ async def reject(db, agent_id: str, actor: str) -> Dict[str, Any]:
     if res.modified_count != 1:
         raise DecisionError(409, "Agent was decided by someone else; refresh")
     # A duplicate's seat key is the live agent's too: denylisting it would lock that agent out.
-    if denyable(agent.get("seatKey")) and agent.get("pendingReason") != REASON_DUPLICATE_HARDWARE:
+    if denyable(agent.get("seatKey")) and agent.get("pendingReason") not in (REASON_DUPLICATE_HARDWARE, REASON_CROSS_TENANT):
         try:
             await raw.agent_denylist.insert_one({
                 "tenantId": agent["tenantId"], "seatKey": agent["seatKey"], "agentId": agent_id,
@@ -481,13 +485,14 @@ async def reject(db, agent_id: str, actor: str) -> Dict[str, Any]:
 
 
 async def list_not_admitted(db, tenant_id: Optional[str], status: Optional[str] = None,
-                            reason: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
-    """Pending/Rejected agents, newest first; all tenants when ``tenant_id`` is None."""
+                            reason: Optional[str] = None, limit: int = 500, platform_view: bool = False) -> List[Dict[str, Any]]:
+    """Pending/Rejected agents, newest first; all tenants when ``tenant_id`` is None. ``crossTenant`` (the other
+    organization of a cross-tenant hold) is projected out unless ``platform_view`` (D-36)."""
     query: Dict[str, Any] = {"status": status if status in NOT_ADMITTED else {"$in": sorted(NOT_ADMITTED)}}
     if tenant_id:
         query["tenantId"] = tenant_id
     if reason:
         query["pendingReason"] = reason
-    projection = {"_id": 0, "agentSecretHash": 0, "uninstallProtection": 0}
+    projection = {"_id": 0, "agentSecretHash": 0, "uninstallProtection": 0, **({} if platform_view else {"crossTenant": 0})}
     cursor = _raw(db).agents.find(query, projection).sort("lastSeen", -1).limit(limit)
     return await cursor.to_list(length=limit)

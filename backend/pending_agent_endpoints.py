@@ -71,7 +71,7 @@ async def list_pending_agents(
     scope = tenant_id if platform else getattr(current_user, "tenant_id", None)
     if not platform and not scope:
         raise HTTPException(status_code=403, detail="Tenant context required")
-    agents = await pending_agents.list_not_admitted(db, scope, status, reason)
+    agents = await pending_agents.list_not_admitted(db, scope, status, reason, platform_view=platform)
     tenants: Dict[str, Any] = {}
     for tid in sorted({a.get("tenantId") for a in agents if a.get("tenantId")} | ({scope} if scope else set())):
         tenant = await getattr(db, "_db", db).tenants.find_one({"id": tid}, {"_id": 0, "id": 1, "name": 1})

@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 import audit_ledger
 import licensing
 import seat_identity
+from hold_reasons import REASON_CROSS_TENANT
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ MOVED_REASONS = ("moved", "moved_silent")
 PLATFORM_TENANT_ID = "platform-admin"
 _PROJECTION = {"_id": 0, "agentSecretHash": 0, "uninstallProtection": 0}
 _MAX_COPIES = 50
+_MOVE_LIMIT = 20
 
 
 def _raw(db):
@@ -157,4 +159,48 @@ async def retire_silent_copies(db, tenant: Dict[str, Any], hardware: Dict[str, A
         except Exception as exc:
             logger.error("Retiring silent copy %s of a machine enrolled in %s failed: %s",
                          owner.get("id"), tenant.get("id"), exc)
+    return retired
+
+
+async def before_approval(db, agent: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Re-check a held machine before it is approved for any reason but the cross-tenant one (Pitfall 6): when it
+    is live in another tenant now, a Pending hold becomes ``cross_tenant_duplicate`` (platform alert included) and
+    the detail is returned so the caller refuses the approval. None when nothing is live elsewhere."""
+    if agent.get("pendingReason") == REASON_CROSS_TENANT:
+        return None  # the decider has seen it; approving it moves the machine (D-37)
+    detail = await hold_detail(db, agent["tenantId"], agent.get("hardware") or {})
+    if detail is None:
+        return None
+    raw = _raw(db)
+    res = await raw.agents.update_one({"id": agent["id"], "status": "Pending"},
+                                      {"$set": {"pendingReason": REASON_CROSS_TENANT, "crossTenant": detail}})
+    if res.modified_count == 1:
+        tenant = await raw.tenants.find_one({"id": agent["tenantId"]}, {"_id": 0, "id": 1, "name": 1})
+        await alert_platform_hold(db, tenant or {"id": agent["tenantId"]}, agent, detail)
+    return detail
+
+
+async def after_admission(db, agent: Dict[str, Any], actor: str) -> int:
+    """After an approval admitted ``agent``: the machine now belongs to its tenant. A cross-tenant hold retires
+    every seat-holding copy elsewhere as ``moved`` (D-37); any other approval retires the silent ones as
+    ``moved_silent`` (D-38). Returns how many were retired; a failure on one copy is logged, never raised."""
+    raw = _raw(db)
+    tenant_id = agent["tenantId"]
+    hardware = agent.get("hardware") or {}
+    tenant = await raw.tenants.find_one({"id": tenant_id}, {"_id": 0, "id": 1, "name": 1}) or {"id": tenant_id}
+    retired = 0
+    if agent.get("pendingReason") == REASON_CROSS_TENANT:
+        flt = seat_identity.hardware_match_other_tenants_filter(hardware, tenant_id, licensing.NON_SEAT_STATUSES)
+        owners = await raw.agents.find(flt, _PROJECTION).limit(_MOVE_LIMIT).to_list(length=_MOVE_LIMIT) if flt else []
+        for owner in owners:
+            try:
+                if await retire_copy(db, owner, reason="moved", actor=actor, to_tenant=tenant, to_agent_id=agent["id"]):
+                    retired += 1
+            except Exception as exc:
+                logger.error("Retiring copy %s of a machine moved to %s failed: %s", owner.get("id"), tenant_id, exc)
+    else:
+        retired = await retire_silent_copies(db, tenant, hardware, agent["id"], actor)
+    import machine_identity  # lazy, as in agent_registry_endpoints
+    await machine_identity.remember(db, tenant_id, agent.get("seatKey") or seat_identity.seat_key(
+        hardware, agent.get("deviceId")), agent["id"], agent.get("hostname"))
     return retired
